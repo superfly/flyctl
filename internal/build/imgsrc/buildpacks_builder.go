@@ -10,6 +10,7 @@ import (
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -98,6 +99,9 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 
 	if err != nil {
+		if dockerFactory.IsRemote() {
+			metrics.SendNoData("remote_builder_failure")
+		}
 		return nil, "", err
 	}
 

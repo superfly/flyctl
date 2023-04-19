@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/go-querystring/query"
 	"github.com/samber/lo"
+	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -142,13 +143,22 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 	return
 }
 
-func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.Machine, error) {
+func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {
 	var endpoint string
 	if builder.ID != "" {
 		endpoint = fmt.Sprintf("/%s", builder.ID)
 	}
 
-	out := new(api.Machine)
+	out = new(api.Machine)
+
+	metrics.Started("machine_launch")
+	sendUpdateMetrics := metrics.StartTiming("machine_launch")
+	defer func() {
+		metrics.Status("machine_launch", err == nil)
+		if err == nil {
+			sendUpdateMetrics()
+		}
+	}()
 
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
@@ -157,7 +167,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*a
 	return out, nil
 }
 
-func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.Machine, error) {
+func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (out *api.Machine, err error) {
 	headers := make(map[string][]string)
 
 	if nonce != "" {
@@ -165,8 +175,16 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	}
 
 	endpoint := fmt.Sprintf("/%s", builder.ID)
+	out = new(api.Machine)
 
-	out := new(api.Machine)
+	metrics.Started("machine_update")
+	sendUpdateMetrics := metrics.StartTiming("machine_update")
+	defer func() {
+		metrics.Status("machine_update", err == nil)
+		if err == nil {
+			sendUpdateMetrics()
+		}
+	}()
 
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, headers); err != nil {
 		return nil, fmt.Errorf("failed to update VM %s: %w", builder.ID, err)
@@ -174,10 +192,14 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	return out, nil
 }
 
-func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStartResponse, error) {
+func (f *Client) Start(ctx context.Context, machineID string) (out *api.MachineStartResponse, err error) {
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
+	out = new(api.MachineStartResponse)
 
-	out := new(api.MachineStartResponse)
+	metrics.Started("machine_start")
+	defer func() {
+		metrics.Status("machine_start", err == nil)
+	}()
 
 	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {
 		return nil, fmt.Errorf("failed to start VM %s: %w", machineID, err)

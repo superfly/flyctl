@@ -83,3 +83,10 @@ func SendJson(metricSlug, jsonValue string) {
 	// TODO(ali): Should this ping sentry when it fails?
 	_ = sendImpl(metricSlug, jsonValue)
 }
+
+func StartTiming(metricSlug string) func() {
+	start := time.Now()
+	return func() {
+		Send(metricSlug+"/duration", map[string]float64{"duration_seconds": time.Since(start).Seconds()})
+	}
+}

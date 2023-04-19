@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -170,12 +171,17 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (*dockerclient.Client, error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (c *dockerclient.Client, err error) {
 	startedAt := time.Now()
+
+	defer func() {
+		if err != nil {
+			metrics.SendNoData("remote_builder_failure")
+		}
+	}()
 
 	var host string
 	var app *api.App
-	var err error
 	var machine *api.GqlMachine
 	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
