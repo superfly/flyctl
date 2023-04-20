@@ -12,6 +12,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
@@ -58,7 +59,11 @@ func runUpdate(ctx context.Context) error {
 		return err
 	}
 
-	return printVersionUpdate(ctx, buildinfo.Version(), homebrew)
+	err = printVersionUpdate(ctx, buildinfo.Version(), homebrew)
+	if err != nil {
+		terminal.Debugf("Error printing version update: %v", err)
+	}
+	return nil
 }
 
 // printVersionUpdate prints "Updated flyctl [oldVersion] -> [newVersion]"
