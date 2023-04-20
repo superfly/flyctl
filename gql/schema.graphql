@@ -5275,7 +5275,7 @@ type Identity {
 
 type Image {
   absoluteRef: String!
-  compressedSize: Int!
+  compressedSize: BigInt!
   config: JSON!
   configDigest: JSON!
   createdAt: ISO8601DateTime!
