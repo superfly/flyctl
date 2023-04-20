@@ -211,5 +211,10 @@ func (cfg *Config) URL() (*url.URL, error) {
 			}
 		}
 	}
+
+	if protocol == "http" && cfg.HTTPService != nil && cfg.HTTPService.ForceHTTPS {
+		protocol = "https"
+	}
+
 	return url.Parse(protocol + "://" + cfg.AppName + ".fly.dev")
 }
