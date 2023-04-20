@@ -299,8 +299,6 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		}
 	}
 
-	fmt.Printf("%+v", params.PostgresConfiguration)
-
 	if customConfig {
 		// Resolve cluster size
 		if params.PostgresConfiguration.InitialClusterSize == 0 {
