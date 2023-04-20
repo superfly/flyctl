@@ -89,14 +89,18 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	md.volumes = map[string][]api.Volume{
-		"data": {{ID: "vol_12345", Name: "data"}},
+		"data": {
+			{ID: "vol_10001", Name: "data"},
+			{ID: "vol_10002", Name: "data"},
+			{ID: "vol_10003", Name: "data"},
+		},
 	}
 
 	// New machine must get a volume attached
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
-	assert.Equal(t, api.MachineMount{Volume: "vol_12345", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+	assert.Equal(t, api.MachineMount{Volume: "vol_10001", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// The machine already has a volume that matches fly.toml [mounts] section
 	li, err = md.launchInputForUpdate(&api.Machine{
@@ -144,7 +148,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, "", li.ID)
-	assert.Equal(t, api.MachineMount{Volume: "vol_12345", Path: "/data", Name: "data"}, li.Config.Mounts[0])
+	assert.Equal(t, api.MachineMount{Volume: "vol_10002", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
 	md.appConfig.Mounts = nil
