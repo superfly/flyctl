@@ -8,27 +8,33 @@ ENV PYTHONUNBUFFERED 1
 RUN mkdir -p /code
 
 WORKDIR /code
-{{ if .pipenv }}
+
+{{ if .pipenv -}}
 RUN pip install pipenv
 COPY Pipfile Pipfile.lock /code/
 RUN pipenv install --deploy --system
-{{ else if .poetry }}
+{{ else if .poetry -}}
 RUN pip install poetry
 COPY pyproject.toml poetry.lock /code/
 RUN poetry config virtualenvs.create false
 RUN poetry install --only main --no-root --no-interaction
-{{ else }}
+{{ else -}}
 COPY requirements.txt /tmp/requirements.txt
 RUN set -ex && \
     pip install --upgrade pip && \
     pip install -r /tmp/requirements.txt && \
     rm -rf /root/.cache/
-{{ end }}
+{{ end -}}
+
 COPY . /code
 
 RUN python manage.py collectstatic --noinput
 
 EXPOSE 8000
 
+{{ if .wsgiFound -}}
+CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "{{ .wsgiName }}.wsgi"]
+{{ else -}}
 # TODO: replace demo.wsgi with <project_name>.wsgi
 CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "demo.wsgi"]
+{{ end -}}

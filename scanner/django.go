@@ -1,7 +1,10 @@
 package scanner
 
 import (
+	"fmt"
+	"github.com/mattn/go-zglob"
 	"github.com/superfly/flyctl/helpers"
+	"path"
 )
 
 // setup django with a postgres database
@@ -44,7 +47,26 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	    vars["venv"] = true
 	}
 
-	s.Files = templatesExecute("templates/django", vars)
+    wsgis, err := zglob.Glob(`./**/wsgi.py`)
+
+    if err == nil && len(wsgis) > 0 {
+        wsgiLen := len(wsgis)
+        dirPath, _ := path.Split(wsgis[wsgiLen-1])
+        dirName := path.Base(dirPath)
+        vars["wsgiName"] = dirName;
+        vars["wsgiFound"] = true;
+        if wsgiLen > 1 {
+            s.DeployDocs = fmt.Sprintf(`
+Multiple wsgi.py files were found!
+
+Before proceeding, make sure '%s' is the module containing a WSGI application object named 'application'.
+
+This module is used on Dockerfile to start the Gunicorn server process.
+`, dirPath)
+        }
+    }
+
+    s.Files = templatesExecute("templates/django", vars)
 
 	// check if project has a postgres dependency
 	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) || checksPass(sourceDir, dirContains("Pipfile", "psycopg2")) || checksPass(sourceDir, dirContains("pyproject.toml", "psycopg2")) {
