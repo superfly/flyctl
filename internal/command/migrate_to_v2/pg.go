@@ -40,6 +40,8 @@ func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error
 		Strategy: api.StringPointer("ROLLING"),
 	}
 
+	m.targetImg = lI.FullImageRef()
+
 	// Set the deployment strategy
 	if val := flag.GetString(ctx, "strategy"); val != "" {
 		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))

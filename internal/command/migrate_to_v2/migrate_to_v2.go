@@ -141,6 +141,7 @@ type v2PlatformMigrator struct {
 	replacedVolumes         map[string]int
 	isPostgres              bool
 	pgConsulUrl             string
+	targetImg               string
 }
 
 type recoveryState struct {
