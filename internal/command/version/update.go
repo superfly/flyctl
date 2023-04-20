@@ -12,6 +12,7 @@ import (
 	"github.com/blang/semver"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
@@ -52,18 +53,33 @@ func runUpdate(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 
+	homebrew := update.IsUnderHomebrew()
+
 	if err = update.UpgradeInPlace(ctx, io, release.Prerelease); err != nil {
 		return err
 	}
 
-	return printVersionUpdate(ctx, buildinfo.Version())
+	err = printVersionUpdate(ctx, buildinfo.Version(), homebrew)
+	if err != nil {
+		terminal.Debugf("Error printing version update: %v", err)
+	}
+	return nil
 }
 
 // printVersionUpdate prints "Updated flyctl [oldVersion] -> [newVersion]"
-func printVersionUpdate(ctx context.Context, oldVersion semver.Version) error {
-	io := iostreams.FromContext(ctx)
+func printVersionUpdate(ctx context.Context, oldVersion semver.Version, homebrew bool) error {
 
-	currentVer, err := getNewVersion(ctx)
+	var (
+		io         = iostreams.FromContext(ctx)
+		currentVer semver.Version
+		err        error
+	)
+
+	if homebrew {
+		currentVer, err = getNewVersionFlyInstaller(ctx)
+	} else {
+		currentVer, err = getNewVersionHomebrew(ctx)
+	}
 	if err != nil {
 		if strings.Contains(err.Error(), "failed to parse version") {
 			// This is probably fine, likely a change between the two versions makes
@@ -75,7 +91,13 @@ func printVersionUpdate(ctx context.Context, oldVersion semver.Version) error {
 	}
 
 	if currentVer.EQ(oldVersion) {
-		fmt.Fprintf(io.ErrOut, "Flyctl was updated, but the flyctl pointed to by '%s' is still version %s.\n", os.Args[0], currentVer.String())
+		var source string
+		if homebrew {
+			source = "homebrew"
+		} else {
+			source = fmt.Sprintf("'%s'", os.Args[0])
+		}
+		fmt.Fprintf(io.ErrOut, "Flyctl was updated, but the flyctl pointed to by %s is still version %s.\n", source, currentVer.String())
 		fmt.Fprintf(io.ErrOut, "Please ensure that your PATH is set correctly!")
 		return nil
 	}
@@ -84,6 +106,8 @@ func printVersionUpdate(ctx context.Context, oldVersion semver.Version) error {
 	return nil
 }
 
+// getNewVersionFlyInstaller queries homebrew for the latest currently installed version of flyctl
+// It parses the output of `brew info flyctl --json`
 func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
 
 	var ver semver.Version
@@ -127,12 +151,8 @@ func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
 	return versionsFlat[len(versionsFlat)-1], nil
 }
 
-// getNewVersion executes [os.Args[0], "version", "--json"] and parses the output into a semver.Version
-func getNewVersion(ctx context.Context) (semver.Version, error) {
-
-	if update.IsUnderHomebrew() {
-		return getNewVersionHomebrew(ctx)
-	}
+// getNewVersionFlyInstaller executes [os.Args[0], "version", "--json"] and parses the output into a semver.Version
+func getNewVersionFlyInstaller(ctx context.Context) (semver.Version, error) {
 
 	var ver semver.Version
 

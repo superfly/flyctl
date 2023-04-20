@@ -68,9 +68,6 @@ func (t *Transport) setDefaults(opts ClientOptions) {
 	if t.Token == "" {
 		t.Token = opts.AccessToken
 	}
-	if t.Ctx == nil {
-		t.Ctx = context.Background()
-	}
 	if t.UserAgent == "" {
 		t.UserAgent = fmt.Sprintf("%s/%s", opts.Name, opts.Version)
 	}
@@ -82,9 +79,9 @@ func (t *Transport) setDefaults(opts ClientOptions) {
 }
 
 func NewClientFromOptions(opts ClientOptions) *Client {
-	transport := &Transport{}
-	if opts.Transport != nil {
-		transport = opts.Transport
+	transport := opts.Transport
+	if transport == nil {
+		transport = &Transport{}
 	}
 	transport.setDefaults(opts)
 
@@ -180,7 +177,6 @@ type Transport struct {
 	UnderlyingTransport http.RoundTripper
 	UserAgent           string
 	Token               string
-	Ctx                 context.Context
 	EnableDebugTrace    bool
 }
 

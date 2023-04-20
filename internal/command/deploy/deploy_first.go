@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -87,6 +88,11 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		return nil
 	}
 
+	// md.setVolumes already queried for existent unattached volumes, do not create more
+	existentVolumes := lo.MapValues(md.volumes, func(vs []api.Volume, _ string) int {
+		return len(vs)
+	})
+
 	// The logic here is to provision one volume per process group that needs it only on the primary region
 	for _, groupName := range md.appConfig.ProcessNames() {
 		groupConfig, err := md.appConfig.Flatten(groupName)
@@ -95,7 +101,12 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 		}
 
 		for _, m := range groupConfig.Mounts {
-			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. See `fly vol extend` to increase its size\n", m.Source, groupName)
+			if v := existentVolumes[m.Source]; v > 0 {
+				existentVolumes[m.Source]--
+				continue
+			}
+
+			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. Use 'fly vol extend' to increase its size\n", m.Source, groupName)
 
 			input := api.CreateVolumeInput{
 				AppID:     md.app.ID,
@@ -105,10 +116,12 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				Encrypted: true,
 			}
 
-			_, err := md.apiClient.CreateVolume(ctx, input)
+			vol, err := md.apiClient.CreateVolume(ctx, input)
 			if err != nil {
 				return fmt.Errorf("failed creating volume: %w", err)
 			}
+
+			md.volumes[m.Source] = append(md.volumes[m.Source], *vol)
 		}
 	}
 	return nil

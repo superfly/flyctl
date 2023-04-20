@@ -133,18 +133,22 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err := md.setMachinesForDeployment(ctx); err != nil {
 		return nil, err
 	}
-	if err := md.setFirstDeploy(ctx); err != nil {
-		return nil, err
-	}
-	if err := md.provisionFirstDeploy(ctx); err != nil {
+	if err := md.setVolumes(ctx); err != nil {
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
 		return nil, err
 	}
-	if err := md.setVolumeConfig(ctx); err != nil {
+	if err := md.setFirstDeploy(ctx); err != nil {
 		return nil, err
 	}
+
+	// Provisioning must come after setVolumes
+	if err := md.provisionFirstDeploy(ctx); err != nil {
+		return nil, err
+	}
+
+	// validations must happen after every else
 	if err := md.validateVolumeConfig(); err != nil {
 		return nil, err
 	}
@@ -178,7 +182,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 		if len(activeMachines) > 0 {
 			return fmt.Errorf(
-				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to list machines and `fly machine update --metadata %s=%s` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
+				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to list machines and `fly machine update --metadata %s=%s <machine id>` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
 				len(activeMachines),
 				api.MachineConfigMetadataKeyFlyPlatformVersion,
 				api.MachineFlyPlatformVersion2,
@@ -206,7 +210,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 	return nil
 }
 
-func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
+func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	if len(md.appConfig.Mounts) == 0 {
 		return nil
 	}
@@ -224,6 +228,16 @@ func (md *machineDeployment) setVolumeConfig(ctx context.Context) error {
 		return v.Name
 	})
 	return nil
+}
+
+func (md *machineDeployment) popVolumeFor(name string) *api.Volume {
+	volumes, ok := md.volumes[name]
+	if !ok {
+		return nil
+	}
+	var vol api.Volume
+	vol, md.volumes[name] = volumes[0], volumes[1:]
+	return &vol
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {

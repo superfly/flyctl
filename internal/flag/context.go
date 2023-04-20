@@ -44,6 +44,11 @@ func GetString(ctx context.Context, name string) string {
 	}
 }
 
+// SetString sets the value of the named string flag ctx carries.
+func SetString(ctx context.Context, name, value string) error {
+	return FromContext(ctx).Set(name, value)
+}
+
 // GetInt returns the value of the named int flag ctx carries. It panics
 // in case ctx carries no flags or in case the named flag isn't an int one.
 func GetInt(ctx context.Context, name string) int {
