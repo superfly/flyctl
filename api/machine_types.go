@@ -461,6 +461,8 @@ type MachineConfig struct {
 	// the standby machine will be started.
 	Standbys []string `json:"standbys,omitempty"`
 
+	StopConfig *StopConfig `json:"stop_config,omitempty"`
+
 	// Deprecated: use Guest instead
 	VMSize string `json:"size,omitempty"`
 	// Deprecated: use Service.Autostart instead
@@ -502,6 +504,11 @@ type MachineInit struct {
 
 type DNSConfig struct {
 	SkipRegistration bool `json:"skip_registration,omitempty"`
+}
+
+type StopConfig struct {
+	Timeout *Duration `json:"timeout,omitempty"`
+	Signal  *Signal   `json:"signal,omitempty"`
 }
 
 type MachineLease struct {
