@@ -155,7 +155,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 }
 
 func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
-	md.isFirstDeploy = !md.app.Deployed || md.machineSet.IsEmpty()
+	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
+	// by checking for any existent machine.
+	// This is not exaustive as the app could still be scaled down to zero but the
+	// workaround works better for now until it is fixed
+	md.isFirstDeploy = !md.app.Deployed && md.machineSet.IsEmpty()
 	return nil
 }
 
