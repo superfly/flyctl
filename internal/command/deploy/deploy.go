@@ -155,10 +155,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 	case err != nil:
 		return err
 	case isV2App:
-		if err = appConfig.EnsureV2Config(); err != nil {
+		if err := appConfig.EnsureV2Config(); err != nil {
 			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
 		}
-		err = deployToMachines(ctx, appConfig, appCompact, img)
+		err := deployToMachines(ctx, appConfig, appCompact, img)
 		if err != nil {
 			return err
 		}
@@ -170,7 +170,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 	}
 
 	url, err := appConfig.URL()
-	if err == nil {
+	if err == nil && url != nil {
 		fmt.Println("Visit your newly deployed app at", url)
 	}
 
