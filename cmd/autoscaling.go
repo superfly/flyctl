@@ -8,6 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/appconfig"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -45,6 +46,17 @@ func runSetParams(commandContext *cmdctx.CmdContext) error {
 func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if app.PlatformVersion == appconfig.MachinesPlatform {
+		printMachinesAutoscalingBanner()
+		return nil
+	}
+
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: cmdCtx.AppName, Enabled: api.BoolPointer(false)}
 
 	cfg, err := cmdCtx.Client.API().UpdateAutoscaleConfig(ctx, newcfg)
@@ -59,6 +71,17 @@ func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 
 func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool) error {
 	ctx := cmdCtx.Command.Context()
+
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if app.PlatformVersion == appconfig.MachinesPlatform {
+		printMachinesAutoscalingBanner()
+		return nil
+	}
 
 	currentcfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -162,4 +185,12 @@ func printScaleConfig(cmdCtx *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
 			fmt.Fprintf(cmdCtx.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
 		}
 	}
+}
+
+func printMachinesAutoscalingBanner() {
+	fmt.Printf(`
+Configuring autoscaling via 'flyctl autoscale' is supported only for apps running on Nomad platform.
+Refer to this post for details on how to enable autoscaling for Apps V2:
+https://community.fly.io/t/increasing-apps-v2-availability/12357
+`)
 }
