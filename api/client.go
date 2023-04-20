@@ -45,7 +45,6 @@ func NewClient(accessToken, name, version string, logger Logger) *Client {
 	transport := &Transport{
 		UnderlyingTransport: http.DefaultTransport,
 		Token:               accessToken,
-		Ctx:                 context.Background(),
 		EnableDebugTrace:    !slices.Contains([]string{"", "0", "false"}, os.Getenv("FLY_FORCE_TRACE")),
 		UserAgent:           fmt.Sprintf("%s/%s", name, version),
 	}
@@ -145,7 +144,6 @@ type Transport struct {
 	UnderlyingTransport http.RoundTripper
 	UserAgent           string
 	Token               string
-	Ctx                 context.Context
 	EnableDebugTrace    bool
 }
 
