@@ -232,7 +232,7 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 	cfg.HTTPService = nil
 	got, err = cfg.ToMachineConfig("", nil)
 	assert.Nil(t, got)
-	assert.ErrorContains(t, err, "has no internal port set")
+	assert.ErrorContains(t, err, "has no port set")
 }
 
 func TestToReleaseMachineConfig_processGroupsAndMounts(t *testing.T) {

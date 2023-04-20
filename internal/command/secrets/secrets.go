@@ -64,7 +64,7 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 	}
 
 	if !app.Deployed {
-		fmt.Fprint(out, "Secrets are staged for the first deployment")
+		fmt.Fprintln(out, "Secrets are staged for the first deployment")
 		return
 	}
 
