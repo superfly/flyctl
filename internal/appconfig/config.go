@@ -200,21 +200,35 @@ func (cfg *Config) BuildStrategies() []string {
 }
 
 func (cfg *Config) URL() (*url.URL, error) {
+	hasHttp := false
 	protocol := "http"
-	for _, service := range cfg.Services {
-		for _, port := range service.Ports {
-			for _, handler := range port.Handlers {
-				if handler == "tls" {
-					protocol = "https"
-					break
+	if cfg.HTTPService != nil {
+		hasHttp = true
+		if cfg.HTTPService.ForceHTTPS {
+			protocol = "https"
+		}
+	} else {
+		for _, service := range cfg.Services {
+			for _, port := range service.Ports {
+				hasTls := false
+				for _, handler := range port.Handlers {
+					if handler == "tls" {
+						hasTls = true
+					} else if handler == "http" {
+						hasHttp = true
+					}
+					if *port.Port == 443 && hasHttp && hasTls {
+						protocol = "https"
+						break
+					}
 				}
 			}
 		}
 	}
 
-	if protocol == "http" && cfg.HTTPService != nil && cfg.HTTPService.ForceHTTPS {
-		protocol = "https"
+	if hasHttp {
+		return url.Parse(protocol + "://" + cfg.AppName + ".fly.dev")
+	} else {
+		return nil, nil
 	}
-
-	return url.Parse(protocol + "://" + cfg.AppName + ".fly.dev")
 }

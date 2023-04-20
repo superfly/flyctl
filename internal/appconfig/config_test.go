@@ -217,15 +217,23 @@ func TestURLCalculation(t *testing.T) {
 	cfg := NewConfig()
 	cfg.AppName = "test"
 	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
-		{Port: &port80, Handlers: []string{"http"}},
+		{Port: &port80, Handlers: []string{"tls"}},
 	}}}
 	url, _ := cfg.URL()
+	assert.Equal(t, *url.URL((*url.URL)(nil)), url)
+
+	cfg = NewConfig()
+	cfg.AppName = "test"
+	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port80, Handlers: []string{"http"}},
+	}}}
+	url, _ = cfg.URL()
 	assert.Equal(t, http, url)
 
 	cfg = NewConfig()
 	cfg.AppName = "test"
 	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
-		{Port: &port443, Handlers: []string{"tls"}},
+		{Port: &port443, Handlers: []string{"tls", "http"}},
 	}}}
 	url, _ = cfg.URL()
 	assert.Equal(t, https, url)
