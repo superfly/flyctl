@@ -163,6 +163,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		err = deployToNomad(ctx, appConfig, appCompact, img)
 	}
 
+	if err != nil {
+		return err
+	}
+
 	url, err := appConfig.URL()
 	if err == nil {
 		fmt.Println("Visit your newly deployed app at", url)
