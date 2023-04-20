@@ -47,6 +47,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", err
 	}
 
+	defer docker.Close() // skipcq: GO-S2307
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
 	packClient, err := pack.NewClient(pack.WithDockerClient(docker), pack.WithLogger(newPackLogger(streams.Out)))
