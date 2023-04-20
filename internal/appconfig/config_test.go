@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -204,4 +205,36 @@ func TestHasNonHttpAndHttpsStandardServices(t *testing.T) {
 		{Port: &port443, Handlers: []string{"tls", "http"}},
 	}}}
 	assert.True(t, cfg6.HasNonHttpAndHttpsStandardServices())
+}
+
+func TestURLCalculation(t *testing.T) {
+	port80 := 80
+	port443 := 443
+
+	http, _ := url.Parse("http://test.fly.dev")
+	https, _ := url.Parse("https://test.fly.dev")
+
+	cfg := NewConfig()
+	cfg.AppName = "test"
+	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port80, Handlers: []string{"http"}},
+	}}}
+	url, _ := cfg.URL()
+	assert.Equal(t, http, url)
+
+	cfg = NewConfig()
+	cfg.AppName = "test"
+	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+		{Port: &port443, Handlers: []string{"tls"}},
+	}}}
+	url, _ = cfg.URL()
+	assert.Equal(t, https, url)
+
+	cfg = NewConfig()
+	cfg.AppName = "test"
+	cfg.HTTPService = &HTTPService{
+		ForceHTTPS: true,
+	}
+	url, _ = cfg.URL()
+	assert.Equal(t, https, url)
 }
