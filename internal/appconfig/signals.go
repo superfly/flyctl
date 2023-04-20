@@ -18,5 +18,5 @@ var signalSyscallMap = map[string]*api.Signal{
 	"SIGSEGV": {Signal: syscall.SIGSEGV},
 	"SIGTERM": {Signal: syscall.SIGTERM},
 	"SIGTRAP": {Signal: syscall.SIGTRAP},
-	"SIGUSR1": {Signal: syscall.SIGUSR1},
+	"SIGUSR1": {Signal: syscall.Signal(0xa)}, // SIGUSR1 Doesn't exist on windows
 }
