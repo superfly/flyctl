@@ -327,9 +327,9 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*api.Regi
 		regions = sortAndCleanRegions(availableRegions, params.ExcludedRegionCodes)
 	}
 
-	slug := config.FromContext(ctx).Region
+	slug := flag.GetString(ctx, "region")
 	if slug == "" {
-		slug = flag.GetString(ctx, "region")
+		slug = config.FromContext(ctx).Region
 	}
 
 	switch {
