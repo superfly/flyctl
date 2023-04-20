@@ -36,10 +36,11 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
-		if len(md.volumes[mount0.Name]) == 0 {
+		vol := md.popVolumeFor(mount0.Name)
+		if vol == nil {
 			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s'", processGroup, mount0.Name)
 		}
-		mount0.Volume = md.volumes[mount0.Name][0].ID
+		mount0.Volume = vol.ID
 	}
 
 	if len(standbyFor) > 0 {
@@ -90,10 +91,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			// As we can't change the volume for a running machine, the only
 			// way is to destroy the current machine and launch a new one with the new volume attached
 			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mMounts[0].Name)
-			if len(md.volumes[mMounts[0].Name]) == 0 {
+			vol := md.popVolumeFor(mMounts[0].Name)
+			if vol != nil {
 				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s'", processGroup, mMounts[0].Name)
 			}
-			mMounts[0].Volume = md.volumes[mMounts[0].Name][0].ID
+			mMounts[0].Volume = vol.ID
 			mID = "" // Forces machine replacement
 		case mMounts[0].Path != oMounts[0].Path:
 			// The volume is the same but its mount path changed. Not a big deal.
@@ -112,10 +114,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		// and it is not possible to attach a volume to an existing machine.
 		// The volume could be in a different zone than the machine.
 		mount0 := &mMounts[0]
-		if len(md.volumes[mount0.Name]) == 0 {
+		vol := md.popVolumeFor(mount0.Name)
+		if vol == nil {
 			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s'", processGroup, mMounts[0].Name)
 		}
-		mount0.Volume = md.volumes[mount0.Name][0].ID
+		mount0.Volume = vol.ID
 		mID = "" // Forces machine replacement
 	}
 

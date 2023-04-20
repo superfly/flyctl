@@ -230,6 +230,16 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	return nil
 }
 
+func (md *machineDeployment) popVolumeFor(name string) *api.Volume {
+	volumes, ok := md.volumes[name]
+	if !ok {
+		return nil
+	}
+	var vol api.Volume
+	vol, md.volumes[name] = volumes[0], volumes[1:]
+	return &vol
+}
+
 func (md *machineDeployment) validateVolumeConfig() error {
 	machineGroups := lo.GroupBy(
 		lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *api.Machine {

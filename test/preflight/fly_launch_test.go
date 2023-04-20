@@ -317,3 +317,29 @@ func TestFlyLaunch_case09(t *testing.T) {
 	require.Equal(f, 0, lo.CountBy(groups["task"], hasServices))
 	require.Equal(f, 0, lo.CountBy(groups["disk"], hasServices))
 }
+
+// test first deploy with single mount for multiple processes
+func TestFlyLaunch_case10(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.WriteFlyToml(`
+[build]
+  image = "nginx"
+
+[processes]
+	app = ""
+	task = ""
+
+[[mounts]]
+  source = "data"
+	destination = "/data"
+	processes = ["app", "task"]
+`)
+
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	ml := f.MachinesList(appName)
+	require.Equal(f, 2, len(ml))
+	vl := f.VolumeList(appName)
+	require.Equal(f, 2, len(vl))
+}

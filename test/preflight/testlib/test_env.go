@@ -234,6 +234,15 @@ func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
 	return machList
 }
 
+func (f *FlyctlTestEnv) VolumeList(appName string) []*api.Volume {
+	cmdResult := f.Fly("volume list --app %s --json", appName)
+	var list []*api.Volume
+	if err := json.Unmarshal(cmdResult.stdOut.Bytes(), &list); err != nil {
+		f.t.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
+	}
+	return list
+}
+
 func (f *FlyctlTestEnv) WriteFile(path string, format string, vals ...any) {
 	fn := filepath.Join(f.WorkDir(), path)
 	content := fmt.Sprintf(format, vals...)
