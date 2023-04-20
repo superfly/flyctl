@@ -269,8 +269,6 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 
 	var config *PostgresConfiguration
 
-	fmt.Printf("Pre-custom: %+v", params.PostgresConfiguration)
-
 	if !customConfig {
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
