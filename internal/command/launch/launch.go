@@ -305,6 +305,30 @@ func run(ctx context.Context) (err error) {
 		if confirm && err == nil {
 			deployNow = true
 		}
+
+		// Reload and validate the app config in case the user edited it before confirming
+		if deployNow {
+			path := appConfig.ConfigFilePath()
+			newCfg, err := appconfig.LoadConfig(path)
+			if err != nil {
+				return fmt.Errorf("failed to reload configuration file %s: %w", path, err)
+			}
+
+			if appConfig.ForMachines() {
+				if err := newCfg.SetMachinesPlatform(); err != nil {
+					return fmt.Errorf("failed to parse fly.toml, check the configuration format: %w", err)
+				}
+			}
+			appConfig = newCfg
+		}
+	}
+
+	err, extraInfo := appConfig.Validate(ctx)
+	if extraInfo != "" {
+		fmt.Fprintf(io.ErrOut, extraInfo)
+	}
+	if err != nil {
+		return fmt.Errorf("invalid configuration file: %w", err)
 	}
 
 	if deployNow {
