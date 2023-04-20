@@ -82,11 +82,9 @@ func (t *Transport) setDefaults(opts ClientOptions) {
 }
 
 func NewClientFromOptions(opts ClientOptions) *Client {
-	var transport *Transport
-	if opts.Transport == nil {
+	transport := &Transport{}
+	if opts.Transport != nil {
 		transport = opts.Transport
-	} else {
-		transport = &Transport{}
 	}
 	transport.setDefaults(opts)
 
