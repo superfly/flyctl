@@ -8,6 +8,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/internal/appconfig"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/docstrings"
@@ -51,7 +52,7 @@ func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 		return err
 	}
 
-	if app.PlatformVersion == "machines" {
+	if app.PlatformVersion == appconfig.MachinesPlatform {
 		printMachinesAutoscalingBanner()
 		return nil
 	}
@@ -77,7 +78,7 @@ func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool) error {
 		return err
 	}
 
-	if app.PlatformVersion == "machines" {
+	if app.PlatformVersion == appconfig.MachinesPlatform {
 		printMachinesAutoscalingBanner()
 		return nil
 	}
@@ -189,8 +190,7 @@ func printScaleConfig(cmdCtx *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
 func printMachinesAutoscalingBanner() {
 	fmt.Printf(`
 Configuring autoscaling via 'flyctl autoscale' is supported only for apps running on Nomad platform.
-To enable autoscale for Apps V2 create the required number of machines in advance and allow fly.io
-to start and stop them on demand by setting auto_start_machine=true and auto_stop_machine=true
-in fly.toml.
+Refer to this post for details on how to enable autoscaling for Apps V2:
+https://community.fly.io/t/increasing-apps-v2-availability/12357
 `)
 }
