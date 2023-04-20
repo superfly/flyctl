@@ -76,7 +76,7 @@ func newClone() *cobra.Command {
 		},
 		flag.StringSlice{
 			Name:        "standby-for",
-			Description: "Comma separated list of machine ids to watch for",
+			Description: "Comma separated list of machine ids to watch for. You can use '--standby-for=source' to create a standby for the cloned machine",
 		},
 	)
 
