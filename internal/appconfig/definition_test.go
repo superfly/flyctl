@@ -72,7 +72,7 @@ func TestFromDefinition(t *testing.T) {
 
 	assert.Equal(t, &Config{
 		KillSignal:  api.Pointer("SIGINT"),
-		KillTimeout: api.Pointer(5),
+		KillTimeout: api.MustParseDuration("5s"),
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},
@@ -166,7 +166,7 @@ func TestToDefinition(t *testing.T) {
 		"app":            "foo",
 		"primary_region": "sea",
 		"kill_signal":    "SIGTERM",
-		"kill_timeout":   int64(3),
+		"kill_timeout":   "3s",
 
 		"build": map[string]any{
 			"builder":      "dockerfile",
