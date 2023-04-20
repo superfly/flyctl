@@ -20,6 +20,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+const nixpackInstallerURL string = "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh"
+
 type nixpacksBuilder struct{}
 
 func (*nixpacksBuilder) Name() string {
@@ -57,7 +59,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 			}
 		}()
 
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh", nil)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, nixpackInstallerURL, http.NoBody)
 		if err != nil {
 			return err
 		}
@@ -65,7 +67,7 @@ func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) err
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() // skipcq: GO-S2307
 
 		n, err := io.Copy(out, resp.Body)
 		if err != nil {
