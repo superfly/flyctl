@@ -65,6 +65,9 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 	}()
 
 	for _, machineInput := range m.newMachinesInput {
+		if m.isPostgres && m.targetImg != "" {
+			machineInput.Config.Image = m.targetImg
+		}
 
 		// Assign volume
 		if nv, ok := lo.Find(m.createdVolumes, func(v *NewVolume) bool {
