@@ -75,6 +75,10 @@ type ScannerConfig struct {
 	ExistingPort int
 }
 
+func ConfigureDockerfile(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
+	return configureDockerfile(sourceDir, config)
+}
+
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	scanners := []sourceScanner{
 		configureDjango,
