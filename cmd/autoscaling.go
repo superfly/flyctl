@@ -45,6 +45,17 @@ func runSetParams(commandContext *cmdctx.CmdContext) error {
 func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 	ctx := cmdCtx.Command.Context()
 
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if app.PlatformVersion == "machines" {
+		printMachinesAutoscalingBanner()
+		return nil
+	}
+
 	newcfg := api.UpdateAutoscaleConfigInput{AppID: cmdCtx.AppName, Enabled: api.BoolPointer(false)}
 
 	cfg, err := cmdCtx.Client.API().UpdateAutoscaleConfig(ctx, newcfg)
@@ -59,6 +70,17 @@ func runDisableAutoscaling(cmdCtx *cmdctx.CmdContext) error {
 
 func actualScale(cmdCtx *cmdctx.CmdContext, balanceRegions bool) error {
 	ctx := cmdCtx.Command.Context()
+
+	app, err := cmdCtx.Client.API().GetAppCompact(ctx, cmdCtx.AppName)
+
+	if err != nil {
+		return err
+	}
+
+	if app.PlatformVersion == "machines" {
+		printMachinesAutoscalingBanner()
+		return nil
+	}
 
 	currentcfg, err := cmdCtx.Client.API().AppAutoscalingConfig(ctx, cmdCtx.AppName)
 	if err != nil {
@@ -162,4 +184,13 @@ func printScaleConfig(cmdCtx *cmdctx.CmdContext, cfg *api.AutoscalingConfig) {
 			fmt.Fprintf(cmdCtx.Out, "%15s: %d\n", "Max Count", cfg.MaxCount)
 		}
 	}
+}
+
+func printMachinesAutoscalingBanner() {
+	fmt.Printf(`
+Configuring autoscaling via 'flyctl autoscale' is supported only for apps running on Nomad platform.
+To enable autoscale for Apps V2 create the required number of machines in advance and allow fly.io
+to start and stop them on demand by setting auto_start_machine=true and auto_stop_machine=true
+in fly.toml.
+`)
 }
