@@ -42,22 +42,55 @@ type Client struct {
 
 // NewClient - creates a new Client, takes an access token
 func NewClient(accessToken, name, version string, logger Logger) *Client {
-	transport := &Transport{
-		UnderlyingTransport: http.DefaultTransport,
-		Token:               accessToken,
-		EnableDebugTrace:    !slices.Contains([]string{"", "0", "false"}, os.Getenv("FLY_FORCE_TRACE")),
-		UserAgent:           fmt.Sprintf("%s/%s", name, version),
+	return NewClientFromOptions(ClientOptions{
+		AccessToken: accessToken,
+		Name:        name,
+		Version:     version,
+		Logger:      logger,
+		BaseURL:     baseURL,
+	})
+}
+
+type ClientOptions struct {
+	AccessToken      string
+	Name             string
+	Version          string
+	BaseURL          string
+	Logger           Logger
+	EnableDebugTrace *bool
+	Transport        *Transport
+}
+
+func (t *Transport) setDefaults(opts ClientOptions) {
+	if t.UnderlyingTransport == nil {
+		t.UnderlyingTransport = http.DefaultTransport
 	}
+	if t.Token == "" {
+		t.Token = opts.AccessToken
+	}
+	if t.UserAgent == "" {
+		t.UserAgent = fmt.Sprintf("%s/%s", opts.Name, opts.Version)
+	}
+	if opts.EnableDebugTrace != nil {
+		t.EnableDebugTrace = *opts.EnableDebugTrace
+	} else {
+		t.EnableDebugTrace = !slices.Contains([]string{"", "0", "false"}, os.Getenv("FLY_FORCE_TRACE"))
+	}
+}
 
-	httpClient, _ := NewHTTPClient(logger, transport)
+func NewClientFromOptions(opts ClientOptions) *Client {
+	transport := opts.Transport
+	if transport == nil {
+		transport = &Transport{}
+	}
+	transport.setDefaults(opts)
 
-	url := fmt.Sprintf("%s/graphql", baseURL)
-
+	httpClient, _ := NewHTTPClient(opts.Logger, transport)
+	url := fmt.Sprintf("%s/graphql", opts.BaseURL)
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
-
 	genqClient := genq.NewClient(url, httpClient)
 
-	return &Client{httpClient, client, genqClient, accessToken, logger}
+	return &Client{httpClient, client, genqClient, opts.AccessToken, opts.Logger}
 }
 
 // NewRequest - creates a new GraphQL request
