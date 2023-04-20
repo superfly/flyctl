@@ -138,6 +138,10 @@ var sharedFlags = flag.Set{
 		Name:        "restart",
 		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
 	},
+	flag.StringSlice{
+		Name:        "standby-for",
+		Description: "Comma separated list of machine ids to watch for",
+	},
 }
 
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -277,6 +281,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
+	input.SkipLaunch = len(machineConf.Standbys) > 0
 	input.Config = machineConf
 
 	machine, err := flapsClient.Launch(ctx, input)
@@ -780,6 +785,12 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		if flag.IsSpecified(ctx, "autostart") {
 			s.Autostart = api.Pointer(flag.GetBool(ctx, "autostart"))
 		}
+	}
+
+	// Standby machine
+	standbys := flag.GetStringSlice(ctx, "standby-for")
+	if len(standbys) > 0 {
+		machineConf.Standbys = standbys
 	}
 
 	return machineConf, nil
