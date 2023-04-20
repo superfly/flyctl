@@ -52,6 +52,7 @@ type CreateClusterInput struct {
 	Manager            string
 	Autostart          bool
 	ScaleToZero        bool
+	ForkFrom           string
 }
 
 func NewLauncher(client *api.Client) *Launcher {
@@ -160,7 +161,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		snapshot := config.SnapshotID
 		verb := "Provisioning"
 
-		// When a snapshot is specified, we only want to pass it into the first volume created.
 		if snapshot != nil {
 			verb = "Restoring"
 			if i > 0 {
@@ -170,19 +170,38 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 
-		volInput := api.CreateVolumeInput{
-			AppID:             app.ID,
-			Name:              volumeName,
-			Region:            config.Region,
-			SizeGb:            *config.VolumeSize,
-			Encrypted:         true,
-			RequireUniqueZone: false,
-			SnapshotID:        snapshot,
-		}
+		var vol *api.Volume
 
-		vol, err := l.client.CreateVolume(ctx, volInput)
-		if err != nil {
-			return err
+		if config.ForkFrom != "" {
+			// Setting FLY_RESTORED_FROM will treat the provision as a restore.
+			machineConf.Env["FLY_RESTORED_FROM"] = config.ForkFrom
+
+			volInput := api.ForkVolumeInput{
+				AppID:          app.ID,
+				SourceVolumeID: config.ForkFrom,
+				MachinesOnly:   true,
+				Name:           "pg_data",
+			}
+
+			vol, err = l.client.ForkVolume(ctx, volInput)
+			if err != nil {
+				return fmt.Errorf("failed to fork volume: %w", err)
+			}
+		} else {
+			volInput := api.CreateVolumeInput{
+				AppID:             app.ID,
+				Name:              volumeName,
+				Region:            config.Region,
+				SizeGb:            *config.VolumeSize,
+				Encrypted:         true,
+				RequireUniqueZone: false,
+				SnapshotID:        snapshot,
+			}
+
+			vol, err = l.client.CreateVolume(ctx, volInput)
+			if err != nil {
+				return fmt.Errorf("failed to create volume: %w", err)
+			}
 		}
 
 		machineConf.Mounts = append(machineConf.Mounts, api.MachineMount{

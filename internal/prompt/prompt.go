@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/sort"
 )
 
@@ -326,7 +327,10 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*api.Regi
 		regions = sortAndCleanRegions(availableRegions, params.ExcludedRegionCodes)
 	}
 
-	slug := config.FromContext(ctx).Region
+	slug := flag.GetString(ctx, "region")
+	if slug == "" {
+		slug = config.FromContext(ctx).Region
+	}
 
 	switch {
 	case slug != "":
