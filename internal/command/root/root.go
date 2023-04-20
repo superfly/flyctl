@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
+	"github.com/superfly/flyctl/internal/command/extensions"
 	"github.com/superfly/flyctl/internal/command/help"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
@@ -172,6 +173,7 @@ func New() *cobra.Command {
 		scale.New(),
 		migrate_to_v2.New(),
 		tokens.New(),
+		extensions.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

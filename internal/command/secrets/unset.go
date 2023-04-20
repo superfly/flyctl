@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -36,10 +37,15 @@ func runUnset(ctx context.Context) (err error) {
 		return err
 	}
 
-	release, err := client.UnsetSecrets(ctx, appName, flag.Args(ctx))
+	return UnsetSecretsAndDeploy(ctx, app, flag.Args(ctx), flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+}
+
+func UnsetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets []string, stage bool, detach bool) error {
+	client := client.FromContext(ctx).API()
+	release, err := client.UnsetSecrets(ctx, app.Name, secrets)
 	if err != nil {
 		return err
 	}
 
-	return deployForSecrets(ctx, app, release)
+	return deployForSecrets(ctx, app, release, stage, detach)
 }

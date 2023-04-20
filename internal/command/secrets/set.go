@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -62,10 +63,15 @@ func runSet(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	release, err := client.SetSecrets(ctx, appName, secrets)
+	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+}
+
+func SetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets map[string]string, stage bool, detach bool) error {
+	client := client.FromContext(ctx).API()
+	release, err := client.SetSecrets(ctx, app.Name, secrets)
 	if err != nil {
 		return err
 	}
 
-	return deployForSecrets(ctx, app, release)
+	return deployForSecrets(ctx, app, release, stage, detach)
 }
