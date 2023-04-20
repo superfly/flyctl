@@ -41,6 +41,21 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 		Env: lo.Assign(c.Env),
 	}
 
+	if c.KillSignal != nil || c.KillTimeout != nil {
+		var signal *api.Signal
+		if c.KillSignal != nil {
+			signal := signalSyscallMap[*c.KillSignal]
+			if signal == nil {
+				return nil, fmt.Errorf("Unknown signal name used for kill_signal: %s", *c.KillSignal)
+			}
+		}
+
+		mConfig.StopConfig = &api.StopConfig{
+			Timeout: c.KillTimeout,
+			Signal:  signal,
+		}
+	}
+
 	mConfig.Env["RELEASE_COMMAND"] = "1"
 	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppReleaseCommand
 	if c.PrimaryRegion != "" {
