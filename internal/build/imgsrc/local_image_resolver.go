@@ -41,7 +41,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		build.BuildFinish()
 		return nil, "", err
 	}
-	defer docker.Close()
+	defer docker.Close() // skipcq: GO-S2307
 
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {

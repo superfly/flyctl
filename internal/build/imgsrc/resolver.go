@@ -465,7 +465,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 
 type httpError struct {
 	StatusCode int
-	Body string
+	Body       string
 }
 
 func (e httpError) Error() string {
@@ -477,7 +477,7 @@ func heartbeat(client *dockerclient.Client, req *http.Request) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close() //skipcq: GO-S2307
+	defer resp.Body.Close() // skipcq: GO-S2307
 
 	if 200 <= resp.StatusCode && resp.StatusCode < 300 {
 		return nil
@@ -549,7 +549,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	time.AfterFunc(maxTime, func() { done.Stop() })
 
 	go func() {
-		defer dockerClient.Close()
+		defer dockerClient.Close() // skipcq: GO-S2307
 		pulse := time.NewTicker(pulseInterval)
 		defer pulse.Stop()
 		defer done.Stop()

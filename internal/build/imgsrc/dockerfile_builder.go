@@ -87,7 +87,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.BuilderInitFinish()
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
-	defer docker.Close()
+	defer docker.Close() // skipcq: GO-S2307
 
 	build.BuilderInitFinish()
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
@@ -258,7 +258,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	if err != nil {
 		return "", errors.Wrap(err, "error building with docker")
 	}
-	defer resp.Body.Close() //skipcq: GO-S2307
+	defer resp.Body.Close() // skipcq: GO-S2307
 
 	idCallback := func(m jsonmessage.JSONMessage) {
 		var aux types.BuildResult
@@ -317,7 +317,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 		if err != nil {
 			return err
 		}
-		defer response.Body.Close() //skipcq: GO-S2307
+		defer response.Body.Close() // skipcq: GO-S2307
 		return nil
 	})
 
@@ -343,7 +343,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			if err != nil {
 				return err
 			}
-			defer resp.Body.Close() //skipcq: GO-S2307
+			defer resp.Body.Close() // skipcq: GO-S2307
 
 			done := make(chan struct{})
 			defer close(done)
@@ -420,7 +420,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")
 	}
-	defer pushResp.Close() //skipcq: GO-S2307
+	defer pushResp.Close() // skipcq: GO-S2307
 
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
 	if err != nil {

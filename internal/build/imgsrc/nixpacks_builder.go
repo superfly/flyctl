@@ -116,7 +116,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 		build.BuildFinish()
 		return nil, "", err
 	}
-	defer docker.Close()
+	defer docker.Close() // skipcq: GO-S2307
 
 	dockerHost := docker.DaemonHost()
 
