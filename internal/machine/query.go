@@ -17,7 +17,7 @@ func ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return m.Config != nil && m.IsActive() && !m.IsReleaseCommandMachine()
+		return m.Config != nil && m.IsActive() && !m.IsReleaseCommandMachine() && !m.IsFlyAppsEphemeralRunner()
 	})
 
 	return machines, nil

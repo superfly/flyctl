@@ -69,15 +69,17 @@ func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
 		DNS: &api.DNSConfig{
 			SkipRegistration: true,
 		},
-		// TODO: we need to set metadata on these machines
+		Metadata: map[string]string{
+			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
+			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppEphemeralRunner,
+		},
 		Env: lo.Assign(c.Env),
 	}
 
 	// FIXME: ugly hack; see above
 	mConfig.Env["SSH_LISTEN"] = "[::1]:22"
 
-	// TODO set process group here
-
+	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppEphemeralRunner
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
