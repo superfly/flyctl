@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 )
 
@@ -296,4 +297,22 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 	}, definition)
+}
+
+func TestFromDefinitionEnvList(t *testing.T) {
+	jsonBody := []byte(`{"env": [{"ONE": "one", "TWO": 2}, {"TRUE": true}]}`)
+	definition := &api.Definition{}
+	err := json.Unmarshal(jsonBody, definition)
+	require.NoError(t, err)
+
+	cfg, err := FromDefinition(definition)
+	require.NoError(t, err)
+
+	want := map[string]string{
+		"ONE":  "one",
+		"TWO":  "2",
+		"TRUE": "true",
+	}
+
+	assert.Equal(t, want, cfg.Env)
 }

@@ -49,27 +49,57 @@ func patchRoot(cfgMap map[string]any) (map[string]any, error) {
 }
 
 func patchEnv(cfg map[string]any) (map[string]any, error) {
-	if raw, ok := cfg["env"]; ok {
-		env := map[string]string{}
-
-		switch cast := raw.(type) {
-		case map[string]string:
-			env = cast
-		case map[string]any:
-			for k, v := range cast {
-				if stringVal, ok := v.(string); ok {
-					env[k] = stringVal
-				} else {
-					env[k] = fmt.Sprintf("%v", v)
-				}
-			}
-		default:
-			return nil, fmt.Errorf("Do not know how to process 'env' section of type: %T", cast)
-		}
-
-		cfg["env"] = env
+	raw, ok := cfg["env"]
+	if !ok {
+		return cfg, nil
 	}
+	env, err := _patchEnv(raw)
+	if err != nil {
+		return nil, err
+	}
+	cfg["env"] = env
 	return cfg, nil
+}
+
+func _patchEnv(raw any) (map[string]string, error) {
+	env := map[string]string{}
+
+	switch cast := raw.(type) {
+	case []map[string]any:
+		for _, raw2 := range cast {
+			env2, err := _patchEnv(raw2)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range env2 {
+				env[k] = v
+			}
+		}
+	case []any:
+		for _, raw2 := range cast {
+			env2, err := _patchEnv(raw2)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range env2 {
+				env[k] = v
+			}
+		}
+	case map[string]string:
+		env = cast
+	case map[string]any:
+		for k, v := range cast {
+			if stringVal, ok := v.(string); ok {
+				env[k] = stringVal
+			} else {
+				env[k] = fmt.Sprintf("%v", v)
+			}
+		}
+	default:
+		return nil, fmt.Errorf("Do not know how to process 'env' section of type: %T", cast)
+	}
+
+	return env, nil
 }
 
 func patchProcesses(cfg map[string]any) (map[string]any, error) {
