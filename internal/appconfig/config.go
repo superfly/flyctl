@@ -1,13 +1,13 @@
-// Package app implements functionality related to reading and writing app
+// Package appconfig implements functionality related to reading and writing app
 // configuration files.
 package appconfig
 
 import (
 	"fmt"
-	"net/url"
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -204,36 +204,41 @@ func (cfg *Config) BuildStrategies() []string {
 	return strategies
 }
 
-func (cfg *Config) URL() (*url.URL, error) {
-	hasHttp := false
-	protocol := "http"
-	if cfg.HTTPService != nil {
-		hasHttp = true
-		if cfg.HTTPService.ForceHTTPS {
-			protocol = "https"
-		}
-	} else {
-		for _, service := range cfg.Services {
-			for _, port := range service.Ports {
-				hasTls := false
-				for _, handler := range port.Handlers {
-					if handler == "tls" {
-						hasTls = true
-					} else if handler == "http" {
-						hasHttp = true
-					}
-					if *port.Port == 443 && hasHttp && hasTls {
-						protocol = "https"
-						break
-					}
-				}
+func (cfg *Config) URL() string {
+	hostname := cfg.AppName + ".fly.dev"
+
+	// HTTPService always listen on https, even if ForceHTTPS is false
+	if cfg.HTTPService != nil && cfg.HTTPService.InternalPort > 0 {
+		return fmt.Sprintf("https://%s/", hostname)
+	}
+
+	var httpPorts []int
+	var httpsPorts []int
+	for _, service := range cfg.Services {
+		for _, port := range service.Ports {
+			if port.Port == nil || !slices.Contains(port.Handlers, "http") {
+				continue
+			}
+			if slices.Contains(port.Handlers, "tls") {
+				httpsPorts = append(httpsPorts, *port.Port)
+			} else {
+				httpPorts = append(httpPorts, *port.Port)
 			}
 		}
 	}
 
-	if hasHttp {
-		return url.Parse(protocol + "://" + cfg.AppName + ".fly.dev")
-	} else {
-		return nil, nil
+	switch {
+	case slices.Contains(httpsPorts, 443):
+		return fmt.Sprintf("https://%s/", hostname)
+	case slices.Contains(httpPorts, 80):
+		return fmt.Sprintf("http://%s/", hostname)
+	case len(httpsPorts) > 0:
+		slices.Sort(httpsPorts)
+		return fmt.Sprintf("https://%s:%d/", hostname, httpsPorts[0])
+	case len(httpPorts) > 0:
+		slices.Sort(httpPorts)
+		return fmt.Sprintf("http://%s:%d/", hostname, httpPorts[0])
+	default:
+		return ""
 	}
 }

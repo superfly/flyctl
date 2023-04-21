@@ -1,7 +1,6 @@
 package appconfig
 
 import (
-	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -207,42 +206,85 @@ func TestHasNonHttpAndHttpsStandardServices(t *testing.T) {
 	assert.True(t, cfg6.HasNonHttpAndHttpsStandardServices())
 }
 
-func TestURLCalculation(t *testing.T) {
-	port80 := 80
-	port443 := 443
-
-	http, _ := url.Parse("http://test.fly.dev")
-	https, _ := url.Parse("https://test.fly.dev")
-
+func TestURL(t *testing.T) {
 	cfg := NewConfig()
 	cfg.AppName = "test"
-	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
-		{Port: &port80, Handlers: []string{"tls"}},
-	}}}
-	url, _ := cfg.URL()
-	assert.Nil(t, url)
+	cfg.HTTPService = &HTTPService{InternalPort: 8080}
+	assert.Equal(t, "https://test.fly.dev/", cfg.URL())
 
+	// Prefer https on 443 over http on 80
 	cfg = NewConfig()
 	cfg.AppName = "test"
-	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
-		{Port: &port80, Handlers: []string{"http"}},
-	}}}
-	url, _ = cfg.URL()
-	assert.Equal(t, http, url)
+	cfg.Services = []Service{{
+		Protocol: "tcp",
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(80), Handlers: []string{"http"},
+		}, {
+			Port: api.Pointer(443), Handlers: []string{"http", "tls"},
+		}},
+	}}
+	assert.Equal(t, "https://test.fly.dev/", cfg.URL())
 
+	// port 443 is not http, only port 80 is.
 	cfg = NewConfig()
 	cfg.AppName = "test"
-	cfg.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
-		{Port: &port443, Handlers: []string{"tls", "http"}},
-	}}}
-	url, _ = cfg.URL()
-	assert.Equal(t, https, url)
+	cfg.Services = []Service{{
+		Protocol: "tcp",
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(80), Handlers: []string{"http"},
+		}, {
+			Port: api.Pointer(443), Handlers: []string{"tls"},
+		}},
+	}}
+	assert.Equal(t, "http://test.fly.dev/", cfg.URL())
 
+	// prefer standard http port over non standard https port
 	cfg = NewConfig()
 	cfg.AppName = "test"
-	cfg.HTTPService = &HTTPService{
-		ForceHTTPS: true,
-	}
-	url, _ = cfg.URL()
-	assert.Equal(t, https, url)
+	cfg.Services = []Service{{
+		Protocol: "tcp",
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(80), Handlers: []string{"http"},
+		}, {
+			Port: api.Pointer(3443), Handlers: []string{"tls", "http"},
+		}},
+	}}
+	assert.Equal(t, "http://test.fly.dev/", cfg.URL())
+
+	// prefer non standard https port over non standard http port
+	cfg = NewConfig()
+	cfg.AppName = "test"
+	cfg.Services = []Service{{
+		Protocol: "tcp",
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(8080), Handlers: []string{"http"},
+		}, {
+			Port: api.Pointer(3443), Handlers: []string{"tls", "http"},
+		}},
+	}}
+	assert.Equal(t, "https://test.fly.dev:3443/", cfg.URL())
+
+	// Use non standard http port as last meassure
+	cfg = NewConfig()
+	cfg.AppName = "test"
+	cfg.Services = []Service{{
+		Protocol: "tcp",
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(8080), Handlers: []string{"http"},
+		}},
+	}}
+	assert.Equal(t, "http://test.fly.dev:8080/", cfg.URL())
+
+	// Otherwise return an empty string so caller knows there is no http service
+	cfg = NewConfig()
+	cfg.AppName = "test"
+	cfg.Services = []Service{{
+		Protocol: "tcp",
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(80), Handlers: []string{"fancy"},
+		}, {
+			Port: api.Pointer(443), Handlers: []string{"foo"},
+		}},
+	}}
+	assert.Equal(t, "", cfg.URL())
 }

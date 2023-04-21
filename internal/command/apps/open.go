@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
@@ -43,6 +44,7 @@ to the root URL of the deployed application.
 }
 
 func runOpen(ctx context.Context) error {
+	iostream := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appName)
@@ -55,20 +57,26 @@ func runOpen(ctx context.Context) error {
 	}
 
 	appConfig := appconfig.ConfigFromContext(ctx)
-	appURL, err := appConfig.URL()
-	if err != nil {
-		return fmt.Errorf("failed parsing app URL (hostname: %s): %w", app.Hostname, err)
+	appURL := appConfig.URL()
+	if appURL == "" {
+		return errors.New("The app doesn't exspose a public http service")
 	}
 
-	relURI := flag.FirstArg(ctx)
-	if appURL, err = appURL.Parse(relURI); err != nil {
-		return fmt.Errorf("failed parsing relative URI %s: %w", relURI, err)
+	if relURI := flag.FirstArg(ctx); relURI != "" {
+		baseURL, err := url.Parse(appURL)
+		if err != nil {
+			return fmt.Errorf("failed to parse app url '%s': %w", appURL, err)
+		}
+
+		newURL, err := baseURL.Parse(relURI)
+		if err != nil {
+			return fmt.Errorf("failed to parse relative URI '%s': %w", relURI, err)
+		}
+		appURL = newURL.String()
 	}
 
-	iostream := iostreams.FromContext(ctx)
 	fmt.Fprintf(iostream.Out, "opening %s ...\n", appURL)
-
-	if err := open.Run(appURL.String()); err != nil {
+	if err := open.Run(appURL); err != nil {
 		return fmt.Errorf("failed opening %s: %w", appURL, err)
 	}
 
