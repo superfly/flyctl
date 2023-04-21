@@ -299,7 +299,7 @@ func TestToDefinition(t *testing.T) {
 	}, definition)
 }
 
-func TestFromDefinitionEnvList(t *testing.T) {
+func TestFromDefinitionEnvAsList(t *testing.T) {
 	jsonBody := []byte(`{"env": [{"ONE": "one", "TWO": 2}, {"TRUE": true}]}`)
 	definition := &api.Definition{}
 	err := json.Unmarshal(jsonBody, definition)
@@ -315,4 +315,32 @@ func TestFromDefinitionEnvList(t *testing.T) {
 	}
 
 	assert.Equal(t, want, cfg.Env)
+}
+
+func TestFromDefinitionChecksAsList(t *testing.T) {
+	jsonBody := []byte(`{"checks": [{"name": "pg", "port": 80}]}`)
+	definition := &api.Definition{}
+	err := json.Unmarshal(jsonBody, definition)
+	require.NoError(t, err)
+
+	cfg, err := FromDefinition(definition)
+	require.NoError(t, err)
+
+	want := map[string]*ToplevelCheck{
+		"pg": {Port: api.Pointer(80)},
+	}
+
+	assert.Equal(t, want, cfg.Checks)
+}
+
+func TestFromDefinitionChecksAsEmptyList(t *testing.T) {
+	jsonBody := []byte(`{"checks": []}`)
+	definition := &api.Definition{}
+	err := json.Unmarshal(jsonBody, definition)
+	require.NoError(t, err)
+
+	cfg, err := FromDefinition(definition)
+	require.NoError(t, err)
+
+	assert.Nil(t, cfg.Checks)
 }

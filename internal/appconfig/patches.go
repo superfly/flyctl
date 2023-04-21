@@ -169,15 +169,58 @@ func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
 		return cfg, nil
 	}
 
+	checks := map[string]any{}
+
+	switch cast := raw.(type) {
+	case map[string]any:
+		var err error
+		checks, err = _patchTopLevelChecks(cast)
+		if err != nil {
+			return nil, err
+		}
+	case []any:
+		for _, raw2 := range cast {
+			cast2, ok := raw2.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("check item of unknown type: %T", raw2)
+			}
+
+			name, ok := cast2["name"].(string)
+			if !ok {
+				return nil, fmt.Errorf("check item name not a string")
+			}
+
+			subChecks, err := _patchTopLevelChecks(map[string]any{name: raw2})
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range subChecks {
+				checks[k] = v
+			}
+		}
+	default:
+		return nil, fmt.Errorf("'checks' section of unknown type: %T", raw)
+	}
+
+	if len(checks) == 0 {
+		delete(cfg, "checks")
+		return cfg, nil
+	}
+
+	cfg["checks"] = checks
+	return cfg, nil
+}
+
+func _patchTopLevelChecks(raw any) (map[string]any, error) {
 	cast, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("'checks' section of unknown type: %T", cast)
+		return nil, fmt.Errorf("unknown check type: %T", raw)
 	}
 
 	for k, rawCheck := range cast {
 		castCheck, ok := rawCheck.(map[string]any)
 		if !ok {
-			return nil, fmt.Errorf("'checks' section of unknown type: %T", castCheck)
+			return nil, fmt.Errorf("'checks' section of unknown type: %T", rawCheck)
 		}
 
 		check, err := _patchCheck(castCheck)
@@ -186,7 +229,7 @@ func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
 		}
 		cast[k] = check
 	}
-	return cfg, nil
+	return cast, nil
 }
 
 func patchServices(cfg map[string]any) (map[string]any, error) {
