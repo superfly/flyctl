@@ -35,6 +35,11 @@ but is currently restricted to same-host forks and may not be available for near
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Name of the new volume",
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -63,10 +68,15 @@ func runFork(ctx context.Context) error {
 		return fmt.Errorf("failed to get volume: %w", err)
 	}
 
+	name := vol.Name
+	if flag.IsSpecified(ctx, "name") {
+		name = flag.GetString(ctx, "name")
+	}
+
 	input := api.ForkVolumeInput{
 		AppID:          app.ID,
 		SourceVolumeID: vol.ID,
-		Name:           vol.Name,
+		Name:           name,
 		MachinesOnly:   app.PlatformVersion == "machines",
 	}
 
