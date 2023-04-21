@@ -32,7 +32,7 @@ func TestAppsV2Example(t *testing.T) {
 		appUrl  = fmt.Sprintf("https://%s.fly.dev", appName)
 	)
 
-	result = f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	result = f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.Contains(f, result.StdOut().String(), "Using image nginx")
 	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOut().String(), "Wrote config file fly.toml")
@@ -64,17 +64,13 @@ func TestAppsV2Example(t *testing.T) {
 	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine := machList[0]
 
-	var nilBoolPointer *bool = nil
-	require.Equal(t, firstMachine.Config.DisableMachineAutostart, nilBoolPointer, "autostart_disabled should be nil")
-
-	// Make sure disabling it works
-	f.Fly("m update %s --autostart=false -y", firstMachine.ID)
-
-	machList = f.MachinesList(appName)
-	require.Equal(t, len(machList), 1, "There should be exactly one machine")
-	firstMachine = machList[0]
-
-	require.Equal(t, firstMachine.Config.DisableMachineAutostart, api.Pointer(true), "autostart_disabled should be set to true")
+	// DisableMachineAutostart is deprecated and should be nil always
+	require.Nil(t, firstMachine.Config.DisableMachineAutostart)
+	require.Equal(t, 1, len(firstMachine.Config.Services))
+	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
+	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
+	require.True(t, *firstMachine.Config.Services[0].Autostart)
+	require.True(t, *firstMachine.Config.Services[0].Autostop)
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
@@ -83,7 +79,7 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m clone --region %s %s", secondReg, firstMachine.ID)
 
 	result = f.Fly("status")
-	require.Equal(f, 2, strings.Count(result.StdOut().String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
+	require.Equal(f, 2, strings.Count(result.StdOut().String(), "1 total"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
 
 	thirdReg := secondReg
 	if len(f.OtherRegions()) > 1 {
@@ -92,7 +88,7 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m clone --region %s %s", thirdReg, firstMachine.ID)
 
 	result = f.Fly("status")
-	require.Equal(f, 3, strings.Count(result.StdOut().String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
+	require.Equal(f, 3, strings.Count(result.StdOut().String(), "1 total"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
 
 	f.Fly("secrets set PREFLIGHT_TESTING_SECRET=foo")
 	result = f.Fly("secrets list")
@@ -414,7 +410,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		if err != nil {
 			f.Fatalf("error trying to write %s: %v", configFilePath, err)
 		}
-		cmd := f.Fly("deploy --detach --now --image nginx")
+		cmd := f.Fly("deploy --detach --now --image nginx --ha=false")
 		cmd.AssertSuccessfulExit()
 		return cmd
 	}
