@@ -159,6 +159,19 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 	}, cfg)
 }
 
+func TestLoadTOMLAppConfigEnvList(t *testing.T) {
+	const path = "./testdata/env-list.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+
+	want := map[string]string{
+		"FOO":  "BAR",
+		"TWO":  "2",
+		"TRUE": "true",
+	}
+	assert.Equal(t, want, cfg.Env)
+}
+
 func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	const path = "./testdata/old-format.toml"
 	cfg, err := LoadConfig(path)
