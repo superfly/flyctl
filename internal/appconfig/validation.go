@@ -145,7 +145,19 @@ func (cfg *Config) validateChecksSection() (extraInfo string, err error) {
 			extraInfo += fmt.Sprintf("Can't process top level check '%s': %s\n", name, vErr)
 			err = ValidationError
 		}
+		// minimum interval in flaps is set to 2 seconds.
+		if check.Interval != nil && check.Interval.Duration.Seconds() < 2 {
+			extraInfo += fmt.Sprintf("Check '%s' interval is too short: %s, minimum is 2 seconds\n", name, check.Interval.Duration)
+			err = ValidationError
+		}
+
+		// max timeout in flaps in set to 60s
+		if check.Timeout != nil && check.Timeout.Duration.Seconds() > 60 {
+			extraInfo += fmt.Sprintf("Check '%s' timeout is too long: %s, maximum is 60 seconds\n", name, check.Timeout.Duration)
+			err = ValidationError
+		}
 	}
+
 	return
 }
 
