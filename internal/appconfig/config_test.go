@@ -220,7 +220,7 @@ func TestURLCalculation(t *testing.T) {
 		{Port: &port80, Handlers: []string{"tls"}},
 	}}}
 	url, _ := cfg.URL()
-	assert.Equal(t, *url.URL((*url.URL)(nil)), url)
+	assert.Nil(t, url)
 
 	cfg = NewConfig()
 	cfg.AppName = "test"
