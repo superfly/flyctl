@@ -40,6 +40,7 @@ The LIST command will list all currently registered applications.
 		newSuspend(),
 		NewOpen(),
 		NewReleases(),
+		newSetPlatformVersion(),
 	)
 
 	return apps
