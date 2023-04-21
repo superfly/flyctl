@@ -207,6 +207,10 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 			}
 
+			// Acquire a lease on the new machine to ensure external factors can't stop or update it
+			// while we wait for its state and/or health checks
+			launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
+
 			newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 			if err != nil {
 				if md.strategy != "immediate" {
@@ -218,10 +222,6 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 			lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 			fmt.Fprintf(md.io.ErrOut, "  %s Created machine %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
-			// FIXME: Workaround while support for acquiring lease along machine creation is implemented on Flaps API
-			if err := lm.AcquireLease(ctx, 10*time.Minute); err != nil {
-				return err
-			}
 			defer lm.ReleaseLease(ctx)
 
 		} else {
@@ -277,6 +277,10 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return "", fmt.Errorf("error creating machine configuration: %w", err)
 	}
 
+	// Acquire a lease on the new machine to ensure external factors can't stop or update it
+	// while we wait for its state and/or health checks
+	launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
+
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
 		relCmdWarning := ""
@@ -288,11 +292,6 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	fmt.Fprintf(md.io.ErrOut, "  Machine %s was created\n", md.colorize.Bold(lm.FormattedMachineId()))
-
-	// FIXME: Workaround while support for acquiring lease along machine creation is implemented on Flaps API
-	if err := lm.AcquireLease(ctx, 10*time.Minute); err != nil {
-		return "", err
-	}
 	defer lm.ReleaseLease(ctx)
 
 	// Don't wait for Standby machines, they are created but not started
