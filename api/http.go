@@ -24,16 +24,18 @@ func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, er
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
-	loggingTransport := &LoggingTransport{
-		InnerTransport: retryTransport,
-		Logger:         logger,
+	if logger != nil {
+		return &http.Client{
+			Transport: &LoggingTransport{
+				InnerTransport: retryTransport,
+				Logger:         logger,
+			},
+		}, nil
 	}
 
-	httpClient := &http.Client{
-		Transport: loggingTransport,
-	}
-
-	return httpClient, nil
+	return &http.Client{
+		Transport: retryTransport,
+	}, nil
 }
 
 type LoggingTransport struct {
@@ -70,7 +72,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 		return
 	}
 
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 
 	data, err := ioutil.ReadAll(req.Body)
 
@@ -89,7 +91,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
 		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, shiftedDuration(time.Since(start), 2))
