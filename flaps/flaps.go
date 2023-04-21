@@ -271,7 +271,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 		restartEndpoint += fmt.Sprintf("&timeout=%d", in.Timeout)
 	}
 
-	if in.Signal != nil {
+	if in.Signal != "" {
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 

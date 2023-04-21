@@ -3,8 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"syscall"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -61,7 +60,6 @@ func newRestart() *cobra.Command {
 func runMachineRestart(ctx context.Context) error {
 	var (
 		args    = flag.Args(ctx)
-		signal  = flag.GetString(ctx, "signal")
 		timeout = flag.GetInt(ctx, "time")
 	)
 
@@ -70,17 +68,7 @@ func runMachineRestart(ctx context.Context) error {
 		Timeout:          time.Duration(timeout) * time.Second,
 		ForceStop:        flag.GetBool(ctx, "force"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
-	}
-
-	if signal != "" {
-		sig := &api.Signal{}
-
-		s, err := strconv.Atoi(flag.GetString(ctx, "signal"))
-		if err != nil {
-			return fmt.Errorf("could not get signal %s", err)
-		}
-		sig.Signal = syscall.Signal(s)
-		input.Signal = sig
+		Signal:           strings.ToUpper(flag.GetString(ctx, "signal")),
 	}
 
 	machines, ctx, err := selectManyMachines(ctx, args)

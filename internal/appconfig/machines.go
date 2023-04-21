@@ -150,17 +150,9 @@ func (c *Config) tomachineSetStopConfig(mConfig *api.MachineConfig) error {
 		return nil
 	}
 
-	var signal *api.Signal
-	if c.KillSignal != nil {
-		signal = api.NewSignal(*c.KillSignal)
-		if signal == nil {
-			return fmt.Errorf("Unknown signal name used for kill_signal: %s", *c.KillSignal)
-		}
-	}
-
 	mConfig.StopConfig = &api.StopConfig{
 		Timeout: c.KillTimeout,
-		Signal:  signal,
+		Signal:  c.KillSignal,
 	}
 
 	return nil
