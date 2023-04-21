@@ -508,7 +508,7 @@ type DNSConfig struct {
 
 type StopConfig struct {
 	Timeout *Duration `json:"timeout,omitempty"`
-	Signal  *Signal   `json:"signal,omitempty"`
+	Signal  *string   `json:"signal,omitempty"`
 }
 
 type MachineLease struct {
