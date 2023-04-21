@@ -148,7 +148,7 @@ func EnsureShipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization
 		return nil, nil, err
 	}
 
-	flapsClient, err = flaps.New(ctx, gql.AppForFlaps(shipperApp))
+	flapsClient, err = flaps.New(ctx, gql.ToAppCompact(shipperApp))
 
 	if err != nil {
 		return

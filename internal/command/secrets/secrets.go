@@ -50,10 +50,10 @@ func New() *cobra.Command {
 	return secrets
 }
 
-func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release) (err error) {
+func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) (err error) {
 	out := iostreams.FromContext(ctx).Out
 
-	if flag.GetBool(ctx, "stage") {
+	if stage {
 
 		if app.PlatformVersion != "machines" {
 			return errors.New("--stage isn't available for Nomad apps")
@@ -89,7 +89,7 @@ func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Rel
 		md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
 			AppCompact:       app,
 			RestartOnly:      true,
-			SkipHealthChecks: flag.GetBool(ctx, "detach"),
+			SkipHealthChecks: detach,
 		})
 		if err != nil {
 			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)

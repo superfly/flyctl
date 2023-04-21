@@ -45,10 +45,5 @@ func runImport(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
-	release, err := client.SetSecrets(ctx, appName, secrets)
-	if err != nil {
-		return err
-	}
-
-	return deployForSecrets(ctx, app, release)
+	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
