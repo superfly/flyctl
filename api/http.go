@@ -24,16 +24,18 @@ func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, er
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
-	loggingTransport := &LoggingTransport{
-		InnerTransport: retryTransport,
-		Logger:         logger,
+	if logger != nil {
+		return &http.Client{
+			Transport: &LoggingTransport{
+				InnerTransport: retryTransport,
+				Logger:         logger,
+			},
+		}, nil
 	}
 
-	httpClient := &http.Client{
-		Transport: loggingTransport,
-	}
-
-	return httpClient, nil
+	return &http.Client{
+		Transport: retryTransport,
+	}, nil
 }
 
 type LoggingTransport struct {

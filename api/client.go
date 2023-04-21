@@ -104,6 +104,8 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 	return c.RunWithContext(context.Background(), req)
 }
 
+func (c *Client) Logger() Logger { return c.logger }
+
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	var resp Query
