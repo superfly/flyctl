@@ -31,16 +31,17 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact        *api.AppCompact
-	DeploymentImage   string
-	Strategy          string
-	EnvFromFlags      []string
-	PrimaryRegionFlag string
-	SkipHealthChecks  bool
-	RestartOnly       bool
-	WaitTimeout       time.Duration
-	LeaseTimeout      time.Duration
-	VMSize            string
+	AppCompact            *api.AppCompact
+	DeploymentImage       string
+	Strategy              string
+	EnvFromFlags          []string
+	PrimaryRegionFlag     string
+	SkipHealthChecks      bool
+	RestartOnly           bool
+	WaitTimeout           time.Duration
+	LeaseTimeout          time.Duration
+	VMSize                string
+	IncreasedAvailability bool
 }
 
 type machineDeployment struct {
@@ -65,6 +66,7 @@ type machineDeployment struct {
 	leaseDelayBetween     time.Duration
 	isFirstDeploy         bool
 	machineGuest          *api.MachineGuest
+	increasedAvailability bool
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -110,19 +112,20 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:         apiClient,
-		gqlClient:         apiClient.GenqClient,
-		flapsClient:       flapsClient,
-		io:                io,
-		colorize:          io.ColorScheme(),
-		app:               args.AppCompact,
-		appConfig:         appConfig,
-		img:               args.DeploymentImage,
-		skipHealthChecks:  args.SkipHealthChecks,
-		restartOnly:       args.RestartOnly,
-		waitTimeout:       waitTimeout,
-		leaseTimeout:      leaseTimeout,
-		leaseDelayBetween: leaseDelayBetween,
+		apiClient:             apiClient,
+		gqlClient:             apiClient.GenqClient,
+		flapsClient:           flapsClient,
+		io:                    io,
+		colorize:              io.ColorScheme(),
+		app:                   args.AppCompact,
+		appConfig:             appConfig,
+		img:                   args.DeploymentImage,
+		skipHealthChecks:      args.SkipHealthChecks,
+		restartOnly:           args.RestartOnly,
+		waitTimeout:           waitTimeout,
+		leaseTimeout:          leaseTimeout,
+		leaseDelayBetween:     leaseDelayBetween,
+		increasedAvailability: args.IncreasedAvailability,
 	}
 	if err := md.setStrategy(args.Strategy); err != nil {
 		return nil, err
