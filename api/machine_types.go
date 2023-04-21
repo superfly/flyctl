@@ -40,7 +40,7 @@ type Machine struct {
 	Config     *MachineConfig        `json:"config,omitempty"`
 	Events     []*MachineEvent       `json:"events,omitempty"`
 	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
-	LeaseNonce string
+	LeaseNonce string                `json:"nonce,omitempty"`
 }
 
 func (m *Machine) FullImageRef() string {
@@ -538,6 +538,7 @@ type LaunchMachineInput struct {
 	Region     string         `json:"region,omitempty"`
 	Config     *MachineConfig `json:"config,omitempty"`
 	SkipLaunch bool           `json:"skip_launch,omitempty"`
+	LeaseTTL   int            `json:"lease_ttl,omitempty"`
 	// Client side only
 	SkipHealthChecks bool
 }
