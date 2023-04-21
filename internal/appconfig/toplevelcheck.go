@@ -72,14 +72,6 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
 			})
 	}
-	// minimum interval in flaps is set to 2 seconds.
-	if res.Interval != nil && res.Interval.Duration.Seconds() < 2 {
-		return nil, fmt.Errorf("Interval is too short, minimum interval is 2 seconds")
-	}
-	// max timeout in flaps in set to 60s
-	if res.Timeout != nil && res.Timeout.Duration.Seconds() > 60 {
-		return nil, fmt.Errorf("Timeout is too long, maximum timeout is 60 seconds")
-	}
 	return res, nil
 }
 
