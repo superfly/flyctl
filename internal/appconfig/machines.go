@@ -53,6 +53,38 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	return mConfig, nil
 }
 
+func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
+	mConfig := &api.MachineConfig{
+		Init: api.MachineInit{
+			// FIXME: this is an ugly hack, abusing Hallpass as a
+			// stand-in for `/bin/sleep infinity`, simply because it
+			// should always be available.
+			Cmd:        []string{"dummy", "to", "keep", "machine", "running"}, // just to clear the CMD; Hallpass ignores it
+			Entrypoint: []string{"/.fly/hallpass"},
+		},
+		Restart: api.MachineRestart{
+			Policy: api.MachineRestartPolicyNo,
+		},
+		AutoDestroy: true,
+		DNS: &api.DNSConfig{
+			SkipRegistration: true,
+		},
+		// TODO: we need to set metadata on these machines
+		Env: lo.Assign(c.Env),
+	}
+
+	// FIXME: ugly hack; see above
+	mConfig.Env["SSH_LISTEN"] = "[::1]:22"
+
+	// TODO set process group here
+
+	if c.PrimaryRegion != "" {
+		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+
+	return mConfig, nil
+}
+
 // updateMachineConfig applies configuration options from the optional MachineConfig passed in, then the base config, into a new MachineConfig
 func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig, error) {
 	// For flattened app configs there is only one proces name and it is the group it was flattened for
