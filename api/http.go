@@ -72,7 +72,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 		return
 	}
 
-	defer req.Body.Close()
+	defer func() { _ = req.Body.Close() }()
 
 	data, err := ioutil.ReadAll(req.Body)
 
@@ -91,7 +91,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
 	ctx := resp.Request.Context()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if start, ok := ctx.Value(contextKeyRequestStart).(time.Time); ok {
 		t.Logger.Debugf("<-- %d %s (%s)\n", resp.StatusCode, resp.Request.URL, shiftedDuration(time.Since(start), 2))
