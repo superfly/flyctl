@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -20,15 +21,15 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
-	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/update"
-
-	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/update"
 )
 
 type (
@@ -86,6 +87,22 @@ func WrapRunE(fn func(*cobra.Command, []string) error) func(*cobra.Command, []st
 	}
 }
 
+func sendOsMetric(ctx context.Context, state string) {
+	// Send /runs/[os_name]/[state]
+	osName := ""
+	switch runtime.GOOS {
+	case "darwin":
+		osName = "macos"
+	case "linux":
+		osName = "linux"
+	case "windows":
+		osName = "windows"
+	default:
+		osName = "other"
+	}
+	metrics.SendNoData(ctx, fmt.Sprintf("runs/%s/%s", osName, state))
+}
+
 func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) error {
 	if fn == nil {
 		return nil
@@ -100,6 +117,13 @@ func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) er
 		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
 			return
 		}
+
+		sendOsMetric(ctx, "started")
+		defer func() {
+			if err == nil {
+				sendOsMetric(ctx, "successful")
+			}
+		}()
 
 		// run the preparers specific to the command
 		if ctx, err = prepare(ctx, preparers...); err != nil {
