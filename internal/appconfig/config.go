@@ -4,6 +4,7 @@ package appconfig
 
 import (
 	"fmt"
+	"net/url"
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
@@ -196,4 +197,38 @@ func (cfg *Config) BuildStrategies() []string {
 	}
 
 	return strategies
+}
+
+func (cfg *Config) URL() (*url.URL, error) {
+	hasHttp := false
+	protocol := "http"
+	if cfg.HTTPService != nil {
+		hasHttp = true
+		if cfg.HTTPService.ForceHTTPS {
+			protocol = "https"
+		}
+	} else {
+		for _, service := range cfg.Services {
+			for _, port := range service.Ports {
+				hasTls := false
+				for _, handler := range port.Handlers {
+					if handler == "tls" {
+						hasTls = true
+					} else if handler == "http" {
+						hasHttp = true
+					}
+					if *port.Port == 443 && hasHttp && hasTls {
+						protocol = "https"
+						break
+					}
+				}
+			}
+		}
+	}
+
+	if hasHttp {
+		return url.Parse(protocol + "://" + cfg.AppName + ".fly.dev")
+	} else {
+		return nil, nil
+	}
 }

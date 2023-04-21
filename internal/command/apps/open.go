@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
@@ -55,7 +54,8 @@ func runOpen(ctx context.Context) error {
 		return errors.New("app has not been deployed yet. Please try deploying your app first")
 	}
 
-	appURL, err := url.Parse("http://" + app.Hostname)
+	appConfig := appconfig.ConfigFromContext(ctx)
+	appURL, err := appConfig.URL()
 	if err != nil {
 		return fmt.Errorf("failed parsing app URL (hostname: %s): %w", app.Hostname, err)
 	}
