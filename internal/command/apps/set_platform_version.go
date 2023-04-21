@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -100,7 +101,24 @@ func runSetPlatformVersion(ctx context.Context) error {
 		}
 	}
 
-	return UpdateAppPlatformVersion(ctx, appName, desiredVersion)
+	switch confirmed, err := prompt.Confirmf(ctx, "Are you sure you want to change the platform version of %s from %s to %s?", appName, currentVersion, desiredVersion); {
+	case err == nil:
+		if !confirmed {
+			return nil
+		}
+	case prompt.IsNonInteractive(err):
+		return prompt.NonInteractiveError("flyctl apps set-platform-version can only be run interactively")
+	default:
+		return err
+	}
+
+	err = UpdateAppPlatformVersion(ctx, appName, desiredVersion)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(io.Out, "App %s is now on platform version %s\n", appName, desiredVersion)
+	return nil
 }
 
 func UpdateAppPlatformVersion(ctx context.Context, appName string, platform string) error {
