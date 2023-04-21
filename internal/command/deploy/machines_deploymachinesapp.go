@@ -281,6 +281,16 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return "", fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
+	// FIXME: Workaround while support for acquiring lease along machine creation is implemented on Flaps API
+	if newMachineRaw.LeaseNonce == "" {
+		ttl := 120 // seconds
+		lease, err := md.flapsClient.AcquireLease(ctx, newMachineRaw.ID, &ttl)
+		if err != nil {
+			return "", fmt.Errorf("failed to acquire lease for %s: %w", newMachineRaw.ID, err)
+		}
+		newMachineRaw.LeaseNonce = lease.Data.Nonce
+	}
+
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	fmt.Fprintf(md.io.ErrOut, "  Machine %s was created\n", md.colorize.Bold(lm.FormattedMachineId()))
 
