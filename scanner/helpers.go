@@ -6,20 +6,28 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/samber/lo"
 )
+
+func absFileExists(filenames ...string) bool {
+	for _, filename := range filenames {
+		info, err := os.Stat(filename)
+		if err != nil {
+			continue
+		}
+		if !info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
 
 func fileExists(filenames ...string) checkFn {
 	return func(dir string) bool {
-		for _, filename := range filenames {
-			info, err := os.Stat(filepath.Join(dir, filename))
-			if err != nil {
-				continue
-			}
-			if !info.IsDir() {
-				return true
-			}
-		}
-		return false
+		return absFileExists(lo.Map(filenames, func(filename string, _ int) string {
+			return filepath.Join(dir, filename)
+		})...)
 	}
 }
 

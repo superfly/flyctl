@@ -49,13 +49,9 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
 		build.Dockerfile = dockerfile
 
-		// FIXME: Force the dockerfile scanner here and remove the condition
-		if dockerfile == "Dockerfile" {
-			// scan Dockerfile for port
-			srcInfo, err = scanner.Scan(workingDir, scannerConfig)
-			if err != nil {
-				return nil, nil, err
-			}
+		srcInfo, err = scanner.ScanDockerfile(dockerfile, scannerConfig)
+		if err != nil {
+			return nil, nil, err
 		}
 		return srcInfo, build, nil
 	}

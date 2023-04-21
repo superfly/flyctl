@@ -11,17 +11,21 @@ const defaultPort = 8080
 
 var portRegex = regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
 
-func configureDockerfile (sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("Dockerfile")) {
+func configureDockerfile(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
+	return ScanDockerfile(filepath.Join(sourceDir, "Dockerfile"), config)
+}
+
+func ScanDockerfile(dockerfilePath string, config *ScannerConfig) (*SourceInfo, error) {
+	if !absFileExists(dockerfilePath) {
 		return nil, nil
 	}
 
 	var portFromDockerfile int
 
 	s := &SourceInfo{
-		DockerfilePath: filepath.Join(sourceDir, "Dockerfile"),
+		DockerfilePath: dockerfilePath,
 		Family:         "Dockerfile",
-		Port : config.ExistingPort,
+		Port:           config.ExistingPort,
 	}
 
 	dockerfile, err := os.ReadFile(s.DockerfilePath)
