@@ -218,6 +218,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 			lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 			fmt.Fprintf(md.io.ErrOut, "  %s Created machine %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
+			// FIXME: Workaround while support for acquiring lease along machine creation is implemented on Flaps API
+			if err := lm.AcquireLease(ctx, 10*time.Minute); err != nil {
+				return err
+			}
+			defer lm.ReleaseLease(ctx)
 
 		} else {
 			fmt.Fprintf(md.io.ErrOut, "  %s Updating %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
@@ -281,18 +286,14 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return "", fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
-	// FIXME: Workaround while support for acquiring lease along machine creation is implemented on Flaps API
-	if newMachineRaw.LeaseNonce == "" {
-		ttl := 120 // seconds
-		lease, err := md.flapsClient.AcquireLease(ctx, newMachineRaw.ID, &ttl)
-		if err != nil {
-			return "", fmt.Errorf("failed to acquire lease for %s: %w", newMachineRaw.ID, err)
-		}
-		newMachineRaw.LeaseNonce = lease.Data.Nonce
-	}
-
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	fmt.Fprintf(md.io.ErrOut, "  Machine %s was created\n", md.colorize.Bold(lm.FormattedMachineId()))
+
+	// FIXME: Workaround while support for acquiring lease along machine creation is implemented on Flaps API
+	if err := lm.AcquireLease(ctx, 10*time.Minute); err != nil {
+		return "", err
+	}
+	defer lm.ReleaseLease(ctx)
 
 	// Don't wait for Standby machines, they are created but not started
 	if len(launchInput.Config.Standbys) > 0 {
