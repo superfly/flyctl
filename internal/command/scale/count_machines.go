@@ -14,6 +14,8 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
@@ -37,6 +39,8 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	}
 
 	if len(machines) == 0 {
+		// We need at least one machine to grab the image to use.
+		// FIXME: fetch image, release id and version from latest "complete" release
 		return fmt.Errorf("there are no active machines for this app. Run `fly deploy` to create one and rerun this command")
 	}
 
@@ -45,12 +49,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		regions = strings.Split(v, ",")
 	}
 	if len(regions) == 0 {
-		if len(machines) == 0 {
+		regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string { return m.Region }))
+		if len(regions) == 0 {
 			regions = []string{appConfig.PrimaryRegion}
-		} else {
-			regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string {
-				return m.Region
-			}))
 		}
 	}
 
@@ -74,12 +75,23 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
+	needsVolumes := map[string]bool{}
 	for _, action := range actions {
-		size := ""
-		if action.MachineConfig != nil {
-			size = action.MachineConfig.Guest.ToSize()
-		}
+		size := action.MachineConfig.Guest.ToSize()
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
+		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
+			needsVolumes[action.GroupName] = true
+		}
+	}
+
+	if len(needsVolumes) > 0 {
+		groupNames := maps.Keys(needsVolumes)
+		slices.Sort(groupNames)
+		return fmt.Errorf(
+			"'fly scale count' can't scale up groups with mounts, "+
+				"use 'fly machine clone' to add machines for: %s",
+			strings.Join(groupNames, " "),
+		)
 	}
 
 	if !flag.GetYes(ctx) {
@@ -89,7 +101,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 				return nil
 			}
 		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
 		default:
 			return err
 		}
@@ -188,13 +200,17 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 			return nil, err
 		}
 
+		mConfig := groupMachines[0].Config
+		// Nullify standbys, no point on having more than one
+		mConfig.Standbys = nil
+
 		for regionName, delta := range regionDiffs {
 			actions = append(actions, &planItem{
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
 				Machines:      perRegionMachines[regionName],
-				MachineConfig: groupMachines[0].Config,
+				MachineConfig: mConfig,
 			})
 		}
 	}
