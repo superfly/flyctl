@@ -99,7 +99,7 @@ Scaling and configuring:
 		fmt.Printf(`
 Provisioning storage:
 `)
-		listCommands([]string{"volumes", "postgres", "redis"})
+		listCommands([]string{"volumes", "postgres", "redis", "consul"})
 
 		fmt.Printf(`
 Networking configuration:
