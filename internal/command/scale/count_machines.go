@@ -14,6 +14,8 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 )
 
 func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
@@ -73,12 +75,23 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
+	needsVolumes := map[string]bool{}
 	for _, action := range actions {
-		size := ""
-		if action.MachineConfig != nil {
-			size = action.MachineConfig.Guest.ToSize()
-		}
+		size := action.MachineConfig.Guest.ToSize()
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
+		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
+			needsVolumes[action.GroupName] = true
+		}
+	}
+
+	if len(needsVolumes) > 0 {
+		groupNames := maps.Keys(needsVolumes)
+		slices.Sort(groupNames)
+		return fmt.Errorf(
+			"'fly scale count' can't scale up groups with mounts, "+
+				"use 'fly machine clone' to add machines for: %s",
+			strings.Join(groupNames, " "),
+		)
 	}
 
 	if !flag.GetYes(ctx) {
@@ -88,7 +101,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 				return nil
 			}
 		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
 		default:
 			return err
 		}
