@@ -37,6 +37,8 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	}
 
 	if len(machines) == 0 {
+		// We need at least one machine to grab the image to use.
+		// FIXME: fetch image, release id and version from latest "complete" release
 		return fmt.Errorf("there are no active machines for this app. Run `fly deploy` to create one and rerun this command")
 	}
 
@@ -45,12 +47,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 		regions = strings.Split(v, ",")
 	}
 	if len(regions) == 0 {
-		if len(machines) == 0 {
+		regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string { return m.Region }))
+		if len(regions) == 0 {
 			regions = []string{appConfig.PrimaryRegion}
-		} else {
-			regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string {
-				return m.Region
-			}))
 		}
 	}
 
@@ -188,13 +187,17 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 			return nil, err
 		}
 
+		mConfig := groupMachines[0].Config
+		// Nullify standbys, no point on having more than one
+		mConfig.Standbys = nil
+
 		for regionName, delta := range regionDiffs {
 			actions = append(actions, &planItem{
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
 				Machines:      perRegionMachines[regionName],
-				MachineConfig: groupMachines[0].Config,
+				MachineConfig: mConfig,
 			})
 		}
 	}
