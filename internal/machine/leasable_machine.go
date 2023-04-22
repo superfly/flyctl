@@ -48,6 +48,7 @@ func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, mach
 		io:          io,
 		colorize:    io.ColorScheme(),
 		machine:     machine,
+		leaseNonce:  machine.LeaseNonce,
 	}
 }
 
@@ -352,8 +353,20 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 	if nonce == "" {
 		return nil
 	}
+
+	// when context is canceled, take 500ms to attempt to release the leases
+	contextWasAlreadyCanceled := errors.Is(ctx.Err(), context.Canceled)
+	if contextWasAlreadyCanceled {
+		var cancel context.CancelFunc
+		cancelTimeout := 500 * time.Millisecond
+		ctx, cancel = context.WithTimeout(context.TODO(), cancelTimeout)
+		terminal.Infof("detected canceled context and allowing %s to release machine %s lease\n", cancelTimeout, lm.FormattedMachineId())
+		defer cancel()
+	}
+
 	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
-	if err != nil {
+	contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+	if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
 		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
 		return err
 	}
