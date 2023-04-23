@@ -116,23 +116,23 @@ independent of flyctl.`,
 authenticated and in use.`,
 		}
 	case "autoscale":
-		return KeyStrings{"autoscale", "Autoscaling app resources",
-			`Autoscaling application resources`,
+		return KeyStrings{"autoscale", "V1 APPS ONLY: Autoscaling app resources",
+			`V1 APPS ONLY: Autoscaling application resources`,
 		}
 	case "autoscale.disable":
-		return KeyStrings{"disable", "Disable autoscaling",
-			`Disable autoscaling to manually controlling app resources`,
+		return KeyStrings{"disable", "V1 APPS ONLY: Disable autoscaling",
+			`V1 APPS ONLY: Disable autoscaling to manually control app resources`,
 		}
 	case "autoscale.set":
 		return KeyStrings{"set", "Set app autoscaling parameters",
-			`Enable autoscaling and set the application's autoscaling parameters:
+			`V1 APPS ONLY: Enable autoscaling and set the application's autoscaling parameters:
 
 min=int - minimum number of instances to be allocated globally.
 max=int - maximum number of instances to be allocated globally.`,
 		}
 	case "autoscale.show":
-		return KeyStrings{"show", "Show current autoscaling configuration",
-			`Show current autoscaling configuration`,
+		return KeyStrings{"show", "V1 APPS ONLY: Show current autoscaling configuration",
+			`V1 APPS ONLY: Show current autoscaling configuration`,
 		}
 	case "builds":
 		return KeyStrings{"builds", "Work with Fly builds",
@@ -593,28 +593,28 @@ about the Fly platform.`,
 			`Proxies connections to a fly app through the wireguard tunnel`,
 		}
 	case "regions":
-		return KeyStrings{"regions", "Manage regions",
-			`Configure the region placement rules for an application.`,
+		return KeyStrings{"regions", "V1 APPS ONLY: Manage regions",
+			`V1 APPS ONLY (except 'regions list'): Configure the region placement rules for an application.`,
 		}
 	case "regions.add":
-		return KeyStrings{"add REGION ...", "Allow the app to run in the provided regions",
-			`Allow the app to run in one or more regions`,
+		return KeyStrings{"add REGION ...", "V1 APPS ONLY: Allow the app to run in the provided regions",
+			`V1 APPS ONLY: Allow the app to run in one or more regions`,
 		}
 	case "regions.backup":
-		return KeyStrings{"backup REGION ...", "Sets the backup region pool with provided regions",
-			`Sets the backup region pool with provided regions`,
+		return KeyStrings{"backup REGION ...", "V1 APPS ONLY: Sets the backup region pool with provided regions",
+			`V1 APPS ONLY: Sets the backup region pool with provided regions`,
 		}
 	case "regions.list":
 		return KeyStrings{"list", "Shows the list of regions the app is allowed to run in",
 			`Shows the list of regions the app is allowed to run in.`,
 		}
 	case "regions.remove":
-		return KeyStrings{"remove REGION ...", "Prevent the app from running in the provided regions",
-			`Prevent the app from running in the provided regions`,
+		return KeyStrings{"remove REGION ...", "V1 APPS ONLY: Prevent the app from running in the provided regions",
+			`V1 APPS ONLY: Prevent the app from running in the provided regions`,
 		}
 	case "regions.set":
-		return KeyStrings{"set REGION ...", "Sets the region pool with provided regions",
-			`Sets the region pool with provided regions`,
+		return KeyStrings{"set REGION ...", "V1 APPS ONLY: Sets the region pool with provided regions",
+			`V1 APPS ONLY: Sets the region pool with provided regions`,
 		}
 	case "releases":
 		return KeyStrings{"releases", "List app releases",
@@ -654,17 +654,11 @@ For pricing, see https://fly.io/docs/about/pricing/`,
 		return KeyStrings{"vm [SIZENAME] [flags]", "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)",
 			`Change an application's VM size to one of the named VM sizes.
 
-Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
-
 For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 
 e.g. flyctl scale vm shared-cpu-1x --memory=2048
-
-For dedicated vms, this should be a multiple of 1024MB.
-
-For shared vms, this can be 256MB or a a multiple of 1024MB.
 
 For pricing, see https://fly.io/docs/about/pricing/`,
 		}

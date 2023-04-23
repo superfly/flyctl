@@ -497,8 +497,8 @@ shortHelp = "Attach a postgres cluster to an app"
 usage = "attach"
 [postgres.connect]
 shortHelp = "Connect to the Postgres console"
-longHelp  = "Connect to the Postgres console"
-usage     = "connect"
+longHelp = "Connect to the Postgres console"
+usage = "connect"
 [postgres.create]
 longHelp = "Create a postgres cluster"
 shortHelp = "Create a postgres cluster"
@@ -537,33 +537,33 @@ shortHelp = "list users in a cluster"
 usage = "list <postgres-cluster-name>"
 
 [regions]
-longHelp = """Configure the region placement rules for an application.
+longHelp = """V1 APPS ONLY (except 'regions list'): Configure the region placement rules for an application.
 """
-shortHelp = "Manage regions"
+shortHelp = "V1 APPS ONLY: Manage regions"
 usage = "regions"
 
 [regions.add]
-longHelp = """Allow the app to run in one or more regions
+longHelp = """V1 APPS ONLY: Allow the app to run in one or more regions
 """
-shortHelp = "Allow the app to run in the provided regions"
+shortHelp = "V1 APPS ONLY: Allow the app to run in the provided regions"
 usage = "add REGION ..."
 
 [regions.remove]
-longHelp = """Prevent the app from running in the provided regions
+longHelp = """V1 APPS ONLY: Prevent the app from running in the provided regions
 """
-shortHelp = "Prevent the app from running in the provided regions"
+shortHelp = "V1 APPS ONLY: Prevent the app from running in the provided regions"
 usage = "remove REGION ..."
 
 [regions.set]
-longHelp = """Sets the region pool with provided regions
+longHelp = """V1 APPS ONLY: Sets the region pool with provided regions
 """
-shortHelp = "Sets the region pool with provided regions"
+shortHelp = "V1 APPS ONLY: Sets the region pool with provided regions"
 usage = "set REGION ..."
 
 [regions.backup]
-longHelp = """Sets the backup region pool with provided regions
+longHelp = """V1 APPS ONLY: Sets the backup region pool with provided regions
 """
-shortHelp = "Sets the backup region pool with provided regions"
+shortHelp = "V1 APPS ONLY: Sets the backup region pool with provided regions"
 usage = "backup REGION ..."
 
 [regions.list]
@@ -580,25 +580,25 @@ shortHelp = "List app releases"
 usage = "releases"
 
 [autoscale]
-longHelp = """Autoscaling application resources
+longHelp = """V1 APPS ONLY: Autoscaling application resources
 """
-shortHelp = "Autoscaling app resources"
+shortHelp = "V1 APPS ONLY: Autoscaling app resources"
 usage = "autoscale"
 
 [autoscale.disable]
-longHelp = """Disable autoscaling to manually controlling app resources
+longHelp = """V1 APPS ONLY: Disable autoscaling to manually control app resources
 """
-shortHelp = "Disable autoscaling"
+shortHelp = "V1 APPS ONLY: Disable autoscaling"
 usage = "disable"
 
 [autoscale.show]
-longHelp = """Show current autoscaling configuration
+longHelp = """V1 APPS ONLY: Show current autoscaling configuration
 """
-shortHelp = "Show current autoscaling configuration"
+shortHelp = "V1 APPS ONLY: Show current autoscaling configuration"
 usage = "show"
 
 [autoscale.set]
-longHelp = """Enable autoscaling and set the application's autoscaling parameters:
+longHelp = """V1 APPS ONLY: Enable autoscaling and set the application's autoscaling parameters:
 
 min=int - minimum number of instances to be allocated globally.
 max=int - maximum number of instances to be allocated globally.
@@ -615,17 +615,11 @@ usage = "scale"
 [scale.vm]
 longHelp = """Change an application's VM size to one of the named VM sizes.
 
-Size names include shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x.
-
 For a full list of supported sizes use the command flyctl platform vm-sizes
 
 Memory size can be set with --memory=number-of-MB
 
 e.g. flyctl scale vm shared-cpu-1x --memory=2048
-
-For dedicated vms, this should be a multiple of 1024MB.
-
-For shared vms, this can be 256MB or a a multiple of 1024MB.
 
 For pricing, see https://fly.io/docs/about/pricing/
 """
@@ -1029,7 +1023,7 @@ usage = "proxy <local:remote>"
 
 [turboku]
 longHelp = "Launches heroku apps"
-shortHelp =  "Launches heroku apps"
+shortHelp = "Launches heroku apps"
 usage = "turboku <heroku-app>"
 
 [dig]
