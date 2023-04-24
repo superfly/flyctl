@@ -67,7 +67,7 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		InternalPort: 8080,
 		Ports: []api.MachinePort{{
 			Port: api.Pointer(80),
-			TlsOptions: &api.TlsOptions{
+			TLSOptions: &api.TLSOptions{
 				Alpn:     []string{"h2", "http/1.1"},
 				Versions: []string{"TLSv1.2", "TLSv1.3"},
 			},
@@ -434,7 +434,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						StartPort:  api.Pointer(100),
 						EndPort:    api.Pointer(200),
 						Handlers:   []string{"https"},
-						ForceHttps: true,
+						ForceHTTPS: true,
 					},
 				},
 

@@ -19,8 +19,8 @@ func TestToMachineConfig(t *testing.T) {
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []api.MachinePort{
-					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
-					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
+					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 				},
 			},
 		},
@@ -79,8 +79,8 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []api.MachinePort{
-					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
-					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
+					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 				},
 			},
 		},
@@ -207,8 +207,8 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 				Protocol:     "tcp",
 				InternalPort: 8080,
 				Ports: []api.MachinePort{
-					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
-					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+					{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
+					{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 				},
 			},
 		},
@@ -267,8 +267,8 @@ func TestToMachineConfig_services(t *testing.T) {
 			Autostart:    api.Pointer(true),
 			Autostop:     api.Pointer(true),
 			Ports: []api.MachinePort{
-				{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHttps: true},
-				{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHttps: false},
+				{Port: api.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
+				{Port: api.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
 			},
 		},
 		{

@@ -360,7 +360,7 @@ type MachinePort struct {
 	StartPort   *int         `json:"start_port,omitempty" toml:"start_port,omitempty"`
 	EndPort     *int         `json:"end_port,omitempty" toml:"end_port,omitempty"`
 	Handlers    []string     `json:"handlers,omitempty" toml:"handlers,omitempty"`
-	ForceHttps  bool         `json:"force_https,omitempty" toml:"force_https,omitempty"`
+	ForceHTTPS  bool         `json:"force_https,omitempty" toml:"force_https,omitempty"`
 	TLSOptions  *TLSOptions  `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
 	HTTPOptions *HTTPOptions `json:"http_options,omitempty" toml:"tls_options,omitempty"`
 }
