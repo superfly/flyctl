@@ -170,9 +170,6 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 	machines = lo.Filter(machines, func(machine *api.Machine, _ int) bool {
 		return machine.State == api.MachineStateStarted && !machine.IsFlyAppsReleaseCommand()
 	})
-	if len(machines) == 0 {
-		return nil, false, errors.New("no machines are available")
-	}
 
 	options := []string{"create an ephemeral shared-cpu-1x machine"}
 	for _, machine := range machines {
