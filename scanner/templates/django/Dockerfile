@@ -27,9 +27,12 @@ RUN set -ex && \
 {{ end -}}
 
 COPY . /code
-
+{{ if .collectStatic }}
+{{ if not .hasRandomSecretKey -}}
+ENV SECRET_KEY "{{ .randomSecretKey }}"
+{{ end -}}
 RUN python manage.py collectstatic --noinput
-
+{{ end }}
 EXPOSE 8000
 
 {{ if .wsgiFound -}}
