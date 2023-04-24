@@ -1,0 +1,14 @@
+app = "foo"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+
+  # https://community.fly.io/t/new-feature-basic-http-response-header-modification/3594
+  [services.ports.http_options.response.headers]
+    fly-request-id = false
+    fly-wasnt-here = "yes, it was"
+    multi-valued = ["value1", "value2"]
