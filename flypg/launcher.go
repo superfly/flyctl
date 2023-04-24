@@ -136,7 +136,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 							Handlers: []string{
 								"pg_tls",
 							},
-							ForceHttps: false,
+
+							ForceHTTPS: false,
 						},
 					},
 					Concurrency: concurrency,
@@ -150,7 +151,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 							Handlers: []string{
 								"pg_tls",
 							},
-							ForceHttps: false,
+							ForceHTTPS: false,
 						},
 					},
 					Concurrency: concurrency,

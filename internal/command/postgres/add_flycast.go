@@ -116,7 +116,7 @@ func doAddFlycast(ctx context.Context) error {
 							Handlers: []string{
 								"pg_tls",
 							},
-							ForceHttps: false,
+							ForceHTTPS: false,
 						},
 					},
 					Concurrency: nil,
@@ -130,7 +130,7 @@ func doAddFlycast(ctx context.Context) error {
 							Handlers: []string{
 								"pg_tls",
 							},
-							ForceHttps: false,
+							ForceHTTPS: false,
 						},
 					},
 					Concurrency: nil,
