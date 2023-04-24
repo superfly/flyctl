@@ -7,6 +7,10 @@ app = "foo"
   [[services.ports]]
     port = 80
 
+  [services.ports.tls_options]
+  alpn = ["h2", "http/1.1"]
+  versions = ["TLSv1.2", "TLSv1.3"]
+
   # https://community.fly.io/t/new-feature-basic-http-response-header-modification/3594
   [services.ports.http_options]
     compress = true

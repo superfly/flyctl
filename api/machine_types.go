@@ -361,7 +361,7 @@ type MachinePort struct {
 	EndPort     *int         `json:"end_port,omitempty" toml:"end_port,omitempty"`
 	Handlers    []string     `json:"handlers,omitempty" toml:"handlers,omitempty"`
 	ForceHttps  bool         `json:"force_https,omitempty" toml:"force_https,omitempty"`
-	TlsOptions  *TlsOptions  `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	TLSOptions  *TLSOptions  `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
 	HTTPOptions *HTTPOptions `json:"http_options,omitempty" toml:"tls_options,omitempty"`
 }
 
@@ -413,7 +413,7 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 	return false
 }
 
-type TlsOptions struct {
+type TLSOptions struct {
 	Alpn     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
 	Versions []string `json:"versions,omitempty" toml:"version,omitempty"`
 }

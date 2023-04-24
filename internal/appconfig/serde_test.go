@@ -67,6 +67,10 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		InternalPort: 8080,
 		Ports: []api.MachinePort{{
 			Port: api.Pointer(80),
+			TlsOptions: &api.TlsOptions{
+				Alpn:     []string{"h2", "http/1.1"},
+				Versions: []string{"TLSv1.2", "TLSv1.3"},
+			},
 			HTTPOptions: &api.HTTPOptions{
 				Compress: api.Pointer(true),
 				Response: &api.HTTPResponseOptions{
