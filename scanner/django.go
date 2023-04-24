@@ -52,19 +52,31 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
     wsgiFiles, err := zglob.Glob(`./**/wsgi.py`)
 
     if err == nil && len(wsgiFiles) > 0 {
-        wsgiFilesLen := len(wsgiFiles)
-        dirPath, _ := path.Split(wsgiFiles[wsgiFilesLen-1])
-        dirName := path.Base(dirPath)
-        vars["wsgiName"] = dirName;
-        vars["wsgiFound"] = true;
-        if wsgiFilesLen > 1 {
-            // warning: multiple wsgi.py files found
-            s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
+        var wsgiFilesProject []string
+        for _, wsgiPath := range wsgiFiles {
+            // when using a virtual environment to manage the dependencies (e.g. venv), the 'site-packages/' folder is created within the virtual environment folder
+            // This folder contains all the (dependencies) packages installed within the virtual environment
+            // exclude dependencies matches that contain 'site-packages' in the path (e.g. .venv/lib/python3.11/site-packages/django/core/handlers/wsgi.py)
+            if !strings.Contains(wsgiPath, "site-packages") {
+                wsgiFilesProject = append(wsgiFilesProject, wsgiPath)
+            }
+        }
+
+        if len(wsgiFilesProject) > 0 {
+            wsgiFilesLen := len(wsgiFilesProject)
+            dirPath, _ := path.Split(wsgiFilesProject[wsgiFilesLen-1])
+            dirName := path.Base(dirPath)
+            vars["wsgiName"] = dirName;
+            vars["wsgiFound"] = true;
+            if wsgiFilesLen > 1 {
+                // warning: multiple wsgi.py files found
+                s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
 Multiple wsgi.py files were found in your Django application:
 [%s]
 Before proceeding, make sure '%s' is the module containing a WSGI application object named 'application'. If not, update your Dockefile.
 This module is used on Dockerfile to start the Gunicorn server process.
-`, strings.Join(wsgiFiles, ", "), dirPath)
+`, strings.Join(wsgiFilesProject, ", "), dirPath)
+            }
         }
     }
 
