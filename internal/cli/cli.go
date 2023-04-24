@@ -10,6 +10,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
@@ -33,6 +34,10 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SilenceErrors = true
 
 	cs := io.ColorScheme()
+
+	defer func() {
+		metrics.FlushPending()
+	}()
 
 	switch _, err := cmd.ExecuteContextC(ctx); {
 	case err == nil:

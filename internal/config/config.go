@@ -17,8 +17,11 @@ const (
 	envKeyPrefix          = "FLY_"
 	apiBaseURLEnvKey      = envKeyPrefix + "API_BASE_URL"
 	flapsBaseURLEnvKey    = envKeyPrefix + "FLAPS_BASE_URL"
+	metricsBaseURLEnvKey  = envKeyPrefix + "METRICS_BASE_URL"
 	AccessTokenEnvKey     = envKeyPrefix + "ACCESS_TOKEN"
 	AccessTokenFileKey    = "access_token"
+	MetricsTokenEnvKey    = envKeyPrefix + "METRICS_TOKEN"
+	MetricsTokenFileKey   = "metrics_token"
 	WireGuardStateFileKey = "wire_guard_state"
 	APITokenEnvKey        = envKeyPrefix + "API_TOKEN"
 	orgEnvKey             = envKeyPrefix + "ORG"
@@ -30,9 +33,10 @@ const (
 	logGQLEnvKey          = envKeyPrefix + "LOG_GQL_ERRORS"
 	localOnlyEnvKey       = envKeyPrefix + "LOCAL_ONLY"
 
-	defaultAPIBaseURL   = "https://api.fly.io"
-	defaultFlapsBaseURL = "https://api.machines.dev"
-	defaultRegistryHost = "registry.fly.io"
+	defaultAPIBaseURL     = "https://api.fly.io"
+	defaultFlapsBaseURL   = "https://api.machines.dev"
+	defaultRegistryHost   = "registry.fly.io"
+	defaultMetricsBaseURL = "https://flyctl-metrics.fly.dev"
 )
 
 // Config wraps the functionality of the configuration file.
@@ -46,6 +50,9 @@ type Config struct {
 
 	// FlapsBaseURL denotes base URL for FLAPS (also known as the Machines API).
 	FlapsBaseURL string
+
+	// MetricsBaseURL denotes the base URL of the metrics API.
+	MetricsBaseURL string
 
 	// RegistryHost denotes the docker registry host.
 	RegistryHost string
@@ -70,14 +77,18 @@ type Config struct {
 
 	// AccessToken denotes the user's access token.
 	AccessToken string
+
+	// MetricsToken denotes the user's metrics token.
+	MetricsToken string
 }
 
 // New returns a new instance of Config populated with default values.
 func New() *Config {
 	return &Config{
-		APIBaseURL:   defaultAPIBaseURL,
-		FlapsBaseURL: defaultFlapsBaseURL,
-		RegistryHost: defaultRegistryHost,
+		APIBaseURL:     defaultAPIBaseURL,
+		FlapsBaseURL:   defaultFlapsBaseURL,
+		RegistryHost:   defaultRegistryHost,
+		MetricsBaseURL: defaultMetricsBaseURL,
 	}
 }
 
@@ -106,6 +117,7 @@ func (cfg *Config) ApplyEnv() {
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
+	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file
@@ -115,11 +127,13 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 	defer cfg.mu.Unlock()
 
 	var w struct {
-		AccessToken string `yaml:"access_token"`
+		AccessToken  string `yaml:"access_token"`
+		MetricsToken string `yaml:"metrics_token"`
 	}
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.AccessToken = w.AccessToken
+		cfg.MetricsToken = w.MetricsToken
 	}
 
 	return

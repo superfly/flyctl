@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -109,12 +110,20 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	// finally, build the image
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
+		metrics.SendNoData(ctx, "remote_builder_failure")
 		return nil, err
 	}
 	defer heartbeat.Stop()
 
+	metrics.Started(ctx, "remote_build_image")
+	sendDurationMetrics := metrics.StartTiming(ctx, "remote_build_image/duration")
+
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
+	}
+	metrics.Status(ctx, "remote_build_image", err == nil)
+	if err == nil {
+		sendDurationMetrics()
 	}
 
 	if err == nil {
