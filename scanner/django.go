@@ -49,21 +49,22 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	    vars["venv"] = true
 	}
 
-    wsgis, err := zglob.Glob(`./**/wsgi.py`)
+    wsgiFiles, err := zglob.Glob(`./**/wsgi.py`)
 
-    if err == nil && len(wsgis) > 0 {
-        wsgiLen := len(wsgis)
-        dirPath, _ := path.Split(wsgis[wsgiLen-1])
+    if err == nil && len(wsgiFiles) > 0 {
+        wsgiFilesLen := len(wsgiFiles)
+        dirPath, _ := path.Split(wsgiFiles[wsgiFilesLen-1])
         dirName := path.Base(dirPath)
         vars["wsgiName"] = dirName;
         vars["wsgiFound"] = true;
-        if wsgiLen > 1 {
+        if wsgiFilesLen > 1 {
             // warning: multiple wsgi.py files found
             s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
-Multiple wsgi.py files were found!
-Before proceeding, make sure '%s' is the module containing a WSGI application object named 'application'.
+Multiple wsgi.py files were found in your Django application:
+[%s]
+Before proceeding, make sure '%s' is the module containing a WSGI application object named 'application'. If not, update your Dockefile.
 This module is used on Dockerfile to start the Gunicorn server process.
-`, dirPath)
+`, strings.Join(wsgiFiles, ", "), dirPath)
         }
     }
 
