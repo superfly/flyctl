@@ -69,11 +69,13 @@ This module is used on Dockerfile to start the Gunicorn server process.
     s.Files = templatesExecute("templates/django", vars)
 
 	// check if project has a postgres dependency
-	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) || checksPass(sourceDir, dirContains("Pipfile", "psycopg2")) || checksPass(sourceDir, dirContains("pyproject.toml", "psycopg2")) {
+	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg")) ||
+	    checksPass(sourceDir, dirContains("Pipfile", "psycopg")) ||
+	    checksPass(sourceDir, dirContains("pyproject.toml", "psycopg")) {
 		s.ReleaseCmd = "python manage.py migrate"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
-			s.DeployDocs = `
+			s.DeployDocs = s.DeployDocs + `
 Your Django app is almost ready to deploy!
 
 We recommend using the django-environ(pip install django-environ) or dj-database-url(pip install dj-database-url) to parse the DATABASE_URL from os.environ['DATABASE_URL']
@@ -81,7 +83,7 @@ We recommend using the django-environ(pip install django-environ) or dj-database
 For detailed documentation, see https://fly.dev/docs/django/
 		`
 		} else {
-			s.DeployDocs = `
+			s.DeployDocs = s.DeployDocs + `
 Your Django app is ready to deploy!
 
 For detailed documentation, see https://fly.dev/docs/django/
