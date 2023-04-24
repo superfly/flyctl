@@ -349,38 +349,27 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 func isQuorumMet(machines []*api.Machine) (bool, string) {
 	primaryRegion := machines[0].Config.Env["PRIMARY_REGION"]
 
-	totalPrimary := 0
-	activePrimary := 0
-	inactivePrimary := 0
+	// We are only considering machines in the primary region.
+	total := 0
+	active := 0
 
 	for _, m := range machines {
 		isPrimaryRegion := m.Region == primaryRegion
 
 		if isPrimaryRegion {
-			totalPrimary++
+			total++
 
 			if m.IsActive() {
-				activePrimary++
-			} else {
-				inactivePrimary++
+				active++
 			}
-		}
-
-		if m.IsActive() {
-			if isPrimaryRegion {
-				activePrimary++
-			}
-		} else {
-			inactivePrimary++
 		}
 	}
 
-	quorum := totalPrimary/2 + 1
-	totalActive := (totalPrimary - inactivePrimary)
+	quorum := total/2 + 1
 
 	// Verify that we meet basic quorum requirements.
-	if totalActive <= quorum {
-		return false, fmt.Sprintf("WARNING: Cluster size does not meet requirements for HA (expected >= 3, got %d)\n", totalActive)
+	if active <= quorum {
+		return false, fmt.Sprintf("WARNING: Cluster size does not meet requirements for HA (expected >= 3, got %d)\n", active)
 	}
 
 	return true, ""
