@@ -24,6 +24,7 @@ func NewConfig() *Config {
 	return &Config{
 		RawDefinition:    map[string]any{},
 		defaultGroupName: api.MachineProcessGroupApp,
+		configFilePath:   "--config path unset--",
 	}
 }
 
@@ -109,6 +110,10 @@ type Experimental struct {
 
 func (c *Config) ConfigFilePath() string {
 	return c.configFilePath
+}
+
+func (c *Config) SetConfigFilePath(configFilePath string) {
+	c.configFilePath = configFilePath
 }
 
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {

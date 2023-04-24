@@ -108,6 +108,7 @@ func TestFromDefinition(t *testing.T) {
 				},
 			},
 		},
+		configFilePath: "--config path unset--",
 		defaultGroupName: "app",
 		RawDefinition: map[string]any{
 			"env": map[string]any{},
