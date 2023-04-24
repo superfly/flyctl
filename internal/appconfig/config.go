@@ -24,6 +24,7 @@ func NewConfig() *Config {
 	return &Config{
 		RawDefinition:    map[string]any{},
 		defaultGroupName: api.MachineProcessGroupApp,
+		configFilePath:   "--config path unset--",
 	}
 }
 
