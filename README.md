@@ -62,19 +62,19 @@ Download the appropriate version from the [Releases](https://github.com/superfly
 1. Sign into your fly account
 
 ```bash
-flyctl auth login
+fly auth login
 ```
 
 2. List your apps
 
 ```bash
-flyctl apps list
+fly apps list
 ```
 
 2. View app status
 
 ```bash
-flyctl status -a {app-name}
+fly status -a {app-name}
 ```
 
 ## App Settings
