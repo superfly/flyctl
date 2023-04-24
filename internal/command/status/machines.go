@@ -369,7 +369,7 @@ func isQuorumMet(machines []*api.Machine) (bool, string) {
 
 	// Verify that we meet basic quorum requirements.
 	if active <= quorum {
-		return false, fmt.Sprintf("WARNING: Cluster size within your primary region %q does not meet requirements for HA. (expected >= 3, got %d)\n", primaryRegion, active)
+		return false, fmt.Sprintf("WARNING: Cluster size within your primary region %q does not meet HA requirements. (expected >= 3, got %d)\n", primaryRegion, active)
 	}
 
 	return true, ""
