@@ -57,6 +57,31 @@ func TestLoadTOMLAppConfigWithEmptyService(t *testing.T) {
 	assert.Nil(t, p.Services)
 }
 
+func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
+	const path = "./testdata/services-ports.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	want := []Service{{
+		Protocol:     "tcp",
+		InternalPort: 8080,
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(80),
+			HTTPOptions: &api.HTTPOptions{
+				Response: &api.HTTPResponseOptions{
+					Headers: map[string]any{
+						"fly-request-id": false,
+						"fly-wasnt-here": "yes, it was",
+						"multi-valued":   []any{"value1", "value2"},
+					},
+				},
+			},
+		}},
+	}}
+
+	assert.Equal(t, want, p.Services)
+}
+
 func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	const path = "./testdata/always-invalid-v2.toml"
 	cfg, err := LoadConfig(path)

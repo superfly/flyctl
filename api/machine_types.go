@@ -424,7 +424,7 @@ type HTTPOptions struct {
 }
 
 type HTTPResponseOptions struct {
-	Headers map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+	Headers map[string]any `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
 type MachineService struct {
