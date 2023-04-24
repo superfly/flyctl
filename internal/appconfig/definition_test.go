@@ -90,7 +90,7 @@ func TestFromDefinition(t *testing.T) {
 					{
 						Port:       api.Pointer(80),
 						Handlers:   []string{"http"},
-						ForceHttps: true,
+						ForceHTTPS: true,
 					},
 					{
 						Port:     api.Pointer(443),
@@ -108,7 +108,7 @@ func TestFromDefinition(t *testing.T) {
 				},
 			},
 		},
-		configFilePath: "--config path unset--",
+		configFilePath:   "--config path unset--",
 		defaultGroupName: "app",
 		RawDefinition: map[string]any{
 			"env": map[string]any{},

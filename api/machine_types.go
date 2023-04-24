@@ -356,12 +356,13 @@ type MachineCheckStatus struct {
 }
 
 type MachinePort struct {
-	Port       *int        `json:"port,omitempty" toml:"port,omitempty"`
-	StartPort  *int        `json:"start_port,omitempty" toml:"start_port,omitempty"`
-	EndPort    *int        `json:"end_port,omitempty" toml:"end_port,omitempty"`
-	Handlers   []string    `json:"handlers,omitempty" toml:"handlers,omitempty"`
-	ForceHttps bool        `json:"force_https,omitempty" toml:"force_https,omitempty"`
-	TlsOptions *TlsOptions `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	Port        *int         `json:"port,omitempty" toml:"port,omitempty"`
+	StartPort   *int         `json:"start_port,omitempty" toml:"start_port,omitempty"`
+	EndPort     *int         `json:"end_port,omitempty" toml:"end_port,omitempty"`
+	Handlers    []string     `json:"handlers,omitempty" toml:"handlers,omitempty"`
+	ForceHTTPS  bool         `json:"force_https,omitempty" toml:"force_https,omitempty"`
+	TLSOptions  *TLSOptions  `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	HTTPOptions *HTTPOptions `json:"http_options,omitempty" toml:"tls_options,omitempty"`
 }
 
 func (mp *MachinePort) ContainsPort(port int) bool {
@@ -412,9 +413,18 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 	return false
 }
 
-type TlsOptions struct {
+type TLSOptions struct {
 	Alpn     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
 	Versions []string `json:"versions,omitempty" toml:"version,omitempty"`
+}
+
+type HTTPOptions struct {
+	Compress *bool                `json:"compress,omitempty" toml:"compress,omitempty"`
+	Response *HTTPResponseOptions `json:"response,omitempty" toml:"response,omitempty"`
+}
+
+type HTTPResponseOptions struct {
+	Headers map[string]any `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
 type MachineService struct {

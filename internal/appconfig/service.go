@@ -61,7 +61,7 @@ func (s *HTTPService) ToService() *Service {
 		Ports: []api.MachinePort{{
 			Port:       api.IntPointer(80),
 			Handlers:   []string{"http"},
-			ForceHttps: s.ForceHTTPS,
+			ForceHTTPS: s.ForceHTTPS,
 		}, {
 			Port:     api.IntPointer(443),
 			Handlers: []string{"http", "tls"},
