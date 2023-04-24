@@ -152,7 +152,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 	out = new(api.Machine)
 
 	metrics.Started(ctx, "machine_launch")
-	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
 	defer func() {
 		metrics.Status(ctx, "machine_launch", err == nil)
 		if err == nil {
@@ -178,7 +178,7 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	out = new(api.Machine)
 
 	metrics.Started(ctx, "machine_update")
-	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update/duration")
 	defer func() {
 		metrics.Status(ctx, "machine_update", err == nil)
 		if err == nil {

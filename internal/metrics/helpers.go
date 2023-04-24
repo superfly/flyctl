@@ -73,6 +73,6 @@ func SendJson(ctx context.Context, metricSlug, jsonValue string) {
 func StartTiming(ctx context.Context, metricSlug string) func() {
 	start := time.Now()
 	return func() {
-		Send(ctx, metricSlug+"/duration", map[string]float64{"duration_seconds": time.Since(start).Seconds()})
+		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
 }

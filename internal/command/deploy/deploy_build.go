@@ -116,11 +116,15 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	defer heartbeat.Stop()
 
 	metrics.Started(ctx, "remote_build_image")
+	sendDurationMetrics := metrics.StartTiming(ctx, "remote_build_image/duration")
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
+	if err == nil {
+		sendDurationMetrics()
+	}
 
 	if err == nil {
 		tb.Printf("image: %s\n", img.Tag)
