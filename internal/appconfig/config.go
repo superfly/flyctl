@@ -111,6 +111,10 @@ func (c *Config) ConfigFilePath() string {
 	return c.configFilePath
 }
 
+func (c *Config) SetConfigFilePath(configFilePath string) {
+	c.configFilePath = configFilePath
+}
+
 func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
 	for _, service := range c.Services {
 		switch service.Protocol {

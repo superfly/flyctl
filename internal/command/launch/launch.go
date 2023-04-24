@@ -271,6 +271,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// Finally write application configuration to fly.toml
+	appConfig.SetConfigFilePath(configFilePath)
 	if err := appConfig.WriteToDisk(ctx, configFilePath); err != nil {
 		return err
 	}
