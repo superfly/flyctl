@@ -68,6 +68,7 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		Ports: []api.MachinePort{{
 			Port: api.Pointer(80),
 			HTTPOptions: &api.HTTPOptions{
+				Compress: api.Pointer(true),
 				Response: &api.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
