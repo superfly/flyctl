@@ -123,7 +123,9 @@ Optionally, you can use django.core.management.utils.get_random_secret_key() to 
     s.Files = templatesExecute("templates/django", vars)
 
 	// check if project has a postgres dependency
-	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg2")) || checksPass(sourceDir, dirContains("Pipfile", "psycopg2")) || checksPass(sourceDir, dirContains("pyproject.toml", "psycopg2")) {
+	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg")) ||
+	    checksPass(sourceDir, dirContains("Pipfile", "psycopg")) ||
+	    checksPass(sourceDir, dirContains("pyproject.toml", "psycopg")) {
 		s.ReleaseCmd = "python manage.py migrate"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
