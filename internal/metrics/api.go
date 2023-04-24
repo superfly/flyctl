@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -46,6 +47,7 @@ func rawSendImpl(parentCtx context.Context, metricSlug, jsonValue string) error 
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", token)
+	req.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 	resp, err := http.DefaultClient.Do(req)
 	defer func() {
 		if resp != nil {
