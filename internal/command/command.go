@@ -548,7 +548,7 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	return
 }
 
-var errRequireAppName = fmt.Errorf("we couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '%s launch'", buildinfo.Name())
+var errRequireAppName = fmt.Errorf("the config for your app is missing an app name, add an app_name field to the fly.toml file or specify with the -a flag`")
 
 // RequireAppName is a Preparer which makes sure the user has selected an
 // application name via command line arguments, the environment or an application
@@ -571,8 +571,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 	}
 
 	if name == "" {
-		err := fmt.Errorf("the config for your app is missing an app name, add an app_name field to the fly.toml file or specify with the -a flag`")
-		return nil, err
+		return nil, errRequireAppName
 	}
 
 	return appconfig.WithName(ctx, name), nil
