@@ -2,10 +2,10 @@ package metrics
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -14,12 +14,15 @@ import (
 )
 
 const (
-	timeout = 4 * time.Second
+	timeout = 6 * time.Second
 )
 
-var timedOut = atomic.Bool{}
+var (
+	timedOut = atomic.Bool{}
+	done     = sync.WaitGroup{}
+)
 
-func sendImpl(parentCtx context.Context, metricSlug, jsonValue string) error {
+func rawSendImpl(parentCtx context.Context, metricSlug, jsonValue string) error {
 
 	token, err := getMetricsToken(parentCtx)
 	if err != nil {
@@ -70,34 +73,14 @@ func handleErr(err error) {
 	terminal.Debugf("metrics error: %v", err)
 }
 
-func Started(ctx context.Context, metricSlug string) {
-	SendNoData(ctx, metricSlug+"/started")
-}
-func Status(ctx context.Context, metricSlug string, success bool) {
-	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
-}
-
-func Send[T any](ctx context.Context, metricSlug string, value T) {
-
-	valJson, err := json.Marshal(value)
-	if err != nil {
-		return
-	}
-	SendJson(ctx, metricSlug, string(valJson))
+func rawSend(parentCtx context.Context, metricSlug, jsonValue string) {
+	done.Add(1)
+	go func() {
+		defer done.Done()
+		handleErr(rawSendImpl(parentCtx, metricSlug, jsonValue))
+	}()
 }
 
-func SendNoData(ctx context.Context, metricSlug string) {
-
-	SendJson(ctx, metricSlug, "")
-}
-
-func SendJson(ctx context.Context, metricSlug, jsonValue string) {
-	handleErr(sendImpl(ctx, metricSlug, jsonValue))
-}
-
-func StartTiming(ctx context.Context, metricSlug string) func() {
-	start := time.Now()
-	return func() {
-		Send(ctx, metricSlug+"/duration", map[string]float64{"duration_seconds": time.Since(start).Seconds()})
-	}
+func FlushPending() {
+	done.Wait()
 }
