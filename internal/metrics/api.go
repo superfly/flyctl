@@ -76,6 +76,11 @@ func handleErr(err error) {
 }
 
 func rawSend(parentCtx context.Context, metricSlug, jsonValue string) {
+
+	if buildinfo.IsDev() {
+		return
+	}
+
 	done.Add(1)
 	go func() {
 		defer done.Done()
