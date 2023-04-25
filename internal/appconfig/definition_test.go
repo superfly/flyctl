@@ -319,12 +319,7 @@ func TestToDefinition(t *testing.T) {
 }
 
 func TestFromDefinitionEnvAsList(t *testing.T) {
-	jsonBody := []byte(`{"env": [{"ONE": "one", "TWO": 2}, {"TRUE": true}]}`)
-	definition := &api.Definition{}
-	err := json.Unmarshal(jsonBody, definition)
-	require.NoError(t, err)
-
-	cfg, err := FromDefinition(definition)
+	cfg, err := cfgFromJSON(`{"env": [{"ONE": "one", "TWO": 2}, {"TRUE": true}]}`)
 	require.NoError(t, err)
 
 	want := map[string]string{
@@ -332,34 +327,53 @@ func TestFromDefinitionEnvAsList(t *testing.T) {
 		"TWO":  "2",
 		"TRUE": "true",
 	}
-
 	assert.Equal(t, want, cfg.Env)
 }
 
 func TestFromDefinitionChecksAsList(t *testing.T) {
-	jsonBody := []byte(`{"checks": [{"name": "pg", "port": 80}]}`)
-	definition := &api.Definition{}
-	err := json.Unmarshal(jsonBody, definition)
-	require.NoError(t, err)
-
-	cfg, err := FromDefinition(definition)
+	cfg, err := cfgFromJSON(`{"checks": [{"name": "pg", "port": 80}]}`)
 	require.NoError(t, err)
 
 	want := map[string]*ToplevelCheck{
 		"pg": {Port: api.Pointer(80)},
 	}
-
 	assert.Equal(t, want, cfg.Checks)
 }
 
 func TestFromDefinitionChecksAsEmptyList(t *testing.T) {
-	jsonBody := []byte(`{"checks": []}`)
-	definition := &api.Definition{}
-	err := json.Unmarshal(jsonBody, definition)
+	cfg, err := cfgFromJSON(`{"checks": []}`)
 	require.NoError(t, err)
-
-	cfg, err := FromDefinition(definition)
-	require.NoError(t, err)
-
 	assert.Nil(t, cfg.Checks)
+}
+
+func TestFromDefinitionKillTimeoutInteger(t *testing.T) {
+	cfg, err := cfgFromJSON(`{"kill_timeout": 20}`)
+	require.NoError(t, err)
+	assert.Equal(t, api.MustParseDuration("20s"), cfg.KillTimeout)
+}
+
+func TestFromDefinitionKillTimeoutFloat(t *testing.T) {
+	cfg, err := cfgFromJSON(`{"kill_timeout": 1.5}`)
+	require.NoError(t, err)
+	assert.Equal(t, api.MustParseDuration("1s"), cfg.KillTimeout)
+}
+
+func TestFromDefinitionKillTimeoutString(t *testing.T) {
+	cfg, err := cfgFromJSON(`{"kill_timeout": "10s"}`)
+	require.NoError(t, err)
+	assert.Equal(t, api.MustParseDuration("10s"), cfg.KillTimeout)
+}
+
+func dFromJSON(jsonBody string) (*api.Definition, error) {
+	ret := &api.Definition{}
+	err := json.Unmarshal([]byte(jsonBody), ret)
+	return ret, err
+}
+
+func cfgFromJSON(jsonBody string) (*Config, error) {
+	def, err := dFromJSON(jsonBody)
+	if err != nil {
+		return nil, err
+	}
+	return FromDefinition(def)
 }
