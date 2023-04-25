@@ -25,6 +25,8 @@ actual value of the secret is only available to the application.`
 
 	cmd = command.New(usage, short, long, runList, command.RequireSession, command.RequireAppName)
 
+	cmd.Aliases = []string{"ls"}
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),

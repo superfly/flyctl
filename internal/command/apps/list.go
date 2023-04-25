@@ -34,6 +34,7 @@ be shown with its name, owner and when it was last deployed.
 	flag.Add(cmd, flag.JSONOutput())
 	flag.Add(cmd, flag.Org())
 
+	cmd.Aliases = []string{"ls"}
 	return cmd
 }
 
