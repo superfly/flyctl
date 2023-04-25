@@ -394,6 +394,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					},
 				},
 			},
+			ProxyProtoOptions: &api.ProxyProtoOptions{
+				Version: "v2",
+			},
 		},
 
 		Statics: []Static{

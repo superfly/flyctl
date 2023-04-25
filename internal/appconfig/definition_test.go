@@ -209,6 +209,9 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
+			"proxy_proto_options": map[string]any{
+				"version": "v2",
+			},
 		},
 
 		"experimental": map[string]any{

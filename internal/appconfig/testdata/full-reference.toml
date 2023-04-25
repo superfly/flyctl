@@ -63,6 +63,8 @@ primary_region = "sea"
     fly-wasnt-here = "yes, it was"
     multi-valued = ["value1", "value2"]
 
+  [http_service.proxy_proto_options]
+    version = "v2"
 
 [[statics]]
   guest_path = "/path/to/statics"
