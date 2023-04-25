@@ -36,7 +36,12 @@ func TestFlyLaunch_case01(t *testing.T) {
 		"app":            appName,
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
-		"http_service":   map[string]any{"force_https": true, "internal_port": int64(8080)},
+		"http_service": map[string]any{
+			"force_https":         true,
+			"internal_port":       int64(8080),
+			"auto_stop_machines":  true,
+			"auto_start_machines": true,
+		},
 		"checks": map[string]any{
 			"alive": map[string]any{
 				"type":         "tcp",

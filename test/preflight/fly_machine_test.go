@@ -28,7 +28,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Autostop:     api.Pointer(true),
 		Ports: []api.MachinePort{{
 			Port:       api.Pointer(80),
-			ForceHttps: false,
+			ForceHTTPS: false,
 		}},
 	}}
 	require.Nil(f, m.Config.DisableMachineAutostart)
@@ -43,7 +43,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Autostop:     api.Pointer(true),
 		Ports: []api.MachinePort{{
 			Port:       api.Pointer(80),
-			ForceHttps: false,
+			ForceHTTPS: false,
 		}},
 	}}
 	require.Nil(f, m.Config.DisableMachineAutostart)
@@ -58,7 +58,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Autostop:     api.Pointer(false),
 		Ports: []api.MachinePort{{
 			Port:       api.Pointer(80),
-			ForceHttps: false,
+			ForceHTTPS: false,
 		}},
 	}}
 	require.Nil(f, m.Config.DisableMachineAutostart)
