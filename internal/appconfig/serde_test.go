@@ -68,7 +68,7 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		Ports: []api.MachinePort{{
 			Port: api.Pointer(80),
 			TLSOptions: &api.TLSOptions{
-				Alpn:     []string{"h2", "http/1.1"},
+				ALPN:     []string{"h2", "http/1.1"},
 				Versions: []string{"TLSv1.2", "TLSv1.3"},
 			},
 			HTTPOptions: &api.HTTPOptions{
@@ -378,6 +378,24 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Type:      "donuts",
 				HardLimit: 10,
 				SoftLimit: 4,
+			},
+			TLSOptions: &api.TLSOptions{
+				ALPN:              []string{"h2", "http/1.1"},
+				Versions:          []string{"TLSv1.2", "TLSv1.3"},
+				DefaultSelfSigned: api.Pointer(false),
+			},
+			HTTPOptions: &api.HTTPOptions{
+				Compress: api.Pointer(true),
+				Response: &api.HTTPResponseOptions{
+					Headers: map[string]any{
+						"fly-request-id": false,
+						"fly-wasnt-here": "yes, it was",
+						"multi-valued":   []any{"value1", "value2"},
+					},
+				},
+			},
+			ProxyProtoOptions: &api.ProxyProtoOptions{
+				Version: "v2",
 			},
 		},
 

@@ -194,6 +194,24 @@ func TestToDefinition(t *testing.T) {
 				"hard_limit": int64(10),
 				"soft_limit": int64(4),
 			},
+			"tls_options": map[string]any{
+				"alpn":                []any{"h2", "http/1.1"},
+				"versions":            []any{"TLSv1.2", "TLSv1.3"},
+				"default_self_signed": false,
+			},
+			"http_options": map[string]any{
+				"compress": true,
+				"response": map[string]any{
+					"headers": map[string]any{
+						"fly-request-id": false,
+						"fly-wasnt-here": "yes, it was",
+						"multi-valued":   []any{"value1", "value2"},
+					},
+				},
+			},
+			"proxy_proto_options": map[string]any{
+				"version": "v2",
+			},
 		},
 
 		"experimental": map[string]any{
