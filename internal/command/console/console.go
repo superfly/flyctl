@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
@@ -37,9 +38,17 @@ func New() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Int{
+			Name:        "cpus",
+			Description: "How many (shared) CPUs to give the new machine",
+		},
 		flag.String{
 			Name:        "machine",
 			Description: "Run the console in the existing machine with the specified ID",
+		},
+		flag.Int{
+			Name:        "memory",
+			Description: "How much memory (in MB) to give the new machine",
 		},
 		flag.Bool{
 			Name:        "select",
@@ -153,7 +162,11 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	} else if flag.IsSpecified(ctx, "machine") {
 		return getMachineByID(ctx)
 	} else {
-		return makeEphemeralRunnerMachine(ctx, app, appConfig)
+		guest, err := determineEphemeralRunnerMachineGuest(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+		return makeEphemeralRunnerMachine(ctx, app, appConfig, guest)
 	}
 }
 
@@ -171,7 +184,14 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 		return machine.State == api.MachineStateStarted
 	})
 
-	options := []string{"create an ephemeral shared-cpu-1x machine"}
+	ephemeralGuest, err := determineEphemeralRunnerMachineGuest(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	cpuS := lo.Ternary(ephemeralGuest.CPUs == 1, "", "s")
+	ephemeralGuestStr := fmt.Sprintf("%d %s CPU%s, %d MB of memory", ephemeralGuest.CPUs, ephemeralGuest.CPUKind, cpuS, ephemeralGuest.MemoryMB)
+
+	options := []string{fmt.Sprintf("create an ephemeral machine (%s)", ephemeralGuestStr)}
 	for _, machine := range machines {
 		options = append(options, fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name))
 	}
@@ -181,13 +201,20 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 		return nil, false, fmt.Errorf("failed to prompt for a machine: %w", err)
 	}
 	if index == 0 {
-		return makeEphemeralRunnerMachine(ctx, app, appConfig)
+		return makeEphemeralRunnerMachine(ctx, app, appConfig, ephemeralGuest)
 	} else {
 		return machines[index-1], false, nil
 	}
 }
 
 func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
+	if flag.IsSpecified(ctx, "cpus") {
+		return nil, false, errors.New("--cpus can't be used with --machine")
+	}
+	if flag.IsSpecified(ctx, "memory") {
+		return nil, false, errors.New("--memory can't be used with --machine")
+	}
+
 	flapsClient := flaps.FromContext(ctx)
 	machineID := flag.GetString(ctx, "machine")
 	machine, err := flapsClient.Get(ctx, machineID)
@@ -204,7 +231,7 @@ func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
 	return machine, false, nil
 }
 
-func makeEphemeralRunnerMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, bool, error) {
+func makeEphemeralRunnerMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, bool, error) {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -225,7 +252,7 @@ func makeEphemeralRunnerMachine(ctx context.Context, app *api.AppCompact, appCon
 		return nil, false, fmt.Errorf("failed to generate ephemeral runner machine configuration: %w", err)
 	}
 	machConfig.Image = currentRelease.ImageRef
-	machConfig.Guest = api.MachinePresets["shared-cpu-1x"] // TODO: infer size like with release commands?
+	machConfig.Guest = guest
 
 	launchInput := api.LaunchMachineInput{
 		Config: machConfig,
@@ -286,4 +313,37 @@ func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr
 	}
 
 	return true, fmt.Errorf("machine exited unexpectedly with code %v", exitCode)
+}
+
+func determineEphemeralRunnerMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
+	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+
+	if flag.IsSpecified(ctx, "cpus") {
+		cpus := flag.GetInt(ctx, "cpus")
+		if !lo.Contains([]int{1, 2, 4, 6, 8}, cpus) {
+			return nil, errors.New("invalid number of CPUs")
+		}
+		desiredGuest.CPUs = cpus
+	}
+
+	minMemory := desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
+	maxMemory := desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
+
+	if flag.IsSpecified(ctx, "memory") {
+		memory := flag.GetInt(ctx, "memory")
+		cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
+		switch {
+		case memory < minMemory:
+			return nil, fmt.Errorf("not enough memory (at least %d MB is required for %d shared CPU%s)", minMemory, desiredGuest.CPUs, cpuS)
+		case memory > maxMemory:
+			return nil, fmt.Errorf("too much memory (at most %d MB is allowed for %d shared CPU%s)", maxMemory, desiredGuest.CPUs, cpuS)
+		case memory%256 != 0:
+			return nil, errors.New("memory must be in increments of 256 MB")
+		}
+		desiredGuest.MemoryMB = memory
+	} else {
+		desiredGuest.MemoryMB = lo.Max([]int{desiredGuest.MemoryMB, minMemory})
+	}
+
+	return desiredGuest, nil
 }
