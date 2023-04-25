@@ -380,8 +380,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				SoftLimit: 4,
 			},
 			TLSOptions: &api.TLSOptions{
-				ALPN:     []string{"h2", "http/1.1"},
-				Versions: []string{"TLSv1.2", "TLSv1.3"},
+				ALPN:              []string{"h2", "http/1.1"},
+				Versions:          []string{"TLSv1.2", "TLSv1.3"},
+				DefaultSelfSigned: api.Pointer(false),
 			},
 			HTTPOptions: &api.HTTPOptions{
 				Compress: api.Pointer(true),

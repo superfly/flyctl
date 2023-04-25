@@ -195,8 +195,9 @@ func TestToDefinition(t *testing.T) {
 				"soft_limit": int64(4),
 			},
 			"tls_options": map[string]any{
-				"alpn":     []any{"h2", "http/1.1"},
-				"versions": []any{"TLSv1.2", "TLSv1.3"},
+				"alpn":                []any{"h2", "http/1.1"},
+				"versions":            []any{"TLSv1.2", "TLSv1.3"},
+				"default_self_signed": false,
 			},
 			"http_options": map[string]any{
 				"compress": true,

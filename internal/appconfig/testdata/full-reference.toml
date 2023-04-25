@@ -50,8 +50,9 @@ primary_region = "sea"
     soft_limit = 4
 
   [http_service.tls_options]
-  alpn = ["h2", "http/1.1"]
-  versions = ["TLSv1.2", "TLSv1.3"]
+    alpn = ["h2", "http/1.1"]
+    versions = ["TLSv1.2", "TLSv1.3"]
+    default_self_signed = false
 
   # https://community.fly.io/t/new-feature-basic-http-response-header-modification/3594
   [http_service.http_options]

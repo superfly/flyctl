@@ -414,8 +414,9 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 }
 
 type TLSOptions struct {
-	ALPN     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
-	Versions []string `json:"versions,omitempty" toml:"versions,omitempty"`
+	ALPN              []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
+	Versions          []string `json:"versions,omitempty" toml:"versions,omitempty"`
+	DefaultSelfSigned *bool    `json:"default_self_signed,omitempty" toml:"default_self_signed,omitempty"`
 }
 
 type HTTPOptions struct {
