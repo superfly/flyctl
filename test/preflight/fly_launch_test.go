@@ -267,7 +267,10 @@ func TestFlyLaunch_case08(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"launch --ha=false --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
 
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
