@@ -379,6 +379,20 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				HardLimit: 10,
 				SoftLimit: 4,
 			},
+			TLSOptions: &api.TLSOptions{
+				Alpn:     []string{"h2", "http/1.1"},
+				Versions: []string{"TLSv1.2", "TLSv1.3"},
+			},
+			HTTPOptions: &api.HTTPOptions{
+				Compress: api.Pointer(true),
+				Response: &api.HTTPResponseOptions{
+					Headers: map[string]any{
+						"fly-request-id": false,
+						"fly-wasnt-here": "yes, it was",
+						"multi-valued":   []any{"value1", "value2"},
+					},
+				},
+			},
 		},
 
 		Statics: []Static{

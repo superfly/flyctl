@@ -49,6 +49,20 @@ primary_region = "sea"
     hard_limit = 10
     soft_limit = 4
 
+  [http_service.tls_options]
+  alpn = ["h2", "http/1.1"]
+  versions = ["TLSv1.2", "TLSv1.3"]
+
+  # https://community.fly.io/t/new-feature-basic-http-response-header-modification/3594
+  [http_service.http_options]
+    compress = true
+
+  [http_service.http_options.response.headers]
+    fly-request-id = false
+    fly-wasnt-here = "yes, it was"
+    multi-valued = ["value1", "value2"]
+
+
 [[statics]]
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"

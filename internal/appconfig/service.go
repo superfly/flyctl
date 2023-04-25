@@ -51,7 +51,7 @@ type HTTPService struct {
 	Processes         []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 	Concurrency       *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	TLSOptions        *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
-	HTTPOptions       *api.HTTPOptions               `json:"http_options,omitempty" toml:"tls_options,omitempty"`
+	HTTPOptions       *api.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
 }
 
 func (s *HTTPService) ToService() *Service {
