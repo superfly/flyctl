@@ -1,6 +1,6 @@
 app = "foo"
 kill_signal = "SIGTERM"
-kill_timeout = 3
+kill_timeout = "3s"
 primary_region = "sea"
 
 [experimental]

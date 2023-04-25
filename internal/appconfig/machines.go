@@ -47,6 +47,9 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
 
+	// StopConfig
+	c.tomachineSetStopConfig(mConfig)
+
 	return mConfig, nil
 }
 
@@ -131,5 +134,22 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 		})
 	}
 
+	// StopConfig
+	c.tomachineSetStopConfig(mConfig)
+
 	return mConfig, nil
+}
+
+func (c *Config) tomachineSetStopConfig(mConfig *api.MachineConfig) error {
+	mConfig.StopConfig = nil
+	if c.KillSignal == nil && c.KillTimeout == nil {
+		return nil
+	}
+
+	mConfig.StopConfig = &api.StopConfig{
+		Timeout: c.KillTimeout,
+		Signal:  c.KillSignal,
+	}
+
+	return nil
 }

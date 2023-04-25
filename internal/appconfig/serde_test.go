@@ -327,7 +327,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		defaultGroupName: "app",
 		AppName:          "foo",
 		KillSignal:       api.Pointer("SIGTERM"),
-		KillTimeout:      api.Pointer(3),
+		KillTimeout:      api.MustParseDuration("3s"),
 		PrimaryRegion:    "sea",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},

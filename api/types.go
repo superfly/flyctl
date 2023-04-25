@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"syscall"
 	"time"
 )
 
@@ -855,10 +854,6 @@ type DeployImageInput struct {
 	Services   *[]Service  `json:"services"`
 	Definition *Definition `json:"definition"`
 	Strategy   *string     `json:"strategy"`
-}
-
-type Signal struct {
-	syscall.Signal
 }
 
 type Service struct {

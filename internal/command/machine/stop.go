@@ -74,15 +74,8 @@ func runMachineStop(ctx context.Context) (err error) {
 
 func Stop(ctx context.Context, machineID string, signal string, timeout int) (err error) {
 	machineStopInput := api.StopMachineInput{
-		ID: machineID,
-	}
-
-	if sig := strings.ToUpper(signal); sig != "" {
-		if _, ok := signalSyscallMap[sig]; !ok {
-			return fmt.Errorf("invalid signal %s", signal)
-		}
-
-		machineStopInput.Signal = strings.ToUpper(sig)
+		ID:     machineID,
+		Signal: strings.ToUpper(signal),
 	}
 
 	if timeout > 0 {
@@ -98,19 +91,4 @@ func Stop(ctx context.Context, machineID string, signal string, timeout int) (er
 	}
 
 	return
-}
-
-var signalSyscallMap = map[string]struct{}{
-	"SIGABRT": {},
-	"SIGALRM": {},
-	"SIGFPE":  {},
-	"SIGILL":  {},
-	"SIGINT":  {},
-	"SIGKILL": {},
-	"SIGPIPE": {},
-	"SIGQUIT": {},
-	"SIGSEGV": {},
-	"SIGTERM": {},
-	"SIGTRAP": {},
-	"SIGUSR1": {},
 }
