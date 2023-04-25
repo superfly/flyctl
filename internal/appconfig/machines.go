@@ -48,9 +48,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	}
 
 	// StopConfig
-	if err := c.tomachineSetStopConfig(mConfig); err != nil {
-		return nil, err
-	}
+	c.tomachineSetStopConfig(mConfig)
 
 	return mConfig, nil
 }
@@ -137,9 +135,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	}
 
 	// StopConfig
-	if err := c.tomachineSetStopConfig(mConfig); err != nil {
-		return nil, err
-	}
+	c.tomachineSetStopConfig(mConfig)
 
 	return mConfig, nil
 }
