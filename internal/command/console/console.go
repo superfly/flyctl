@@ -39,7 +39,7 @@ func New() *cobra.Command {
 		flag.AppConfig(),
 		flag.String{
 			Name:        "machine",
-			Description: "ID of the machine to connect to",
+			Description: "Run the console in the existing machine with the specified ID",
 		},
 		flag.Bool{
 			Name:        "select",
