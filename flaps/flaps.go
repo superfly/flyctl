@@ -41,18 +41,25 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-	return newFromAppOrAppName(ctx, app, app.Name)
+	return NewWithOptions(ctx, &NewClientOpts{AppCompact: app, AppName: app.Name})
 }
 
 func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
-	return newFromAppOrAppName(ctx, nil, appName)
+	return NewWithOptions(ctx, &NewClientOpts{AppName: appName})
 }
 
-func newFromAppOrAppName(ctx context.Context, app *api.AppCompact, appName string) (*Client, error) {
+type NewClientOpts struct {
+	AppName    string
+	AppCompact *api.AppCompact
+	Logger     api.Logger
+}
+
+func NewWithOptions(ctx context.Context, opts *NewClientOpts) (*Client, error) {
+	app := opts.AppCompact
+	appName := opts.AppName
 	if app != nil {
 		appName = app.Name
 	}
-
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
 	var err error
@@ -70,7 +77,10 @@ func newFromAppOrAppName(ctx context.Context, app *api.AppCompact, appName strin
 	if err != nil {
 		return nil, fmt.Errorf("invalid FLY_FLAPS_BASE_URL '%s' with error: %w", flapsBaseURL, err)
 	}
-	logger := logger.MaybeFromContext(ctx)
+	var logger api.Logger = logger.MaybeFromContext(ctx)
+	if opts.Logger != nil {
+		logger = opts.Logger
+	}
 	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
