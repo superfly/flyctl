@@ -414,7 +414,7 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 }
 
 type TLSOptions struct {
-	Alpn     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
+	ALPN     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
 	Versions []string `json:"versions,omitempty" toml:"versions,omitempty"`
 }
 
