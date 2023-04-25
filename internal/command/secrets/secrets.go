@@ -51,64 +51,77 @@ func New() *cobra.Command {
 }
 
 func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) (err error) {
+	switch app.PlatformVersion {
+	case appconfig.MachinesPlatform:
+		return v2deploySecrets(ctx, app, release, stage, detach)
+	default:
+		return v1deploySecrets(ctx, app, release, stage, detach)
+	}
+}
+
+func v1deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
-
 	if stage {
-
-		if app.PlatformVersion != "machines" {
-			return errors.New("--stage isn't available for Nomad apps")
-		}
-
-		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
-		return
+		return errors.New("--stage isn't available for Nomad apps")
 	}
 
 	if !app.Deployed {
 		fmt.Fprintln(out, "Secrets are staged for the first deployment")
-		return
-	}
-
-	if app.PlatformVersion == "machines" {
-		flapsClient, err := flaps.New(ctx, app)
-		if err != nil {
-			return fmt.Errorf("could not create flaps client: %w", err)
-		}
-		ctx = flaps.NewContext(ctx, flapsClient)
-
-		// It would be confusing for setting secrets to deploy the current fly.toml file.
-		// Instead, we always grab the currently deployed app config
-		cfg, err := appconfig.FromRemoteApp(ctx, app.Name)
-		if err != nil {
-			return err
-		}
-		ctx = appconfig.WithConfig(ctx, cfg)
-
-		if err != nil {
-			return fmt.Errorf("error loading appv2 config: %w", err)
-		}
-		md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
-			AppCompact:       app,
-			RestartOnly:      true,
-			SkipHealthChecks: detach,
-		})
-		if err != nil {
-			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
-			return err
-		}
-		err = md.DeployMachinesApp(ctx)
-		if err != nil {
-			sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
-		}
-		return err
+		return nil
 	}
 
 	fmt.Fprintf(out, "Release v%d created\n", release.Version)
-
 	if flag.GetBool(ctx, "detach") {
-		return
+		return nil
 	}
 
-	err = watch.Deployment(ctx, app.Name, release.EvaluationID)
+	return watch.Deployment(ctx, app.Name, release.EvaluationID)
+}
 
+func v2deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
+	out := iostreams.FromContext(ctx).Out
+	if stage {
+		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
+		return nil
+	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not create flaps client: %w", err)
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
+	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	if err != nil {
+		return err
+	}
+	if !app.Deployed && len(machines) == 0 {
+		fmt.Fprintln(out, "Secrets are staged for the first deployment")
+		return nil
+	}
+
+	// It would be confusing for setting secrets to deploy the current fly.toml file.
+	// Instead, we always grab the currently deployed app config
+	cfg, err := appconfig.FromRemoteApp(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("error loading appv2 config: %w", err)
+	}
+	ctx = appconfig.WithConfig(ctx, cfg)
+
+	md, err := deploy.NewMachineDeployment(ctx, deploy.MachineDeploymentArgs{
+		AppCompact:       app,
+		RestartOnly:      true,
+		SkipHealthChecks: detach,
+	})
+	if err != nil {
+		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		return err
+	}
+
+	err = md.DeployMachinesApp(ctx)
+	if err != nil {
+		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+	}
 	return err
 }
