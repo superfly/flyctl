@@ -39,7 +39,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("Use %s (in fly.toml) instead of %s", config, found)
+		return fmt.Errorf("Ignoring %s, and using %s (from fly.toml).", found, config)
 	}
 	return nil
 }
