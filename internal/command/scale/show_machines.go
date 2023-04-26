@@ -42,6 +42,12 @@ func runMachinesScaleShow(ctx context.Context) error {
 	// TODO: Each machine can technically have a different Guest configuration.
 	// It's impractical to show the guest for each machine, but arbitrarily
 	// picking the first one is not ideal either.
+	representativeGuests := lo.MapValues(machineGroups, func(machines []*api.Machine, _ string) *api.MachineGuest {
+		if len(machines) == 0 {
+			return nil
+		}
+		return machines[0].Config.Guest
+	})
 
 	if flag.GetBool(ctx, "json") {
 		type groupData struct {
@@ -55,16 +61,16 @@ func runMachinesScaleShow(ctx context.Context) error {
 		groups := lo.FilterMap(groupNames, func(name string, _ int) (res groupData, ok bool) {
 
 			machines := machineGroups[name]
-			if len(machines) == 0 {
+			guest := representativeGuests[name]
+			if guest == nil {
 				return res, false
 			}
-			first := machines[0].Config.Guest
 			return groupData{
 				Process: name,
 				Count:   len(machines),
-				CpuKind: first.CPUKind,
-				Cpus:    first.CPUs,
-				Memory:  first.MemoryMB,
+				CpuKind: guest.CPUKind,
+				Cpus:    guest.CPUs,
+				Memory:  guest.MemoryMB,
 				Regions: lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
 					return m.Region
 				})),
@@ -79,7 +85,10 @@ func runMachinesScaleShow(ctx context.Context) error {
 	rows := make([][]string, 0, len(machineGroups))
 	for _, groupName := range groupNames {
 		machines := machineGroups[groupName]
-		guest := machines[0].Config.Guest
+		guest := representativeGuests[groupName]
+		if guest == nil {
+			continue
+		}
 		rows = append(rows, []string{
 			groupName,
 			fmt.Sprintf("%d", len(machines)),
