@@ -94,7 +94,6 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	require.Empty(f, og.Config.Standbys)
 
 	// Run a another machine and set it as standby of first
-	t.Log("Run a another machine and set it as standby of first")
 	f.Fly("machine run -a %s nginx --standby-for=%s", appName, og.ID)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
