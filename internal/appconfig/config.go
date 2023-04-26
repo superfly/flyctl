@@ -4,6 +4,7 @@ package appconfig
 
 import (
 	"fmt"
+	"net/url"
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
@@ -204,12 +205,16 @@ func (cfg *Config) BuildStrategies() []string {
 	return strategies
 }
 
-func (cfg *Config) URL() string {
-	hostname := cfg.AppName + ".fly.dev"
+func (cfg *Config) URL() *url.URL {
+	u := &url.URL{
+		Scheme: "https",
+		Host:   cfg.AppName + ".fly.dev",
+		Path:   "/",
+	}
 
 	// HTTPService always listen on https, even if ForceHTTPS is false
 	if cfg.HTTPService != nil && cfg.HTTPService.InternalPort > 0 {
-		return fmt.Sprintf("https://%s/", hostname)
+		return u
 	}
 
 	var httpPorts []int
@@ -229,16 +234,20 @@ func (cfg *Config) URL() string {
 
 	switch {
 	case slices.Contains(httpsPorts, 443):
-		return fmt.Sprintf("https://%s/", hostname)
+		return u
 	case slices.Contains(httpPorts, 80):
-		return fmt.Sprintf("http://%s/", hostname)
+		u.Scheme = "http"
+		return u
 	case len(httpsPorts) > 0:
 		slices.Sort(httpsPorts)
-		return fmt.Sprintf("https://%s:%d/", hostname, httpsPorts[0])
+		u.Host = fmt.Sprintf("%s:%d", u.Host, httpsPorts[0])
+		return u
 	case len(httpPorts) > 0:
 		slices.Sort(httpPorts)
-		return fmt.Sprintf("http://%s:%d/", hostname, httpPorts[0])
+		u.Host = fmt.Sprintf("%s:%d", u.Host, httpPorts[0])
+		u.Scheme = "http"
+		return u
 	default:
-		return ""
+		return nil
 	}
 }

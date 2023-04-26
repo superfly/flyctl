@@ -210,7 +210,7 @@ func TestURL(t *testing.T) {
 	cfg := NewConfig()
 	cfg.AppName = "test"
 	cfg.HTTPService = &HTTPService{InternalPort: 8080}
-	assert.Equal(t, "https://test.fly.dev/", cfg.URL())
+	assert.Equal(t, "https://test.fly.dev/", cfg.URL().String())
 
 	// Prefer https on 443 over http on 80
 	cfg = NewConfig()
@@ -223,7 +223,7 @@ func TestURL(t *testing.T) {
 			Port: api.Pointer(443), Handlers: []string{"http", "tls"},
 		}},
 	}}
-	assert.Equal(t, "https://test.fly.dev/", cfg.URL())
+	assert.Equal(t, "https://test.fly.dev/", cfg.URL().String())
 
 	// port 443 is not http, only port 80 is.
 	cfg = NewConfig()
@@ -236,7 +236,7 @@ func TestURL(t *testing.T) {
 			Port: api.Pointer(443), Handlers: []string{"tls"},
 		}},
 	}}
-	assert.Equal(t, "http://test.fly.dev/", cfg.URL())
+	assert.Equal(t, "http://test.fly.dev/", cfg.URL().String())
 
 	// prefer standard http port over non standard https port
 	cfg = NewConfig()
@@ -249,7 +249,7 @@ func TestURL(t *testing.T) {
 			Port: api.Pointer(3443), Handlers: []string{"tls", "http"},
 		}},
 	}}
-	assert.Equal(t, "http://test.fly.dev/", cfg.URL())
+	assert.Equal(t, "http://test.fly.dev/", cfg.URL().String())
 
 	// prefer non standard https port over non standard http port
 	cfg = NewConfig()
@@ -262,7 +262,7 @@ func TestURL(t *testing.T) {
 			Port: api.Pointer(3443), Handlers: []string{"tls", "http"},
 		}},
 	}}
-	assert.Equal(t, "https://test.fly.dev:3443/", cfg.URL())
+	assert.Equal(t, "https://test.fly.dev:3443/", cfg.URL().String())
 
 	// Use non standard http port as last meassure
 	cfg = NewConfig()
@@ -273,7 +273,7 @@ func TestURL(t *testing.T) {
 			Port: api.Pointer(8080), Handlers: []string{"http"},
 		}},
 	}}
-	assert.Equal(t, "http://test.fly.dev:8080/", cfg.URL())
+	assert.Equal(t, "http://test.fly.dev:8080/", cfg.URL().String())
 
 	// Otherwise return an empty string so caller knows there is no http service
 	cfg = NewConfig()
@@ -286,5 +286,5 @@ func TestURL(t *testing.T) {
 			Port: api.Pointer(443), Handlers: []string{"foo"},
 		}},
 	}}
-	assert.Equal(t, "", cfg.URL())
+	assert.Nil(t, cfg.URL())
 }

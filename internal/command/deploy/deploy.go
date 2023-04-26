@@ -170,7 +170,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		}
 	}
 
-	if appURL := appConfig.URL(); appURL != "" {
+	if appURL := appConfig.URL(); appURL != nil {
 		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
 	}
 
