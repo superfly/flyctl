@@ -267,6 +267,8 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				mntDst = groupConfig.Mounts[0].Destination
 			}
 
+			needsVol := map[string][]string{}
+
 			for _, m := range ms {
 				if mntDst == "" && len(m.Config.Mounts) != 0 {
 					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
@@ -279,13 +281,9 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				}
 
 				if mntDst != "" && len(m.Config.Mounts) == 0 {
-					// TODO: Attaching a volume to an existing machine is not possible, but it could replace the machine
+					// Attaching a volume to an existing machine is not possible, but we replace the machine
 					// by another running on the same zone than the volume.
-					return fmt.Errorf(
-						"machine %s [%s] does not have a volume configured and fly.toml expects one with destination %s; "+
-							"remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine",
-						m.ID, groupName, mntDst,
-					)
+					needsVol[mntSrc] = append(needsVol[mntSrc], m.Region)
 				}
 
 				if mms := m.Config.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
@@ -294,6 +292,28 @@ func (md *machineDeployment) validateVolumeConfig() error {
 					return fmt.Errorf(
 						"machine %s [%s] can't update the attached volume %s with name '%s' by '%s'",
 						m.ID, groupName, mntSrc, mms[0].Volume, mms[0].Name,
+					)
+				}
+			}
+
+			// Compute the volume differences per region
+			for volSrc, regions := range needsVol {
+				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v api.Volume) string { return v.Region })
+				needsPerRegion := lo.CountValues(regions)
+
+				var missing []string
+				for rn, rc := range needsPerRegion {
+					diff := rc - currentPerRegion[rn]
+					if diff > 0 {
+						missing = append(missing, fmt.Sprintf("%s=%d", rn, diff))
+					}
+				}
+				if len(missing) > 0 {
+					// TODO: May change this by a prompt to create new volumes right away (?)
+					return fmt.Errorf(
+						"Process group '%s' needs volumes with name '%s' to fullfill mounts defined in fly.toml; "+
+							"Run `fly volume create %s -r REGION` for the following regions and counts: %s",
+						groupName, volSrc, volSrc, strings.Join(missing, " "),
 					)
 				}
 			}

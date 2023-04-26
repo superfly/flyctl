@@ -75,7 +75,7 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 		ID:   lm.machine.ID,
 		Kill: kill,
 	}
-	err := lm.flapsClient.Destroy(ctx, input, lm.machine.LeaseNonce)
+	err := lm.flapsClient.Destroy(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
