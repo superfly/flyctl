@@ -20,6 +20,30 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error {
+	if len(appConfig.BuildStrategies()) == 0 {
+		// fly.toml doesn't know anything about building this image.
+		return nil
+	}
+
+	found := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
+	if found == "" {
+		// No Dockerfile in the directory.
+		return nil
+	}
+
+	config, _ := resolveDockerfilePath(ctx, appConfig)
+	if config == "" {
+		// No Dockerfile in fly.toml.
+		return nil
+	}
+
+	if found != config {
+		return fmt.Errorf("Ignoring %s, and using %s (from fly.toml).", found, config)
+	}
+	return nil
+}
+
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
@@ -29,12 +53,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	if len(appConfig.BuildStrategies()) > 0 {
-		foundDF := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
-		configDF, _ := resolveDockerfilePath(ctx, appConfig)
-		if foundDF != "" && foundDF != configDF {
-			terminal.Warnf("Ignoring %s due to config\n", foundDF)
-		}
+	if err := multipleDockerfile(ctx, appConfig); err != nil {
+		terminal.Warnf("%s\n", err.Error())
 	}
 
 	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
