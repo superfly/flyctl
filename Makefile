@@ -23,7 +23,7 @@ test: FORCE
 # to run one test, use: make preflight-test T=TestAppsV2ConfigSave
 preflight-test: build
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
-	go test ./test/preflight --tags=integration -v --run=$(T)
+	go test ./test/preflight --tags=integration -v -timeout 30m --run=$(T)
 
 cmddocs: generate
 	@echo Running Docs Generation
