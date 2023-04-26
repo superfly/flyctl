@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/update"
 )
@@ -141,7 +142,9 @@ type wrapper struct {
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
 }
 
-var lockPath = filepath.Join(os.TempDir(), "flyctl.cache.lock")
+func lockPath() string {
+	return filepath.Join(flyctl.ConfigDir(), "flyctl.cache.lock")
+}
 
 // Save writes the YAML-encoded representation of c to the named file path via
 // os.WriteFile.
@@ -162,7 +165,7 @@ func (c *cache) Save(path string) (err error) {
 	}
 
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
+	if unlock, err = filemu.Lock(context.Background(), lockPath()); err != nil {
 		return
 	}
 	defer func() {
@@ -180,7 +183,7 @@ func (c *cache) Save(path string) (err error) {
 // Load loads the YAML-encoded cache file at the given path.
 func Load(path string) (c Cache, err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.RLock(context.Background(), lockPath); err != nil {
+	if unlock, err = filemu.RLock(context.Background(), lockPath()); err != nil {
 		return
 	}
 	defer func() {
