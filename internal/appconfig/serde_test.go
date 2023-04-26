@@ -87,6 +87,34 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 	assert.Equal(t, want, p.Services)
 }
 
+func TestLoadTOMLAppConfigServiceMulti(t *testing.T) {
+	const path = "./testdata/services-multi.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	want := []Service{
+		{
+			Protocol:     "tcp",
+			InternalPort: 8081,
+			Concurrency: &api.MachineServiceConcurrency{
+				Type:      "requests",
+				HardLimit: 22,
+				SoftLimit: 13,
+			},
+		},
+		{
+			Protocol:     "tcp",
+			InternalPort: 9999,
+			Concurrency: &api.MachineServiceConcurrency{
+				Type:      "connections",
+				HardLimit: 10,
+				SoftLimit: 8,
+			},
+		},
+	}
+	assert.Equal(t, want, p.Services)
+}
+
 func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	const path = "./testdata/always-invalid-v2.toml"
 	cfg, err := LoadConfig(path)
