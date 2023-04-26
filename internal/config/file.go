@@ -55,14 +55,8 @@ func set(path string, vals map[string]interface{}) error {
 	return marshal(path, m)
 }
 
-var internalLockPath string
-
 func lockPath() string {
-	if internalLockPath == "" {
-		internalLockPath = filepath.Join(flyctl.ConfigDir(), "flyctl.config.lock")
-	}
-
-	return internalLockPath
+	return filepath.Join(flyctl.ConfigDir(), "flyctl.config.lock")
 }
 
 func unmarshal(path string, v interface{}) (err error) {

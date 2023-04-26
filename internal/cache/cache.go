@@ -142,14 +142,8 @@ type wrapper struct {
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
 }
 
-var internalLockPath string
-
 func lockPath() string {
-	if internalLockPath == "" {
-		internalLockPath = filepath.Join(flyctl.ConfigDir(), "flyctl.cache.lock")
-	}
-
-	return internalLockPath
+	return filepath.Join(flyctl.ConfigDir(), "flyctl.cache.lock")
 }
 
 // Save writes the YAML-encoded representation of c to the named file path via

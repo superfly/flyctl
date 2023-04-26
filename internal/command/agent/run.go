@@ -107,14 +107,8 @@ func (*dupInstanceError) Description() string {
 
 var errDupInstance = new(dupInstanceError)
 
-var internalLockPath string
-
 func lockPath() string {
-	if internalLockPath == "" {
-		internalLockPath = filepath.Join(flyctl.ConfigDir(), "flyctl.agent.lock")
-	}
-
-	return internalLockPath
+	return filepath.Join(flyctl.ConfigDir(), "flyctl.agent.lock")
 }
 
 func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, err error) {
