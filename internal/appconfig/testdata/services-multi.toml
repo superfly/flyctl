@@ -1,0 +1,19 @@
+app = "foo"
+
+[[services]]
+  internal_port = 8081
+  protocol = "tcp"
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 22
+    soft_limit = 13
+
+[[services]]
+  internal_port = 9999
+  protocol = "tcp"
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 10
+    soft_limit = 8
