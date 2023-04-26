@@ -59,6 +59,10 @@ func newClone() *cobra.Command {
 			Description: "Existing volume to attach to the new machine",
 		},
 		flag.String{
+			Name:        "attach-volume-mount-point",
+			Description: "The mount point for the volume being attached; requires --attach-volume",
+		},
+		flag.String{
 			Name:        "process-group",
 			Description: "For machines that are part of Fly Apps v2 does a regular clone and changes the process group to what is specified here",
 		},
@@ -159,9 +163,29 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 
-	if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
-		if len(source.Config.Mounts) != 1 {
-			return fmt.Errorf("Can't attach the volume as the source machine doesn't have any volumes configured")
+	volID := flag.GetString(ctx, "attach-volume")
+	volPath := flag.GetString(ctx, "attach-volume-mount-point")
+
+	if volID == "" && volPath != "" {
+		return fmt.Errorf("Can't use attach-volume-mount-point without --attach-volume.")
+	}
+
+	if volID != "" {
+		if len(source.Config.Mounts) != 1 && volPath == "" {
+			return fmt.Errorf("Can't attach the volume as the source machine doesn't have any volumes configured; or use --attach-volume-mount-point")
+		}
+	}
+
+	if volID != "" && volPath != "" {
+		if len(source.Config.Mounts) != 0 {
+			return fmt.Errorf("Can't use attach-volume-mount-point if the source machine already has volumes configured.")
+		} else {
+			source.Config.Mounts = []api.MachineMount{
+				{
+					Volume: volID,
+					Path:   volPath,
+				},
+			}
 		}
 	}
 
