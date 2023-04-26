@@ -2,6 +2,7 @@ package scale
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
@@ -36,6 +38,43 @@ func runMachinesScaleShow(ctx context.Context) error {
 	// Deterministic output sorted by group name
 	groupNames := lo.Keys(machineGroups)
 	slices.Sort(groupNames)
+
+	// TODO: Each machine can technically have a different Guest configuration.
+	// It's impractical to show the guest for each machine, but arbitrarily
+	// picking the first one is not ideal either.
+
+	if flag.GetBool(ctx, "json") {
+		type groupData struct {
+			Process string
+			Count   int
+			CpuKind string
+			Cpus    int
+			Memory  int
+			Regions map[string]int
+		}
+		groups := lo.FilterMap(groupNames, func(name string, _ int) (res groupData, ok bool) {
+
+			machines := machineGroups[name]
+			if len(machines) == 0 {
+				return res, false
+			}
+			first := machines[0].Config.Guest
+			return groupData{
+				Process: name,
+				Count:   len(machines),
+				CpuKind: first.CPUKind,
+				Cpus:    first.CPUs,
+				Memory:  first.MemoryMB,
+				Regions: lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
+					return m.Region
+				})),
+			}, true
+		})
+
+		prettyJSON, _ := json.MarshalIndent(groups, "", "    ")
+		fmt.Fprintln(io.Out, string(prettyJSON))
+		return nil
+	}
 
 	rows := make([][]string, 0, len(machineGroups))
 	for _, groupName := range groupNames {
