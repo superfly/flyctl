@@ -32,7 +32,10 @@ func TestAppsV2Example(t *testing.T) {
 		appUrl  = fmt.Sprintf("https://%s.fly.dev", appName)
 	)
 
-	result = f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	result = f.Fly(
+		"launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm --ha=false",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
 	require.Contains(f, result.StdOut().String(), "Using image nginx")
 	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOut().String(), "Wrote config file fly.toml")
@@ -195,47 +198,81 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 }
 
 func TestAppsV2ConfigSave_PostgresSingleNode(t *testing.T) {
-	var (
-		err            error
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppName()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
-	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("status -a %s", appName)
 	f.Fly("config save -a %s", appName)
-	configFileBytes, err := os.ReadFile(configFilePath)
-	if err != nil {
-		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
+	flyToml := f.UnmarshalFlyToml()
+	want := map[string]any{
+		"app":            appName,
+		"primary_region": f.PrimaryRegion(),
+		"env": map[string]any{
+			"PRIMARY_REGION": f.PrimaryRegion(),
+		},
+		"metrics": map[string]any{
+			"port": int64(9187),
+			"path": "/metrics",
+		},
+		"mounts": []map[string]any{{
+			"source":      "pg_data",
+			"destination": "/data",
+		}},
+		"services": []map[string]any{
+			{
+				"internal_port": int64(5432),
+				"protocol":      "tcp",
+				"concurrency": map[string]any{
+					"type":       "connections",
+					"soft_limit": int64(1000),
+					"hard_limit": int64(1000),
+				},
+				"ports": []map[string]any{
+					{"handlers": []any{"pg_tls"}, "port": int64(5432)},
+				},
+			},
+			{
+				"internal_port": int64(5433),
+				"protocol":      "tcp",
+				"concurrency": map[string]any{
+					"type":       "connections",
+					"soft_limit": int64(1000),
+					"hard_limit": int64(1000),
+				},
+				"ports": []map[string]any{
+					{"handlers": []any{"pg_tls"}, "port": int64(5433)},
+				},
+			},
+		},
+		"checks": map[string]any{
+			"pg": map[string]any{
+				"type":     "http",
+				"port":     int64(5500),
+				"path":     "/flycheck/pg",
+				"interval": "15s",
+				"timeout":  "10s",
+			},
+			"role": map[string]any{
+				"type":     "http",
+				"port":     int64(5500),
+				"path":     "/flycheck/role",
+				"interval": "15s",
+				"timeout":  "10s",
+			},
+			"vm": map[string]any{
+				"type":     "http",
+				"port":     int64(5500),
+				"path":     "/flycheck/vm",
+				"interval": "15s",
+				"timeout":  "10s",
+			},
+		},
 	}
-	configFileContent := string(configFileBytes)
-	require.Contains(f, configFileContent, fmt.Sprintf(`primary_region = "%s"`, f.PrimaryRegion()))
-	require.Contains(f, configFileContent, `[env]`)
-	require.Contains(f, configFileContent, fmt.Sprintf(`PRIMARY_REGION = "%s"`, f.PrimaryRegion()))
-	require.Contains(f, configFileContent, `[metrics]
-  port = 9187
-  path = "/metrics"`)
-	require.Contains(f, configFileContent, `[mounts]
-  destination = "/data"`)
-	require.Contains(f, configFileContent, `[checks]
-  [checks.pg]
-    port = 5500
-    type = "http"
-    interval = "15s"
-    timeout = "10s"
-    path = "/flycheck/pg"
-  [checks.role]
-    port = 5500
-    type = "http"
-    interval = "15s"
-    timeout = "10s"
-    path = "/flycheck/role"
-  [checks.vm]
-    port = 5500
-    type = "http"
-    interval = "15s"
-    timeout = "10s"
-    path = "/flycheck/vm"`)
+	require.Equal(f, want, flyToml)
 }
 
 func TestAppsV2_PostgresAutostart(t *testing.T) {
@@ -313,47 +350,84 @@ func TestAppsV2_PostgresNoMachines(t *testing.T) {
 }
 
 func TestAppsV2ConfigSave_PostgresHA(t *testing.T) {
-	var (
-		err            error
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppName()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
-	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.Fly("status -a %s", appName)
 	f.Fly("config save -a %s", appName)
-	configFileBytes, err := os.ReadFile(configFilePath)
-	if err != nil {
-		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
+	ml := f.MachinesList(appName)
+	require.Equal(f, 3, len(ml))
+	flyToml := f.UnmarshalFlyToml()
+	require.Equal(f, "shared-cpu-1x", ml[0].Config.Guest.ToSize())
+	want := map[string]any{
+		"app":            appName,
+		"primary_region": f.PrimaryRegion(),
+		"env": map[string]any{
+			"PRIMARY_REGION": f.PrimaryRegion(),
+		},
+		"metrics": map[string]any{
+			"port": int64(9187),
+			"path": "/metrics",
+		},
+		"mounts": []map[string]any{{
+			"source":      "pg_data",
+			"destination": "/data",
+		}},
+		"services": []map[string]any{
+			{
+				"internal_port": int64(5432),
+				"protocol":      "tcp",
+				"concurrency": map[string]any{
+					"type":       "connections",
+					"soft_limit": int64(1000),
+					"hard_limit": int64(1000),
+				},
+				"ports": []map[string]any{
+					{"handlers": []any{"pg_tls"}, "port": int64(5432)},
+				},
+			},
+			{
+				"internal_port": int64(5433),
+				"protocol":      "tcp",
+				"concurrency": map[string]any{
+					"type":       "connections",
+					"soft_limit": int64(1000),
+					"hard_limit": int64(1000),
+				},
+				"ports": []map[string]any{
+					{"handlers": []any{"pg_tls"}, "port": int64(5433)},
+				},
+			},
+		},
+		"checks": map[string]any{
+			"pg": map[string]any{
+				"type":     "http",
+				"port":     int64(5500),
+				"path":     "/flycheck/pg",
+				"interval": "15s",
+				"timeout":  "10s",
+			},
+			"role": map[string]any{
+				"type":     "http",
+				"port":     int64(5500),
+				"path":     "/flycheck/role",
+				"interval": "15s",
+				"timeout":  "10s",
+			},
+			"vm": map[string]any{
+				"type":     "http",
+				"port":     int64(5500),
+				"path":     "/flycheck/vm",
+				"interval": "15s",
+				"timeout":  "10s",
+			},
+		},
 	}
-	configFileContent := string(configFileBytes)
-	require.Contains(f, configFileContent, fmt.Sprintf(`primary_region = "%s"`, f.PrimaryRegion()))
-	require.Contains(f, configFileContent, fmt.Sprintf(`[env]
-  PRIMARY_REGION = "%s"`, f.PrimaryRegion()))
-	require.Contains(f, configFileContent, `[metrics]
-  port = 9187
-  path = "/metrics"`)
-	require.Contains(f, configFileContent, `[mounts]
-  destination = "/data"`)
-	require.Contains(f, configFileContent, `[checks]
-  [checks.pg]
-    port = 5500
-    type = "http"
-    interval = "15s"
-    timeout = "10s"
-    path = "/flycheck/pg"
-  [checks.role]
-    port = 5500
-    type = "http"
-    interval = "15s"
-    timeout = "10s"
-    path = "/flycheck/role"
-  [checks.vm]
-    port = 5500
-    type = "http"
-    interval = "15s"
-    timeout = "10s"
-    path = "/flycheck/vm"`)
+	require.Equal(f, want, flyToml)
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
