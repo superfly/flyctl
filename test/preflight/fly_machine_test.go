@@ -78,6 +78,14 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 		}
 		return nil
 	}
+	findMachineByID := func(machineList []*api.Machine, ID string) *api.Machine {
+		for _, m := range machineList {
+			if m.ID == ID {
+				return m
+			}
+		}
+		return nil
+	}
 
 	f.Fly("machine run -a %s nginx", appName)
 	ml := f.MachinesList(appName)
@@ -86,19 +94,21 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	require.Empty(f, og.Config.Standbys)
 
 	// Run a another machine and set it as standby of first
+	t.Log("Run a another machine and set it as standby of first")
 	f.Fly("machine run -a %s nginx --standby-for=%s", appName, og.ID)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
-
 	// Mahcine must be stopped and be standby for first machine ID
 	s1 := findNewMachine(ml, []string{og.ID})
-	require.Equal(f, "stopped", s1.State)
+	require.Contains(f, []string{"created", "stopped"}, s1.State)
 	require.Equal(f, []string{og.ID}, s1.Config.Standbys)
 
 	// Clear the standbys field
-	f.Fly("machine update -a %s %s --standby-for=''", appName, s1.ID)
+	f.Fly("machine update -a %s %s --standby-for='' -y", appName, s1.ID)
 	ml = f.MachinesList(appName)
+	s1 = findMachineByID(ml, s1.ID)
 	require.Equal(f, 2, len(ml))
+	// Updating a stopped machine doesn't start it
 	require.Equal(f, "started", s1.State)
 	require.Empty(f, s1.Config.Standbys)
 
@@ -107,12 +117,13 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	ml = f.MachinesList(appName)
 	require.Equal(f, 3, len(ml))
 	s2 := findNewMachine(ml, []string{og.ID, s1.ID})
-	require.Equal(f, "stopped", s2.State)
+	require.Contains(f, []string{"created", "stopped"}, s2.State)
 	require.Equal(f, []string{og.ID, s1.ID}, s2.Config.Standbys)
 
 	// Finally update the standby list to only one machine
-	f.Fly("machine update -a %s %s --standby-for=%s", appName, s2.ID, s1.ID)
+	f.Fly("machine update -a %s %s --standby-for=%s -y", appName, s2.ID, s1.ID)
 	ml = f.MachinesList(appName)
+	s2 = findMachineByID(ml, s2.ID)
 	require.Equal(f, "stopped", s2.State)
 	require.Equal(f, []string{s1.ID}, s2.Config.Standbys)
 }

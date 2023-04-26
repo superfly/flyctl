@@ -224,13 +224,14 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	// Standby machine
-	skipLaunch := false
-	if standbys := flag.GetStringSlice(ctx, "standby-for"); len(standbys) > 0 {
-		if standbys[0] == "source" {
-			standbys[0] = source.ID
+	if flag.IsSpecified(ctx, "standby-for") {
+		standbys := flag.GetStringSlice(ctx, "standby-for")
+		for idx := range standbys {
+			if standbys[idx] == "source" {
+				standbys[idx] = source.ID
+			}
 		}
-		targetConfig.Standbys = standbys
-		skipLaunch = true
+		targetConfig.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
 	}
 
 	input := api.LaunchMachineInput{
@@ -238,7 +239,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		Name:       flag.GetString(ctx, "name"),
 		Region:     region,
 		Config:     targetConfig,
-		SkipLaunch: skipLaunch,
+		SkipLaunch: len(targetConfig.Standbys) > 0,
 	}
 
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
@@ -250,7 +251,7 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	fmt.Fprintf(out, "  Machine %s has been created...\n", colorize.Bold(launchedMachine.ID))
 
-	if !skipLaunch {
+	if !input.SkipLaunch {
 		fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
 		// wait for a machine to be started
