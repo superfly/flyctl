@@ -130,6 +130,11 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 				}
 			}
 
+			// Create spare machines that increases availability unless --ha=false was used
+			if !md.increasedAvailability {
+				continue
+			}
+
 			// We strive to provide a HA setup according to:
 			// - Create only 1 machine if the group has mounts
 			// - Create 2 machines for groups with services

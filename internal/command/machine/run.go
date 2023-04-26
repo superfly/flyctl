@@ -291,10 +291,14 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s, waiting for it to be started\n", appName)
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", appName)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
+
+	if input.SkipLaunch {
+		return nil
+	}
 
 	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
 	s.Start()
@@ -788,9 +792,9 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	}
 
 	// Standby machine
-	standbys := flag.GetStringSlice(ctx, "standby-for")
-	if len(standbys) > 0 {
-		machineConf.Standbys = standbys
+	if flag.IsSpecified(ctx, "standby-for") {
+		standbys := flag.GetStringSlice(ctx, "standby-for")
+		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
 	}
 
 	return machineConf, nil

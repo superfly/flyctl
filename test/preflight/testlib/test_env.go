@@ -278,35 +278,42 @@ func (f *FlyctlTestEnv) Cleanup(cleanupFunc func()) {
 }
 
 func (f *FlyctlTestEnv) Error(args ...any) {
+	f.t.Helper()
 	f.DebugPrintHistory()
 	f.t.Error(args...)
 }
 
 func (f *FlyctlTestEnv) Errorf(format string, args ...any) {
+	f.t.Helper()
 	f.DebugPrintHistory()
 	f.t.Errorf(format, args...)
 }
 
 func (f *FlyctlTestEnv) Fail() {
+	f.t.Helper()
 	f.DebugPrintHistory()
 	f.t.Fail()
 }
 
 func (f *FlyctlTestEnv) FailNow() {
+	f.t.Helper()
 	f.DebugPrintHistory()
 	f.t.FailNow()
 }
 
 func (f *FlyctlTestEnv) Failed() bool {
+	f.t.Helper()
 	return f.t.Failed()
 }
 
 func (f *FlyctlTestEnv) Fatal(args ...any) {
+	f.t.Helper()
 	f.DebugPrintHistory()
 	f.t.Fatal(args...)
 }
 
 func (f *FlyctlTestEnv) Fatalf(format string, args ...any) {
+	f.t.Helper()
 	f.DebugPrintHistory()
 	f.t.Fatalf(format, args...)
 }
@@ -316,10 +323,12 @@ func (f *FlyctlTestEnv) Helper() {
 }
 
 func (f *FlyctlTestEnv) Log(args ...any) {
+	f.t.Helper()
 	f.t.Log(args...)
 }
 
 func (f *FlyctlTestEnv) Logf(format string, args ...any) {
+	f.t.Helper()
 	f.t.Logf(format, args...)
 }
 
