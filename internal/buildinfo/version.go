@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	"runtime/debug"
 
 	"github.com/blang/semver"
 	"github.com/superfly/flyctl/terminal"
@@ -13,7 +14,6 @@ import (
 var (
 	buildDate = "<date>"
 	version   = "<version>"
-	commit    = "<commit>"
 )
 
 var (
@@ -66,7 +66,22 @@ func loadMeta() {
 }
 
 func Commit() string {
-	return commit
+	info, _ := debug.ReadBuildInfo();
+	var rev string = "<none>";
+	var dirty string = "";
+	for _, v := range info.Settings {
+		if v.Key == "vcs.revision" {
+			rev = v.Value;
+		}
+		if v.Key == "vcs.modified" {
+			if v.Value == "true" {
+				dirty = "-dirty"
+			} else {
+				dirty = "";
+			}
+		}
+	}
+	return rev + dirty;
 }
 
 func Version() semver.Version {
