@@ -97,10 +97,18 @@ func (alreadyStartingError) Error() string {
 	return "another process is already starting the agent"
 }
 
-var lockPath = filepath.Join(os.TempDir(), "flyctl.agent.start.lock")
+var internalLockPath string
+
+func lockPath() string {
+	if internalLockPath == "" {
+		internalLockPath = filepath.Join(flyctl.ConfigDir(), "flyctl.agent.start.lock")
+	}
+
+	return internalLockPath
+}
 
 func lock(ctx context.Context) (unlock filemu.UnlockFunc, err error) {
-	switch unlock, err = filemu.Lock(ctx, lockPath); {
+	switch unlock, err = filemu.Lock(ctx, lockPath()); {
 	case err == nil:
 		break // all done
 	case ctx.Err() != nil:

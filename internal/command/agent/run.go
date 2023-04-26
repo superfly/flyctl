@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent/server"
+	"github.com/superfly/flyctl/flyctl"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
@@ -104,13 +105,20 @@ func (*dupInstanceError) Description() string {
 	return "It looks like another instance of the agent is already running. Please stop it before starting a new one."
 }
 
-var (
-	lockPath       = filepath.Join(os.TempDir(), "flyctl.agent.lock")
-	errDupInstance = new(dupInstanceError)
-)
+var errDupInstance = new(dupInstanceError)
+
+var internalLockPath string
+
+func lockPath() string {
+	if internalLockPath == "" {
+		internalLockPath = filepath.Join(flyctl.ConfigDir(), "flyctl.agent.lock")
+	}
+
+	return internalLockPath
+}
 
 func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, err error) {
-	switch unlock, err = filemu.Lock(ctx, lockPath); {
+	switch unlock, err = filemu.Lock(ctx, lockPath()); {
 	case err == nil:
 		break // all done
 	case ctx.Err() != nil:
