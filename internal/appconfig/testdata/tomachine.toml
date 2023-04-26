@@ -1,5 +1,7 @@
 app = "foo"
 primary_region = "mia"
+kill_signal = "SIGTERM"
+kill_timeout = "10s"
 
 [deploy]
   release_command = "migrate-db"

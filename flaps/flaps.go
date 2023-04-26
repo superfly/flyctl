@@ -179,13 +179,9 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 
 func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (out *api.Machine, err error) {
 	headers := make(map[string][]string)
-
 	if nonce != "" {
 		headers[NonceHeader] = []string{nonce}
 	}
-
-	endpoint := fmt.Sprintf("/%s", builder.ID)
-	out = new(api.Machine)
 
 	metrics.Started(ctx, "machine_update")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update/duration")
@@ -196,6 +192,8 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 		}
 	}()
 
+	endpoint := fmt.Sprintf("/%s", builder.ID)
+	out = new(api.Machine)
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, headers); err != nil {
 		return nil, fmt.Errorf("failed to update VM %s: %w", builder.ID, err)
 	}
@@ -283,7 +281,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 		restartEndpoint += fmt.Sprintf("&timeout=%d", in.Timeout)
 	}
 
-	if in.Signal != nil {
+	if in.Signal != "" {
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 

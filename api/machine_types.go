@@ -209,7 +209,7 @@ type StopMachineInput struct {
 
 type RestartMachineInput struct {
 	ID               string        `json:"id,omitempty"`
-	Signal           *Signal       `json:"signal,omitempty"`
+	Signal           string        `json:"signal,omitempty"`
 	Timeout          time.Duration `json:"timeout,omitempty"`
 	ForceStop        bool          `json:"force_stop,omitempty"`
 	SkipHealthChecks bool          `json:"skip_health_checks,omitempty"`
@@ -356,13 +356,14 @@ type MachineCheckStatus struct {
 }
 
 type MachinePort struct {
-	Port        *int         `json:"port,omitempty" toml:"port,omitempty"`
-	StartPort   *int         `json:"start_port,omitempty" toml:"start_port,omitempty"`
-	EndPort     *int         `json:"end_port,omitempty" toml:"end_port,omitempty"`
-	Handlers    []string     `json:"handlers,omitempty" toml:"handlers,omitempty"`
-	ForceHTTPS  bool         `json:"force_https,omitempty" toml:"force_https,omitempty"`
-	TLSOptions  *TLSOptions  `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
-	HTTPOptions *HTTPOptions `json:"http_options,omitempty" toml:"tls_options,omitempty"`
+	Port              *int               `json:"port,omitempty" toml:"port,omitempty"`
+	StartPort         *int               `json:"start_port,omitempty" toml:"start_port,omitempty"`
+	EndPort           *int               `json:"end_port,omitempty" toml:"end_port,omitempty"`
+	Handlers          []string           `json:"handlers,omitempty" toml:"handlers,omitempty"`
+	ForceHTTPS        bool               `json:"force_https,omitempty" toml:"force_https,omitempty"`
+	TLSOptions        *TLSOptions        `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	HTTPOptions       *HTTPOptions       `json:"http_options,omitempty" toml:"http_options,omitempty"`
+	ProxyProtoOptions *ProxyProtoOptions `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
 }
 
 func (mp *MachinePort) ContainsPort(port int) bool {
@@ -413,9 +414,14 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 	return false
 }
 
+type ProxyProtoOptions struct {
+	Version string `json:"version,omitempty" toml:"version,omitempty"`
+}
+
 type TLSOptions struct {
-	Alpn     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
-	Versions []string `json:"versions,omitempty" toml:"version,omitempty"`
+	ALPN              []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
+	Versions          []string `json:"versions,omitempty" toml:"versions,omitempty"`
+	DefaultSelfSigned *bool    `json:"default_self_signed,omitempty" toml:"default_self_signed,omitempty"`
 }
 
 type HTTPOptions struct {

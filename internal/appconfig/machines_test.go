@@ -38,6 +38,10 @@ func TestToMachineConfig(t *testing.T) {
 				HTTPPath: api.Pointer("/status"),
 			},
 		},
+		StopConfig: &api.StopConfig{
+			Timeout: api.MustParseDuration("10s"),
+			Signal:  api.Pointer("SIGTERM"),
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -120,6 +124,10 @@ func TestToReleaseMachineConfig(t *testing.T) {
 		AutoDestroy: true,
 		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
+		StopConfig: &api.StopConfig{
+			Timeout: api.MustParseDuration("10s"),
+			Signal:  api.Pointer("SIGTERM"),
+		},
 	}
 
 	got, err := cfg.ToReleaseMachineConfig()

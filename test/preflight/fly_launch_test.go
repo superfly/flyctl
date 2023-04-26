@@ -36,7 +36,12 @@ func TestFlyLaunch_case01(t *testing.T) {
 		"app":            appName,
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
-		"http_service":   map[string]any{"force_https": true, "internal_port": int64(8080)},
+		"http_service": map[string]any{
+			"force_https":         true,
+			"internal_port":       int64(8080),
+			"auto_stop_machines":  true,
+			"auto_start_machines": true,
+		},
 		"checks": map[string]any{
 			"alive": map[string]any{
 				"type":         "tcp",
@@ -262,7 +267,10 @@ func TestFlyLaunch_case08(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"launch --ha=false --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
 
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))

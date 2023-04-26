@@ -76,6 +76,11 @@ var CommonFlags = flag.Set{
 		Name:        "vm-size",
 		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
 	},
+	flag.Bool{
+		Name:        "ha",
+		Description: "Create spare machines that increases app availability",
+		Default:     true,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -187,15 +192,16 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 	}()
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:        appCompact,
-		DeploymentImage:   img.Tag,
-		Strategy:          flag.GetString(ctx, "strategy"),
-		EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
-		PrimaryRegionFlag: appConfig.PrimaryRegion,
-		SkipHealthChecks:  flag.GetDetach(ctx),
-		WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		VMSize:            flag.GetString(ctx, "vm-size"),
+		AppCompact:            appCompact,
+		DeploymentImage:       img.Tag,
+		Strategy:              flag.GetString(ctx, "strategy"),
+		EnvFromFlags:          flag.GetStringSlice(ctx, "env"),
+		PrimaryRegionFlag:     appConfig.PrimaryRegion,
+		SkipHealthChecks:      flag.GetDetach(ctx),
+		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		VMSize:                flag.GetString(ctx, "vm-size"),
+		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)

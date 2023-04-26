@@ -141,7 +141,7 @@ func runUpdate(ctx context.Context) (err error) {
 		return err
 	}
 
-	if !flag.GetDetach(ctx) {
+	if !(input.SkipLaunch || flag.GetDetach(ctx)) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
 		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
