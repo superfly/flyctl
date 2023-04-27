@@ -50,7 +50,7 @@ func New() *cobra.Command {
 	return secrets
 }
 
-func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) (err error) {
+func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
 	switch app.PlatformVersion {
 	case appconfig.MachinesPlatform:
 		return v2deploySecrets(ctx, app, release, stage, detach)
