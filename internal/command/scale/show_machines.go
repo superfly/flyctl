@@ -2,6 +2,7 @@ package scale
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
@@ -37,10 +39,56 @@ func runMachinesScaleShow(ctx context.Context) error {
 	groupNames := lo.Keys(machineGroups)
 	slices.Sort(groupNames)
 
+	// TODO: Each machine can technically have a different Guest configuration.
+	// It's impractical to show the guest for each machine, but arbitrarily
+	// picking the first one is not ideal either.
+	representativeGuests := lo.MapValues(machineGroups, func(machines []*api.Machine, _ string) *api.MachineGuest {
+		if len(machines) == 0 {
+			return nil
+		}
+		return machines[0].Config.Guest
+	})
+
+	if flag.GetBool(ctx, "json") {
+		type groupData struct {
+			Process string
+			Count   int
+			CPUKind string
+			CPUs    int
+			Memory  int
+			Regions map[string]int
+		}
+		groups := lo.FilterMap(groupNames, func(name string, _ int) (res groupData, ok bool) {
+
+			machines := machineGroups[name]
+			guest := representativeGuests[name]
+			if guest == nil {
+				return res, false
+			}
+			return groupData{
+				Process: name,
+				Count:   len(machines),
+				CPUKind: guest.CPUKind,
+				CPUs:    guest.CPUs,
+				Memory:  guest.MemoryMB,
+				Regions: lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
+					return m.Region
+				})),
+			}, true
+		})
+
+		prettyJSON, _ := json.MarshalIndent(groups, "", "    ")
+		fmt.Fprintln(io.Out, string(prettyJSON))
+		return nil
+	}
+
 	rows := make([][]string, 0, len(machineGroups))
 	for _, groupName := range groupNames {
 		machines := machineGroups[groupName]
-		guest := machines[0].Config.Guest
+		guest := representativeGuests[groupName]
+		if guest == nil {
+			continue
+		}
 		rows = append(rows, []string{
 			groupName,
 			fmt.Sprintf("%d", len(machines)),
