@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/certificates"
 	"github.com/superfly/flyctl/internal/command/checks"
 	"github.com/superfly/flyctl/internal/command/config"
+	"github.com/superfly/flyctl/internal/command/console"
 	"github.com/superfly/flyctl/internal/command/consul"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
@@ -154,6 +155,7 @@ To read more, use the docs command to view Fly's help on the web.
 		wireguard.New(),
 		autoscale.New(),
 		domains.New(),
+		console.New(),
 	)
 
 	// if os.Getenv("DEV") != "" {
