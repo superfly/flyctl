@@ -53,8 +53,8 @@ func runMachinesScaleShow(ctx context.Context) error {
 		type groupData struct {
 			Process string
 			Count   int
-			CpuKind string
-			Cpus    int
+			CPUKind string
+			CPUs    int
 			Memory  int
 			Regions map[string]int
 		}
@@ -68,8 +68,8 @@ func runMachinesScaleShow(ctx context.Context) error {
 			return groupData{
 				Process: name,
 				Count:   len(machines),
-				CpuKind: guest.CPUKind,
-				Cpus:    guest.CPUs,
+				CPUKind: guest.CPUKind,
+				CPUs:    guest.CPUs,
 				Memory:  guest.MemoryMB,
 				Regions: lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
 					return m.Region
