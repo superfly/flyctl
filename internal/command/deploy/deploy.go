@@ -139,6 +139,7 @@ type DeployWithConfigArgs struct {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args DeployWithConfigArgs) (err error) {
+	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
@@ -174,9 +175,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		}
 	}
 
-	url, err := appConfig.URL()
-	if err == nil && url != nil {
-		fmt.Println("Visit your newly deployed app at", url)
+	if appURL := appConfig.URL(); appURL != nil {
+		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
 	}
 
 	return err
