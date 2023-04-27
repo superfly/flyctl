@@ -42,14 +42,6 @@ func TestFlyLaunch_case01(t *testing.T) {
 			"auto_stop_machines":  true,
 			"auto_start_machines": true,
 		},
-		"checks": map[string]any{
-			"alive": map[string]any{
-				"type":         "tcp",
-				"interval":     "15s",
-				"timeout":      "2s",
-				"grace_period": "5s",
-			},
-		},
 	}
 	require.EqualValues(f, want, toml)
 
