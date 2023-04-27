@@ -29,7 +29,11 @@ func newUpdate() *cobra.Command {
 command to update the application.`
 	)
 
-	return command.New("update", short, long, runUpdate)
+	cmd := command.New("update", short, long, runUpdate)
+	
+	cmd.Aliases = []string{"upgrade"}
+	
+	return cmd
 }
 
 func runUpdate(ctx context.Context) error {
