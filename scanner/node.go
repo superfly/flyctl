@@ -3,6 +3,7 @@ package scanner
 import (
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -52,7 +53,8 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 
 	// node-build requires a version, so either use the same version as install locally,
 	// or default to an LTS version
-	var nodeVersion string = "18.15.0"
+	var nodeLtsVersion string = "18.16.0"
+	var nodeVersion string = nodeLtsVersion
 
 	out, err := exec.Command("node", "-v").Output()
 
@@ -60,6 +62,10 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		nodeVersion = strings.TrimSpace(string(out))
 		if nodeVersion[:1] == "v" {
 			nodeVersion = nodeVersion[1:]
+		}
+		if nodeVersion < "16" {
+			s.Notice += fmt.Sprintf("\n[WARNING] It looks like you have NodeJS v%s installed, but it has reached it's end of support. Using NodeJS v%s (LTS) to build your image instead.\n", nodeVersion, nodeLtsVersion)
+			nodeVersion = nodeLtsVersion
 		}
 	}
 
@@ -104,7 +110,7 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 				Destination: "/data",
 			},
 		}
-		s.Notice = "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database."
+		s.Notice += "\nThis launch configuration uses SQLite on a single, dedicated volume. It will not scale beyond a single VM. Look into 'fly postgres' for a more robust production database."
 	}
 
 	if remix {
