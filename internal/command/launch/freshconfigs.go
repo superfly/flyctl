@@ -5,12 +5,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 )
 
-var (
-	v2CheckTimeout  = api.MustParseDuration("2s")
-	v2CheckInterval = api.MustParseDuration("15s")
-	v2GracePeriod   = api.MustParseDuration("5s")
-)
-
 func freshV2Config(appName string, srcCfg *appconfig.Config) (*appconfig.Config, error) {
 	newCfg := appconfig.NewConfig()
 	newCfg.AppName = appName
