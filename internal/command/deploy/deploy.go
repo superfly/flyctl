@@ -157,6 +157,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return nil
 	}
 
+	fmt.Fprintf(io.Out, "\nWatch your app at https://fly.io/apps/%s/monitoring\n\n", appName)
 	switch isV2App, err := useMachines(ctx, appConfig, appCompact, args, apiClient); {
 	case err != nil:
 		return err
