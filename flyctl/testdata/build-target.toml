@@ -1,0 +1,4 @@
+app = "build-target"
+
+[build]
+    build_target = "target"

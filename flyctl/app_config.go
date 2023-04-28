@@ -182,7 +182,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 			case "dockerfile":
 				b.Dockerfile = fmt.Sprint(v)
 				insection = true
-			case "build_target":
+			case "build_target", "build-target":
 				b.DockerBuildTarget = fmt.Sprint(v)
 				insection = true
 			default:
@@ -191,7 +191,7 @@ func (ac *AppConfig) unmarshalNativeMap(data map[string]interface{}) error {
 				}
 			}
 		}
-		if b.Builder != "" || b.Builtin != "" || b.Image != "" || b.Dockerfile != "" || len(b.Args) > 0 {
+		if b.Builder != "" || b.Builtin != "" || b.Image != "" || b.Dockerfile != "" || b.DockerBuildTarget != "" || len(b.Args) > 0 {
 			ac.Build = &b
 		}
 	}
