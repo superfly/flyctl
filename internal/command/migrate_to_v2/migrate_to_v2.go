@@ -275,9 +275,8 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		for _, mach := range m.recovery.machinesCreated {
 
 			input := api.RemoveMachineInput{
-				AppID: m.appFull.Name,
-				ID:    mach.ID,
-				Kill:  true,
+				ID:   mach.ID,
+				Kill: true,
 			}
 			err := m.flapsClient.Destroy(ctx, input, mach.LeaseNonce)
 			if err != nil {

@@ -223,10 +223,8 @@ type MachineIP struct {
 }
 
 type RemoveMachineInput struct {
-	AppID string `json:"appId,omitempty"`
-	ID    string `json:"id,omitempty"`
-
-	Kill bool `json:"kill,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Kill bool   `json:"kill,omitempty"`
 }
 
 type MachineRestartPolicy string

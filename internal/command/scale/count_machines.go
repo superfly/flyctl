@@ -144,15 +144,11 @@ func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) 
 }
 
 func destroyMachine(ctx context.Context, machine *api.Machine) error {
-	appName := appconfig.NameFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
-
 	input := api.RemoveMachineInput{
-		AppID: appName,
-		ID:    machine.ID,
-		Kill:  true,
+		ID:   machine.ID,
+		Kill: true,
 	}
-
 	return flapsClient.Destroy(ctx, input, machine.LeaseNonce)
 }
 
