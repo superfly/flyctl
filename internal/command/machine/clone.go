@@ -160,16 +160,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 
-	// clone machine w/o volume
-	// --attach-volume id -> error
-	// --attach-volume id:path -> works
-
-	// clone machine w/ volume
-	// --attach-volume id -> works
-	// --attach-volume id:path -> error
-
 	var volID string
-
 	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
 		splitVolumeInfo := strings.Split(volumeInfo, ":")
 
@@ -186,7 +177,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			volID = splitVolumeInfo[0]
 			source.Config.Mounts = []api.MachineMount{
 				{
-					Path:   splitVolumeInfo[1],
+					Path: splitVolumeInfo[1],
 				},
 			}
 		} else {
