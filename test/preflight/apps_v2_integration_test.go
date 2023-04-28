@@ -82,7 +82,7 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m clone --region %s %s", secondReg, firstMachine.ID)
 
 	result = f.Fly("status")
-	require.Equal(f, 2, strings.Count(result.StdOut().String(), "1 total"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
+	require.Equal(f, 2, strings.Count(result.StdOut().String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
 
 	thirdReg := secondReg
 	if len(f.OtherRegions()) > 1 {
@@ -91,7 +91,7 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m clone --region %s %s", thirdReg, firstMachine.ID)
 
 	result = f.Fly("status")
-	require.Equal(f, 3, strings.Count(result.StdOut().String(), "1 total"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
+	require.Equal(f, 3, strings.Count(result.StdOut().String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
 
 	f.Fly("secrets set PREFLIGHT_TESTING_SECRET=foo")
 	result = f.Fly("secrets list")
@@ -120,7 +120,10 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 	)
 
-	f.Fly("launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --detach --now --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"launch --org %s --name %s --region %s --image nginx --internal-port 8080 --force-machines --now --env FOO=BAR",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
 
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
@@ -128,7 +131,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
 	}
 
-	newConfigFile := strings.Replace(string(configFileBytes), `grace_period = "5s"`, `grace_period = "3s"`, 1)
+	newConfigFile := strings.Replace(string(configFileBytes), `FOO = "BAR"`, `BAR = "QUX"`, 1)
 	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
 	if err != nil {
 		f.Fatalf("error trying to write to fly.toml: %s", err)
@@ -145,7 +148,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
 	}
 
-	require.Contains(f, string(configFileBytes), `grace_period = "3s"`)
+	require.Contains(f, string(configFileBytes), `BAR = "QUX"`)
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
