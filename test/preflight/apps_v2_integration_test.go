@@ -699,12 +699,13 @@ func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
 		require.Contains(t, outStr, successStr)
 	}
 
-	f.Fly("deploy --detach --now")
+	f.Fly("deploy --now --force-nomad")
+	time.Sleep(2 * time.Second)
 	f.Fly("ssh console -C \"bash -c 'echo %s > /vol/flag.txt && sync'\"", successStr)
 
 	assertHasFlag()
 
-	time.Sleep(6 * time.Second)
+	time.Sleep(9 * time.Second)
 	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
 	result := f.Fly("status --json")
 
