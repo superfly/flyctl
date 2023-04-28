@@ -59,6 +59,7 @@ func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineIn
 	if !lm.HasLease() {
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
+	input.ID = lm.machine.ID
 	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err

@@ -547,16 +547,15 @@ type MachineStartResponse struct {
 }
 
 type LaunchMachineInput struct {
-	AppID      string         `json:"appId,omitempty"`
-	ID         string         `json:"id,omitempty"`
-	Name       string         `json:"name,omitempty"`
-	OrgSlug    string         `json:"organizationId,omitempty"`
-	Region     string         `json:"region,omitempty"`
 	Config     *MachineConfig `json:"config,omitempty"`
+	Region     string         `json:"region,omitempty"`
+	Name       string         `json:"name,omitempty"`
 	SkipLaunch bool           `json:"skip_launch,omitempty"`
 	LeaseTTL   int            `json:"lease_ttl,omitempty"`
+
 	// Client side only
-	SkipHealthChecks bool
+	ID               string `json:"-"`
+	SkipHealthChecks bool   `json:"-"`
 }
 
 type MachineProcess struct {
