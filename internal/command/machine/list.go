@@ -138,11 +138,12 @@ func runMachineList(ctx context.Context) (err error) {
 				machine.UpdatedAt,
 				appPlatform,
 				machineProcessGroup,
+				fmt.Sprintf("%s:%dMB", machine.Config.Guest.ToSize(), machine.Config.Guest.MemoryMB),
 			})
 
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group")
+		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
 	}
 	return nil
 }
