@@ -50,6 +50,17 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 		return machines[i].ID < machines[j].ID
 	})
 
+	if config.FromContext(ctx).JSONOutput {
+		checks := map[string][]api.MachineCheckStatus{}
+		for _, machine := range machines {
+			checks[machine.ID] = make([]api.MachineCheckStatus, len(machine.Checks))
+			for i, check := range machine.Checks {
+				checks[machine.ID][i] = *check
+			}
+		}
+		return render.JSON(out, checks)
+	}
+
 	fmt.Fprintf(out, "Health Checks for %s\n", app.Name)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
 	table.SetRowLine(true)
