@@ -25,8 +25,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 
 	// Launch a new machine
 	want := &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
-		Region:  "scl",
+		Region: "scl",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
 				"PRIMARY_REGION":    "scl",

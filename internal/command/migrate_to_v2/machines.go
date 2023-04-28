@@ -30,10 +30,8 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 	}
 
 	launchInput := &api.LaunchMachineInput{
-		AppID:   m.appFull.Name,
-		OrgSlug: m.appFull.Organization.ID,
-		Region:  alloc.Region,
-		Config:  mConfig,
+		Region: alloc.Region,
+		Config: mConfig,
 	}
 
 	return launchInput, nil

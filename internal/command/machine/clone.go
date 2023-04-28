@@ -257,7 +257,6 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	input := api.LaunchMachineInput{
-		AppID:      app.Name,
 		Name:       flag.GetString(ctx, "name"),
 		Region:     region,
 		Config:     targetConfig,

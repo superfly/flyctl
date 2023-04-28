@@ -117,11 +117,8 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 	md.setMachineReleaseData(mConfig)
 
 	return &api.LaunchMachineInput{
-		ID:      origMachineRaw.ID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  mConfig,
-		Region:  origMachineRaw.Region,
+		Config: mConfig,
+		Region: origMachineRaw.Region,
 	}
 }
 

@@ -212,10 +212,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		machineConf.DisableMachineAutostart = api.Pointer(!config.Autostart)
 
 		launchInput := api.LaunchMachineInput{
-			AppID:   app.ID,
-			OrgSlug: config.Organization.ID,
-			Region:  config.Region,
-			Config:  machineConf,
+			Region: config.Region,
+			Config: machineConf,
 		}
 
 		machine, err := flapsClient.Launch(ctx, launchInput)
@@ -288,7 +286,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 	}
 
 	if config.ScaleToZero {
-		//TODO make this configurable
+		// TODO make this configurable
 		machineConfig.Env["FLY_SCALE_TO_ZERO"] = "1h"
 	}
 

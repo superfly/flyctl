@@ -154,13 +154,6 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {
-	var endpoint string
-	if builder.ID != "" {
-		endpoint = fmt.Sprintf("/%s", builder.ID)
-	}
-
-	out = new(api.Machine)
-
 	metrics.Started(ctx, "machine_launch")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
 	defer func() {
@@ -170,7 +163,8 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 		}
 	}()
 
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
+	out = new(api.Machine)
+	if err := f.sendRequest(ctx, http.MethodPost, "", builder, out, nil); err != nil {
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 

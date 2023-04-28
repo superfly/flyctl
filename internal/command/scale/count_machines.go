@@ -134,33 +134,21 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 }
 
 func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) {
-	appName := appconfig.NameFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 
 	input := api.LaunchMachineInput{
-		AppID:  appName,
 		Region: action.Region,
 		Config: action.MachineConfig,
 	}
-
-	m, err := flapsClient.Launch(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("could not launch machine: %w", err)
-	}
-
-	return m, nil
+	return flapsClient.Launch(ctx, input)
 }
 
 func destroyMachine(ctx context.Context, machine *api.Machine) error {
-	appName := appconfig.NameFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
-
 	input := api.RemoveMachineInput{
-		AppID: appName,
-		ID:    machine.ID,
-		Kill:  true,
+		ID:   machine.ID,
+		Kill: true,
 	}
-
 	return flapsClient.Destroy(ctx, input, machine.LeaseNonce)
 }
 

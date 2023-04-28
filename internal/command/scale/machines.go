@@ -57,12 +57,9 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		}
 
 		input := &api.LaunchMachineInput{
-			ID:               machine.ID,
-			AppID:            appName,
-			Name:             machine.Name,
-			Region:           machine.Region,
-			Config:           machine.Config,
-			SkipHealthChecks: false,
+			Name:   machine.Name,
+			Region: machine.Region,
+			Config: machine.Config,
 		}
 		if err := mach.Update(ctx, machine, input); err != nil {
 			return nil, err

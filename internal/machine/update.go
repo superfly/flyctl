@@ -84,7 +84,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 	input.ID = m.ID
 	updatedMachine, err = flapsClient.Update(ctx, *input, m.LeaseNonce)
 	if err != nil {
-		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
+		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}
 
 	waitForAction := "start"

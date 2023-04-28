@@ -129,13 +129,11 @@ func runUpdate(ctx context.Context) (err error) {
 
 	// Perform update
 	input := &api.LaunchMachineInput{
-		ID:               machine.ID,
-		AppID:            appName,
 		Name:             machine.Name,
 		Region:           machine.Region,
 		Config:           machineConf,
-		SkipHealthChecks: skipHealthChecks,
 		SkipLaunch:       len(machineConf.Standbys) > 0,
+		SkipHealthChecks: skipHealthChecks,
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
 		return err

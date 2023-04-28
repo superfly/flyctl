@@ -82,12 +82,10 @@ func Destroy(ctx context.Context, app *api.AppCompact, machine *api.Machine, for
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flaps.FromContext(ctx)
-		appName     = app.Name
 
 		input = api.RemoveMachineInput{
-			AppID: appName,
-			ID:    machine.ID,
-			Kill:  force,
+			ID:   machine.ID,
+			Kill: force,
 		}
 	)
 
