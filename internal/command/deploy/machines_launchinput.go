@@ -15,11 +15,9 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	md.setMachineReleaseData(Config)
 
 	return &api.LaunchMachineInput{
-		ID:      origMachineRaw.ID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  Config,
-		Region:  origMachineRaw.Region,
+		ID:     origMachineRaw.ID,
+		Config: Config,
+		Region: origMachineRaw.Region,
 	}
 }
 
@@ -49,8 +47,6 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	}
 
 	return &api.LaunchMachineInput{
-		AppID:      md.app.Name,
-		OrgSlug:    md.app.Organization.ID,
 		Region:     region,
 		Config:     mConfig,
 		SkipLaunch: len(standbyFor) > 0,
@@ -126,8 +122,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 
 	return &api.LaunchMachineInput{
 		ID:         mID,
-		AppID:      md.app.Name,
-		OrgSlug:    md.app.Organization.ID,
 		Region:     origMachineRaw.Region,
 		Config:     mConfig,
 		SkipLaunch: len(mConfig.Standbys) > 0,

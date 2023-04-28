@@ -246,7 +246,6 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		AppID:  app.Name,
 		Name:   flag.GetString(ctx, "name"),
 		Region: flag.GetString(ctx, "region"),
 	}

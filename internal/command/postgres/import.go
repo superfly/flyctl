@@ -157,10 +157,8 @@ func runImport(ctx context.Context) error {
 	machineConfig.Image = imageRef
 
 	launchInput := api.LaunchMachineInput{
-		AppID:   app.ID,
-		OrgSlug: app.Organization.ID,
-		Region:  region.Code,
-		Config:  machineConfig,
+		Region: region.Code,
+		Config: machineConfig,
 	}
 
 	// Create emphemeral machine

@@ -18,7 +18,6 @@ import (
 )
 
 func newShip() (cmd *cobra.Command) {
-
 	const (
 		short = "Ship application logs to Logtail"
 		long  = short + "\n"
@@ -44,7 +43,6 @@ func runSetup(ctx context.Context) (err error) {
 
 	// Fetch the target organization from the app
 	appNameResponse, err := gql.GetApp(ctx, client, appName)
-
 	if err != nil {
 		return err
 	}
@@ -58,7 +56,7 @@ func runSetup(ctx context.Context) (err error) {
 
 	// Fetch or create the Logtail integration for the app
 
-	var addOnName = appName + "-log-shipper"
+	addOnName := appName + "-log-shipper"
 	getAddOnResponse, err := gql.GetAddOn(ctx, client, addOnName)
 
 	if err != nil {
@@ -71,7 +69,6 @@ func runSetup(ctx context.Context) (err error) {
 		}
 
 		createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
-
 		if err != nil {
 			return err
 		}
@@ -85,13 +82,11 @@ func runSetup(ctx context.Context) (err error) {
 	tokenResponse, err := gql.CreateLimitedAccessToken(ctx, client, appName+"-logs", targetOrg.Id, "read_organization_apps", &gql.LimitedAccessTokenOptions{
 		"app_ids": []string{targetApp.Name},
 	}, "")
-
 	if err != nil {
 		return
 	}
 
 	flapsClient, machine, err := EnsureShipperMachine(ctx, targetOrg)
-
 	if err != nil {
 		return
 	}
@@ -105,7 +100,6 @@ func runSetup(ctx context.Context) (err error) {
 
 	flapsClient.Wait(ctx, machine, "started", time.Second*5)
 	response, err := flapsClient.Exec(ctx, machine.ID, request)
-
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, response.StdErr)
 		return err
@@ -114,12 +108,10 @@ func runSetup(ctx context.Context) (err error) {
 }
 
 func EnsureShipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization) (flapsClient *flaps.Client, machine *api.Machine, err error) {
-
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 
 	appsResult, err := gql.GetAppsByRole(ctx, client, "log-shipper", targetOrg.Id)
-
 	if err != nil {
 		return nil, nil, err
 	}
@@ -136,7 +128,6 @@ func EnsureShipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization
 		input.Name = targetOrg.RawSlug + "-log-shipper"
 
 		createdAppResult, err := gql.CreateApp(ctx, client, input)
-
 		if err != nil {
 			return nil, nil, err
 		}
@@ -155,14 +146,12 @@ func EnsureShipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization
 	}
 
 	machines, err := flapsClient.List(ctx, "")
-
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if len(machines) > 0 {
 		machine = machines[0]
-
 	} else {
 
 		machineConf := &api.MachineConfig{
@@ -175,13 +164,11 @@ func EnsureShipperMachine(ctx context.Context, targetOrg gql.AppDataOrganization
 		}
 
 		launchInput := api.LaunchMachineInput{
-			AppID:  shipperApp.Name,
 			Name:   "log-shipper",
 			Config: machineConf,
 		}
 
 		regionResponse, err := gql.GetNearestRegion(ctx, client)
-
 		if err != nil {
 			return nil, nil, err
 		}
