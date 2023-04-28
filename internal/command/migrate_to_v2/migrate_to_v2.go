@@ -52,7 +52,6 @@ func newMigrateToV2() *cobra.Command {
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
 		flag.Yes(),
-		flag.App(),
 		flag.AppConfig(),
 		flag.String{
 			Name:        "primary-region",
@@ -145,11 +144,10 @@ type v2PlatformMigrator struct {
 }
 
 type recoveryState struct {
-	machinesCreated        []*api.Machine
-	appLocked              bool
-	scaledToZero           bool
-	platformVersion        string
-	onlyPromptToConfigSave bool
+	machinesCreated []*api.Machine
+	appLocked       bool
+	scaledToZero    bool
+	platformVersion string
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -343,12 +341,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	abortedErr := errors.New("migration aborted by user")
 	defer func() {
 		if err != nil {
-
-			if m.recovery.onlyPromptToConfigSave && !m.isPostgres {
-				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
-				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
-				return
-			}
 
 			header := ""
 			if err == abortedErr {
@@ -551,16 +543,19 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	tb.Detail("Saving new configuration")
 
+	var configSaveErr error
+
 	if !m.isPostgres {
-		m.recovery.onlyPromptToConfigSave = true
-		err = m.appConfig.WriteToDisk(ctx, m.configPath)
-		if err != nil {
-			return err
-		}
+		configSaveErr = m.appConfig.WriteToDisk(ctx, m.configPath)
 	}
 
 	tb.Done("Done")
 	m.printReplacedVolumes()
+
+	if configSaveErr != nil {
+		fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
+		fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
+	}
 
 	return nil
 }
@@ -816,12 +811,21 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
 	appNameFromContext := appconfig.NameFromContext(ctx)
+
+	// We're pulling the remote config because we don't want to inadvertently trigger a new deployment -
+	// people will expect this to migrate what's _currently_ live.
+	// That said, we need to reference the local config to get the build config, because it's
+	// sanitized out before being sent to the API.
+	localAppConfig := appconfig.ConfigFromContext(ctx)
 	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err
 	}
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext
+	}
+	if localAppConfig != nil {
+		cfg.Build = localAppConfig.Build
 	}
 	return cfg, nil
 }
