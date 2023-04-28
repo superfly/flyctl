@@ -52,7 +52,6 @@ func newMigrateToV2() *cobra.Command {
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
 		flag.Yes(),
-		flag.App(),
 		flag.AppConfig(),
 		flag.String{
 			Name:        "primary-region",
