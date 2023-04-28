@@ -33,7 +33,7 @@ COPY --from=build /usr/local/bundle /usr/local/bundle
 COPY --from=build --chown=ruby:ruby /app /app
 
 # Copy application code
-COPY . .
+COPY --chown=ruby:ruby . .
 
 # Start the server
 EXPOSE 8080
