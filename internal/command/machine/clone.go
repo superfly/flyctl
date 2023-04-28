@@ -163,6 +163,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	var volID string
 	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
 		splitVolumeInfo := strings.Split(volumeInfo, ":")
+		volID = splitVolumeInfo[0]
 
 		if len(source.Config.Mounts) > 1 {
 			return fmt.Errorf("Can't use --attach-volume for machines with more than 1 volume.")
@@ -173,15 +174,13 @@ func runMachineClone(ctx context.Context) (err error) {
 		}
 
 		// patch the source config so the loop below attaches the volume on the passed mount path
+		// otherwise it will just reuse the existing mount path
 		if len(source.Config.Mounts) == 0 && len(splitVolumeInfo) == 2 {
-			volID = splitVolumeInfo[0]
 			source.Config.Mounts = []api.MachineMount{
 				{
 					Path: splitVolumeInfo[1],
 				},
 			}
-		} else {
-			volID = splitVolumeInfo[0]
 		}
 	}
 
