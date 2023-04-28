@@ -17,6 +17,7 @@ func New() *cobra.Command {
 	flag.Add(listCmd, commonFlags,
 		flag.String{Name: "check-name", Description: "Filter checks by name"},
 	)
+	flag.Add(listCmd, flag.JSONOutput())
 	cmd.AddCommand(listCmd)
 	return cmd
 }
