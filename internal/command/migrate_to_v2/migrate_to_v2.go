@@ -812,12 +812,21 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
 	appNameFromContext := appconfig.NameFromContext(ctx)
+
+	// We're pulling the remote config because we don't want to inadvertently trigger a new deployment -
+	// people will expect this to migrate what's _currently_ live.
+	// That said, we need to reference the local config to get the build config, because it's
+	// sanitized out before being sent to the API.
+	localAppConfig := appconfig.ConfigFromContext(ctx)
 	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err
 	}
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext
+	}
+	if localAppConfig != nil {
+		cfg.Build = localAppConfig.Build
 	}
 	return cfg, nil
 }
