@@ -145,11 +145,10 @@ type v2PlatformMigrator struct {
 }
 
 type recoveryState struct {
-	machinesCreated        []*api.Machine
-	appLocked              bool
-	scaledToZero           bool
-	platformVersion        string
-	onlyPromptToConfigSave bool
+	machinesCreated []*api.Machine
+	appLocked       bool
+	scaledToZero    bool
+	platformVersion string
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -343,12 +342,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	abortedErr := errors.New("migration aborted by user")
 	defer func() {
 		if err != nil {
-
-			if m.recovery.onlyPromptToConfigSave && !m.isPostgres {
-				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
-				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
-				return
-			}
 
 			header := ""
 			if err == abortedErr {
@@ -551,16 +544,19 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	tb.Detail("Saving new configuration")
 
+	var configSaveErr error
+
 	if !m.isPostgres {
-		m.recovery.onlyPromptToConfigSave = true
-		err = m.appConfig.WriteToDisk(ctx, m.configPath)
-		if err != nil {
-			return err
-		}
+		configSaveErr = m.appConfig.WriteToDisk(ctx, m.configPath)
 	}
 
 	tb.Done("Done")
 	m.printReplacedVolumes()
+
+	if configSaveErr != nil {
+		fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
+		fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
+	}
 
 	return nil
 }
