@@ -234,16 +234,12 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 }
 
 func (md *machineDeployment) popVolumeFor(name, region string) *api.Volume {
-	volumes, ok := md.volumes[name]
-	if !ok {
-		return nil
-	}
+	volumes := md.volumes[name]
 	for idx, v := range volumes {
-		if region != "" && v.Region != region {
-			continue
+		if region == "" || region == v.Region {
+			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
+			return &v
 		}
-		md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
-		return &v
 	}
 	return nil
 }
