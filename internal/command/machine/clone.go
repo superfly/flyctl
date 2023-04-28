@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/shlex"
@@ -56,7 +57,7 @@ func newClone() *cobra.Command {
 		},
 		flag.String{
 			Name:        "attach-volume",
-			Description: "Existing volume to attach to the new machine",
+			Description: "Existing volume to attach to the new machine in the form of <volume_id>[:/path/inside/machine]",
 		},
 		flag.String{
 			Name:        "process-group",
@@ -159,15 +160,43 @@ func runMachineClone(ctx context.Context) (err error) {
 		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 
-	if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
-		if len(source.Config.Mounts) != 1 {
-			return fmt.Errorf("Can't attach the volume as the source machine doesn't have any volumes configured")
+	// clone machine w/o volume
+	// --attach-volume id -> error
+	// --attach-volume id:path -> works
+
+	// clone machine w/ volume
+	// --attach-volume id -> works
+	// --attach-volume id:path -> error
+
+	var volID string
+
+	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
+		splitVolumeInfo := strings.Split(volumeInfo, ":")
+
+		if len(source.Config.Mounts) > 1 {
+			return fmt.Errorf("Can't use --attach-volume for machines with more than 1 volume.")
+		} else if len(source.Config.Mounts) == 1 && len(splitVolumeInfo) > 1 {
+			return fmt.Errorf("Can't set a mount path on a machine with a volume, please use only the volume id on '%s'", volumeInfo)
+		} else if len(source.Config.Mounts) == 0 && len(splitVolumeInfo) != 2 {
+			return fmt.Errorf("Couldn't find a mount path on '%s'", volumeInfo)
+		}
+
+		// patch the source config so the loop below attaches the volume on the passed mount path
+		if len(source.Config.Mounts) == 0 && len(splitVolumeInfo) == 2 {
+			volID = splitVolumeInfo[0]
+			source.Config.Mounts = []api.MachineMount{
+				{
+					Path:   splitVolumeInfo[1],
+				},
+			}
+		} else {
+			volID = splitVolumeInfo[0]
 		}
 	}
 
 	for _, mnt := range source.Config.Mounts {
 		var vol *api.Volume
-		if volID := flag.GetString(ctx, "attach-volume"); volID != "" {
+		if volID != "" {
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
 			vol, err = client.GetVolume(ctx, volID)
 			if err != nil {
