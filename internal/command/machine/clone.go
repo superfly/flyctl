@@ -167,19 +167,22 @@ func runMachineClone(ctx context.Context) (err error) {
 
 		if len(source.Config.Mounts) > 1 {
 			return fmt.Errorf("Can't use --attach-volume for machines with more than 1 volume.")
-		} else if len(source.Config.Mounts) == 1 && len(splitVolumeInfo) > 1 {
-			return fmt.Errorf("Can't set a mount path on a machine with a volume, please use only the volume id on '%s'", volumeInfo)
 		} else if len(source.Config.Mounts) == 0 && len(splitVolumeInfo) != 2 {
-			return fmt.Errorf("Couldn't find a mount path on '%s'", volumeInfo)
+			return fmt.Errorf("Please specify a mount path on '%s' using <volume_id>:/path/inside/machine", volumeInfo)
 		}
 
-		// patch the source config so the loop below attaches the volume on the passed mount path
-		// otherwise it will just reuse the existing mount path
-		if len(source.Config.Mounts) == 0 && len(splitVolumeInfo) == 2 {
-			source.Config.Mounts = []api.MachineMount{
-				{
-					Path: splitVolumeInfo[1],
-				},
+		// in case user passed a mount path
+		if len(splitVolumeInfo) == 2 {
+			// patches the source config so the loop below attaches the volume on the passed mount path
+			if len(source.Config.Mounts) == 0 {
+				source.Config.Mounts = []api.MachineMount{
+					{
+						Path: splitVolumeInfo[1],
+					},
+				}
+			} else if len(source.Config.Mounts) == 1 {
+				fmt.Fprintf(io.Out, "Info: --attach-volume is overriding previous mount point from `%s` to `%s`.\n", source.Config.Mounts[0].Path, splitVolumeInfo[1])
+				source.Config.Mounts[0].Path = splitVolumeInfo[1]
 			}
 		}
 	}
