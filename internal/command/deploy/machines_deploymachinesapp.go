@@ -258,6 +258,10 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			return err
 		}
 
+		if err := md.doSanityChecks(ctx, lm, indexStr); err != nil {
+			return err
+		}
+
 		if !md.skipHealthChecks {
 			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
 				return err
@@ -312,6 +316,10 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// Otherwise wait for the machine to start
 	indexStr := formatIndex(i, total)
 	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr); err != nil {
+		return "", err
+	}
+
+	if err := md.doSanityChecks(ctx, lm, indexStr); err != nil {
 		return "", err
 	}
 
@@ -383,4 +391,30 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 		}
 	}
 	fmt.Fprint(md.io.Out, "\n")
+}
+
+func (md *machineDeployment) doSanityChecks(ctx context.Context, lm machine.LeasableMachine, indexStr string) (err error) {
+	if md.skipSanityChecks {
+		return nil
+	}
+
+	if err = lm.WaitForSanityChecksToPass(ctx, indexStr); err == nil {
+		md.logClearLinesAbove(1)
+		return nil
+	}
+
+	fmt.Fprintf(md.io.ErrOut, "Sanity checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
+	fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", lm.Machine().ID)
+	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
+	if logErr != nil {
+		return fmt.Errorf("error getting release_command logs: %w", logErr)
+	}
+	for _, l := range logs {
+		// Ideally we should use InstanceID here, but it's not available in the logs.
+		if l.Timestamp >= lm.Machine().UpdatedAt {
+			fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+		}
+	}
+
+	return fmt.Errorf("sanity checks for %s failed: %v", lm.Machine().ID, err)
 }
