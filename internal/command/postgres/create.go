@@ -118,7 +118,6 @@ func run(ctx context.Context) (err error) {
 		Password:   flag.GetString(ctx, "password"),
 		SnapshotID: flag.GetString(ctx, "snapshot-id"),
 		Detach:     flag.GetDetach(ctx),
-		Manager:    flypg.ReplicationManager,
 		Autostart:  flag.GetBool(ctx, "autostart"),
 	}
 
