@@ -7,11 +7,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/slices"
 )
 
 func newScaleCount() *cobra.Command {
@@ -32,6 +34,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.Yes(),
 		flag.Int{Name: "max-per-region", Description: "Max number of VMs per region", Default: -1},
 		flag.String{Name: "region", Description: "Comma separated list of regions to act on. Defaults to all regions where there is at least one machine running for the app"},
+		flag.String{Name: "process-group", Description: "The process group to scale"},
 	)
 	return cmd
 }
@@ -41,9 +44,24 @@ func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	args := flag.Args(ctx)
-	defaultGroupName := appConfig.DefaultProcessName()
 
-	groups, err := parseGroupCounts(args, defaultGroupName)
+	groupName := ""
+
+	processNames := appConfig.ProcessNames()
+	if !slices.Contains(processNames, api.MachineProcessGroupApp) {
+		// No app group found, so we require the process-group flag
+		groupName = flag.GetString(ctx, "process-group")
+
+		if groupName == "" {
+			return fmt.Errorf("--process-group flag is required when no group named 'app' is defined")
+		}
+	}
+
+	if groupName == "" {
+		groupName = appConfig.DefaultProcessName()
+	}
+
+	groups, err := parseGroupCounts(args, groupName)
 	if err != nil {
 		return err
 	}
