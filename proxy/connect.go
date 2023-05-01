@@ -23,6 +23,8 @@ type ConnectParams struct {
 	DisableSpinner   bool
 }
 
+// Binds to a local port and runs a proxy to a remote address over Wireguard.
+// Blocks until context is cancelled.
 func Connect(ctx context.Context, p *ConnectParams) (err error) {
 	server, err := NewServer(ctx, p)
 	if err != nil {
@@ -30,6 +32,22 @@ func Connect(ctx context.Context, p *ConnectParams) (err error) {
 	}
 
 	return server.ProxyServer(ctx)
+}
+
+// Binds to a local port and then starts a goroutine to run a proxy to a remote
+// address over Wireguard. Proxy runs until context is cancelled.
+// Blocks only until local listener is bound and ready to accept connections.
+func Start(ctx context.Context, p *ConnectParams) error {
+	server, err := NewServer(ctx, p)
+	if err != nil {
+		return err
+	}
+
+	// currently ignores any error returned by ProxyServer
+	// TODO return a channel to caller for async error notification
+	go server.ProxyServer(ctx)
+
+	return nil
 }
 
 func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {

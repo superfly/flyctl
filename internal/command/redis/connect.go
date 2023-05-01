@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -92,23 +91,25 @@ func runConnect(ctx context.Context) (err error) {
 		RemoteHost:       database.PrivateIp,
 	}
 
-	go proxy.Connect(ctx, params)
-
 	redisCliPath, err := exec.LookPath("redis-cli")
 	if err != nil {
 		fmt.Fprintf(io.Out, "Could not find redis-cli in your $PATH. Install it or point your redis-cli at: %s", "someurl")
-	} else {
-		// TODO: let proxy.Connect inform us about readiness
-		time.Sleep(3 * time.Second)
-		cmd := exec.CommandContext(ctx, redisCliPath, "-p", localProxyPort)
-		cmd.Env = append(cmd.Env, fmt.Sprintf("REDISCLI_AUTH=%s", database.Password))
-		cmd.Stdout = io.Out
-		cmd.Stderr = io.ErrOut
-		cmd.Stdin = io.In
-
-		cmd.Start()
-		cmd.Wait()
+		return
 	}
+
+	err = proxy.Start(ctx, params)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.CommandContext(ctx, redisCliPath, "-p", localProxyPort)
+	cmd.Env = append(cmd.Env, fmt.Sprintf("REDISCLI_AUTH=%s", database.Password))
+	cmd.Stdout = io.Out
+	cmd.Stderr = io.ErrOut
+	cmd.Stdin = io.In
+
+	cmd.Start()
+	cmd.Wait()
 
 	return
 }
