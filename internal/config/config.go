@@ -158,6 +158,10 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 	})
 }
 
+func (cfg *Config) MetricsBaseURLIsProduction() bool {
+	return cfg.MetricsBaseURL == defaultMetricsBaseURL
+}
+
 func applyStringFlags(fs *pflag.FlagSet, flags map[string]*string) {
 	for name, dst := range flags {
 		if !fs.Changed(name) {
