@@ -6,6 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -24,7 +25,7 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context) error {
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
 	// Provision only if the app hasn't been deployed and have services defined
-	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 {
+	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 || flag.GetBool(ctx, "no-public-ips") {
 		return nil
 	}
 

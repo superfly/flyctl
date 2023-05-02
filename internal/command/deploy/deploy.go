@@ -86,6 +86,10 @@ var CommonFlags = flag.Set{
 		Description: "Perform sanity checks during deployment",
 		Default:     true,
 	},
+	flag.Bool{
+		Name:        "no-public-ips",
+		Description: "Do allocate any new public IP addresses",
+	},
 }
 
 func New() (cmd *cobra.Command) {
