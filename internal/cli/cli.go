@@ -38,10 +38,10 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	defer metrics.FlushPending()
 
 	cmd, err := cmd.ExecuteContextC(ctx)
-	defer metrics.RecordCommandFinish(cmd)
 
 	switch {
 	case err == nil:
+		metrics.RecordCommandFinish(cmd)
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
