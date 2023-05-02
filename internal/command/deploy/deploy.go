@@ -3,9 +3,11 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
@@ -140,6 +142,7 @@ type DeployWithConfigArgs struct {
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args DeployWithConfigArgs) (err error) {
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
@@ -155,6 +158,29 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 
 	if flag.GetBuildOnly(ctx) {
 		return nil
+	}
+
+	var imageSizeStr = humanize.Bytes(uint64(img.Size))
+	imageSizeStr = strings.Split(imageSizeStr, " ")[0]
+	imgSize, err := strconv.Atoi(imageSizeStr)
+	if err != nil {
+		return err
+	}
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+	if err != nil {
+		return err
+	}
+	if machines[0].Config.Guest.MemoryMB < imgSize {
+		showMachineSize := fmt.Sprintf("%d MB\n", machines[0].Config.Guest.MemoryMB)
+		fmt.Fprintf(io.Out, "Machine Memory: ")
+		fmt.Fprintln(io.Out, colorize.Red(showMachineSize))
+		return fmt.Errorf("the current machine size is too small for the image, consider scaling up your app with fly scale memory [memoryMB]")
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your app at https://fly.io/apps/%s/monitoring\n\n", appName)
