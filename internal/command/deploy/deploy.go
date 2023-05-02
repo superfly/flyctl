@@ -177,10 +177,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return err
 	}
 	if machines[0].Config.Guest.MemoryMB < imgSize {
-		showMachineSize := fmt.Sprintf("%d MB\n", machines[0].Config.Guest.MemoryMB)
-		fmt.Fprintf(io.Out, "Machine Memory: ")
-		fmt.Fprintln(io.Out, colorize.Red(showMachineSize))
-		return fmt.Errorf("the current machine size is too small for the image, consider scaling up your app with fly scale memory [memoryMB]")
+		sizeDiff := imgSize - machines[0].Config.Guest.MemoryMB
+		fmt.Fprintf(io.Out, "%s: %d MB ", "Machine Memory", machines[0].Config.Guest.MemoryMB)
+		fmt.Fprintln(io.Out, colorize.Red(fmt.Sprintf("(%d MB smaller than image)", sizeDiff)))
+		return fmt.Errorf("the current machine size is too small for the image, consider scaling up your app with `fly scale memory [memoryMB]`")
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your app at https://fly.io/apps/%s/monitoring\n\n", appName)
