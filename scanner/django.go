@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"github.com/mattn/go-zglob"
 	"github.com/superfly/flyctl/helpers"
+	"os/exec"
 	"path"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -40,6 +43,69 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 
 
 	vars := make(map[string]interface{})
+
+	var pythonSupported string = "3.7" // https://devguide.python.org/versions/#supported-versions
+	var pythonVersion string = "3.10" // Keep the default version "3.10" (hardcoded on the Dockerfile)
+	var pythonVersionOutput string = "Python 3.10.0"
+	var pythonVersionFound bool = false
+
+	cmd := exec.Command("python3", "-V")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		cmd := exec.Command("python", "-V")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+		    pythonVersionOutput = string(out)
+		}
+	} else {
+	    pythonVersionOutput = string(out)
+	}
+
+    re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+)\.[0-9]`)
+    match := re.FindStringSubmatch(pythonVersionOutput)
+
+    if len(match) > 1 {
+        // necessary to split and compare the major/minor values because "3.11" is HIGHER than "3.6"
+        // e.g. "3.11" -> "3", "11"
+        version := strings.Split(match[1], ".")
+
+        major, parseMajorErr := strconv.Atoi(version[0])
+        minor, parseMinorErr := strconv.Atoi(version[1])
+
+        if parseMajorErr == nil && parseMinorErr == nil {
+            // if Python version is below 3.5, we use Python 3.10 and warn the user
+            // keep supported version up to date: https://devguide.python.org/versions/#supported-versions
+            // supported versions: 3.7 and newer
+            if major == 3 && minor > 6 {
+                s.Notice += fmt.Sprintf(`
+[INFO] Python v%s was detected. '%s-slim-buster' will be used in the Dockerfile.
+`, match[1], match[1])
+                pythonVersion = match[1]
+            } else {
+                // warn users for any Python version older than 3.7
+                // use the
+                s.Notice += fmt.Sprintf(`
+[WARNING] It looks like you have Python v%s installed, but it has reached it's end of support. Using Python v%s to build your image instead.
+
+We recommend that you update your application to use Python v%s or newer (https://devguide.python.org/versions/#supported-versions)
+An alternative is to update the Dockerfile to use an image that is compatible with the Python version you are using.
+`, match[1], pythonVersion, pythonSupported)
+            }
+            pythonVersionFound = true
+        }
+    }
+
+    if pythonVersionFound == false {
+        s.Notice += fmt.Sprintf(`
+[WARNING] Python version was not detected. Using Python v%s to build your image instead.
+
+We recommend that you update your application to use Python v%s or newer (https://devguide.python.org/versions/#supported-versions)
+Make sure your application is compatible with Python v%s or update the Dockerfile to use an image that is compatible with the Python version you are using.
+`, pythonVersion, pythonSupported, pythonVersion)
+    }
+
+    vars["pythonVersionFound"] = pythonVersionFound
+    vars["pythonVersion"] = pythonVersion
 
     if checksPass(sourceDir, fileExists("Pipfile")) {
 	    vars["pipenv"] = true
