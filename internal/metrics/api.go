@@ -76,8 +76,7 @@ func handleErr(err error) {
 }
 
 func rawSend(parentCtx context.Context, metricSlug, jsonValue string) {
-
-	if buildinfo.IsDev() {
+	if !shouldSendMetrics(parentCtx) {
 		return
 	}
 
@@ -86,6 +85,17 @@ func rawSend(parentCtx context.Context, metricSlug, jsonValue string) {
 		defer done.Done()
 		handleErr(rawSendImpl(parentCtx, metricSlug, jsonValue))
 	}()
+}
+
+func shouldSendMetrics(ctx context.Context) bool {
+	cfg := config.FromContext(ctx)
+
+	// never send metrics to the production collector from dev builds
+	if buildinfo.IsDev() && cfg.MetricsBaseURLIsProduction() {
+		return false
+	}
+
+	return true
 }
 
 func FlushPending() {
