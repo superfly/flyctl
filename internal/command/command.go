@@ -64,6 +64,7 @@ var commonPreparers = []Preparer{
 	promptToUpdate,
 	initClient,
 	killOldAgent,
+	recordMetricsCommandContext,
 }
 
 // TODO: remove after migration is complete
@@ -494,6 +495,11 @@ func killOldAgent(ctx context.Context) (context.Context, error) {
 
 	time.Sleep(time.Second) // we've killed and removed the pid file
 
+	return ctx, nil
+}
+
+func recordMetricsCommandContext(ctx context.Context) (context.Context, error) {
+	metrics.RecordCommandContext(ctx)
 	return ctx, nil
 }
 

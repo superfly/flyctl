@@ -35,12 +35,13 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cs := io.ColorScheme()
 
-	defer func() {
-		metrics.FlushPending()
-	}()
+	defer metrics.FlushPending()
 
-	switch _, err := cmd.ExecuteContextC(ctx); {
+	cmd, err := cmd.ExecuteContextC(ctx)
+
+	switch {
 	case err == nil:
+		metrics.RecordCommandFinish(cmd)
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
