@@ -40,8 +40,11 @@ For pricing, see https://fly.io/docs/about/pricing/`
 }
 
 func runScaleCount(ctx context.Context) error {
-	appConfig := appconfig.ConfigFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
+	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
+	if err != nil {
+		return err
+	}
 
 	args := flag.Args(ctx)
 
@@ -73,7 +76,7 @@ func runScaleCount(ctx context.Context) error {
 		return err
 	}
 	if isV2 {
-		return runMachinesScaleCount(ctx, appName, groups, maxPerRegion)
+		return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 	}
 	return runNomadScaleCount(ctx, appName, groups, maxPerRegion)
 }
