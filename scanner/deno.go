@@ -1,7 +1,7 @@
 package scanner
 
 func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("*.ts", "denopkg")) && !checksPass(sourceDir, dirContains("*.ts", "deno.land")) {
+	if !checksPass(sourceDir, dirContains("*.ts", "denopkg", "deno.land")) {
 		return nil, nil
 	}
 
