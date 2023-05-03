@@ -20,13 +20,7 @@ import (
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
-
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
-	if err != nil {
-		return err
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
-
+	flapsClient := flaps.FromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)

@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -41,6 +42,12 @@ For pricing, see https://fly.io/docs/about/pricing/`
 
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
 		return err
