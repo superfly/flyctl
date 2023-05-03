@@ -30,6 +30,8 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	}
 
+	// We have manual overrides for some regions with the names <region>2 e.g ams2, iad2.
+	// These cause migrations to fail. Here we handle that specific case.
 	region := alloc.Region
 	if strings.HasSuffix(region, "2") {
 		region = region[0:3]
