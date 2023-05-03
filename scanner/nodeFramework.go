@@ -2,14 +2,14 @@ package scanner
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 var packageJson map[string]interface{}
@@ -112,7 +112,7 @@ func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install @flydotio/dockerfile")
+				return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
 			}
 		}
 
@@ -124,7 +124,7 @@ func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to generate Dockerfile")
+				return fmt.Errorf("failed to generate Dockerfile: %w", err)
 			}
 		}
 	}
@@ -132,7 +132,7 @@ func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	// read dockerfile
 	dockerfile, err := os.ReadFile("Dockerfile")
 	if err != nil {
-		return errors.Wrap(err, "Dockerfile not found")
+		return err
 	}
 
 	// extract family
