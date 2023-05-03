@@ -81,6 +81,11 @@ var CommonFlags = flag.Set{
 		Description: "Create spare machines that increases app availability",
 		Default:     true,
 	},
+	flag.Bool{
+		Name:        "sanity-checks",
+		Description: "Perform sanity checks during deployment",
+		Default:     true,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -198,6 +203,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringSlice(ctx, "env"),
 		PrimaryRegionFlag:     appConfig.PrimaryRegion,
+		SkipSanityChecks:      flag.GetDetach(ctx) || !flag.GetBool(ctx, "sanity-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
