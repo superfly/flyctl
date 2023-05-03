@@ -58,16 +58,15 @@ func Send[T any](ctx context.Context, metricSlug string, value T) {
 	if err != nil {
 		return
 	}
-	SendJson(ctx, metricSlug, string(valJson))
+	SendJson(ctx, metricSlug, valJson)
 }
 
 func SendNoData(ctx context.Context, metricSlug string) {
-
-	SendJson(ctx, metricSlug, "")
+	SendJson(ctx, metricSlug, nil)
 }
 
-func SendJson(ctx context.Context, metricSlug, jsonValue string) {
-	rawSend(ctx, metricSlug, jsonValue)
+func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
+	rawSend(ctx, metricSlug, payload)
 }
 
 func StartTiming(ctx context.Context, metricSlug string) func() {

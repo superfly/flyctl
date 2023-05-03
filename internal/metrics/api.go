@@ -2,69 +2,100 @@ package metrics
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
+	"net/url"
 	"sync"
-	"sync/atomic"
-	"time"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/net/websocket"
 )
 
-const (
-	timeout = 6 * time.Second
-)
+var websocketConn *websocket.Conn
+var websocketMu    sync.Mutex
+var done           sync.WaitGroup
 
-var (
-	timedOut = atomic.Bool{}
-	done     = sync.WaitGroup{}
-)
-
-func rawSendImpl(parentCtx context.Context, metricSlug, jsonValue string) error {
-
-	token, err := getMetricsToken(parentCtx)
+func websocketURL(cfg *config.Config) (*url.URL, error) {
+	url, err := url.Parse(cfg.MetricsBaseURL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	cfg := config.FromContext(parentCtx)
-
-	if timedOut.Load() {
-		return nil
+	switch url.Scheme {
+	case "http":
+		url.Scheme = "ws"
+	case "https":
+		url.Scheme = "wss"
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
+	return url.JoinPath("/socket"), nil
+}
 
-	reader := strings.NewReader(jsonValue)
+func connectWebsocket(ctx context.Context) (*websocket.Conn, error) {
+	cfg := config.FromContext(ctx)
 
-	req, err := http.NewRequestWithContext(ctx, "POST", cfg.MetricsBaseURL+"/v1/"+metricSlug, reader)
+	url, err := websocketURL(cfg)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", token)
-	req.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
-	resp, err := http.DefaultClient.Do(req)
-	defer func() {
-		if resp != nil {
-			_ = resp.Body.Close()
+
+	// websockets require an origin url - this doesn't make sense in flyctl's
+	// case, so let's just reuse the connection url as the origin.
+	origin := url
+
+	wsCfg, err := websocket.NewConfig(url.String(), origin.String())
+	if err != nil {
+		return nil, err
+	}
+
+	authToken, err := getMetricsToken(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	wsCfg.Header.Set("Authorization", authToken)
+	wsCfg.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+
+	return websocket.DialConfig(wsCfg)
+}
+
+func getWebsocketConn(ctx context.Context) *websocket.Conn {
+	websocketMu.Lock()
+	defer websocketMu.Unlock()
+
+	if websocketConn == nil {
+		conn, err := connectWebsocket(ctx)
+		if err != nil {
+			// failed to connect metrics websocket, nothing we can do
+			terminal.Debugf("failed to connect metrics websocket: %v\n", err)
+			return nil
 		}
-	}()
-	if ctx.Err() == context.DeadlineExceeded {
-		timedOut.Store(true)
+		websocketConn = conn
+	}
+	return websocketConn
+}
+
+type websocketMessage struct {
+	Metric  string          `json:"m"`
+	Payload json.RawMessage `json:"p"`
+}
+
+func rawSendImpl(ctx context.Context, metricSlug string, payload json.RawMessage) error {
+	conn := getWebsocketConn(ctx)
+	if conn == nil {
+		// returning nil here is fine since getWebsocketConn returning
+		// nil means we have already logged an error
 		return nil
 	}
-	if err != nil {
-		return err
+
+	message := websocketMessage {
+		Metric: metricSlug,
+		Payload: payload,
 	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("metrics server returned status code %d", resp.StatusCode)
-	}
-	return nil
+
+	return websocket.JSON.Send(conn, &message)
 }
 
 func handleErr(err error) {
@@ -72,10 +103,10 @@ func handleErr(err error) {
 		return
 	}
 	// TODO(ali): Should this ping sentry when it fails?
-	terminal.Debugf("metrics error: %v", err)
+	terminal.Debugf("metrics error: %v\n", err)
 }
 
-func rawSend(parentCtx context.Context, metricSlug, jsonValue string) {
+func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessage) {
 	if !shouldSendMetrics(parentCtx) {
 		return
 	}
@@ -83,7 +114,7 @@ func rawSend(parentCtx context.Context, metricSlug, jsonValue string) {
 	done.Add(1)
 	go func() {
 		defer done.Done()
-		handleErr(rawSendImpl(parentCtx, metricSlug, jsonValue))
+		handleErr(rawSendImpl(parentCtx, metricSlug, payload))
 	}()
 }
 
@@ -99,5 +130,7 @@ func shouldSendMetrics(ctx context.Context) bool {
 }
 
 func FlushPending() {
+	// this just waits for metrics to hit write(2) on the websocket connection
+	// there is no need to wait on a response from the collector
 	done.Wait()
 }
