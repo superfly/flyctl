@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -29,8 +30,13 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	}
 
+	region := alloc.Region
+	if strings.HasSuffix(region, "2") {
+		region = region[0:3]
+	}
+
 	launchInput := &api.LaunchMachineInput{
-		Region: alloc.Region,
+		Region: region,
 		Config: mConfig,
 	}
 
