@@ -43,6 +43,7 @@ type MachineDeploymentArgs struct {
 	LeaseTimeout          time.Duration
 	VMSize                string
 	IncreasedAvailability bool
+	AllocPublicIP         bool
 }
 
 type machineDeployment struct {
@@ -150,7 +151,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	// Provisioning must come after setVolumes
-	if err := md.provisionFirstDeploy(ctx); err != nil {
+	if err := md.provisionFirstDeploy(ctx, args.AllocPublicIP); err != nil {
 		return nil, err
 	}
 

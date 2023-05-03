@@ -86,6 +86,10 @@ var CommonFlags = flag.Set{
 		Description: "Perform sanity checks during deployment",
 		Default:     true,
 	},
+	flag.Bool{
+		Name:        "no-public-ips",
+		Description: "Do not allocate any new public IP addresses",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -175,6 +179,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 			return err
 		}
 	default:
+		if flag.GetBool(ctx, "no-public-ips") {
+			return fmt.Errorf("The --no-public-ips flag can only be used for v2 apps")
+		}
+
 		err = deployToNomad(ctx, appConfig, appCompact, img)
 		if err != nil {
 			return err
@@ -209,6 +217,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		VMSize:                flag.GetString(ctx, "vm-size"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
+		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
