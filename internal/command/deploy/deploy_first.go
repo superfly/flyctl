@@ -13,10 +13,8 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 	if !md.isFirstDeploy || md.restartOnly {
 		return nil
 	}
-	if allocPublicIPs {
-		if err := md.provisionIpsOnFirstDeploy(ctx); err != nil {
-			fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
-		}
+	if err := md.provisionIpsOnFirstDeploy(ctx, allocPublicIPs); err != nil {
+		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
@@ -24,9 +22,9 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 	return nil
 }
 
-func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
+func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allocPublicIPs bool) error {
 	// Provision only if the app hasn't been deployed and have services defined
-	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 {
+	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 || !allocPublicIPs {
 		return nil
 	}
 
