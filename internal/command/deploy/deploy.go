@@ -82,8 +82,8 @@ var CommonFlags = flag.Set{
 		Default:     true,
 	},
 	flag.Bool{
-		Name:        "sanity-checks",
-		Description: "Perform sanity checks during deployment",
+		Name:        "smoke-checks",
+		Description: "Perform smoke checks during deployment",
 		Default:     true,
 	},
 	flag.Bool{
@@ -211,7 +211,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringSlice(ctx, "env"),
 		PrimaryRegionFlag:     appConfig.PrimaryRegion,
-		SkipSanityChecks:      flag.GetDetach(ctx) || !flag.GetBool(ctx, "sanity-checks"),
+		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,

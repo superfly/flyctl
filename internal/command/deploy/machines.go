@@ -36,7 +36,7 @@ type MachineDeploymentArgs struct {
 	Strategy              string
 	EnvFromFlags          []string
 	PrimaryRegionFlag     string
-	SkipSanityChecks      bool
+	SkipSmokeChecks       bool
 	SkipHealthChecks      bool
 	RestartOnly           bool
 	WaitTimeout           time.Duration
@@ -61,7 +61,7 @@ type machineDeployment struct {
 	strategy              string
 	releaseId             string
 	releaseVersion        int
-	skipSanityChecks      bool
+	skipSmokeChecks       bool
 	skipHealthChecks      bool
 	restartOnly           bool
 	waitTimeout           time.Duration
@@ -123,7 +123,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		app:                   args.AppCompact,
 		appConfig:             appConfig,
 		img:                   args.DeploymentImage,
-		skipSanityChecks:      args.SkipSanityChecks,
+		skipSmokeChecks:       args.SkipSmokeChecks,
 		skipHealthChecks:      args.SkipHealthChecks,
 		restartOnly:           args.RestartOnly,
 		waitTimeout:           waitTimeout,
