@@ -91,7 +91,14 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	defer docker.Close() // skipcq: GO-S2307
 
 	build.BuilderInitFinish()
-	defer clearDeploymentTags(ctx, docker, opts.Tag)
+	defer func() {
+		// Don't untag images for remote builder, as people sometimes
+		// run concurrent builds from CI that end up racing with each other
+		// and one of them failing with 404 while calling docker.ImageInspectWithRaw
+		if dockerFactory.IsLocal() {
+			clearDeploymentTags(ctx, docker, opts.Tag)
+		}
+	}()
 
 	build.ContextBuildStart()
 	tb := render.NewTextBlock(ctx, "Creating build context")
