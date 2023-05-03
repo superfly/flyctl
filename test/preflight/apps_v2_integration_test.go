@@ -733,16 +733,3 @@ func TestNoPublicIPDeployMachines(t *testing.T) {
 	// There should be no ips allocated
 	require.Equal(f, "[]\n", result.StdOut().String())
 }
-func TestNoPublicIPDeployNomad(t *testing.T) {
-	var (
-		result *testlib.FlyctlResult
-
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
-
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-machines --image nginx --auto-confirm --no-public-ips", f.OrgSlug(), appName, f.PrimaryRegion())
-	result = f.Fly("ips list --json")
-	// There should be no ips allocated
-	require.Equal(f, "[]\n", result.StdOut().String())
-}

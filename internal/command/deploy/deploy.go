@@ -179,6 +179,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 			return err
 		}
 	default:
+		if flag.GetBool(ctx, "no-public-ips") {
+			return fmt.Errorf("The --no-public-ips flag can only be used for v2 apps")
+		}
+
 		err = deployToNomad(ctx, appConfig, appCompact, img)
 		if err != nil {
 			return err
