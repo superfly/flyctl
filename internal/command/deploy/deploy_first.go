@@ -6,16 +6,17 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
-func (md *machineDeployment) provisionFirstDeploy(ctx context.Context) error {
+func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPublicIPs bool) error {
 	if !md.isFirstDeploy || md.restartOnly {
 		return nil
 	}
-	if err := md.provisionIpsOnFirstDeploy(ctx); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
+	if allocPublicIPs {
+		if err := md.provisionIpsOnFirstDeploy(ctx); err != nil {
+			fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
+		}
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
@@ -25,7 +26,7 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context) error {
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
 	// Provision only if the app hasn't been deployed and have services defined
-	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 || flag.GetBool(ctx, "no-public-ips") {
+	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 {
 		return nil
 	}
 

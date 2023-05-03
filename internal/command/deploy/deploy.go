@@ -217,6 +217,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		VMSize:                flag.GetString(ctx, "vm-size"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
+		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
