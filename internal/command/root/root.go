@@ -41,6 +41,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
+	"github.com/superfly/flyctl/internal/command/regions"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/restart"
 	"github.com/superfly/flyctl/internal/command/resume"
@@ -176,6 +177,7 @@ func New() *cobra.Command {
 		tokens.New(),
 		extensions.New(),
 		consul.New(),
+		regions.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
