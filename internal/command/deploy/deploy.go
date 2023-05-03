@@ -88,7 +88,7 @@ var CommonFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "no-public-ips",
-		Description: "Do allocate any new public IP addresses",
+		Description: "Do not allocate any new public IP addresses",
 	},
 }
 
