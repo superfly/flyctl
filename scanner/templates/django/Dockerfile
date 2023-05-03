@@ -1,6 +1,3 @@
-{{ if not .pythonVersionFound -}}
-# TODO: make sure you update your application to use Python v3.10 or update the image that is compatible
-{{ end -}}
 ARG PYTHON_VERSION={{ .pythonVersion }}-slim-buster
 
 FROM python:${PYTHON_VERSION}

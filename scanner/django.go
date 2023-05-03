@@ -2,12 +2,13 @@ package scanner
 
 import (
 	"fmt"
+	"github.com/blang/semver"
+	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-zglob"
 	"github.com/superfly/flyctl/helpers"
 	"os/exec"
 	"path"
 	"regexp"
-	"strconv"
 	"strings"
 )
 
@@ -44,67 +45,45 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 
 	vars := make(map[string]interface{})
 
-	var pythonSupported string = "3.7" // https://devguide.python.org/versions/#supported-versions
-	var pythonVersion string = "3.10" // Keep the default version "3.10" (hardcoded on the Dockerfile)
-	var pythonVersionOutput string = "Python 3.10.0"
-	var pythonVersionFound bool = false
+	// keep `pythonLatestSupported` up to date: https://devguide.python.org/versions/#supported-versions
+	// Keep the default `pythonVersion` as "3.10" (previously hardcoded on the Dockerfile)
+	pythonLatestSupported := "3.7.0"
+	pythonVersion := "3.10"
 
-	cmd := exec.Command("python3", "-V")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		cmd := exec.Command("python", "-V")
-		out, err := cmd.CombinedOutput()
-		if err == nil {
-		    pythonVersionOutput = string(out)
-		}
-	} else {
-	    pythonVersionOutput = string(out)
-	}
+    pythonFullVersion, err := extractPythonVersion()
 
-    re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+)\.[0-9]`)
-    match := re.FindStringSubmatch(pythonVersionOutput)
+    if err == nil && pythonFullVersion != "" {
+        userVersion, userErr := semver.ParseTolerant(pythonFullVersion)
+        supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
 
-    if len(match) > 1 {
-        // necessary to split and compare the major/minor values because "3.11" is HIGHER than "3.6"
-        // e.g. "3.11" -> "3", "11"
-        version := strings.Split(match[1], ".")
-
-        major, parseMajorErr := strconv.Atoi(version[0])
-        minor, parseMinorErr := strconv.Atoi(version[1])
-
-        if parseMajorErr == nil && parseMinorErr == nil {
-            // if Python version is below 3.5, we use Python 3.10 and warn the user
-            // keep supported version up to date: https://devguide.python.org/versions/#supported-versions
-            // supported versions: 3.7 and newer
-            if major == 3 && minor > 6 {
+        if userErr == nil && supportedErr == nil {
+            // if Python version is below 3.7.0, use Python 3.10 (default)
+            // it is required to have Major, Minor and Patch (e.g. 3.11.2) to be able to use GT
+            // but only Major and Minor (e.g. 3.11) is used in the Dockerfile
+            if userVersion.GTE(supportedVersion) {
+                v, err := semver.Parse(pythonFullVersion)
+                if err == nil {
+                    pythonVersion = fmt.Sprintf("%d.%d", v.Major, v.Minor)
+                }
                 s.Notice += fmt.Sprintf(`
-[INFO] Python v%s was detected. '%s-slim-buster' will be used in the Dockerfile.
-`, match[1], match[1])
-                pythonVersion = match[1]
+%s Python %s was detected. 'python:%s-slim-buster' image will be set in the Dockerfile.
+`, aurora.Faint("[INFO]"), pythonFullVersion, pythonVersion)
             } else {
-                // warn users for any Python version older than 3.7
-                // use the
                 s.Notice += fmt.Sprintf(`
-[WARNING] It looks like you have Python v%s installed, but it has reached it's end of support. Using Python v%s to build your image instead.
-
-We recommend that you update your application to use Python v%s or newer (https://devguide.python.org/versions/#supported-versions)
-An alternative is to update the Dockerfile to use an image that is compatible with the Python version you are using.
-`, match[1], pythonVersion, pythonSupported)
+%s It looks like you have Python %s installed, but it has reached its end of support. Using Python %s to build your image instead.
+Make sure to update the Dockerfile to use an image that is compatible with the Python version you are using.
+%s We highly recommend that you update your application to use Python %s or newer. (https://devguide.python.org/versions/#supported-versions)
+`, aurora.Yellow("[WARNING]"), pythonFullVersion, pythonVersion, aurora.Yellow("[WARNING]"), pythonLatestSupported)
             }
-            pythonVersionFound = true
         }
-    }
-
-    if pythonVersionFound == false {
+    } else {
         s.Notice += fmt.Sprintf(`
-[WARNING] Python version was not detected. Using Python v%s to build your image instead.
-
-We recommend that you update your application to use Python v%s or newer (https://devguide.python.org/versions/#supported-versions)
-Make sure your application is compatible with Python v%s or update the Dockerfile to use an image that is compatible with the Python version you are using.
-`, pythonVersion, pythonSupported, pythonVersion)
+%s Python version was not detected. Using Python %s to build your image instead.
+Make sure to update the Dockerfile to use an image that is compatible with the Python version you are using.
+%s We highly recommend that you update your application to use Python %s or newer. (https://devguide.python.org/versions/#supported-versions)
+`, aurora.Yellow("[WARNING]"), pythonVersion, aurora.Yellow("[WARNING]"), pythonLatestSupported)
     }
 
-    vars["pythonVersionFound"] = pythonVersionFound
     vars["pythonVersion"] = pythonVersion
 
     if checksPass(sourceDir, fileExists("Pipfile")) {
@@ -224,4 +203,32 @@ For detailed documentation, see https://fly.dev/docs/django/
 	}
 
 	return s, nil
+}
+
+
+func extractPythonVersion() (string, error) {
+    /* Example Output:
+	    Python 3.11.2
+	*/
+	pythonVersionOutput := "Python 3.10.0"  // Fallback to 3.10
+
+	cmd := exec.Command("python3", "--version")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+	    pythonVersionOutput = string(out)
+	} else {
+		cmd := exec.Command("python", "--version")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+		    pythonVersionOutput = string(out)
+		}
+	}
+
+    re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+\.[0-9]+)`)
+    match := re.FindStringSubmatch(pythonVersionOutput)
+
+    if len(match) > 1 {
+        return match[1], nil // "3.11.2", nil
+    }
+    return "", fmt.Errorf("Could not find Python version")
 }
