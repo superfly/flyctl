@@ -18,7 +18,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
+func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
@@ -27,10 +27,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
-	if err != nil {
-		return err
-	}
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
