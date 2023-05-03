@@ -432,13 +432,15 @@ type HTTPResponseOptions struct {
 }
 
 type MachineService struct {
-	Protocol     string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	InternalPort int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
-	Autostop     *bool                      `json:"autostop,omitempty"`
-	Autostart    *bool                      `json:"autostart,omitempty"`
-	Ports        []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
-	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
-	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	Protocol                 string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	InternalPort             int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
+	Autostop                 *bool                      `json:"autostop,omitempty"`
+	Autostart                *bool                      `json:"autostart,omitempty"`
+	Ports                    []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
+	Checks                   []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
+	Concurrency              *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	ForceInstance            bool                       `json:"force_instance" toml:"force_instance"`
+	ForceInstanceDescription *string                    `json:"force_instance_description,omitempty" toml:"force_instance_description"`
 }
 
 type MachineServiceConcurrency struct {
