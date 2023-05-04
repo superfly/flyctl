@@ -25,7 +25,6 @@ type Client struct {
 	baseUrl    *url.URL
 	httpClient *http.Client
 	userAgent  string
-	logger     api.Logger
 }
 
 func New(ctx context.Context, orgSlug string) (*Client, error) {
