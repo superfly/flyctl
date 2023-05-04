@@ -42,20 +42,20 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-	return NewWithOptions(ctx, &NewClientOpts{AppCompact: app, AppName: app.Name})
+	return newWithOptions(ctx, newClientOpts{AppCompact: app, AppName: app.Name})
 }
 
 func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
-	return NewWithOptions(ctx, &NewClientOpts{AppName: appName})
+	return newWithOptions(ctx, newClientOpts{AppName: appName})
 }
 
-type NewClientOpts struct {
+type newClientOpts struct {
 	AppName    string
 	AppCompact *api.AppCompact
 	Logger     api.Logger
 }
 
-func NewWithOptions(ctx context.Context, opts *NewClientOpts) (*Client, error) {
+func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
 	app := opts.AppCompact
 	appName := opts.AppName
 	if app != nil {
@@ -70,7 +70,10 @@ func NewWithOptions(ctx context.Context, opts *NewClientOpts) (*Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to get app '%s': %w", appName, err)
 		}
-		return newWithUsermodeWireguard(ctx, app)
+		return newWithUsermodeWireguard(ctx, wireguardConnectionParams{
+			appName: opts.AppName,
+			orgSlug: app.Organization.Slug,
+		})
 	} else if flapsBaseURL == "" {
 		flapsBaseURL = "https://api.machines.dev"
 	}
@@ -104,7 +107,12 @@ func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.
 	return app, err
 }
 
-func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client, error) {
+type wireguardConnectionParams struct {
+	appName string
+	orgSlug string
+}
+
+func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionParams) (*Client, error) {
 	logger := logger.MaybeFromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -113,9 +121,9 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, params.orgSlug)
 	if err != nil {
-		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", params.orgSlug, err)
 	}
 
 	transport := &http.Transport{
@@ -126,7 +134,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 
 	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
-		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", params.orgSlug, err)
 	}
 
 	flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
@@ -136,7 +144,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 	}
 
 	return &Client{
-		appName:    app.Name,
+		appName:    params.appName,
 		baseUrl:    flapsBaseUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
