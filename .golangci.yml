@@ -29,6 +29,7 @@ linters:
   enable:
     # - gofumpt
     # - goimports
+    - gofmt
     - gosimple
     - govet
     - ineffassign
