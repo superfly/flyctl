@@ -136,7 +136,7 @@ func configureDockerJSON(cfg *config.Config) error {
 	return os.WriteFile(configPath, updatedJSON, 0o644)
 }
 
-func runDocker(ctx context.Context) (err error) {
+func runDocker(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	binary, err := exec.LookPath("docker")
 	if err != nil {
@@ -156,28 +156,27 @@ func runDocker(ctx context.Context) (err error) {
 
 	var in io.WriteCloser
 	if in, err = cmd.StdinPipe(); err != nil {
-		return
+		return err
 	}
-
-	go func() {
-		defer in.Close()
-
-		fmt.Fprint(in, cfg.AccessToken)
-	}()
+	// This defer is for early-returns before writing to the stream, hence safe.
+	defer in.Close() // skipcq: GO-S2307
 
 	if err = cmd.Start(); err != nil {
-		return
+		return err
 	}
 
 	if err = cmd.Wait(); err != nil {
-		err = fmt.Errorf("failed authenticating with %s: %v", host, out.String())
-
-		return
+		return fmt.Errorf("failed authenticating with %s: %v", host, out.String())
 	}
 
 	io := iostreams.FromContext(ctx)
 
 	fmt.Fprintf(io.Out, "Authentication successful. You can now tag and push images to %s/{your-app}\n", host)
 
-	return
+	_, err = fmt.Fprint(in, cfg.AccessToken)
+	if err != nil {
+		return err
+	}
+
+	return in.Close()
 }
