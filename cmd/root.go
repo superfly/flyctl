@@ -53,7 +53,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	})
 
 	rootCmd.AddCommand(
-		newCertificatesCommand(client),
 		newDashboardCommand(client),
 		newAutoscaleCommand(client),
 		newDomainsCommand(client),

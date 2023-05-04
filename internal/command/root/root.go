@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
+	"github.com/superfly/flyctl/internal/command/certificates"
 	"github.com/superfly/flyctl/internal/command/checks"
 	"github.com/superfly/flyctl/internal/command/config"
 	"github.com/superfly/flyctl/internal/command/consul"
@@ -180,6 +181,7 @@ func New() *cobra.Command {
 		consul.New(),
 		regions.New(),
 		dnsrecords.New(),
+		certificates.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
