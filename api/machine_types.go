@@ -439,7 +439,7 @@ type MachineService struct {
 	Ports                    []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
 	Checks                   []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
 	Concurrency              *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
-	ForceInstance            bool                       `json:"force_instance" toml:"force_instance"`
+	ForceInstanceKey         *string                    `json:"force_instance_key" toml:"force_instance_key"`
 	ForceInstanceDescription *string                    `json:"force_instance_description,omitempty" toml:"force_instance_description"`
 }
 
