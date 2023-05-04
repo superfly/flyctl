@@ -27,7 +27,7 @@ type LeasableMachine interface {
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
 	WaitForState(context.Context, string, time.Duration, string) error
-	WaitForSanityChecksToPass(context.Context, string) error
+	WaitForSmokeChecksToPass(context.Context, string) error
 	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration) (*api.MachineEvent, error)
 	FormattedMachineId() string
@@ -213,7 +213,7 @@ func (lm *leasableMachine) isConstantlyRestarting(machine *api.Machine) bool {
 		ev.Request.ExitEvent.ExitCode != 0
 }
 
-func (lm *leasableMachine) WaitForSanityChecksToPass(ctx context.Context, logPrefix string) error {
+func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPrefix string) error {
 	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 

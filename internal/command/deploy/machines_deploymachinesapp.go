@@ -258,7 +258,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			return err
 		}
 
-		if err := md.doSanityChecks(ctx, lm, indexStr); err != nil {
+		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
 			return err
 		}
 
@@ -319,7 +319,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return "", err
 	}
 
-	if err := md.doSanityChecks(ctx, lm, indexStr); err != nil {
+	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
 		return "", err
 	}
 
@@ -393,17 +393,17 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 	fmt.Fprint(md.io.Out, "\n")
 }
 
-func (md *machineDeployment) doSanityChecks(ctx context.Context, lm machine.LeasableMachine, indexStr string) (err error) {
-	if md.skipSanityChecks {
+func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine, indexStr string) (err error) {
+	if md.skipSmokeChecks {
 		return nil
 	}
 
-	if err = lm.WaitForSanityChecksToPass(ctx, indexStr); err == nil {
+	if err = lm.WaitForSmokeChecksToPass(ctx, indexStr); err == nil {
 		md.logClearLinesAbove(1)
 		return nil
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "Sanity checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
+	fmt.Fprintf(md.io.ErrOut, "Smoke checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
 	fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", lm.Machine().ID)
 	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
 	if logErr != nil {
@@ -416,5 +416,5 @@ func (md *machineDeployment) doSanityChecks(ctx context.Context, lm machine.Leas
 		}
 	}
 
-	return fmt.Errorf("sanity checks for %s failed: %v", lm.Machine().ID, err)
+	return fmt.Errorf("smoke checks for %s failed: %v", lm.Machine().ID, err)
 }
