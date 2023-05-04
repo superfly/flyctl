@@ -25,7 +25,6 @@ import (
 // - Internal port is set in first call and not replaced unless --internal-port is passed again
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 // - As we are reusing an existing app, the --org param is not needed after the first call
-//
 func TestFlyLaunch_case01(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()

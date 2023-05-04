@@ -2,13 +2,13 @@ package metrics
 
 import (
 	"context"
-	"time"
 	"github.com/spf13/cobra"
+	"time"
 )
 
 var (
 	processStartTime = time.Now()
-	commandContext context.Context
+	commandContext   context.Context
 )
 
 type commandTimingData struct {
@@ -27,9 +27,9 @@ func RecordCommandContext(ctx context.Context) {
 func RecordCommandFinish(cmd *cobra.Command) {
 	duration := time.Since(processStartTime)
 
-	data := commandTimingData {
+	data := commandTimingData{
 		Duration: duration.Seconds(),
-		Command: cmd.CommandPath(),
+		Command:  cmd.CommandPath(),
 	}
 
 	if commandContext != nil {

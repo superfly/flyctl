@@ -18,7 +18,7 @@ func New() *cobra.Command {
 		command.RequireSession,
 	)
 
-	snapshots.Aliases = []string{"snapshot","snaps"}
+	snapshots.Aliases = []string{"snapshot", "snaps"}
 
 	snapshots.AddCommand(
 		newList(),

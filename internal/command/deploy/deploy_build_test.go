@@ -2,13 +2,13 @@ package deploy
 
 import (
 	"context"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/state"
 	"os"
 	"path/filepath"
 	"testing"
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/state"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestMultipleDockerfile(t *testing.T) {

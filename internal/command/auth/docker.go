@@ -57,13 +57,14 @@ func ensureDockerConfigDir(home string) error {
 // and returns the updated JSON.
 //
 // The config.json is structured as follows:
-//   {
-//     "auths": {
-//       "registry.fly.io": {
-//         "auth": "x:..."
-//       }
-//     }
-//   }
+//
+//	{
+//	  "auths": {
+//	    "registry.fly.io": {
+//	      "auth": "x:..."
+//	    }
+//	  }
+//	}
 func addFlyAuthToDockerConfig(cfg *config.Config, configJSON []byte) ([]byte, error) {
 	var dockerConfig map[string]json.RawMessage
 	if len(configJSON) == 0 {
