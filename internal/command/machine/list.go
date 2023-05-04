@@ -112,6 +112,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 			appPlatform := ""
 			machineProcessGroup := ""
+			size := ""
 
 			if machine.Config != nil {
 				if platformVersion, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
@@ -124,6 +125,9 @@ func runMachineList(ctx context.Context) (err error) {
 
 				}
 
+				if machine.Config.Guest != nil {
+					size = fmt.Sprintf("%s:%dMB", machine.Config.Guest.ToSize(), machine.Config.Guest.MemoryMB)
+				}
 			}
 
 			rows = append(rows, []string{
@@ -138,7 +142,7 @@ func runMachineList(ctx context.Context) (err error) {
 				machine.UpdatedAt,
 				appPlatform,
 				machineProcessGroup,
-				fmt.Sprintf("%s:%dMB", machine.Config.Guest.ToSize(), machine.Config.Guest.MemoryMB),
+				size,
 			})
 
 		}
