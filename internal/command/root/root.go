@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/command/dig"
+	dnsrecords "github.com/superfly/flyctl/internal/command/dns-records"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/extensions"
@@ -178,6 +179,7 @@ func New() *cobra.Command {
 		extensions.New(),
 		consul.New(),
 		regions.New(),
+		dnsrecords.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
