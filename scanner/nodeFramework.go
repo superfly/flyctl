@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/blang/semver"
 )
 
 var packageJson map[string]interface{}
@@ -43,16 +45,24 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
-	// ensure node version is at least 16
+	// ensure node version is at least 16.0.0
 	out, err := exec.Command("node", "-v").Output()
 	if err != nil {
 		return nil, nil
 	} else {
-		nodeVersion := strings.TrimSpace(string(out))
-		if nodeVersion[:1] == "v" {
-			nodeVersion = nodeVersion[1:]
+		minVersion, err := semver.Make("16.0.0")
+		if err != nil {
+			panic(err)
 		}
-		if nodeVersion < "16" {
+
+		nodeVersionString := strings.TrimSpace(string(out))
+		if nodeVersionString[:1] == "v" {
+			nodeVersionString = nodeVersionString[1:]
+		}
+
+		nodeVersion, err := semver.Make(nodeVersionString)
+
+		if err != nil || nodeVersion.LT(minVersion) {
 			return nil, nil
 		}
 	}
