@@ -56,10 +56,11 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
 	mConfig := &api.MachineConfig{
 		Init: api.MachineInit{
-			// FIXME: this is an ugly hack, abusing Hallpass as a
-			// stand-in for `/bin/sleep infinity`, simply because it
-			// should always be available.
-			Exec: []string{"/.fly/hallpass", "dummy", "to", "keep", "machine", "running"},
+			// TODO: it would be better to configure init to run no
+			// command at all. That way we don't rely on /bin/sleep
+			// being available and working right. However, there's no
+			// way to do that yet.
+			Exec: []string{"/bin/sleep", "inf"},
 		},
 		Restart: api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
@@ -74,9 +75,6 @@ func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
 		},
 		Env: lo.Assign(c.Env),
 	}
-
-	// FIXME: ugly hack; see above
-	mConfig.Env["SSH_LISTEN"] = "[::1]:22"
 
 	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppEphemeralRunner
 	if c.PrimaryRegion != "" {
