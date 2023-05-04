@@ -57,18 +57,14 @@ type newClientOpts struct {
 
 func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
 	app := opts.AppCompact
-	appName := opts.AppName
-	if app != nil {
-		appName = app.Name
-	}
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
 	var err error
 	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
 	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
-		app, err = resolveApp(ctx, app, appName)
+		app, err = resolveApp(ctx, app, opts.AppName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get app '%s': %w", appName, err)
+			return nil, fmt.Errorf("failed to get app '%s': %w", opts.AppName, err)
 		}
 		return newWithUsermodeWireguard(ctx, wireguardConnectionParams{
 			appName: opts.AppName,
@@ -90,7 +86,7 @@ func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
 	}
 	return &Client{
-		appName:    appName,
+		appName:    opts.AppName,
 		baseUrl:    flapsUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
