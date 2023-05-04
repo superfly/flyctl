@@ -44,7 +44,9 @@ func ensureDockerConfigDir(home string) error {
 		}
 		// It needs to be readable by Docker, if it gets installed in the
 		// future.
-		if err := os.Mkdir(dockerDir, 0o755); err != nil {
+		// The permission is 700 as like Docker itself.
+		// https://github.com/docker/cli/blob/v23.0.5/cli/config/configfile/file.go#L142
+		if err := os.Mkdir(dockerDir, 0o700); err != nil {
 			return err
 		}
 	} else if !fi.IsDir() {
