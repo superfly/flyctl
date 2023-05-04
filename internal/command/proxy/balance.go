@@ -86,7 +86,7 @@ func runBalance(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "%d instances were eligible for balancing %s.\n\n", balanced.Total, appName)
+	fmt.Fprintf(io.Out, "%d instances were eligible for balancing app: %s, destination: %s/%d.\n\n", balanced.Total, appName, balanced.Destination.Proto, balanced.Destination.Port)
 
 	rows := [][]string{}
 
@@ -101,7 +101,7 @@ func runBalance(ctx context.Context) (err error) {
 	}
 
 	if len(rows) > 0 {
-		_ = render.Table(io.Out, fmt.Sprintf("Balancing response for %s", appName), rows, "", "ID", "State", "Region", "Healthy", "Load", "RTT", "Rejection")
+		_ = render.Table(io.Out, fmt.Sprintf("Balancing response for %s (%s/%d)", appName, balanced.Destination.Proto, balanced.Destination.Port), rows, "", "ID", "State", "Region", "Healthy", "Load", "RTT", "Rejection")
 
 		if len(rejections) > 0 {
 			fmt.Fprintln(io.Out, "")

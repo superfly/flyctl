@@ -1,9 +1,10 @@
 package flyproxy
 
 type BalanceResponse struct {
-	Total    uint                `json:"total"`
-	Chosen   *BalancedInstance   `json:"chosen"`
-	Rejected []*BalancedInstance `json:"rejected"`
+	Destination Destination         `json:"dest"`
+	Total       uint                `json:"total"`
+	Chosen      *BalancedInstance   `json:"chosen"`
+	Rejected    []*BalancedInstance `json:"rejected"`
 }
 
 type BalancedInstance struct {
