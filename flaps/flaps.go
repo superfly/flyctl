@@ -50,25 +50,29 @@ func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
 }
 
 type newClientOpts struct {
+	// required:
 	AppName    string
+
+	// optional, avoids API roundtrip when connecting to flaps by wireguard:
 	AppCompact *api.AppCompact
+
+	// optional:
 	Logger     api.Logger
 }
 
 func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
-	app := opts.AppCompact
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
 	var err error
 	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
 	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
-		app, err = resolveApp(ctx, app, opts.AppName)
+		orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get app '%s': %w", opts.AppName, err)
+			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 		}
 		return newWithUsermodeWireguard(ctx, wireguardConnectionParams{
 			appName: opts.AppName,
-			orgSlug: app.Organization.Slug,
+			orgSlug: orgSlug,
 		})
 	} else if flapsBaseURL == "" {
 		flapsBaseURL = "https://api.machines.dev"
@@ -92,6 +96,14 @@ func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
+}
+
+func resolveOrgSlugForApp(ctx context.Context, app *api.AppCompact, appName string) (string, error) {
+	app, err := resolveApp(ctx, app, appName)
+	if err != nil {
+		return "", err
+	}
+	return app.Organization.Slug, nil
 }
 
 func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
