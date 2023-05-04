@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/consul"
 	"github.com/superfly/flyctl/internal/command/create"
 	"github.com/superfly/flyctl/internal/command/curl"
+	"github.com/superfly/flyctl/internal/command/dashboard"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/command/dig"
@@ -182,6 +183,7 @@ func New() *cobra.Command {
 		regions.New(),
 		dnsrecords.New(),
 		certificates.New(),
+		dashboard.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
