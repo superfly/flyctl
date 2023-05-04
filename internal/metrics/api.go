@@ -13,9 +13,11 @@ import (
 	"golang.org/x/net/websocket"
 )
 
-var websocketConn *websocket.Conn
-var websocketMu    sync.Mutex
-var done           sync.WaitGroup
+var (
+	websocketConn *websocket.Conn
+	websocketMu   sync.Mutex
+	done          sync.WaitGroup
+)
 
 func websocketURL(cfg *config.Config) (*url.URL, error) {
 	url, err := url.Parse(cfg.MetricsBaseURL)
@@ -90,8 +92,8 @@ func rawSendImpl(ctx context.Context, metricSlug string, payload json.RawMessage
 		return nil
 	}
 
-	message := websocketMessage {
-		Metric: metricSlug,
+	message := websocketMessage{
+		Metric:  metricSlug,
 		Payload: payload,
 	}
 

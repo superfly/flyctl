@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	genq "github.com/Khan/genqlient/graphql"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/graphql"
 	"golang.org/x/exp/slices"
 )
@@ -108,6 +109,9 @@ func (c *Client) Logger() Logger { return c.logger }
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
+	timing := instrument.GraphQL.Begin()
+	defer timing.End()
+
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
 
