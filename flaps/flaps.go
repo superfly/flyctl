@@ -17,14 +17,15 @@ import (
 
 	"github.com/google/go-querystring/query"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -464,6 +465,9 @@ func (f *Client) Exec(ctx context.Context, machineID string, in *api.MachineExec
 }
 
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	timing := instrument.Flaps.Begin()
+	defer timing.End()
+
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
