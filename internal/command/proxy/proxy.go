@@ -2,12 +2,11 @@ package proxy
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 func New() *cobra.Command {
@@ -52,10 +51,8 @@ func runForwardWithDeprecationWarning(ctx context.Context) (err error) {
 		return cmd.Help()
 	}
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-
-	fmt.Fprintln(io.Out, colorize.Yellow("`fly proxy <local:remote> [remote_host]` is deprecated in favor of `fly proxy forward <local:remote> [remote_host]`. Usage from `fly proxy` directly will be removed in a future version."))
+	logger := logger.FromContext(ctx)
+	logger.Warn("`fly proxy <local:remote> [remote_host]` is deprecated in favor of `fly proxy forward <local:remote> [remote_host]`. Usage from `fly proxy` directly will be removed in a future version.")
 
 	ctx, err = command.RequireSession(ctx)
 	if err != nil {
