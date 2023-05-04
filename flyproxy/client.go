@@ -66,10 +66,23 @@ func New(ctx context.Context, orgSlug string) (*Client, error) {
 	}, nil
 }
 
-func (f *Client) Balance(ctx context.Context, appName string) (*BalanceResponse, error) {
+func (f *Client) Balance(ctx context.Context, appName string, opts *BalanceOptions) (*BalanceResponse, error) {
 	out := new(BalanceResponse)
 
-	err := f.sendRequest(ctx, http.MethodGet, fmt.Sprintf("balance/%s", appName), nil, out, nil)
+	endpoint := fmt.Sprintf("balance/%s", appName)
+	query := []string{}
+
+	if opts != nil {
+		if opts.Destination != "" {
+			query = append(query, fmt.Sprintf("dest=%s", opts.Destination))
+		}
+	}
+
+	if len(query) > 0 {
+		endpoint = fmt.Sprintf("%s?%s", endpoint, strings.Join(query, "&"))
+	}
+
+	err := f.sendRequest(ctx, http.MethodGet, endpoint, nil, out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get balance diagnostic for app %s: %w", appName, err)
 	}

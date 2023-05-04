@@ -32,6 +32,11 @@ func newBalance() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Org(),
+		flag.String{
+			Name:        "dest",
+			Shorthand:   "d",
+			Description: "Destination to test for in the form of tcp/<port> or common protocol names (e.g. 'https', 'ssh')",
+		},
 	)
 
 	return cmd
@@ -75,7 +80,7 @@ func runBalance(ctx context.Context) (err error) {
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	balanced, err := client.Balance(ctx, appName)
+	balanced, err := client.Balance(ctx, appName, &flyproxy.BalanceOptions{Destination: flag.GetString(ctx, "dest")})
 
 	if err != nil {
 		return err
@@ -96,7 +101,7 @@ func runBalance(ctx context.Context) (err error) {
 	}
 
 	if len(rows) > 0 {
-		_ = render.Table(io.Out, fmt.Sprintf("Balancing response for %s", appName), rows, "✓", "ID", "State", "Region", "Healthy", "Load", "RTT", "Rejection")
+		_ = render.Table(io.Out, fmt.Sprintf("Balancing response for %s", appName), rows, "", "ID", "State", "Region", "Healthy", "Load", "RTT", "Rejection")
 
 		if len(rejections) > 0 {
 			fmt.Fprintln(io.Out, "")

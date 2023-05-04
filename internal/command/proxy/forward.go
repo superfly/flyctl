@@ -16,14 +16,14 @@ import (
 	"github.com/superfly/flyctl/proxy"
 )
 
-func newStart() *cobra.Command {
+func newForward() *cobra.Command {
 	var (
 		long  = strings.Trim(`Proxies connections to a fly VM through a Wireguard tunnel The current application DNS is the default remote host`, "\n")
 		short = `Proxies connections to a fly VM`
-		usage = "start <local:remote> [remote_host]"
+		usage = "forward <local:remote> [remote_host]"
 	)
 
-	cmd := command.New(usage, short, long, runStart,
+	cmd := command.New(usage, short, long, runForward,
 		command.RequireSession, command.LoadAppNameIfPresent)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
@@ -48,7 +48,7 @@ func newStart() *cobra.Command {
 	return cmd
 }
 
-func runStart(ctx context.Context) (err error) {
+func runForward(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	orgSlug := flag.GetString(ctx, "org")

@@ -21,3 +21,7 @@ type BalanceRejection struct {
 	ID   string `json:"id"`
 	Desc string `json:"description"`
 }
+
+type BalanceOptions struct {
+	Destination string
+}
