@@ -46,6 +46,12 @@ func New() *cobra.Command {
 }
 
 func runForwardWithDeprecationWarning(ctx context.Context) (err error) {
+	args := flag.Args(ctx)
+	if len(args) == 0 {
+		cmd := command.FromContext(ctx)
+		return cmd.Help()
+	}
+
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
