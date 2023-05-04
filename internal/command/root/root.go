@@ -59,6 +59,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/vm"
 	"github.com/superfly/flyctl/internal/command/volumes"
+	"github.com/superfly/flyctl/internal/command/wireguard"
 )
 
 // New initializes and returns a reference to a new root command.
@@ -184,6 +185,7 @@ func New() *cobra.Command {
 		dnsrecords.New(),
 		certificates.New(),
 		dashboard.New(),
+		wireguard.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
