@@ -52,10 +52,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 		Hidden: true,
 	})
 
-	rootCmd.AddCommand(
-		newDomainsCommand(client),
-	)
-
 	return rootCmd.Command
 }
 

@@ -25,6 +25,7 @@ import (
 	dnsrecords "github.com/superfly/flyctl/internal/command/dns-records"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
+	"github.com/superfly/flyctl/internal/command/domains"
 	"github.com/superfly/flyctl/internal/command/extensions"
 	"github.com/superfly/flyctl/internal/command/help"
 	"github.com/superfly/flyctl/internal/command/history"
@@ -188,6 +189,7 @@ func New() *cobra.Command {
 		dashboard.New(),
 		wireguard.New(),
 		autoscale.New(),
+		domains.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {
