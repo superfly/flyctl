@@ -9,7 +9,7 @@ var (
 	mu         sync.Mutex
 	GraphQL    CallInstrumenter
 	Flaps      CallInstrumenter
-	ApiAdapter = &ApiInstrumenter{Instrumenter: &GraphQL}
+	ApiAdapter = &ApiInstrumenter{metrics: &GraphQL.metrics}
 )
 
 type CallInstrumenter struct {
@@ -52,20 +52,13 @@ func (t *CallTimer) End() {
 
 // adapter for the api package's instrumentation facade
 type ApiInstrumenter struct {
-	Instrumenter *CallInstrumenter
-	current      *CallTimer
+	metrics *CallMetrics
 }
 
-func (s *ApiInstrumenter) Begin() {
-	if s.current != nil {
-		panic("nested instrument span!")
-	}
+func (i *ApiInstrumenter) ReportCallTiming(duration time.Duration) {
+	mu.Lock()
+	defer mu.Unlock()
 
-	timing := s.Instrumenter.Begin()
-	s.current = &timing
-}
-
-func (s *ApiInstrumenter) End() {
-	s.current.End()
-	s.current = nil
+	i.metrics.Calls += 1
+	i.metrics.Duration += duration.Seconds()
 }

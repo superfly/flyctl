@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
@@ -37,8 +38,7 @@ func SetInstrumenter(i InstrumentationService) {
 }
 
 type InstrumentationService interface {
-	Begin()
-	End()
+	ReportCallTiming(duration time.Duration)
 }
 
 // Client - API client encapsulating the http and GraphQL clients
@@ -118,8 +118,10 @@ func (c *Client) Logger() Logger { return c.logger }
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
-	instrumenter.Begin()
-	defer instrumenter.End()
+	start := time.Now()
+	defer func() {
+		instrumenter.ReportCallTiming(time.Since(start))
+	}()
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
