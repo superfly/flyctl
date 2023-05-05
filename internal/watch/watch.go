@@ -63,8 +63,6 @@ func Deployment(ctx context.Context, appName, evaluationID string) error {
 	}
 
 	monitor.DeploymentFailed = func(d *api.DeploymentStatus, failedAllocs []*api.AllocationStatus) error {
-		// cmdCtx.Statusf("deploy", cmdctx.SDETAIL, "v%d %s - %s\n", d.Version, d.Status, d.Description)
-
 		if endmessage == "" && d.Status == "failed" {
 			if strings.Contains(d.Description, "no stable release to revert to") {
 				endmessage = fmt.Sprintf("v%d %s - %s\n", d.Version, d.Status, d.Description)
