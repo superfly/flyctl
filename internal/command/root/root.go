@@ -20,7 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/destroy"
 	"github.com/superfly/flyctl/internal/command/dig"
-	dnsrecords "github.com/superfly/flyctl/internal/command/dns-records"
+	"github.com/superfly/flyctl/internal/command/dnsrecords"
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/domains"
