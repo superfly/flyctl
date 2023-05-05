@@ -357,6 +357,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		KillSignal:       api.Pointer("SIGTERM"),
 		KillTimeout:      api.MustParseDuration("3s"),
 		PrimaryRegion:    "sea",
+		ConsoleCommand:   "/bin/bash",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},

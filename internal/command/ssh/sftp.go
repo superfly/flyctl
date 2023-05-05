@@ -94,7 +94,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := bringUp(ctx, client, app)
+	agentclient, dialer, err := BringUpAgent(ctx, client, app, quiet(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -104,19 +104,15 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, err
 	}
 
-	params := &SSHParams{
+	params := &ConnectParams{
 		Ctx:            ctx,
 		Org:            app.Organization,
 		Dialer:         dialer,
-		App:            appName,
 		Username:       DefaultSshUsername,
-		Stdin:          os.Stdin,
-		Stdout:         os.Stdout,
-		Stderr:         os.Stderr,
 		DisableSpinner: true,
 	}
 
-	conn, err := sshConnect(params, addr)
+	conn, err := Connect(params, addr)
 	if err != nil {
 		captureError(err, app)
 		return nil, err

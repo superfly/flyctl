@@ -37,5 +37,6 @@ func (c *Config) SanitizedDefinition() map[string]any {
 	delete(definition, "build")
 	delete(definition, "primary_region")
 	delete(definition, "http_service")
+	delete(definition, "console_command")
 	return definition
 }
