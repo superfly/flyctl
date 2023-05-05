@@ -16,26 +16,19 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func argOrPromptImpl(ctx context.Context, nth int, prompt string, first bool) (string, error) {
+func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
 	args := flag.Args(ctx)
 	if len(args) >= (nth + 1) {
 		return args[nth], nil
 	}
 
 	val := ""
-	err := survey.AskOne(&survey.Input{
-		Message: prompt,
-	}, &val)
+	err := survey.AskOne(
+		&survey.Input{Message: prompt},
+		&val,
+	)
 
 	return val, err
-}
-
-func argOrPromptLoop(ctx context.Context, nth int, prompt, last string) (string, error) {
-	return argOrPromptImpl(ctx, nth, prompt, last == "")
-}
-
-func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
-	return argOrPromptImpl(ctx, nth, prompt, true)
 }
 
 func orgByArg(ctx context.Context) (*api.Organization, error) {
@@ -60,7 +53,7 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 	var filename string
 
 	for {
-		filename, err = argOrPromptLoop(ctx, idx, prompt, filename)
+		filename, err = argOrPrompt(ctx, idx, prompt)
 		if err != nil {
 			return nil, false, err
 		}

@@ -220,6 +220,6 @@ func runDomainsCreate(ctx context.Context) error {
 	return nil
 }
 
-func runDomainsRegister(ctx context.Context) error {
+func runDomainsRegister(_ context.Context) error {
 	return fmt.Errorf("This command is no longer supported.\n")
 }
