@@ -67,13 +67,18 @@ archives:
 release:
   prerelease: auto
 
-dockers:
-  - goos: linux
-    goarch: amd64
-    image_templates:
-      - "flyio/flyctl:latest"
-      - "flyio/flyctl:v{{ .Version }}"
-    skip_push: auto
+kos:
+  - id: flyctl
+    build: default
+    main: .
+    working_dir: .
+    repository: docker.io/flyio/flyctl
+    platforms:
+      - linux/amd64
+    tags:
+      - latest
+      - v{{ .Version }}
+    bare: true
 
 checksum:
   name_template: "checksums.txt"
