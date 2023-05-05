@@ -13,11 +13,11 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -133,7 +133,7 @@ func runDomainsList(ctx context.Context) error {
 	table := tablewriter.NewWriter(io.Out)
 	table.SetHeader([]string{"Domain", "Registration Status", "DNS Status", "Created"})
 	for _, domain := range domains {
-		table.Append([]string{domain.Name, *domain.RegistrationStatus, *domain.DnsStatus, presenters.FormatRelativeTime(domain.CreatedAt)})
+		table.Append([]string{domain.Name, *domain.RegistrationStatus, *domain.DnsStatus, format.RelativeTime(domain.CreatedAt)})
 	}
 	table.Render()
 
@@ -161,7 +161,7 @@ func runDomainsShow(ctx context.Context) error {
 	fmt.Fprintf(io.Out, fmtstring, "Organization", domain.Organization.Slug)
 	fmt.Fprintf(io.Out, fmtstring, "Registration Status", *domain.RegistrationStatus)
 	if *domain.RegistrationStatus == "REGISTERED" {
-		fmt.Fprintf(io.Out, fmtstring, "Expires At", presenters.FormatTime(domain.ExpiresAt))
+		fmt.Fprintf(io.Out, fmtstring, "Expires At", format.Time(domain.ExpiresAt))
 
 		autorenew := ""
 		if *domain.AutoRenew {

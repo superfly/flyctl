@@ -10,11 +10,11 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/cmd/presenters"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -99,7 +99,7 @@ func formatMachinesReleases(releases []api.Release, image bool) ([][]string, []s
 			release.Status,
 			release.Description,
 			release.User.Email,
-			presenters.FormatRelativeTime(release.CreatedAt),
+			format.RelativeTime(release.CreatedAt),
 		}
 		if image {
 			row = append(row, release.ImageRef)
@@ -131,7 +131,7 @@ func formatNomadReleases(releases []api.Release, image bool) ([][]string, []stri
 			release.Status,
 			formatReleaseDescription(release),
 			release.User.Email,
-			presenters.FormatRelativeTime(release.CreatedAt),
+			format.RelativeTime(release.CreatedAt),
 		}
 		if image {
 			row = append(row, release.ImageRef)

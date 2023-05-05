@@ -38,8 +38,6 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 
 	nextToken := ""
 
-	// logPresenter := presenters.LogPresenter{}
-
 	for {
 		entries, token, err := cc.Client.API().GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 		if err != nil {
