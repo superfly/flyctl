@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	baseURL  string
-	errorLog bool
+	baseURL      string
+	errorLog     bool
+	instrumenter InstrumentationService
 )
 
 // SetBaseURL - Sets the base URL for the API
@@ -29,6 +30,15 @@ func SetBaseURL(url string) {
 // SetErrorLog - Sets whether errors should be loddes
 func SetErrorLog(log bool) {
 	errorLog = log
+}
+
+func SetInstrumenter(i InstrumentationService) {
+	instrumenter = i
+}
+
+type InstrumentationService interface {
+	Begin()
+	End()
 }
 
 // Client - API client encapsulating the http and GraphQL clients
@@ -108,6 +118,9 @@ func (c *Client) Logger() Logger { return c.logger }
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
+	instrumenter.Begin()
+	defer instrumenter.End()
+
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
 
