@@ -13,6 +13,7 @@ func New() *cobra.Command {
 		long  = `Commands that manage WireGuard peer connections`
 	)
 	cmd := command.New("wireguard", short, long, nil)
+	cmd.Aliases = []string{"wg"}
 	cmd.AddCommand(
 		newWireguardList(),
 		newWireguardCreate(),
@@ -45,7 +46,7 @@ func newWireguardCreate() *cobra.Command {
 		short = "Add a WireGuard peer connection"
 		long  = `Add a WireGuard peer connection to an organization`
 	)
-	cmd := command.New("create [org] [region] [name]", short, long, runWireguardCreate,
+	cmd := command.New("create [org] [region] [name] [file]", short, long, runWireguardCreate,
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(4)
@@ -165,7 +166,7 @@ func newWireguardTokenStart() *cobra.Command {
 	cmd := command.New("start [name] [group] [region] [file]", short, long, runWireguardTokenStart,
 		command.RequireSession,
 	)
-	cmd.Args = cobra.MaximumNArgs(3)
+	cmd.Args = cobra.MaximumNArgs(4)
 	return cmd
 }
 
