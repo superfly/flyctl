@@ -7,7 +7,7 @@ import (
 
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmdctx"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -20,8 +20,8 @@ type LogOptions struct {
 	RegionCode string
 }
 
-func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
-	ctx := cc.Command.Context()
+func WatchLogs(ctx context.Context, opts LogOptions) error {
+	apiClient := client.FromContext(ctx).API()
 
 	errorCount := 0
 
@@ -38,10 +38,8 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 
 	nextToken := ""
 
-	// logPresenter := presenters.LogPresenter{}
-
 	for {
-		entries, token, err := cc.Client.API().GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
+		entries, token, err := apiClient.GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
 		if err != nil {
 			terminal.Debugf("error getting app logs: %v\n", err)
 			if api.IsNotAuthenticatedError(err) {
@@ -62,8 +60,6 @@ func WatchLogs(cc *cmdctx.CmdContext, w io.Writer, opts LogOptions) error {
 			time.Sleep(b.Duration())
 		} else {
 			b.Reset()
-
-			// logPresenter.FPrint(w, false, entries)
 
 			if token != "" {
 				nextToken = token
