@@ -10,7 +10,7 @@ import (
 )
 
 func TestHeartbeat(t *testing.T) {
-	dc, err := client.NewClientWithOpts();
+	dc, err := client.NewClientWithOpts()
 	assert.NoError(t, err)
 
 	ctx := context.Background()
