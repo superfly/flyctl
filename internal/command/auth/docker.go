@@ -158,10 +158,25 @@ func runDocker(ctx context.Context) error {
 	if in, err = cmd.StdinPipe(); err != nil {
 		return err
 	}
-	// This defer is for early-returns before writing to the stream, hence safe.
-	defer in.Close() // skipcq: GO-S2307
+	// This defer is for early-returns before successfully writing to the stream, hence safe.
+	defer func() {
+		if in != nil {
+			in.Close() // skipcq: GO-S2307
+		}
+	}()
 
 	if err = cmd.Start(); err != nil {
+		return err
+	}
+
+	_, err = fmt.Fprint(in, cfg.AccessToken)
+	if err != nil {
+		return err
+	}
+
+	err = in.Close()
+	in = nil // Prevent the deferred function from double-closing
+	if err != nil {
 		return err
 	}
 
@@ -173,10 +188,5 @@ func runDocker(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Authentication successful. You can now tag and push images to %s/{your-app}\n", host)
 
-	_, err = fmt.Fprint(in, cfg.AccessToken)
-	if err != nil {
-		return err
-	}
-
-	return in.Close()
+	return nil
 }
