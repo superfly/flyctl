@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/agent"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/auth"
+	"github.com/superfly/flyctl/internal/command/autoscale"
 	"github.com/superfly/flyctl/internal/command/certificates"
 	"github.com/superfly/flyctl/internal/command/checks"
 	"github.com/superfly/flyctl/internal/command/config"
@@ -186,6 +187,7 @@ func New() *cobra.Command {
 		certificates.New(),
 		dashboard.New(),
 		wireguard.New(),
+		autoscale.New(),
 	}
 
 	// if os.Getenv("DEV") != "" {

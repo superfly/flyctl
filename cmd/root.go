@@ -53,7 +53,6 @@ func NewRootCmd(client *client.Client) *cobra.Command {
 	})
 
 	rootCmd.AddCommand(
-		newAutoscaleCommand(client),
 		newDomainsCommand(client),
 	)
 
