@@ -155,7 +155,7 @@ func runWireguardCreate(ctx context.Context) error {
 		return err
 	}
 	if shouldClose {
-		defer w.Close()
+		defer w.Close() // skipcq: GO-S2307
 	}
 
 	generateWgConf(data, state.LocalPrivate, w)

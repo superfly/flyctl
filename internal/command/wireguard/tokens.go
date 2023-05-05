@@ -92,7 +92,7 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 		return err
 	}
 	if shouldClose {
-		defer w.Close()
+		defer w.Close() // skipcq: GO-S2307
 	}
 
 	fmt.Fprintf(w, "FLY_WIREGUARD_TOKEN=%s\n", data.Token)
@@ -182,7 +182,7 @@ func generateTokenConf(ctx context.Context, idx int, stat *PeerStatusJson, privk
 		return err
 	}
 	if shouldClose {
-		defer w.Close()
+		defer w.Close() // skipcq: GO-S2307
 	}
 
 	generateWgConf(&api.CreatedWireGuardPeer{
