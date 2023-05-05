@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/terminal"
 	"gopkg.in/yaml.v2"
 )
@@ -84,7 +83,6 @@ func initViper() {
 
 	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
 	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
-	api.SetInstrumenter(instrument.ApiAdapter)
 }
 
 func loadConfig() error {
