@@ -38,9 +38,6 @@ type (
 	Runner func(context.Context) error
 )
 
-// TODO: remove once all commands are implemented.
-var ErrNotImplementedYet = errors.New("command not implemented yet")
-
 func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 	return &cobra.Command{
 		Use:   usage,
@@ -65,27 +62,6 @@ var commonPreparers = []Preparer{
 	initClient,
 	killOldAgent,
 	recordMetricsCommandContext,
-}
-
-// TODO: remove after migration is complete
-func WrapRunE(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) (err error) {
-		ctx := cmd.Context()
-		ctx = NewContext(ctx, cmd)
-		ctx = flag.NewContext(ctx, cmd.Flags())
-
-		// run the common preparers
-		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
-			return
-		}
-
-		err = fn(cmd, args)
-
-		// and the
-		finalize(ctx)
-
-		return
-	}
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -402,7 +378,6 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 }
 
 func promptToUpdate(ctx context.Context) (context.Context, error) {
-
 	cfg := config.FromContext(ctx)
 	if cfg.JSONOutput || shouldIgnore(ctx, [][]string{
 		{"version", "update"},
