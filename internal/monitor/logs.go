@@ -20,7 +20,7 @@ type LogOptions struct {
 	RegionCode string
 }
 
-func WatchLogs(ctx context.Context, w io.Writer, opts LogOptions) error {
+func WatchLogs(ctx context.Context, opts LogOptions) error {
 	apiClient := client.FromContext(ctx).API()
 
 	errorCount := 0
@@ -60,8 +60,6 @@ func WatchLogs(ctx context.Context, w io.Writer, opts LogOptions) error {
 			time.Sleep(b.Duration())
 		} else {
 			b.Reset()
-
-			// logPresenter.FPrint(w, false, entries)
 
 			if token != "" {
 				nextToken = token
