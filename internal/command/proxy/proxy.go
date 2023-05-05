@@ -2,31 +2,28 @@ package proxy
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/proxy"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 func New() *cobra.Command {
-	var (
-		long  = strings.Trim(`Proxies connections to a fly VM through a Wireguard tunnel The current application DNS is the default remote host`, "\n")
-		short = `Proxies connections to a fly VM`
+	const (
+		short = "Commands for proxying and interacting with Fly's proxy"
+		long  = short + "\n"
+		usage = "proxy <command>"
 	)
 
-	cmd := command.New("proxy <local:remote> [remote_host]", short, long, run,
-		command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runForwardWithDeprecationWarning)
 
-	cmd.Args = cobra.RangeArgs(1, 2)
+	cmd.AddCommand(
+		newForward(),
+		newBalance(),
+	)
 
+	// TODO: remove once we deprecate `fly proxy <local:remote> [remote_host]`
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
@@ -47,72 +44,25 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func run(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
-	appName := appconfig.NameFromContext(ctx)
-	orgSlug := flag.GetString(ctx, "org")
+func runForwardWithDeprecationWarning(ctx context.Context) (err error) {
 	args := flag.Args(ctx)
-	promptInstance := flag.GetBool(ctx, "select")
-
-	if promptInstance && appName == "" {
-		return errors.New("--app required when --select flag provided")
+	if len(args) == 0 {
+		cmd := command.FromContext(ctx)
+		return cmd.Help()
 	}
 
-	if orgSlug != "" {
-		_, err := client.GetOrganizationBySlug(ctx, orgSlug)
-		if err != nil {
-			return err
-		}
-	}
+	logger := logger.FromContext(ctx)
+	logger.Warn("`fly proxy <local:remote> [remote_host]` is deprecated in favor of `fly proxy forward <local:remote> [remote_host]`. Usage from `fly proxy` directly will be removed in a future version.")
 
-	if appName == "" && orgSlug == "" {
-		org, err := prompt.Org(ctx)
-		if err != nil {
-			return err
-		}
-		orgSlug = org.Slug
-	}
-
-	// var app *api.App
-	if appName != "" {
-		app, err := client.GetAppBasic(ctx, appName)
-		if err != nil {
-			return err
-		}
-		orgSlug = app.Organization.Slug
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
+	ctx, err = command.RequireSession(ctx)
 	if err != nil {
 		return err
 	}
 
-	// do this explicitly so we can get the DNS server address
-	_, err = agentclient.Establish(ctx, orgSlug)
+	ctx, err = command.LoadAppNameIfPresent(ctx)
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug)
-	if err != nil {
-		return err
-	}
-
-	ports := strings.Split(args[0], ":")
-
-	params := &proxy.ConnectParams{
-		Ports:            ports,
-		AppName:          appName,
-		OrganizationSlug: orgSlug,
-		Dialer:           dialer,
-		PromptInstance:   promptInstance,
-	}
-
-	if len(args) > 1 {
-		params.RemoteHost = args[1]
-	} else {
-		params.RemoteHost = fmt.Sprintf("%s.internal", appName)
-	}
-
-	return proxy.Connect(ctx, params)
+	return runForward(ctx)
 }
