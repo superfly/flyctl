@@ -44,7 +44,7 @@ func RecordCommandFinish(cmd *cobra.Command) {
 	flaps := instrument.Flaps.Get()
 
 	if commandContext != nil {
-		Send(commandContext, "command/duration", commandStats{
+		Send(commandContext, "command/stats", commandStats{
 			Command:         cmd.CommandPath(),
 			Duration:        duration.Seconds(),
 			GraphQLCalls:    graphql.Calls,
