@@ -4,19 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/hashicorp/go-multierror"
-	"github.com/logrusorgru/aurora"
 	"github.com/olekukonko/tablewriter"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -198,9 +193,9 @@ func runDomainsCreate(ctx context.Context) error {
 			return err
 		}
 
-		prompt := &survey.Input{Message: "Domain name to add"}
-		err := survey.AskOne(prompt, &name)
-		checkErr(err)
+		if err := prompt.String(ctx, &name, "Domain name to add", "", true); err != nil {
+			return err
+		}
 
 		// TODO: Add some domain validation here
 	} else if len(args) == 2 {
@@ -227,34 +222,4 @@ func runDomainsCreate(ctx context.Context) error {
 
 func runDomainsRegister(ctx context.Context) error {
 	return fmt.Errorf("This command is no longer supported.\n")
-}
-
-func checkErr(err error) {
-	if err == nil {
-		return
-	}
-
-	if !isCancelledError(err) {
-		fmt.Println(aurora.Red("Error"), err)
-	}
-
-	os.Exit(1)
-}
-
-func isCancelledError(err error) bool {
-	if err == flyerr.ErrAbort {
-		return true
-	}
-
-	if err == context.Canceled {
-		return true
-	}
-
-	if merr, ok := err.(*multierror.Error); ok {
-		if len(merr.Errors) == 1 && merr.Errors[0] == context.Canceled {
-			return true
-		}
-	}
-
-	return false
 }
