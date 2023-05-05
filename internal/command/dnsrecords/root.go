@@ -3,7 +3,7 @@ package dnsrecords
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"strconv"
 
@@ -135,7 +135,7 @@ func runDNSRecordsExport(ctx context.Context) error {
 			return fmt.Errorf("File %s already exists", filename)
 		}
 
-		err = ioutil.WriteFile(filename, []byte(records), 0o644)
+		err = os.WriteFile(filename, []byte(records), 0o644)
 		if err != nil {
 			return err
 		}
@@ -168,12 +168,12 @@ func runDNSRecordsImport(ctx context.Context) error {
 	var data []byte
 
 	if filename != "-" {
-		data, err = ioutil.ReadFile(filename)
+		data, err = os.ReadFile(filename)
 		if err != nil {
 			return err
 		}
 	} else {
-		data, err = ioutil.ReadAll(os.Stdin)
+		data, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			return err
 		}
