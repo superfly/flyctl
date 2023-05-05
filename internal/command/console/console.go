@@ -120,15 +120,15 @@ func runConsole(ctx context.Context) error {
 				Timeout: api.Duration{Duration: stopTimeout},
 			}
 			if err := flapsClient.Stop(stopCtx, stopInput, ""); err != nil {
-				terminal.Warnf("Failed to stop ephemeral runner machine: %v\n", err)
+				terminal.Warnf("Failed to stop ephemeral console machine: %v\n", err)
 				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
 				return
 			}
 
-			fmt.Fprintf(io.Out, "Waiting for ephemeral runner machine %s to be destroyed ...", colorize.Bold(machine.ID))
+			fmt.Fprintf(io.Out, "Waiting for ephemeral console machine %s to be destroyed ...", colorize.Bold(machine.ID))
 			if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
 				fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
-				terminal.Warnf("Failed to wait for ephemeral runner machine to be destroyed: %v\n", err)
+				terminal.Warnf("Failed to wait for ephemeral console machine to be destroyed: %v\n", err)
 				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
 			} else {
 				fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
@@ -162,11 +162,11 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	} else if flag.IsSpecified(ctx, "machine") {
 		return getMachineByID(ctx)
 	} else {
-		guest, err := determineEphemeralRunnerMachineGuest(ctx)
+		guest, err := determineEphemeralConsoleMachineGuest(ctx)
 		if err != nil {
 			return nil, false, err
 		}
-		return makeEphemeralRunnerMachine(ctx, app, appConfig, guest)
+		return makeEphemeralConsoleMachine(ctx, app, appConfig, guest)
 	}
 }
 
@@ -184,7 +184,7 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 		return machine.State == api.MachineStateStarted
 	})
 
-	ephemeralGuest, err := determineEphemeralRunnerMachineGuest(ctx)
+	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -201,7 +201,7 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 		return nil, false, fmt.Errorf("failed to prompt for a machine: %w", err)
 	}
 	if index == 0 {
-		return makeEphemeralRunnerMachine(ctx, app, appConfig, ephemeralGuest)
+		return makeEphemeralConsoleMachine(ctx, app, appConfig, ephemeralGuest)
 	} else {
 		return machines[index-1], false, nil
 	}
@@ -231,7 +231,7 @@ func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
 	return machine, false, nil
 }
 
-func makeEphemeralRunnerMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, bool, error) {
+func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, bool, error) {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -244,12 +244,12 @@ func makeEphemeralRunnerMachine(ctx context.Context, app *api.AppCompact, appCon
 		return nil, false, err
 	}
 	if currentRelease == nil {
-		return nil, false, errors.New("can't create an ephemeral runner machine since the app has not yet been released")
+		return nil, false, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
-	machConfig, err := appConfig.ToEphemeralRunnerMachineConfig()
+	machConfig, err := appConfig.ToConsoleMachineConfig()
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to generate ephemeral runner machine configuration: %w", err)
+		return nil, false, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
 	machConfig.Image = currentRelease.ImageRef
 	machConfig.Guest = guest
@@ -259,7 +259,7 @@ func makeEphemeralRunnerMachine(ctx context.Context, app *api.AppCompact, appCon
 	}
 	machine, err := flapsClient.Launch(ctx, launchInput)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to launch ephemeral runner machine: %w", err)
+		return nil, false, fmt.Errorf("failed to launch ephemeral console machine: %w", err)
 	}
 	fmt.Fprintf(io.Out, "Created an ephemeral machine %s to run the console.\n", colorize.Bold(machine.ID))
 
@@ -315,7 +315,7 @@ func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr
 	return true, fmt.Errorf("machine exited unexpectedly with code %v", exitCode)
 }
 
-func determineEphemeralRunnerMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
+func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
 	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
 
 	if flag.IsSpecified(ctx, "cpus") {

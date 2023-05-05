@@ -91,7 +91,7 @@ func (lm *leasableMachine) FormattedMachineId() string {
 		return res
 	}
 	procGroup := lm.Machine().ProcessGroup()
-	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() || lm.Machine().IsFlyAppsEphemeralRunner() {
+	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() || lm.Machine().IsFlyAppsConsole() {
 		return res
 	}
 	return fmt.Sprintf("%s [%s]", res, procGroup)

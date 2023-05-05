@@ -17,7 +17,7 @@ const (
 	MachineFlyPlatformVersion2                 = "v2"
 	MachineProcessGroupApp                     = "app"
 	MachineProcessGroupFlyAppReleaseCommand    = "fly_app_release_command"
-	MachineProcessGroupFlyAppEphemeralRunner   = "fly_app_ephemeral_runner"
+	MachineProcessGroupFlyAppConsole           = "fly_app_console"
 	MachineStateDestroyed                      = "destroyed"
 	MachineStateDestroying                     = "destroying"
 	MachineStateStarted                        = "started"
@@ -82,8 +82,8 @@ func (m *Machine) IsFlyAppsReleaseCommand() bool {
 	return m.IsFlyAppsPlatform() && m.IsReleaseCommandMachine()
 }
 
-func (m *Machine) IsFlyAppsEphemeralRunner() bool {
-	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupFlyAppEphemeralRunner)
+func (m *Machine) IsFlyAppsConsole() bool {
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupFlyAppConsole)
 }
 
 func (m *Machine) IsActive() bool {

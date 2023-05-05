@@ -53,7 +53,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	return mConfig, nil
 }
 
-func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
+func (c *Config) ToConsoleMachineConfig() (*api.MachineConfig, error) {
 	mConfig := &api.MachineConfig{
 		Init: api.MachineInit{
 			// TODO: it would be better to configure init to run no
@@ -71,12 +71,12 @@ func (c *Config) ToEphemeralRunnerMachineConfig() (*api.MachineConfig, error) {
 		},
 		Metadata: map[string]string{
 			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppEphemeralRunner,
+			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppConsole,
 		},
 		Env: lo.Assign(c.Env),
 	}
 
-	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppEphemeralRunner
+	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppConsole
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}

@@ -341,14 +341,14 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return !m.IsReleaseCommandMachine() && !m.IsFlyAppsEphemeralRunner() && m.IsActive()
+		return !m.IsReleaseCommandMachine() && !m.IsFlyAppsConsole() && m.IsActive()
 	})
 
 	return machines, nil
 }
 
 // returns apps that are part of the fly apps platform that are not destroyed,
-// excluding ephemeral runners
+// excluding console machines
 func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
 	allMachines := make([]*api.Machine, 0)
 	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
@@ -358,7 +358,7 @@ func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.
 	var releaseCmdMachine *api.Machine
 	machines := make([]*api.Machine, 0)
 	for _, m := range allMachines {
-		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() && !m.IsFlyAppsEphemeralRunner() {
+		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() && !m.IsFlyAppsConsole() {
 			machines = append(machines, m)
 		} else if m.IsFlyAppsReleaseCommand() {
 			releaseCmdMachine = m
