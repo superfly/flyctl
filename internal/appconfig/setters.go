@@ -153,6 +153,11 @@ func (c *Config) v1SetDockerCommand(cmd string) {
 	}
 }
 
+func (c *Config) SetConsoleCommand(cmd string) {
+	// no V1 compatibility for this feature
+	c.ConsoleCommand = cmd
+}
+
 func (c *Config) SetKillSignal(signal string) {
 	c.RawDefinition["kill_signal"] = signal
 	if signal != "" {

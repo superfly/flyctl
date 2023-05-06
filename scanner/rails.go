@@ -26,8 +26,9 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	s := &SourceInfo{
-		Family:   "Rails",
-		Callback: RailsCallback,
+		Family:         "Rails",
+		Callback:       RailsCallback,
+		ConsoleCommand: "/rails/bin/rails console",
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
