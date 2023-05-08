@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
@@ -17,8 +18,9 @@ import (
 )
 
 var (
-	baseURL  string
-	errorLog bool
+	baseURL      string
+	errorLog     bool
+	instrumenter InstrumentationService
 )
 
 // SetBaseURL - Sets the base URL for the API
@@ -29,6 +31,14 @@ func SetBaseURL(url string) {
 // SetErrorLog - Sets whether errors should be loddes
 func SetErrorLog(log bool) {
 	errorLog = log
+}
+
+func SetInstrumenter(i InstrumentationService) {
+	instrumenter = i
+}
+
+type InstrumentationService interface {
+	ReportCallTiming(duration time.Duration)
 }
 
 // Client - API client encapsulating the http and GraphQL clients
@@ -108,6 +118,11 @@ func (c *Client) Logger() Logger { return c.logger }
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
+	start := time.Now()
+	defer func() {
+		instrumenter.ReportCallTiming(time.Since(start))
+	}()
+
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
 
