@@ -18,11 +18,11 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newBalance() *cobra.Command {
+func newDebugBalance() *cobra.Command {
 	var (
 		long  = strings.Trim(`Runs the load balancing logic for an app through our proxy and shows how it might choose an instance to route to.`, "\n")
 		short = `Load balancing simulation for an app`
-		usage = "balance"
+		usage = "debug-balance"
 	)
 
 	cmd := command.New(usage, short, long, runBalance,

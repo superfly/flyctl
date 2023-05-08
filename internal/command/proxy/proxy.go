@@ -20,7 +20,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(
 		newForward(),
-		newBalance(),
+		newDebugBalance(),
 	)
 
 	// TODO: remove once we deprecate `fly proxy <local:remote> [remote_host]`
