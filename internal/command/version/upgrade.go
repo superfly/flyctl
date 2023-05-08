@@ -21,22 +21,22 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newUpdate() *cobra.Command {
+func newUpgrade() *cobra.Command {
 	const (
-		short = "Checks for available updates and automatically updates"
+		short = "Checks for available upgrades and automatically upgrades"
 
-		long = `Checks for update and if one is available, runs the appropriate
-command to update the application.`
+		long = `Checks for an upgrade and if one is available, runs the appropriate
+command to upgrade the application.`
 	)
 
-	cmd := command.New("update", short, long, runUpdate)
+	cmd := command.New("upgrade", short, long, runUpgrade)
 
-	cmd.Aliases = []string{"upgrade"}
+	cmd.Aliases = []string{"update"}
 
 	return cmd
 }
 
-func runUpdate(ctx context.Context) error {
+func runUpgrade(ctx context.Context) error {
 	release, err := update.LatestRelease(ctx, cache.FromContext(ctx).Channel())
 	switch {
 	case err != nil:
@@ -52,7 +52,7 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	if buildinfo.Version().GTE(latest) {
-		return errors.New("no available update")
+		return errors.New("no available upgrade")
 	}
 
 	io := iostreams.FromContext(ctx)
@@ -63,15 +63,15 @@ func runUpdate(ctx context.Context) error {
 		return err
 	}
 
-	err = printVersionUpdate(ctx, buildinfo.Version(), homebrew)
+	err = printVersionUpgrade(ctx, buildinfo.Version(), homebrew)
 	if err != nil {
-		terminal.Debugf("Error printing version update: %v", err)
+		terminal.Debugf("Error printing version upgrade: %v", err)
 	}
 	return nil
 }
 
-// printVersionUpdate prints "Updated flyctl [oldVersion] -> [newVersion]"
-func printVersionUpdate(ctx context.Context, oldVersion semver.Version, homebrew bool) error {
+// printVersionUpgrade prints "Upgraded flyctl [oldVersion] -> [newVersion]"
+func printVersionUpgrade(ctx context.Context, oldVersion semver.Version, homebrew bool) error {
 
 	var (
 		io         = iostreams.FromContext(ctx)
@@ -101,12 +101,12 @@ func printVersionUpdate(ctx context.Context, oldVersion semver.Version, homebrew
 		} else {
 			source = fmt.Sprintf("'%s'", os.Args[0])
 		}
-		fmt.Fprintf(io.ErrOut, "Flyctl was updated, but the flyctl pointed to by %s is still version %s.\n", source, currentVer.String())
+		fmt.Fprintf(io.ErrOut, "Flyctl was upgraded, but the flyctl pointed to by %s is still version %s.\n", source, currentVer.String())
 		fmt.Fprintf(io.ErrOut, "Please ensure that your PATH is set correctly!")
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "Updated flyctl v%s -> v%s\n", oldVersion.String(), currentVer.String())
+	fmt.Fprintf(io.Out, "Upgraded flyctl v%s -> v%s\n", oldVersion.String(), currentVer.String())
 	return nil
 }
 
