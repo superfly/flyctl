@@ -120,6 +120,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mID = "" // Forces machine replacement
 	}
 
+	// If this is a standby machine that now has a service, then clear
+	// the standbys list.
+	if len(mConfig.Services) > 0 && len(mConfig.Standbys) > 0 {
+		mConfig.Standbys = nil
+	}
+
 	return &api.LaunchMachineInput{
 		ID:         mID,
 		Region:     origMachineRaw.Region,
