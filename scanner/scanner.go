@@ -56,6 +56,7 @@ type SourceInfo struct {
 	Concurrency                  map[string]int
 	Callback                     func(srcInfo *SourceInfo, options map[string]bool) error
 	HttpCheckPath                string
+	ConsoleCommand               string
 }
 
 type SourceFile struct {
