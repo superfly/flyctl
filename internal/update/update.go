@@ -135,7 +135,7 @@ func IsUnderHomebrew() bool {
 	return strings.HasPrefix(flyBinary, brewBinPrefix)
 }
 
-func updateCommand(prerelease bool) string {
+func upgradeCommand(prerelease bool) string {
 	if IsUnderHomebrew() {
 		return "brew upgrade flyctl"
 	}
@@ -180,9 +180,9 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	}
 	fmt.Println(shellToUse, switchToUse)
 
-	command := updateCommand(prelease)
+	command := upgradeCommand(prelease)
 
-	fmt.Fprintf(io.ErrOut, "Running automatic update [%s]\n", command)
+	fmt.Fprintf(io.ErrOut, "Running automatic upgrade [%s]\n", command)
 
 	cmd := exec.Command(shellToUse, switchToUse, command)
 	cmd.Stdout = io.Out

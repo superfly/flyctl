@@ -353,14 +353,14 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 }
 
 // shouldIgnore allows a preparer to disable itself for specific commands
-// E.g. `shouldIgnore([][]string{{"version", "update"}, {"machine", "status"}})`
-// would return true for "fly version update" and "fly machine status"
+// E.g. `shouldIgnore([][]string{{"version", "upgrade"}, {"machine", "status"}})`
+// would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
-		// The shape of the ignoredCmd slice is something like ["version", "update"],
+		// The shape of the ignoredCmd slice is something like ["version", "upgrade"],
 		// but we're walking up the tree from the end, so we have to iterate that in reverse
 		for i := len(ignoredCmd) - 1; i >= 0; i-- {
 			if !currentCmd.HasParent() || currentCmd.Use != ignoredCmd[i] {
@@ -382,7 +382,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 func promptToUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if cfg.JSONOutput || shouldIgnore(ctx, [][]string{
-		{"version", "update"},
+		{"version", "upgrade"},
 	}) {
 		return ctx, nil
 	}
@@ -417,7 +417,7 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
 		current,
 		r.Version,
-		colorize.Bold(buildinfo.Name()+" version update"),
+		colorize.Bold(buildinfo.Name()+" version upgrade"),
 	)
 
 	fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
