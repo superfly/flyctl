@@ -231,9 +231,22 @@ func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, er
 	return "", fmt.Errorf("no instances found with leader role")
 }
 
+func isLeader(machine *api.Machine) bool {
+	return machineRole(machine) == "leader" || machineRole(machine) == "primary"
+}
+
 func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, error) {
 	for _, machine := range machines {
-		if machineRole(machine) == "leader" || machineRole(machine) == "primary" {
+		if isLeader(machine) {
+			return machine, nil
+		}
+	}
+	return nil, fmt.Errorf("no active leader found")
+}
+
+func pickNewLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, error) {
+	for _, machine := range machines {
+		if !isLeader(machine) {
 			return machine, nil
 		}
 	}

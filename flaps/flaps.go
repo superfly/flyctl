@@ -195,8 +195,14 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	return out, nil
 }
 
-func (f *Client) Start(ctx context.Context, machineID string) (out *api.MachineStartResponse, err error) {
+func (f *Client) Start(ctx context.Context, machineID string, nonce string) (out *api.MachineStartResponse, err error) {
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
+
+	headers := make(map[string][]string)
+	if nonce != "" {
+		headers[NonceHeader] = []string{nonce}
+	}
+
 	out = new(api.MachineStartResponse)
 
 	metrics.Started(ctx, "machine_start")
@@ -204,7 +210,7 @@ func (f *Client) Start(ctx context.Context, machineID string) (out *api.MachineS
 		metrics.Status(ctx, "machine_start", err == nil)
 	}()
 
-	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, headers); err != nil {
 		return nil, fmt.Errorf("failed to start VM %s: %w", machineID, err)
 	}
 	return out, nil

@@ -262,7 +262,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 
 		if selectedMachine.State != "started" {
 			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
-			_, err := flapsClient.Start(ctx, selectedMachine.ID)
+			_, err := flapsClient.Start(ctx, selectedMachine.ID, "")
 			if err != nil {
 				return "", err
 			}
