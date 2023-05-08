@@ -30,9 +30,9 @@ command to update the application.`
 	)
 
 	cmd := command.New("update", short, long, runUpdate)
-	
+
 	cmd.Aliases = []string{"upgrade"}
-	
+
 	return cmd
 }
 
