@@ -3,10 +3,10 @@ package wireguard
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"io"
 	"net"
 	"os"
+	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/superfly/flyctl/api"
