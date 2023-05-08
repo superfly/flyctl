@@ -39,7 +39,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 				UrlPrefix: "/static/",
 			},
 		},
-		SkipDeploy: true,
+		SkipDeploy:     true,
 		ConsoleCommand: "/code/manage.py shell",
 	}
 
