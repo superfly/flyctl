@@ -108,14 +108,6 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		compressed: dockerFactory.IsRemote(),
 	}
 
-	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath)
-	if err != nil {
-		build.BuildFinish()
-		build.ContextBuildFinish()
-		return nil, "", errors.Wrap(err, "error reading .dockerignore")
-	}
-	archiveOpts.exclusions = excludes
-
 	var relativedockerfilePath string
 
 	// copy dockerfile into the archive if it's outside the context dir
@@ -141,6 +133,14 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// run in a Linux VM at the end.
 		relativedockerfilePath = filepath.ToSlash(p)
 	}
+
+	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, relativedockerfilePath)
+	if err != nil {
+		build.BuildFinish()
+		build.ContextBuildFinish()
+		return nil, "", errors.Wrap(err, "error reading .dockerignore")
+	}
+	archiveOpts.exclusions = excludes
 
 	// Start tracking this build
 
