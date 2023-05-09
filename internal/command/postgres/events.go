@@ -115,15 +115,19 @@ func runListEvents(ctx context.Context) error {
 		return err
 	}
 
-	cmd, err := flypg.NewCommand(ctx, app)
-	if err != nil {
-		return err
+	if !IsFlex(leader) {
+		return fmt.Errorf("this feature is not compatible with this postgres service ")
 	}
 
 	ignoreFlags := []string{flag.AccessTokenName, flag.AppName, flag.AppConfigFilePathName,
 		flag.VerboseName, "help"}
 
 	flagsName := flag.GetFlagsName(ctx, ignoreFlags)
+
+	cmd, err := flypg.NewCommand(ctx, app)
+	if err != nil {
+		return err
+	}
 
 	err = cmd.ListEvents(ctx, leader.PrivateIP, flagsName)
 	if err != nil {
