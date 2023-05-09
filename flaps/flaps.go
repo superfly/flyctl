@@ -51,13 +51,13 @@ func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
 
 type newClientOpts struct {
 	// required:
-	AppName    string
+	AppName string
 
 	// optional, avoids API roundtrip when connecting to flaps by wireguard:
 	AppCompact *api.AppCompact
 
 	// optional:
-	Logger     api.Logger
+	Logger api.Logger
 }
 
 func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
