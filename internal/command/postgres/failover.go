@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/avast/retry-go/v4"
@@ -96,7 +97,12 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	if IsFlex(leader) {
-		return flexFailover(ctx, machines, app)
+		if failover_err := flexFailover(ctx, machines, app); failover_err != nil {
+			if err := handleFlexFailoverFail(ctx, leader); err != nil {
+				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
+			}
+			return fmt.Errorf("Failed to run migration command: %s", failover_err)
+		}
 	}
 
 	flapsClient := flaps.FromContext(ctx)
@@ -145,7 +151,20 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	flapsClient := flaps.FromContext(ctx)
 
 	fmt.Fprintf(io.Out, "Performing a failover\n")
-	newLeader, err := pickNewLeader(ctx, machines)
+
+	primary_region := ""
+	if len(machines) > 0 {
+		for _, machine := range machines {
+			if region, ok := machine.Config.Env["PRIMARY_REGION"]; ok {
+				primary_region = region
+			}
+		}
+	}
+	if primary_region == "" {
+		return fmt.Errorf("Could not find primary region for app")
+	}
+
+	newLeader, err := pickNewLeader(ctx, machines, primary_region)
 	if err != nil {
 		return err
 	}
@@ -161,12 +180,13 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 		return fmt.Errorf("could not stop pg leader %s: %w", leader.ID, err)
 	}
 
-	fmt.Println("Promoting new leader... ", newLeader.ID)
 	fmt.Println("Starting new leader")
 	_, err = flapsClient.Start(ctx, newLeader.ID, newLeader.LeaseNonce)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("Promoting new leader... ", newLeader.ID)
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
 		Org:      app.Organization,
@@ -180,6 +200,7 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	}, newLeader.PrivateIP)
 	if err != nil {
 		return err
+
 	}
 
 	// Restart the old leader
@@ -218,5 +239,63 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	}
 
 	fmt.Fprintf(io.Out, "Failover complete\n")
+	return nil
+}
+
+func handleFlexFailoverFail(ctx context.Context, leader *api.Machine) (err error) {
+	io := iostreams.FromContext(ctx)
+	flapsClient := flaps.FromContext(ctx)
+
+	fmt.Fprintln(io.ErrOut, "Error promoting new leader, restarting existing leader")
+	fmt.Println("Waiting for old leader to finish stopping")
+	if err := retry.Do(
+		func() error {
+			leader, err = flapsClient.Get(ctx, leader.ID)
+			if err != nil {
+				return err
+			}
+
+			if leader.State == "stopped" {
+				return nil
+			} else if leader.State == "stopping" {
+				return fmt.Errorf("Old leader hasn't finished stopping")
+			} else {
+				return fmt.Errorf("Old leader is in an unexpected state: %s", leader.State)
+			}
+
+		},
+		retry.Context(ctx), retry.Attempts(60), retry.Delay(time.Second), retry.DelayType(retry.FixedDelay),
+	); err != nil {
+		return err
+	}
+
+	fmt.Println("Clearing existing machine lease...")
+
+	// Clear the existing lease on this machine
+	lease, err := flapsClient.FindLease(ctx, leader.ID)
+	if err != nil {
+		if !strings.Contains(err.Error(), " lease not found") {
+			return err
+		}
+	}
+	if err := flapsClient.ReleaseLease(ctx, leader.ID, lease.Data.Nonce); err != nil {
+		return err
+	}
+
+	fmt.Println("Trying to start old leader")
+	// Start the machine again
+	leader, err = flapsClient.Get(ctx, leader.ID)
+	if err != nil {
+		return err
+	}
+
+	mach, err := flapsClient.Start(ctx, leader.ID, leader.LeaseNonce)
+	if err != nil {
+		return err
+	}
+	if mach.Status == "error" {
+		return fmt.Errorf("old leader %s could not be started: %s", leader.ID, mach.Message)
+	}
+
 	return nil
 }
