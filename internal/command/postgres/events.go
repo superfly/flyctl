@@ -57,7 +57,7 @@ func newListEvents() *cobra.Command {
 		flag.String{
 			Name:        "limit",
 			Shorthand:   "l",
-			Description: "Set the maximum number of entries to output",
+			Description: "Set the maximum number of entries to output (default: 20)",
 		},
 		flag.String{
 			Name:        "node-id",
