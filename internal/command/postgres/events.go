@@ -34,7 +34,7 @@ func newEvents() *cobra.Command {
 
 func newListEvents() *cobra.Command {
 	const (
-		short = "List major cluster events"
+		short = "Outputs a formatted list of cluster events"
 		long  = short + "\n"
 
 		usage = "list"
@@ -53,6 +53,31 @@ func newListEvents() *cobra.Command {
 			Name:        "event",
 			Shorthand:   "e",
 			Description: "Event type in a postgres cluster",
+		},
+		flag.String{
+			Name:        "limit",
+			Shorthand:   "l",
+			Description: "Set the maximum number of entries to output",
+		},
+		flag.String{
+			Name:        "node-id",
+			Shorthand:   "i",
+			Description: "Restrict entries to node with this ID",
+		},
+		flag.String{
+			Name:        "node-name",
+			Shorthand:   "n",
+			Description: "Restrict entries to node with this name",
+		},
+		flag.Bool{
+			Name:        "all",
+			Shorthand:   "o",
+			Description: "Outputs all entries",
+		},
+		flag.Bool{
+			Name:        "compact",
+			Shorthand:   "d",
+			Description: "Omit the 'Details' column",
 		},
 	)
 
@@ -95,7 +120,12 @@ func runListEvents(ctx context.Context) error {
 		return err
 	}
 
-	err = cmd.ListEvents(ctx, leader.PrivateIP)
+	ignoreFlags := []string{flag.AccessTokenName, flag.AppName, flag.AppConfigFilePathName,
+		flag.VerboseName, "help"}
+
+	flagsName := flag.GetFlagsName(ctx, ignoreFlags)
+
+	err = cmd.ListEvents(ctx, leader.PrivateIP, flagsName)
 	if err != nil {
 		return err
 	}

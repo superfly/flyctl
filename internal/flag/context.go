@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"golang.org/x/exp/slices"
 )
 
 type contextKey struct{}
@@ -120,4 +121,21 @@ func GetAppConfigFilePath(ctx context.Context) string {
 	} else {
 		return path
 	}
+}
+
+// GetFlagsName returns the name of flags that have been set except unwanted flags.
+func GetFlagsName(ctx context.Context, ignoreFlags []string) []string {
+	flagsName := []string{}
+
+	FromContext(ctx).Visit(func(f *pflag.Flag) {
+		if f.Hidden {
+			return
+		}
+
+		if !slices.Contains(ignoreFlags, f.Name) {
+			flagsName = append(flagsName, f.Name)
+		}
+	})
+
+	return flagsName
 }
