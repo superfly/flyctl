@@ -99,6 +99,19 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	return nil
 }
 
+func (pc *Command) ListEvents(ctx context.Context, leaderIP string) error {
+	cmd := "gosu postgres repmgr -f /data/repmgr.conf cluster event"
+
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(resp))
+
+	return nil
+}
+
 // encodeCommand will base64 encode a command string so it can be passed
 // in with  exec.Command.
 func encodeCommand(command string) string {
