@@ -323,6 +323,79 @@ func TestAppsV2_PostgresAutostart(t *testing.T) {
 	}
 }
 
+func TestPGFlexFailover(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("pg create --flex --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	result := f.Fly("m list --json -a %s", appName)
+
+	var machList []map[string]any
+
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+
+	leaderMachineID := ""
+	for _, mach := range machList {
+		role := "unknown"
+
+		checks := mach["checks"].([]interface{})
+		for _, check := range checks {
+			check := check.(map[string]interface{})
+			if check["name"].(string) == "role" {
+				role = check["output"].(string)
+				break
+			}
+		}
+		if role == "primary" {
+			leaderMachineID = mach["id"].(string)
+		}
+	}
+	if leaderMachineID == "" {
+		f.Fatalf("Failed to find PG cluster leader")
+	}
+
+	f.Fly("pg failover -a %s", appName)
+
+	result = f.Fly("m list --json -a %s", appName)
+	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+
+	newLeaderMachineID := ""
+
+	for _, mach := range machList {
+		role := "unknown"
+
+		checks := mach["checks"].([]interface{})
+		for _, check := range checks {
+			check := check.(map[string]interface{})
+			if check["name"].(string) == "role" {
+				role = check["output"].(string)
+				break
+			}
+		}
+		if role == "primary" {
+			newLeaderMachineID = mach["id"].(string)
+		}
+	}
+	if newLeaderMachineID == "" {
+		f.Fatalf("Failed to find PG cluster leader")
+	}
+
+	fmt.Println(newLeaderMachineID)
+	fmt.Println(leaderMachineID)
+	require.NotEqual(t, newLeaderMachineID, leaderMachineID, "Failover failed! PG Leader didn't change!")
+
+}
+
 func TestAppsV2_PostgresNoMachines(t *testing.T) {
 	var (
 		err     error
