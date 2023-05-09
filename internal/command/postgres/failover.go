@@ -178,6 +178,9 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 		Stdin:    os.Stdin,
 	}, newLeader.PrivateIP)
+	if err != nil {
+		return err
+	}
 
 	// Restart the old leader
 	fmt.Fprintf(io.Out, "Restarting old leader... %s\n", leader.ID)
