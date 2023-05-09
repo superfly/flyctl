@@ -464,6 +464,19 @@ func (f *Client) Exec(ctx context.Context, machineID string, in *api.MachineExec
 	return out, nil
 }
 
+func (f *Client) GetProcesses(ctx context.Context, machineID string) (api.MachinePsResponse, error) {
+	endpoint := fmt.Sprintf("/%s/ps", machineID)
+
+	var out api.MachinePsResponse
+
+	err := f.sendRequest(ctx, http.MethodGet, endpoint, nil, &out, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get processes from VM %s: %w", machineID, err)
+	}
+
+	return out, nil
+}
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
 	defer timing.End()

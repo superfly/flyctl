@@ -581,3 +581,21 @@ type MachineExecResponse struct {
 	StdOut   string `json:"stdout,omitempty"`
 	StdErr   string `json:"stderr,omitempty"`
 }
+
+type MachinePsResponse []ProcessStat
+
+type ProcessStat struct {
+	Pid           int32          `json:"pid"`
+	Stime         uint64         `json:"stime"`
+	Rtime         uint64         `json:"rtime"`
+	Command       string         `json:"command"`
+	Directory     string         `json:"directory"`
+	Cpu           uint64         `json:"cpu"`
+	Rss           uint64         `json:"rss"`
+	ListenSockets []ListenSocket `json:"listen_sockets"`
+}
+
+type ListenSocket struct {
+	Proto   string `json:"proto"`
+	Address string `json:"address"`
+}

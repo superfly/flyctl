@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
@@ -264,6 +267,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 		if !md.skipHealthChecks {
 			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
+				md.warnAboutIncorrectListenAddress(ctx, lm)
 				return err
 			}
 			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
@@ -274,6 +278,8 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				md.colorize.Green("success"),
 			)
 		}
+
+		md.warnAboutIncorrectListenAddress(ctx, lm)
 	}
 
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
@@ -326,6 +332,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// And wait (or not) for successful health checks
 	if !md.skipHealthChecks {
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
+			md.warnAboutIncorrectListenAddress(ctx, lm)
 			return "", err
 		}
 
@@ -335,6 +342,8 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 			md.colorize.Green("success"),
 		)
 	}
+
+	md.warnAboutIncorrectListenAddress(ctx, lm)
 
 	return newMachineRaw.ID, nil
 }
@@ -391,6 +400,93 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 		}
 	}
 	fmt.Fprint(md.io.Out, "\n")
+}
+
+func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context, lm machine.LeasableMachine) {
+	group := lm.Machine().ProcessGroup()
+
+	if _, ok := md.listenAddressChecked[group]; ok {
+		return
+	}
+	md.listenAddressChecked[group] = struct{}{}
+
+	groupConfig, err := md.appConfig.Flatten(group)
+	if err != nil {
+		return
+	}
+	services := groupConfig.AllServices()
+
+	tcpServices := make(map[int]struct{})
+	for _, s := range services {
+		if s.Protocol == "tcp" {
+			tcpServices[s.InternalPort] = struct{}{}
+		}
+	}
+
+	processes, err := md.flapsClient.GetProcesses(ctx, lm.Machine().ID)
+	// Let's not fail the whole deployment because of this, as listen address check is just a warning
+	if err != nil {
+		return
+	}
+
+	var foundSockets int
+	for _, proc := range processes {
+		for _, ls := range proc.ListenSockets {
+			foundSockets += 1
+
+			host, portStr, err := net.SplitHostPort(ls.Address)
+			if err != nil {
+				continue
+			}
+			port, err := strconv.Atoi(portStr)
+			if err != nil {
+				continue
+			}
+
+			ip := net.ParseIP(host)
+
+			// We don't know VM's internal ipv4 which is also a valid address to bind to.
+			// Let's assume that whoever binds to a non-loopback address knows what they are doing.
+			// If we expose this address to flyctl later, we can revisit this logic.
+			if !ip.IsLoopback() {
+				delete(tcpServices, port)
+			}
+		}
+	}
+
+	// This can either mean that nothing is listening or that VM is running old init that doesn't expose
+	// listen sockets. Until we have a way to update init on already created VMs let's ignore this
+	// and pretend that this is old init.
+	if foundSockets == 0 {
+		return
+	}
+
+	// All services are covered
+	if len(tcpServices) == 0 {
+		return
+	}
+
+	fmt.Fprintf(md.io.ErrOut, "\n%s The app is listening on the incorrect address and will not be reachable by fly-proxy.\n", md.colorize.Yellow("WARNING"))
+	fmt.Fprintf(md.io.ErrOut, "Make sure your app is listening on the following addresses:\n")
+	for port := range tcpServices {
+		fmt.Fprintf(md.io.ErrOut, "  - %s\n", md.colorize.Green("0.0.0.0:"+strconv.Itoa(port)))
+	}
+	fmt.Fprintf(md.io.ErrOut, "Found these processes inside the machine with open listening sockets:\n")
+
+	table := helpers.MakeSimpleTable(md.io.ErrOut, []string{"Process", "Addresses"})
+	for _, proc := range processes {
+		var addresses []string
+		for _, ls := range proc.ListenSockets {
+			if ls.Proto == "tcp" {
+				addresses = append(addresses, ls.Address)
+			}
+		}
+		if len(addresses) > 0 {
+			table.Append([]string{proc.Command, strings.Join(addresses, ", ")})
+		}
+	}
+	table.Render()
+	fmt.Fprintf(md.io.ErrOut, "\n")
 }
 
 func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine, indexStr string) (err error) {
