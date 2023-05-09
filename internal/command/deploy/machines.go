@@ -70,6 +70,7 @@ type machineDeployment struct {
 	isFirstDeploy         bool
 	machineGuest          *api.MachineGuest
 	increasedAvailability bool
+	listenAddressChecked  map[string]struct{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -130,6 +131,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseTimeout:          leaseTimeout,
 		leaseDelayBetween:     leaseDelayBetween,
 		increasedAvailability: args.IncreasedAvailability,
+		listenAddressChecked:  make(map[string]struct{}),
 	}
 	if err := md.setStrategy(args.Strategy); err != nil {
 		return nil, err
