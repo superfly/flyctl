@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -50,26 +49,12 @@ func newList() *cobra.Command {
 func runMachineList(ctx context.Context) (err error) {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		silence = flag.GetBool(ctx, "quiet")
 		cfg     = config.FromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		help := newList().Help()
-
-		if help != nil {
-			fmt.Println(help)
-
-		}
-
-		fmt.Println()
-
-		return err
-	}
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}

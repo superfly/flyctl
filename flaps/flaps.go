@@ -42,35 +42,38 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-	return NewWithOptions(ctx, &NewClientOpts{AppCompact: app, AppName: app.Name})
+	return NewWithOptions(ctx, NewClientOpts{AppCompact: app, AppName: app.Name})
 }
 
 func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
-	return NewWithOptions(ctx, &NewClientOpts{AppName: appName})
+	return NewWithOptions(ctx, NewClientOpts{AppName: appName})
 }
 
 type NewClientOpts struct {
-	AppName    string
+	// required:
+	AppName string
+
+	// optional, avoids API roundtrip when connecting to flaps by wireguard:
 	AppCompact *api.AppCompact
-	Logger     api.Logger
+
+	// optional:
+	Logger api.Logger
 }
 
-func NewWithOptions(ctx context.Context, opts *NewClientOpts) (*Client, error) {
-	app := opts.AppCompact
-	appName := opts.AppName
-	if app != nil {
-		appName = app.Name
-	}
+func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
 	var err error
 	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
 	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
-		app, err = resolveApp(ctx, app, appName)
+		orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get app '%s': %w", appName, err)
+			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 		}
-		return newWithUsermodeWireguard(ctx, app)
+		return newWithUsermodeWireguard(ctx, wireguardConnectionParams{
+			appName: opts.AppName,
+			orgSlug: orgSlug,
+		})
 	} else if flapsBaseURL == "" {
 		flapsBaseURL = "https://api.machines.dev"
 	}
@@ -87,12 +90,20 @@ func NewWithOptions(ctx context.Context, opts *NewClientOpts) (*Client, error) {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
 	}
 	return &Client{
-		appName:    appName,
+		appName:    opts.AppName,
 		baseUrl:    flapsUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
+}
+
+func resolveOrgSlugForApp(ctx context.Context, app *api.AppCompact, appName string) (string, error) {
+	app, err := resolveApp(ctx, app, appName)
+	if err != nil {
+		return "", err
+	}
+	return app.Organization.Slug, nil
 }
 
 func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
@@ -104,7 +115,12 @@ func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.
 	return app, err
 }
 
-func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client, error) {
+type wireguardConnectionParams struct {
+	appName string
+	orgSlug string
+}
+
+func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionParams) (*Client, error) {
 	logger := logger.MaybeFromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -113,9 +129,9 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, params.orgSlug)
 	if err != nil {
-		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", params.orgSlug, err)
 	}
 
 	transport := &http.Transport{
@@ -126,7 +142,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 
 	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
-		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", params.orgSlug, err)
 	}
 
 	flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
@@ -136,7 +152,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 	}
 
 	return &Client{
-		appName:    app.Name,
+		appName:    params.appName,
 		baseUrl:    flapsBaseUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
