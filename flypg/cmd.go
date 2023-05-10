@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -95,6 +96,25 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	if !result.Success {
 		return fmt.Errorf(result.Message)
 	}
+
+	return nil
+}
+
+func (pc *Command) ListEvents(ctx context.Context, leaderIP string, flagsName []string) error {
+	cmd := "gosu postgres repmgr -f /data/repmgr.conf cluster event "
+
+	// Loops through flagsName to add selected options to the command. The format will look like this -->
+	// gosu postgres repmgr -f /data/repmgr.conf cluster event --compact --event primary_register --limit 5 --node-id 34244738
+	for _, flagName := range flagsName {
+		cmd += fmt.Sprintf("--%s %s ", flagName, flag.GetString(ctx, flagName))
+	}
+
+	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(string(resp))
 
 	return nil
 }
