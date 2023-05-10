@@ -119,17 +119,35 @@ func newRegionsList() *cobra.Command {
 	return cmd
 }
 
-func runRegionsList(ctx context.Context) error {
+func isV2(ctx context.Context) (bool, error) {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 
 	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
-		return err
+		return false, err
 	}
+	return app.PlatformVersion != "nomad", nil
+}
 
-	if app.PlatformVersion == "nomad" {
+func runRegionsList(ctx context.Context) error {
+	switch v2, err := isV2(ctx); {
+	case err != nil:
+		return err
+	case v2:
+		return v2RunRegionsList(ctx)
+	default:
 		return v1RunRegionsList(ctx)
 	}
-	return v2RunRegionsList(ctx)
+}
+
+func runRegionsAdd(ctx context.Context) error {
+	switch v2, err := isV2(ctx); {
+	case err != nil:
+		return err
+	case v2:
+		return v2RunRegionsAdd(ctx)
+	default:
+		return v1RunRegionsAdd(ctx)
+	}
 }

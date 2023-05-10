@@ -1,4 +1,4 @@
-package scale
+package appsv2
 
 import (
 	"context"
@@ -18,14 +18,35 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
+type ScaleCountInput struct {
+	AppName             string
+	AppConfig           *appconfig.Config
+	ExpectedGroupCounts map[string]int
+	MaxPerRegion        int
+	Regions             []string
+	AutoConfirm         bool
+}
+
+func ScaleCount(ctx context.Context, input ScaleCountInput) error {
 	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
-	ctx = appconfig.WithConfig(ctx, appConfig)
+	ctx = appconfig.WithConfig(ctx, input.AppConfig)
+
+	flapsClient, err := flaps.NewFromAppName(ctx, input.AppName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
+	}
+
+	regions := input.Regions
+	if len(regions) == 0 {
+		regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string {
+			return m.Region
+		}))
 	}
 
 	if len(machines) == 0 {
@@ -34,26 +55,15 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return fmt.Errorf("there are no active machines for this app. Run `fly deploy` to create one and rerun this command")
 	}
 
-	var regions []string
-	if v := flag.GetRegion(ctx); v != "" {
-		regions = strings.Split(v, ",")
-	}
-	if len(regions) == 0 {
-		regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string { return m.Region }))
-		if len(regions) == 0 {
-			regions = []string{appConfig.PrimaryRegion}
-		}
-	}
-
 	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
 	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
 
-	defaults := newDefaults(appConfig, machines)
+	defaults := newDefaults(input.AppConfig, machines)
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(machines, input.ExpectedGroupCounts, regions, input.MaxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -63,7 +73,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
+	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", input.AppName)
 
 	needsVolumes := map[string]bool{}
 	for _, action := range actions {
@@ -85,7 +95,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	if !flag.GetYes(ctx) {
-		switch confirmed, err := prompt.Confirmf(ctx, "Scale app %s?", appName); {
+		switch confirmed, err := prompt.Confirmf(ctx, "Scale app %s?", input.AppName); {
 		case err == nil:
 			if !confirmed {
 				return nil

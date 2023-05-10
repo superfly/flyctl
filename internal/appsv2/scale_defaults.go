@@ -1,4 +1,4 @@
-package scale
+package appsv2
 
 import (
 	"github.com/superfly/flyctl/api"

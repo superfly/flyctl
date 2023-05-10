@@ -15,7 +15,7 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-func runRegionsAdd(ctx context.Context) error {
+func v1RunRegionsAdd(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 

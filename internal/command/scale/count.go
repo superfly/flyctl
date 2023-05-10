@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/appsv2"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -141,4 +142,23 @@ func runNomadScaleCount(ctx context.Context, appName string, groups map[string]i
 
 	fmt.Fprintf(io.Out, "Count changed to %s\n", countMessage(counts))
 	return nil
+}
+
+func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
+	var regions []string
+	if v := flag.GetRegion(ctx); v != "" {
+		regions = strings.Split(v, ",")
+	}
+	if len(regions) == 0 {
+		regions = []string{appConfig.PrimaryRegion}
+	}
+
+	return appsv2.ScaleCount(ctx, appsv2.ScaleCountInput{
+		AppName:             appName,
+		AppConfig:           appConfig,
+		Regions:             regions,
+		MaxPerRegion:        maxPerRegion,
+		ExpectedGroupCounts: expectedGroupCounts,
+		AutoConfirm:         flag.GetYes(ctx),
+	})
 }
