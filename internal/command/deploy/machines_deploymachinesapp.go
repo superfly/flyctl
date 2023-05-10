@@ -171,6 +171,61 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		}
 	}
 
+	machinesInPrimaryRegionPerGroup := make(map[string][]*api.MachineConfig)
+	minRunningMachinesPerGroup := make(map[string]int)
+	for _, lm := range md.machineSet.GetMachines() {
+		machine := lm.Machine()
+		processGroup := machine.Config.ProcessGroup()
+
+		minRunningMachinesPerGroup[processGroup] = 1
+		if mrm := machine.Config.Services[0].MinRunningMachines; mrm != nil {
+			minRunningMachinesPerGroup[processGroup] = 1
+		}
+
+		if machine.Region == md.appConfig.PrimaryRegion {
+			if machinesInGroup := machinesInPrimaryRegionPerGroup[processGroup]; machinesInGroup != nil {
+				// Probably need a pointer here so we don't have to reassign
+				machinesInGroup = append(machinesInGroup, machine.Config)
+				machinesInPrimaryRegionPerGroup[processGroup] = machinesInGroup
+			} else {
+				machines := make([]*api.MachineConfig, 1)
+				machines[0] = machine.Config
+				machinesInPrimaryRegionPerGroup[processGroup] = machines
+			}
+		}
+	}
+
+	for processGroup, minRunningMachines := range minRunningMachinesPerGroup {
+		if machinesInGroup := machinesInPrimaryRegionPerGroup[processGroup]; machinesInGroup != nil {
+			if len(machinesInGroup) < minRunningMachines {
+				fmt.Fprintf(md.io.Out,
+					"\n%s There are %d machines in process group %s in the primary region but requested %d to keep running. All instances will keep running",
+					md.colorize.Yellow("WARN:"),
+					len(machinesInGroup),
+					md.colorize.Bold(processGroup),
+					minRunningMachines,
+				)
+
+				// Update minRunningMachines to be the length of machinesInGroup so we don't
+				// cause a bounds error
+				minRunningMachines = len(machinesInGroup)
+			}
+
+			fmt.Fprintf(md.io.Out,
+				"%d machines will keep running in the primary region\n",
+				minRunningMachines,
+			)
+
+			for i := 0; i < minRunningMachines; i++ {
+				m := machinesInGroup[i]
+				for i, svc := range m.Services {
+					svc.Autostop = api.Pointer(false)
+					m.Services[i] = svc
+				}
+			}
+		}
+	}
+
 	var machineUpdateEntries []*machineUpdateEntry
 	for _, lm := range md.machineSet.GetMachines() {
 		li, err := md.launchInputForUpdate(lm.Machine())
