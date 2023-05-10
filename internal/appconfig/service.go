@@ -9,15 +9,16 @@ import (
 )
 
 type Service struct {
-	Protocol          string                         `json:"protocol,omitempty" toml:"protocol"`
-	InternalPort      int                            `json:"internal_port,omitempty" toml:"internal_port"`
-	AutoStopMachines  *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
-	AutoStartMachines *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
-	Ports             []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
-	Concurrency       *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
-	TCPChecks         []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
-	HTTPChecks        []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
-	Processes         []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
+	Protocol           string                         `json:"protocol,omitempty" toml:"protocol"`
+	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port"`
+	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
+	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
+	MinRunningMachines *int                           `json:"min_running_machines,omitempty" toml:"min_running_machines,omitempty"`
+	Ports              []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
+	Concurrency        *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	TCPChecks          []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
+	HTTPChecks         []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
+	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type ServiceTCPCheck struct {
@@ -44,15 +45,16 @@ type ServiceHTTPCheck struct {
 }
 
 type HTTPService struct {
-	InternalPort      int                            `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
-	ForceHTTPS        bool                           `toml:"force_https,omitempty" json:"force_https,omitempty"`
-	AutoStopMachines  *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
-	AutoStartMachines *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
-	Processes         []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
-	Concurrency       *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
-	TLSOptions        *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
-	HTTPOptions       *api.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
-	ProxyProtoOptions *api.ProxyProtoOptions         `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
+	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
+	ForceHTTPS         bool                           `toml:"force_https,omitempty" json:"force_https,omitempty"`
+	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
+	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
+	MinRunningMachines *int                           `json:"min_running_machines,omitempty" toml:"min_running_machines"`
+	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
+	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
+	TLSOptions         *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	HTTPOptions        *api.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
+	ProxyProtoOptions  *api.ProxyProtoOptions         `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
 }
 
 func (s *HTTPService) ToService() *Service {
@@ -74,8 +76,9 @@ func (s *HTTPService) ToService() *Service {
 			TLSOptions:        s.TLSOptions,
 			ProxyProtoOptions: s.ProxyProtoOptions,
 		}},
-		AutoStopMachines:  s.AutoStopMachines,
-		AutoStartMachines: s.AutoStartMachines,
+		AutoStopMachines:   s.AutoStopMachines,
+		AutoStartMachines:  s.AutoStartMachines,
+		MinRunningMachines: s.MinRunningMachines,
 	}
 }
 
@@ -89,12 +92,13 @@ func (c *Config) AllServices() (services []Service) {
 
 func (svc *Service) toMachineService() *api.MachineService {
 	s := &api.MachineService{
-		Protocol:     svc.Protocol,
-		InternalPort: svc.InternalPort,
-		Ports:        svc.Ports,
-		Concurrency:  svc.Concurrency,
-		Autostop:     svc.AutoStopMachines,
-		Autostart:    svc.AutoStartMachines,
+		Protocol:           svc.Protocol,
+		InternalPort:       svc.InternalPort,
+		Ports:              svc.Ports,
+		Concurrency:        svc.Concurrency,
+		Autostop:           svc.AutoStopMachines,
+		Autostart:          svc.AutoStartMachines,
+		MinRunningMachines: svc.MinRunningMachines,
 	}
 
 	for _, tc := range svc.TCPChecks {

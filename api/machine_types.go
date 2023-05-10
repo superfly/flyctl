@@ -441,6 +441,7 @@ type MachineService struct {
 	InternalPort             int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
 	Autostop                 *bool                      `json:"autostop,omitempty"`
 	Autostart                *bool                      `json:"autostart,omitempty"`
+	MinRunningMachines       *int                       `json:"min_running_machines,omitempty"`
 	Ports                    []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
 	Checks                   []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
 	Concurrency              *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
