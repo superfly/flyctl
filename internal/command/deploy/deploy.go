@@ -64,8 +64,9 @@ var CommonFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "force-nomad",
-		Description: "Use the Apps v1 platform built with Nomad",
+		Description: "(Deprecated) Use the Apps v1 platform built with Nomad",
 		Default:     false,
+		Hidden:      true,
 	},
 	flag.Bool{
 		Name:        "force-machines",
