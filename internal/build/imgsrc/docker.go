@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/go-connections/sockets"
 	"github.com/jpillora/backoff"
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
@@ -299,6 +301,19 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 
 		return
 	}
+
+	url, err := dockerclient.ParseHostURL(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse remote builder host: %w", err)
+	}
+	transport := new(http.Transport)
+	sockets.ConfigureTransport(transport, url.Scheme, url.Host)
+	// Do not try to run tunneled connections through proxy
+	transport.Proxy = nil
+	opts = append(opts, dockerclient.WithHTTPClient(&http.Client{
+		Transport:     transport,
+		CheckRedirect: dockerclient.CheckRedirect,
+	}))
 
 	var app *api.AppBasic
 	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
