@@ -42,14 +42,14 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-	return newWithOptions(ctx, newClientOpts{AppCompact: app, AppName: app.Name})
+	return NewWithOptions(ctx, NewClientOpts{AppCompact: app, AppName: app.Name})
 }
 
 func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
-	return newWithOptions(ctx, newClientOpts{AppName: appName})
+	return NewWithOptions(ctx, NewClientOpts{AppName: appName})
 }
 
-type newClientOpts struct {
+type NewClientOpts struct {
 	// required:
 	AppName string
 
@@ -60,7 +60,7 @@ type newClientOpts struct {
 	Logger api.Logger
 }
 
-func newWithOptions(ctx context.Context, opts newClientOpts) (*Client, error) {
+func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
 	var err error
