@@ -96,6 +96,7 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		cfg.validateProcessesSection,
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
+		cfg.validateNoExperimental,
 	}
 
 	for _, vFunc := range validators {
@@ -117,6 +118,35 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 
 	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
 	return nil, extra_info
+}
+
+func (cfg *Config) validateNoExperimental() (extraInfo string, err error) {
+	if cfg.Experimental == nil {
+		return
+	}
+
+	if len(cfg.Experimental.Cmd) != 0 {
+		extraInfo += "Experimental.cmd is not supported in Apps V2\n"
+		err = ValidationError
+	}
+	if len(cfg.Experimental.Entrypoint) != 0 {
+		extraInfo += "Experimental.entrypoint is not supported in Apps V2\n"
+		err = ValidationError
+	}
+	if len(cfg.Experimental.Exec) != 0 {
+		extraInfo += "Experimental.exec is not supported in Apps V2\n"
+		err = ValidationError
+	}
+	// Ignore Experimental.AutoRollback
+	if cfg.Experimental.EnableConsul {
+		extraInfo += "Experimental.enable_consul is not supported in Apps V2\n"
+		err = ValidationError
+	}
+	if cfg.Experimental.EnableEtcd {
+		extraInfo += "Experimental.enable_etcd is not supported in Apps V2\n"
+		err = ValidationError
+	}
+	return
 }
 
 func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {

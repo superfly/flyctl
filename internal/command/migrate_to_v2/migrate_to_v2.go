@@ -230,6 +230,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 			return nil, err
 		}
 		migrator.pgConsulUrl = consul.ConsulURL
+		if migrator.appConfig.Experimental != nil {
+			// Required to pass config validation for v2 because we don't support experimental features.
+			migrator.appConfig.Experimental.EnableConsul = false
+		}
 	}
 	err = migrator.validate(ctx)
 	if err != nil {
