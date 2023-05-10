@@ -113,8 +113,12 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	// Services
 	mConfig.Services = nil
 	if services := c.AllServices(); len(services) > 0 {
-		mConfig.Services = lo.Map(services, func(s Service, _ int) api.MachineService {
-			return *s.toMachineService()
+		mConfig.Services = lo.Map(services, func(s Service, idx int) api.MachineService {
+			svc := *s.toMachineService()
+			if src != nil {
+				svc.Autostop = src.Services[idx].Autostop
+			}
+			return svc
 		})
 	}
 
