@@ -32,6 +32,7 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -705,6 +706,16 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 
 	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
 		m.appConfig.PrimaryRegion = val
+		return nil
+	}
+
+	existingRegions := map[string]struct{}{}
+	for _, alloc := range m.oldAllocs {
+		existingRegions[alloc.Region] = struct{}{}
+	}
+
+	if len(existingRegions) == 1 {
+		m.appConfig.PrimaryRegion = maps.Keys(existingRegions)[0]
 		return nil
 	}
 
