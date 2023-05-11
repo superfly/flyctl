@@ -13,7 +13,7 @@ type Service struct {
 	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port"`
 	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
-	MinRunningMachines *int                           `json:"min_running_machines,omitempty" toml:"min_running_machines,omitempty"`
+	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Ports              []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
 	Concurrency        *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TCPChecks          []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
@@ -49,7 +49,7 @@ type HTTPService struct {
 	ForceHTTPS         bool                           `toml:"force_https,omitempty" json:"force_https,omitempty"`
 	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
-	MinRunningMachines *int                           `json:"min_running_machines,omitempty" toml:"min_running_machines"`
+	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	TLSOptions         *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
@@ -78,7 +78,7 @@ func (s *HTTPService) ToService() *Service {
 		}},
 		AutoStopMachines:   s.AutoStopMachines,
 		AutoStartMachines:  s.AutoStartMachines,
-		MinRunningMachines: s.MinRunningMachines,
+		MinMachinesRunning: s.MinMachinesRunning,
 	}
 }
 
@@ -98,7 +98,7 @@ func (svc *Service) toMachineService() *api.MachineService {
 		Concurrency:        svc.Concurrency,
 		Autostop:           svc.AutoStopMachines,
 		Autostart:          svc.AutoStartMachines,
-		MinRunningMachines: svc.MinRunningMachines,
+		MinMachinesRunning: svc.MinMachinesRunning,
 	}
 
 	for _, tc := range svc.TCPChecks {
