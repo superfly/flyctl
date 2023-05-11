@@ -102,6 +102,13 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	if err != nil {
 		return nil, err
 	}
+	if c.Experimental != nil {
+		if cmd == nil {
+			cmd = c.Experimental.Cmd
+		}
+		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+		mConfig.Init.Exec = c.Experimental.Exec
+	}
 	mConfig.Init.Cmd = cmd
 
 	// Metadata

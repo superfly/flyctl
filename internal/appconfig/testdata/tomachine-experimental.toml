@@ -1,0 +1,6 @@
+app = "foo"
+
+[experimental]
+cmd = ["/call", "me"]
+entrypoint = ["/IgoFirst"]
+exec = ["ignore", "others"]
