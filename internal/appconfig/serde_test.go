@@ -180,6 +180,10 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		defaultGroupName: "app",
 		AppName:          "foo",
 		KillTimeout:      api.MustParseDuration("3s"),
+		Metrics: &api.MachineMetrics{
+			Path: "/foo",
+			Port: 9000,
+		},
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -192,6 +196,8 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 				"entrypoint":   "entrypoint",
 				"exec":         "exec",
 				"kill_timeout": int64(3),
+				"metrics_path": "/foo",
+				"metrics_port": int64(9000),
 			},
 		},
 	}, cfg)
