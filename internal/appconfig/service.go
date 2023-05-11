@@ -49,7 +49,7 @@ type HTTPService struct {
 	ForceHTTPS         bool                           `toml:"force_https,omitempty" json:"force_https,omitempty"`
 	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
-	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running"`
+	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	TLSOptions         *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
