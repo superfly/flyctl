@@ -401,7 +401,7 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 }
 
 func MachineSupportedStrategy(strategy string) bool {
-	return strategy == "rolling" || strategy == "immediate"
+	return strategy == "rolling" || strategy == "immediate" || strategy == ""
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
