@@ -179,6 +179,7 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		configFilePath:   "./testdata/experimental-alt.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
+		KillTimeout:      api.MustParseDuration("3s"),
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -187,9 +188,10 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		RawDefinition: map[string]any{
 			"app": "foo",
 			"experimental": map[string]any{
-				"cmd":        "cmd",
-				"entrypoint": "entrypoint",
-				"exec":       "exec",
+				"cmd":          "cmd",
+				"entrypoint":   "entrypoint",
+				"exec":         "exec",
+				"kill_timeout": int64(3),
 			},
 		},
 	}, cfg)

@@ -133,7 +133,7 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 
 	cast, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("Experimental section of unknown type: %T", cast)
+		return nil, fmt.Errorf("Experimental section of unknown type: %T", raw)
 	}
 
 	for k, v := range cast {
@@ -143,6 +143,10 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 				return nil, err
 			} else {
 				cast[k] = n
+			}
+		case "kill_timeout":
+			if _, ok := cfg["kill_timeout"]; !ok {
+				cfg["kill_timeout"] = _castDuration(v, time.Second)
 			}
 		}
 	}
