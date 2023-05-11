@@ -73,6 +73,28 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Empty(t, got.Init.Cmd)
 }
 
+func TestToMachineConfig_Experimental(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-experimental.toml")
+	require.NoError(t, err)
+
+	got, err := cfg.ToMachineConfig("", nil)
+	require.NoError(t, err)
+	assert.Equal(t, api.MachineInit{
+		Cmd:        []string{"/call", "me"},
+		Entrypoint: []string{"/IgoFirst"},
+		Exec:       []string{"ignore", "others"},
+	}, got.Init)
+
+	cfg.Processes = map[string]string{"app": "/override experimental"}
+	got, err = cfg.ToMachineConfig("", nil)
+	require.NoError(t, err)
+	assert.Equal(t, api.MachineInit{
+		Cmd:        []string{"/override", "experimental"},
+		Entrypoint: []string{"/IgoFirst"},
+		Exec:       []string{"ignore", "others"},
+	}, got.Init)
+}
+
 func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 	cfg := NewConfig()
 
