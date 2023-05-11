@@ -715,15 +715,8 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 	}
 
 	if len(existingRegions) == 1 {
-		inferredRegion := maps.Keys(existingRegions)[0]
-		confirm, err := prompt.Confirm(ctx, fmt.Sprintf("This app only has one region, %s. Would you like to use it as the primary region?", inferredRegion))
-		switch {
-		case err != nil:
-			return err
-		case confirm:
-			m.appConfig.PrimaryRegion = m.oldAllocs[0].Region
-			return nil
-		}
+		m.appConfig.PrimaryRegion = maps.Keys(existingRegions)[0]
+		return nil
 	}
 
 	// TODO: If this ends up used by postgres migrations, it might be nice to have
