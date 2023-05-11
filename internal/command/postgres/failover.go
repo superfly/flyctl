@@ -153,9 +153,12 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 
 	primary_region := ""
-	if len(machines) > 0 {
+	if len(machines) >= 3 {
 		for _, machine := range machines {
 			if region, ok := machine.Config.Env["PRIMARY_REGION"]; ok {
+				if primary_region != "" && region != primary_region {
+					return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
+				}
 				primary_region = region
 			}
 		}
