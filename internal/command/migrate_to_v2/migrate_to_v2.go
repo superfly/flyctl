@@ -32,6 +32,7 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -706,6 +707,23 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 	if val, ok := m.appConfig.Env["PRIMARY_REGION"]; ok {
 		m.appConfig.PrimaryRegion = val
 		return nil
+	}
+
+	existingRegions := map[string]struct{}{}
+	for _, alloc := range m.oldAllocs {
+		existingRegions[alloc.Region] = struct{}{}
+	}
+
+	if len(existingRegions) == 1 {
+		inferredRegion := maps.Keys(existingRegions)[0]
+		confirm, err := prompt.Confirm(ctx, fmt.Sprintf("This app only has one region, %s. Would you like to use it as the primary region?", inferredRegion))
+		switch {
+		case err != nil:
+			return err
+		case confirm:
+			m.appConfig.PrimaryRegion = m.oldAllocs[0].Region
+			return nil
+		}
 	}
 
 	// TODO: If this ends up used by postgres migrations, it might be nice to have
