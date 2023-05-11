@@ -180,8 +180,9 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if !shouldUseMachines {
-		fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. Please use the --force-machines flag", aurora.Yellow("WARN"))
+	using_appsv1_only_feature := !deploy.MachineSupportedStrategy(flag.GetString(ctx, "strategy"))
+	if !shouldUseMachines && !using_appsv1_only_feature {
+		fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend using the --force-machines flag", aurora.Yellow("WARN"))
 	}
 
 	var envVars map[string]string = nil
