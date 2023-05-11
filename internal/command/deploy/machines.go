@@ -394,10 +394,14 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 	} else {
 		md.strategy = "rolling"
 	}
-	if md.strategy != "rolling" && md.strategy != "immediate" {
+	if !MachineSupportedStrategy(md.strategy) {
 		return fmt.Errorf("error unsupported deployment strategy '%s'; fly deploy for machines supports rolling and immediate strategies", md.strategy)
 	}
 	return nil
+}
+
+func MachineSupportedStrategy(strategy string) bool {
+	return strategy == "rolling" || strategy == "immediate" || strategy == ""
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {

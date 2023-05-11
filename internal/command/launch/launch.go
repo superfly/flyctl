@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -172,11 +173,16 @@ func run(ctx context.Context) (err error) {
 	}
 	// Do not change PrimaryRegion after this line
 	appConfig.PrimaryRegion = region.Code
-	fmt.Fprintf(io.Out, "App will use '%s' region as primary\n", appConfig.PrimaryRegion)
+	fmt.Fprintf(io.Out, "App will use '%s' region as primary\n\n", appConfig.PrimaryRegion)
 
 	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, org.Slug, existingAppPlatform)
 	if err != nil {
 		return err
+	}
+
+	using_appsv1_only_feature := !deploy.MachineSupportedStrategy(flag.GetString(ctx, "strategy"))
+	if !shouldUseMachines && !using_appsv1_only_feature {
+		fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend using the --force-machines flag, or setting\nyour organization's default for new apps to Apps v2 with 'fly orgs apps-v2 default-on <org-name>'\n", aurora.Yellow("WARN"))
 	}
 
 	var envVars map[string]string = nil
