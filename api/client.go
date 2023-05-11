@@ -118,10 +118,12 @@ func (c *Client) Logger() Logger { return c.logger }
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
-	start := time.Now()
-	defer func() {
-		instrumenter.ReportCallTiming(time.Since(start))
-	}()
+	if instrumenter != nil {
+		start := time.Now()
+		defer func() {
+			instrumenter.ReportCallTiming(time.Since(start))
+		}()
+	}
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
