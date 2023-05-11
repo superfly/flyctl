@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/ssh"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
@@ -243,32 +242,6 @@ func pickLeader(ctx context.Context, machines []*api.Machine) (*api.Machine, err
 		}
 	}
 	return nil, fmt.Errorf("no active leader found")
-}
-
-func pickNewLeader(ctx context.Context, app *api.AppCompact, machines []*api.Machine, primary_region string) (*api.Machine, error) {
-	for _, machine := range machines {
-		if !isLeader(machine) && machine.HealthCheckStatus().AllPassing() && machine.Region == primary_region && passesDryRun(ctx, app, machine) == nil {
-			return machine, nil
-		}
-	}
-	return nil, fmt.Errorf("no leader could be chosen. no new leader could be found that passed health checks and currently run within the primary region")
-}
-
-// Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks
-func passesDryRun(ctx context.Context, app *api.AppCompact, machine *api.Machine) error {
-	err := ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:      ctx,
-		Org:      app.Organization,
-		App:      app.Name,
-		Username: "postgres",
-		Dialer:   agent.DialerFromContext(ctx),
-		Cmd:      "repmgr standby switchover -f /data/repmgr.conf --dry-run",
-		Stdout:   nil,
-		Stderr:   nil,
-		Stdin:    nil,
-	}, machine.PrivateIP)
-
-	return err
 }
 
 func UnregisterMember(ctx context.Context, app *api.AppCompact, machine *api.Machine) error {

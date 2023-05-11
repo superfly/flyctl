@@ -143,6 +143,10 @@ func runFailover(ctx context.Context) (err error) {
 }
 
 func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppCompact) error {
+	if len(machines) < 3 {
+		return fmt.Errorf("Not enough machines to meet quorum requirements")
+	}
+
 	io := iostreams.FromContext(ctx)
 
 	leader, err := pickLeader(ctx, machines)
@@ -153,21 +157,26 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 
 	primary_region := ""
-	if len(machines) >= 3 {
-		for _, machine := range machines {
-			if region, ok := machine.Config.Env["PRIMARY_REGION"]; ok {
-				if primary_region != "" && region != primary_region {
-					return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
-				}
+	machines_within_primary_region := make([]*api.Machine, 0)
+
+	for _, machine := range machines {
+		if region, ok := machine.Config.Env["PRIMARY_REGION"]; ok {
+			if primary_region == "" || primary_region == region {
 				primary_region = region
+			} else {
+				return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
 			}
+		}
+
+		if machine.Region == primary_region && primary_region != "" {
+			machines_within_primary_region = append(machines_within_primary_region, machine)
 		}
 	}
 	if primary_region == "" {
 		return fmt.Errorf("Could not find primary region for app")
 	}
 
-	newLeader, err := pickNewLeader(ctx, app, machines, primary_region)
+	newLeader, err := pickNewLeader(ctx, app, machines_within_primary_region)
 	if err != nil {
 		return err
 	}
@@ -310,4 +319,52 @@ func handleFlexFailoverFail(ctx context.Context, machines []*api.Machine) (err e
 	fmt.Println("Old leader started succesfully")
 
 	return nil
+}
+
+func pickNewLeader(ctx context.Context, app *api.AppCompact, machines_within_primary_region []*api.Machine) (*api.Machine, error) {
+	machine_reasons := make(map[string]string)
+
+	for _, machine := range machines_within_primary_region {
+		is_valid := true
+		if isLeader(machine) {
+			is_valid = false
+			machine_reasons[machine.ID] = "already leader"
+		} else if !machine.HealthCheckStatus().AllPassing() {
+			is_valid = false
+			machine_reasons[machine.ID] = "1+ health checks are not passing"
+		} else if !passesDryRun(ctx, app, machine) {
+			is_valid = false
+			machine_reasons[machine.ID] = fmt.Sprintf("Running a dry run of `repmgr standby switchover` failed. Try running `fly ssh console -u postgres -C 'repmgr standby switchover -f /data/repmgr.conf --dry-run' -s -a %s` for more information. This was most likely due to the requirements for quorum not being met.", app.Name)
+
+		}
+
+		if is_valid {
+			return machine, nil
+		}
+	}
+
+	err := "no leader could be chosen. Here are the reasons why: \n"
+	for machine_id, reason := range machine_reasons {
+		err = fmt.Sprintf("%s%s: %s\n", err, machine_id, reason)
+	}
+	err += "\nplease fix one or more of the above issues, and try again\n"
+
+	return nil, fmt.Errorf(err)
+}
+
+// Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks
+func passesDryRun(ctx context.Context, app *api.AppCompact, machine *api.Machine) bool {
+	err := ssh.SSHConnect(&ssh.SSHParams{
+		Ctx:      ctx,
+		Org:      app.Organization,
+		App:      app.Name,
+		Username: "postgres",
+		Dialer:   agent.DialerFromContext(ctx),
+		Cmd:      "repmgr standby switchover -f /data/repmgr.conf --dry-run",
+		Stdout:   nil,
+		Stderr:   nil,
+		Stdin:    nil,
+	}, machine.PrivateIP)
+
+	return err == nil
 }
