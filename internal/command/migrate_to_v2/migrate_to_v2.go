@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -62,10 +63,8 @@ func newMigrateToV2() *cobra.Command {
 	return cmd
 }
 
-func runMigrateToV2(ctx context.Context) error {
+func runMigrateToV2(ctx context.Context) (err error) {
 	var (
-		err error
-
 		appName   = appconfig.NameFromContext(ctx)
 		apiClient = client.FromContext(ctx).API()
 	)
@@ -80,6 +79,16 @@ func runMigrateToV2(ctx context.Context) error {
 		return err
 	}
 
+	// This is written awkwardly so that NewV2PlatformMigrator failures are tracked,
+	// but declined migrations are not.
+	sendMetric := true
+	defer func() {
+		if sendMetric {
+			metrics.Started(ctx, "migrate_to_v2")
+			metrics.Status(ctx, "migrate_to_v2", err == nil)
+		}
+	}()
+
 	migrator, err := NewV2PlatformMigrator(ctx, appName)
 	if err != nil {
 		return err
@@ -90,6 +99,7 @@ func runMigrateToV2(ctx context.Context) error {
 			return err
 		}
 		if !confirm {
+			sendMetric = false
 			return nil
 		}
 	}
