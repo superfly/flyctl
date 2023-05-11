@@ -76,7 +76,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			LockID:         m.appLock,
 		})
 		if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
-			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support migrations across workers (we're working on it!)", vol.ID, vol.Name)
+			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
 		} else if err != nil {
 			return err
 		}
