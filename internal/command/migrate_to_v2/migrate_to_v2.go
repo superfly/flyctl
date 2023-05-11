@@ -841,7 +841,19 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 }
 
 func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
-	preset := strings.Replace(vmSize.Name, "dedicated-cpu", "performance", 1)
+	preset := vmSize.Name
+	preset = strings.Replace(preset, "micro", "shared-cpu", 1)
+	preset = strings.Replace(preset, "dedicated-cpu", "performance", 1)
+	switch preset {
+	case "cpu1mem1":
+		preset = "performance-1x"
+	case "cpu2mem2":
+		preset = "performance-2x"
+	case "cpu4mem4":
+		preset = "performance-4x"
+	case "cpu8mem8":
+		preset = "performance-8x"
+	}
 
 	guest := &api.MachineGuest{}
 	err := guest.SetSize(preset)
