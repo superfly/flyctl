@@ -180,7 +180,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var envVars map[string]string = nil
-	envFlags := flag.GetStringSlice(ctx, "env")
+	envFlags := flag.GetStringArray(ctx, "env")
 	if len(envFlags) > 0 {
 		envVars, err = cmdutil.ParseKVStringsToMap(envFlags)
 		if err != nil {

@@ -97,7 +97,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		Buildpacks:      build.Buildpacks,
 	}
 
-	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-secret"))
+	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
 		return
 	}
@@ -196,7 +196,7 @@ func mergeBuildArgs(ctx context.Context, args map[string]string) (map[string]str
 	}
 
 	// set additional Docker build args from the command line, overriding similar ones from the config
-	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg"))
+	cliBuildArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
 	if err != nil {
 		return nil, fmt.Errorf("invalid build args: %w", err)
 	}
