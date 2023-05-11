@@ -24,7 +24,9 @@ independent of flyctl.
 	)
 
 	cmd := command.New("token", short, long, runAuthToken,
-		command.RequireSession)
+		command.ExcludeFromMetrics,
+		command.RequireSession,
+	)
 
 	flag.Add(cmd, flag.JSONOutput())
 	return cmd
