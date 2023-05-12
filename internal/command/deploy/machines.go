@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -401,7 +402,7 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 }
 
 func MachineSupportedStrategy(strategy string) bool {
-	return strategy == "rolling" || strategy == "immediate" || strategy == ""
+	return slices.Contains([]string{"canary", "rolling", "immmediate", ""}, strategy)
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {

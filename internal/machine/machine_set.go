@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/slices"
 )
 
 type MachineSet interface {
@@ -26,7 +27,7 @@ type machineSet struct {
 	machines []LeasableMachine
 }
 
-func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*api.Machine) MachineSet {
+func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*api.Machine) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
 		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))
@@ -80,20 +81,12 @@ func (ms *machineSet) AcquireLeases(ctx context.Context, duration time.Duration)
 
 func (ms *machineSet) RemoveMachines(ctx context.Context, machines []LeasableMachine) error {
 	// Rewrite machines array to exclude the ones we just released.
-	i := 0
-	tempMachines := make([]LeasableMachine, len(ms.machines)-len(machines))
+	tempMachines := ms.machines[:0]
 
+	// Compute the intersection between all of the machines on machineSet with the machines we want to remove.
 	for _, oldMach := range ms.machines {
-		ok := true
-		for _, removedMach := range machines {
-			if oldMach.Machine().ID == removedMach.Machine().ID {
-				ok = false
-				break
-			}
-		}
-		if ok {
-			tempMachines[i] = oldMach
-			i++
+		if !slices.ContainsFunc(machines, func(m LeasableMachine) bool { return oldMach.Machine().ID == m.Machine().ID }) {
+			tempMachines = append(tempMachines, oldMach)
 		}
 	}
 
