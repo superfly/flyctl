@@ -480,6 +480,11 @@ func recordMetricsCommandContext(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
+	metrics.Enabled = false
+	return ctx, nil
+}
+
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
 	if !client.FromContext(ctx).Authenticated() {

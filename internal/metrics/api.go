@@ -13,6 +13,7 @@ import (
 	"golang.org/x/net/websocket"
 )
 
+var Enabled = true
 var websocketConn *websocket.Conn
 var websocketMu sync.Mutex
 var done sync.WaitGroup
@@ -119,6 +120,10 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 }
 
 func shouldSendMetrics(ctx context.Context) bool {
+	if !Enabled {
+		return false
+	}
+
 	cfg := config.FromContext(ctx)
 
 	// never send metrics to the production collector from dev builds
