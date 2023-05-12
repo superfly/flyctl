@@ -6,10 +6,13 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
 )
+
+var logMu sync.Mutex
 
 func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
@@ -66,6 +69,9 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
+	logMu.Lock()
+	defer logMu.Unlock()
+
 	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
 
 	if req.Body == nil {
@@ -90,6 +96,9 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
+	logMu.Lock()
+	defer logMu.Unlock()
+
 	ctx := resp.Request.Context()
 	defer func() { _ = resp.Body.Close() }()
 
