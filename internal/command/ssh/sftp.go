@@ -195,7 +195,7 @@ func runGet(ctx context.Context) error {
 	}
 
 	fmt.Printf("%d bytes written to %s\n", bytes, local)
-	return nil
+	return f.Sync()
 }
 
 var completer = readline.NewPrefixCompleter(
@@ -364,6 +364,11 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 	}
 
 	z.Close()
+
+	err = f.Sync()
+	if err != nil {
+		sc.out("failed to sync %s: %s", lpath, err)
+	}
 }
 
 func (sc *sftpContext) chmod(args ...string) error {
@@ -432,7 +437,8 @@ func (sc *sftpContext) put(args ...string) error {
 		sc.out("put %s -> %s: open local file: %s", lpath, rpath, err)
 		return nil
 	}
-	defer f.Close()
+	// Safe to ignore the error because this file is for reading.
+	defer f.Close() // skipcq: GO-S2307
 
 	rf, err := sc.ftp.OpenFile(rpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL)
 	if err != nil {
@@ -509,6 +515,10 @@ func (sc *sftpContext) get(args ...string) error {
 			sc.out("get %s -> %s: %s (wrote %d bytes)", rpath, localFile, err, bytes)
 		} else {
 			sc.out("wrote %d bytes", bytes)
+		}
+		err = f.Sync()
+		if err != nil {
+			sc.out("failed to sync %s: %s", localFile, err)
 		}
 	}()
 
