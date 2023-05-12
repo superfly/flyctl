@@ -59,6 +59,9 @@ func newCreate() (cmd *cobra.Command) {
 func runCreate(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
+	// pre-fetch platform regions for later use
+	prompt.PlatformRegions(ctx)
+
 	org, err := prompt.Org(ctx)
 	if err != nil {
 		return err

@@ -102,6 +102,9 @@ func run(ctx context.Context) (err error) {
 		colorize = io.ColorScheme()
 	)
 
+	// pre-fetch platform regions for later use
+	prompt.PlatformRegions(ctx)
+
 	if appName == "" {
 		if appName, err = prompt.SelectAppName(ctx); err != nil {
 			return

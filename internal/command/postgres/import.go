@@ -87,6 +87,9 @@ func runImport(ctx context.Context) error {
 		imageRef  = flag.GetString(ctx, "image")
 	)
 
+	// pre-fetch platform regions for later use
+	prompt.PlatformRegions(ctx)
+
 	// Resolve target app
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {

@@ -77,6 +77,9 @@ func runCreate(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 	)
 
+	// pre-fetch platform regions from API in background
+	prompt.PlatformRegions(ctx)
+
 	// fetch AppBasic in the background while we prompt for confirmation
 	appFuture := future.Spawn(func() (*api.AppBasic, error) {
 		return client.GetAppBasic(ctx, appName)
