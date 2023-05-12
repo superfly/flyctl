@@ -1,5 +1,5 @@
 NOW_RFC3339 = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-GIT_BRANCH = $(shell giasdft symbolic-ref --short HEAD 2>/dev/null ||:)
+GIT_BRANCH = $(shell git symbolic-ref --short HEAD 2>/dev/null ||:)
 
 all: build cmddocs
 
