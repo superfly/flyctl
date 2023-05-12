@@ -603,8 +603,8 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 
 func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) error {
 	// This is as last meassure for very special cases
-	knownUnmigratableApps := []int{
-		116793, // https://flyio.discourse.team/t/x/2860/6
+	knownUnmigratableApps := []string{
+		"globalconfig-dht", // https://flyio.discourse.team/t/x/2860/6
 	}
 	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
 		return fmt.Errorf("Your app is known to break under V2 platform. Please contact support")
