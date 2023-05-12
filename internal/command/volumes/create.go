@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -76,15 +77,20 @@ func runCreate(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 	)
 
-	app, err := client.GetAppBasic(ctx, appName)
-	if err != nil {
-		return err
-	}
+	// fetch AppBasic in the background while we prompt for confirmation
+	appFuture := future.Spawn(func() (*api.AppBasic, error) {
+		return client.GetAppBasic(ctx, appName)
+	})
 
 	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
 		return err
 	} else if !confirm {
 		return nil
+	}
+
+	app, err := appFuture.Get()
+	if err != nil {
+		return err
 	}
 
 	var region *api.Region
