@@ -125,25 +125,8 @@ func (cfg *Config) validateNoExperimental() (extraInfo string, err error) {
 		return
 	}
 
-	if len(cfg.Experimental.Cmd) != 0 {
-		extraInfo += "Experimental.cmd is not supported in Apps V2\n"
-		err = ValidationError
-	}
-	if len(cfg.Experimental.Entrypoint) != 0 {
-		extraInfo += "Experimental.entrypoint is not supported in Apps V2\n"
-		err = ValidationError
-	}
-	if len(cfg.Experimental.Exec) != 0 {
-		extraInfo += "Experimental.exec is not supported in Apps V2\n"
-		err = ValidationError
-	}
-	// Ignore Experimental.AutoRollback
-	if cfg.Experimental.EnableConsul {
-		extraInfo += "Experimental.enable_consul is not supported in Apps V2\n"
-		err = ValidationError
-	}
-	if cfg.Experimental.EnableEtcd {
-		extraInfo += "Experimental.enable_etcd is not supported in Apps V2\n"
+	if len(cfg.Experimental.AllowedPublicPorts) != 0 {
+		extraInfo += "experimental.allowed_public_ports is not supported in Apps V2\n"
 		err = ValidationError
 	}
 	return
