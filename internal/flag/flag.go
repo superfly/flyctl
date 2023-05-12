@@ -164,30 +164,6 @@ func (ss StringSlice) addTo(cmd *cobra.Command) {
 	f.Hidden = ss.Hidden
 }
 
-// StringArray wraps the set of string array flags.
-type StringArray struct {
-	Name        string
-	Shorthand   string
-	Description string
-	Default     []string
-	ConfName    string
-	EnvName     string
-	Hidden      bool
-}
-
-func (ss StringArray) addTo(cmd *cobra.Command) {
-	flags := cmd.Flags()
-
-	if ss.Shorthand != "" {
-		_ = flags.StringArrayP(ss.Name, ss.Shorthand, ss.Default, ss.Description)
-	} else {
-		_ = flags.StringArray(ss.Name, ss.Default, ss.Description)
-	}
-
-	f := flags.Lookup(ss.Name)
-	f.Hidden = ss.Hidden
-}
-
 // Duration wraps the set of duration flags.
 type Duration struct {
 	Name        string
@@ -391,15 +367,15 @@ func NoCache() Bool {
 	}
 }
 
-func BuildSecret() StringArray {
-	return StringArray{
+func BuildSecret() StringSlice {
+	return StringSlice{
 		Name:        "build-secret",
 		Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
 	}
 }
 
-func BuildArg() StringArray {
-	return StringArray{
+func BuildArg() StringSlice {
+	return StringSlice{
 		Name:        "build-arg",
 		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	}
