@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"time"
 
@@ -20,15 +21,16 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
-	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/update"
-
-	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/instrument"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/update"
 )
 
 type (
@@ -36,9 +38,6 @@ type (
 
 	Runner func(context.Context) error
 )
-
-// TODO: remove once all commands are implemented.
-var ErrNotImplementedYet = errors.New("command not implemented yet")
 
 func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 	return &cobra.Command{
@@ -63,27 +62,23 @@ var commonPreparers = []Preparer{
 	promptToUpdate,
 	initClient,
 	killOldAgent,
+	recordMetricsCommandContext,
 }
 
-// TODO: remove after migration is complete
-func WrapRunE(fn func(*cobra.Command, []string) error) func(*cobra.Command, []string) error {
-	return func(cmd *cobra.Command, args []string) (err error) {
-		ctx := cmd.Context()
-		ctx = NewContext(ctx, cmd)
-		ctx = flag.NewContext(ctx, cmd.Flags())
-
-		// run the common preparers
-		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
-			return
-		}
-
-		err = fn(cmd, args)
-
-		// and the
-		finalize(ctx)
-
-		return
+func sendOsMetric(ctx context.Context, state string) {
+	// Send /runs/[os_name]/[state]
+	osName := ""
+	switch runtime.GOOS {
+	case "darwin":
+		osName = "macos"
+	case "linux":
+		osName = "linux"
+	case "windows":
+		osName = "windows"
+	default:
+		osName = "other"
 	}
+	metrics.SendNoData(ctx, fmt.Sprintf("runs/%s/%s", osName, state))
 }
 
 func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) error {
@@ -100,6 +95,13 @@ func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) er
 		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
 			return
 		}
+
+		sendOsMetric(ctx, "started")
+		defer func() {
+			if err == nil {
+				sendOsMetric(ctx, "successful")
+			}
+		}()
 
 		// run the preparers specific to the command
 		if ctx, err = prepare(ctx, preparers...); err != nil {
@@ -287,6 +289,7 @@ func initClient(ctx context.Context) (context.Context, error) {
 	// TODO: refactor so that api package does NOT depend on global state
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
+	api.SetInstrumenter(instrument.ApiAdapter)
 	c := client.FromToken(cfg.AccessToken)
 	logger.Debug("client initialized.")
 
@@ -350,14 +353,14 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 }
 
 // shouldIgnore allows a preparer to disable itself for specific commands
-// E.g. `shouldIgnore([][]string{{"version", "update"}, {"machine", "status"}})`
-// would return true for "fly version update" and "fly machine status"
+// E.g. `shouldIgnore([][]string{{"version", "upgrade"}, {"machine", "status"}})`
+// would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
-		// The shape of the ignoredCmd slice is something like ["version", "update"],
+		// The shape of the ignoredCmd slice is something like ["version", "upgrade"],
 		// but we're walking up the tree from the end, so we have to iterate that in reverse
 		for i := len(ignoredCmd) - 1; i >= 0; i-- {
 			if !currentCmd.HasParent() || currentCmd.Use != ignoredCmd[i] {
@@ -377,10 +380,9 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 }
 
 func promptToUpdate(ctx context.Context) (context.Context, error) {
-
 	cfg := config.FromContext(ctx)
 	if cfg.JSONOutput || shouldIgnore(ctx, [][]string{
-		{"version", "update"},
+		{"version", "upgrade"},
 	}) {
 		return ctx, nil
 	}
@@ -415,7 +417,7 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
 		current,
 		r.Version,
-		colorize.Bold(buildinfo.Name()+" version update"),
+		colorize.Bold(buildinfo.Name()+" version upgrade"),
 	)
 
 	fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
@@ -470,6 +472,16 @@ func killOldAgent(ctx context.Context) (context.Context, error) {
 
 	time.Sleep(time.Second) // we've killed and removed the pid file
 
+	return ctx, nil
+}
+
+func recordMetricsCommandContext(ctx context.Context) (context.Context, error) {
+	metrics.RecordCommandContext(ctx)
+	return ctx, nil
+}
+
+func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
+	metrics.Enabled = false
 	return ctx, nil
 }
 
@@ -548,7 +560,7 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	return
 }
 
-var errRequireAppName = fmt.Errorf("we couldn't find a fly.toml nor an app specified by the -a flag. If you want to launch a new app, use '%s launch'", buildinfo.Name())
+var errRequireAppName = fmt.Errorf("the config for your app is missing an app name, add an app_name field to the fly.toml file or specify with the -a flag`")
 
 // RequireAppName is a Preparer which makes sure the user has selected an
 // application name via command line arguments, the environment or an application
@@ -571,8 +583,7 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 	}
 
 	if name == "" {
-		err := fmt.Errorf("the config for your app is missing an app name, add an app_name field to the fly.toml file or specify with the -a flag`")
-		return nil, err
+		return nil, errRequireAppName
 	}
 
 	return appconfig.WithName(ctx, name), nil

@@ -58,9 +58,6 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 
 	for machine, machineConf := range eligible {
 		input := &api.LaunchMachineInput{
-			ID:               machine.ID,
-			AppID:            app.Name,
-			OrgSlug:          app.Organization.Slug,
 			Region:           machine.Region,
 			Config:           &machineConf,
 			SkipHealthChecks: skipHealthChecks,
@@ -167,11 +164,8 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	for _, member := range members["replica"] {
 		machine := member.Machine
 		input := &api.LaunchMachineInput{
-			ID:      machine.ID,
-			AppID:   app.Name,
-			OrgSlug: app.Organization.Slug,
-			Region:  machine.Region,
-			Config:  &member.TargetConfig,
+			Region: machine.Region,
+			Config: &member.TargetConfig,
 		}
 		if err := mach.Update(ctx, machine, input); err != nil {
 			return err
@@ -184,18 +178,14 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			machine := primary.Machine
 
 			input := &api.LaunchMachineInput{
-				ID:      machine.ID,
-				AppID:   app.Name,
-				OrgSlug: app.Organization.Slug,
-				Region:  machine.Region,
-				Config:  &primary.TargetConfig,
+				Region: machine.Region,
+				Config: &primary.TargetConfig,
 			}
 			if err := mach.Update(ctx, machine, input); err != nil {
 				return err
 			}
 		}
 	} else {
-
 		if len(members["leader"]) > 0 {
 			leader := members["leader"][0]
 			machine := leader.Machine
@@ -222,11 +212,8 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 			// Update leader
 			input := &api.LaunchMachineInput{
-				ID:      machine.ID,
-				AppID:   app.Name,
-				OrgSlug: app.Organization.Slug,
-				Region:  machine.Region,
-				Config:  &leader.TargetConfig,
+				Region: machine.Region,
+				Config: &leader.TargetConfig,
 			}
 			if err := mach.Update(ctx, machine, input); err != nil {
 				return err

@@ -27,6 +27,7 @@ type LeasableMachine interface {
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
 	WaitForState(context.Context, string, time.Duration, string) error
+	WaitForSmokeChecksToPass(context.Context, string) error
 	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration) (*api.MachineEvent, error)
 	FormattedMachineId() string
@@ -59,6 +60,7 @@ func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineIn
 	if !lm.HasLease() {
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
+	input.ID = lm.machine.ID
 	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
@@ -75,7 +77,7 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 		ID:   lm.machine.ID,
 		Kill: kill,
 	}
-	err := lm.flapsClient.Destroy(ctx, input, lm.machine.LeaseNonce)
+	err := lm.flapsClient.Destroy(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -89,7 +91,7 @@ func (lm *leasableMachine) FormattedMachineId() string {
 		return res
 	}
 	procGroup := lm.Machine().ProcessGroup()
-	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() {
+	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() || lm.Machine().IsFlyAppsConsole() {
 		return res
 	}
 	return fmt.Sprintf("%s [%s]", res, procGroup)
@@ -188,6 +190,62 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		lm.logClearLinesAbove(1)
 		lm.logStatusFinished(desiredState)
 		return nil
+	}
+}
+
+func (lm *leasableMachine) isConstantlyRestarting(machine *api.Machine) bool {
+	var ev *api.MachineEvent
+
+	for _, mev := range machine.Events {
+		if mev.Type == "exit" {
+			ev = mev
+			break
+		}
+	}
+
+	if ev == nil {
+		return false
+	}
+
+	return !ev.Request.ExitEvent.RequestedStop &&
+		ev.Request.ExitEvent.Restarting &&
+		ev.Request.RestartCount > 1 &&
+		ev.Request.ExitEvent.ExitCode != 0
+}
+
+func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPrefix string) error {
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+
+	fmt.Fprintf(lm.io.ErrOut, "  %s Checking that %s is up and running\n",
+		logPrefix,
+		lm.colorize.Bold(lm.FormattedMachineId()),
+	)
+
+	for {
+		machine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			return err
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			return nil
+		case err != nil:
+			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
+		}
+
+		switch {
+		case lm.isConstantlyRestarting(machine):
+			return fmt.Errorf("the app appears to be crashing")
+		default:
+			time.Sleep(b.Duration())
+		}
 	}
 }
 

@@ -23,7 +23,9 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -40,28 +42,38 @@ type Client struct {
 }
 
 func New(ctx context.Context, app *api.AppCompact) (*Client, error) {
-	return newFromAppOrAppName(ctx, app, app.Name)
+	return NewWithOptions(ctx, NewClientOpts{AppCompact: app, AppName: app.Name})
 }
 
 func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
-	return newFromAppOrAppName(ctx, nil, appName)
+	return NewWithOptions(ctx, NewClientOpts{AppName: appName})
 }
 
-func newFromAppOrAppName(ctx context.Context, app *api.AppCompact, appName string) (*Client, error) {
-	if app != nil {
-		appName = app.Name
-	}
+type NewClientOpts struct {
+	// required:
+	AppName string
 
+	// optional, avoids API roundtrip when connecting to flaps by wireguard:
+	AppCompact *api.AppCompact
+
+	// optional:
+	Logger api.Logger
+}
+
+func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	// FIXME: do this once we setup config for `fly config ...` commands, and then use cfg.FlapsBaseURL below
 	// cfg := config.FromContext(ctx)
 	var err error
 	flapsBaseURL := os.Getenv("FLY_FLAPS_BASE_URL")
 	if strings.TrimSpace(strings.ToLower(flapsBaseURL)) == "peer" {
-		app, err = resolveApp(ctx, app, appName)
+		orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get app '%s': %w", appName, err)
+			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 		}
-		return newWithUsermodeWireguard(ctx, app)
+		return newWithUsermodeWireguard(ctx, wireguardConnectionParams{
+			appName: opts.AppName,
+			orgSlug: orgSlug,
+		})
 	} else if flapsBaseURL == "" {
 		flapsBaseURL = "https://api.machines.dev"
 	}
@@ -69,18 +81,29 @@ func newFromAppOrAppName(ctx context.Context, app *api.AppCompact, appName strin
 	if err != nil {
 		return nil, fmt.Errorf("invalid FLY_FLAPS_BASE_URL '%s' with error: %w", flapsBaseURL, err)
 	}
-	logger := logger.MaybeFromContext(ctx)
+	var logger api.Logger = logger.MaybeFromContext(ctx)
+	if opts.Logger != nil {
+		logger = opts.Logger
+	}
 	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
 	}
 	return &Client{
-		appName:    appName,
+		appName:    opts.AppName,
 		baseUrl:    flapsUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
+}
+
+func resolveOrgSlugForApp(ctx context.Context, app *api.AppCompact, appName string) (string, error) {
+	app, err := resolveApp(ctx, app, appName)
+	if err != nil {
+		return "", err
+	}
+	return app.Organization.Slug, nil
 }
 
 func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
@@ -92,7 +115,12 @@ func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.
 	return app, err
 }
 
-func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client, error) {
+type wireguardConnectionParams struct {
+	appName string
+	orgSlug string
+}
+
+func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionParams) (*Client, error) {
 	logger := logger.MaybeFromContext(ctx)
 
 	client := client.FromContext(ctx).API()
@@ -101,9 +129,9 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, params.orgSlug)
 	if err != nil {
-		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", params.orgSlug, err)
 	}
 
 	transport := &http.Transport{
@@ -114,7 +142,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 
 	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
-		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", app.Organization.Slug, err)
+		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", params.orgSlug, err)
 	}
 
 	flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
@@ -124,7 +152,7 @@ func newWithUsermodeWireguard(ctx context.Context, app *api.AppCompact) (*Client
 	}
 
 	return &Client{
-		appName:    app.Name,
+		appName:    params.appName,
 		baseUrl:    flapsBaseUrl,
 		authToken:  flyctl.GetAPIToken(),
 		httpClient: httpClient,
@@ -142,42 +170,55 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 	return
 }
 
-func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (*api.Machine, error) {
-	var endpoint string
-	if builder.ID != "" {
-		endpoint = fmt.Sprintf("/%s", builder.ID)
-	}
+func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {
+	metrics.Started(ctx, "machine_launch")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
+	defer func() {
+		metrics.Status(ctx, "machine_launch", err == nil)
+		if err == nil {
+			sendUpdateMetrics()
+		}
+	}()
 
-	out := new(api.Machine)
-
-	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, nil); err != nil {
+	out = new(api.Machine)
+	if err := f.sendRequest(ctx, http.MethodPost, "", builder, out, nil); err != nil {
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 
 	return out, nil
 }
 
-func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (*api.Machine, error) {
+func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, nonce string) (out *api.Machine, err error) {
 	headers := make(map[string][]string)
-
 	if nonce != "" {
 		headers[NonceHeader] = []string{nonce}
 	}
 
+	metrics.Started(ctx, "machine_update")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update/duration")
+	defer func() {
+		metrics.Status(ctx, "machine_update", err == nil)
+		if err == nil {
+			sendUpdateMetrics()
+		}
+	}()
+
 	endpoint := fmt.Sprintf("/%s", builder.ID)
-
-	out := new(api.Machine)
-
+	out = new(api.Machine)
 	if err := f.sendRequest(ctx, http.MethodPost, endpoint, builder, out, headers); err != nil {
 		return nil, fmt.Errorf("failed to update VM %s: %w", builder.ID, err)
 	}
 	return out, nil
 }
 
-func (f *Client) Start(ctx context.Context, machineID string) (*api.MachineStartResponse, error) {
+func (f *Client) Start(ctx context.Context, machineID string) (out *api.MachineStartResponse, err error) {
 	startEndpoint := fmt.Sprintf("/%s/start", machineID)
+	out = new(api.MachineStartResponse)
 
-	out := new(api.MachineStartResponse)
+	metrics.Started(ctx, "machine_start")
+	defer func() {
+		metrics.Status(ctx, "machine_start", err == nil)
+	}()
 
 	if err := f.sendRequest(ctx, http.MethodPost, startEndpoint, nil, out, nil); err != nil {
 		return nil, fmt.Errorf("failed to start VM %s: %w", machineID, err)
@@ -251,7 +292,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 		restartEndpoint += fmt.Sprintf("&timeout=%d", in.Timeout)
 	}
 
-	if in.Signal != nil {
+	if in.Signal != "" {
 		restartEndpoint += fmt.Sprintf("&signal=%s", in.Signal)
 	}
 
@@ -317,13 +358,14 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
-		return !m.IsReleaseCommandMachine() && m.IsActive()
+		return !m.IsReleaseCommandMachine() && !m.IsFlyAppsConsole() && m.IsActive()
 	})
 
 	return machines, nil
 }
 
-// returns apps that are part of the fly apps platform that are not destroyed
+// returns apps that are part of the fly apps platform that are not destroyed,
+// excluding console machines
 func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
 	allMachines := make([]*api.Machine, 0)
 	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
@@ -333,7 +375,7 @@ func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.
 	var releaseCmdMachine *api.Machine
 	machines := make([]*api.Machine, 0)
 	for _, m := range allMachines {
-		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() {
+		if m.IsFlyAppsPlatform() && m.IsActive() && !m.IsFlyAppsReleaseCommand() && !m.IsFlyAppsConsole() {
 			machines = append(machines, m)
 		} else if m.IsFlyAppsReleaseCommand() {
 			releaseCmdMachine = m
@@ -438,7 +480,23 @@ func (f *Client) Exec(ctx context.Context, machineID string, in *api.MachineExec
 	return out, nil
 }
 
+func (f *Client) GetProcesses(ctx context.Context, machineID string) (api.MachinePsResponse, error) {
+	endpoint := fmt.Sprintf("/%s/ps", machineID)
+
+	var out api.MachinePsResponse
+
+	err := f.sendRequest(ctx, http.MethodGet, endpoint, nil, &out, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get processes from VM %s: %w", machineID, err)
+	}
+
+	return out, nil
+}
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	timing := instrument.Flaps.Begin()
+	defer timing.End()
+
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err

@@ -84,21 +84,22 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 	input.ID = m.ID
 	updatedMachine, err = flapsClient.Update(ctx, *input, m.LeaseNonce)
 	if err != nil {
-		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
+		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}
 
 	waitForAction := "start"
-	if m.Config.Schedule != "" {
+	if input.SkipLaunch || m.Config.Schedule != "" {
 		waitForAction = "stop"
 	}
-
 	if err := WaitForStartOrStop(ctx, updatedMachine, waitForAction, time.Minute*5); err != nil {
 		return err
 	}
 
-	if !input.SkipHealthChecks {
-		if err := watch.MachinesChecks(ctx, []*api.Machine{updatedMachine}); err != nil {
-			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+	if !input.SkipLaunch {
+		if !input.SkipHealthChecks {
+			if err := watch.MachinesChecks(ctx, []*api.Machine{updatedMachine}); err != nil {
+				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
+			}
 		}
 	}
 

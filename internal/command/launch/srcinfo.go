@@ -276,6 +276,11 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 		appConfig.SetDockerCommand(srcInfo.DockerCommand)
 	}
 
+	if srcInfo.ConsoleCommand != "" {
+		// no V1 compatibility for this feature so bypass setters
+		appConfig.ConsoleCommand = srcInfo.ConsoleCommand
+	}
+
 	if srcInfo.DockerEntrypoint != "" {
 		appConfig.SetDockerEntrypoint(srcInfo.DockerEntrypoint)
 	}

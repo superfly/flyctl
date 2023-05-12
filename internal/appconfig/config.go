@@ -1,4 +1,4 @@
-// Package app implements functionality related to reading and writing app
+// Package appconfig implements functionality related to reading and writing app
 // configuration files.
 package appconfig
 
@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -31,10 +32,11 @@ func NewConfig() *Config {
 // Config wraps the properties of app configuration.
 // NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
 type Config struct {
-	AppName       string  `toml:"app,omitempty" json:"app,omitempty"`
-	PrimaryRegion string  `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
-	KillSignal    *string `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
-	KillTimeout   *int    `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	AppName        string        `toml:"app,omitempty" json:"app,omitempty"`
+	PrimaryRegion  string        `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
+	KillSignal     *string       `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
+	KillTimeout    *api.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	ConsoleCommand string        `toml:"console_command,omitempty" json:"console_command,omitempty"`
 
 	// Sections that are typically short and benefit from being on top
 	Experimental *Experimental     `toml:"experimental,omitempty" json:"experimental,omitempty"`
@@ -100,12 +102,13 @@ type Build struct {
 }
 
 type Experimental struct {
-	Cmd          []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
-	Entrypoint   []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Exec         []string `toml:"exec,omitempty" json:"exec,omitempty"`
-	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
-	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
-	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	Cmd                []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint         []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec               []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback       bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul       bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd         bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	AllowedPublicPorts []int    `toml:"allowed_public_ports,omitempty" json:"allowed_public_ports,omitempty"`
 }
 
 func (c *Config) ConfigFilePath() string {
@@ -204,36 +207,49 @@ func (cfg *Config) BuildStrategies() []string {
 	return strategies
 }
 
-func (cfg *Config) URL() (*url.URL, error) {
-	hasHttp := false
-	protocol := "http"
-	if cfg.HTTPService != nil {
-		hasHttp = true
-		if cfg.HTTPService.ForceHTTPS {
-			protocol = "https"
-		}
-	} else {
-		for _, service := range cfg.Services {
-			for _, port := range service.Ports {
-				hasTls := false
-				for _, handler := range port.Handlers {
-					if handler == "tls" {
-						hasTls = true
-					} else if handler == "http" {
-						hasHttp = true
-					}
-					if *port.Port == 443 && hasHttp && hasTls {
-						protocol = "https"
-						break
-					}
-				}
+func (cfg *Config) URL() *url.URL {
+	u := &url.URL{
+		Scheme: "https",
+		Host:   cfg.AppName + ".fly.dev",
+		Path:   "/",
+	}
+
+	// HTTPService always listen on https, even if ForceHTTPS is false
+	if cfg.HTTPService != nil && cfg.HTTPService.InternalPort > 0 {
+		return u
+	}
+
+	var httpPorts []int
+	var httpsPorts []int
+	for _, service := range cfg.Services {
+		for _, port := range service.Ports {
+			if port.Port == nil || !slices.Contains(port.Handlers, "http") {
+				continue
+			}
+			if slices.Contains(port.Handlers, "tls") {
+				httpsPorts = append(httpsPorts, *port.Port)
+			} else {
+				httpPorts = append(httpPorts, *port.Port)
 			}
 		}
 	}
 
-	if hasHttp {
-		return url.Parse(protocol + "://" + cfg.AppName + ".fly.dev")
-	} else {
-		return nil, nil
+	switch {
+	case slices.Contains(httpsPorts, 443):
+		return u
+	case slices.Contains(httpPorts, 80):
+		u.Scheme = "http"
+		return u
+	case len(httpsPorts) > 0:
+		slices.Sort(httpsPorts)
+		u.Host = fmt.Sprintf("%s:%d", u.Host, httpsPorts[0])
+		return u
+	case len(httpPorts) > 0:
+		slices.Sort(httpPorts)
+		u.Host = fmt.Sprintf("%s:%d", u.Host, httpPorts[0])
+		u.Scheme = "http"
+		return u
+	default:
+		return nil
 	}
 }

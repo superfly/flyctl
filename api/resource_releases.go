@@ -105,3 +105,37 @@ func (c *Client) GetAppReleaseNomad(ctx context.Context, appName string, id stri
 
 	return data.App.Release, nil
 }
+
+func (c *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*Release, error) {
+	query := `
+		query ($appName: String!) {
+			app(name: $appName) {
+				currentRelease: currentReleaseUnprocessed {
+					id
+					version
+					description
+					reason
+					status
+					imageRef
+					stable
+					user {
+						id
+						email
+						name
+					}
+					createdAt
+				}
+			}
+		}
+	`
+
+	req := c.NewRequest(query)
+	req.Var("appName", appName)
+
+	data, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	return data.App.CurrentRelease, nil
+}

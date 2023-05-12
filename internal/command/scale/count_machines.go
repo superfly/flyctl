@@ -18,19 +18,9 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCounts map[string]int, maxPerRegion int) error {
+func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
-
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
-	if err != nil {
-		return err
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
-
-	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
-	if err != nil {
-		return err
-	}
+	flapsClient := flaps.FromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
@@ -134,33 +124,21 @@ func runMachinesScaleCount(ctx context.Context, appName string, expectedGroupCou
 }
 
 func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) {
-	appName := appconfig.NameFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 
 	input := api.LaunchMachineInput{
-		AppID:  appName,
 		Region: action.Region,
 		Config: action.MachineConfig,
 	}
-
-	m, err := flapsClient.Launch(ctx, input)
-	if err != nil {
-		return nil, fmt.Errorf("could not launch machine: %w", err)
-	}
-
-	return m, nil
+	return flapsClient.Launch(ctx, input)
 }
 
 func destroyMachine(ctx context.Context, machine *api.Machine) error {
-	appName := appconfig.NameFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
-
 	input := api.RemoveMachineInput{
-		AppID: appName,
-		ID:    machine.ID,
-		Kill:  true,
+		ID:   machine.ID,
+		Kill: true,
 	}
-
 	return flapsClient.Destroy(ctx, input, machine.LeaseNonce)
 }
 

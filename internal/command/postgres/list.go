@@ -26,6 +26,7 @@ func newList() *cobra.Command {
 	cmd := command.New(usage, short, long, runList)
 
 	flag.Add(cmd, flag.JSONOutput())
+	cmd.Aliases = []string{"ls"}
 	return cmd
 }
 

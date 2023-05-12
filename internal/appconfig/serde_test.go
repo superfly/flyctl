@@ -68,7 +68,7 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		Ports: []api.MachinePort{{
 			Port: api.Pointer(80),
 			TLSOptions: &api.TLSOptions{
-				Alpn:     []string{"h2", "http/1.1"},
+				ALPN:     []string{"h2", "http/1.1"},
 				Versions: []string{"TLSv1.2", "TLSv1.3"},
 			},
 			HTTPOptions: &api.HTTPOptions{
@@ -84,6 +84,34 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 		}},
 	}}
 
+	assert.Equal(t, want, p.Services)
+}
+
+func TestLoadTOMLAppConfigServiceMulti(t *testing.T) {
+	const path = "./testdata/services-multi.toml"
+
+	p, err := LoadConfig(path)
+	require.NoError(t, err)
+	want := []Service{
+		{
+			Protocol:     "tcp",
+			InternalPort: 8081,
+			Concurrency: &api.MachineServiceConcurrency{
+				Type:      "requests",
+				HardLimit: 22,
+				SoftLimit: 13,
+			},
+		},
+		{
+			Protocol:     "tcp",
+			InternalPort: 9999,
+			Concurrency: &api.MachineServiceConcurrency{
+				Type:      "connections",
+				HardLimit: 10,
+				SoftLimit: 8,
+			},
+		},
+	}
 	assert.Equal(t, want, p.Services)
 }
 
@@ -151,6 +179,11 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		configFilePath:   "./testdata/experimental-alt.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
+		KillTimeout:      api.MustParseDuration("3s"),
+		Metrics: &api.MachineMetrics{
+			Path: "/foo",
+			Port: 9000,
+		},
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -159,9 +192,12 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		RawDefinition: map[string]any{
 			"app": "foo",
 			"experimental": map[string]any{
-				"cmd":        "cmd",
-				"entrypoint": "entrypoint",
-				"exec":       "exec",
+				"cmd":          "cmd",
+				"entrypoint":   "entrypoint",
+				"exec":         "exec",
+				"kill_timeout": int64(3),
+				"metrics_path": "/foo",
+				"metrics_port": int64(9000),
 			},
 		},
 	}, cfg)
@@ -327,8 +363,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		defaultGroupName: "app",
 		AppName:          "foo",
 		KillSignal:       api.Pointer("SIGTERM"),
-		KillTimeout:      api.Pointer(3),
+		KillTimeout:      api.MustParseDuration("3s"),
 		PrimaryRegion:    "sea",
+		ConsoleCommand:   "/bin/bash",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},
@@ -378,6 +415,24 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Type:      "donuts",
 				HardLimit: 10,
 				SoftLimit: 4,
+			},
+			TLSOptions: &api.TLSOptions{
+				ALPN:              []string{"h2", "http/1.1"},
+				Versions:          []string{"TLSv1.2", "TLSv1.3"},
+				DefaultSelfSigned: api.Pointer(false),
+			},
+			HTTPOptions: &api.HTTPOptions{
+				Compress: api.Pointer(true),
+				Response: &api.HTTPResponseOptions{
+					Headers: map[string]any{
+						"fly-request-id": false,
+						"fly-wasnt-here": "yes, it was",
+						"multi-valued":   []any{"value1", "value2"},
+					},
+				},
+			},
+			ProxyProtoOptions: &api.ProxyProtoOptions{
+				Version: "v2",
 			},
 		},
 

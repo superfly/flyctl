@@ -33,11 +33,7 @@ func CreateArchive(dockerfile, workingDir, ignoreFile string, compressed bool) (
 		compressed: compressed,
 	}
 
-	excludes, err := readDockerignore(workingDir, ignoreFile)
-	if err != nil {
-		return nil, errors.Wrap(err, "error reading .dockerignore")
-	}
-	archiveOpts.exclusions = excludes
+	relativeDockerfilePath := ""
 
 	// copy dockerfile into the archive if it's outside the context dir
 	if !isPathInRoot(dockerfile, workingDir) {
@@ -48,9 +44,19 @@ func CreateArchive(dockerfile, workingDir, ignoreFile string, compressed bool) (
 		archiveOpts.additions = map[string][]byte{
 			"Dockerfile": dockerfileData,
 		}
-	} else if _, err := filepath.Rel(workingDir, dockerfile); err != nil {
-		return nil, err
+	} else {
+		p, err := filepath.Rel(workingDir, dockerfile)
+		if err != nil {
+			return nil, err
+		}
+		relativeDockerfilePath = filepath.ToSlash(p)
 	}
+
+	excludes, err := readDockerignore(workingDir, ignoreFile, relativeDockerfilePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "error reading .dockerignore")
+	}
+	archiveOpts.exclusions = excludes
 
 	r, err := archiveDirectory(archiveOpts)
 	if err != nil {
@@ -102,7 +108,7 @@ func archiveDirectory(options archiveOptions) (io.ReadCloser, error) {
 	return r, nil
 }
 
-func readDockerignore(workingDir string, ignoreFile string) ([]string, error) {
+func readDockerignore(workingDir, ignoreFile, relativeDockerfilePath string) ([]string, error) {
 	if ignoreFile == "" {
 		ignoreFile = filepath.Join(workingDir, ".dockerignore")
 	}
@@ -121,10 +127,10 @@ func readDockerignore(workingDir string, ignoreFile string) ([]string, error) {
 		}
 	}()
 
-	return parseDockerignore(file)
+	return parseDockerignore(file, relativeDockerfilePath)
 }
 
-func parseDockerignore(r io.Reader) ([]string, error) {
+func parseDockerignore(r io.Reader, dockerfile string) ([]string, error) {
 	excludes, err := dockerignore.ReadAll(r)
 	if err != nil {
 		return nil, err
@@ -134,12 +140,16 @@ func parseDockerignore(r io.Reader) ([]string, error) {
 		excludes = append(excludes, "!.dockerignore")
 	}
 
-	if match, _ := fileutils.Matches("Dockerfile", excludes); match {
-		excludes = append(excludes, "![Dd]ockerfile")
-	}
-
-	if match, _ := fileutils.Matches("dockerfile", excludes); match {
-		excludes = append(excludes, "![Dd]ockerfile")
+	if dockerfile != "" {
+		if match, _ := fileutils.Matches(dockerfile, excludes); match {
+			excludes = append(excludes, "!"+dockerfile)
+		}
+	} else {
+		if match, _ := fileutils.Matches("Dockerfile", excludes); match {
+			excludes = append(excludes, "![Dd]ockerfile")
+		} else if match, _ := fileutils.Matches("dockerfile", excludes); match {
+			excludes = append(excludes, "![Dd]ockerfile")
+		}
 	}
 
 	return excludes, nil

@@ -38,6 +38,10 @@ func TestToMachineConfig(t *testing.T) {
 				HTTPPath: api.Pointer("/status"),
 			},
 		},
+		StopConfig: &api.StopConfig{
+			Timeout: api.MustParseDuration("10s"),
+			Signal:  api.Pointer("SIGTERM"),
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -67,6 +71,28 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, got.DNS)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
+}
+
+func TestToMachineConfig_Experimental(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-experimental.toml")
+	require.NoError(t, err)
+
+	got, err := cfg.ToMachineConfig("", nil)
+	require.NoError(t, err)
+	assert.Equal(t, api.MachineInit{
+		Cmd:        []string{"/call", "me"},
+		Entrypoint: []string{"/IgoFirst"},
+		Exec:       []string{"ignore", "others"},
+	}, got.Init)
+
+	cfg.Processes = map[string]string{"app": "/override experimental"}
+	got, err = cfg.ToMachineConfig("", nil)
+	require.NoError(t, err)
+	assert.Equal(t, api.MachineInit{
+		Cmd:        []string{"/override", "experimental"},
+		Entrypoint: []string{"/IgoFirst"},
+		Exec:       []string{"ignore", "others"},
+	}, got.Init)
 }
 
 func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
@@ -120,6 +146,10 @@ func TestToReleaseMachineConfig(t *testing.T) {
 		AutoDestroy: true,
 		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
+		StopConfig: &api.StopConfig{
+			Timeout: api.MustParseDuration("10s"),
+			Signal:  api.Pointer("SIGTERM"),
+		},
 	}
 
 	got, err := cfg.ToReleaseMachineConfig()

@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
 )
 
@@ -19,11 +20,20 @@ func SetAccessToken(path, token string) error {
 	})
 }
 
-// Clear clears the access token and wireguard-related keys of the configuration
+// SetMetricsToken sets the value of the metrics token at the configuration file
+// found at path.
+func SetMetricsToken(path, token string) error {
+	return set(path, map[string]interface{}{
+		MetricsTokenFileKey: token,
+	})
+}
+
+// Clear clears the access token, metrics token, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {
 	return set(path, map[string]interface{}{
 		AccessTokenFileKey:    "",
+		MetricsTokenFileKey:   "",
 		WireGuardStateFileKey: map[string]interface{}{},
 	})
 }
@@ -45,11 +55,13 @@ func set(path string, vals map[string]interface{}) error {
 	return marshal(path, m)
 }
 
-var lockPath = filepath.Join(os.TempDir(), "flyctl.config.lock")
+func lockPath() string {
+	return filepath.Join(flyctl.ConfigDir(), "flyctl.config.lock")
+}
 
 func unmarshal(path string, v interface{}) (err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.RLock(context.Background(), lockPath); err != nil {
+	if unlock, err = filemu.RLock(context.Background(), lockPath()); err != nil {
 		return
 	}
 	defer func() {
@@ -81,7 +93,7 @@ func unmarshalUnlocked(path string, v interface{}) (err error) {
 
 func marshal(path string, v interface{}) (err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.Lock(context.Background(), lockPath); err != nil {
+	if unlock, err = filemu.Lock(context.Background(), lockPath()); err != nil {
 		return
 	}
 	defer func() {

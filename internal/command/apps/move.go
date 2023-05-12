@@ -127,11 +127,8 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 
 	for _, machine := range machines {
 		input := &api.LaunchMachineInput{
-			AppID:            app.ID,
-			ID:               machine.ID,
 			Name:             machine.Name,
 			Region:           machine.Region,
-			OrgSlug:          targetOrg.ID,
 			Config:           machine.Config,
 			SkipHealthChecks: skipHealthChecks,
 		}

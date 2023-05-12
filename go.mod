@@ -47,7 +47,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.5
 	github.com/samber/lo v1.38.1
-	github.com/segmentio/textio v1.2.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.2.1
 	github.com/spf13/pflag v1.0.5
@@ -100,9 +99,9 @@ require (
 	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/cli v20.10.7+incompatible // indirect
-	github.com/docker/distribution v2.8.0+incompatible // indirect
+	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.6.3 // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
+	github.com/docker/go-connections v0.4.0
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20200917202933-d0951081b35f // indirect
 	github.com/emirpasic/gods v1.12.0 // indirect
@@ -170,7 +169,7 @@ require (
 	go.opentelemetry.io/proto/otlp v0.9.0 // indirect
 	golang.org/x/mod v0.6.0 // indirect
 	golang.org/x/sys v0.5.1-0.20230222185716-a3b23cc77e89
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/text v0.7.0
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	google.golang.org/genproto v0.0.0-20210722135532-667f2b7c528f // indirect
 	google.golang.org/protobuf v1.28.1 // indirect

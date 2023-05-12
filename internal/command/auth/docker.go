@@ -44,7 +44,9 @@ func ensureDockerConfigDir(home string) error {
 		}
 		// It needs to be readable by Docker, if it gets installed in the
 		// future.
-		if err := os.Mkdir(dockerDir, 0o755); err != nil {
+		// The permission is 700 as like Docker itself.
+		// https://github.com/docker/cli/blob/v23.0.5/cli/config/configfile/file.go#L142
+		if err := os.Mkdir(dockerDir, 0o700); err != nil {
 			return err
 		}
 	} else if !fi.IsDir() {
@@ -57,13 +59,14 @@ func ensureDockerConfigDir(home string) error {
 // and returns the updated JSON.
 //
 // The config.json is structured as follows:
-//   {
-//     "auths": {
-//       "registry.fly.io": {
-//         "auth": "x:..."
-//       }
-//     }
-//   }
+//
+//	{
+//	  "auths": {
+//	    "registry.fly.io": {
+//	      "auth": "x:..."
+//	    }
+//	  }
+//	}
 func addFlyAuthToDockerConfig(cfg *config.Config, configJSON []byte) ([]byte, error) {
 	var dockerConfig map[string]json.RawMessage
 	if len(configJSON) == 0 {
@@ -133,7 +136,7 @@ func configureDockerJSON(cfg *config.Config) error {
 	return os.WriteFile(configPath, updatedJSON, 0o644)
 }
 
-func runDocker(ctx context.Context) (err error) {
+func runDocker(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	binary, err := exec.LookPath("docker")
 	if err != nil {
@@ -153,28 +156,37 @@ func runDocker(ctx context.Context) (err error) {
 
 	var in io.WriteCloser
 	if in, err = cmd.StdinPipe(); err != nil {
-		return
+		return err
 	}
-
-	go func() {
-		defer in.Close()
-
-		fmt.Fprint(in, cfg.AccessToken)
+	// This defer is for early-returns before successfully writing to the stream, hence safe.
+	defer func() {
+		if in != nil {
+			in.Close() // skipcq: GO-S2307
+		}
 	}()
 
 	if err = cmd.Start(); err != nil {
-		return
+		return err
+	}
+
+	_, err = fmt.Fprint(in, cfg.AccessToken)
+	if err != nil {
+		return err
+	}
+
+	err = in.Close()
+	in = nil // Prevent the deferred function from double-closing
+	if err != nil {
+		return err
 	}
 
 	if err = cmd.Wait(); err != nil {
-		err = fmt.Errorf("failed authenticating with %s: %v", host, out.String())
-
-		return
+		return fmt.Errorf("failed authenticating with %s: %v", host, out.String())
 	}
 
 	io := iostreams.FromContext(ctx)
 
 	fmt.Fprintf(io.Out, "Authentication successful. You can now tag and push images to %s/{your-app}\n", host)
 
-	return
+	return nil
 }

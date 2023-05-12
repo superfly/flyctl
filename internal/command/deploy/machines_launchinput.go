@@ -15,11 +15,9 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	md.setMachineReleaseData(Config)
 
 	return &api.LaunchMachineInput{
-		ID:      origMachineRaw.ID,
-		AppID:   md.app.Name,
-		OrgSlug: md.app.Organization.ID,
-		Config:  Config,
-		Region:  origMachineRaw.Region,
+		ID:     origMachineRaw.ID,
+		Config: Config,
+		Region: origMachineRaw.Region,
 	}
 }
 
@@ -33,12 +31,13 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()
+	region := md.appConfig.PrimaryRegion
 
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
-		vol := md.popVolumeFor(mount0.Name)
+		vol := md.popVolumeFor(mount0.Name, region)
 		if vol == nil {
-			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s'", processGroup, mount0.Name)
+			return nil, fmt.Errorf("New machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, region)
 		}
 		mount0.Volume = vol.ID
 	}
@@ -48,9 +47,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	}
 
 	return &api.LaunchMachineInput{
-		AppID:      md.app.Name,
-		OrgSlug:    md.app.Organization.ID,
-		Region:     md.appConfig.PrimaryRegion,
+		Region:     region,
 		Config:     mConfig,
 		SkipLaunch: len(standbyFor) > 0,
 	}, nil
@@ -92,9 +89,9 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			// way is to destroy the current machine and launch a new one with the new volume attached
 			mount0 := &mMounts[0]
 			terminal.Warnf("Machine %s has volume '%s' attached but fly.toml have a different name: '%s'\n", mID, oMounts[0].Name, mount0.Name)
-			vol := md.popVolumeFor(mount0.Name)
+			vol := md.popVolumeFor(mount0.Name, origMachineRaw.Region)
 			if vol == nil {
-				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s'", processGroup, mount0.Name)
+				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, origMachineRaw.Region)
 			}
 			mount0.Volume = vol.ID
 			mID = "" // Forces machine replacement
@@ -115,18 +112,22 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		// and it is not possible to attach a volume to an existing machine.
 		// The volume could be in a different zone than the machine.
 		mount0 := &mMounts[0]
-		vol := md.popVolumeFor(mount0.Name)
+		vol := md.popVolumeFor(mount0.Name, origMachineRaw.Region)
 		if vol == nil {
-			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s'", processGroup, mMounts[0].Name)
+			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mMounts[0].Name, origMachineRaw.Region)
 		}
 		mount0.Volume = vol.ID
 		mID = "" // Forces machine replacement
 	}
 
+	// If this is a standby machine that now has a service, then clear
+	// the standbys list.
+	if len(mConfig.Services) > 0 && len(mConfig.Standbys) > 0 {
+		mConfig.Standbys = nil
+	}
+
 	return &api.LaunchMachineInput{
 		ID:         mID,
-		AppID:      md.app.Name,
-		OrgSlug:    md.app.Organization.ID,
 		Region:     origMachineRaw.Region,
 		Config:     mConfig,
 		SkipLaunch: len(mConfig.Standbys) > 0,

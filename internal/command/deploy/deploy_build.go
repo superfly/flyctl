@@ -13,11 +13,36 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
+
+func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error {
+	if len(appConfig.BuildStrategies()) == 0 {
+		// fly.toml doesn't know anything about building this image.
+		return nil
+	}
+
+	found := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
+	if found == "" {
+		// No Dockerfile in the directory.
+		return nil
+	}
+
+	config, _ := resolveDockerfilePath(ctx, appConfig)
+	if config == "" {
+		// No Dockerfile in fly.toml.
+		return nil
+	}
+
+	if found != config {
+		return fmt.Errorf("Ignoring %s, and using %s (from fly.toml).", found, config)
+	}
+	return nil
+}
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
@@ -28,12 +53,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	if len(appConfig.BuildStrategies()) > 0 {
-		foundDF := imgsrc.ResolveDockerfile(state.WorkingDirectory(ctx))
-		configDF, _ := resolveDockerfilePath(ctx, appConfig)
-		if foundDF != "" && foundDF != configDF {
-			terminal.Warnf("Ignoring %s due to config\n", foundDF)
-		}
+	if err := multipleDockerfile(ctx, appConfig); err != nil {
+		terminal.Warnf("%s\n", err.Error())
 	}
 
 	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
@@ -109,12 +130,20 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	// finally, build the image
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
+		metrics.SendNoData(ctx, "remote_builder_failure")
 		return nil, err
 	}
 	defer heartbeat.Stop()
 
+	metrics.Started(ctx, "remote_build_image")
+	sendDurationMetrics := metrics.StartTiming(ctx, "remote_build_image/duration")
+
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
+	}
+	metrics.Status(ctx, "remote_build_image", err == nil)
+	if err == nil {
+		sendDurationMetrics()
 	}
 
 	if err == nil {

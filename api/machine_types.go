@@ -17,6 +17,7 @@ const (
 	MachineFlyPlatformVersion2                 = "v2"
 	MachineProcessGroupApp                     = "app"
 	MachineProcessGroupFlyAppReleaseCommand    = "fly_app_release_command"
+	MachineProcessGroupFlyAppConsole           = "fly_app_console"
 	MachineStateDestroyed                      = "destroyed"
 	MachineStateDestroying                     = "destroying"
 	MachineStateStarted                        = "started"
@@ -79,6 +80,10 @@ func (m *Machine) IsFlyAppsPlatform() bool {
 
 func (m *Machine) IsFlyAppsReleaseCommand() bool {
 	return m.IsFlyAppsPlatform() && m.IsReleaseCommandMachine()
+}
+
+func (m *Machine) IsFlyAppsConsole() bool {
+	return m.IsFlyAppsPlatform() && m.HasProcessGroup(MachineProcessGroupFlyAppConsole)
 }
 
 func (m *Machine) IsActive() bool {
@@ -209,7 +214,7 @@ type StopMachineInput struct {
 
 type RestartMachineInput struct {
 	ID               string        `json:"id,omitempty"`
-	Signal           *Signal       `json:"signal,omitempty"`
+	Signal           string        `json:"signal,omitempty"`
 	Timeout          time.Duration `json:"timeout,omitempty"`
 	ForceStop        bool          `json:"force_stop,omitempty"`
 	SkipHealthChecks bool          `json:"skip_health_checks,omitempty"`
@@ -223,10 +228,8 @@ type MachineIP struct {
 }
 
 type RemoveMachineInput struct {
-	AppID string `json:"appId,omitempty"`
-	ID    string `json:"id,omitempty"`
-
-	Kill bool `json:"kill,omitempty"`
+	ID   string `json:"id,omitempty"`
+	Kill bool   `json:"kill,omitempty"`
 }
 
 type MachineRestartPolicy string
@@ -356,13 +359,14 @@ type MachineCheckStatus struct {
 }
 
 type MachinePort struct {
-	Port        *int         `json:"port,omitempty" toml:"port,omitempty"`
-	StartPort   *int         `json:"start_port,omitempty" toml:"start_port,omitempty"`
-	EndPort     *int         `json:"end_port,omitempty" toml:"end_port,omitempty"`
-	Handlers    []string     `json:"handlers,omitempty" toml:"handlers,omitempty"`
-	ForceHTTPS  bool         `json:"force_https,omitempty" toml:"force_https,omitempty"`
-	TLSOptions  *TLSOptions  `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
-	HTTPOptions *HTTPOptions `json:"http_options,omitempty" toml:"tls_options,omitempty"`
+	Port              *int               `json:"port,omitempty" toml:"port,omitempty"`
+	StartPort         *int               `json:"start_port,omitempty" toml:"start_port,omitempty"`
+	EndPort           *int               `json:"end_port,omitempty" toml:"end_port,omitempty"`
+	Handlers          []string           `json:"handlers,omitempty" toml:"handlers,omitempty"`
+	ForceHTTPS        bool               `json:"force_https,omitempty" toml:"force_https,omitempty"`
+	TLSOptions        *TLSOptions        `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	HTTPOptions       *HTTPOptions       `json:"http_options,omitempty" toml:"http_options,omitempty"`
+	ProxyProtoOptions *ProxyProtoOptions `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
 }
 
 func (mp *MachinePort) ContainsPort(port int) bool {
@@ -413,9 +417,14 @@ func (mp *MachinePort) HasNonHttpPorts() bool {
 	return false
 }
 
+type ProxyProtoOptions struct {
+	Version string `json:"version,omitempty" toml:"version,omitempty"`
+}
+
 type TLSOptions struct {
-	Alpn     []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
-	Versions []string `json:"versions,omitempty" toml:"version,omitempty"`
+	ALPN              []string `json:"alpn,omitempty" toml:"alpn,omitempty"`
+	Versions          []string `json:"versions,omitempty" toml:"versions,omitempty"`
+	DefaultSelfSigned *bool    `json:"default_self_signed,omitempty" toml:"default_self_signed,omitempty"`
 }
 
 type HTTPOptions struct {
@@ -428,13 +437,16 @@ type HTTPResponseOptions struct {
 }
 
 type MachineService struct {
-	Protocol     string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
-	InternalPort int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
-	Autostop     *bool                      `json:"autostop,omitempty"`
-	Autostart    *bool                      `json:"autostart,omitempty"`
-	Ports        []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
-	Checks       []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
-	Concurrency  *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	Protocol                 string                     `json:"protocol,omitempty" toml:"protocol,omitempty"`
+	InternalPort             int                        `json:"internal_port,omitempty" toml:"internal_port,omitempty"`
+	Autostop                 *bool                      `json:"autostop,omitempty"`
+	Autostart                *bool                      `json:"autostart,omitempty"`
+	MinMachinesRunning       *int                       `json:"min_machines_running,omitempty"`
+	Ports                    []MachinePort              `json:"ports,omitempty" toml:"ports,omitempty"`
+	Checks                   []MachineCheck             `json:"checks,omitempty" toml:"checks,omitempty"`
+	Concurrency              *MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	ForceInstanceKey         *string                    `json:"force_instance_key" toml:"force_instance_key"`
+	ForceInstanceDescription *string                    `json:"force_instance_description,omitempty" toml:"force_instance_description"`
 }
 
 type MachineServiceConcurrency struct {
@@ -541,16 +553,15 @@ type MachineStartResponse struct {
 }
 
 type LaunchMachineInput struct {
-	AppID      string         `json:"appId,omitempty"`
-	ID         string         `json:"id,omitempty"`
-	Name       string         `json:"name,omitempty"`
-	OrgSlug    string         `json:"organizationId,omitempty"`
-	Region     string         `json:"region,omitempty"`
 	Config     *MachineConfig `json:"config,omitempty"`
+	Region     string         `json:"region,omitempty"`
+	Name       string         `json:"name,omitempty"`
 	SkipLaunch bool           `json:"skip_launch,omitempty"`
 	LeaseTTL   int            `json:"lease_ttl,omitempty"`
+
 	// Client side only
-	SkipHealthChecks bool
+	ID               string `json:"-"`
+	SkipHealthChecks bool   `json:"-"`
 }
 
 type MachineProcess struct {
@@ -570,4 +581,22 @@ type MachineExecResponse struct {
 	ExitCode int32  `json:"exit_code,omitempty"`
 	StdOut   string `json:"stdout,omitempty"`
 	StdErr   string `json:"stderr,omitempty"`
+}
+
+type MachinePsResponse []ProcessStat
+
+type ProcessStat struct {
+	Pid           int32          `json:"pid"`
+	Stime         uint64         `json:"stime"`
+	Rtime         uint64         `json:"rtime"`
+	Command       string         `json:"command"`
+	Directory     string         `json:"directory"`
+	Cpu           uint64         `json:"cpu"`
+	Rss           uint64         `json:"rss"`
+	ListenSockets []ListenSocket `json:"listen_sockets"`
+}
+
+type ListenSocket struct {
+	Proto   string `json:"proto"`
+	Address string `json:"address"`
 }

@@ -9,11 +9,11 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
-func (md *machineDeployment) provisionFirstDeploy(ctx context.Context) error {
+func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPublicIPs bool) error {
 	if !md.isFirstDeploy || md.restartOnly {
 		return nil
 	}
-	if err := md.provisionIpsOnFirstDeploy(ctx); err != nil {
+	if err := md.provisionIpsOnFirstDeploy(ctx, allocPublicIPs); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
@@ -22,9 +22,9 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context) error {
+func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allocPublicIPs bool) error {
 	// Provision only if the app hasn't been deployed and have services defined
-	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 {
+	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 || !allocPublicIPs {
 		return nil
 	}
 

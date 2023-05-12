@@ -25,7 +25,6 @@ import (
 // - Internal port is set in first call and not replaced unless --internal-port is passed again
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 // - As we are reusing an existing app, the --org param is not needed after the first call
-//
 func TestFlyLaunch_case01(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -36,14 +35,11 @@ func TestFlyLaunch_case01(t *testing.T) {
 		"app":            appName,
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
-		"http_service":   map[string]any{"force_https": true, "internal_port": int64(8080)},
-		"checks": map[string]any{
-			"alive": map[string]any{
-				"type":         "tcp",
-				"interval":     "15s",
-				"timeout":      "2s",
-				"grace_period": "5s",
-			},
+		"http_service": map[string]any{
+			"force_https":         true,
+			"internal_port":       int64(8080),
+			"auto_stop_machines":  true,
+			"auto_start_machines": true,
 		},
 	}
 	require.EqualValues(f, want, toml)
@@ -262,7 +258,10 @@ func TestFlyLaunch_case08(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"launch --ha=false --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
 
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))

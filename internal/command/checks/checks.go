@@ -14,9 +14,11 @@ func New() *cobra.Command {
 
 	// fly checks list
 	listCmd := command.New("list", "List health checks", "", runAppCheckList, command.RequireSession, command.RequireAppName)
+	listCmd.Aliases = []string{"ls"}
 	flag.Add(listCmd, commonFlags,
 		flag.String{Name: "check-name", Description: "Filter checks by name"},
 	)
+	flag.Add(listCmd, flag.JSONOutput())
 	cmd.AddCommand(listCmd)
 	return cmd
 }

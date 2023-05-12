@@ -59,3 +59,35 @@ func FromToken(token string) *Client {
 func NewClient(token string) *api.Client {
 	return api.NewClient(token, buildinfo.Name(), buildinfo.Version().String(), logger.FromEnv(iostreams.System().ErrOut))
 }
+
+type NewClientOpts struct {
+	Token         string
+	ClientName    string
+	ClientVersion string
+	Logger        api.Logger
+}
+
+// non-flyctl libraries use this when needing to specify logger, client name, and client version
+func NewClientWithOptions(opts *NewClientOpts) *Client {
+	var log api.Logger
+	if opts.Logger != nil {
+		log = opts.Logger
+	} else {
+		log = logger.FromEnv(iostreams.System().ErrOut)
+	}
+	clientName := buildinfo.Name()
+	if opts.ClientName != "" {
+		clientName = opts.ClientName
+	}
+	clientVersion := buildinfo.Version().String()
+	if opts.ClientVersion != "" {
+		clientVersion = opts.ClientVersion
+	}
+	var apiClient *api.Client
+	if opts.Token != "" {
+		apiClient = api.NewClient(opts.Token, clientName, clientVersion, log)
+	}
+	return &Client{
+		api: apiClient,
+	}
+}

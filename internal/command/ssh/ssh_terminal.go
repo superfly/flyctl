@@ -6,47 +6,17 @@ package ssh
 import (
 	"bytes"
 	"context"
-	"crypto/ed25519"
 	"fmt"
 	"io"
 	"net"
-	"os"
-	"time"
 
-	"github.com/briandowns/spinner"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
 )
-
-func spin(in, out string) context.CancelFunc {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	if !helpers.IsTerminal() {
-		fmt.Fprintln(os.Stderr, in)
-		return cancel
-	}
-
-	go func() {
-		s := spinner.New(spinner.CharSets[11], 100*time.Millisecond)
-		s.Writer = os.Stderr
-		s.Prefix = in
-		s.FinalMSG = out
-		s.Start()
-		defer s.Stop()
-
-		<-ctx.Done()
-	}()
-
-	return cancel
-}
-
-const DefaultSshUsername = "root"
 
 type SSHParams struct {
 	Ctx            context.Context
@@ -145,21 +115,4 @@ func SSHConnect(p *SSHParams, addr string) error {
 	}
 
 	return nil
-}
-
-func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
-	client := client.FromContext(ctx).API()
-	hours := 1
-
-	pub, priv, err := ed25519.GenerateKey(nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, nil, &hours, pub)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return icert, priv, nil
 }

@@ -25,8 +25,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 
 	// Launch a new machine
 	want := &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
-		Region:  "scl",
+		Region: "scl",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
 				"PRIMARY_REGION":    "scl",
@@ -213,4 +212,28 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	assert.Equal(t, &api.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, li.Config.DNS)
 	assert.Equal(t, []api.MachineProcess{{CmdOverride: []string{"foo"}}}, li.Config.Processes)
+}
+
+// Check that standby machines with services have their standbys list
+// cleared.
+func Test_launchInputForUpdate_clearStandbysWithServices(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-cool-app",
+		PrimaryRegion: "scl",
+		HTTPService: &appconfig.HTTPService{
+			InternalPort: 8080,
+		},
+	})
+	require.NoError(t, err)
+
+	li, err := md.launchInputForUpdate(&api.Machine{
+		ID:     "ab1234567890",
+		Region: "scl",
+		Config: &api.MachineConfig{
+			Standbys: []string{"xy0987654321"},
+		},
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 0, len(li.Config.Standbys))
 }

@@ -26,12 +26,14 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 )
 
@@ -52,7 +54,6 @@ func newMigrateToV2() *cobra.Command {
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
 		flag.Yes(),
-		flag.App(),
 		flag.AppConfig(),
 		flag.String{
 			Name:        "primary-region",
@@ -62,10 +63,8 @@ func newMigrateToV2() *cobra.Command {
 	return cmd
 }
 
-func runMigrateToV2(ctx context.Context) error {
+func runMigrateToV2(ctx context.Context) (err error) {
 	var (
-		err error
-
 		appName   = appconfig.NameFromContext(ctx)
 		apiClient = client.FromContext(ctx).API()
 	)
@@ -80,6 +79,16 @@ func runMigrateToV2(ctx context.Context) error {
 		return err
 	}
 
+	// This is written awkwardly so that NewV2PlatformMigrator failures are tracked,
+	// but declined migrations are not.
+	sendMetric := true
+	defer func() {
+		if sendMetric {
+			metrics.Started(ctx, "migrate_to_v2")
+			metrics.Status(ctx, "migrate_to_v2", err == nil)
+		}
+	}()
+
 	migrator, err := NewV2PlatformMigrator(ctx, appName)
 	if err != nil {
 		return err
@@ -90,6 +99,7 @@ func runMigrateToV2(ctx context.Context) error {
 			return err
 		}
 		if !confirm {
+			sendMetric = false
 			return nil
 		}
 	}
@@ -145,11 +155,10 @@ type v2PlatformMigrator struct {
 }
 
 type recoveryState struct {
-	machinesCreated        []*api.Machine
-	appLocked              bool
-	scaledToZero           bool
-	platformVersion        string
-	onlyPromptToConfigSave bool
+	machinesCreated []*api.Machine
+	appLocked       bool
+	scaledToZero    bool
+	platformVersion string
 }
 
 func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigrator, error) {
@@ -277,9 +286,8 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		for _, mach := range m.recovery.machinesCreated {
 
 			input := api.RemoveMachineInput{
-				AppID: m.appFull.Name,
-				ID:    mach.ID,
-				Kill:  true,
+				ID:   mach.ID,
+				Kill: true,
 			}
 			err := m.flapsClient.Destroy(ctx, input, mach.LeaseNonce)
 			if err != nil {
@@ -343,12 +351,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	abortedErr := errors.New("migration aborted by user")
 	defer func() {
 		if err != nil {
-
-			if m.recovery.onlyPromptToConfigSave && !m.isPostgres {
-				fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
-				fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
-				return
-			}
 
 			header := ""
 			if err == abortedErr {
@@ -551,16 +553,19 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	tb.Detail("Saving new configuration")
 
+	var configSaveErr error
+
 	if !m.isPostgres {
-		m.recovery.onlyPromptToConfigSave = true
-		err = m.appConfig.WriteToDisk(ctx, m.configPath)
-		if err != nil {
-			return err
-		}
+		configSaveErr = m.appConfig.WriteToDisk(ctx, m.configPath)
 	}
 
 	tb.Done("Done")
 	m.printReplacedVolumes()
+
+	if configSaveErr != nil {
+		fmt.Fprintf(m.io.ErrOut, "Failed to save application config to disk, but migration was successful.\n")
+		fmt.Fprintf(m.io.ErrOut, "Please run `fly config save` before further interacting with your app via flyctl.\n")
+	}
 
 	return nil
 }
@@ -714,6 +719,16 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 		return nil
 	}
 
+	existingRegions := map[string]struct{}{}
+	for _, alloc := range m.oldAllocs {
+		existingRegions[alloc.Region] = struct{}{}
+	}
+
+	if len(existingRegions) == 1 {
+		m.appConfig.PrimaryRegion = maps.Keys(existingRegions)[0]
+		return nil
+	}
+
 	// TODO: If this ends up used by postgres migrations, it might be nice to have
 	//       the prompt here reflect the special role `primary_region` plays for postgres apps
 
@@ -816,6 +831,12 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
 	appNameFromContext := appconfig.NameFromContext(ctx)
+
+	// We're pulling the remote config because we don't want to inadvertently trigger a new deployment -
+	// people will expect this to migrate what's _currently_ live.
+	// That said, we need to reference the local config to get the build config, because it's
+	// sanitized out before being sent to the API.
+	localAppConfig := appconfig.ConfigFromContext(ctx)
 	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err
@@ -823,11 +844,26 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 	if appNameFromContext != "" {
 		cfg.AppName = appNameFromContext
 	}
+	if localAppConfig != nil {
+		cfg.Build = localAppConfig.Build
+	}
 	return cfg, nil
 }
 
 func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
-	preset := strings.Replace(vmSize.Name, "dedicated-cpu", "performance", 1)
+	preset := vmSize.Name
+	preset = strings.Replace(preset, "micro", "shared-cpu", 1)
+	preset = strings.Replace(preset, "dedicated-cpu", "performance", 1)
+	switch preset {
+	case "cpu1mem1":
+		preset = "performance-1x"
+	case "cpu2mem2":
+		preset = "performance-2x"
+	case "cpu4mem4":
+		preset = "performance-4x"
+	case "cpu8mem8":
+		preset = "performance-8x"
+	}
 
 	guest := &api.MachineGuest{}
 	err := guest.SetSize(preset)

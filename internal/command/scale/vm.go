@@ -23,8 +23,6 @@ For a full list of supported sizes use the command 'flyctl platform vm-sizes'
 Memory size can be set with --memory=number-of-MB
 e.g. flyctl scale vm shared-cpu-1x --memory=2048
 
-For dedicated vms, this should be a multiple of 1024MB.
-For shared vms, this can be 256MB or a a multiple of 1024MB.
 For pricing, see https://fly.io/docs/about/pricing/`
 	)
 	cmd := command.New("vm [size]", short, long, runScaleVM,

@@ -37,7 +37,6 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
 				"PRIMARY_REGION":    "scl",
@@ -100,7 +99,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
 				"PRIMARY_REGION":    "scl",
@@ -142,7 +140,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Init: api.MachineInit{
 				Cmd: []string{"touch", "sky"},
@@ -187,7 +184,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		},
 	}
 	assert.Equal(t, &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Env: map[string]string{
 				"PRIMARY_REGION":    "scl",
@@ -234,7 +230,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Image: "super/balloon",
 			Metadata: map[string]string{
@@ -267,7 +262,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	li, err = md.launchInputForUpdate(origMachine)
 	require.NoError(t, err)
 	assert.Equal(t, &api.LaunchMachineInput{
-		OrgSlug: "my-dangling-org",
 		Config: &api.MachineConfig{
 			Image: "super/balloon",
 			Metadata: map[string]string{
@@ -309,8 +303,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	}
 
 	assert.Equal(t, &api.LaunchMachineInput{
-		ID:      "OrigID",
-		OrgSlug: "my-dangling-org",
+		ID: "OrigID",
 		Config: &api.MachineConfig{
 			Image: "instead-use/the-redmoon",
 			Metadata: map[string]string{
@@ -353,8 +346,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	}
 
 	assert.Equal(t, &api.LaunchMachineInput{
-		ID:      "OrigID",
-		OrgSlug: "my-dangling-org",
+		ID: "OrigID",
 		Config: &api.MachineConfig{
 			Image: "instead-use/the-redmoon",
 			Metadata: map[string]string{

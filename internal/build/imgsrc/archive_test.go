@@ -159,17 +159,39 @@ func TestArchiverNoCompressionWithAdditions(t *testing.T) {
 }
 
 func TestParseDockerignore(t *testing.T) {
-	cases := map[string][]string{
-		"node_modules\n*.jpg":                {"node_modules", "*.jpg"},
-		"node_modules\n*.jpg\nDockerfile":    {"node_modules", "*.jpg", "Dockerfile", "![Dd]ockerfile"},
-		"node_modules\n*.jpg\ndockerfile":    {"node_modules", "*.jpg", "dockerfile", "![Dd]ockerfile"},
-		"node_modules\n*.jpg\n.dockerignore": {"node_modules", "*.jpg", ".dockerignore", "!.dockerignore"},
+	type testCase struct {
+		input      string
+		dockerfile string
+		expected   []string
+	}
+	cases := []testCase{
+		{
+			input:    "node_modules\n*.jpg",
+			expected: []string{"node_modules", "*.jpg"},
+		},
+		{
+			input:    "node_modules\n*.jpg\nDockerfile",
+			expected: []string{"node_modules", "*.jpg", "Dockerfile", "![Dd]ockerfile"},
+		},
+		{
+			input:    "node_modules\n*.jpg\ndockerfile",
+			expected: []string{"node_modules", "*.jpg", "dockerfile", "![Dd]ockerfile"},
+		},
+		{
+			input:    "node_modules\n*.jpg\n.dockerignore",
+			expected: []string{"node_modules", "*.jpg", ".dockerignore", "!.dockerignore"},
+		},
+		{
+			input:      "node_modules\n*.jpg\nDockerfile\nbuild/Dockerfile",
+			dockerfile: "build/Dockerfile",
+			expected:   []string{"node_modules", "*.jpg", "Dockerfile", "build/Dockerfile", "!build/Dockerfile"},
+		},
 	}
 
-	for input, expected := range cases {
-		excludes, err := parseDockerignore(strings.NewReader(input))
+	for _, c := range cases {
+		excludes, err := parseDockerignore(strings.NewReader(c.input), c.dockerfile)
 		assert.NoError(t, err)
-		assert.Equal(t, expected, excludes, input)
+		assert.Equal(t, c.expected, excludes, c.input)
 	}
 }
 

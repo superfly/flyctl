@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -64,8 +65,9 @@ var CommonFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "force-nomad",
-		Description: "Use the Apps v1 platform built with Nomad",
+		Description: "(Deprecated) Use the Apps v1 platform built with Nomad",
 		Default:     false,
+		Hidden:      true,
 	},
 	flag.Bool{
 		Name:        "force-machines",
@@ -75,6 +77,20 @@ var CommonFlags = flag.Set{
 	flag.String{
 		Name:        "vm-size",
 		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+	},
+	flag.Bool{
+		Name:        "ha",
+		Description: "Create spare machines that increases app availability",
+		Default:     true,
+	},
+	flag.Bool{
+		Name:        "smoke-checks",
+		Description: "Perform smoke checks during deployment",
+		Default:     true,
+	},
+	flag.Bool{
+		Name:        "no-public-ips",
+		Description: "Do not allocate any new public IP addresses",
 	},
 }
 
@@ -134,6 +150,7 @@ type DeployWithConfigArgs struct {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args DeployWithConfigArgs) (err error) {
+	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
@@ -151,6 +168,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		return nil
 	}
 
+	fmt.Fprintf(io.Out, "\nWatch your app at https://fly.io/apps/%s/monitoring\n\n", appName)
 	switch isV2App, err := useMachines(ctx, appConfig, appCompact, args, apiClient); {
 	case err != nil:
 		return err
@@ -163,34 +181,45 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 			return err
 		}
 	default:
+		if flag.GetBool(ctx, "no-public-ips") {
+			return fmt.Errorf("The --no-public-ips flag can only be used for v2 apps")
+		}
+
 		err = deployToNomad(ctx, appConfig, appCompact, img)
 		if err != nil {
 			return err
 		}
 	}
 
-	url, err := appConfig.URL()
-	if err == nil && url != nil {
-		fmt.Println("Visit your newly deployed app at", url)
+	if appURL := appConfig.URL(); appURL != nil {
+		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
 	}
 
 	return err
 }
 
-func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
+func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
+	metrics.Started(ctx, "deploy_machines")
+	defer func() {
+		metrics.Status(ctx, "deploy_machines", err == nil)
+	}()
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:        appCompact,
-		DeploymentImage:   img.Tag,
-		Strategy:          flag.GetString(ctx, "strategy"),
-		EnvFromFlags:      flag.GetStringSlice(ctx, "env"),
-		PrimaryRegionFlag: appConfig.PrimaryRegion,
-		SkipHealthChecks:  flag.GetDetach(ctx),
-		WaitTimeout:       time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:      time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		VMSize:            flag.GetString(ctx, "vm-size"),
+		AppCompact:            appCompact,
+		DeploymentImage:       img.Tag,
+		Strategy:              flag.GetString(ctx, "strategy"),
+		EnvFromFlags:          flag.GetStringSlice(ctx, "env"),
+		PrimaryRegionFlag:     appConfig.PrimaryRegion,
+		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:      flag.GetDetach(ctx),
+		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		VMSize:                flag.GetString(ctx, "vm-size"),
+		IncreasedAvailability: flag.GetBool(ctx, "ha"),
+		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
@@ -204,8 +233,14 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 	return err
 }
 
-func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) error {
+func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
 	apiClient := client.FromContext(ctx).API()
+
+	metrics.Started(ctx, "deploy_nomad")
+	defer func() {
+		metrics.Status(ctx, "deploy_nomad", err == nil)
+	}()
+
 	// Assign an empty map if nil so later assignments won't fail
 	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
 		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
@@ -214,6 +249,12 @@ func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact 
 	release, releaseCommand, err := createRelease(ctx, appConfig, img)
 	if err != nil {
 		return err
+	}
+
+	// Give a warning about nomad deprecation every 5 releases
+	if release.Version%5 == 0 {
+		io := iostreams.FromContext(ctx)
+		fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with `fly migrate-to-v2`", aurora.Yellow("WARN"))
 	}
 
 	if flag.GetDetach(ctx) {

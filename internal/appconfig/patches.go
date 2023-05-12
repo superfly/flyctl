@@ -17,6 +17,7 @@ var configPatches = []patchFuncType{
 	patchExperimental,
 	patchTopLevelChecks,
 	patchMounts,
+	patchTopFields,
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
@@ -46,6 +47,13 @@ func patchRoot(cfgMap map[string]any) (map[string]any, error) {
 		}
 	}
 	return cfgMap, nil
+}
+
+func patchTopFields(cfg map[string]any) (map[string]any, error) {
+	if raw, ok := cfg["kill_timeout"]; ok {
+		cfg["kill_timeout"] = _castDuration(raw, time.Second)
+	}
+	return cfg, nil
 }
 
 func patchEnv(cfg map[string]any) (map[string]any, error) {
@@ -125,8 +133,10 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 
 	cast, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("Experimental section of unknown type: %T", cast)
+		return nil, fmt.Errorf("Experimental section of unknown type: %T", raw)
 	}
+
+	metrics := map[string]any{}
 
 	for k, v := range cast {
 		switch k {
@@ -136,6 +146,12 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 			} else {
 				cast[k] = n
 			}
+		case "kill_timeout":
+			if _, ok := cfg["kill_timeout"]; !ok {
+				cfg["kill_timeout"] = _castDuration(v, time.Second)
+			}
+		case "metrics_port", "metrics_path":
+			metrics[strings.TrimPrefix(k, "metrics_")] = v
 		}
 	}
 
@@ -143,6 +159,10 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 		delete(cfg, "experimental")
 	} else {
 		cfg["experimental"] = cast
+	}
+
+	if _, ok := cfg["metrics"]; !ok && len(metrics) > 0 {
+		cfg["metrics"] = metrics
 	}
 
 	return cfg, nil
@@ -353,13 +373,7 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 func _patchCheck(check map[string]any) (map[string]any, error) {
 	for _, attr := range []string{"interval", "timeout"} {
 		if v, ok := check[attr]; ok {
-			switch cast := v.(type) {
-			case string:
-				// Nothing to do here
-			case int64:
-				// Convert milliseconds to microseconds as expected by api.ParseDuration
-				check[attr] = time.Duration(cast) * time.Millisecond
-			}
+			check[attr] = _castDuration(v, time.Millisecond)
 		}
 	}
 	if v, ok := check["headers"]; ok {
@@ -371,6 +385,33 @@ func _patchCheck(check map[string]any) (map[string]any, error) {
 		}
 	}
 	return check, nil
+}
+
+func _castDuration(v any, shift time.Duration) (ret *string) {
+	switch cast := v.(type) {
+	case *string:
+		return cast
+	case string:
+		if cast == "" {
+			return nil
+		}
+		return &cast
+	case float64:
+		d := time.Duration(cast)
+		if shift > 0 {
+			d = d * shift
+		}
+		str := d.String()
+		return &str
+	case int64:
+		d := time.Duration(cast)
+		if shift > 0 {
+			d = d * shift
+		}
+		str := d.String()
+		return &str
+	}
+	return nil
 }
 
 func castToInt(num any) (int, error) {

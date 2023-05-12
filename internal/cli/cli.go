@@ -10,6 +10,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
@@ -34,8 +35,13 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cs := io.ColorScheme()
 
-	switch _, err := cmd.ExecuteContextC(ctx); {
+	defer metrics.FlushPending()
+
+	cmd, err := cmd.ExecuteContextC(ctx)
+
+	switch {
 	case err == nil:
+		metrics.RecordCommandFinish(cmd)
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127

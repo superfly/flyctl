@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/build/imgsrc/builtins"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/net/context"
@@ -64,7 +65,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		compressed: dockerFactory.IsRemote(),
 	}
 
-	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath)
+	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, "")
 	if err != nil {
 		build.BuildFinish()
 		return nil, "", errors.Wrap(err, "error reading .dockerignore")
@@ -108,6 +109,9 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 
 	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
 	if err != nil {
+		if dockerFactory.IsRemote() {
+			metrics.SendNoData(ctx, "remote_builder_failure")
+		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
 		return nil, "", errors.Wrap(err, "error building")

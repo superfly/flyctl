@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	dockerclient "github.com/docker/docker/client"
+	"github.com/docker/go-connections/sockets"
 	"github.com/jpillora/backoff"
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
@@ -21,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -170,12 +173,17 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (*dockerclient.Client, error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (c *dockerclient.Client, err error) {
 	startedAt := time.Now()
+
+	defer func() {
+		if err != nil {
+			metrics.SendNoData(ctx, "remote_builder_failure")
+		}
+	}()
 
 	var host string
 	var app *api.App
-	var err error
 	var machine *api.GqlMachine
 	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
@@ -293,6 +301,19 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 
 		return
 	}
+
+	url, err := dockerclient.ParseHostURL(host)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse remote builder host: %w", err)
+	}
+	transport := new(http.Transport)
+	sockets.ConfigureTransport(transport, url.Scheme, url.Host)
+	// Do not try to run tunneled connections through proxy
+	transport.Proxy = nil
+	opts = append(opts, dockerclient.WithHTTPClient(&http.Client{
+		Transport:     transport,
+		CheckRedirect: dockerclient.CheckRedirect,
+	}))
 
 	var app *api.AppBasic
 	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {

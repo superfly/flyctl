@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -90,7 +91,14 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	defer docker.Close() // skipcq: GO-S2307
 
 	build.BuilderInitFinish()
-	defer clearDeploymentTags(ctx, docker, opts.Tag)
+	defer func() {
+		// Don't untag images for remote builder, as people sometimes
+		// run concurrent builds from CI that end up racing with each other
+		// and one of them failing with 404 while calling docker.ImageInspectWithRaw
+		if dockerFactory.IsLocal() {
+			clearDeploymentTags(ctx, docker, opts.Tag)
+		}
+	}()
 
 	build.ContextBuildStart()
 	tb := render.NewTextBlock(ctx, "Creating build context")
@@ -99,14 +107,6 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		sourcePath: opts.WorkingDir,
 		compressed: dockerFactory.IsRemote(),
 	}
-
-	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath)
-	if err != nil {
-		build.BuildFinish()
-		build.ContextBuildFinish()
-		return nil, "", errors.Wrap(err, "error reading .dockerignore")
-	}
-	archiveOpts.exclusions = excludes
 
 	var relativedockerfilePath string
 
@@ -133,6 +133,14 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// run in a Linux VM at the end.
 		relativedockerfilePath = filepath.ToSlash(p)
 	}
+
+	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, relativedockerfilePath)
+	if err != nil {
+		build.BuildFinish()
+		build.ContextBuildFinish()
+		return nil, "", errors.Wrap(err, "error reading .dockerignore")
+	}
+	archiveOpts.exclusions = excludes
 
 	// Start tracking this build
 
@@ -164,6 +172,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return docker.Info(infoCtx)
 	}()
 	if err != nil {
+		if dockerFactory.IsRemote() {
+			metrics.SendNoData(ctx, "remote_builder_failure")
+		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
 		return nil, "", errors.Wrap(err, "error fetching docker server info")
@@ -183,6 +194,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	buildkitEnabled, err := buildkitEnabled(docker)
 	terminal.Debugf("buildkitEnabled", buildkitEnabled)
 	if err != nil {
+		if dockerFactory.IsRemote() {
+			metrics.SendNoData(ctx, "remote_builder_failure")
+		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
 		return nil, "", errors.Wrap(err, "error checking for buildkit support")
@@ -191,6 +205,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if buildkitEnabled {
 		imageID, err = runBuildKitBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
+			if dockerFactory.IsRemote() {
+				metrics.SendNoData(ctx, "remote_builder_failure")
+			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
 			return nil, "", errors.Wrap(err, "error building")
@@ -198,6 +215,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	} else {
 		imageID, err = runClassicBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
 		if err != nil {
+			if dockerFactory.IsRemote() {
+				metrics.SendNoData(ctx, "remote_builder_failure")
+			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
 			return nil, "", errors.Wrap(err, "error building")
@@ -414,13 +434,20 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 }
 
 func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
+
+	metrics.Started(ctx, "image_push")
+	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
+
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
 		RegistryAuth: flyRegistryAuth(),
 	})
+	metrics.Status(ctx, "image_push", err == nil)
+
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")
 	}
 	defer pushResp.Close() // skipcq: GO-S2307
+	sendImgPushMetrics()
 
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
 	if err != nil {

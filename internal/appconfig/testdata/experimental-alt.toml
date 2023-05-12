@@ -4,3 +4,6 @@ app = "foo"
 cmd = "cmd"
 exec = "exec"
 entrypoint = "entrypoint"
+kill_timeout = 3
+metrics_port = 9000
+metrics_path = "/foo"

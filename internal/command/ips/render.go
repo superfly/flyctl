@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/cmd/presenters"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -25,7 +25,7 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 		if ipAddr.Type == "shared_v4" {
 			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, ""})
 		} else {
-			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, presenters.FormatRelativeTime(ipAddr.CreatedAt)})
+			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, format.RelativeTime(ipAddr.CreatedAt)})
 		}
 	}
 

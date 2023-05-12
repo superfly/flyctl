@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -50,26 +49,12 @@ func newList() *cobra.Command {
 func runMachineList(ctx context.Context) (err error) {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
 		io      = iostreams.FromContext(ctx)
 		silence = flag.GetBool(ctx, "quiet")
 		cfg     = config.FromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		help := newList().Help()
-
-		if help != nil {
-			fmt.Println(help)
-
-		}
-
-		fmt.Println()
-
-		return err
-	}
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -112,6 +97,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 			appPlatform := ""
 			machineProcessGroup := ""
+			size := ""
 
 			if machine.Config != nil {
 				if platformVersion, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
@@ -124,6 +110,9 @@ func runMachineList(ctx context.Context) (err error) {
 
 				}
 
+				if machine.Config.Guest != nil {
+					size = fmt.Sprintf("%s:%dMB", machine.Config.Guest.ToSize(), machine.Config.Guest.MemoryMB)
+				}
 			}
 
 			rows = append(rows, []string{
@@ -138,11 +127,12 @@ func runMachineList(ctx context.Context) (err error) {
 				machine.UpdatedAt,
 				appPlatform,
 				machineProcessGroup,
+				size,
 			})
 
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group")
+		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
 	}
 	return nil
 }

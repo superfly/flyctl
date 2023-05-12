@@ -152,7 +152,7 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		var planOptions []string
 
 		for _, plan := range result.AddOnPlans.Nodes {
-			planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size", plan.DisplayName, plan.MaxDataSize))
+			planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size, ($%d / month)", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth))
 		}
 
 		err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan", "", planOptions...)

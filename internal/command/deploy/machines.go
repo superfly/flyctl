@@ -31,16 +31,19 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact        *api.AppCompact
-	DeploymentImage   string
-	Strategy          string
-	EnvFromFlags      []string
-	PrimaryRegionFlag string
-	SkipHealthChecks  bool
-	RestartOnly       bool
-	WaitTimeout       time.Duration
-	LeaseTimeout      time.Duration
-	VMSize            string
+	AppCompact            *api.AppCompact
+	DeploymentImage       string
+	Strategy              string
+	EnvFromFlags          []string
+	PrimaryRegionFlag     string
+	SkipSmokeChecks       bool
+	SkipHealthChecks      bool
+	RestartOnly           bool
+	WaitTimeout           time.Duration
+	LeaseTimeout          time.Duration
+	VMSize                string
+	IncreasedAvailability bool
+	AllocPublicIP         bool
 }
 
 type machineDeployment struct {
@@ -58,6 +61,7 @@ type machineDeployment struct {
 	strategy              string
 	releaseId             string
 	releaseVersion        int
+	skipSmokeChecks       bool
 	skipHealthChecks      bool
 	restartOnly           bool
 	waitTimeout           time.Duration
@@ -65,6 +69,8 @@ type machineDeployment struct {
 	leaseDelayBetween     time.Duration
 	isFirstDeploy         bool
 	machineGuest          *api.MachineGuest
+	increasedAvailability bool
+	listenAddressChecked  map[string]struct{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -110,19 +116,22 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	md := &machineDeployment{
-		apiClient:         apiClient,
-		gqlClient:         apiClient.GenqClient,
-		flapsClient:       flapsClient,
-		io:                io,
-		colorize:          io.ColorScheme(),
-		app:               args.AppCompact,
-		appConfig:         appConfig,
-		img:               args.DeploymentImage,
-		skipHealthChecks:  args.SkipHealthChecks,
-		restartOnly:       args.RestartOnly,
-		waitTimeout:       waitTimeout,
-		leaseTimeout:      leaseTimeout,
-		leaseDelayBetween: leaseDelayBetween,
+		apiClient:             apiClient,
+		gqlClient:             apiClient.GenqClient,
+		flapsClient:           flapsClient,
+		io:                    io,
+		colorize:              io.ColorScheme(),
+		app:                   args.AppCompact,
+		appConfig:             appConfig,
+		img:                   args.DeploymentImage,
+		skipSmokeChecks:       args.SkipSmokeChecks,
+		skipHealthChecks:      args.SkipHealthChecks,
+		restartOnly:           args.RestartOnly,
+		waitTimeout:           waitTimeout,
+		leaseTimeout:          leaseTimeout,
+		leaseDelayBetween:     leaseDelayBetween,
+		increasedAvailability: args.IncreasedAvailability,
+		listenAddressChecked:  make(map[string]struct{}),
 	}
 	if err := md.setStrategy(args.Strategy); err != nil {
 		return nil, err
@@ -144,7 +153,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	// Provisioning must come after setVolumes
-	if err := md.provisionFirstDeploy(ctx); err != nil {
+	if err := md.provisionFirstDeploy(ctx, args.AllocPublicIP); err != nil {
 		return nil, err
 	}
 
@@ -230,14 +239,15 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) popVolumeFor(name string) *api.Volume {
-	volumes, ok := md.volumes[name]
-	if !ok {
-		return nil
+func (md *machineDeployment) popVolumeFor(name, region string) *api.Volume {
+	volumes := md.volumes[name]
+	for idx, v := range volumes {
+		if region == "" || region == v.Region {
+			md.volumes[name] = append(volumes[:idx], volumes[idx+1:]...)
+			return &v
+		}
 	}
-	var vol api.Volume
-	vol, md.volumes[name] = volumes[0], volumes[1:]
-	return &vol
+	return nil
 }
 
 func (md *machineDeployment) validateVolumeConfig() error {
@@ -264,6 +274,8 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				mntDst = groupConfig.Mounts[0].Destination
 			}
 
+			needsVol := map[string][]string{}
+
 			for _, m := range ms {
 				if mntDst == "" && len(m.Config.Mounts) != 0 {
 					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
@@ -276,13 +288,9 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				}
 
 				if mntDst != "" && len(m.Config.Mounts) == 0 {
-					// TODO: Attaching a volume to an existing machine is not possible, but it could replace the machine
+					// Attaching a volume to an existing machine is not possible, but we replace the machine
 					// by another running on the same zone than the volume.
-					return fmt.Errorf(
-						"machine %s [%s] does not have a volume configured and fly.toml expects one with destination %s; "+
-							"remove the [mounts] configuration in fly.toml or use the machines API to add a volume to this machine",
-						m.ID, groupName, mntDst,
-					)
+					needsVol[mntSrc] = append(needsVol[mntSrc], m.Region)
 				}
 
 				if mms := m.Config.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
@@ -291,6 +299,28 @@ func (md *machineDeployment) validateVolumeConfig() error {
 					return fmt.Errorf(
 						"machine %s [%s] can't update the attached volume %s with name '%s' by '%s'",
 						m.ID, groupName, mntSrc, mms[0].Volume, mms[0].Name,
+					)
+				}
+			}
+
+			// Compute the volume differences per region
+			for volSrc, regions := range needsVol {
+				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v api.Volume) string { return v.Region })
+				needsPerRegion := lo.CountValues(regions)
+
+				var missing []string
+				for rn, rc := range needsPerRegion {
+					diff := rc - currentPerRegion[rn]
+					if diff > 0 {
+						missing = append(missing, fmt.Sprintf("%s=%d", rn, diff))
+					}
+				}
+				if len(missing) > 0 {
+					// TODO: May change this by a prompt to create new volumes right away (?)
+					return fmt.Errorf(
+						"Process group '%s' needs volumes with name '%s' to fullfill mounts defined in fly.toml; "+
+							"Run `fly volume create %s -r REGION` for the following regions and counts: %s",
+						groupName, volSrc, volSrc, strings.Join(missing, " "),
 					)
 				}
 			}
@@ -364,10 +394,14 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 	} else {
 		md.strategy = "rolling"
 	}
-	if md.strategy != "rolling" && md.strategy != "immediate" {
+	if !MachineSupportedStrategy(md.strategy) {
 		return fmt.Errorf("error unsupported deployment strategy '%s'; fly deploy for machines supports rolling and immediate strategies", md.strategy)
 	}
 	return nil
+}
+
+func MachineSupportedStrategy(strategy string) bool {
+	return strategy == "rolling" || strategy == "immediate" || strategy == ""
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {

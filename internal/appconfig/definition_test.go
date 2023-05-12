@@ -72,7 +72,7 @@ func TestFromDefinition(t *testing.T) {
 
 	assert.Equal(t, &Config{
 		KillSignal:  api.Pointer("SIGINT"),
-		KillTimeout: api.Pointer(5),
+		KillTimeout: api.MustParseDuration("5s"),
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},
@@ -163,10 +163,11 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &api.Definition{
-		"app":            "foo",
-		"primary_region": "sea",
-		"kill_signal":    "SIGTERM",
-		"kill_timeout":   int64(3),
+		"app":             "foo",
+		"primary_region":  "sea",
+		"kill_signal":     "SIGTERM",
+		"kill_timeout":    "3s",
+		"console_command": "/bin/bash",
 
 		"build": map[string]any{
 			"builder":      "dockerfile",
@@ -193,6 +194,24 @@ func TestToDefinition(t *testing.T) {
 				"type":       "donuts",
 				"hard_limit": int64(10),
 				"soft_limit": int64(4),
+			},
+			"tls_options": map[string]any{
+				"alpn":                []any{"h2", "http/1.1"},
+				"versions":            []any{"TLSv1.2", "TLSv1.3"},
+				"default_self_signed": false,
+			},
+			"http_options": map[string]any{
+				"compress": true,
+				"response": map[string]any{
+					"headers": map[string]any{
+						"fly-request-id": false,
+						"fly-wasnt-here": "yes, it was",
+						"multi-valued":   []any{"value1", "value2"},
+					},
+				},
+			},
+			"proxy_proto_options": map[string]any{
+				"version": "v2",
 			},
 		},
 
@@ -301,12 +320,7 @@ func TestToDefinition(t *testing.T) {
 }
 
 func TestFromDefinitionEnvAsList(t *testing.T) {
-	jsonBody := []byte(`{"env": [{"ONE": "one", "TWO": 2}, {"TRUE": true}]}`)
-	definition := &api.Definition{}
-	err := json.Unmarshal(jsonBody, definition)
-	require.NoError(t, err)
-
-	cfg, err := FromDefinition(definition)
+	cfg, err := cfgFromJSON(`{"env": [{"ONE": "one", "TWO": 2}, {"TRUE": true}]}`)
 	require.NoError(t, err)
 
 	want := map[string]string{
@@ -314,34 +328,53 @@ func TestFromDefinitionEnvAsList(t *testing.T) {
 		"TWO":  "2",
 		"TRUE": "true",
 	}
-
 	assert.Equal(t, want, cfg.Env)
 }
 
 func TestFromDefinitionChecksAsList(t *testing.T) {
-	jsonBody := []byte(`{"checks": [{"name": "pg", "port": 80}]}`)
-	definition := &api.Definition{}
-	err := json.Unmarshal(jsonBody, definition)
-	require.NoError(t, err)
-
-	cfg, err := FromDefinition(definition)
+	cfg, err := cfgFromJSON(`{"checks": [{"name": "pg", "port": 80}]}`)
 	require.NoError(t, err)
 
 	want := map[string]*ToplevelCheck{
 		"pg": {Port: api.Pointer(80)},
 	}
-
 	assert.Equal(t, want, cfg.Checks)
 }
 
 func TestFromDefinitionChecksAsEmptyList(t *testing.T) {
-	jsonBody := []byte(`{"checks": []}`)
-	definition := &api.Definition{}
-	err := json.Unmarshal(jsonBody, definition)
+	cfg, err := cfgFromJSON(`{"checks": []}`)
 	require.NoError(t, err)
-
-	cfg, err := FromDefinition(definition)
-	require.NoError(t, err)
-
 	assert.Nil(t, cfg.Checks)
+}
+
+func TestFromDefinitionKillTimeoutInteger(t *testing.T) {
+	cfg, err := cfgFromJSON(`{"kill_timeout": 20}`)
+	require.NoError(t, err)
+	assert.Equal(t, api.MustParseDuration("20s"), cfg.KillTimeout)
+}
+
+func TestFromDefinitionKillTimeoutFloat(t *testing.T) {
+	cfg, err := cfgFromJSON(`{"kill_timeout": 1.5}`)
+	require.NoError(t, err)
+	assert.Equal(t, api.MustParseDuration("1s"), cfg.KillTimeout)
+}
+
+func TestFromDefinitionKillTimeoutString(t *testing.T) {
+	cfg, err := cfgFromJSON(`{"kill_timeout": "10s"}`)
+	require.NoError(t, err)
+	assert.Equal(t, api.MustParseDuration("10s"), cfg.KillTimeout)
+}
+
+func dFromJSON(jsonBody string) (*api.Definition, error) {
+	ret := &api.Definition{}
+	err := json.Unmarshal([]byte(jsonBody), ret)
+	return ret, err
+}
+
+func cfgFromJSON(jsonBody string) (*Config, error) {
+	def, err := dFromJSON(jsonBody)
+	if err != nil {
+		return nil, err
+	}
+	return FromDefinition(def)
 }
