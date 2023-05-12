@@ -102,13 +102,12 @@ type Build struct {
 }
 
 type Experimental struct {
-	Cmd                []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
-	Entrypoint         []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Exec               []string `toml:"exec,omitempty" json:"exec,omitempty"`
-	AutoRollback       bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
-	EnableConsul       bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
-	EnableEtcd         bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
-	AllowedPublicPorts []int    `toml:"allowed_public_ports,omitempty" json:"allowed_public_ports,omitempty"`
+	Cmd          []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint   []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec         []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 }
 
 func (c *Config) ConfigFilePath() string {

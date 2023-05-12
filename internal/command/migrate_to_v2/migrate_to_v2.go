@@ -569,12 +569,17 @@ func (m *v2PlatformMigrator) inRegionMachines() []*api.Machine {
 }
 
 func (m *v2PlatformMigrator) validate(ctx context.Context) error {
+	if err := m.validateKnownUnmigratableApps(ctx); err != nil {
+		return err
+	}
+
 	var err error
 	err, extraInfo := m.appConfig.ValidateForMachinesPlatform(ctx)
 	if err != nil {
 		fmt.Println(extraInfo)
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
+
 	err = m.validateScaling(ctx)
 	if err != nil {
 		return nil
@@ -592,6 +597,17 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) error {
+	// This is as last meassure for very special cases
+	knownUnmigratableApps := []int{
+		116793, // https://flyio.discourse.team/t/x/2860/6
+	}
+	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
+		return fmt.Errorf("Your app is known to break under V2 platform. Please contact support")
 	}
 	return nil
 }
