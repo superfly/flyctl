@@ -582,7 +582,7 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 
 	err = m.validateScaling(ctx)
 	if err != nil {
-		return nil
+		return err
 	}
 	err = m.validateVolumes(ctx)
 	if err != nil {
