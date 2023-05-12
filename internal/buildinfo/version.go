@@ -3,17 +3,18 @@ package buildinfo
 import (
 	"errors"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"time"
-	"runtime/debug"
 
 	"github.com/blang/semver"
 	"github.com/superfly/flyctl/terminal"
 )
 
 var (
-	buildDate = "<date>"
-	version   = "<version>"
+	buildDate  = "<date>"
+	version    = "<version>"
+	branchName = ""
 )
 
 var (
@@ -66,22 +67,26 @@ func loadMeta() {
 }
 
 func Commit() string {
-	info, _ := debug.ReadBuildInfo();
-	var rev string = "<none>";
-	var dirty string = "";
+	info, _ := debug.ReadBuildInfo()
+	var rev string = "<none>"
+	var dirty string = ""
 	for _, v := range info.Settings {
 		if v.Key == "vcs.revision" {
-			rev = v.Value;
+			rev = v.Value
 		}
 		if v.Key == "vcs.modified" {
 			if v.Value == "true" {
 				dirty = "-dirty"
 			} else {
-				dirty = "";
+				dirty = ""
 			}
 		}
 	}
-	return rev + dirty;
+	return rev + dirty
+}
+
+func BranchName() string {
+	return branchName
 }
 
 func Version() semver.Version {
