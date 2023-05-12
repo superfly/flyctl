@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -160,7 +161,7 @@ func runGet(ctx context.Context) error {
 
 	case 1:
 		remote = args[0]
-		local = remote
+		local = filepath.Base(remote)
 
 	default:
 		remote = args[0]
@@ -168,7 +169,7 @@ func runGet(ctx context.Context) error {
 	}
 
 	if _, err := os.Stat(local); err == nil {
-		return fmt.Errorf("get: local file %s: already exists", remote)
+		return fmt.Errorf("file %s is already there. `fly ssh` doesn't override existing files for safety.", local)
 	}
 
 	ftp, err := newSFTPConnection(ctx)
@@ -482,7 +483,7 @@ func (sc *sftpContext) get(args ...string) error {
 
 	_, err = os.Stat(localFile)
 	if err == nil {
-		sc.out("get %s -> %s: file exists", rpath, localFile)
+		sc.out("file %s is already there. `fly ssh` doesn't overwrite existing files for safety.", localFile)
 		return nil
 	}
 
