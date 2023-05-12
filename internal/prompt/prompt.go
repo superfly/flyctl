@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -17,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
 )
 
@@ -252,13 +254,41 @@ var (
 	errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
 )
 
-func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Region, *api.Region, error) {
-	client := client.FromContext(ctx).API()
+type PlatformRegionInfo struct {
+	Regions       []api.Region
+	DefaultRegion *api.Region
+}
 
-	regions, defaultRegion, err := client.PlatformRegions(ctx)
+var platformRegionsFutureOnce sync.Once
+var platformRegionsFuture *future.Future[PlatformRegionInfo]
+
+// Fetches all Fly regions and app's default region.
+// Only the first call to this function will issue an HTTP request using ctx.
+// Subsequent calls will return the same future as the first.
+func PlatformRegions(ctx context.Context) *future.Future[PlatformRegionInfo] {
+	platformRegionsFutureOnce.Do(func() {
+		platformRegionsFuture = future.Spawn(func() (PlatformRegionInfo, error) {
+			client := client.FromContext(ctx).API()
+			regions, defaultRegion, err := client.PlatformRegions(ctx)
+			regionInfo := PlatformRegionInfo{
+				Regions:       regions,
+				DefaultRegion: defaultRegion,
+			}
+			return regionInfo, err
+		})
+	})
+
+	return platformRegionsFuture
+}
+
+func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Region, *api.Region, error) {
+	regionInfo, err := PlatformRegions(ctx).Get()
 	if err != nil {
 		return nil, nil, err
 	}
+
+	regions := regionInfo.Regions
+	defaultRegion := regionInfo.DefaultRegion
 
 	if len(excludedRegionCodes) > 0 {
 		regions = lo.Filter(regions, func(r api.Region, _ int) bool {
