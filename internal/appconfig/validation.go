@@ -96,7 +96,6 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		cfg.validateProcessesSection,
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
-		cfg.validateNoExperimental,
 	}
 
 	for _, vFunc := range validators {
@@ -118,18 +117,6 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 
 	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
 	return nil, extra_info
-}
-
-func (cfg *Config) validateNoExperimental() (extraInfo string, err error) {
-	if cfg.Experimental == nil {
-		return
-	}
-
-	if len(cfg.Experimental.AllowedPublicPorts) != 0 {
-		extraInfo += "experimental.allowed_public_ports is not supported in Apps V2\n"
-		err = ValidationError
-	}
-	return
 }
 
 func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
