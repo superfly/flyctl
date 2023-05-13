@@ -607,7 +607,7 @@ func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) 
 		"globalconfig-dht", // https://flyio.discourse.team/t/x/2860/6
 	}
 	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
-		return fmt.Errorf("Your app is known to break under V2 platform. Please contact support")
+		return fmt.Errorf("Your app uses features incompatible with the V2 platform. Please contact support to discuss how to successfully migrate")
 	}
 	return nil
 }
