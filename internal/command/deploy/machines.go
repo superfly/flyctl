@@ -137,7 +137,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseDelayBetween:     leaseDelayBetween,
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
-		strategy:              "rolling", // default strategy if nothing else is specified
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
