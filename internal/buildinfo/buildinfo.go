@@ -32,6 +32,7 @@ type info struct {
 	Name         string
 	Version      semver.Version
 	Commit       string
+	BranchName   string
 	BuildDate    time.Time
 	OS           string
 	Architecture string
@@ -39,13 +40,17 @@ type info struct {
 }
 
 func (i info) String() string {
-	return fmt.Sprintf("%s v%s %s/%s Commit: %s BuildDate: %s",
+	res := fmt.Sprintf("%s v%s %s/%s Commit: %s BuildDate: %s",
 		i.Name,
 		i.Version,
 		i.OS,
 		i.Architecture,
 		i.Commit,
 		i.BuildDate.Format(time.RFC3339))
+	if i.BranchName != "" {
+		res += fmt.Sprintf(" BranchName: %s", i.BranchName)
+	}
+	return res
 }
 
 func Info() info {
@@ -53,6 +58,7 @@ func Info() info {
 		Name:         Name(),
 		Version:      Version(),
 		Commit:       Commit(),
+		BranchName:   BranchName(),
 		BuildDate:    BuildDate(),
 		OS:           OS(),
 		Architecture: Arch(),

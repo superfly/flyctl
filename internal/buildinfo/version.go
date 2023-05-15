@@ -3,6 +3,7 @@ package buildinfo
 import (
 	"errors"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -11,9 +12,9 @@ import (
 )
 
 var (
-	buildDate = "<date>"
-	version   = "<version>"
-	commit    = "<commit>"
+	buildDate  = "<date>"
+	version    = "<version>"
+	branchName = ""
 )
 
 var (
@@ -66,7 +67,26 @@ func loadMeta() {
 }
 
 func Commit() string {
-	return commit
+	info, _ := debug.ReadBuildInfo()
+	var rev string = "<none>"
+	var dirty string = ""
+	for _, v := range info.Settings {
+		if v.Key == "vcs.revision" {
+			rev = v.Value
+		}
+		if v.Key == "vcs.modified" {
+			if v.Value == "true" {
+				dirty = "-dirty"
+			} else {
+				dirty = ""
+			}
+		}
+	}
+	return rev + dirty
+}
+
+func BranchName() string {
+	return branchName
 }
 
 func Version() semver.Version {
