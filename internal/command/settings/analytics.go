@@ -1,4 +1,4 @@
-package metrics
+package settings
 
 import (
 	"context"
@@ -12,13 +12,13 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func New() *cobra.Command {
-	metricsRoot := command.New("metrics", "Control client metrics collection", "", runStatus)
+func newAnalytics() *cobra.Command {
+	metricsRoot := command.New("analytics", "Control anonymized analytics collection", "", runStatus)
 
-	optIn := command.New("opt-in", "Opt-in to metrics collection", "", func(ctx context.Context) error {
+	optIn := command.New("enable", "Enable analytics", "", func(ctx context.Context) error {
 		return setMetricsEnabled(ctx, true)
 	})
-	optOut := command.New("opt-out", "Out-out of metrics collection", "", func(ctx context.Context) error {
+	optOut := command.New("disable", "Disable analytics", "", func(ctx context.Context) error {
 		return setMetricsEnabled(ctx, false)
 	})
 
@@ -33,7 +33,7 @@ func printEnabled(ctx context.Context, enabled bool) {
 	enabledStr := lo.Ternary(enabled, "enabled", "disabled")
 
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.Out, "Anonymized metrics: %s\n", enabledStr)
+	fmt.Fprintf(io.Out, "Anonymized analytics: %s\n", enabledStr)
 }
 
 func runStatus(ctx context.Context) error {
@@ -44,7 +44,7 @@ func runStatus(ctx context.Context) error {
 
 	printEnabled(ctx, cfg.SendMetrics)
 
-	fmt.Fprintf(io.Out, "\nThis can be controlled with flyctl metrics <opt-in/opt-out>\n")
+	fmt.Fprintf(io.Out, "\nThis can be controlled with 'fly settings analytics <enable/disable>'\n")
 
 	return nil
 }

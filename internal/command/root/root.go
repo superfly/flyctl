@@ -35,7 +35,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
-	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
 	"github.com/superfly/flyctl/internal/command/monitor"
 	"github.com/superfly/flyctl/internal/command/move"
@@ -53,6 +52,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/scale"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/command/services"
+	"github.com/superfly/flyctl/internal/command/settings"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/suspend"
@@ -157,7 +157,7 @@ To read more, use the docs command to view Fly's help on the web.
 		autoscale.New(),
 		domains.New(),
 		console.New(),
-		metrics.New(),
+		settings.New(),
 	)
 
 	// if os.Getenv("DEV") != "" {
