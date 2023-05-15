@@ -98,8 +98,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	processGroupMachineDiff := md.resolveProcessGroupChanges()
 	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 
-	// TODO: validate _somewhere_ no mounts/volumes are used.
-	if md.strategy == "canary" {
+	if md.strategy == "canary" && !md.isFirstDeploy {
 		canaryMachines := []machine.LeasableMachine{}
 		groupsInConfig := md.appConfig.ProcessNames()
 		total := len(groupsInConfig)

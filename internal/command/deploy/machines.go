@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -133,6 +134,10 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseDelayBetween:     leaseDelayBetween,
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
+		strategy:              "rolling", // default strategy if nothing else is specified
+	}
+	if err := md.setVolumes(ctx); err != nil {
+		return nil, err
 	}
 	if err := md.setStrategy(args.Strategy); err != nil {
 		return nil, err
@@ -141,9 +146,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
-		return nil, err
-	}
-	if err := md.setVolumes(ctx); err != nil {
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
@@ -392,12 +394,16 @@ func (md *machineDeployment) setStrategy(passedInStrategy string) error {
 		md.strategy = passedInStrategy
 	} else if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
 		md.strategy = md.appConfig.Deploy.Strategy
-	} else {
-		md.strategy = "rolling"
 	}
+
 	if !MachineSupportedStrategy(md.strategy) {
 		return fmt.Errorf("error unsupported deployment strategy '%s'; fly deploy for machines supports rolling and immediate strategies", md.strategy)
 	}
+
+	if len(md.volumes) > 0 && md.strategy == "canary" {
+		return errors.New("error canary deployment strategy is not supported when using volumes")
+	}
+
 	return nil
 }
 
