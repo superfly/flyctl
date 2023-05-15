@@ -176,8 +176,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		if err := appConfig.EnsureV2Config(); err != nil {
 			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
 		}
-		err := deployToMachines(ctx, appConfig, appCompact, img)
-		if err != nil {
+		if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 			return err
 		}
 	default:

@@ -2,7 +2,6 @@ package deploy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -20,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -82,11 +80,16 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy)
 	if err != nil {
 		return nil, err
 	}
-	err, _ = appConfig.Validate(ctx)
+	// TODO: Blend extraInfo into ValidationError and remove this hack
+	if err, extraInfo := appConfig.Validate(ctx); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		return nil, err
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -136,16 +139,16 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		listenAddressChecked:  make(map[string]struct{}),
 		strategy:              "rolling", // default strategy if nothing else is specified
 	}
-	if err := md.setVolumes(ctx); err != nil {
-		return nil, err
-	}
-	if err := md.setStrategy(args.Strategy); err != nil {
+	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
 	if err := md.setMachineGuest(args.VMSize); err != nil {
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
+		return nil, err
+	}
+	if err := md.setVolumes(ctx); err != nil {
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
@@ -389,26 +392,12 @@ func (md *machineDeployment) setMachineGuest(vmSize string) error {
 	return md.machineGuest.SetSize(vmSize)
 }
 
-func (md *machineDeployment) setStrategy(passedInStrategy string) error {
-	if passedInStrategy != "" {
-		md.strategy = passedInStrategy
-	} else if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
+func (md *machineDeployment) setStrategy() error {
+	md.strategy = "rolling"
+	if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
 		md.strategy = md.appConfig.Deploy.Strategy
 	}
-
-	if !MachineSupportedStrategy(md.strategy) {
-		return fmt.Errorf("error unsupported deployment strategy '%s'; fly deploy for machines supports rolling and immediate strategies", md.strategy)
-	}
-
-	if len(md.volumes) > 0 && md.strategy == "canary" {
-		return errors.New("error canary deployment strategy is not supported when using volumes")
-	}
-
 	return nil
-}
-
-func MachineSupportedStrategy(strategy string) bool {
-	return slices.Contains([]string{"canary", "rolling", "immmediate", ""}, strategy)
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
@@ -467,7 +456,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -480,6 +469,13 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		appConfig.SetEnvVariables(parsedEnv)
+	}
+
+	if strategy != "" {
+		if appConfig.Deploy == nil {
+			appConfig.Deploy = &appconfig.Deploy{}
+		}
+		appConfig.Deploy.Strategy = strategy
 	}
 
 	// deleting this block will result in machines not being deployed in the user selected region

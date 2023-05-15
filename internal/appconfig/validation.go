@@ -13,7 +13,10 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var ValidationError = errors.New("invalid app configuration")
+var (
+	ValidationError          = errors.New("invalid app configuration")
+	MachinesDeployStrategies = []string{"canary", "rolling", "immediate"}
+)
 
 func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {
 	appName := NameFromContext(ctx)
@@ -131,12 +134,30 @@ func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
 }
 
 func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
-	if cfg.Deploy != nil {
-		if _, vErr := shlex.Split(cfg.Deploy.ReleaseCommand); vErr != nil {
-			extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", cfg.Deploy.ReleaseCommand)
+	if cfg.Deploy == nil {
+		return
+	}
+
+	if _, vErr := shlex.Split(cfg.Deploy.ReleaseCommand); vErr != nil {
+		extraInfo += fmt.Sprintf("Can't shell split release command: '%s'\n", cfg.Deploy.ReleaseCommand)
+		err = ValidationError
+	}
+
+	if s := cfg.Deploy.Strategy; s != "" {
+		if !slices.Contains(MachinesDeployStrategies, s) {
+			extraInfo += fmt.Sprintf(
+				"unsupported deployment strategy '%s'; Apps v2 supports the following strategies: %s", s,
+				strings.Join(MachinesDeployStrategies, ", "),
+			)
+			err = ValidationError
+		}
+
+		if s == "canary" && len(cfg.Mounts) > 0 {
+			extraInfo += "error canary deployment strategy is not supported when using mounted volumes"
 			err = ValidationError
 		}
 	}
+
 	return
 }
 
