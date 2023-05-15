@@ -44,7 +44,7 @@ var CommonFlags = flag.Set{
 	flag.NoCache(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
-	flag.StringSlice{
+	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
@@ -211,7 +211,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
-		EnvFromFlags:          flag.GetStringSlice(ctx, "env"),
+		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
 		PrimaryRegionFlag:     appConfig.PrimaryRegion,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
@@ -322,7 +322,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		}
 	}
 
-	if env := flag.GetStringSlice(ctx, "env"); len(env) > 0 {
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
 		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
 		if err != nil {
 			return nil, fmt.Errorf("failed parsing environment: %w", err)

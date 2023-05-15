@@ -55,7 +55,7 @@ var sharedFlags = flag.Set{
 		Name:        "memory",
 		Description: "Memory (in megabytes) to attribute to the machine",
 	},
-	flag.StringSlice{
+	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
@@ -87,7 +87,7 @@ var sharedFlags = flag.Set{
 		Name:        "dockerfile",
 		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
 	},
-	flag.StringSlice{
+	flag.StringArray{
 		Name:        "build-arg",
 		Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		Hidden:      true,
@@ -107,11 +107,11 @@ var sharedFlags = flag.Set{
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
 	},
-	flag.StringSlice{
+	flag.StringArray{
 		Name:        "kernel-arg",
 		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
 	},
-	flag.StringSlice{
+	flag.StringArray{
 		Name:        "metadata",
 		Shorthand:   "m",
 		Description: "Metadata in the form of NAME=VALUE pairs. Can be specified multiple times.",
@@ -237,7 +237,7 @@ func runMachineRun(ctx context.Context) error {
 			CPUKind:    "shared",
 			CPUs:       1,
 			MemoryMB:   256,
-			KernelArgs: flag.GetStringSlice(ctx, "kernel-arg"),
+			KernelArgs: flag.GetStringArray(ctx, "kernel-arg"),
 		},
 		AutoDestroy: flag.GetBool(ctx, "rm"),
 		DNS: &api.DNSConfig{
@@ -372,7 +372,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]string) (parsed map[string]string, err error) {
 	parsed = initialMap
 
-	if value := flag.GetStringSlice(ctx, flagName); len(value) > 0 {
+	if value := flag.GetStringArray(ctx, flagName); len(value) > 0 {
 		parsed, err = cmdutil.ParseKVStringsToMap(value)
 		if err != nil {
 			return nil, fmt.Errorf("invalid key/value pairs specified for flag %s", flagName)
@@ -417,7 +417,7 @@ func determineImage(ctx context.Context, appName string, imageOrPath string) (im
 			opts.DockerfilePath = dockerfilePath
 		}
 
-		extraArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringSlice(ctx, "build-arg"))
+		extraArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
 		if err != nil {
 			return nil, errors.Wrap(err, "invalid build-arg")
 		}
@@ -670,8 +670,8 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return nil, fmt.Errorf("memory cannot be zero")
 	}
 
-	if len(flag.GetStringSlice(ctx, "kernel-arg")) != 0 {
-		machineConf.Guest.KernelArgs = flag.GetStringSlice(ctx, "kernel-arg")
+	if len(flag.GetStringArray(ctx, "kernel-arg")) != 0 {
+		machineConf.Guest.KernelArgs = flag.GetStringArray(ctx, "kernel-arg")
 	}
 
 	parsedEnv, err := parseKVFlag(ctx, "env", machineConf.Env)
