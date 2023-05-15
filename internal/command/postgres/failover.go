@@ -96,11 +96,11 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	if IsFlex(leader) {
-		if failover_err := flexFailover(ctx, machines, app); failover_err != nil {
+		if failoverErr := flexFailover(ctx, machines, app); failoverErr != nil {
 			if err := handleFlexFailoverFail(ctx, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
-			return fmt.Errorf("Failed to run failover: %s", failover_err)
+			return fmt.Errorf("Failed to run failover: %s", failoverErr)
 		} else {
 			return nil
 		}
@@ -156,27 +156,43 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 
-	primary_region := ""
-	machines_within_primary_region := make([]*api.Machine, 0)
+	primaryRegion := ""
+	candidates := make([]*api.Machine, 0)
 
 	for _, machine := range machines {
-		if region, ok := machine.Config.Env["PRIMARY_REGION"]; ok {
-			if primary_region == "" || primary_region == region {
-				primary_region = region
-			} else {
-				return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
-			}
+		machinePrimaryRegion, ok := machine.Config.Env["PRIMARY_REGION"]
+		if !ok || machinePrimaryRegion == "" {
+			//  Handle case where PRIMARY_REGION hasn't been set, or is empty.
+			return fmt.Errorf("Machine %s does not have a primary region configured", machine.ID)
 		}
 
-		if machine.Region == primary_region && primary_region != "" {
-			machines_within_primary_region = append(machines_within_primary_region, machine)
+		if primaryRegion == "" {
+			primaryRegion = machinePrimaryRegion
 		}
+
+		// Ignore any machines residing outside of the primary region
+		if primaryRegion != machinePrimaryRegion {
+			return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
+		}
+
+		// Ignore any machines residing outside of the primary region
+		if primaryRegion != machine.Region {
+			continue
+		}
+
+		// We don't need to consider the existing leader here.
+		if machine == leader {
+			continue
+		}
+
+		candidates = append(candidates, machine)
 	}
-	if primary_region == "" {
+
+	if primaryRegion == "" {
 		return fmt.Errorf("Could not find primary region for app")
 	}
 
-	newLeader, err := pickNewLeader(ctx, app, machines_within_primary_region)
+	newLeader, err := pickNewLeader(ctx, app, candidates)
 	if err != nil {
 		return err
 	}
@@ -213,15 +229,14 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 		Stdin:    nil,
 	}, newLeader.PrivateIP)
 	if err != nil {
-		return err
-
+		return fmt.Errorf("failed to promote machine %s: %s", newLeader.ID, err)
 	}
 
 	// Restart the old leader
 	fmt.Fprintf(io.Out, "Restarting old leader... %s\n", leader.ID)
 	mach, err := flapsClient.Start(ctx, leader.ID, leader.LeaseNonce)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start machine %s: %s", leader.ID, err)
 	}
 	if mach.Status == "error" {
 		return fmt.Errorf("old leader %s could not be started: %s", leader.ID, mach.Message)
@@ -274,6 +289,10 @@ func handleFlexFailoverFail(ctx context.Context, machines []*api.Machine) (err e
 				return err
 			}
 
+			// Because of the fact that we have to handle a failover fail at any time,
+			//  it's possible that the leader hasn't even been stopped yet before failure
+			// (due to pickNewLeader failing). If that happens, there's no reason to try and
+			// stop that machine again, just to start it.
 			if leader.State == "stopped" || leader.State == "started" {
 				return nil
 			} else if leader.State == "stopping" {
@@ -321,31 +340,31 @@ func handleFlexFailoverFail(ctx context.Context, machines []*api.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *api.AppCompact, machines_within_primary_region []*api.Machine) (*api.Machine, error) {
-	machine_reasons := make(map[string]string)
+func pickNewLeader(ctx context.Context, app *api.AppCompact, machinesWithinPrimaryRegion []*api.Machine) (*api.Machine, error) {
+	machineReasons := make(map[string]string)
 
-	for _, machine := range machines_within_primary_region {
-		is_valid := true
+	for _, machine := range machinesWithinPrimaryRegion {
+		isValid := true
 		if isLeader(machine) {
-			is_valid = false
-			machine_reasons[machine.ID] = "already leader"
+			isValid = false
+			machineReasons[machine.ID] = "already leader"
 		} else if !machine.HealthCheckStatus().AllPassing() {
-			is_valid = false
-			machine_reasons[machine.ID] = "1+ health checks are not passing"
+			isValid = false
+			machineReasons[machine.ID] = "1+ health checks are not passing"
 		} else if !passesDryRun(ctx, app, machine) {
-			is_valid = false
-			machine_reasons[machine.ID] = fmt.Sprintf("Running a dry run of `repmgr standby switchover` failed. Try running `fly ssh console -u postgres -C 'repmgr standby switchover -f /data/repmgr.conf --dry-run' -s -a %s` for more information. This was most likely due to the requirements for quorum not being met.", app.Name)
+			isValid = false
+			machineReasons[machine.ID] = fmt.Sprintf("Running a dry run of `repmgr standby switchover` failed. Try running `fly ssh console -u postgres -C 'repmgr standby switchover -f /data/repmgr.conf --dry-run' -s -a %s` for more information. This was most likely due to the requirements for quorum not being met.", app.Name)
 
 		}
 
-		if is_valid {
+		if isValid {
 			return machine, nil
 		}
 	}
 
 	err := "no leader could be chosen. Here are the reasons why: \n"
-	for machine_id, reason := range machine_reasons {
-		err = fmt.Sprintf("%s%s: %s\n", err, machine_id, reason)
+	for machineID, reason := range machineReasons {
+		err = fmt.Sprintf("%s%s: %s\n", err, machineID, reason)
 	}
 	err += "\nplease fix one or more of the above issues, and try again\n"
 
