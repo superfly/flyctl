@@ -28,6 +28,14 @@ func SetMetricsToken(path, token string) error {
 	})
 }
 
+// SetSendMetrics sets the value of the send metrics flag at the configuration file
+// found at path.
+func SetSendMetrics(path string, sendMetrics bool) error {
+	return set(path, map[string]interface{}{
+		SendMetricsFileKey: sendMetrics,
+	})
+}
+
 // Clear clears the access token, metrics token, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {

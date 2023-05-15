@@ -126,6 +126,10 @@ func shouldSendMetrics(ctx context.Context) bool {
 
 	cfg := config.FromContext(ctx)
 
+	if !cfg.SendMetrics {
+		return false
+	}
+
 	// never send metrics to the production collector from dev builds
 	if buildinfo.IsDev() && cfg.MetricsBaseURLIsProduction() {
 		return false

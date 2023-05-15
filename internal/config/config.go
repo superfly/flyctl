@@ -22,6 +22,7 @@ const (
 	AccessTokenFileKey    = "access_token"
 	MetricsTokenEnvKey    = envKeyPrefix + "METRICS_TOKEN"
 	MetricsTokenFileKey   = "metrics_token"
+	SendMetricsFileKey    = "send_metrics"
 	WireGuardStateFileKey = "wire_guard_state"
 	APITokenEnvKey        = envKeyPrefix + "API_TOKEN"
 	orgEnvKey             = envKeyPrefix + "ORG"
@@ -65,6 +66,9 @@ type Config struct {
 
 	// LogGQLErrors denotes whether the user wants the log GraphQL errors.
 	LogGQLErrors bool
+
+	// SendMetrics denotes whether the user wants to send metrics.
+	SendMetrics bool
 
 	// Organization denotes the organizational slug the user has selected.
 	Organization string
@@ -129,11 +133,14 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 	var w struct {
 		AccessToken  string `yaml:"access_token"`
 		MetricsToken string `yaml:"metrics_token"`
+		SendMetrics  bool   `yaml:"send_metrics"`
 	}
+	w.SendMetrics = true
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.AccessToken = w.AccessToken
 		cfg.MetricsToken = w.MetricsToken
+		cfg.SendMetrics = w.SendMetrics
 	}
 
 	return

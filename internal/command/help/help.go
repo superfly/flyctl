@@ -114,7 +114,7 @@ Monitoring and managing things:
 		fmt.Printf(`
 Access control:
 `)
-		listCommands([]string{"orgs", "auth", "move"})
+		listCommands([]string{"orgs", "auth", "move", "metrics"})
 
 		fmt.Printf(`
 More help:
