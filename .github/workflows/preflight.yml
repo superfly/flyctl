@@ -1,0 +1,29 @@
+name: Preflight Tests
+
+on:
+  schedule:
+    - cron: '21 17 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Brief reason for running this workflow manually
+        required: false
+        default: User initiated run
+        type: string
+  push:
+    branches: [master, ci-preflight]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
+      - name: Run preflight tests
+        run: make ci-preflight

@@ -37,3 +37,4 @@ fly.toml
 .DS_Store
 
 .direnv/
+/ci-preflight-test-results.njson
