@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/sentry"
 	"golang.org/x/exp/slices"
@@ -201,8 +203,46 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 				}
 			}
 		}
+
+		for _, check := range service.TCPChecks {
+			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "TCP")
+		}
+
+		for _, check := range service.HTTPChecks {
+			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "HTTP")
+		}
 	}
 	return extraInfo, err
+}
+
+func validateServiceCheckDurations(interval, timeout, gracePeriod *api.Duration, proto string) (extraInfo string) {
+	extraInfo += validateSingleServiceCheckDuration(interval, false, proto, "an interval")
+	extraInfo += validateSingleServiceCheckDuration(timeout, false, proto, "a timeout")
+	extraInfo += validateSingleServiceCheckDuration(gracePeriod, true, proto, "a grace period")
+	return
+}
+
+func validateSingleServiceCheckDuration(d *api.Duration, zeroOK bool, proto, description string) (extraInfo string) {
+	switch {
+	case d == nil:
+		// Do nothing.
+	case zeroOK && d.Duration != 0 && d.Duration < time.Second:
+		extraInfo += fmt.Sprintf(
+			"%s Service %s check has %s that is non-zero and less than 1 second (%v); this will be raised to 1 second\n",
+			aurora.Yellow("WARN"), proto, description, d.Duration,
+		)
+	case !zeroOK && d.Duration < time.Second:
+		extraInfo += fmt.Sprintf(
+			"%s Service %s check has %s less than 1 second (%v); this will be raised to 1 second\n",
+			aurora.Yellow("WARN"), proto, description, d.Duration,
+		)
+	case d.Duration > time.Minute:
+		extraInfo += fmt.Sprintf(
+			"%s Service %s check has %s greater than 1 minute (%v); this will be lowered to 1 minute\n",
+			aurora.Yellow("WARN"), proto, description, d.Duration,
+		)
+	}
+	return
 }
 
 func (cfg *Config) validateProcessesSection() (extraInfo string, err error) {
