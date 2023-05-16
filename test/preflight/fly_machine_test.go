@@ -126,3 +126,57 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	require.Equal(f, "stopped", s2.State)
 	require.Equal(f, []string{s1.ID}, s2.Config.Standbys)
 }
+
+// test --port (add, update, remove services and ports)
+func TestFlyMachineRun_port(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+
+	f.Fly("machine run -a %s nginx --port 443:80/tcp:http:tls", appName)
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+
+	m := ml[0]
+	want := []api.MachineService{{
+		Protocol:     "tcp",
+		InternalPort: 80,
+		Ports: []api.MachinePort{{
+			Port:     api.Pointer(443),
+			Handlers: []string{"http", "tls"},
+		}},
+	}}
+	require.Equal(f, want, m.Config.Services)
+
+	f.Fly("machine update -a %s %s -y --port 80/tcp:http --port 1001/udp", appName, m.ID)
+	m = f.MachinesList(appName)[0]
+	want = []api.MachineService{{
+		Protocol:     "tcp",
+		InternalPort: 80,
+		Ports: []api.MachinePort{{
+			Port:     api.Pointer(443),
+			Handlers: []string{"http", "tls"},
+		}, {
+			Port:     api.Pointer(80),
+			Handlers: []string{"http"},
+		}},
+	}, {
+		Protocol:     "udp",
+		InternalPort: 1001,
+		Ports: []api.MachinePort{{
+			Port: api.Pointer(1001),
+		}},
+	}}
+	require.Equal(f, want, m.Config.Services)
+
+	f.Fly("machine update -a %s %s -y --port 80/tcp:- --port 1001/udp:tls", appName, m.ID)
+	m = f.MachinesList(appName)[0]
+	want = []api.MachineService{{
+		Protocol:     "udp",
+		InternalPort: 1001,
+		Ports: []api.MachinePort{{
+			Port:     api.Pointer(1001),
+			Handlers: []string{"tls"},
+		}},
+	}}
+	require.Equal(f, want, m.Config.Services)
+}
