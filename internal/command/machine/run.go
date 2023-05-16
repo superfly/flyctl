@@ -15,6 +15,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -530,47 +531,96 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 	return unattachedMap, nil
 }
 
-func determineServices(ctx context.Context) ([]api.MachineService, error) {
-	ports := flag.GetStringSlice(ctx, "port")
-
-	if len(ports) <= 0 {
-		return []api.MachineService{}, nil
+func determineServices(ctx context.Context, services []api.MachineService) ([]api.MachineService, error) {
+	svcKey := func(internalPort int, protocol string) string {
+		return fmt.Sprintf("%d/%s", internalPort, protocol)
 	}
+	servicesRef := lo.Map(services, func(s api.MachineService, _ int) *api.MachineService { return &s })
+	servicesMap := lo.KeyBy(servicesRef, func(s *api.MachineService) string {
+		return svcKey(s.InternalPort, s.Protocol)
+	})
 
-	machineServices := make([]api.MachineService, len(ports))
-
-	for i, p := range flag.GetStringSlice(ctx, "port") {
-		proto := "tcp"
-		handlers := []string{}
-
-		splittedPortsProto := strings.Split(p, "/")
-		if len(splittedPortsProto) == 2 {
-			splittedProtoHandlers := strings.Split(splittedPortsProto[1], ":")
-			proto = splittedProtoHandlers[0]
-			handlers = append(handlers, splittedProtoHandlers[1:]...)
-		} else if len(splittedPortsProto) > 2 {
-			return nil, errors.New("port must be at most two elements (ports/protocol:handler)")
-		}
-
-		edgePort, edgeStartPort, edgeEndPort, internalPort, err := parsePorts(splittedPortsProto[0])
+	for _, p := range flag.GetStringSlice(ctx, "port") {
+		internalPort, proto, edgePort, edgeStartPort, edgeEndPort, handlers, err := parsePortFlag(p)
 		if err != nil {
 			return nil, err
 		}
 
-		machineServices[i] = api.MachineService{
-			Protocol:     proto,
-			InternalPort: internalPort,
-			Ports: []api.MachinePort{
-				{
-					Port:      edgePort,
-					StartPort: edgeStartPort,
-					EndPort:   edgeEndPort,
-					Handlers:  handlers,
-				},
-			},
+		// Look for existing services or append a new one
+		svc, ok := servicesMap[svcKey(internalPort, proto)]
+		if !ok {
+			svc = &api.MachineService{
+				InternalPort: internalPort,
+				Protocol:     proto,
+			}
+			servicesRef = append(servicesRef, svc)
+			servicesMap[svcKey(internalPort, proto)] = svc
+		}
+
+		// A dash handler removes the service: --port 5432/tcp:-
+		if slices.Equal(handlers, []string{"-"}) {
+			svc.Ports = nil
+			continue
+		}
+
+		// Look for existing ports and update them
+		found := false
+		for idx := range svc.Ports {
+			svcPort := &svc.Ports[idx]
+			if svcPort.Port != nil && edgePort != nil && *(svcPort.Port) == *edgePort {
+				found = true
+				svcPort.Handlers = handlers
+			}
+			if svcPort.StartPort != nil && edgeStartPort != nil && *(svcPort.StartPort) == *edgeStartPort {
+				found = true
+				svcPort.Handlers = handlers
+				svcPort.EndPort = edgeEndPort
+			}
+		}
+		// Or append new port definition
+		if !found {
+			svc.Ports = append(svc.Ports, api.MachinePort{
+				Port:      edgePort,
+				StartPort: edgeStartPort,
+				EndPort:   edgeEndPort,
+				Handlers:  handlers,
+			})
 		}
 	}
-	return machineServices, nil
+
+	// Remove any service without exposed ports
+	services = lo.FilterMap(servicesRef, func(s *api.MachineService, _ int) (api.MachineService, bool) {
+		if s != nil && len(s.Ports) >= 0 {
+			return *s, true
+		}
+		return api.MachineService{}, false
+	})
+
+	return services, nil
+}
+
+func parsePortFlag(str string) (internalPort int, protocol string, port, startPort, endPort *int, handlers []string, err error) {
+	protocol = "tcp"
+	splittedPortsProto := strings.Split(str, "/")
+	if len(splittedPortsProto) == 2 {
+		splittedProtoHandlers := strings.Split(splittedPortsProto[1], ":")
+		protocol = splittedProtoHandlers[0]
+		handlers = append(handlers, splittedProtoHandlers[1:]...)
+	} else if len(splittedPortsProto) > 2 {
+		err = errors.New("port must be at most two elements (ports/protocol:handler)")
+		return
+	}
+
+	port, startPort, endPort, internalPort, err = parsePorts(splittedPortsProto[0])
+	if internalPort == 0 {
+		switch {
+		case port != nil:
+			internalPort = *port
+		case startPort != nil:
+			internalPort = *startPort
+		}
+	}
+	return
 }
 
 func parsePorts(input string) (port, start_port, end_port *int, internal_port int, err error) {
@@ -725,13 +775,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Metadata[k] = v
 	}
 
-	services, err := determineServices(ctx)
+	services, err := determineServices(ctx, machineConf.Services)
 	if err != nil {
 		return machineConf, err
 	}
-	if len(services) > 0 {
-		machineConf.Services = services
-	}
+	machineConf.Services = services
 
 	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
 		splitted, err := shlex.Split(entrypoint)
