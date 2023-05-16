@@ -8,6 +8,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -73,6 +74,7 @@ var CommonFlags = flag.Set{
 		Name:        "force-machines",
 		Description: "Use the Apps v2 platform built with Machines",
 		Default:     false,
+		Hidden:      true,
 	},
 	flag.String{
 		Name:        "vm-size",
@@ -136,20 +138,10 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, DeployWithConfigArgs{
-		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-		ForceMachines: flag.GetBool(ctx, "force-machines"),
-		ForceYes:      flag.GetBool(ctx, "auto-confirm"),
-	})
+	return DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "auto-confirm"))
 }
 
-type DeployWithConfigArgs struct {
-	ForceMachines bool
-	ForceNomad    bool
-	ForceYes      bool
-}
-
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args DeployWithConfigArgs) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
@@ -169,10 +161,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your app at https://fly.io/apps/%s/monitoring\n\n", appName)
-	switch isV2App, err := useMachines(ctx, appConfig, appCompact, args, apiClient); {
-	case err != nil:
-		return err
-	case isV2App:
+	if useMachines(ctx, appCompact) {
 		if err := appConfig.EnsureV2Config(); err != nil {
 			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
 		}
@@ -180,7 +169,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, args Dep
 		if err != nil {
 			return err
 		}
-	default:
+	} else {
 		if flag.GetBool(ctx, "no-public-ips") {
 			return fmt.Errorf("The --no-public-ips flag can only be used for v2 apps")
 		}
@@ -291,22 +280,14 @@ func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact 
 	return watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
 }
 
-func useMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, args DeployWithConfigArgs, apiClient *api.Client) (bool, error) {
-	appsV2DefaultOn, _ := apiClient.GetAppsV2DefaultOnForOrg(ctx, appCompact.Organization.Slug)
-	switch {
-	case !appCompact.Deployed && args.ForceNomad:
-		return false, nil
-	case !appCompact.Deployed && args.ForceMachines:
-		return true, nil
-	case !appCompact.Deployed && appCompact.PlatformVersion == appconfig.MachinesPlatform:
-		return true, nil
-	case appCompact.Deployed:
-		return appCompact.PlatformVersion == appconfig.MachinesPlatform, nil
-	case args.ForceYes:
-		return appsV2DefaultOn, nil
-	default:
-		return appsV2DefaultOn, nil
+func useMachines(ctx context.Context, appCompact *api.AppCompact) bool {
+	if buildinfo.IsDev() && flag.GetBool(ctx, "force-nomad") && !appCompact.Deployed {
+		return false
 	}
+	if appCompact.Deployed && appCompact.PlatformVersion == appconfig.NomadPlatform {
+		return false
+	}
+	return true
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
