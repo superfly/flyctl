@@ -36,10 +36,11 @@ func TestFlyLaunch_case01(t *testing.T) {
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
 		"http_service": map[string]any{
-			"force_https":         true,
-			"internal_port":       int64(8080),
-			"auto_stop_machines":  true,
-			"auto_start_machines": true,
+			"force_https":          true,
+			"internal_port":        int64(8080),
+			"auto_stop_machines":   true,
+			"auto_start_machines":  true,
+			"min_machines_running": int64(0),
 		},
 	}
 	require.EqualValues(f, want, toml)
