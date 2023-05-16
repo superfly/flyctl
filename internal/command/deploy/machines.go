@@ -80,11 +80,16 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy)
 	if err != nil {
 		return nil, err
 	}
-	err, _ = appConfig.Validate(ctx)
+	// TODO: Blend extraInfo into ValidationError and remove this hack
+	if err, extraInfo := appConfig.Validate(ctx); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		return nil, err
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +138,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
 	}
-	if err := md.setStrategy(args.Strategy); err != nil {
+	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
 	if err := md.setMachineGuest(args.VMSize); err != nil {
@@ -386,22 +391,12 @@ func (md *machineDeployment) setMachineGuest(vmSize string) error {
 	return md.machineGuest.SetSize(vmSize)
 }
 
-func (md *machineDeployment) setStrategy(passedInStrategy string) error {
-	if passedInStrategy != "" {
-		md.strategy = passedInStrategy
-	} else if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
+func (md *machineDeployment) setStrategy() error {
+	md.strategy = "rolling"
+	if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
 		md.strategy = md.appConfig.Deploy.Strategy
-	} else {
-		md.strategy = "rolling"
-	}
-	if !MachineSupportedStrategy(md.strategy) {
-		return fmt.Errorf("error unsupported deployment strategy '%s'; fly deploy for machines supports rolling and immediate strategies", md.strategy)
 	}
 	return nil
-}
-
-func MachineSupportedStrategy(strategy string) bool {
-	return strategy == "rolling" || strategy == "immediate" || strategy == ""
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
@@ -460,7 +455,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion string) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -473,6 +468,13 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		appConfig.SetEnvVariables(parsedEnv)
+	}
+
+	if strategy != "" {
+		if appConfig.Deploy == nil {
+			appConfig.Deploy = &appconfig.Deploy{}
+		}
+		appConfig.Deploy.Strategy = strategy
 	}
 
 	// deleting this block will result in machines not being deployed in the user selected region

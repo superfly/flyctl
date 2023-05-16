@@ -98,77 +98,97 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	processGroupMachineDiff := md.resolveProcessGroupChanges()
 	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
 
-	if len(processGroupMachineDiff.machinesToRemove) > 0 {
-		// Destroy machines that don't fit the current process groups
-		if err := md.machineSet.RemoveMachines(ctx, processGroupMachineDiff.machinesToRemove); err != nil {
-			return err
+	if md.strategy == "canary" && !md.isFirstDeploy {
+		canaryMachines := []machine.LeasableMachine{}
+		groupsInConfig := md.appConfig.ProcessNames()
+		total := len(groupsInConfig)
+		for idx, name := range groupsInConfig {
+			fmt.Fprintf(md.io.Out, "Creating canary machine for group %s\n", md.colorize.Bold(name))
+			machine, err := md.spawnMachineInGroup(ctx, name, idx, total, nil, metadata{key: "fly_canary", value: "true"})
+			if err != nil {
+				return err
+			}
+			canaryMachines = append(canaryMachines, machine)
 		}
-		for _, mach := range processGroupMachineDiff.machinesToRemove {
+
+		fmt.Fprintf(md.io.Out, "Canary machines successfully created and healthy, destroying before continuing\n")
+		for _, mach := range canaryMachines {
 			if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
 				return err
 			}
 		}
 	}
 
+	// Destroy machines that don't fit the current process groups
+	if err := md.machineSet.RemoveMachines(ctx, processGroupMachineDiff.machinesToRemove); err != nil {
+		return err
+	}
+	for _, mach := range processGroupMachineDiff.machinesToRemove {
+		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
+			return err
+		}
+	}
+
 	// Create machines for new process groups
-	if total := len(processGroupMachineDiff.groupsNeedingMachines); total > 0 {
-		groupsWithAutostopEnabled := make(map[string]bool)
+	groupsWithAutostopEnabled := make(map[string]bool)
+	total := len(processGroupMachineDiff.groupsNeedingMachines)
+	for idx, name := range maps.Keys(processGroupMachineDiff.groupsNeedingMachines) {
+		fmt.Fprintf(md.io.Out, "No machines in group %s, launching one new machine\n", md.colorize.Bold(name))
+		leasableMachine, err := md.spawnMachineInGroup(ctx, name, idx, total, nil)
+		if err != nil {
+			return err
+		}
 
-		for idx, name := range maps.Keys(processGroupMachineDiff.groupsNeedingMachines) {
-			fmt.Fprintf(md.io.Out, "No machines in group %s, launching one new machine\n", md.colorize.Bold(name))
-			machineID, err := md.spawnMachineInGroup(ctx, name, idx, total, nil)
-			if err != nil {
-				return err
-			}
+		groupConfig, err := md.appConfig.Flatten(name)
+		if err != nil {
+			return err
+		}
 
-			groupConfig, err := md.appConfig.Flatten(name)
-			if err != nil {
-				return err
-			}
-
-			services := groupConfig.AllServices()
-			for _, s := range services {
-				if s.AutoStopMachines != nil && *s.AutoStopMachines == true {
-					groupsWithAutostopEnabled[name] = true
-				}
-			}
-
-			// Create spare machines that increases availability unless --ha=false was used
-			if !md.increasedAvailability {
-				continue
-			}
-
-			// We strive to provide a HA setup according to:
-			// - Create only 1 machine if the group has mounts
-			// - Create 2 machines for groups with services
-			// - Create 1 always-on and 1 standby machine for groups without services
-			switch {
-			case len(groupConfig.Mounts) > 0:
-				continue
-			case len(services) > 0:
-				fmt.Fprintf(md.io.Out, "Creating a second machine to increase service availability\n")
-				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, nil); err != nil {
-					return err
-				}
-			default:
-				fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(machineID))
-				standbyFor := []string{machineID}
-				if _, err := md.spawnMachineInGroup(ctx, name, idx, total, standbyFor); err != nil {
-					return err
-				}
+		services := groupConfig.AllServices()
+		for _, s := range services {
+			if s.AutoStopMachines != nil && *s.AutoStopMachines == true {
+				groupsWithAutostopEnabled[name] = true
 			}
 		}
+
+		// Create spare machines that increases availability unless --ha=false was used
+		if !md.increasedAvailability {
+			continue
+		}
+
+		// We strive to provide a HA setup according to:
+		// - Create only 1 machine if the group has mounts
+		// - Create 2 machines for groups with services
+		// - Create 1 always-on and 1 standby machine for groups without services
+		switch {
+		case len(groupConfig.Mounts) > 0:
+			continue
+		case len(services) > 0:
+			fmt.Fprintf(md.io.Out, "Creating a second machine to increase service availability\n")
+			if _, err := md.spawnMachineInGroup(ctx, name, idx, total, nil); err != nil {
+				return err
+			}
+		default:
+			fmt.Fprintf(md.io.Out, "Creating a standby machine for %s\n", md.colorize.Bold(leasableMachine.Machine().ID))
+			standbyFor := []string{leasableMachine.Machine().ID}
+			if _, err := md.spawnMachineInGroup(ctx, name, idx, total, standbyFor); err != nil {
+				return err
+			}
+		}
+	}
+
+	if total > 0 {
 		fmt.Fprintf(md.io.ErrOut, "Finished launching new machines\n")
+	}
 
-		if len(groupsWithAutostopEnabled) > 0 {
-			groupNames := lo.Keys(groupsWithAutostopEnabled)
-			slices.Sort(groupNames)
-			fmt.Fprintf(md.io.Out,
-				"\n%s The machines for [%s] have services with 'auto_stop_machines = true' that will be stopped when idling\n\n",
-				md.colorize.Yellow("NOTE:"),
-				md.colorize.Bold(strings.Join(groupNames, ",")),
-			)
-		}
+	if len(groupsWithAutostopEnabled) > 0 {
+		groupNames := lo.Keys(groupsWithAutostopEnabled)
+		slices.Sort(groupNames)
+		fmt.Fprintf(md.io.Out,
+			"\n%s The machines for [%s] have services with 'auto_stop_machines = true' that will be stopped when idling\n\n",
+			md.colorize.Yellow("NOTE:"),
+			md.colorize.Bold(strings.Join(groupNames, ",")),
+		)
 	}
 
 	var machineUpdateEntries []*machineUpdateEntry
@@ -286,10 +306,19 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return nil
 }
 
-func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string) (string, error) {
+type metadata struct {
+	key   string
+	value string
+}
+
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string, meta ...metadata) (machine.LeasableMachine, error) {
 	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest, standbyFor)
 	if err != nil {
-		return "", fmt.Errorf("error creating machine configuration: %w", err)
+		return nil, fmt.Errorf("error creating machine configuration: %w", err)
+	}
+
+	for _, m := range meta {
+		launchInput.Config.Metadata[m.key] = m.value
 	}
 
 	// Acquire a lease on the new machine to ensure external factors can't stop or update it
@@ -302,7 +331,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		if strings.Contains(err.Error(), "please add a payment method") && !md.releaseCommandMachine.IsEmpty() {
 			relCmdWarning = "\nPlease note that release commands run in their own ephemeral machine, and therefore count towards the machine limit."
 		}
-		return "", fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
+		return nil, fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
@@ -311,29 +340,29 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	// Don't wait for Standby machines, they are created but not started
 	if len(launchInput.Config.Standbys) > 0 {
-		return newMachineRaw.ID, nil
+		return lm, nil
 	}
 
 	// Roll up as fast as possible when using immediate strategy
 	if md.strategy == "immediate" {
-		return newMachineRaw.ID, nil
+		return lm, nil
 	}
 
 	// Otherwise wait for the machine to start
 	indexStr := formatIndex(i, total)
 	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
-		return "", err
+		return nil, err
 	}
 
 	// And wait (or not) for successful health checks
 	if !md.skipHealthChecks {
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
 			md.warnAboutIncorrectListenAddress(ctx, lm)
-			return "", err
+			return nil, err
 		}
 
 		md.logClearLinesAbove(1)
@@ -345,7 +374,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	md.warnAboutIncorrectListenAddress(ctx, lm)
 
-	return newMachineRaw.ID, nil
+	return lm, nil
 }
 
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {

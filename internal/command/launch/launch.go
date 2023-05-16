@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
+	"golang.org/x/exp/slices"
 )
 
 func New() (cmd *cobra.Command) {
@@ -180,7 +181,11 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	using_appsv1_only_feature := !deploy.MachineSupportedStrategy(flag.GetString(ctx, "strategy"))
+	using_appsv1_only_feature := false
+	if s := flag.GetString(ctx, "strategy"); s != "" && !slices.Contains(appconfig.MachinesDeployStrategies, s) {
+		using_appsv1_only_feature = true
+	}
+
 	if !shouldUseMachines && !using_appsv1_only_feature {
 		fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend using the --force-machines flag, or setting\nyour organization's default for new apps to Apps v2 with 'fly orgs apps-v2 default-on <org-name>'\n", aurora.Yellow("WARN"))
 	}
