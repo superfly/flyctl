@@ -254,23 +254,23 @@ var (
 	errRegionCodesRequired = NonInteractiveError("regions codes must be specified in a comma-separated when not running interactively")
 )
 
-type PlatformRegionInfo struct {
+type RegionInfo struct {
 	Regions       []api.Region
 	DefaultRegion *api.Region
 }
 
-var platformRegionsFutureOnce sync.Once
-var platformRegionsFuture *future.Future[PlatformRegionInfo]
+var regionsOnce sync.Once
+var regionsFuture *future.Future[RegionInfo]
 
 // Fetches all Fly regions and app's default region.
 // Only the first call to this function will issue an HTTP request using ctx.
 // Subsequent calls will return the same future as the first.
-func PlatformRegions(ctx context.Context) *future.Future[PlatformRegionInfo] {
-	platformRegionsFutureOnce.Do(func() {
-		platformRegionsFuture = future.Spawn(func() (PlatformRegionInfo, error) {
+func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
+	regionsOnce.Do(func() {
+		regionsFuture = future.Spawn(func() (RegionInfo, error) {
 			client := client.FromContext(ctx).API()
 			regions, defaultRegion, err := client.PlatformRegions(ctx)
-			regionInfo := PlatformRegionInfo{
+			regionInfo := RegionInfo{
 				Regions:       regions,
 				DefaultRegion: defaultRegion,
 			}
@@ -278,7 +278,7 @@ func PlatformRegions(ctx context.Context) *future.Future[PlatformRegionInfo] {
 		})
 	})
 
-	return platformRegionsFuture
+	return regionsFuture
 }
 
 func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Region, *api.Region, error) {
