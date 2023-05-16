@@ -12,8 +12,6 @@ import (
 	"github.com/PuerkitoBio/rehttp"
 )
 
-var logMu sync.Mutex
-
 func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, error) {
 	retryTransport := rehttp.NewTransport(
 		transport,
@@ -44,6 +42,7 @@ func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, er
 type LoggingTransport struct {
 	InnerTransport http.RoundTripper
 	Logger         Logger
+	mu             sync.Mutex
 }
 
 type contextKey struct {
@@ -69,8 +68,8 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
-	logMu.Lock()
-	defer logMu.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
 
@@ -96,8 +95,8 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
-	logMu.Lock()
-	defer logMu.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	ctx := resp.Request.Context()
 	defer func() { _ = resp.Body.Close() }()
