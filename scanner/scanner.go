@@ -83,6 +83,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configurePhoenix,
 		configureRails,
 		configureRedwood,
+		configureNodeFramework,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
