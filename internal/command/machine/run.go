@@ -590,7 +590,7 @@ func determineServices(ctx context.Context, services []api.MachineService) ([]ap
 
 	// Remove any service without exposed ports
 	services = lo.FilterMap(servicesRef, func(s *api.MachineService, _ int) (api.MachineService, bool) {
-		if s != nil && len(s.Ports) >= 0 {
+		if s != nil && len(s.Ports) > 0 {
 			return *s, true
 		}
 		return api.MachineService{}, false
