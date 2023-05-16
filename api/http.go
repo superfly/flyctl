@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -41,6 +42,7 @@ func NewHTTPClient(logger Logger, transport http.RoundTripper) (*http.Client, er
 type LoggingTransport struct {
 	InnerTransport http.RoundTripper
 	Logger         Logger
+	mu             sync.Mutex
 }
 
 type contextKey struct {
@@ -66,6 +68,9 @@ func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 }
 
 func (t *LoggingTransport) logRequest(req *http.Request) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	t.Logger.Debugf("--> %s %s\n", req.Method, req.URL)
 
 	if req.Body == nil {
@@ -90,6 +95,9 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	ctx := resp.Request.Context()
 	defer func() { _ = resp.Body.Close() }()
 

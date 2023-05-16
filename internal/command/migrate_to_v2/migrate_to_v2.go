@@ -69,6 +69,9 @@ func runMigrateToV2(ctx context.Context) (err error) {
 		apiClient = client.FromContext(ctx).API()
 	)
 
+	// pre-fetch platform regions for later use
+	prompt.PlatformRegions(ctx)
+
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
