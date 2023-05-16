@@ -39,9 +39,11 @@ var sharedFlags = flag.Set{
 	flag.AppConfig(),
 	flag.Detach(),
 	flag.StringSlice{
-		Name:        "port",
-		Shorthand:   "p",
-		Description: "Exposed port mappings (format: (edgePort|startPort-endPort)[:machinePort]/[protocol[:handler]])",
+		Name:      "port",
+		Shorthand: "p",
+		Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
+	i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
+	To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
 	},
 	flag.String{
 		Name:        "size",
