@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -50,11 +51,13 @@ may be fetched with 'fly config save -a <app_name>'`
 		flag.Bool{
 			Name:        "machines",
 			Description: "Use the machines platform",
+			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "nomad",
 			Description: "Use the nomad platform",
 			Default:     false,
+			Hidden:      true,
 		},
 		flag.Org(),
 	)
@@ -73,6 +76,16 @@ func RunCreate(ctx context.Context) (err error) {
 		fGenerateName = flag.GetBool(ctx, "generate-name")
 		apiClient     = client.FromContext(ctx).API()
 	)
+
+	machines := true
+
+	if flag.GetBool(ctx, "nomad") {
+		if buildinfo.IsDev() {
+			machines = false
+		} else {
+			return fmt.Errorf("creating new apps on the nomad platform is no longer supported")
+		}
+	}
 
 	var name string
 	switch {
@@ -98,15 +111,10 @@ func RunCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	shouldUseMachines, err := shouldAppUseMachinesPlatform(ctx, apiClient, org.Slug)
-	if err != nil {
-		return err
-	}
-
 	input := api.CreateAppInput{
 		Name:           name,
 		OrganizationID: org.ID,
-		Machines:       shouldUseMachines,
+		Machines:       machines,
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {
@@ -123,17 +131,4 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	return err
-}
-
-func shouldAppUseMachinesPlatform(ctx context.Context, apiClient *api.Client, orgSlug string) (bool, error) {
-	if flag.GetBool(ctx, "machines") {
-		return true, nil
-	} else if flag.GetBool(ctx, "nomad") {
-		return false, nil
-	}
-	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
-	if err != nil {
-		return false, err
-	}
-	return orgDefault, nil
 }

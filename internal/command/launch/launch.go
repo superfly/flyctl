@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -86,10 +87,10 @@ func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	workingDir := flag.GetString(ctx, "path")
 
-	deployArgs := deploy.DeployWithConfigArgs{
-		ForceNomad:    flag.GetBool(ctx, "force-nomad"),
-		ForceMachines: flag.GetBool(ctx, "force-machines"),
-		ForceYes:      flag.GetBool(ctx, "now"),
+	// Note: this also disables --force-nomad when launching into an existing nomad app.
+	// we're fast-tracking the removal of nomad support, so this should be fine.
+	if flag.GetBool(ctx, "force-nomad") && !buildinfo.IsDev() {
+		return fmt.Errorf("creating new apps on the nomad platform is no longer supported")
 	}
 
 	metrics.Started(ctx, "launch")
@@ -350,7 +351,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, appConfig, deployArgs)
+		return deploy.DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "now"))
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
@@ -364,6 +365,7 @@ func run(ctx context.Context) (err error) {
 }
 
 func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug, existingAppPlatform string) (bool, error) {
+
 	forceMachines := flag.GetBool(ctx, "force-machines")
 	forceNomad := flag.GetBool(ctx, "force-nomad")
 
@@ -387,13 +389,8 @@ func shouldAppUseMachinesPlatform(ctx context.Context, orgSlug, existingAppPlatf
 		return false, nil
 	}
 
-	// Query the organization looking for default platform version to use
-	apiClient := client.FromContext(ctx).API()
-	orgDefault, err := apiClient.GetAppsV2DefaultOnForOrg(ctx, orgSlug)
-	if err != nil {
-		return false, err
-	}
-	return orgDefault, nil
+	// Default to Apps v2
+	return true, nil
 }
 
 func appExists(ctx context.Context, cfg *appconfig.Config) (bool, *api.AppBasic, error) {
