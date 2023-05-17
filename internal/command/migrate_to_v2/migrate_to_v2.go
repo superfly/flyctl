@@ -201,7 +201,15 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, fmt.Errorf("failed to get image info: %w", err)
 	}
-	img := fmt.Sprintf("%s/%s:%s", imageInfo.ImageDetails.Registry, imageInfo.ImageDetails.Repository, imageInfo.ImageDetails.Tag)
+	var img string
+	switch {
+	case imageInfo.ImageDetails.Tag != "":
+		img = fmt.Sprintf("%s/%s:%s", imageInfo.ImageDetails.Registry, imageInfo.ImageDetails.Repository, imageInfo.ImageDetails.Tag)
+	case imageInfo.ImageDetails.Digest != "":
+		img = fmt.Sprintf("%s/%s@%s", imageInfo.ImageDetails.Registry, imageInfo.ImageDetails.Repository, imageInfo.ImageDetails.Digest)
+	default:
+		return nil, fmt.Errorf("failed to get image info: no tag or digest found")
+	}
 	allocs, err := apiClient.GetAllocations(ctx, appName, false)
 	if err != nil {
 		return nil, err
