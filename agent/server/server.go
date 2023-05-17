@@ -66,6 +66,15 @@ type bindError struct{ error }
 
 func (be bindError) Unwrap() error { return be.error }
 
+func bindUnixSocket(socket string) (net.Listener, error) {
+	l, err := net.Listen("unix", socket)
+	if err != nil {
+		return nil, fmt.Errorf("failed binding: %w", err)
+	}
+
+	return l, nil
+}
+
 func bind(socket string) (l net.Listener, err error) {
 	defer func() {
 		if err != nil {
@@ -79,11 +88,7 @@ func bind(socket string) (l net.Listener, err error) {
 		return
 	}
 
-	if l, err = net.Listen("unix", socket); err != nil {
-		err = fmt.Errorf("failed binding: %w", err)
-	}
-
-	return
+	return bindSocket(socket)
 }
 
 func latestChange(path string) (at time.Time, err error) {

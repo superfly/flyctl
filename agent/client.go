@@ -128,10 +128,6 @@ type Client struct {
 	dialer  net.Dialer
 }
 
-func (c *Client) dialContext(ctx context.Context) (conn net.Conn, err error) {
-	return c.dialer.DialContext(ctx, c.network, c.address)
-}
-
 var errDone = errors.New("done")
 
 func (c *Client) do(parent context.Context, fn func(net.Conn) error) (err error) {
