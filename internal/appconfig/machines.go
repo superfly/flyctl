@@ -41,6 +41,10 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 		Env: lo.Assign(c.Env),
 	}
 
+	if c.Experimental != nil {
+		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+	}
+
 	mConfig.Env["RELEASE_COMMAND"] = "1"
 	mConfig.Env["FLY_PROCESS_GROUP"] = api.MachineProcessGroupFlyAppReleaseCommand
 	if c.PrimaryRegion != "" {
