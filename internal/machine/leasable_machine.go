@@ -149,7 +149,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
 	lm.logStatusWaiting(api.MachineStateStarted, "")
-	_, err := lm.flapsClient.Start(ctx, lm.machine.ID)
+	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
 		return err
 	}

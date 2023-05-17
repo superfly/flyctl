@@ -98,10 +98,17 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 		defer closeStdin.Do(func() {
 			stdin.Close()
 		})
-		io.Copy(stdin, s.Stdin)
+		if s.Stdin != nil {
+			io.Copy(stdin, s.Stdin)
+		}
 	}()
-	go io.Copy(s.Stdout, stdout)
-	go io.Copy(s.Stderr, stderr)
+	if s.Stdout != nil {
+		go io.Copy(s.Stdout, stdout)
+	}
+
+	if s.Stderr != nil {
+		go io.Copy(s.Stderr, stderr)
+	}
 
 	cmdC := make(chan error, 1)
 	go func() {

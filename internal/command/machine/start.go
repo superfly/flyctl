@@ -57,7 +57,7 @@ func runMachineStart(ctx context.Context) (err error) {
 }
 
 func Start(ctx context.Context, machineID string) (err error) {
-	machine, err := flaps.FromContext(ctx).Start(ctx, machineID)
+	machine, err := flaps.FromContext(ctx).Start(ctx, machineID, "")
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
 			return err
