@@ -413,7 +413,11 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 		return
 	}
 
-	fmt.Fprintln(md.io.Out, "Process groups have changed. This will:")
+	if md.isFirstDeploy {
+		fmt.Fprintln(md.io.Out, "This deployment will:")
+	} else {
+		fmt.Fprintln(md.io.Out, "Process groups have changed. This will:")
+	}
 
 	if willRemoveMachines {
 		bullet := md.colorize.Red("*")
