@@ -76,8 +76,31 @@ var CommonFlags = flag.Set{
 		Hidden:      true,
 	},
 	flag.String{
+		Name:        "size",
+		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+		Hidden:      true,
+	},
+	flag.String{
 		Name:        "vm-size",
 		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+	},
+	flag.Int{
+		Name:        "cpus",
+		Description: "Number of CPUs",
+		Hidden:      true,
+	},
+	flag.Int{
+		Name:        "vm-cpus",
+		Description: "Number of CPUs",
+	},
+	flag.Int{
+		Name:        "memory",
+		Description: "Memory (in megabytes) to give the machines",
+		Hidden:      true,
+	},
+	flag.Int{
+		Name:        "vm-memory",
+		Description: "Memory (in megabytes) to give the machines",
 	},
 	flag.Bool{
 		Name:        "ha",
@@ -194,7 +217,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
-	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+	deploymentArgs := MachineDeploymentArgs{
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
@@ -204,10 +227,26 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		VMSize:                flag.GetString(ctx, "vm-size"),
+		VMSize:                flag.GetFirstString(ctx, "vm-size", "size"),
+		CPUs:                  flag.GetFirstInt(ctx, "vm-cpus", "cpus"),
+		MemoryMB:              flag.GetFirstInt(ctx, "vm-memory", "memory"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
-	})
+	}
+
+	if cpus := flag.GetFirstInt(ctx, "vm-cpus", "cpus"); cpus != 0 {
+		deploymentArgs.CPUs = cpus
+	} else if flag.IsSpecified(ctx, "vm-cpus", "cpus") {
+		return fmt.Errorf("cannot have zero cpus")
+	}
+
+	if memory := flag.GetFirstInt(ctx, "vm-memory", "memory"); memory != 0 {
+		deploymentArgs.MemoryMB = memory
+	} else if flag.IsSpecified(ctx, "vm-memory", "memory") {
+		return fmt.Errorf("memory cannot be zero")
+	}
+
+	md, err := NewMachineDeployment(ctx, deploymentArgs)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
 		return err

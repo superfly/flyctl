@@ -42,8 +42,16 @@ type MachineDeploymentArgs struct {
 	WaitTimeout           time.Duration
 	LeaseTimeout          time.Duration
 	VMSize                string
+	CPUs                  int
+	MemoryMB              int
 	IncreasedAvailability bool
 	AllocPublicIP         bool
+}
+
+type requestedGuest struct {
+	RealizedGuest *api.MachineGuest
+	MemoryMB      int
+	CPUs          int
 }
 
 type machineDeployment struct {
@@ -68,7 +76,7 @@ type machineDeployment struct {
 	leaseTimeout          time.Duration
 	leaseDelayBetween     time.Duration
 	isFirstDeploy         bool
-	machineGuest          *api.MachineGuest
+	machineGuest          requestedGuest
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
 }
@@ -141,7 +149,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
-	if err := md.setMachineGuest(args.VMSize); err != nil {
+	if err := md.setMachineGuest(args.VMSize, args.CPUs, args.MemoryMB); err != nil {
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
@@ -383,12 +391,18 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
 }
 
-func (md *machineDeployment) setMachineGuest(vmSize string) error {
-	if vmSize == "" {
-		return nil
+func (md *machineDeployment) setMachineGuest(vmSize string, cpus int, memoryMB int) error {
+	if vmSize != "" {
+		fullGuest := &api.MachineGuest{}
+		err := fullGuest.SetSize(vmSize)
+		if err != nil {
+			return err
+		}
+		md.machineGuest.RealizedGuest = fullGuest
 	}
-	md.machineGuest = &api.MachineGuest{}
-	return md.machineGuest.SetSize(vmSize)
+	md.machineGuest.CPUs = cpus
+	md.machineGuest.MemoryMB = memoryMB
+	return nil
 }
 
 func (md *machineDeployment) setStrategy() error {

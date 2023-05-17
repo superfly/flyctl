@@ -311,8 +311,45 @@ type metadata struct {
 	value string
 }
 
+func (md *machineDeployment) guestForMachine(mach *api.Machine, group string) *api.MachineGuest {
+
+	var guest *api.MachineGuest
+	if mach != nil && mach.Config != nil && mach.Config.Guest != nil {
+		guest = helpers.Clone(mach.Config.Guest)
+	}
+	if md.machineGuest.RealizedGuest != nil {
+		guest = helpers.Clone(md.machineGuest.RealizedGuest)
+	}
+	if guest == nil {
+		siblings := lo.FilterMap(md.machineSet.GetMachines(), func(m machine.LeasableMachine, _ int) (*api.Machine, bool) {
+			if m.Machine().ProcessGroup() == group {
+				return m.Machine(), true
+			}
+			return nil, false
+		})
+		median := machine.GetMedianGuest(siblings)
+		if median != nil {
+			guest = median
+		}
+	}
+	if guest == nil {
+		if md.machineGuest.CPUs == 0 && md.machineGuest.MemoryMB == 0 {
+			return nil
+		}
+		guest = helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+	}
+
+	if md.machineGuest.MemoryMB != 0 {
+		guest.MemoryMB = md.machineGuest.MemoryMB
+	}
+	if md.machineGuest.CPUs != 0 {
+		guest.CPUs = md.machineGuest.CPUs
+	}
+	return guest
+}
+
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string, meta ...metadata) (machine.LeasableMachine, error) {
-	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest, standbyFor)
+	launchInput, err := md.launchInputForLaunch(groupName, md.guestForMachine(nil, groupName), standbyFor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating machine configuration: %w", err)
 	}

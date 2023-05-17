@@ -126,6 +126,9 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mConfig.Standbys = nil
 	}
 
+	// Potentially update the VM guest
+	mConfig.Guest = md.guestForMachine(origMachineRaw, processGroup)
+
 	return &api.LaunchMachineInput{
 		ID:         mID,
 		Region:     origMachineRaw.Region,

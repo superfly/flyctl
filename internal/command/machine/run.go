@@ -47,6 +47,11 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "size",
+		Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
+		Hidden:      true,
+	},
+	flag.String{
+		Name:        "vm-size",
 		Shorthand:   "s",
 		Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
 	},
@@ -717,7 +722,7 @@ type determineMachineConfigInput struct {
 func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
+	if guestSize := flag.GetFirstString(ctx, "vm-size", "size"); guestSize != "" {
 		err := machineConf.Guest.SetSize(guestSize)
 		if err != nil {
 			return nil, err
