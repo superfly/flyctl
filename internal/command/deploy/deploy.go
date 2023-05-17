@@ -94,6 +94,18 @@ var CommonFlags = flag.Set{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
 	},
+	flag.Int{
+		Name:        "vm-cpus",
+		Description: "Number of CPUs",
+	},
+	flag.String{
+		Name:        "vm-cpu-kind",
+		Description: "The kind of CPU to use ('shared' or 'performance')",
+	},
+	flag.Int{
+		Name:        "vm-memory",
+		Description: "Memory (in megabytes) to attribute to the VM",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -206,6 +218,8 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		VMSize:                flag.GetString(ctx, "vm-size"),
+		VMCPUs:                flag.GetInt(ctx, "vm-cpus"),
+		VMMemory:              flag.GetInt(ctx, "vm-memory"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	})

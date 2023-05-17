@@ -42,6 +42,9 @@ type MachineDeploymentArgs struct {
 	WaitTimeout           time.Duration
 	LeaseTimeout          time.Duration
 	VMSize                string
+	VMCPUs                int
+	VMMemory              int
+	VMCPUKind             string
 	IncreasedAvailability bool
 	AllocPublicIP         bool
 }
@@ -141,7 +144,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
-	if err := md.setMachineGuest(args.VMSize); err != nil {
+	if err := md.setMachineGuest(args.VMSize, args.VMCPUKind, args.VMCPUs, args.VMMemory); err != nil {
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
@@ -383,12 +386,31 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
 }
 
-func (md *machineDeployment) setMachineGuest(vmSize string) error {
-	if vmSize == "" {
-		return nil
-	}
+func (md *machineDeployment) setMachineGuest(vmSize string, vmCPUKind string, vmCPUs int, vmMem int) error {
 	md.machineGuest = &api.MachineGuest{}
-	return md.machineGuest.SetSize(vmSize)
+	if vmSize != "" {
+		if err := md.machineGuest.SetSize(vmSize); err != nil {
+			return err
+		}
+	}
+
+	if vmCPUKind == "" {
+		md.machineGuest.CPUKind = "shared"
+	} else {
+		if md.machineGuest.CPUKind == "shared" || md.machineGuest.CPUKind == "performance" {
+			md.machineGuest.CPUKind = vmCPUKind
+		} else {
+			return fmt.Errorf("invalid machine CPU kind requested, '%s', expected to start with 'shared' or 'performance'", vmCPUKind)
+		}
+	}
+
+	if vmCPUs != 0 {
+		md.machineGuest.CPUs = vmCPUs
+	}
+	if vmMem != 0 {
+		md.machineGuest.MemoryMB = vmMem
+	}
+	return nil
 }
 
 func (md *machineDeployment) setStrategy() error {
