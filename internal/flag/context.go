@@ -3,6 +3,7 @@ package flag
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/samber/lo"
@@ -38,6 +39,55 @@ func FirstArg(ctx context.Context) string {
 	return ""
 }
 
+func getFirst[T comparable](
+	ctx context.Context,
+	getter func(context.Context, string) T,
+	name string,
+	aliases ...string,
+) T {
+	var (
+		lastDefault T
+
+		flags        = FromContext(ctx)
+		anyWereValid = false
+		typename     = reflect.TypeOf(lastDefault).Name()
+	)
+
+	// Written this awkward way to enforce there being at least one name,
+	// and to get IDE hints about how to use this function.
+	names := append([]string{name}, aliases...)
+
+	// Validate that all flags are int flags.
+	invalidFlags := lo.Filter(names, func(name string, _ int) bool {
+		info := flags.Lookup(name)
+		return info == nil || info.Value.Type() != typename
+	})
+	if len(invalidFlags) > 0 {
+		panic(fmt.Errorf("flags '%v' are not %s flags", invalidFlags, typename))
+	}
+
+	// Get the first user-specified value, or the first default value.
+	for _, name := range names {
+		info := flags.Lookup(name)
+		if info == nil {
+			continue
+		}
+		anyWereValid = true
+		value := getter(ctx, name)
+		if info.Changed {
+			return value
+		} else {
+			if lo.IsEmpty(lastDefault) {
+				lastDefault = value
+			}
+		}
+	}
+	if anyWereValid {
+		return lastDefault
+	}
+	panic(fmt.Errorf("no %s flag specified: %v", typename, names))
+}
+
 // GetString returns the value of the named string flag ctx carries.
 func GetString(ctx context.Context, name string) string {
 	if v, err := FromContext(ctx).GetString(name); err != nil {
@@ -45,6 +95,13 @@ func GetString(ctx context.Context, name string) string {
 	} else {
 		return v
 	}
+}
+
+// GetFirstString returns the value of the first matching string flag ctx carries.
+// It panics in case ctx carries no flags, or if any non-string flags are specified.
+// If no values are specified, the *first* default value is returned, if any exist.
+func GetFirstString(ctx context.Context, name string, aliases ...string) string {
+	return getFirst(ctx, GetString, name, aliases...)
 }
 
 // SetString sets the value of the named string flag ctx carries.
@@ -66,45 +123,7 @@ func GetInt(ctx context.Context, name string) int {
 // It panics in case ctx carries no flags, or if any non-int flags are specified.
 // If no values are specified, the *first* default value is returned, if any exist.
 func GetFirstInt(ctx context.Context, name string, aliases ...string) int {
-	var (
-		flags        = FromContext(ctx)
-		lastDefault  = 0
-		anyWereValid = false
-	)
-
-	// Written this awkward way to enforce there being at least one name,
-	// and to get IDE hints about how to use this function.
-	names := append([]string{name}, aliases...)
-
-	// Validate that all flags are int flags.
-	invalidFlags := lo.Filter(names, func(name string, _ int) bool {
-		info := flags.Lookup(name)
-		return info == nil || info.Value.Type() != "int"
-	})
-	if len(invalidFlags) > 0 {
-		panic(fmt.Errorf("flags '%v' are not int flags", invalidFlags))
-	}
-
-	// Get the first user-specified value, or the first default value.
-	for _, name := range names {
-		info := flags.Lookup(name)
-		if info == nil {
-			continue
-		}
-		anyWereValid = true
-		value := GetInt(ctx, name)
-		if info.Changed {
-			return value
-		} else {
-			if lastDefault == 0 {
-				lastDefault = value
-			}
-		}
-	}
-	if anyWereValid {
-		return lastDefault
-	}
-	panic(fmt.Errorf("no int flag specified: %v", names))
+	return getFirst(ctx, GetInt, name, aliases...)
 }
 
 // GetStringArray returns the values of the named string flag ctx carries.
