@@ -429,7 +429,19 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 	if willAddMachines {
 		bullet := md.colorize.Green("*")
 		for name := range diff.groupsNeedingMachines {
-			fmt.Fprintf(md.io.Out, " %s create 1 \"%s\" machine\n", bullet, name)
+			var description string
+			groupConfig, err := md.appConfig.Flatten(name)
+			switch {
+			case err != nil:
+				continue
+			case !md.increasedAvailability || len(groupConfig.Mounts) > 0:
+				description = fmt.Sprintf("1 \"%s\" machine", name)
+			case len(groupConfig.AllServices()) > 0:
+				description = fmt.Sprintf("2 \"%s\" machines", name)
+			default:
+				description = fmt.Sprintf("1 \"%s\" machine and 1 standby machine for it", name)
+			}
+			fmt.Fprintf(md.io.Out, " %s create %s\n", bullet, description)
 		}
 	}
 	fmt.Fprint(md.io.Out, "\n")
