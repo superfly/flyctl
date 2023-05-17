@@ -33,7 +33,8 @@ For pricing, see https://fly.io/docs/about/pricing/`
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Int{Name: "memory", Description: "Memory in MB for the VM", Default: 0},
+		flag.Int{Name: "memory", Description: "Memory in MB for the VM", Hidden: true},
+		flag.Int{Name: "vm-memory", Description: "Memory in MB for the VM", Default: 0},
 		flag.String{Name: "group", Description: "The process group to apply the VM size to"},
 	)
 	return cmd
@@ -41,7 +42,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 
 func runScaleVM(ctx context.Context) error {
 	sizeName := flag.FirstArg(ctx)
-	memoryMB := flag.GetInt(ctx, "memory")
+	memoryMB := flag.GetFirstInt(ctx, "vm-memory", "memory")
 	group := flag.GetString(ctx, "group")
 	return scaleVertically(ctx, group, sizeName, memoryMB)
 }

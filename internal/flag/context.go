@@ -2,8 +2,10 @@ package flag
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 )
@@ -60,6 +62,51 @@ func GetInt(ctx context.Context, name string) int {
 	}
 }
 
+// GetFirstInt returns the value of the first matching int flag ctx carries.
+// It panics in case ctx carries no flags, or if any non-int flags are specified.
+// If no values are specified, the *first* default value is returned, if any exist.
+func GetFirstInt(ctx context.Context, name string, aliases ...string) int {
+	var (
+		flags        = FromContext(ctx)
+		lastDefault  = 0
+		anyWereValid = false
+	)
+
+	// Written this awkward way to enforce there being at least one name,
+	// and to get IDE hints about how to use this function.
+	names := append([]string{name}, aliases...)
+
+	// Validate that all flags are int flags.
+	invalidFlags := lo.Filter(names, func(name string, _ int) bool {
+		info := flags.Lookup(name)
+		return info == nil || info.Value.Type() != "int"
+	})
+	if len(invalidFlags) > 0 {
+		panic(fmt.Errorf("flags '%v' are not int flags", invalidFlags))
+	}
+
+	// Get the first user-specified value, or the first default value.
+	for _, name := range names {
+		info := flags.Lookup(name)
+		if info == nil {
+			continue
+		}
+		anyWereValid = true
+		value := GetInt(ctx, name)
+		if info.Changed {
+			return value
+		} else {
+			if lastDefault == 0 {
+				lastDefault = value
+			}
+		}
+	}
+	if anyWereValid {
+		return lastDefault
+	}
+	panic(fmt.Errorf("no int flag specified: %v", names))
+}
+
 // GetStringArray returns the values of the named string flag ctx carries.
 // Preserves commas (unlike the following `GetStringSlice`): in `--flag x,y` the value is string[]{`x,y`}.
 // This is useful to pass key-value pairs like environment variables or build arguments.
@@ -99,11 +146,16 @@ func GetBool(ctx context.Context, name string) bool {
 	}
 }
 
-// IsSpecified returns whether a flag has been specified at all or not.
+// IsSpecified returns true if any of the provided flags have been specified.
 // This is useful, for example, when differentiating between 0/"" and unspecified.
-func IsSpecified(ctx context.Context, name string) bool {
-	flag := FromContext(ctx).Lookup(name)
-	return flag != nil && flag.Changed
+func IsSpecified(ctx context.Context, names ...string) bool {
+	for _, name := range names {
+		flag := FromContext(ctx).Lookup(name)
+		if flag != nil && flag.Changed {
+			return true
+		}
+	}
+	return false
 }
 
 // GetOrg is shorthand for GetString(ctx, OrgName).

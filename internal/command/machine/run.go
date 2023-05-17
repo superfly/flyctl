@@ -53,9 +53,19 @@ var sharedFlags = flag.Set{
 	flag.Int{
 		Name:        "cpus",
 		Description: "Number of CPUs",
+		Hidden:      true,
+	},
+	flag.Int{
+		Name:        "vm-cpus",
+		Description: "Number of CPUs",
 	},
 	flag.Int{
 		Name:        "memory",
+		Description: "Memory (in megabytes) to attribute to the machine",
+		Hidden:      true,
+	},
+	flag.Int{
+		Name:        "vm-memory",
 		Description: "Memory (in megabytes) to attribute to the machine",
 	},
 	flag.StringArray{
@@ -715,15 +725,15 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	}
 
 	// Potential overrides for Guest
-	if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
+	if cpus := flag.GetFirstInt(ctx, "vm-cpus", "cpus"); cpus != 0 {
 		machineConf.Guest.CPUs = cpus
-	} else if flag.IsSpecified(ctx, "cpus") {
+	} else if flag.IsSpecified(ctx, "vm-cpus", "cpus") {
 		return nil, fmt.Errorf("cannot have zero cpus")
 	}
 
-	if memory := flag.GetInt(ctx, "memory"); memory != 0 {
+	if memory := flag.GetFirstInt(ctx, "vm-memory", "memory"); memory != 0 {
 		machineConf.Guest.MemoryMB = memory
-	} else if flag.IsSpecified(ctx, "memory") {
+	} else if flag.IsSpecified(ctx, "vm-memory", "memory") {
 		return nil, fmt.Errorf("memory cannot be zero")
 	}
 
