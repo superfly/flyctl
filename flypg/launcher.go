@@ -127,6 +127,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		if config.ScaleToZero {
 			autoStart = true
+			config.Autostart = true
 		}
 
 		if config.Manager == ReplicationManager {
