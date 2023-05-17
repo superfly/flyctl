@@ -394,10 +394,10 @@ func (md *machineDeployment) setMachineGuest(vmSize string, vmCPUKind string, vm
 		}
 	}
 
-	if vmCPUKind == "" {
+	if vmCPUKind == "" && md.machineGuest.CPUKind == "" {
 		md.machineGuest.CPUKind = "shared"
 	} else {
-		if md.machineGuest.CPUKind == "shared" || md.machineGuest.CPUKind == "performance" {
+		if vmCPUKind == "shared" || vmCPUKind == "performance" {
 			md.machineGuest.CPUKind = vmCPUKind
 		} else {
 			return fmt.Errorf("invalid machine CPU kind requested, '%s', expected to start with 'shared' or 'performance'", vmCPUKind)

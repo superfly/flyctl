@@ -806,11 +806,11 @@ func TestLaunchCpusMem(t *testing.T) {
 		appName = f.CreateRandomAppName()
 	)
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 4096 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
 	firstMachineGuest := machines[0].Config.Guest
 
 	require.Equal(f, 4, firstMachineGuest.CPUs)
-	require.Equal(f, 4096, firstMachineGuest.MemoryMB)
-	require.Equal(f, "shared", firstMachineGuest.CPUKind)
+	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
+	require.Equal(f, "performance", firstMachineGuest.CPUKind)
 }

@@ -220,6 +220,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		VMSize:                flag.GetString(ctx, "vm-size"),
 		VMCPUs:                flag.GetInt(ctx, "vm-cpus"),
 		VMMemory:              flag.GetInt(ctx, "vm-memory"),
+		VMCPUKind:             flag.GetString(ctx, "vm-cpu-kind"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	})
