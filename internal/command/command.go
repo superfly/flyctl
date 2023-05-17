@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -290,6 +292,8 @@ func initClient(ctx context.Context) (context.Context, error) {
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
 	api.SetInstrumenter(instrument.ApiAdapter)
+	api.SetTransport(httptracing.NewTransport(http.DefaultTransport))
+
 	c := client.FromToken(cfg.AccessToken)
 	logger.Debug("client initialized.")
 
