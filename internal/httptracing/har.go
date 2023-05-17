@@ -16,7 +16,7 @@ type harOpt struct {
 var har *harOpt
 
 func Init() {
-	if path := os.Getenv("FLY_OUTPUT_HAR"); path != "" {
+	if path := os.Getenv("FLYCTL_OUTPUT_HAR"); path != "" {
 		har = &harOpt{
 			Path:      path,
 			Container: harlog.NewHARContainer(),
