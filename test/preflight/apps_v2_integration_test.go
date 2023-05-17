@@ -799,3 +799,18 @@ func TestNoPublicIPDeployMachines(t *testing.T) {
 	// There should be no ips allocated
 	require.Equal(f, "[]\n", result.StdOut().String())
 }
+
+func TestLaunchCpusMem(t *testing.T) {
+	var (
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-size performance-2x --vm-cpus 4 --vm-memory 8192", f.OrgSlug(), appName, f.PrimaryRegion())
+	machines := f.MachinesList(appName)
+	firstMachineGuest := machines[0].Config.Guest
+
+	require.Equal(f, 4, firstMachineGuest.CPUs)
+	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
+	require.Equal(f, "performance", firstMachineGuest.CPUKind)
+}
