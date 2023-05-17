@@ -757,10 +757,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Init.Cmd = flag.Args(ctx)[1:]
 	}
 
-	if machineConf.DNS == nil {
-		machineConf.DNS = &api.DNSConfig{
-			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
+	if flag.IsSpecified(ctx, "skip-dns-registration") {
+		if machineConf.DNS == nil {
+			machineConf.DNS = &api.DNSConfig{}
 		}
+		machineConf.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
 	}
 
 	// Metadata
