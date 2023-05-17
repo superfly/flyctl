@@ -123,6 +123,13 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			SoftLimit: 1000,
 		}
 
+		autoStart := false
+
+		if config.ScaleToZero {
+			autoStart = true
+			config.Autostart = true
+		}
+
 		if config.Manager == ReplicationManager {
 			var bouncerPort int = 5432
 			var pgPort int = 5433
@@ -141,6 +148,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 						},
 					},
 					Concurrency: concurrency,
+					Autostart:   &autoStart,
 				},
 				{
 					Protocol:     "tcp",
@@ -155,6 +163,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 						},
 					},
 					Concurrency: concurrency,
+					Autostart:   &autoStart,
 				},
 			}
 		}
