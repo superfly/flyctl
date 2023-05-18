@@ -45,11 +45,7 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Default:     false,
 			Description: "select available instances",
 		},
-		flag.String{
-			Name:        "region",
-			Shorthand:   "r",
-			Description: "Region to create WireGuard connection in",
-		},
+		flag.Region(),
 		flag.Bool{
 			Name:        "quiet",
 			Shorthand:   "q",

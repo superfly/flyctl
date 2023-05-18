@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -26,11 +25,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
+	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/httptracing"
-	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -38,13 +36,9 @@ import (
 	"github.com/superfly/flyctl/internal/update"
 )
 
-type (
-	Preparer func(context.Context) (context.Context, error)
+type Runner func(context.Context) error
 
-	Runner func(context.Context) error
-)
-
-func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
+func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.Command {
 	return &cobra.Command{
 		Use:   usage,
 		Short: short,
@@ -53,20 +47,20 @@ func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 	}
 }
 
-var commonPreparers = []Preparer{
+var commonPreparers = []preparers.Preparer{
 	applyAliases,
 	determineHostname,
 	determineWorkingDir,
-	determineUserHomeDir,
-	determineConfigDir,
+	preparers.DetermineUserHomeDir,
+	preparers.DetermineConfigDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
 	loadCache,
-	loadConfig,
+	preparers.LoadConfig,
 	initTaskManager,
 	startQueryingForNewRelease,
 	promptToUpdate,
-	initClient,
+	preparers.InitClient,
 	killOldAgent,
 	recordMetricsCommandContext,
 }
@@ -87,7 +81,7 @@ func sendOsMetric(ctx context.Context, state string) {
 	metrics.SendNoData(ctx, fmt.Sprintf("runs/%s/%s", osName, state))
 }
 
-func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) error {
+func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []string) error {
 	if fn == nil {
 		return nil
 	}
@@ -124,7 +118,7 @@ func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) er
 	}
 }
 
-func prepare(parent context.Context, preparers ...Preparer) (ctx context.Context, err error) {
+func prepare(parent context.Context, preparers ...preparers.Preparer) (ctx context.Context, err error) {
 	ctx = parent
 
 	for _, p := range preparers {
@@ -245,27 +239,6 @@ func determineWorkingDir(ctx context.Context) (context.Context, error) {
 	return state.WithWorkingDirectory(ctx, wd), nil
 }
 
-func determineUserHomeDir(ctx context.Context) (context.Context, error) {
-	wd, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed determining user home directory: %w", err)
-	}
-
-	logger.FromContext(ctx).
-		Debugf("determined user home directory: %q", wd)
-
-	return state.WithUserHomeDirectory(ctx, wd), nil
-}
-
-func determineConfigDir(ctx context.Context) (context.Context, error) {
-	dir := filepath.Join(state.UserHomeDirectory(ctx), ".fly")
-
-	logger.FromContext(ctx).
-		Debugf("determined config directory: %q", dir)
-
-	return state.WithConfigDirectory(ctx, dir), nil
-}
-
 func ensureConfigDirExists(ctx context.Context) (context.Context, error) {
 	dir := state.ConfigDirectory(ctx)
 
@@ -334,44 +307,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	logger.Debug("cache loaded.")
 
 	return cache.NewContext(ctx, c), nil
-}
-
-func loadConfig(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-
-	cfg := config.New()
-
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-
-	// Apply config from the environment, overriding anything from the file
-	cfg.ApplyEnv()
-
-	// Finally, apply command line options, overriding any previous setting
-	cfg.ApplyFlags(flag.FromContext(ctx))
-
-	logger.Debug("config initialized.")
-
-	return config.NewContext(ctx, cfg), nil
-}
-
-func initClient(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-	cfg := config.FromContext(ctx)
-
-	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(httptracing.NewTransport(http.DefaultTransport))
-
-	c := client.FromToken(cfg.AccessToken)
-	logger.Debug("client initialized.")
-
-	return client.NewContext(ctx, c), nil
 }
 
 func initTaskManager(ctx context.Context) (context.Context, error) {

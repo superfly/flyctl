@@ -43,10 +43,7 @@ func newClone() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		selectFlag,
-		flag.String{
-			Name:        "region",
-			Description: "Target region for the new machine",
-		},
+		flag.Region(),
 		flag.String{
 			Name:        "name",
 			Description: "Optional name for the new machine",

@@ -5,20 +5,20 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"golang.org/x/exp/slices"
 )
 
-type contextKey struct{}
-
 // NewContext derives a context that carries fs from ctx.
 func NewContext(ctx context.Context, fs *pflag.FlagSet) context.Context {
-	return context.WithValue(ctx, contextKey{}, fs)
+	return flagctx.NewContext(ctx, fs)
 }
 
 // FromContext returns the FlagSet ctx carries. It panics in case ctx carries
 // no FlagSet.
 func FromContext(ctx context.Context) *pflag.FlagSet {
-	return ctx.Value(contextKey{}).(*pflag.FlagSet)
+	return flagctx.FromContext(ctx)
 }
 
 // Args is shorthand for FromContext(ctx).Args().
@@ -106,29 +106,29 @@ func IsSpecified(ctx context.Context, name string) bool {
 	return flag != nil && flag.Changed
 }
 
-// GetOrg is shorthand for GetString(ctx, OrgName).
+// GetOrg is shorthand for GetString(ctx, Org).
 func GetOrg(ctx context.Context) string {
-	return GetString(ctx, OrgName)
+	return GetString(ctx, flagnames.Org)
 }
 
-// GetRegion is shorthand for GetString(ctx, RegionName).
+// GetRegion is shorthand for GetString(ctx, Region).
 func GetRegion(ctx context.Context) string {
-	return GetString(ctx, RegionName)
+	return GetString(ctx, flagnames.Region)
 }
 
-// GetYes is shorthand for GetBool(ctx, YesName).
+// GetYes is shorthand for GetBool(ctx, Yes).
 func GetYes(ctx context.Context) bool {
-	return GetBool(ctx, YesName)
+	return GetBool(ctx, flagnames.Yes)
 }
 
-// GetApp is shorthand for GetString(ctx, AppName).
+// GetApp is shorthand for GetString(ctx, App).
 func GetApp(ctx context.Context) string {
-	return GetString(ctx, AppName)
+	return GetString(ctx, flagnames.App)
 }
 
-// GetAppConfigFilePath is shorthand for GetString(ctx, AppConfigFilePathName).
+// GetAppConfigFilePath is shorthand for GetString(ctx, AppConfigFilePath).
 func GetAppConfigFilePath(ctx context.Context) string {
-	if path, err := FromContext(ctx).GetString(AppConfigFilePathName); err != nil {
+	if path, err := FromContext(ctx).GetString(flagnames.AppConfigFilePath); err != nil {
 		return ""
 	} else {
 		return path

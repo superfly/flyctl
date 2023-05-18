@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -572,10 +573,10 @@ func (t *troubleshooter) deployMachines(ctx context.Context) (err error) {
 	newDeployCmd := deploy.New()
 	fakeFlagCtx := flag.NewContext(ctx, newDeployCmd.Flags())
 
-	if err := flag.SetString(fakeFlagCtx, flag.AppConfigFilePathName, flag.GetAppConfigFilePath(ctx)); err != nil {
+	if err := flag.SetString(fakeFlagCtx, flagnames.AppConfigFilePath, flag.GetAppConfigFilePath(ctx)); err != nil {
 		return err
 	}
-	if err := flag.SetString(fakeFlagCtx, flag.AppName, flag.GetApp(ctx)); err != nil {
+	if err := flag.SetString(fakeFlagCtx, flagnames.App, flag.GetApp(ctx)); err != nil {
 		return err
 	}
 

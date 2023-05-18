@@ -7,50 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-)
-
-const (
-	// AccessTokenName denotes the name of the access token flag.
-	AccessTokenName = "access-token"
-
-	// VerboseName denotes the name of the verbose flag.
-	VerboseName = "verbose"
-
-	// JSONOutputName denotes the name of the json output flag.
-	JSONOutputName = "json"
-
-	// LocalOnlyName denotes the name of the local-only flag.
-	LocalOnlyName = "local-only"
-
-	// OrgName denotes the name of the org flag.
-	OrgName = "org"
-
-	// RegionName denotes the name of the region flag.
-	RegionName = "region"
-
-	// YesName denotes the name of the yes flag.
-	YesName = "yes"
-
-	// AppName denotes the name of the app flag.
-	AppName = "app"
-
-	// AppConfigFilePathName denotes the name of the app config file path flag.
-	AppConfigFilePathName = "config"
-
-	// ImageName denotes the name of the image flag.
-	ImageName = "image"
-
-	// NowName denotes the name of the now flag.
-	NowName = "now"
-
-	// NoDeploy denotes the name of the no deploy flag.
-	NoDeployName = "no-deploy"
-
-	// GenerateName denotes the name of the generate name flag.
-	GenerateNameFlagName = "generate-name"
-
-	// DetachName denotes the name of the detach flag.
-	DetachName = "detach"
+	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
 func makeAlias[T any](template T, name string) T {
@@ -117,6 +75,7 @@ func (b Bool) addTo(cmd *cobra.Command) {
 	f := flags.Lookup(b.Name)
 	f.Hidden = b.Hidden
 
+	// Aliases
 	for _, name := range b.Aliases {
 		makeAlias(b, name).addTo(cmd)
 	}
@@ -128,14 +87,15 @@ func (b Bool) addTo(cmd *cobra.Command) {
 
 // String wraps the set of string flags.
 type String struct {
-	Name        string
-	Shorthand   string
-	Description string
-	Default     string
-	ConfName    string
-	EnvName     string
-	Hidden      bool
-	Aliases     []string
+	Name         string
+	Shorthand    string
+	Description  string
+	Default      string
+	ConfName     string
+	EnvName      string
+	Hidden       bool
+	Aliases      []string
+	CompletionFn func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
 }
 
 func (s String) addTo(cmd *cobra.Command) {
@@ -150,12 +110,21 @@ func (s String) addTo(cmd *cobra.Command) {
 	f := flags.Lookup(s.Name)
 	f.Hidden = s.Hidden
 
+	// Aliases
 	for _, name := range s.Aliases {
 		makeAlias(s, name).addTo(cmd)
 	}
 	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", s.Aliases)
 	if err != nil {
 		panic(err)
+	}
+
+	// Completion
+	if s.CompletionFn != nil {
+		err := cmd.RegisterFlagCompletionFunc(s.Name, completion.AdaptFn(s.CompletionFn))
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 
@@ -181,6 +150,7 @@ func (i Int) addTo(cmd *cobra.Command) {
 	f := flags.Lookup(i.Name)
 	f.Hidden = i.Hidden
 
+	// Aliases
 	for _, name := range i.Aliases {
 		makeAlias(i, name).addTo(cmd)
 	}
@@ -214,6 +184,7 @@ func (ss StringSlice) addTo(cmd *cobra.Command) {
 	f := flags.Lookup(ss.Name)
 	f.Hidden = ss.Hidden
 
+	// Aliases
 	for _, name := range ss.Aliases {
 		makeAlias(ss, name).addTo(cmd)
 	}
@@ -247,6 +218,7 @@ func (ss StringArray) addTo(cmd *cobra.Command) {
 	f := flags.Lookup(ss.Name)
 	f.Hidden = ss.Hidden
 
+	// Aliases
 	for _, name := range ss.Aliases {
 		makeAlias(ss, name).addTo(cmd)
 	}
@@ -280,6 +252,7 @@ func (d Duration) addTo(cmd *cobra.Command) {
 	f := flags.Lookup(d.Name)
 	f.Hidden = d.Hidden
 
+	// Aliases
 	for _, name := range d.Aliases {
 		makeAlias(d, name).addTo(cmd)
 	}
@@ -292,25 +265,27 @@ func (d Duration) addTo(cmd *cobra.Command) {
 // Org returns an org string flag.
 func Org() String {
 	return String{
-		Name:        OrgName,
-		Description: "The target Fly organization",
-		Shorthand:   "o",
+		Name:         flagnames.Org,
+		Description:  "The target Fly organization",
+		Shorthand:    "o",
+		CompletionFn: completion.InitFlyApi(completion.CompleteOrgs),
 	}
 }
 
 // Region returns a region string flag.
 func Region() String {
 	return String{
-		Name:        RegionName,
-		Description: "The target region (see 'flyctl platform regions')",
-		Shorthand:   "r",
+		Name:         flagnames.Region,
+		Description:  "The target region (see 'flyctl platform regions')",
+		Shorthand:    "r",
+		CompletionFn: completion.InitFlyApi(completion.CompleteRegions),
 	}
 }
 
 // Yes returns a yes bool flag.
 func Yes() Bool {
 	return Bool{
-		Name:        YesName,
+		Name:        flagnames.Yes,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
 	}
@@ -319,16 +294,17 @@ func Yes() Bool {
 // App returns an app string flag.
 func App() String {
 	return String{
-		Name:        AppName,
-		Shorthand:   "a",
-		Description: "Application name",
+		Name:         flagnames.App,
+		Shorthand:    "a",
+		Description:  "Application name",
+		CompletionFn: completion.InitFlyApi(completion.CompleteApps),
 	}
 }
 
 // AppConfig returns an app config string flag.
 func AppConfig() String {
 	return String{
-		Name:        AppConfigFilePathName,
+		Name:        flagnames.AppConfigFilePath,
 		Shorthand:   "c",
 		Description: "Path to application configuration file",
 	}
@@ -337,7 +313,7 @@ func AppConfig() String {
 // Image returns a Docker image config string flag.
 func Image() String {
 	return String{
-		Name:        ImageName,
+		Name:        flagnames.Image,
 		Shorthand:   "i",
 		Description: "The Docker image to deploy",
 	}
@@ -346,7 +322,7 @@ func Image() String {
 // Now returns a boolean flag for deploying immediately
 func Now() Bool {
 	return Bool{
-		Name:        NowName,
+		Name:        flagnames.Now,
 		Description: "Deploy now without confirmation",
 		Default:     false,
 	}
@@ -362,7 +338,7 @@ func NoDeploy() Bool {
 // GenerateName returns a boolean flag for generating an application name
 func GenerateName() Bool {
 	return Bool{
-		Name:        GenerateNameFlagName,
+		Name:        flagnames.GenerateNameFlag,
 		Description: "Always generate a name for the app",
 		Default:     false,
 	}
@@ -506,7 +482,7 @@ func Strategy() String {
 
 func JSONOutput() Bool {
 	return Bool{
-		Name:        JSONOutputName,
+		Name:        flagnames.JSONOutput,
 		Shorthand:   "j",
 		Description: "JSON output",
 		Default:     false,
