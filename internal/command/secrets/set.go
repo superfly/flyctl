@@ -34,13 +34,14 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
-	command.PromptToMigrate(ctx)
 	client := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
+
+	command.PromptToMigrate(ctx, app)
 
 	secrets, err := cmdutil.ParseKVStringsToMap(flag.Args(ctx))
 	if err != nil {

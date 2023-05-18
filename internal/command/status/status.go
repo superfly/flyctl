@@ -109,7 +109,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		err = renderMachineStatus(ctx, app, out)
 		return
 	} else {
-		command.PromptToMigrate(ctx)
+		command.PromptToMigrate(ctx, app)
 	}
 
 	var status *api.AppStatus

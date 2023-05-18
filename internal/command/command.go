@@ -426,10 +426,10 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PromptToMigrate(ctx context.Context) {
-	config := appconfig.ConfigFromContext(ctx)
-	if config != nil {
-		if config.PlatformVersion() == "nomad" {
+func PromptToMigrate(ctx context.Context, app *api.AppCompact) {
+	if app.PlatformVersion == "nomad" {
+		config := appconfig.ConfigFromContext(ctx)
+		if config != nil {
 			io := iostreams.FromContext(ctx)
 			fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with:\nfly migrate-to-v2 -c %s", aurora.Yellow("WARN"), config.ConfigFilePath())
 		}

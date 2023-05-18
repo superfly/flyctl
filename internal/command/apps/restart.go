@@ -72,8 +72,13 @@ func runRestart(ctx context.Context) error {
 }
 
 func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
-	command.PromptToMigrate(ctx)
 	client := client.FromContext(ctx).API()
+
+	appName := flag.FirstArg(ctx)
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		command.PromptToMigrate(ctx, app)
+	}
 
 	if _, err := client.RestartApp(ctx, app.Name); err != nil {
 		return fmt.Errorf("failed restarting app: %w", err)

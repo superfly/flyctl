@@ -251,7 +251,7 @@ func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact 
 
 	// Give a warning about nomad deprecation every 5 releases
 	if release.Version%5 == 0 {
-		command.PromptToMigrate(ctx)
+		command.PromptToMigrate(ctx, appCompact)
 	}
 
 	if flag.GetDetach(ctx) {
