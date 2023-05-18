@@ -34,6 +34,7 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
+	command.PromptToMigrate(ctx)
 	client := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)

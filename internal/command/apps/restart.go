@@ -3,6 +3,7 @@ package apps
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
 
@@ -71,6 +72,7 @@ func runRestart(ctx context.Context) error {
 }
 
 func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
+	command.PromptToMigrate(ctx)
 	client := client.FromContext(ctx).API()
 
 	if _, err := client.RestartApp(ctx, app.Name); err != nil {
