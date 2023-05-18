@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -85,7 +86,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	if opts.Logger != nil {
 		logger = opts.Logger
 	}
-	httpClient, err := api.NewHTTPClient(logger, http.DefaultTransport)
+	httpClient, err := api.NewHTTPClient(logger, httptracing.NewTransport(http.DefaultTransport))
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
 	}
@@ -140,7 +141,7 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 		},
 	}
 
-	httpClient, err := api.NewHTTPClient(logger, transport)
+	httpClient, err := api.NewHTTPClient(logger, httptracing.NewTransport(transport))
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", params.orgSlug, err)
 	}

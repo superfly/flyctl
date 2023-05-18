@@ -18,9 +18,10 @@ import (
 )
 
 var (
-	baseURL      string
-	errorLog     bool
-	instrumenter InstrumentationService
+	baseURL          string
+	errorLog         bool
+	instrumenter     InstrumentationService
+	defaultTransport http.RoundTripper = http.DefaultTransport
 )
 
 // SetBaseURL - Sets the base URL for the API
@@ -35,6 +36,10 @@ func SetErrorLog(log bool) {
 
 func SetInstrumenter(i InstrumentationService) {
 	instrumenter = i
+}
+
+func SetTransport(t http.RoundTripper) {
+	defaultTransport = t
 }
 
 type InstrumentationService interface {
@@ -73,7 +78,7 @@ type ClientOptions struct {
 
 func (t *Transport) setDefaults(opts ClientOptions) {
 	if t.UnderlyingTransport == nil {
-		t.UnderlyingTransport = http.DefaultTransport
+		t.UnderlyingTransport = defaultTransport
 	}
 	if t.Token == "" {
 		t.Token = opts.AccessToken

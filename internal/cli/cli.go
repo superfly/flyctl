@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/graphql"
 
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
 
 	"github.com/superfly/flyctl/internal/command/root"
@@ -26,6 +27,9 @@ import (
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	ctx = iostreams.NewContext(ctx, io)
 	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut))
+
+	httptracing.Init()
+	defer httptracing.Finish()
 
 	cmd := root.New()
 	cmd.SetOut(io.Out)
