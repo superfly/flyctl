@@ -114,7 +114,8 @@ func runBarmanCreate(ctx context.Context) error {
 	machineConfig := api.MachineConfig{}
 
 	machineConfig.Env = map[string]string{
-		"IS_BARMAN": "true",
+		"IS_BARMAN":      "true",
+		"PRIMARY_REGION": region.Code,
 	}
 
 	// Set VM resources
