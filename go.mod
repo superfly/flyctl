@@ -87,7 +87,7 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20170929234023-d6e3b3328b78
 	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Microsoft/go-winio v0.5.2 // indirect
+	github.com/Microsoft/go-winio v0.5.2
 	github.com/Microsoft/hcsshim v0.8.25 // indirect
 	github.com/PuerkitoBio/rehttp v1.1.0
 	github.com/apex/log v1.9.0 // indirect

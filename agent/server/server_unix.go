@@ -6,6 +6,7 @@ package server
 import (
 	"errors"
 	"io/fs"
+	"net"
 	"os"
 )
 
@@ -25,4 +26,8 @@ func removeSocket(path string) (err error) {
 	}
 
 	return
+}
+
+func bindSocket(socket string) (net.Listener, error) {
+	return bindUnixSocket(socket)
 }
