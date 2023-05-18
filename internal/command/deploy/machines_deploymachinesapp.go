@@ -133,7 +133,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	groupsWithAutostopEnabled := make(map[string]bool)
 	total := len(processGroupMachineDiff.groupsNeedingMachines)
 	for idx, name := range maps.Keys(processGroupMachineDiff.groupsNeedingMachines) {
-		fmt.Fprintf(md.io.Out, "No machines in group %s, launching one new machine\n", md.colorize.Bold(name))
+		fmt.Fprintf(md.io.Out, "No machines in group %s, launching a new machine\n", md.colorize.Bold(name))
 		leasableMachine, err := md.spawnMachineInGroup(ctx, name, idx, total, nil)
 		if err != nil {
 			return err
