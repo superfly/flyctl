@@ -154,6 +154,8 @@ func promptForOneMachine(ctx context.Context) (*api.Machine, error) {
 	machines, err := flaps.FromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
+	} else if len(machines) == 0 {
+		return nil, fmt.Errorf("the app %s has no machines", appconfig.NameFromContext(ctx))
 	}
 
 	options := sortAndBuildOptions(machines)
@@ -168,6 +170,8 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 	machines, err := flaps.FromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
+	} else if len(machines) == 0 {
+		return nil, fmt.Errorf("the app %s has no machines", appconfig.NameFromContext(ctx))
 	}
 
 	options := sortAndBuildOptions(machines)
