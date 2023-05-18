@@ -899,5 +899,10 @@ func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
 	}
 	guest.MemoryMB = vmSize.MemoryMB
 
+	// minimum memory for a machine is 256MB, micro-1x on V1 allowed 128MB
+	if guest.MemoryMB < 256 {
+		guest.MemoryMB = 256
+	}
+
 	return guest, nil
 }
