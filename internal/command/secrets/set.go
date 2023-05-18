@@ -41,6 +41,8 @@ func runSet(ctx context.Context) (err error) {
 		return err
 	}
 
+	command.PromptToMigrate(ctx, app)
+
 	secrets, err := cmdutil.ParseKVStringsToMap(flag.Args(ctx))
 	if err != nil {
 		return fmt.Errorf("could not parse secrets: %w", err)

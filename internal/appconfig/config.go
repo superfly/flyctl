@@ -252,3 +252,7 @@ func (cfg *Config) URL() *url.URL {
 		return nil
 	}
 }
+
+func (cfg *Config) PlatformVersion() string {
+	return cfg.platformVersion
+}

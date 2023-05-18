@@ -108,6 +108,8 @@ func once(ctx context.Context, out io.Writer) (err error) {
 	if platformVersion == "machines" {
 		err = renderMachineStatus(ctx, app, out)
 		return
+	} else {
+		command.PromptToMigrate(ctx, app)
 	}
 
 	var status *api.AppStatus

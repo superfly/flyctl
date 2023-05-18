@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -256,8 +255,7 @@ func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact 
 
 	// Give a warning about nomad deprecation every 5 releases
 	if release.Version%5 == 0 {
-		io := iostreams.FromContext(ctx)
-		fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with `fly migrate-to-v2`", aurora.Yellow("WARN"))
+		command.PromptToMigrate(ctx, appCompact)
 	}
 
 	if flag.GetDetach(ctx) {
