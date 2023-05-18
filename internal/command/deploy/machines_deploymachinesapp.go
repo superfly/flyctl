@@ -311,12 +311,9 @@ type metadata struct {
 	value string
 }
 
-func (md *machineDeployment) guestForMachine(mach *api.Machine, group string) *api.MachineGuest {
+func (md *machineDeployment) guestForGroup(group string) *api.MachineGuest {
 
 	var guest *api.MachineGuest
-	if mach != nil && mach.Config != nil && mach.Config.Guest != nil {
-		guest = helpers.Clone(mach.Config.Guest)
-	}
 	if md.machineGuest.RealizedGuest != nil {
 		guest = helpers.Clone(md.machineGuest.RealizedGuest)
 	}
@@ -349,7 +346,7 @@ func (md *machineDeployment) guestForMachine(mach *api.Machine, group string) *a
 }
 
 func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string, meta ...metadata) (machine.LeasableMachine, error) {
-	launchInput, err := md.launchInputForLaunch(groupName, md.guestForMachine(nil, groupName), standbyFor)
+	launchInput, err := md.launchInputForLaunch(groupName, md.guestForGroup(groupName), standbyFor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating machine configuration: %w", err)
 	}

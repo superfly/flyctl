@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -77,30 +78,30 @@ var CommonFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "size",
-		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+		Description: `The VM size to use for newly created machines. See "fly platform vm-sizes" for valid values`,
 		Hidden:      true,
 	},
 	flag.String{
 		Name:        "vm-size",
-		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+		Description: `The VM size to use for newly created machines. See "fly platform vm-sizes" for valid values`,
 	},
 	flag.Int{
 		Name:        "cpus",
-		Description: "Number of CPUs",
+		Description: "Number of CPUs to give newly created machines",
 		Hidden:      true,
 	},
 	flag.Int{
 		Name:        "vm-cpus",
-		Description: "Number of CPUs",
+		Description: "Number of CPUs to give newly created machines",
 	},
 	flag.Int{
 		Name:        "memory",
-		Description: "Memory (in megabytes) to give the machines",
+		Description: "Memory (in megabytes) to give newly created machines",
 		Hidden:      true,
 	},
 	flag.Int{
 		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to give the machines",
+		Description: "Memory (in megabytes) to give newly created machines",
 	},
 	flag.Bool{
 		Name:        "ha",
@@ -170,6 +171,20 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
+	}
+
+	if !useMachines(ctx, appCompact) {
+		var machinesFlags []string
+		if flag.IsSpecified(ctx, "vm-memory", "memory") {
+			machinesFlags = append(machinesFlags, "vm-memory")
+		}
+		if flag.IsSpecified(ctx, "vm-cpus", "cpus") {
+			machinesFlags = append(machinesFlags, "vm-cpus")
+		}
+		if len(machinesFlags) != 0 {
+			s := lo.Ternary(len(machinesFlags) == 1, "", "s")
+			return fmt.Errorf("the flag%s %s are only supported on Apps V2", s, strings.Join(machinesFlags, " and "))
+		}
 	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
