@@ -33,8 +33,6 @@ func New() (cmd *cobra.Command) {
 
 	flag.Add(cmd,
 		flag.Org(),
-		flag.Region(),
-		flag.Now(),
 		flag.NoDeploy(),
 
 		flag.Bool{
@@ -46,6 +44,7 @@ func New() (cmd *cobra.Command) {
 			Name:        "name",
 			Description: "the name of the new app",
 		},
+		deploy.CommonFlags,
 	)
 	cmd.Args = cobra.ExactArgs(2)
 	return cmd
