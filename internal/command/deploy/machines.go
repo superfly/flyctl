@@ -24,6 +24,7 @@ import (
 const (
 	DefaultWaitTimeout = 120 * time.Second
 	DefaultLeaseTtl    = 13 * time.Second
+	DefaultVMSize      = "shared-cpu-1x"
 )
 
 type MachineDeployment interface {
@@ -388,26 +389,19 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 
 func (md *machineDeployment) setMachineGuest(vmSize string, vmCPUKind string, vmCPUs int, vmMem int) error {
 	md.machineGuest = &api.MachineGuest{}
-	if vmSize != "" {
-		if err := md.machineGuest.SetSize(vmSize); err != nil {
-			return err
-		}
+	if vmSize == "" {
+		vmSize = DefaultVMSize
 	}
-
-	if vmCPUKind == "" && md.machineGuest.CPUKind == "" {
-		md.machineGuest.CPUKind = "shared"
-	} else {
-		if vmCPUKind == "shared" || vmCPUKind == "performance" {
-			md.machineGuest.CPUKind = vmCPUKind
-		} else {
-			return fmt.Errorf("invalid machine CPU kind requested, '%s', expected to start with 'shared' or 'performance'", vmCPUKind)
-		}
+	if err := md.machineGuest.SetSize(vmSize); err != nil {
+		return err
 	}
-
-	if vmCPUs != 0 {
+	if vmCPUKind != "" {
+		md.machineGuest.CPUKind = vmCPUKind
+	}
+	if vmCPUs > 0 {
 		md.machineGuest.CPUs = vmCPUs
 	}
-	if vmMem != 0 {
+	if vmMem > 0 {
 		md.machineGuest.MemoryMB = vmMem
 	}
 	return nil

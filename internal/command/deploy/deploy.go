@@ -99,7 +99,7 @@ var CommonFlags = flag.Set{
 		Description: "Number of CPUs",
 	},
 	flag.String{
-		Name:        "vm-cpu-kind",
+		Name:        "vm-cpukind",
 		Description: "The kind of CPU to use ('shared' or 'performance')",
 	},
 	flag.Int{
@@ -220,7 +220,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		VMSize:                flag.GetString(ctx, "vm-size"),
 		VMCPUs:                flag.GetInt(ctx, "vm-cpus"),
 		VMMemory:              flag.GetInt(ctx, "vm-memory"),
-		VMCPUKind:             flag.GetString(ctx, "vm-cpu-kind"),
+		VMCPUKind:             flag.GetString(ctx, "vm-cpukind"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	})
