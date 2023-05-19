@@ -817,11 +817,13 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, input.appName, input.imageOrPath)
-	if err != nil {
-		return machineConf, err
+	if input.imageOrPath != "" {
+		img, err := determineImage(ctx, input.appName, input.imageOrPath)
+		if err != nil {
+			return machineConf, err
+		}
+		machineConf.Image = img.Tag
 	}
-	machineConf.Image = img.Tag
 
 	// Service updates
 	for idx := range machineConf.Services {
