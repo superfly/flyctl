@@ -263,6 +263,11 @@ func runMachineRun(ctx context.Context) error {
 		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
 	}
 
+	imageOrPath := flag.FirstArg(ctx)
+	if imageOrPath == "" {
+		return fmt.Errorf("image argument can't be an empty string")
+	}
+
 	machineID := flag.GetString(ctx, "id")
 	if machineID != "" {
 		return fmt.Errorf("to update an existing machine, use 'flyctl machine update'")
@@ -271,7 +276,7 @@ func runMachineRun(ctx context.Context) error {
 	machineConf, err = determineMachineConfig(ctx, &determineMachineConfigInput{
 		initialMachineConf: *machineConf,
 		appName:            app.Name,
-		imageOrPath:        flag.FirstArg(ctx),
+		imageOrPath:        imageOrPath,
 		region:             input.Region,
 		updating:           false,
 	})
@@ -817,11 +822,13 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return machineConf, err
 	}
 
-	img, err := determineImage(ctx, input.appName, input.imageOrPath)
-	if err != nil {
-		return machineConf, err
+	if input.imageOrPath != "" {
+		img, err := determineImage(ctx, input.appName, input.imageOrPath)
+		if err != nil {
+			return machineConf, err
+		}
+		machineConf.Image = img.Tag
 	}
-	machineConf.Image = img.Tag
 
 	// Service updates
 	for idx := range machineConf.Services {

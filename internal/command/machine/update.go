@@ -83,17 +83,10 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	var imageOrPath string
-
 	if image != "" {
 		imageOrPath = image
 	} else if dockerfile != "" {
 		imageOrPath = "."
-	} else {
-		imageOrPath = machine.FullImageRef()
-	}
-
-	if imageOrPath == "" {
-		return fmt.Errorf("failed to resolve machine image")
 	}
 
 	// Identify configuration changes
