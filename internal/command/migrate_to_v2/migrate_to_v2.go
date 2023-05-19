@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
@@ -580,6 +581,9 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 	}
 
+	tb.Detail("Checking if app is responsive")
+	m.monitorSuccess()
+
 	tb.Detail("Updating the app platform platform type from V1 to V2")
 
 	err = m.updateAppPlatformVersion(ctx, "machines")
@@ -879,6 +883,59 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	err := survey.AskOne(prompt, &confirm)
 
 	return confirm, err
+}
+
+func (m *v2PlatformMigrator) monitorSuccess() {
+	m.monitorSuccessHttpServices()
+}
+
+func (m *v2PlatformMigrator) monitorSuccessHttpServices() bool {
+	type ServiceInfo struct {
+		service appconfig.Service
+		scheme  string
+		port    int
+	}
+
+	services := m.appConfig.AllServices()
+	var httpServices []ServiceInfo
+
+	for _, svc := range services {
+		for _, svcPort := range svc.Ports {
+			if lo.Contains(svcPort.Handlers, "http") {
+				var scheme string
+				var port int
+				if p := svcPort.Port; p != nil {
+					port = *p
+				}
+
+				if svcPort.ForceHTTPS {
+					scheme = "https"
+				} else {
+					scheme = "http"
+				}
+
+				svcInfo := ServiceInfo{
+					service: svc,
+					scheme:  scheme,
+					port:    port,
+				}
+
+				httpServices = append(httpServices, svcInfo)
+			}
+		}
+	}
+
+	appName := m.appConfig.AppName
+	for _, svc := range httpServices {
+		// Make a request to the application and see if we get *any* response back
+		appUrl := fmt.Sprintf("%s://%s.fly.dev", svc.scheme, appName)
+		_, err := http.Get(appUrl)
+		if err != nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
