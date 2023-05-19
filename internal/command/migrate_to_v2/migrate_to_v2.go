@@ -927,7 +927,7 @@ func (m *v2PlatformMigrator) checkAppResponsive() error {
 	appName := m.appConfig.AppName
 	for _, svc := range httpServices {
 		// Make a request to the application and see if we get *any* response back
-		appUrl := fmt.Sprintf("%s://%s.fly.dev", svc.scheme, appName)
+		appUrl := fmt.Sprintf("%s://%s.fly.dev:%d", svc.scheme, appName, svc.port)
 		_, err := http.Get(appUrl)
 		if err != nil {
 			return errors.New("HTTP services are not responding")
