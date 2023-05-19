@@ -806,7 +806,7 @@ func TestLaunchCpusMem(t *testing.T) {
 		appName = f.CreateRandomAppName()
 	)
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-size performance-2x --vm-cpus 4 --vm-memory 8192", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-size shared-cpu-2x --vm-cpukind performance --vm-cpus 4 --vm-memory 8192", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
 	firstMachineGuest := machines[0].Config.Guest
 

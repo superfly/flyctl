@@ -330,7 +330,7 @@ func (md *machineDeployment) guestForGroup(group string) *api.MachineGuest {
 		}
 	}
 	if guest == nil {
-		if md.machineGuest.CPUs == 0 && md.machineGuest.MemoryMB == 0 {
+		if md.machineGuest.CPUs == 0 && md.machineGuest.MemoryMB == 0 && md.machineGuest.CPUKind == "" {
 			return nil
 		}
 		guest = helpers.Clone(api.MachinePresets["shared-cpu-1x"])
@@ -341,6 +341,9 @@ func (md *machineDeployment) guestForGroup(group string) *api.MachineGuest {
 	}
 	if md.machineGuest.CPUs != 0 {
 		guest.CPUs = md.machineGuest.CPUs
+	}
+	if md.machineGuest.CPUKind != "" {
+		guest.CPUKind = md.machineGuest.CPUKind
 	}
 	return guest
 }

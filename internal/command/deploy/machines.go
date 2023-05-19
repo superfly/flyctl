@@ -44,6 +44,7 @@ type MachineDeploymentArgs struct {
 	VMSize                string
 	CPUs                  int
 	MemoryMB              int
+	CPUKind               string
 	IncreasedAvailability bool
 	AllocPublicIP         bool
 }
@@ -52,6 +53,7 @@ type requestedGuest struct {
 	RealizedGuest *api.MachineGuest
 	MemoryMB      int
 	CPUs          int
+	CPUKind       string
 }
 
 type machineDeployment struct {
@@ -149,7 +151,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
-	if err := md.setMachineGuest(args.VMSize, args.CPUs, args.MemoryMB); err != nil {
+	if err := md.setMachineGuest(args.VMSize, args.CPUs, args.MemoryMB, args.CPUKind); err != nil {
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
@@ -391,7 +393,7 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
 }
 
-func (md *machineDeployment) setMachineGuest(vmSize string, cpus int, memoryMB int) error {
+func (md *machineDeployment) setMachineGuest(vmSize string, cpus int, memoryMB int, cpuKind string) error {
 	if vmSize != "" {
 		fullGuest := &api.MachineGuest{}
 		err := fullGuest.SetSize(vmSize)
@@ -402,6 +404,7 @@ func (md *machineDeployment) setMachineGuest(vmSize string, cpus int, memoryMB i
 	}
 	md.machineGuest.CPUs = cpus
 	md.machineGuest.MemoryMB = memoryMB
+	md.machineGuest.CPUKind = cpuKind
 	return nil
 }
 

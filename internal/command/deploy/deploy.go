@@ -103,6 +103,11 @@ var CommonFlags = flag.Set{
 		Name:        "vm-memory",
 		Description: "Memory (in megabytes) to give newly created machines",
 	},
+	flag.String{
+		Name:        "vm-cpukind",
+		Description: "The kind of CPU to use ('shared' or 'performance')",
+		Hidden:      true,
+	},
 	flag.Bool{
 		Name:        "ha",
 		Description: "Create spare machines that increases app availability",
@@ -181,9 +186,13 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		if flag.IsSpecified(ctx, "vm-cpus", "cpus") {
 			machinesFlags = append(machinesFlags, "vm-cpus")
 		}
+		if flag.IsSpecified(ctx, "vm-cpukind") {
+			machinesFlags = append(machinesFlags, "vm-cpukind")
+		}
 		if len(machinesFlags) != 0 {
 			s := lo.Ternary(len(machinesFlags) == 1, "", "s")
-			return fmt.Errorf("the flag%s %s are only supported on Apps V2", s, strings.Join(machinesFlags, " and "))
+			isAre := lo.Ternary(len(machinesFlags) == 1, "is", "are")
+			return fmt.Errorf("the flag%s '%s' %s only supported on Apps V2", s, strings.Join(machinesFlags, ", "), isAre)
 		}
 	}
 
@@ -245,6 +254,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		VMSize:                flag.GetFirstString(ctx, "vm-size", "size"),
 		CPUs:                  flag.GetFirstInt(ctx, "vm-cpus", "cpus"),
 		MemoryMB:              flag.GetFirstInt(ctx, "vm-memory", "memory"),
+		CPUKind:               flag.GetString(ctx, "vm-cpukind"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 	}
