@@ -582,7 +582,10 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 
 	tb.Detail("Checking if app is responsive")
-	m.monitorSuccess()
+	err = m.checkAppResponsive()
+	if err != nil {
+		return err
+	}
 
 	tb.Detail("Updating the app platform platform type from V1 to V2")
 
@@ -885,11 +888,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	return confirm, err
 }
 
-func (m *v2PlatformMigrator) monitorSuccess() {
-	m.monitorSuccessHttpServices()
-}
-
-func (m *v2PlatformMigrator) monitorSuccessHttpServices() bool {
+func (m *v2PlatformMigrator) checkAppResponsive() error {
 	type ServiceInfo struct {
 		service appconfig.Service
 		scheme  string
@@ -908,7 +907,7 @@ func (m *v2PlatformMigrator) monitorSuccessHttpServices() bool {
 					port = *p
 				}
 
-				if svcPort.ForceHTTPS {
+				if lo.Contains(svcPort.Handlers, "tls") {
 					scheme = "https"
 				} else {
 					scheme = "http"
@@ -931,11 +930,11 @@ func (m *v2PlatformMigrator) monitorSuccessHttpServices() bool {
 		appUrl := fmt.Sprintf("%s://%s.fly.dev", svc.scheme, appName)
 		_, err := http.Get(appUrl)
 		if err != nil {
-			return false
+			return errors.New("HTTP services are not responding")
 		}
 	}
 
-	return true
+	return nil
 }
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
