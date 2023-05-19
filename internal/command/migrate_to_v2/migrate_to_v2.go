@@ -581,7 +581,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 	}
 
-	tb.Detail("Checking if app is responsive")
+	tb.Detail("Ensuring app is responsive")
 	err = m.checkAppResponsive()
 	if err != nil {
 		return err
