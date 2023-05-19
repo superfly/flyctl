@@ -68,7 +68,7 @@ if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) {
 }
 
 if (!(Test-Path $FlyExe)) {
-  Start-Process -FilePath "$env:comspec" -ArgumentList "/c", "mklink", $FlyExe, $FlyctlExe -Verb runAs
+  Start-Process -FilePath "$env:comspec" -ArgumentList "/c", "mklink", $FlyExe, $FlyctlExe -Verb runAs -WorkingDirectory "$env:windir"
 }
 
 Write-Output "flyctl was installed successfully to $FlyctlExe"
