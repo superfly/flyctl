@@ -67,7 +67,14 @@ if (!(";$Path;".ToLower() -like "*;$BinDir;*".ToLower())) {
   $Env:Path += ";$BinDir"
 }
 
-if (!(Test-Path $FlyExe)) {
+if (!(Get-Item $FlyExe -ErrorAction SilentlyContinue).LinkTarget) {
+  # if fly.exe is not already a symlink, make it so.
+
+  # delete any existing file
+  Remove-Item $FlyExe -ErrorAction SilentlyContinue
+
+  # creating symlinks on windows requires administrator privileges by default,
+  # passing `-Verb runAs` means we'll pop up a UAC dialog here
   Start-Process -FilePath "$env:comspec" -ArgumentList "/c", "mklink", $FlyExe, $FlyctlExe -Verb runAs -WorkingDirectory "$env:windir"
 }
 
