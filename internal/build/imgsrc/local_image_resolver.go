@@ -48,7 +48,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 		terminal.Debug("error fetching docker server info:", err)
 	} else {
 		buildkitEnabled, err := buildkitEnabled(docker)
-		terminal.Debugf("buildkitEnabled", buildkitEnabled)
+		terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
 		if err == nil {
 			build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 		}
