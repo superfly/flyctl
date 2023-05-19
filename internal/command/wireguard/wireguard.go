@@ -102,7 +102,7 @@ func runWireguardReset(ctx context.Context) error {
 	}
 
 	apiClient := client.FromContext(ctx).API()
-	agentclient, err := agent.Establish(context.Background(), apiClient)
+	agentclient, err := agent.Establish(config.NewContext(context.Background(), config.FromContext(ctx)), apiClient)
 	if err != nil {
 		return err
 	}
