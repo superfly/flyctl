@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -167,15 +168,21 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	ok := false
 
 	if runtime.GOOS != "windows" {
-		shellToUse, ok = os.LookupEnv("SHELL")
+		var err error
+		shellToUse, err = exec.LookPath("/bin/sh")
+		if errors.Is(err, exec.ErrDot) {
+			err = nil
+		}
+		if err != nil {
+			return err
+		}
+		ok = true
 	}
 
 	if !ok {
 		if runtime.GOOS == "windows" {
 			shellToUse = "powershell.exe"
 			switchToUse = "-Command"
-		} else {
-			shellToUse = "/bin/bash"
 		}
 	}
 	fmt.Println(shellToUse, switchToUse)
