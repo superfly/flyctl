@@ -184,6 +184,19 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	}
 	srcInfo.Port = port
 
+	// extract volume - handle both plain string and JSON format, but only allow one path
+	re = regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+	m = re.FindStringSubmatch(string(dockerfile))
+
+	if len(m) > 0 {
+		srcInfo.Volumes = []Volume{
+			{
+				Source:      m[3], // last part of path
+				Destination: m[2], // full path
+			},
+		}
+	}
+
 	// extract workdir
 	workdir := "$"
 	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
