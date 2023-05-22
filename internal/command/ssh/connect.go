@@ -91,7 +91,7 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 		return nil, errors.Wrap(err, "error connecting to SSH server")
 	}
 
-	terminal.Debugf("Connection completed.\n", addr)
+	terminal.Debugf("Connection %s completed.\n", addr)
 
 	if !p.DisableSpinner {
 		endSpin()

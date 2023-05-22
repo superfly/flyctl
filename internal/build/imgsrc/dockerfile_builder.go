@@ -192,7 +192,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 
 	buildkitEnabled, err := buildkitEnabled(docker)
-	terminal.Debugf("buildkitEnabled", buildkitEnabled)
+	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
 	if err != nil {
 		if dockerFactory.IsRemote() {
 			metrics.SendNoData(ctx, "remote_builder_failure")

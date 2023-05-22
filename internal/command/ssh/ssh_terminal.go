@@ -96,7 +96,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 	}
 	defer sshClient.Close()
 
-	terminal.Debugf("Connection completed.\n", addr)
+	terminal.Debugf("Connection %s completed.\n", addr)
 
 	if !p.DisableSpinner {
 		endSpin()
