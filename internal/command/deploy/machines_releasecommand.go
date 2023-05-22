@@ -123,7 +123,11 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 }
 
 func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
+	defaultGuest := api.MachinePresets[DefaultVMSize]
 	desiredGuest := api.MachinePresets["shared-cpu-2x"]
+	if mg := md.machineGuest; mg != nil && (mg.CPUKind != defaultGuest.CPUKind || mg.CPUs != defaultGuest.CPUs || mg.MemoryMB != defaultGuest.MemoryMB) {
+		desiredGuest = mg
+	}
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
 		ram := func(m *api.Machine) int {
