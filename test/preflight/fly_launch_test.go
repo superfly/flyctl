@@ -100,7 +100,7 @@ func TestFlyLaunch_case02(t *testing.T) {
 	}
 	require.EqualValues(f, want, toml)
 
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable", appName, f.SecondaryRegion())
+	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable --force-nomad", appName, f.SecondaryRegion())
 	toml = f.UnmarshalFlyToml()
 	want["primary_region"] = f.SecondaryRegion()
 	if build, ok := want["build"].(map[string]any); true {
@@ -109,7 +109,7 @@ func TestFlyLaunch_case02(t *testing.T) {
 	}
 	require.EqualValues(f, want, toml)
 
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999", appName)
+	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999 --force-nomad", appName)
 	toml = f.UnmarshalFlyToml()
 	if services, ok := want["services"].([]map[string]any); true {
 		require.True(f, ok)
