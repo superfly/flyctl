@@ -113,6 +113,28 @@ func loadConfig() error {
 	return err
 }
 
+// GetAPIToken - returns the current API Token, env vars take precedence. Avoids pulling in env vars into the config.
+func GetAPIToken() string {
+	// Are either env vars set?
+	// check Access token
+	accessToken, lookup := os.LookupEnv("FLY_ACCESS_TOKEN")
+
+	if lookup {
+		return accessToken
+	}
+
+	// check API token
+	apiToken, lookup := os.LookupEnv("FLY_API_TOKEN")
+
+	if lookup {
+		return apiToken
+	}
+
+	viperAuth := viper.GetString(ConfigAPIToken)
+
+	return viperAuth
+}
+
 var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
 func SaveConfig() error {
