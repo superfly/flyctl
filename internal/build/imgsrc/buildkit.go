@@ -148,7 +148,7 @@ func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
 }
 
 func (ap *buildkitAuthProvider) Credentials(ctx context.Context, req *auth.CredentialsRequest) (*auth.CredentialsResponse, error) {
-	auths := authConfigs(ctx)
+	auths := authConfigs()
 	res := &auth.CredentialsResponse{}
 	if a, ok := auths[req.Host]; ok {
 		res.Username = a.Username

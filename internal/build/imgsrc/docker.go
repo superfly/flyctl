@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
@@ -422,10 +421,10 @@ func registryAuth(token string) types.AuthConfig {
 	}
 }
 
-func authConfigs(ctx context.Context) map[string]types.AuthConfig {
+func authConfigs() map[string]types.AuthConfig {
 	authConfigs := map[string]types.AuthConfig{}
 
-	authConfigs["registry.fly.io"] = registryAuth(config.FromContext(ctx).AccessToken)
+	authConfigs["registry.fly.io"] = registryAuth(flyctl.GetAPIToken())
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
@@ -442,8 +441,8 @@ func authConfigs(ctx context.Context) map[string]types.AuthConfig {
 	return authConfigs
 }
 
-func flyRegistryAuth(ctx context.Context) string {
-	accessToken := config.FromContext(ctx).AccessToken
+func flyRegistryAuth() string {
+	accessToken := flyctl.GetAPIToken()
 	authConfig := registryAuth(accessToken)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {

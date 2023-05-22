@@ -10,7 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/flyctl"
 )
 
 type natsLogStream struct {
@@ -75,7 +75,7 @@ func newNatsClient(ctx context.Context, dialer agent.Dialer, orgSlug string) (*n
 	natsIP := net.IP(natsIPBytes[:])
 
 	url := fmt.Sprintf("nats://[%s]:4223", natsIP.String())
-	conn, err := nats.Connect(url, nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(orgSlug, config.FromContext(ctx).AccessToken))
+	conn, err := nats.Connect(url, nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(orgSlug, flyctl.GetAPIToken()))
 	if err != nil {
 		return nil, fmt.Errorf("failed connecting to nats: %w", err)
 	}
