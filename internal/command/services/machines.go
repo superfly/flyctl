@@ -51,6 +51,7 @@ func ShowMachineServiceInfo(ctx context.Context, app *api.AppInfo) error {
 
 	for _, machine := range machines {
 		for _, service := range machine.Config.Services {
+			fmt.Println(service.Autostart)
 			for _, port := range service.Ports {
 				protocol := service.Protocol
 
