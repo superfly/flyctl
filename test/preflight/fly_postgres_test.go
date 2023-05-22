@@ -4,20 +4,10 @@
 package preflight
 
 import (
-	"encoding/json"
-	"errors"
-	"fmt"
-	"net/http"
-	"os"
-	"path/filepath"
-	"reflect"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -100,147 +90,69 @@ func TestPostgres_singleNode(t *testing.T) {
 }
 
 func TestPostgres_autostart(t *testing.T) {
-	var (
-		err     error
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
 
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
-
-	var machList []map[string]any
-
-	result := f.Fly("m list --json -a %s", appName)
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
+	machList := f.MachinesList(appName)
 	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
 	firstMachine := machList[0]
 
-	config := firstMachine["config"].(map[string]interface{})
-	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
-		require.Equal(t, true, autostart_disabled.(bool), "autostart was enabled")
-	} else {
-		f.Fatalf("autostart wasn't disabled")
+	for _, svc := range firstMachine.Config.Services {
+		require.NotNil(t, svc.Autostart, "autostart when not set defaults to True")
+		require.False(t, *svc.Autostart, "autostart wasn't disabled")
 	}
 
 	appName = f.CreateRandomAppName()
-
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --autostart", f.OrgSlug(), appName, f.PrimaryRegion())
-
-	result = f.Fly("m list --json -a %s", appName)
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
+	machList = f.MachinesList(appName)
 	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
 	firstMachine = machList[0]
-
-	config = firstMachine["config"].(map[string]interface{})
-
-	if autostart_disabled, ok := config["disable_machine_autostart"]; ok {
-		require.Equal(t, false, autostart_disabled.(bool), "autostart was enabled")
+	for _, svc := range firstMachine.Config.Services {
+		// Autostart defaults to True if not set
+		if svc.Autostart != nil {
+			require.True(t, *svc.Autostart, "autostart wasn't disabled")
+		}
 	}
 }
 
 func TestPostgres_FlexFailover(t *testing.T) {
-	var (
-		err     error
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
-
-	f.Fly("pg create --flex --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
-
-	result := f.Fly("m list --json -a %s", appName)
-
-	var machList []map[string]any
-
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-
-	leaderMachineID := ""
-	for _, mach := range machList {
-		role := "unknown"
-
-		checks := mach["checks"].([]interface{})
-		for _, check := range checks {
-			check := check.(map[string]interface{})
-			if check["name"].(string) == "role" {
-				role = check["output"].(string)
-				break
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	findLeaderID := func(ml []*api.Machine) string {
+		for _, mach := range ml {
+			for _, chk := range mach.Checks {
+				if chk.Name == "role" && chk.Output == "primary" {
+					return mach.ID
+				}
 			}
 		}
-		if role == "primary" {
-			leaderMachineID = mach["id"].(string)
-		}
+		return ""
 	}
+
+	f.Fly("pg create --flex --org %s --name %s --region %s --initial-cluster-size 3 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+	machList := f.MachinesList(appName)
+	leaderMachineID := findLeaderID(machList)
 	if leaderMachineID == "" {
 		f.Fatalf("Failed to find PG cluster leader")
 	}
 
 	f.Fly("pg failover -a %s", appName)
-
-	result = f.Fly("m list --json -a %s", appName)
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-
-	newLeaderMachineID := ""
-
-	for _, mach := range machList {
-		role := "unknown"
-
-		checks := mach["checks"].([]interface{})
-		for _, check := range checks {
-			check := check.(map[string]interface{})
-			if check["name"].(string) == "role" {
-				role = check["output"].(string)
-				break
-			}
-		}
-		if role == "primary" {
-			newLeaderMachineID = mach["id"].(string)
-		}
-	}
-	if newLeaderMachineID == "" {
-		f.Fatalf("Failed to find PG cluster leader")
-	}
-
-	fmt.Println(newLeaderMachineID)
-	fmt.Println(leaderMachineID)
+	machList = f.MachinesList(appName)
+	newLeaderMachineID := findLeaderID(machList)
 	require.NotEqual(t, newLeaderMachineID, leaderMachineID, "Failover failed! PG Leader didn't change!")
 }
 
 func TestPostgres_NoMachines(t *testing.T) {
-	var (
-		err     error
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
 
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
-
-	// Remove the app's only machine, then run `status`
-	result := f.Fly("m list --json -a %s", appName)
-	var machList []map[string]any
-	err = json.Unmarshal(result.StdOut().Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
+	machList := f.MachinesList(appName)
 	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
 	firstMachine := machList[0]
-	firstMachineId, ok := firstMachine["id"].(string)
-	if !ok {
-		f.Fatalf("could find or convert id key to string from %s, stdout: %s firstMachine: %v", result.CmdString(), result.StdOut().String(), firstMachine)
-	}
-
-	f.Fly("m destroy %s -a %s --force", firstMachineId, appName)
-	result = f.Fly("status -a %s", appName)
+	f.Fly("m destroy %s -a %s --force", firstMachine.ID, appName)
+	result := f.Fly("status -a %s", appName)
 
 	require.Contains(f, result.StdOut().String(), "No machines are available on this app")
 }
