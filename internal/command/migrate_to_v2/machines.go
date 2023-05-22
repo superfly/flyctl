@@ -107,10 +107,10 @@ func (m *v2PlatformMigrator) prepAutoscaleMachinesToCreate(ctx context.Context) 
 	}
 
 	for _, input := range m.newMachinesInput {
-		for _, service := range input.Config.Services {
-			service.MinMachinesRunning = &m.autoscaleConfig.MinCount
-			service.Autostart = api.BoolPointer(true)
-			service.Autostop = api.BoolPointer(true)
+		for i := range input.Config.Services {
+			input.Config.Services[i].MinMachinesRunning = &m.autoscaleConfig.MinCount
+			input.Config.Services[i].Autostart = api.BoolPointer(true)
+			input.Config.Services[i].Autostop = api.BoolPointer(true)
 		}
 	}
 
