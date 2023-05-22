@@ -4,30 +4,7 @@ import (
 	"os"
 
 	"github.com/docker/docker/api/types"
-	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/flyctl"
 )
-
-func getAPIToken() string {
-	// Are either env vars set?
-	// check Access token
-	accessToken, lookup := os.LookupEnv("FLY_ACCESS_TOKEN")
-
-	if lookup {
-		return accessToken
-	}
-
-	// check API token
-	apiToken, lookup := os.LookupEnv("FLY_API_TOKEN")
-
-	if lookup {
-		return apiToken
-	}
-
-	viperAuth := viper.GetString(flyctl.ConfigAPIToken)
-
-	return viperAuth
-}
 
 func authConfigFromToken(token string) map[string]types.AuthConfig {
 	authConfigs := map[string]types.AuthConfig{}

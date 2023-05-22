@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -303,7 +304,9 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 	if err != nil {
 		panic(err)
 	}
-	s.Allow(newBuildkitAuthProvider())
+
+	token := config.FromContext(ctx).AccessToken
+	s.Allow(newBuildkitAuthProvider(token))
 
 	if s == nil {
 		panic("buildkit not supported")
