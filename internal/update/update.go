@@ -227,13 +227,18 @@ func renameCurrentBinaries() error {
 }
 
 func currentWindowsBinaries() ([]string, error) {
-	binaryPath, err := os.Executable()
+	execPath, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
+	canonicalPath, err := filepath.EvalSymlinks(execPath)
 	if err != nil {
 		return nil, err
 	}
 
 	return []string{
-		binaryPath,
-		filepath.Join(filepath.Dir(binaryPath), "wintun.dll"),
+		canonicalPath,
+		filepath.Join(filepath.Dir(canonicalPath), "wintun.dll"),
 	}, nil
 }
