@@ -19,7 +19,7 @@ type Server struct {
 }
 
 func (srv *Server) ProxyServer(ctx context.Context) error {
-	defer srv.Listener.Close()
+	defer srv.Listener.Close() //skipcq: GO-S2307
 
 	for {
 		select {
@@ -47,14 +47,14 @@ func (srv *Server) ProxyServer(ctx context.Context) error {
 			terminal.Debug("accepted new connection from: ", source.RemoteAddr())
 
 			go func() {
-				defer source.Close()
+				defer source.Close() //skipcq: GO-S2307
 
 				target, err := srv.Dial(ctx, "tcp", srv.Addr)
 				if err != nil {
 					terminal.Debug("failed to connect to target: ", err)
 					return
 				}
-				defer target.Close()
+				defer target.Close() //skipcq: GO-S2307
 
 				wg := &sync.WaitGroup{}
 
