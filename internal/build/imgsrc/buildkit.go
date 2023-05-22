@@ -148,7 +148,8 @@ func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
 }
 
 func (ap *buildkitAuthProvider) Credentials(ctx context.Context, req *auth.CredentialsRequest) (*auth.CredentialsResponse, error) {
-	auths := authConfigs(ctx)
+	// The `ctx` here wouldn't have Fly-specific keys, including auth/authz information.
+	auths := authConfigFromToken(getAPIToken())
 	res := &auth.CredentialsResponse{}
 	if a, ok := auths[req.Host]; ok {
 		res.Username = a.Username
