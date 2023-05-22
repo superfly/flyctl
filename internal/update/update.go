@@ -172,8 +172,15 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 
 	if !ok {
 		if runtime.GOOS == "windows" {
-			shellToUse = "powershell.exe"
-			switchToUse = "-Command"
+			// pwsh.exe is the name of the PowerShell executable from 6.0+
+			// powershell.exe is locked to 5.1 forever
+			if commandInPath("pwsh.exe") {
+				shellToUse = "pwsh.exe"
+				switchToUse = "-Command"
+			} else {
+				shellToUse = "powershell.exe"
+				switchToUse = "-Command"
+			}
 		} else {
 			shellToUse = "/bin/bash"
 		}
@@ -190,6 +197,17 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	cmd.Stdin = io.In
 
 	return cmd.Run()
+}
+
+func commandInPath(command string) bool {
+	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
+		path := filepath.Join(dir, command)
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 // can't replace binary on windows, need to move

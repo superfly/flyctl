@@ -46,7 +46,21 @@ if (!(Test-Path $BinDir)) {
   New-Item $BinDir -ItemType Directory | Out-Null
 }
 
-Invoke-WebRequest $FlyUri -OutFile $FlyZip -UseBasicParsing
+$prevProgressPreference = $ProgressPreference
+try {
+  # Invoke-WebRequest on older powershell versions has severe transfer
+  # performance issues due to progress bar rendering - the screen updates
+  # end up throttling the download itself. Disable progress on these older
+  # versions.
+  if ($PSVersionTable.PSVersion.Major -lt 7) {
+    Write-Output "Downloading flyctl..."
+    $ProgressPreference = "SilentlyContinue"
+  }
+
+  Invoke-WebRequest $FlyUri -OutFile $FlyZip -UseBasicParsing
+} finally {
+  $ProgressPreference = $prevProgressPreference
+}
 
 if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
   Expand-Archive $FlyZip -Destination $BinDir -Force
