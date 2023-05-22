@@ -78,6 +78,7 @@ var CommonFlags = flag.Set{
 	flag.String{
 		Name:        "vm-size",
 		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+		Aliases:     []string{"size"},
 	},
 	flag.Bool{
 		Name:        "ha",
@@ -96,6 +97,7 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "vm-cpus",
 		Description: "Number of CPUs",
+		Aliases:     []string{"cpus"},
 	},
 	flag.String{
 		Name:        "vm-cpukind",
@@ -104,6 +106,7 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "vm-memory",
 		Description: "Memory (in megabytes) to attribute to the VM",
+		Aliases:     []string{"memory"},
 	},
 }
 
@@ -181,7 +184,13 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		}
 	} else {
 		if flag.GetBool(ctx, "no-public-ips") {
-			return fmt.Errorf("The --no-public-ips flag can only be used for v2 apps")
+			return fmt.Errorf("the --no-public-ips flag can only be used for v2 apps")
+		}
+		if flag.IsSpecified(ctx, "vm-cpus") {
+			return fmt.Errorf("the --vm-cpus flag can only be used for v2 apps")
+		}
+		if flag.IsSpecified(ctx, "vm-memory") {
+			return fmt.Errorf("the --vm-memory flag can only be used for v2 apps")
 		}
 
 		err = deployToNomad(ctx, appConfig, appCompact, img)

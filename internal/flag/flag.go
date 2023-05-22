@@ -3,6 +3,7 @@ package flag
 
 import (
 	"context"
+	"reflect"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -52,6 +53,28 @@ const (
 	DetachName = "detach"
 )
 
+func makeAlias[T any](template T, name string) T {
+
+	var ret T
+	value := reflect.ValueOf(&ret).Elem()
+
+	descField := reflect.ValueOf(template).FieldByName("Description")
+	if descField.IsValid() {
+		value.FieldByName("Description").SetString(descField.String())
+	}
+
+	nameField := value.FieldByName("Name")
+	if nameField.IsValid() {
+		nameField.SetString(name)
+	}
+
+	hiddenField := value.FieldByName("Hidden")
+	if hiddenField.IsValid() {
+		hiddenField.SetBool(true)
+	}
+	return ret
+}
+
 // Flag wraps the set of flags.
 type Flag interface {
 	addTo(*cobra.Command)
@@ -79,6 +102,7 @@ type Bool struct {
 	Description string
 	Default     bool
 	Hidden      bool
+	Aliases     []string
 }
 
 func (b Bool) addTo(cmd *cobra.Command) {
@@ -92,6 +116,14 @@ func (b Bool) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(b.Name)
 	f.Hidden = b.Hidden
+
+	for _, name := range b.Aliases {
+		makeAlias(b, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", b.Aliases)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // String wraps the set of string flags.
@@ -103,6 +135,7 @@ type String struct {
 	ConfName    string
 	EnvName     string
 	Hidden      bool
+	Aliases     []string
 }
 
 func (s String) addTo(cmd *cobra.Command) {
@@ -116,6 +149,14 @@ func (s String) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(s.Name)
 	f.Hidden = s.Hidden
+
+	for _, name := range s.Aliases {
+		makeAlias(s, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", s.Aliases)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Int wraps the set of int flags.
@@ -125,6 +166,7 @@ type Int struct {
 	Description string
 	Default     int
 	Hidden      bool
+	Aliases     []string
 }
 
 func (i Int) addTo(cmd *cobra.Command) {
@@ -138,6 +180,14 @@ func (i Int) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(i.Name)
 	f.Hidden = i.Hidden
+
+	for _, name := range i.Aliases {
+		makeAlias(i, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", i.Aliases)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // StringSlice wraps the set of string slice flags.
@@ -149,6 +199,7 @@ type StringSlice struct {
 	ConfName    string
 	EnvName     string
 	Hidden      bool
+	Aliases     []string
 }
 
 func (ss StringSlice) addTo(cmd *cobra.Command) {
@@ -162,6 +213,14 @@ func (ss StringSlice) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(ss.Name)
 	f.Hidden = ss.Hidden
+
+	for _, name := range ss.Aliases {
+		makeAlias(ss, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", ss.Aliases)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // StringArray wraps the set of string array flags.
@@ -173,6 +232,7 @@ type StringArray struct {
 	ConfName    string
 	EnvName     string
 	Hidden      bool
+	Aliases     []string
 }
 
 func (ss StringArray) addTo(cmd *cobra.Command) {
@@ -186,6 +246,14 @@ func (ss StringArray) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(ss.Name)
 	f.Hidden = ss.Hidden
+
+	for _, name := range ss.Aliases {
+		makeAlias(ss, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", ss.Aliases)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Duration wraps the set of duration flags.
@@ -197,6 +265,7 @@ type Duration struct {
 	ConfName    string
 	EnvName     string
 	Hidden      bool
+	Aliases     []string
 }
 
 func (d Duration) addTo(cmd *cobra.Command) {
@@ -210,6 +279,14 @@ func (d Duration) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(d.Name)
 	f.Hidden = d.Hidden
+
+	for _, name := range d.Aliases {
+		makeAlias(d, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", d.Aliases)
+	if err != nil {
+		panic(err)
+	}
 }
 
 // Org returns an org string flag.
