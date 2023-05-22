@@ -44,11 +44,11 @@ func (srv *Server) ProxyServer(ctx context.Context) error {
 				}
 				terminal.Debug("Error accepting connection: ", err)
 			}
-			defer source.Close()
-
 			terminal.Debug("accepted new connection from: ", source.RemoteAddr())
 
 			go func() {
+				defer source.Close()
+
 				target, err := srv.Dial(ctx, "tcp", srv.Addr)
 				if err != nil {
 					terminal.Debug("failed to connect to target: ", err)
