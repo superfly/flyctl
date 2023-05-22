@@ -48,7 +48,8 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 				},
 			},
 		},
-		SkipDatabase: true,
+		SkipDatabase:   true,
+		ConsoleCommand: "php /var/www/html/artisan tinker",
 	}
 
 	phpVersion, err := extractPhpVersion()
