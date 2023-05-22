@@ -39,16 +39,18 @@ func New() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Int{
-			Name:        "cpus",
+			Name:        "vm-cpus",
 			Description: "How many (shared) CPUs to give the new machine",
+			Aliases:     []string{"cpus"},
 		},
 		flag.String{
 			Name:        "machine",
 			Description: "Run the console in the existing machine with the specified ID",
 		},
 		flag.Int{
-			Name:        "memory",
+			Name:        "vm-memory",
 			Description: "How much memory (in MB) to give the new machine",
+			Aliases:     []string{"memory"},
 		},
 		flag.Bool{
 			Name:        "select",
@@ -208,11 +210,11 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 }
 
 func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
-	if flag.IsSpecified(ctx, "cpus") {
-		return nil, false, errors.New("--cpus can't be used with --machine")
+	if flag.IsSpecified(ctx, "vm-cpus") {
+		return nil, false, errors.New("--vm-cpus can't be used with --machine")
 	}
-	if flag.IsSpecified(ctx, "memory") {
-		return nil, false, errors.New("--memory can't be used with --machine")
+	if flag.IsSpecified(ctx, "vm-memory") {
+		return nil, false, errors.New("--vm-memory can't be used with --machine")
 	}
 
 	flapsClient := flaps.FromContext(ctx)
@@ -318,8 +320,8 @@ func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr
 func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
 	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
 
-	if flag.IsSpecified(ctx, "cpus") {
-		cpus := flag.GetInt(ctx, "cpus")
+	if flag.IsSpecified(ctx, "vm-cpus") {
+		cpus := flag.GetInt(ctx, "vm-cpus")
 		if !lo.Contains([]int{1, 2, 4, 6, 8}, cpus) {
 			return nil, errors.New("invalid number of CPUs")
 		}
@@ -329,8 +331,8 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGue
 	minMemory := desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
 	maxMemory := desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
 
-	if flag.IsSpecified(ctx, "memory") {
-		memory := flag.GetInt(ctx, "memory")
+	if flag.IsSpecified(ctx, "vm-memory") {
+		memory := flag.GetInt(ctx, "vm-memory")
 		cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
 		switch {
 		case memory < minMemory:

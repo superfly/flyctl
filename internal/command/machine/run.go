@@ -46,17 +46,20 @@ var sharedFlags = flag.Set{
 	To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
 	},
 	flag.String{
-		Name:        "size",
+		Name:        "vm-size",
 		Shorthand:   "s",
 		Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
+		Aliases:     []string{"size"},
 	},
 	flag.Int{
-		Name:        "cpus",
+		Name:        "vm-cpus",
 		Description: "Number of CPUs",
+		Aliases:     []string{"cpus"},
 	},
 	flag.Int{
-		Name:        "memory",
+		Name:        "vm-memory",
 		Description: "Memory (in megabytes) to attribute to the machine",
+		Aliases:     []string{"memory"},
 	},
 	flag.StringArray{
 		Name:        "env",
@@ -707,7 +710,7 @@ type determineMachineConfigInput struct {
 func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if guestSize := flag.GetString(ctx, "size"); guestSize != "" {
+	if guestSize := flag.GetString(ctx, "vm-size"); guestSize != "" {
 		err := machineConf.Guest.SetSize(guestSize)
 		if err != nil {
 			return nil, err
@@ -715,15 +718,15 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	}
 
 	// Potential overrides for Guest
-	if cpus := flag.GetInt(ctx, "cpus"); cpus != 0 {
+	if cpus := flag.GetInt(ctx, "vm-cpus"); cpus != 0 {
 		machineConf.Guest.CPUs = cpus
-	} else if flag.IsSpecified(ctx, "cpus") {
+	} else if flag.IsSpecified(ctx, "vm-cpus") {
 		return nil, fmt.Errorf("cannot have zero cpus")
 	}
 
-	if memory := flag.GetInt(ctx, "memory"); memory != 0 {
+	if memory := flag.GetInt(ctx, "vm-memory"); memory != 0 {
 		machineConf.Guest.MemoryMB = memory
-	} else if flag.IsSpecified(ctx, "memory") {
+	} else if flag.IsSpecified(ctx, "vm-memory") {
 		return nil, fmt.Errorf("memory cannot be zero")
 	}
 
