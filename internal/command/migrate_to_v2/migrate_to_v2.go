@@ -893,11 +893,14 @@ func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
 	}
 
 	guest := &api.MachineGuest{}
-	err := guest.SetSize(preset)
-	if err != nil {
+	if err := guest.SetSize(preset); err != nil {
 		return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
 	}
-	guest.MemoryMB = vmSize.MemoryMB
+
+	// Can't set less memory than the preset
+	if vmSize.MemoryMB > guest.MemoryMB {
+		guest.MemoryMB = vmSize.MemoryMB
+	}
 
 	// minimum memory for a machine is 256MB, micro-1x on V1 allowed 128MB
 	if guest.MemoryMB < 256 {
