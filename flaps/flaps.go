@@ -21,8 +21,8 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
@@ -93,7 +93,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	return &Client{
 		appName:    opts.AppName,
 		baseUrl:    flapsUrl,
-		authToken:  flyctl.GetAPIToken(),
+		authToken:  config.FromContext(ctx).AccessToken,
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
@@ -155,7 +155,7 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 	return &Client{
 		appName:    params.appName,
 		baseUrl:    flapsBaseUrl,
-		authToken:  flyctl.GetAPIToken(),
+		authToken:  config.FromContext(ctx).AccessToken,
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil

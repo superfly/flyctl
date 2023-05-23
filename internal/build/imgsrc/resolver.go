@@ -15,9 +15,9 @@ import (
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -514,7 +514,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		terminal.Warnf(errMsg, err)
 		return nil, nil
 	}
-	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, flyctl.GetAPIToken())
+	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.FromContext(ctx).AccessToken)
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
