@@ -421,10 +421,10 @@ func registryAuth(token string) types.AuthConfig {
 	}
 }
 
-func authConfigs() map[string]types.AuthConfig {
+func authConfigs(token string) map[string]types.AuthConfig {
 	authConfigs := map[string]types.AuthConfig{}
 
-	authConfigs["registry.fly.io"] = registryAuth(flyctl.GetAPIToken())
+	authConfigs["registry.fly.io"] = registryAuth(token)
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
@@ -441,9 +441,8 @@ func authConfigs() map[string]types.AuthConfig {
 	return authConfigs
 }
 
-func flyRegistryAuth() string {
-	accessToken := flyctl.GetAPIToken()
-	authConfig := registryAuth(accessToken)
+func flyRegistryAuth(token string) string {
+	authConfig := registryAuth(token)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
 		terminal.Warn("Error encoding fly registry credentials", err)

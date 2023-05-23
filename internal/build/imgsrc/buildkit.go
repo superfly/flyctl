@@ -137,18 +137,22 @@ func (t *tracer) write(msg jsonmessage.JSONMessage) {
 	t.displayCh <- &s
 }
 
-func newBuildkitAuthProvider() session.Attachable {
-	return &buildkitAuthProvider{}
+func newBuildkitAuthProvider(token string) session.Attachable {
+	return &buildkitAuthProvider{
+		token: token,
+	}
 }
 
-type buildkitAuthProvider struct{}
+type buildkitAuthProvider struct {
+	token string
+}
 
 func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
 	auth.RegisterAuthServer(server, ap)
 }
 
 func (ap *buildkitAuthProvider) Credentials(ctx context.Context, req *auth.CredentialsRequest) (*auth.CredentialsResponse, error) {
-	auths := authConfigs()
+	auths := authConfigs(ap.token)
 	res := &auth.CredentialsResponse{}
 	if a, ok := auths[req.Host]; ok {
 		res.Username = a.Username

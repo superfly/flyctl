@@ -25,6 +25,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -267,7 +268,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	options := types.ImageBuildOptions{
 		Tags:        []string{opts.Tag},
 		BuildArgs:   buildArgs,
-		AuthConfigs: authConfigs(),
+		AuthConfigs: authConfigs(config.FromContext(ctx).AccessToken),
 		Platform:    "linux/amd64",
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
@@ -303,7 +304,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 	if err != nil {
 		panic(err)
 	}
-	s.Allow(newBuildkitAuthProvider())
+	s.Allow(newBuildkitAuthProvider(config.FromContext(ctx).AccessToken))
 
 	if s == nil {
 		panic("buildkit not supported")
@@ -348,7 +349,7 @@ func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker 
 			Tags:          []string{opts.Tag},
 			BuildArgs:     buildArgs,
 			Version:       types.BuilderBuildKit,
-			AuthConfigs:   authConfigs(),
+			AuthConfigs:   authConfigs(config.FromContext(ctx).AccessToken),
 			SessionID:     s.ID(),
 			RemoteContext: uploadRequestRemote,
 			BuildID:       buildID,
@@ -439,7 +440,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
 
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: flyRegistryAuth(),
+		RegistryAuth: flyRegistryAuth(config.FromContext(ctx).AccessToken),
 	})
 	metrics.Status(ctx, "image_push", err == nil)
 
