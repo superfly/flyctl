@@ -29,8 +29,8 @@ import (
 var (
 	volumeName          = "barman_data"
 	volumePath          = "/data"
-	Duration10s, _      = time.ParseDuration("10s")
-	Duration15s, _      = time.ParseDuration("15s")
+	Duration10s         = api.MustParseDuration("10s")
+	Duration15s         = api.MustParseDuration("15s")
 	CheckPathConnection = "/flycheck/connection"
 	CheckPathRole       = "/flycheck/role"
 	CheckPathVm         = "/flycheck/vm"
