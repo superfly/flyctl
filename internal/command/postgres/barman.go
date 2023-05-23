@@ -243,6 +243,9 @@ func runBarmanCreate(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Provisioning barman machine with image %s\n", machineConfig.Image)
 
 	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
+	}
 	machine, err := flapsClient.Launch(ctx, launchInput)
 	if err != nil {
 		return err
