@@ -46,6 +46,9 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -58,13 +61,11 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	logger.Print("connected ...")
 
 	defer func() {
-		defer func() {
-			if err := conn.Close(); err != nil && !isClosed(err) {
-				logger.Printf("failed dropping: %v", err)
-			} else {
-				logger.Print("dropped.")
-			}
-		}()
+		if err := conn.Close(); err != nil && !isClosed(err) {
+			logger.Printf("failed dropping: %v", err)
+		} else {
+			logger.Print("dropped.")
+		}
 	}()
 
 	s := &session{
