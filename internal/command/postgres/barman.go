@@ -235,6 +235,7 @@ func runBarmanCreate(ctx context.Context) error {
 	})
 
 	launchInput := api.LaunchMachineInput{
+		Name:   "barman",
 		Region: volInput.Region,
 		Config: &machineConfig,
 	}
