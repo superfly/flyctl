@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -15,8 +14,11 @@ import (
 func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLaunch bool) (*api.LaunchMachineInput, error) {
 	taskName := ""
 
-	if len(m.oldAllocs) > 0 {
-		taskName = m.oldAllocs[0].TaskName
+	alloc, hasAlloc := lo.Find(m.oldAllocs, func(alloc *api.AllocationStatus) bool {
+		return alloc.ID == oldAllocID
+	})
+	if hasAlloc {
+		taskName = alloc.TaskName
 	} else {
 		taskName = "app"
 	}
@@ -52,9 +54,11 @@ func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLau
 		return nil, fmt.Errorf("Could not find app config")
 	}
 
-	region := m.appConfig.PrimaryRegion
-	if strings.HasSuffix(region, "2") {
-		region = region[0:3]
+	region := ""
+	if hasAlloc {
+		region = alloc.Region
+	} else {
+		region = m.appConfig.PrimaryRegion
 	}
 
 	launchMachineInput := api.LaunchMachineInput{
