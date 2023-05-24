@@ -44,20 +44,25 @@ func (c *Client) GetAppReleasesMachines(ctx context.Context, appName, status str
 	query := `
 	query($appName: String!, $limit: Int!) {
 		app(name: $appName) {
-		  releases: releasesUnprocessed(first: $limit) {
-			nodes {
-			  id
-			  version
-			  description
-			  reason
-			  status
-			  imageRef
-			  stable
-			  createdAt
-			}
-		  }
+			releases: releasesUnprocessed(first: $limit) {
+				nodes {
+			  		id
+			  		version
+			  		description
+			  		reason
+			  		status
+			  		imageRef
+			  		stable
+			  		user {
+						id
+						email
+						name
+					}
+			  		createdAt
+				}
+		  	}
 		}
-	  }	  
+	}	  
 	`
 
 	req := c.NewRequest(query)
