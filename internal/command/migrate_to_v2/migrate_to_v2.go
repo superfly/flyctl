@@ -77,9 +77,18 @@ func runMigrateToV2(ctx context.Context) (err error) {
 		return err
 	}
 
-	ctx, err = apps.BuildContext(ctx, appCompact)
-	if err != nil {
-		return err
+	// BuildContext() creates a wg tunnel that is only used for PG migrations
+	if appCompact.IsPostgresApp() {
+		ctx, err = apps.BuildContext(ctx, appCompact)
+		if err != nil {
+			return err
+		}
+	} else {
+		flapsClient, err := flaps.New(ctx, appCompact)
+		if err != nil {
+			return err
+		}
+		ctx = flaps.NewContext(ctx, flapsClient)
 	}
 
 	// This is written awkwardly so that NewV2PlatformMigrator failures are tracked,
