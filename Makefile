@@ -9,7 +9,7 @@ generate:
 
 build: generate
 	@echo Running Build
-	go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.branchName=$(GIT_BRANCH)'" .
+	CGO_ENABLED=0 go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.branchName=$(GIT_BRANCH)'" .
 
 test: FORCE
 	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
