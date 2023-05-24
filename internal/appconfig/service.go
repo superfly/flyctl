@@ -160,13 +160,16 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 		}
 	}
 	return &Service{
-		Protocol:     ms.Protocol,
-		InternalPort: ms.InternalPort,
-		Ports:        ms.Ports,
-		Concurrency:  ms.Concurrency,
-		TCPChecks:    tcpChecks,
-		HTTPChecks:   httpChecks,
-		Processes:    processes,
+		Protocol:           ms.Protocol,
+		InternalPort:       ms.InternalPort,
+		AutoStopMachines:   ms.Autostop,
+		AutoStartMachines:  ms.Autostart,
+		MinMachinesRunning: ms.MinMachinesRunning,
+		Ports:              ms.Ports,
+		Concurrency:        ms.Concurrency,
+		TCPChecks:          tcpChecks,
+		HTTPChecks:         httpChecks,
+		Processes:          processes,
 	}
 }
 
