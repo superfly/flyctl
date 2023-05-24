@@ -32,7 +32,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	var latestCompleteRelease api.Release
 
-	releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 10)
+	releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1)
 	if err != nil {
 		return err
 	}
