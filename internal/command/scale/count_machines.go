@@ -20,7 +20,7 @@ import (
 )
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
-	var io = iostreams.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
 	apiClient := client.FromContext(ctx).API()

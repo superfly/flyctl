@@ -42,27 +42,27 @@ func (c *Client) GetAppReleasesNomad(ctx context.Context, appName string, limit 
 
 func (c *Client) GetAppReleasesMachines(ctx context.Context, appName, status string, limit int) ([]Release, error) {
 	query := `
-	query($appName: String!, $limit: Int!) {
-		app(name: $appName) {
-			releases: releasesUnprocessed(first: $limit) {
-				nodes {
-			  		id
-			  		version
-			  		description
-			  		reason
-			  		status
-			  		imageRef
-			  		stable
-			  		user {
-						id
-						email
-						name
+		query($appName: String!, $limit: Int!) {
+			app(name: $appName) {
+				releases: releasesUnprocessed(first: $limit) {
+					nodes {
+			  			id
+			  			version
+			  			description
+			  			reason
+			  			status
+			  			imageRef
+			  			stable
+			  			user {
+							id
+							email
+							name
+						}
+			  			createdAt
 					}
-			  		createdAt
-				}
-		  	}
-		}
-	}	  
+		  		}
+			}
+		}	  
 	`
 
 	req := c.NewRequest(query)
