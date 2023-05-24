@@ -508,7 +508,7 @@ func PromptToMigrate(ctx context.Context, app *api.AppCompact) {
 		config := appconfig.ConfigFromContext(ctx)
 		if config != nil {
 			io := iostreams.FromContext(ctx)
-			fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with:\nfly migrate-to-v2 -c %s", aurora.Yellow("WARN"), config.ConfigFilePath())
+			fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with:\nfly migrate-to-v2 -c %s\n", aurora.Yellow("WARN"), config.ConfigFilePath())
 		}
 	}
 }
