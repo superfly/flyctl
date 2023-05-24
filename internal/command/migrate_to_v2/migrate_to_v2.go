@@ -117,6 +117,7 @@ func runMigrateToV2(ctx context.Context) (err error) {
 	}
 	err = migrator.Migrate(ctx)
 	if err != nil {
+		metrics.Send(ctx, "migrate_to_v2/errors", map[string]string{"app_name": appName, "error": err.Error()})
 		return err
 	}
 	return nil
