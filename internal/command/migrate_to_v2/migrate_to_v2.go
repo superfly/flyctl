@@ -236,6 +236,9 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	allocs = lo.Filter(allocs, func(alloc *api.AllocationStatus, _ int) bool {
+		return !alloc.Failed && alloc.LatestVersion
+	})
 	vmSize, _, groups, err := apiClient.AppVMResources(ctx, appName)
 	if err != nil {
 		return nil, err
