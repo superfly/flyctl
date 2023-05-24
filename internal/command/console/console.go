@@ -40,7 +40,7 @@ func New() *cobra.Command {
 		flag.AppConfig(),
 		flag.Int{
 			Name:        "vm-cpus",
-			Description: "How many (shared) CPUs to give the new machine",
+			Description: "How many CPUs to give the new machine",
 			Aliases:     []string{"cpus"},
 		},
 		flag.String{
@@ -51,6 +51,10 @@ func New() *cobra.Command {
 			Name:        "vm-memory",
 			Description: "How much memory (in MB) to give the new machine",
 			Aliases:     []string{"memory"},
+		},
+		flag.String{
+			Name:        "vm-size",
+			Description: "Use a preset size for the new machine",
 		},
 		flag.Bool{
 			Name:        "select",
@@ -319,32 +323,62 @@ func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr
 
 func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
 	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+	if flag.IsSpecified(ctx, "vm-size") {
+		if err := desiredGuest.SetSize(flag.GetString(ctx, "vm-size")); err != nil {
+			return nil, err
+		}
+	}
 
 	if flag.IsSpecified(ctx, "vm-cpus") {
 		cpus := flag.GetInt(ctx, "vm-cpus")
-		if !lo.Contains([]int{1, 2, 4, 6, 8}, cpus) {
+		var maxCPUs int
+		switch desiredGuest.CPUKind {
+		case "shared":
+			maxCPUs = 8
+		case "performance":
+			maxCPUs = 16
+		default:
+			return nil, fmt.Errorf("invalid CPU kind '%s'", desiredGuest.CPUKind)
+		}
+		if cpus <= 0 || cpus > maxCPUs || (cpus != 1 && cpus%2 != 0) {
 			return nil, errors.New("invalid number of CPUs")
 		}
 		desiredGuest.CPUs = cpus
 	}
+	cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
 
-	minMemory := desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
-	maxMemory := desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
+	var minMemory, maxMemory, memoryIncrement int
+	switch desiredGuest.CPUKind {
+	case "shared":
+		minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
+		maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
+		memoryIncrement = 256
+	case "performance":
+		minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_CPU
+		maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_CPU
+		memoryIncrement = 1024
+	default:
+		return nil, fmt.Errorf("invalid CPU kind '%s'", desiredGuest.CPUKind)
+	}
 
 	if flag.IsSpecified(ctx, "vm-memory") {
 		memory := flag.GetInt(ctx, "vm-memory")
-		cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
 		switch {
 		case memory < minMemory:
-			return nil, fmt.Errorf("not enough memory (at least %d MB is required for %d shared CPU%s)", minMemory, desiredGuest.CPUs, cpuS)
+			return nil, fmt.Errorf("not enough memory (at least %d MB is required for %d %s CPU%s)", minMemory, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
 		case memory > maxMemory:
-			return nil, fmt.Errorf("too much memory (at most %d MB is allowed for %d shared CPU%s)", maxMemory, desiredGuest.CPUs, cpuS)
-		case memory%256 != 0:
-			return nil, errors.New("memory must be in increments of 256 MB")
+			return nil, fmt.Errorf("too much memory (at most %d MB is allowed for %d %s CPU%s)", maxMemory, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
+		case memory%memoryIncrement != 0:
+			return nil, fmt.Errorf("memory must be in increments of %d MB", memoryIncrement)
 		}
 		desiredGuest.MemoryMB = memory
 	} else {
-		desiredGuest.MemoryMB = lo.Max([]int{desiredGuest.MemoryMB, minMemory})
+		adjusted := lo.Clamp(desiredGuest.MemoryMB, minMemory, maxMemory)
+		if adjusted != desiredGuest.MemoryMB && flag.IsSpecified(ctx, "vm-size") {
+			action := lo.Ternary(adjusted < desiredGuest.MemoryMB, "lowered", "raised")
+			terminal.Warnf("Ephemeral machine memory will be %s to %d MB to be compatible with %d %s CPU%s.\n", action, adjusted, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
+		}
+		desiredGuest.MemoryMB = adjusted
 	}
 
 	return desiredGuest, nil
