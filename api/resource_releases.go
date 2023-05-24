@@ -62,7 +62,7 @@ func (c *Client) GetAppReleasesMachines(ctx context.Context, appName, status str
 					}
 		  		}
 			}
-		}	  
+		}
 	`
 
 	req := c.NewRequest(query)
