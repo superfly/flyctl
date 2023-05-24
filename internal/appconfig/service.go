@@ -11,8 +11,8 @@ import (
 type Service struct {
 	Protocol           string                         `json:"protocol,omitempty" toml:"protocol"`
 	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port"`
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
-	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
+	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Ports              []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
 	Concurrency        *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
@@ -47,8 +47,8 @@ type ServiceHTTPCheck struct {
 type HTTPService struct {
 	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
 	ForceHTTPS         bool                           `toml:"force_https,omitempty" json:"force_https,omitempty"`
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
-	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
+	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
