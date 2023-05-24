@@ -40,27 +40,27 @@ func (c *Client) GetAppReleasesNomad(ctx context.Context, appName string, limit 
 	return data.App.Releases.Nodes, nil
 }
 
-func (c *Client) GetAppReleasesMachines(ctx context.Context, appName string, limit int) ([]Release, error) {
+func (c *Client) GetAppReleasesMachines(ctx context.Context, appName, status string, limit int) ([]Release, error) {
 	query := `
-		query ($appName: String!, $limit: Int!) {
+		query($appName: String!, $limit: Int!) {
 			app(name: $appName) {
 				releases: releasesUnprocessed(first: $limit) {
 					nodes {
-						id
-						version
-						description
-						reason
-						status
-						imageRef
-						stable
-						user {
+			  			id
+			  			version
+			  			description
+			  			reason
+			  			status
+			  			imageRef
+			  			stable
+			  			user {
 							id
 							email
 							name
 						}
-						createdAt
+			  			createdAt
 					}
-				}
+		  		}
 			}
 		}
 	`
@@ -69,6 +69,9 @@ func (c *Client) GetAppReleasesMachines(ctx context.Context, appName string, lim
 
 	req.Var("appName", appName)
 	req.Var("limit", limit)
+	if status != "" {
+		req.Var("status", status)
+	}
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

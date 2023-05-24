@@ -61,7 +61,7 @@ func runReleases(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
-		releases, err = client.GetAppReleasesMachines(ctx, appName, 25)
+		releases, err = client.GetAppReleasesMachines(ctx, appName, "", 25)
 	} else {
 		releases, err = client.GetAppReleasesNomad(ctx, appName, 25)
 	}
