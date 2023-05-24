@@ -49,7 +49,14 @@ func newMigrateToV2() *cobra.Command {
 	)
 	cmd := command.New(
 		usage, short, long, runMigrateToV2,
-		command.RequireSession, command.RequireAppName,
+		command.RequireSession,
+		func(ctx context.Context) (context.Context, error) {
+			if cfg := appconfig.ConfigFromContext(ctx); cfg == nil {
+				return nil, fmt.Errorf("no config found, please ensure there is a fly.toml in the current directory or pass one with '-c <path>'")
+			}
+			return ctx, nil
+		},
+		command.RequireAppName,
 	)
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
