@@ -8,6 +8,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -19,19 +20,27 @@ import (
 )
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
-	io := iostreams.FromContext(ctx)
+	var io = iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
+	apiClient := client.FromContext(ctx).API()
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
 
-	if len(machines) == 0 {
-		// We need at least one machine to grab the image to use.
-		// FIXME: fetch image, release id and version from latest "complete" release
-		return fmt.Errorf("there are no active machines for this app. Run `fly deploy` to create one and rerun this command")
+	var latestCompleteRelease api.Release
+
+	releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 10)
+	if err != nil {
+		return err
+	}
+
+	if len(releases) > 0 {
+		latestCompleteRelease = releases[0]
+	} else {
+		return fmt.Errorf("this app has no complete releases. Run `fly deploy` to create one and rerun this command")
 	}
 
 	var regions []string
@@ -51,7 +60,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
-	defaults := newDefaults(appConfig, machines)
+	defaults := newDefaults(appConfig, latestCompleteRelease, machines)
 
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {

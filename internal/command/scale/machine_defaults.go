@@ -1,6 +1,8 @@
 package scale
 
 import (
+	"strconv"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 )
@@ -14,29 +16,17 @@ type defaultValues struct {
 	appConfig      *appconfig.Config
 }
 
-func newDefaults(appConfig *appconfig.Config, machines []*api.Machine) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine) *defaultValues {
 	var (
 		defaultGroupName = appConfig.DefaultProcessName()
 		guest            *api.MachineGuest
-		image            string
-		releaseId        string
-		releaseVersion   string
+		releaseId        = latest.ID
+		releaseVersion   = strconv.Itoa(latest.Version)
+		image            = latest.ImageRef
 		guestPerGroup    = make(map[string]*api.MachineGuest)
 	)
 
 	for _, m := range machines {
-		if len(m.Config.Metadata) > 0 {
-			if releaseId == "" {
-				releaseId = m.Config.Metadata[api.MachineConfigMetadataKeyFlyReleaseId]
-			}
-			if releaseVersion == "" {
-				releaseVersion = m.Config.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion]
-			}
-			if image == "" {
-				image = m.Config.Image
-			}
-		}
-
 		groupName := m.ProcessGroup()
 		if _, ok := guestPerGroup[groupName]; ok {
 			continue
