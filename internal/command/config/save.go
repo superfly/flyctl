@@ -2,13 +2,11 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -37,17 +35,15 @@ func runSave(ctx context.Context) error {
 	var (
 		err         error
 		appName     = appconfig.NameFromContext(ctx)
-		apiClient   = client.FromContext(ctx).API()
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
-	appCompact, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("error getting app with name %s: %w", appName, err)
-	}
-	ctx, err = apps.BuildContext(ctx, appCompact)
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return err
 	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
 		return err
