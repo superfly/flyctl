@@ -18,8 +18,13 @@ func (m *v2PlatformMigrator) resolveMachineFromAlloc(alloc *api.AllocationStatus
 		return nil, err
 	}
 
+	guest, ok := m.machineGuests[mConfig.ProcessGroup()]
+	if !ok {
+		return nil, fmt.Errorf("no guest found for process '%s'", mConfig.ProcessGroup())
+	}
+
 	mConfig.Mounts = nil
-	mConfig.Guest = m.machineGuest
+	mConfig.Guest = guest
 	mConfig.Image = m.img
 	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = m.releaseId
 	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = strconv.Itoa(m.releaseVersion)

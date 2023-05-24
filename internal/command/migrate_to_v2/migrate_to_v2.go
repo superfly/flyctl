@@ -153,7 +153,7 @@ type v2PlatformMigrator struct {
 	releaseId               string
 	releaseVersion          int
 	oldAllocs               []*api.AllocationStatus
-	machineGuest            *api.MachineGuest
+	machineGuests           map[string]*api.MachineGuest
 	oldVmCounts             map[string]int
 	newMachinesInput        []*api.LaunchMachineInput
 	newMachines             machine.MachineSet
@@ -223,11 +223,11 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
-	vmSize, _, _, err := apiClient.AppVMResources(ctx, appName)
+	vmSize, _, groups, err := apiClient.AppVMResources(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
-	machineGuest, err := determineVmSpecs(vmSize)
+	machineGuests, err := determineVmSpecs(vmSize, groups)
 	if err != nil {
 		return nil, err
 	}
@@ -248,7 +248,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		formattedProcessConfigs: formattedProcessConfigs,
 		img:                     img,
 		oldAllocs:               allocs,
-		machineGuest:            machineGuest,
+		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
 		replacedVolumes:         map[string]int{},
 		recovery: recoveryState{
@@ -886,35 +886,49 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 	return cfg, nil
 }
 
-func determineVmSpecs(vmSize api.VMSize) (*api.MachineGuest, error) {
-	preset := vmSize.Name
-	preset = strings.Replace(preset, "micro", "shared-cpu", 1)
-	preset = strings.Replace(preset, "dedicated-cpu", "performance", 1)
-	switch preset {
-	case "cpu1mem1":
-		preset = "performance-1x"
-	case "cpu2mem2":
-		preset = "performance-2x"
-	case "cpu4mem4":
-		preset = "performance-4x"
-	case "cpu8mem8":
-		preset = "performance-8x"
-	}
+func determineVmSpecs(defaultSize api.VMSize, groups []api.ProcessGroup) (map[string]*api.MachineGuest, error) {
+	mapSize := func(size api.VMSize) (*api.MachineGuest, error) {
+		preset := size.Name
+		preset = strings.Replace(preset, "micro", "shared-cpu", 1)
+		preset = strings.Replace(preset, "dedicated-cpu", "performance", 1)
+		switch preset {
+		case "cpu1mem1":
+			preset = "performance-1x"
+		case "cpu2mem2":
+			preset = "performance-2x"
+		case "cpu4mem4":
+			preset = "performance-4x"
+		case "cpu8mem8":
+			preset = "performance-8x"
+		}
 
-	guest := &api.MachineGuest{}
-	if err := guest.SetSize(preset); err != nil {
-		return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
-	}
+		guest := &api.MachineGuest{}
+		if err := guest.SetSize(preset); err != nil {
+			return nil, fmt.Errorf("nomad VM definition incompatible with machines API: %w", err)
+		}
 
-	// Can't set less memory than the preset
-	if vmSize.MemoryMB > guest.MemoryMB {
-		guest.MemoryMB = vmSize.MemoryMB
-	}
+		// Can't set less memory than the preset
+		if size.MemoryMB > guest.MemoryMB {
+			guest.MemoryMB = size.MemoryMB
+		}
 
-	// minimum memory for a machine is 256MB, micro-1x on V1 allowed 128MB
-	if guest.MemoryMB < 256 {
-		guest.MemoryMB = 256
-	}
+		// minimum memory for a machine is 256MB, micro-1x on V1 allowed 128MB
+		if guest.MemoryMB < 256 {
+			guest.MemoryMB = 256
+		}
 
-	return guest, nil
+		return guest, nil
+	}
+	sizes := make(map[string]*api.MachineGuest)
+	if len(groups) == 0 {
+		groups = []api.ProcessGroup{{Name: "app", VMSize: &defaultSize}}
+	}
+	for _, group := range groups {
+		size, err := mapSize(*group.VMSize)
+		if err != nil {
+			return nil, err
+		}
+		sizes[group.Name] = size
+	}
+	return sizes, nil
 }
