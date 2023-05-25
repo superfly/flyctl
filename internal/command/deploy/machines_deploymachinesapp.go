@@ -511,7 +511,7 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 		return
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "\n%s The app is listening on the incorrect address and will not be reachable by fly-proxy.\n", md.colorize.Yellow("WARNING"))
+	fmt.Fprintf(md.io.ErrOut, "\n%s The app is not listening on the expected address and will not be reachable by fly-proxy.\n", md.colorize.Yellow("WARNING"))
 	fmt.Fprintf(md.io.ErrOut, "You can fix this by configuring your app to listen on the following addresses:\n")
 	for port := range tcpServices {
 		fmt.Fprintf(md.io.ErrOut, "  - %s\n", md.colorize.Green("0.0.0.0:"+strconv.Itoa(port)))
