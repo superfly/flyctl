@@ -40,6 +40,7 @@ func New() *cobra.Command {
 		newAddFlycast(),
 		newImport(),
 		newEvents(),
+		newBarman(),
 	)
 
 	return cmd
