@@ -17,7 +17,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -583,10 +582,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 
 	tb.Detail("Ensuring app is responsive")
-	err = m.checkAppResponsive(ctx)
-	if err != nil {
-		return err
-	}
+	_ = m.checkAppResponsive(ctx)
 
 	tb.Detail("Updating the app platform platform type from V1 to V2")
 
@@ -894,11 +890,6 @@ func (m *v2PlatformMigrator) checkAppResponsive(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = m.checkAppResponsiveTCP(ctx)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -948,44 +939,6 @@ func (m *v2PlatformMigrator) checkAppResponsiveHTTP() error {
 		}
 	}
 
-	return nil
-}
-
-func (m *v2PlatformMigrator) checkAppResponsiveTCP(ctx context.Context) error {
-	services := m.appConfig.AllServices()
-	var tcpServices []appconfig.Service
-
-	for _, svc := range services {
-		for _, svcPort := range svc.Ports {
-			if len(svcPort.Handlers) == 0 && svc.Protocol == "tcp" {
-				tcpServices = append(tcpServices, svc)
-			}
-		}
-	}
-
-	client := client.FromContext(ctx).API()
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return err
-	}
-
-	dialer, err := agentclient.ConnectToTunnel(ctx, m.appCompact.Organization.Slug)
-	if err != nil {
-		return err
-	}
-
-	for _, svc := range tcpServices {
-		// Attempt to connect to the application over its private 6pn address
-		for _, lm := range m.newMachines.GetMachines() {
-			machine := lm.Machine()
-			addr := fmt.Sprintf("[%s]:%d", machine.PrivateIP, svc.InternalPort)
-			conn, err := dialer.DialContext(ctx, "tcp", addr)
-			if err != nil {
-				return err
-			}
-			conn.Close()
-		}
-	}
 	return nil
 }
 
