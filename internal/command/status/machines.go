@@ -354,6 +354,10 @@ func isQuorumMet(machines []*api.Machine) (bool, string) {
 	active := 0
 
 	for _, m := range machines {
+		if m.Config.Env["IS_BARMAN"] != "" {
+			continue
+		}
+
 		isPrimaryRegion := m.Region == primaryRegion
 
 		if isPrimaryRegion {
