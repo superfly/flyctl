@@ -50,8 +50,13 @@ func newMigrateToV2() *cobra.Command {
 	cmd := command.New(
 		usage, short, long, runMigrateToV2,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 		command.LoadAppConfigIfPresent,
 		func(ctx context.Context) (context.Context, error) {
+			if appName := appconfig.NameFromContext(ctx); appName != "" {
+				return ctx, nil
+			}
+
 			if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
 				if cfg.AppName == "" {
 					return nil, fmt.Errorf("your fly.toml is missing an app name, please ensure the 'app' field is set")
@@ -61,7 +66,6 @@ func newMigrateToV2() *cobra.Command {
 			}
 			return ctx, nil
 		},
-		command.RequireAppName,
 	)
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
