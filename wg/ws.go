@@ -8,12 +8,13 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"sync"
 	"time"
 
-	"golang.org/x/net/websocket"
 	"golang.org/x/time/rate"
+	"nhooyr.io/websocket"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -136,33 +137,42 @@ func (wswg *WsWgProxy) Port() (int, error) {
 	return udpBindAddr.Port, nil
 }
 
-func (wswg *WsWgProxy) Connect(endpoint string) error {
+func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 	rurl := fmt.Sprintf("wss://%s:443/", endpoint)
 
 	log.Printf("(re-)connecting to %s", rurl)
 
-	conf, _ := websocket.NewConfig(rurl, rurl)
-	conf.TlsConfig = &tls.Config{
-		InsecureSkipVerify: true,
-	}
-
-	// oh well, if it'll end horror
-	ws, err := websocket.DialConfig(conf)
+	ws, _, err := websocket.Dial(ctx, rurl, &websocket.DialOptions{
+		HTTPClient: &http.Client{
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				// It's fine. The traffic inside the tunnel is already encrypted by WG
+				TLSClientConfig: &tls.Config{ // skipcq: GO-S1020
+					InsecureSkipVerify: true, // skipcq: GSC-G402
+				},
+			},
+		},
+		HTTPHeader: http.Header{
+			"Origin": []string{rurl},
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("websocket: %w", err)
 	}
 
+	wsConn := websocket.NetConn(ctx, ws, websocket.MessageText)
+
 	var magic [4]byte
 	binary.BigEndian.PutUint32(magic[:], 0x2FACED77)
 
-	if _, err = ws.Write(magic[:]); err != nil {
+	if _, err = wsConn.Write(magic[:]); err != nil {
 		return fmt.Errorf("write websocket magic: %w", err)
 	}
 
 	if wswg.wsConn != nil {
-		wswg.wsConn.Close()
+		_ = wswg.wsConn.Close()
 	}
-	wswg.wsConn = ws
+	wswg.wsConn = wsConn
 
 	return nil
 }
@@ -179,7 +189,6 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	wswg.wrlock.Lock()
 	defer wswg.wrlock.Unlock()
 
-	c.SetWriteDeadline(time.Now().Add(5 * time.Second))
 	return write(c, b)
 }
 
@@ -191,13 +200,8 @@ func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
 		c := wswg.wsConn
 		wswg.lock.RUnlock()
 
-		c.SetReadDeadline(time.Now().Add(5 * time.Second))
 		pkt, err := read(c, pbuf)
 		if err != nil {
-			if isTimeout(err) {
-				continue
-			}
-
 			wswg.resetConn(c, err)
 		}
 
@@ -252,13 +256,13 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 		return 0, err
 	}
 
-	if err = wswg.Connect(endpoint); err != nil {
+	if err = wswg.Connect(ctx, endpoint); err != nil {
 		return 0, err
 	}
 
 	go func() {
-		defer wswg.wsConn.Close()
-		defer wswg.plugConn.Close()
+		defer wswg.wsConn.Close()   // skipcq: GO-S2307
+		defer wswg.plugConn.Close() // skipcq: GO-S2307
 
 		c := make(chan os.Signal, 1)
 		signalChannel(c)
@@ -273,7 +277,7 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 			case <-tick.C:
 				if !reconnectAt.IsZero() && reconnectAt.Before(time.Now()) {
 					wswg.lock.Lock()
-					wswg.Connect(endpoint)
+					wswg.Connect(ctx, endpoint)
 					wswg.lock.Unlock()
 
 					reconnectAt = time.Time{}
