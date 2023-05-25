@@ -490,6 +490,7 @@ func (sc *sftpContext) put(args ...string) error {
 				rdir = sc.wd + rarg
 			}
 		}
+		rdir = filepath.ToSlash(rdir)
 
 		inf, err := sc.ftp.Stat(rdir)
 		if err != nil {
