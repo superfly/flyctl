@@ -245,10 +245,16 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return alloc.Status == "running" && alloc.LatestVersion
 	})
 
-	var attachedVolumes []api.Volume
-	for _, a := range allocs {
-		attachedVolumes = append(attachedVolumes, a.AttachedVolumes.Nodes...)
-	}
+	attachedVolumes := lo.Filter(appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
+		if v.AttachedAllocation != nil {
+			for _, a := range allocs {
+				if a.ID == v.AttachedAllocation.ID {
+					return true
+				}
+			}
+		}
+		return false
+	})
 
 	vmSize, _, groups, err := apiClient.AppVMResources(ctx, appName)
 	if err != nil {
