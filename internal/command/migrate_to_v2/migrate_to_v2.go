@@ -170,6 +170,7 @@ type v2PlatformMigrator struct {
 	releaseId               string
 	releaseVersion          int
 	oldAllocs               []*api.AllocationStatus
+	oldAttachedVolumes      []api.Volume
 	machineGuests           map[string]*api.MachineGuest
 	oldVmCounts             map[string]int
 	newMachinesInput        []*api.LaunchMachineInput
@@ -243,6 +244,18 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	allocs = lo.Filter(allocs, func(alloc *api.AllocationStatus, _ int) bool {
 		return alloc.Status == "running" && alloc.LatestVersion
 	})
+
+	attachedVolumes := lo.Filter(appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
+		if v.AttachedAllocation != nil {
+			for _, a := range allocs {
+				if a.ID == v.AttachedAllocation.ID {
+					return true
+				}
+			}
+		}
+		return false
+	})
+
 	vmSize, _, groups, err := apiClient.AppVMResources(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -268,6 +281,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		formattedProcessConfigs: formattedProcessConfigs,
 		img:                     img,
 		oldAllocs:               allocs,
+		oldAttachedVolumes:      attachedVolumes,
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
 		replacedVolumes:         map[string]int{},
