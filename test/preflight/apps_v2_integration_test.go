@@ -508,6 +508,7 @@ primary_region = "%s"
 	assertHasFlag()
 }
 
+// this test is really slow :(
 func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	var (
 		err     error
@@ -516,7 +517,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	)
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(3 * time.Second)
-	f.Fly("autoscale set min=3 max=8")
+	f.Fly("autoscale set min=3 max=10")
 	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
 	result := f.Fly("status --json")
 
@@ -527,6 +528,18 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	}
 	platformVersion, _ := statusMap["PlatformVersion"].(string)
 	require.Equal(f, "machines", platformVersion)
+
+	machines := f.MachinesList(appName)
+	require.Equal(f, 10, len(machines))
+
+	for _, machine := range machines {
+		services := machine.Config.Services
+		require.Equal(f, 1, len(services))
+
+		service := services[0]
+		require.Equal(f, *service.MinMachinesRunning, 3)
+	}
+
 }
 
 func TestNoPublicIPDeployMachines(t *testing.T) {
