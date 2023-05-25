@@ -369,6 +369,10 @@ func isQuorumMet(machines []*api.Machine) (bool, string) {
 		}
 	}
 
+	if total == 1 {
+		return true, ""
+	}
+
 	quorum := total/2 + 1
 
 	// Verify that we meet basic quorum requirements.
