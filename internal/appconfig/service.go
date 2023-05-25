@@ -9,10 +9,12 @@ import (
 )
 
 type Service struct {
-	Protocol           string                         `json:"protocol,omitempty" toml:"protocol"`
-	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port"`
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
-	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
+	Protocol     string `json:"protocol,omitempty" toml:"protocol"`
+	InternalPort int    `json:"internal_port,omitempty" toml:"internal_port"`
+	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML. The encoder
+	// already omits nil since it can't be represented, and omitempty makes it omit false as well.
+	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Ports              []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
 	Concurrency        *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
@@ -45,10 +47,11 @@ type ServiceHTTPCheck struct {
 }
 
 type HTTPService struct {
-	InternalPort       int                            `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
-	ForceHTTPS         bool                           `toml:"force_https,omitempty" json:"force_https,omitempty"`
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines,omitempty"`
-	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines,omitempty"`
+	InternalPort int  `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
+	ForceHTTPS   bool `toml:"force_https,omitempty" json:"force_https,omitempty"`
+	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML; see the note in Service.
+	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
@@ -160,13 +163,16 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 		}
 	}
 	return &Service{
-		Protocol:     ms.Protocol,
-		InternalPort: ms.InternalPort,
-		Ports:        ms.Ports,
-		Concurrency:  ms.Concurrency,
-		TCPChecks:    tcpChecks,
-		HTTPChecks:   httpChecks,
-		Processes:    processes,
+		Protocol:           ms.Protocol,
+		InternalPort:       ms.InternalPort,
+		AutoStopMachines:   ms.Autostop,
+		AutoStartMachines:  ms.Autostart,
+		MinMachinesRunning: ms.MinMachinesRunning,
+		Ports:              ms.Ports,
+		Concurrency:        ms.Concurrency,
+		TCPChecks:          tcpChecks,
+		HTTPChecks:         httpChecks,
+		Processes:          processes,
 	}
 }
 
