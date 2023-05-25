@@ -354,6 +354,10 @@ func isQuorumMet(machines []*api.Machine) (bool, string) {
 	active := 0
 
 	for _, m := range machines {
+		if m.Config.Env["IS_BARMAN"] != "" {
+			continue
+		}
+
 		isPrimaryRegion := m.Region == primaryRegion
 
 		if isPrimaryRegion {
@@ -368,7 +372,7 @@ func isQuorumMet(machines []*api.Machine) (bool, string) {
 	quorum := total/2 + 1
 
 	// Verify that we meet basic quorum requirements.
-	if active <= quorum {
+	if active < quorum {
 		return false, fmt.Sprintf("WARNING: Cluster size within your primary region %q does not meet HA requirements. (expected >= 3, got %d)\n", primaryRegion, active)
 	}
 
