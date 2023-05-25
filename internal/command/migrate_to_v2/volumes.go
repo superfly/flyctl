@@ -20,7 +20,7 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 		return nil
 	}
 	numMounts := len(m.appConfig.Mounts)
-	m.usesForkedVolumes = numMounts != 0
+	m.usesForkedVolumes = numMounts != 0 && len(m.oldAttachedVolumes) > 0
 
 	volsPerProcess := map[string]int{}
 	for _, mount := range m.appConfig.Mounts {
@@ -65,9 +65,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 		return v
 	}))
 
-	for _, vol := range m.appFull.Volumes.Nodes {
-		// TODO(ali): Should we migrate _all_ volumes, or just the ones used currently?
-
+	for _, vol := range m.oldAttachedVolumes {
 		newVol, err := m.apiClient.ForkVolume(ctx, api.ForkVolumeInput{
 			AppID:          m.appFull.ID,
 			SourceVolumeID: vol.ID,
