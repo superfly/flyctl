@@ -12,7 +12,7 @@ import (
 func newRevoke() *cobra.Command {
 	const (
 		short = "Revoke tokens"
-		long  = short
+		long  = "used like: 'fly tokens revoke [ids]'"
 		usage = "revoke"
 	)
 
