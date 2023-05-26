@@ -344,9 +344,16 @@ type App struct {
 	ImageDetails                ImageVersion
 	LatestImageDetails          ImageVersion
 
-	PlatformVersion string
+	PlatformVersion     string
+	LimitedAccessTokens *struct {
+		Nodes []LimitedAccessToken
+	}
 }
-
+type LimitedAccessToken struct {
+	Id        string
+	Name      string
+	ExpiresAt time.Time
+}
 type TaskGroupCount struct {
 	Name  string
 	Count int
@@ -577,6 +584,10 @@ type Organization struct {
 
 	LoggedCertificates *struct {
 		Nodes []LoggedCertificate
+	}
+
+	LimitedAccessTokens *struct {
+		Nodes []LimitedAccessToken
 	}
 }
 

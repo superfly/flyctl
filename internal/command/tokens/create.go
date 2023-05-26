@@ -43,6 +43,7 @@ func newDeploy() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDeploy,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
 
 	flag.Add(cmd,
@@ -84,6 +85,9 @@ func runDeploy(ctx context.Context) (err error) {
 	switch scope {
 	case "app":
 		appName := appconfig.NameFromContext(ctx)
+		//if appName == "" {
+		//	return command.ErrRequireAppName
+		//}
 
 		app, err := apiClient.GetAppCompact(ctx, appName)
 		if err != nil {
