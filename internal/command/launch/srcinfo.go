@@ -264,8 +264,17 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 		appConfig.SetMounts(appVolumes)
 	}
 
-	for procName, procCommand := range srcInfo.Processes {
-		appConfig.SetProcess(procName, procCommand)
+	if len(srcInfo.Processes) > 0 {
+		for procName, procCommand := range srcInfo.Processes {
+			appConfig.SetProcess(procName, procCommand)
+
+			// if processes are defined, associate HTTPService with the app service
+			// (if defined) or the first service if no app service is defined.
+			if appConfig.HTTPService != nil &&
+				(procName == "app" || appConfig.HTTPService.Processes == nil) {
+				appConfig.HTTPService.Processes = []string{procName}
+			}
+		}
 	}
 
 	if srcInfo.ReleaseCmd != "" {
@@ -309,7 +318,25 @@ func runCallback(ctx context.Context, srcInfo *scanner.SourceInfo, options map[s
 	if srcInfo == nil || srcInfo.Callback == nil {
 		return nil
 	}
-	return srcInfo.Callback(srcInfo, options)
+
+	err := srcInfo.Callback(srcInfo, options)
+
+	if srcInfo.MergeConfig != nil {
+		if err == nil {
+			cfg, err := appconfig.LoadConfig(srcInfo.MergeConfig.Name)
+			if err == nil {
+				// In theory, any part of the configuration could be merged here, but for now
+				// we will only copy over the processes
+				srcInfo.Processes = cfg.Processes
+			}
+		}
+
+		if srcInfo.MergeConfig.Temporary {
+			_ = os.Remove(srcInfo.MergeConfig.Name)
+		}
+	}
+
+	return err
 }
 
 func runInitCommands(ctx context.Context, srcInfo *scanner.SourceInfo) error {

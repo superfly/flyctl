@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -128,6 +129,23 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	// generate Dockerfile if it doesn't already exist
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
+		flyToml := "fly.toml"
+		_, err := os.Stat(flyToml)
+		if os.IsNotExist(err) {
+			// "touch" fly.toml
+			file, err := os.Create("fly.toml")
+			if err != nil {
+				log.Fatal(err)
+			}
+			file.Close()
+
+			// inform caller of the presence of this file
+			srcInfo.MergeConfig = &MergeConfigStruct{
+				Name:      "fly.toml",
+				Temporary: true,
+			}
+		}
+
 		args := []string{"./bin/rails", "generate", "dockerfile",
 			"--label=fly_launch_runtime:rails"}
 

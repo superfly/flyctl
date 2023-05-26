@@ -27,6 +27,11 @@ type Secret struct {
 	Generate func() (string, error)
 }
 
+type MergeConfigStruct struct {
+	Name      string
+	Temporary bool
+}
+
 type SourceInfo struct {
 	Family                       string
 	Version                      string
@@ -57,6 +62,7 @@ type SourceInfo struct {
 	Callback                     func(srcInfo *SourceInfo, options map[string]bool) error
 	HttpCheckPath                string
 	ConsoleCommand               string
+	MergeConfig                  *MergeConfigStruct
 }
 
 type SourceFile struct {
