@@ -20,6 +20,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		newCreate(),
 		newList(),
+		newRevoke(),
 		hiddenDeploy,
 	)
 
