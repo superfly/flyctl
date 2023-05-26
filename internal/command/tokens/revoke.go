@@ -11,7 +11,7 @@ import (
 
 func newRevoke() *cobra.Command {
 	const (
-		short = "Revoke deploy tokens"
+		short = "Revoke tokens"
 		long  = short
 		usage = "revoke"
 	)

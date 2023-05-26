@@ -16,7 +16,7 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List deploy tokens"
+		short = "List tokens"
 		long  = short
 		usage = "list"
 	)
