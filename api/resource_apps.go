@@ -193,6 +193,13 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				postgresAppRole: role {
 					name
 				}
+				limitedAccessTokens {
+				  nodes {
+					id
+					name
+					expiresAt
+				  }
+				}
 			}
 		}
 	`

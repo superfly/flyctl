@@ -3,17 +3,19 @@ package tokens
 import (
 	"context"
 	"fmt"
-	"time"
-
-	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func newCreate() *cobra.Command {
@@ -27,6 +29,31 @@ func newCreate() *cobra.Command {
 
 	cmd.AddCommand(
 		newDeploy(),
+		newOrg(),
+	)
+
+	return cmd
+}
+
+func newOrg() *cobra.Command {
+	const (
+		short = "Create org deploy tokens"
+		long  = "Create an API token limited to managing a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		usage = "org"
+	)
+
+	cmd := command.New(usage, short, long, runOrg,
+		command.RequireSession,
+	)
+
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
 	)
 
 	return cmd
@@ -41,7 +68,7 @@ func newDeploy() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runDeploy,
 		command.RequireSession,
-		command.RequireAppName,
+		command.LoadAppNameIfPresent,
 	)
 
 	flag.Add(cmd,
@@ -64,40 +91,83 @@ func newDeploy() *cobra.Command {
 	return cmd
 }
 
-func runDeploy(ctx context.Context) (err error) {
-	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
-
-	app, err := apiClient.GetAppCompact(ctx, appName)
+func makeToken(ctx context.Context, apiClient *api.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
+	resp, err := gql.CreateLimitedAccessToken(
+		ctx,
+		apiClient.GenqClient,
+		flag.GetString(ctx, "name"),
+		orgID,
+		profile,
+		options,
+		expiry,
+	)
 	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+		return nil, fmt.Errorf("failed creating deploy token: %w", err)
 	}
+	return resp, nil
+}
+
+func runOrg(ctx context.Context) error {
+	var token string
+	apiClient := client.FromContext(ctx).API()
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
 		expiry = expiryDuration.String()
 	}
 
-	resp, err := gql.CreateLimitedAccessToken(
-		ctx,
-		apiClient.GenqClient,
-		flag.GetString(ctx, "name"),
-		app.Organization.ID,
-		"deploy",
-		&gql.LimitedAccessTokenOptions{
-			"app_id": app.ID,
-		},
-		expiry,
-	)
+	org, err := orgs.OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
-		return fmt.Errorf("failed creating deploy token: %w", err)
+		return fmt.Errorf("failed retrieving org %w", err)
 	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
 
 	io := iostreams.FromContext(ctx)
 	if config.FromContext(ctx).JSONOutput {
-		render.JSON(io.Out, map[string]string{"token": resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader})
+		render.JSON(io.Out, map[string]string{"token": token})
 	} else {
-		fmt.Fprintln(io.Out, resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader)
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
+func runDeploy(ctx context.Context) (err error) {
+	var token string
+	apiClient := client.FromContext(ctx).API()
+
+	expiry := ""
+	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	appName := appconfig.NameFromContext(ctx)
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
 	}
 
 	return nil
