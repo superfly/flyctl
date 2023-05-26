@@ -370,7 +370,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	}
 	if m.isPostgres {
 		tb.Detailf("Disabling readonly")
-		err := m.setNomadPgReadonly(ctx, true)
+		err := m.setNomadPgReadonly(ctx, false)
 		if err != nil {
 			return err
 		}
