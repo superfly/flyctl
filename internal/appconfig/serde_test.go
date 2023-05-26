@@ -567,6 +567,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
+						Port:        fly.Pointer(1001),
 						Interval:    fly.MustParseDuration("21s"),
 						Timeout:     fly.MustParseDuration("4s"),
 						GracePeriod: fly.MustParseDuration("1s"),
@@ -575,6 +576,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
+						Port:              fly.Pointer(2020),
 						Interval:          fly.MustParseDuration("81s"),
 						Timeout:           fly.MustParseDuration("7s"),
 						GracePeriod:       fly.MustParseDuration("2s"),
