@@ -17,6 +17,8 @@ const (
 	AddOnTypeLogtail AddOnType = "logtail"
 	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
+	// A Sentry project endpoint
+	AddOnTypeSentry AddOnType = "sentry"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
