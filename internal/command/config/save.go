@@ -92,7 +92,7 @@ func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configP
 	}
 
 	// Check if there's anything to actually copy over
-	if oldCfg != nil && oldCfg.Build == nil {
+	if oldCfg == nil || oldCfg.Build == nil {
 		return nil
 	}
 
