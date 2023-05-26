@@ -133,7 +133,17 @@ func runMigrateToV2(ctx context.Context) (err error) {
 	}
 	err = migrator.Migrate(ctx)
 	if err != nil {
-		metrics.Send(ctx, "migrate_to_v2/errors", map[string]string{"app_name": appName, "error": err.Error()})
+		sentry.CaptureException(err,
+			sentry.WithTag("feature", "migrate-to-v2"),
+			sentry.WithContexts(map[string]sentry.Context{
+				"app": {
+					"name": appName,
+				},
+				"organization": {
+					"name": appCompact.Organization.Slug,
+				},
+			}),
+		)
 		return err
 	}
 	return nil
