@@ -183,7 +183,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 				SourceVolumeID: config.ForkFrom,
 				MachinesOnly:   true,
 				Name:           "pg_data",
-				Remote:         flag.GetBool(ctx, "enable-remote-forking"),
+				Remote:         flag.GetBool(ctx, "remote-fork"),
 			}
 
 			vol, err = l.client.ForkVolume(ctx, volInput)
@@ -226,7 +226,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
 
 		waitTimeout := time.Minute * 5
-		if snapshot != nil {
+		if snapshot != nil || config.ForkFrom != "" {
 			waitTimeout = time.Hour
 		}
 
@@ -237,7 +237,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		nodes = append(nodes, machine)
 
 		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
-
 	}
 
 	if !detach {

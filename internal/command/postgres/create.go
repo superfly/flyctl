@@ -68,7 +68,7 @@ func newCreate() *cobra.Command {
 			Description: "Specify a source Postgres application to fork from. Format: <app-name> or <app-name>:<volume-id>",
 		},
 		flag.Bool{
-			Name:        "enable-remote-forking",
+			Name:        "remote-fork",
 			Description: "Enables experimental cross-host volume forking",
 			Hidden:      true,
 			Default:     false,
