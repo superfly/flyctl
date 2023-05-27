@@ -223,7 +223,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
-		fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
+		if config.ForkFrom != "" {
+			fmt.Fprintf(io.Out, "Waiting for volume fork process to complete...\n")
+			fmt.Fprintf(io.Out, "This may take a while...\n")
+		} else {
+			fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
+		}
 
 		waitTimeout := time.Minute * 5
 		if snapshot != nil || config.ForkFrom != "" {
