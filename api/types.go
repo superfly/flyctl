@@ -432,6 +432,7 @@ type ForkVolumeInput struct {
 	Name           string `json:"name,omitempty"`
 	MachinesOnly   bool   `json:"machinesOnly,omitempty"`
 	LockID         string `json:"lockId,omitempty"`
+	Remote         bool   `json:"remote,omitempty"`
 }
 
 type ForkVolumePayload struct {

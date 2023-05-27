@@ -40,6 +40,12 @@ but is currently restricted to same-host forks and may not be available for near
 			Shorthand:   "n",
 			Description: "Name of the new volume",
 		},
+		flag.Bool{
+			Name:        "remote-fork",
+			Description: "Enables experimental cross-host volume forking",
+			Hidden:      true,
+			Default:     false,
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -78,6 +84,7 @@ func runFork(ctx context.Context) error {
 		SourceVolumeID: vol.ID,
 		Name:           name,
 		MachinesOnly:   app.PlatformVersion == "machines",
+		Remote:         flag.GetBool(ctx, "remote-fork"),
 	}
 
 	volume, err := client.ForkVolume(ctx, input)

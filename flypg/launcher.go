@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
+	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -61,7 +62,7 @@ func NewLauncher(client *api.Client) *Launcher {
 	}
 }
 
-// Launches a postgres cluster using the machines runtime
+// LaunchMachinesPostgres launches a postgres cluster using the machines runtime
 func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput, detach bool) error {
 	var (
 		io       = iostreams.FromContext(ctx)
@@ -188,6 +189,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 				SourceVolumeID: config.ForkFrom,
 				MachinesOnly:   true,
 				Name:           "pg_data",
+				Remote:         flag.GetBool(ctx, "remote-fork"),
 			}
 
 			vol, err = l.client.ForkVolume(ctx, volInput)
@@ -226,10 +228,15 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
-		fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
+		if config.ForkFrom != "" {
+			fmt.Fprintf(io.Out, "Waiting for volume fork process to complete...\n")
+			fmt.Fprintf(io.Out, "This may take a while...\n")
+		} else {
+			fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
+		}
 
 		waitTimeout := time.Minute * 5
-		if snapshot != nil {
+		if snapshot != nil || config.ForkFrom != "" {
 			waitTimeout = time.Hour
 		}
 
@@ -240,7 +247,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		nodes = append(nodes, machine)
 
 		fmt.Fprintf(io.Out, "Machine %s is %s\n", machine.ID, machine.State)
-
 	}
 
 	if !detach {
