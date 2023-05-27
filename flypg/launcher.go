@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
+	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -61,7 +62,7 @@ func NewLauncher(client *api.Client) *Launcher {
 	}
 }
 
-// Launches a postgres cluster using the machines runtime
+// LaunchMachinesPostgres launches a postgres cluster using the machines runtime
 func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClusterInput, detach bool) error {
 	var (
 		io       = iostreams.FromContext(ctx)
@@ -182,6 +183,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 				SourceVolumeID: config.ForkFrom,
 				MachinesOnly:   true,
 				Name:           "pg_data",
+				Remote:         flag.GetBool(ctx, "enable-remote-forking"),
 			}
 
 			vol, err = l.client.ForkVolume(ctx, volInput)
