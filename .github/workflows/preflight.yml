@@ -14,7 +14,7 @@ on:
     branches: [master, ci-preflight]
 
 jobs:
-  test:
+  preflight-tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -26,4 +26,8 @@ jobs:
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Run preflight tests
+        env:
+          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
+          FLY_PREFLIGHT_TEST_FLY_REGIONS: iad bom syd
         run: make ci-preflight
