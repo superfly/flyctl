@@ -326,8 +326,22 @@ func runCallback(ctx context.Context, srcInfo *scanner.SourceInfo, options map[s
 			cfg, err := appconfig.LoadConfig(srcInfo.MergeConfig.Name)
 			if err == nil {
 				// In theory, any part of the configuration could be merged here, but for now
-				// we will only copy over the processes
-				srcInfo.Processes = cfg.Processes
+				// we will only copy over the processes and volume
+				if srcInfo.Processes == nil {
+					srcInfo.Processes = cfg.Processes
+				}
+
+				if len(srcInfo.Volumes) == 0 && len(cfg.Mounts) > 0 {
+					volume := scanner.Volume{
+						Source:      cfg.Mounts[0].Source,
+						Destination: cfg.Mounts[0].Destination,
+						// TODO: shouldn't srcInfo.Volumes and appConfig.Mounts be reconciled?
+						//       * ideally they should be the same type
+						//       * failing that, Volume should include Processes []string
+					}
+
+					srcInfo.Volumes = []scanner.Volume{volume}
+				}
 			}
 		}
 

@@ -133,7 +133,7 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 		_, err := os.Stat(flyToml)
 		if os.IsNotExist(err) {
 			// "touch" fly.toml
-			file, err := os.Create("fly.toml")
+			file, err := os.Create(flyToml)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -141,7 +141,7 @@ func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
 
 			// inform caller of the presence of this file
 			srcInfo.MergeConfig = &MergeConfigStruct{
-				Name:      "fly.toml",
+				Name:      flyToml,
 				Temporary: true,
 			}
 		}
