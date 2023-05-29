@@ -464,6 +464,7 @@ primary_region = "%s"
 	assertHasFlag := func() {
 		f.Fly("ssh console -q -C 'test -r /vol/flag.txt'")
 	}
+	time.Sleep(2 * time.Second)
 	assertHasFlag()
 
 	// time.Sleep(9 * time.Second)
