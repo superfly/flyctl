@@ -320,7 +320,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 
 // waits for an eventType1 type event to show up after we see a eventType2 event, and returns it
 func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration, allowInfinite bool) (*api.MachineEvent, error) {
-	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
 	defer cancel()
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
