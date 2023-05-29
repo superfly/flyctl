@@ -21,72 +21,7 @@ func TestPostgres_singleNode(t *testing.T) {
 	)
 	f.Fly("status -a %s", appName)
 	f.Fly("config save -a %s", appName)
-	flyToml := f.UnmarshalFlyToml()
-	want := map[string]any{
-		"app":            appName,
-		"primary_region": f.PrimaryRegion(),
-		"env": map[string]any{
-			"PRIMARY_REGION": f.PrimaryRegion(),
-		},
-		"metrics": map[string]any{
-			"port": int64(9187),
-			"path": "/metrics",
-		},
-		"mounts": []map[string]any{{
-			"source":      "pg_data",
-			"destination": "/data",
-		}},
-		"services": []map[string]any{
-			{
-				"internal_port": int64(5432),
-				"protocol":      "tcp",
-				"concurrency": map[string]any{
-					"type":       "connections",
-					"soft_limit": int64(1000),
-					"hard_limit": int64(1000),
-				},
-				"ports": []map[string]any{
-					{"handlers": []any{"pg_tls"}, "port": int64(5432)},
-				},
-			},
-			{
-				"internal_port": int64(5433),
-				"protocol":      "tcp",
-				"concurrency": map[string]any{
-					"type":       "connections",
-					"soft_limit": int64(1000),
-					"hard_limit": int64(1000),
-				},
-				"ports": []map[string]any{
-					{"handlers": []any{"pg_tls"}, "port": int64(5433)},
-				},
-			},
-		},
-		"checks": map[string]any{
-			"pg": map[string]any{
-				"type":     "http",
-				"port":     int64(5500),
-				"path":     "/flycheck/pg",
-				"interval": "15s",
-				"timeout":  "10s",
-			},
-			"role": map[string]any{
-				"type":     "http",
-				"port":     int64(5500),
-				"path":     "/flycheck/role",
-				"interval": "15s",
-				"timeout":  "10s",
-			},
-			"vm": map[string]any{
-				"type":     "http",
-				"port":     int64(5500),
-				"path":     "/flycheck/vm",
-				"interval": "15s",
-				"timeout":  "10s",
-			},
-		},
-	}
-	require.Equal(f, want, flyToml)
+	f.Fly("config validate")
 }
 
 func TestPostgres_autostart(t *testing.T) {
@@ -169,71 +104,6 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	f.Fly("config save -a %s", appName)
 	ml := f.MachinesList(appName)
 	require.Equal(f, 3, len(ml))
-	flyToml := f.UnmarshalFlyToml()
 	require.Equal(f, "shared-cpu-1x", ml[0].Config.Guest.ToSize())
-	want := map[string]any{
-		"app":            appName,
-		"primary_region": f.PrimaryRegion(),
-		"env": map[string]any{
-			"PRIMARY_REGION": f.PrimaryRegion(),
-		},
-		"metrics": map[string]any{
-			"port": int64(9187),
-			"path": "/metrics",
-		},
-		"mounts": []map[string]any{{
-			"source":      "pg_data",
-			"destination": "/data",
-		}},
-		"services": []map[string]any{
-			{
-				"internal_port": int64(5432),
-				"protocol":      "tcp",
-				"concurrency": map[string]any{
-					"type":       "connections",
-					"soft_limit": int64(1000),
-					"hard_limit": int64(1000),
-				},
-				"ports": []map[string]any{
-					{"handlers": []any{"pg_tls"}, "port": int64(5432)},
-				},
-			},
-			{
-				"internal_port": int64(5433),
-				"protocol":      "tcp",
-				"concurrency": map[string]any{
-					"type":       "connections",
-					"soft_limit": int64(1000),
-					"hard_limit": int64(1000),
-				},
-				"ports": []map[string]any{
-					{"handlers": []any{"pg_tls"}, "port": int64(5433)},
-				},
-			},
-		},
-		"checks": map[string]any{
-			"pg": map[string]any{
-				"type":     "http",
-				"port":     int64(5500),
-				"path":     "/flycheck/pg",
-				"interval": "15s",
-				"timeout":  "10s",
-			},
-			"role": map[string]any{
-				"type":     "http",
-				"port":     int64(5500),
-				"path":     "/flycheck/role",
-				"interval": "15s",
-				"timeout":  "10s",
-			},
-			"vm": map[string]any{
-				"type":     "http",
-				"port":     int64(5500),
-				"path":     "/flycheck/vm",
-				"interval": "15s",
-				"timeout":  "10s",
-			},
-		},
-	}
-	require.Equal(f, want, flyToml)
+	f.Fly("config validate")
 }

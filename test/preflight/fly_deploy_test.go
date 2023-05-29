@@ -36,3 +36,45 @@ func TestFlyDeploy_case01(t *testing.T) {
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.SecondaryRegion())
 	f.Fly("deploy")
 }
+
+func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	f.Fly("deploy")
+}
+
+func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+[experimental]
+  entrypoint = "/bin/false"
+`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.FlyAllowExitFailure("deploy")
+	output := deployRes.StdErr().String()
+	require.Contains(f, output, "the app appears to be crashing")
+	require.NotContains(f, output, "401 Unauthorized")
+}
+
+func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+[deploy]
+  release_command = "/bin/false"
+`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.FlyAllowExitFailure("deploy")
+	output := deployRes.StdErr().String()
+	require.Contains(f, output, "exited with non-zero status of 1")
+	require.NotContains(f, output, "401 Unauthorized")
+}

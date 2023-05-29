@@ -579,13 +579,17 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 	fmt.Fprintf(md.io.ErrOut, "Smoke checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
 	fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", lm.Machine().ID)
 	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
-	if logErr != nil {
-		return fmt.Errorf("error getting release_command logs: %w", logErr)
-	}
-	for _, l := range logs {
-		// Ideally we should use InstanceID here, but it's not available in the logs.
-		if l.Timestamp >= lm.Machine().UpdatedAt {
-			fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+	if api.IsNotAuthenticatedError(logErr) {
+		fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
+	} else {
+		if logErr != nil {
+			return fmt.Errorf("error getting logs for machine %s: %w", lm.Machine().ID, logErr)
+		}
+		for _, l := range logs {
+			// Ideally we should use InstanceID here, but it's not available in the logs.
+			if l.Timestamp >= lm.Machine().UpdatedAt {
+				fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+			}
 		}
 	}
 

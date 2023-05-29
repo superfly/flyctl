@@ -49,11 +49,15 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
 			releaseCmdMachine.Machine().ID)
 		releaseCmdLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
-		if err != nil {
-			return fmt.Errorf("error getting release_command logs: %w", err)
-		}
-		for _, l := range releaseCmdLogs {
-			fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+		if api.IsNotAuthenticatedError(err) {
+			fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", releaseCmdMachine.Machine().ID, md.appConfig.AppName, releaseCmdMachine.Machine().ID)
+		} else {
+			if err != nil {
+				return fmt.Errorf("error getting release_command logs: %w", err)
+			}
+			for _, l := range releaseCmdLogs {
+				fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+			}
 		}
 		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}

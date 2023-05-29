@@ -20,14 +20,15 @@ import (
 )
 
 type FlyctlTestEnv struct {
-	t             testing.TB
-	homeDir       string
-	workDir       string
-	flyctlBin     string
-	orgSlug       string
-	primaryRegion string
-	otherRegions  []string
-	cmdHistory    []*FlyctlResult
+	t                   testing.TB
+	homeDir             string
+	workDir             string
+	originalAccessToken string
+	flyctlBin           string
+	orgSlug             string
+	primaryRegion       string
+	otherRegions        []string
+	cmdHistory          []*FlyctlResult
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -97,13 +98,14 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		primaryReg = defaultRegion
 	}
 	testEnv := &FlyctlTestEnv{
-		t:             t,
-		flyctlBin:     flyctlBin,
-		primaryRegion: primaryReg,
-		otherRegions:  cfg.otherRegions,
-		orgSlug:       cfg.orgSlug,
-		homeDir:       cfg.homeDir,
-		workDir:       cfg.workDir,
+		t:                   t,
+		flyctlBin:           flyctlBin,
+		primaryRegion:       primaryReg,
+		otherRegions:        cfg.otherRegions,
+		orgSlug:             cfg.orgSlug,
+		homeDir:             cfg.homeDir,
+		workDir:             cfg.workDir,
+		originalAccessToken: cfg.accessToken,
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -183,6 +185,14 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 		res.AssertSuccessfulExit()
 	}
 	return res
+}
+
+func (f *FlyctlTestEnv) OverrideAuthAccessToken(newToken string) {
+	f.Setenv("FLY_ACCESS_TOKEN", newToken)
+}
+
+func (f *FlyctlTestEnv) ResetAuthAccessToken() {
+	f.Setenv("FLY_ACCESS_TOKEN", f.originalAccessToken)
 }
 
 func (f *FlyctlTestEnv) DebugPrintHistory() {

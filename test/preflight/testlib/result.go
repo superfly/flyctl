@@ -45,5 +45,5 @@ func (r *FlyctlResult) AssertSuccessfulExit() {
 
 func (r *FlyctlResult) DebugPrintOutput() {
 	r.t.Helper()
-	fmt.Printf("DBGCMD: %s\nOUTPUT:\n%s\n", r.cmdStr, r.stdOut.String())
+	fmt.Printf("DBGCMD: %s\nOUTPUT:\n%s\nSTDERR:\n%s\n", r.cmdStr, r.stdOut.String(), r.stdErr.String())
 }
