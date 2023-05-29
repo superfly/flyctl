@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -57,6 +58,11 @@ var CommonFlags = flag.Set{
 		Name:        "wait-timeout",
 		Description: "Seconds to wait for individual machines to transition states and become healthy.",
 		Default:     int(DefaultWaitTimeout.Seconds()),
+	},
+	flag.String{
+		Name:        "release-command-timeout",
+		Description: "Seconds to wait for a release command finish running, or 'none' to disable.",
+		Default:     strconv.Itoa(int(DefaultReleaseCommandTimeout.Seconds())),
 	},
 	flag.Int{
 		Name:        "lease-timeout",
@@ -206,6 +212,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	return err
 }
 
+func determineRelCmdTimeout(timeout string) (time.Duration, error) {
+	if timeout == "none" {
+		return 0, nil
+	}
+	asInt, err := strconv.Atoi(timeout)
+	if err != nil {
+		return 0, fmt.Errorf("invalid release command timeout '%v': valid options are a number of seconds, or 'none'", timeout)
+	}
+	return time.Duration(asInt) * time.Second, nil
+}
+
 func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -214,6 +231,11 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 	defer func() {
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
+
+	releaseCmdTimeout, err := determineRelCmdTimeout(flag.GetString(ctx, "release-command-timeout"))
+	if err != nil {
+		return err
+	}
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            appCompact,
@@ -225,6 +247,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		ReleaseCmdTimeout:     releaseCmdTimeout,
 		VMSize:                flag.GetString(ctx, "vm-size"),
 		VMCPUs:                flag.GetInt(ctx, "vm-cpus"),
 		VMMemory:              flag.GetInt(ctx, "vm-memory"),

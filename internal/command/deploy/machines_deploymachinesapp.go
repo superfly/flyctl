@@ -216,6 +216,34 @@ func formatIndex(n, total int) string {
 	return fmt.Sprintf("[%0*d/%d]", pad, n+1, total)
 }
 
+func errorIsTimeout(err error) bool {
+
+	// Trying to match the errors in a typed way is incredibly difficult and makes this function massive.
+	if strings.Contains(err.Error(), "net/http: request canceled") {
+		return true
+	}
+
+	// Look for an underlying context.DeadlineExceeded error
+	unwrapped := err
+	for unwrapped != nil {
+		if errors.Is(unwrapped, context.DeadlineExceeded) {
+			return true
+		}
+		unwrapped = errors.Unwrap(err)
+	}
+	return false
+}
+
+// suggestChangeWaitTimeout appends a suggestion to change the specified flag name
+// if and only if the error is caused by a timeout.
+// If the err is not a timeout, it's returned unchanged.
+func suggestChangeWaitTimeout(err error, flagName string) error {
+	if errorIsTimeout(err) {
+		err = fmt.Errorf("%w\nnote: you can change this timeout with the --%s flag", err, flagName)
+	}
+	return err
+}
+
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
@@ -277,7 +305,8 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			continue
 		}
 
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr); err != nil {
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return err
 		}
 
@@ -288,6 +317,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		if !md.skipHealthChecks {
 			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
 				md.warnAboutIncorrectListenAddress(ctx, lm)
+				err = suggestChangeWaitTimeout(err, "wait-timeout")
 				return err
 			}
 			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
@@ -350,7 +380,8 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	// Otherwise wait for the machine to start
 	indexStr := formatIndex(i, total)
-	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr); err != nil {
+	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return nil, err
 	}
 
@@ -362,6 +393,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	if !md.skipHealthChecks {
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
 			md.warnAboutIncorrectListenAddress(ctx, lm)
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return nil, err
 		}
 

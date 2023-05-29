@@ -26,10 +26,10 @@ type LeasableMachine interface {
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
-	WaitForState(context.Context, string, time.Duration, string) error
+	WaitForState(context.Context, string, time.Duration, string, bool) error
 	WaitForSmokeChecksToPass(context.Context, string) error
 	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
-	WaitForEventTypeAfterType(context.Context, string, string, time.Duration) (*api.MachineEvent, error)
+	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*api.MachineEvent, error)
 	FormattedMachineId() string
 }
 
@@ -156,8 +156,28 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	return nil
 }
 
-func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, logPrefix string) error {
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+// resolveTimeoutContext returns a context that will timeout, with the possibility of an untimed context on time=0 if
+// the flag allowInfinite is set to true.
+func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfinite bool) (context.Context, context.CancelFunc, time.Duration) {
+	// This situation is a bug, so we'll just go with vaguely normal behavior.
+	if !allowInfinite && timeout == 0 {
+		terminal.Warnf("resolveTimeoutContext: allowInfinite is false and timeout is 0, setting timeout to 2 minutes\n")
+		timeout = 2 * time.Minute
+	}
+	if timeout != 0 {
+		// If we have a timeout, put it on the context.
+		waitCtx, cancel := context.WithTimeout(ctx, timeout)
+		return waitCtx, cancel, timeout
+	} else {
+		// We'll set a timeout of 2 minutes for flaps, knowing that it will keep
+		// polling until the machine is in the desired state. (this is just so we don't keep spamming the API)
+		// We'll keep polling because the actual stopping mechanism is the context, which we haven't set a timeout on.
+		return ctx, func() {}, 2 * time.Minute
+	}
+}
+
+func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, logPrefix string, allowInfinite bool) error {
+	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, allowInfinite)
 	defer cancel()
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
@@ -299,8 +319,8 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 }
 
 // waits for an eventType1 type event to show up after we see a eventType2 event, and returns it
-func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration) (*api.MachineEvent, error) {
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration, allowInfinite bool) (*api.MachineEvent, error) {
+	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, allowInfinite)
 	defer cancel()
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,

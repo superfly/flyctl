@@ -22,9 +22,10 @@ import (
 )
 
 const (
-	DefaultWaitTimeout = 120 * time.Second
-	DefaultLeaseTtl    = 13 * time.Second
-	DefaultVMSize      = "shared-cpu-1x"
+	DefaultWaitTimeout           = 2 * time.Minute
+	DefaultReleaseCommandTimeout = 5 * time.Minute
+	DefaultLeaseTtl              = 13 * time.Second
+	DefaultVMSize                = "shared-cpu-1x"
 )
 
 type MachineDeployment interface {
@@ -42,6 +43,7 @@ type MachineDeploymentArgs struct {
 	RestartOnly           bool
 	WaitTimeout           time.Duration
 	LeaseTimeout          time.Duration
+	ReleaseCmdTimeout     time.Duration
 	VMSize                string
 	VMCPUs                int
 	VMMemory              int
@@ -71,6 +73,7 @@ type machineDeployment struct {
 	waitTimeout           time.Duration
 	leaseTimeout          time.Duration
 	leaseDelayBetween     time.Duration
+	releaseCmdTimeout     time.Duration
 	isFirstDeploy         bool
 	machineGuest          *api.MachineGuest
 	increasedAvailability bool
@@ -139,6 +142,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		waitTimeout:           waitTimeout,
 		leaseTimeout:          leaseTimeout,
 		leaseDelayBetween:     leaseDelayBetween,
+		releaseCmdTimeout:     args.ReleaseCmdTimeout,
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
 	}
