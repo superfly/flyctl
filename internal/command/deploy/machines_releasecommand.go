@@ -34,7 +34,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.waitTimeout)
+	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.releaseCmdTimeout, true)
 	if err != nil {
 		return fmt.Errorf("error finding the release_command machine %s exit event: %w", releaseCmdMachine.Machine().ID, err)
 	}
@@ -85,7 +85,8 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 
-	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout, ""); err != nil {
+	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout, "", false); err != nil {
+		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return err
 	}
 
@@ -152,17 +153,19 @@ func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
-	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, "")
+	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, "", false)
 	if err != nil {
 		var flapsErr *flaps.FlapsError
 		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
 			// The machine exited and was destroyed quickly.
 			return nil
 		}
+		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.waitTimeout, "")
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.releaseCmdTimeout, "", true)
 	if err != nil {
+		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
 	return nil
