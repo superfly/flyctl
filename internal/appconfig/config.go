@@ -8,6 +8,7 @@ import (
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/scanner"
 	"golang.org/x/exp/slices"
 )
 
@@ -83,11 +84,7 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
 }
 
-type Mount struct {
-	Source      string   `toml:"source,omitempty" json:"source,omitempty"`
-	Destination string   `toml:"destination" json:"destination,omitempty"`
-	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
-}
+type Mount = scanner.Volume
 
 type Build struct {
 	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`

@@ -74,8 +74,9 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
 }
 type Volume struct {
-	Source      string `toml:"source" json:"source"`
-	Destination string `toml:"destination" json:"destination"`
+	Source      string   `toml:"source" json:"source,omitempty"`
+	Destination string   `toml:"destination" json:"destination,omitempty"`
+	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 type ScannerConfig struct {
 	Mode         string
