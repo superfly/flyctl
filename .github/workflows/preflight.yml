@@ -16,6 +16,7 @@ on:
 jobs:
   preflight-tests:
     runs-on: ubuntu-latest
+    concurrency: preflight-tests
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
