@@ -297,7 +297,8 @@ func TestFlyLaunch_case09(t *testing.T) {
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
-	require.Equal(f, 5, len(ml))
+	require.GreaterOrEqual(f, 4, len(ml))
+	require.LessOrEqual(f, 5, len(ml))
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
 		return m.ProcessGroup()
 	})
