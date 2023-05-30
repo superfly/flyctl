@@ -74,11 +74,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
+			strings.Join(machine.Config.Init.Entrypoint, " "),
 			strings.Join(machine.Config.Init.Cmd, " "),
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")
