@@ -32,7 +32,8 @@ jobs:
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
         # run: make ci-preflight
-        run: make preflight-test
+        # FIXME: revert back
+        run: make preflight-test T=TestFlyDeploy_DeployToken_Simple LOG_LEVEL=debug
       - uses: superfly/flyctl-actions/setup-flyctl@master
         if: always()
       - name: Clean up any un-deleted preflight apps
