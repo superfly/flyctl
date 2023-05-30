@@ -31,7 +31,8 @@ jobs:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
-        run: make ci-preflight
+        # run: make ci-preflight
+        run: make preflight-test
       - uses: superfly/flyctl-actions/setup-flyctl@master
         if: always()
       - name: Clean up any un-deleted preflight apps
