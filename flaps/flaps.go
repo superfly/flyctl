@@ -386,12 +386,12 @@ func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.
 	}
 	if errors.Is(err, FlapsErrorNotFound) {
 		for {
-			if (err != nil && !errors.Is(err, FlapsErrorNotFound)) || tries > 3 {
+			if tries > 3 || (err != nil && !errors.Is(err, FlapsErrorNotFound)) {
 				break
 			}
+			time.Sleep(b.Duration())
 			err = f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
 			tries += 1
-			time.Sleep(b.Duration())
 		}
 	}
 	if err != nil {
