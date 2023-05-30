@@ -108,6 +108,7 @@ func (m *v2PlatformMigrator) prepAutoscaleMachinesToCreate(ctx context.Context) 
 		}
 
 		m.newMachinesInput = append(m.newMachinesInput, launchMachineInput)
+		m.backupMachines[launchMachineInput.Config.ProcessGroup()] += 1
 	}
 
 	for _, input := range m.newMachinesInput {

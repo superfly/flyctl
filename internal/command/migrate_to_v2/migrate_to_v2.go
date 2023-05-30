@@ -195,6 +195,7 @@ type v2PlatformMigrator struct {
 	isPostgres              bool
 	pgConsulUrl             string
 	targetImg               string
+	backupMachines          map[string]int
 	verbose                 bool
 }
 
@@ -314,6 +315,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
+		backupMachines: map[string]int{},
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -896,6 +898,18 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 			s = ""
 		}
 		fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" machine%s\n", count, name, s)
+	}
+
+	if len(m.backupMachines) > 0 {
+
+		fmt.Fprintf(m.io.Out, " * Create autostop machines, copying the configuration of each existing VM\n")
+		for name, count := range m.backupMachines {
+			s := "s"
+			if count == 1 {
+				s = ""
+			}
+			fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" autostop machine%s\n", count, name, s)
+		}
 	}
 
 	if m.isPostgres {
