@@ -261,7 +261,7 @@ func TestFlyLaunch_case08(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"launch --ha=false --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		"launch --ha=false --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x --smoke-checks=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
