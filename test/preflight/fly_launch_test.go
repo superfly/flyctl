@@ -307,6 +307,7 @@ func TestFlyLaunch_case09(t *testing.T) {
 		}
 		time.Sleep(1 * time.Second)
 		ml = f.MachinesList(appName)
+		tries += 1
 	}
 	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
