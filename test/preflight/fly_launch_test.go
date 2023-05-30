@@ -5,6 +5,7 @@ package preflight
 
 import (
 	"testing"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -296,9 +297,18 @@ func TestFlyLaunch_case09(t *testing.T) {
 `)
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	time.Sleep(500 * time.Millisecond)
 	ml := f.MachinesList(appName)
-	require.GreaterOrEqual(f, 5, len(ml))
-	require.LessOrEqual(f, 4, len(ml))
+	// fly launch/deploy do not wait for the standby machine, so the test needs to wait for it to show up
+	tries := 0
+	for {
+		if len(ml) == 5 || tries > 3 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+		ml = f.MachinesList(appName)
+	}
+	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
 		return m.ProcessGroup()
 	})
