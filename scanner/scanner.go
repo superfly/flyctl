@@ -59,7 +59,7 @@ type SourceInfo struct {
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
 	Concurrency                  map[string]int
-	Callback                     func(srcInfo *SourceInfo, options map[string]bool) error
+	Callback                     func(appName string, srcInfo *SourceInfo, options map[string]bool) error
 	HttpCheckPath                string
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
