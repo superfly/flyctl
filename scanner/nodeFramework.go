@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -73,6 +74,23 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		Callback:   NodeFrameworkCallback,
 	}
 
+	flyToml := "fly.toml"
+	_, err = os.Stat(flyToml)
+	if os.IsNotExist(err) {
+		// "touch" fly.toml
+		file, err := os.Create(flyToml)
+		if err != nil {
+			log.Fatal(err)
+		}
+		file.Close()
+
+		// inform caller of the presence of this file
+		srcInfo.MergeConfig = &MergeConfigStruct{
+			Name:      flyToml,
+			Temporary: true,
+		}
+	}
+
 	return srcInfo, nil
 }
 
@@ -116,6 +134,7 @@ func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
 
 		// install/run command
 		if !installed || args[0] == "npx" {
+			fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 			cmd := exec.Command(args[0], args[1:]...)
 			cmd.Stdin = nil
 			cmd.Stdout = os.Stdout
