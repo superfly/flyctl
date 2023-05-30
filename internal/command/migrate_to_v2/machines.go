@@ -119,6 +119,12 @@ func (m *v2PlatformMigrator) prepAutoscaleMachinesToCreate(ctx context.Context) 
 		}
 	}
 
+	for i := range m.appConfig.Services {
+		m.appConfig.Services[i].MinMachinesRunning = &m.autoscaleConfig.MinCount
+		m.appConfig.Services[i].AutoStartMachines = api.BoolPointer(true)
+		m.appConfig.Services[i].AutoStopMachines = api.BoolPointer(true)
+	}
+
 	return nil
 }
 
