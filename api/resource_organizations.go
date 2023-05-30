@@ -66,6 +66,13 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 				slug
 				name
 				type
+                limitedAccessTokens {
+					nodes {
+					    id
+					    name
+					    expiresAt
+					}
+                }
 			}
 		}
 	`
