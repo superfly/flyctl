@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/retry"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -462,7 +464,22 @@ primary_region = "%s"
 	f.Fly("ssh console -C 'sync -f /vol/'")
 
 	assertHasFlag := func() {
-		f.Fly("ssh console -q -C 'test -r /vol/flag.txt'")
+		err := retry.RetryBackoff(func() error {
+			r := f.FlyAllowExitFailure("ssh console -q -C 'test -r /vol/flag.txt'")
+			if r.ExitCode() != 0 {
+				return fmt.Errorf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.ExitCode(), r.CmdString(), r.StdOut().String(), r.StdErr().String())
+			} else {
+				return nil
+			}
+		}, 5, &backoff.Backoff{
+			Factor: 2,
+			Jitter: true,
+			Min:    500 * time.Millisecond,
+			Max:    10 * time.Second,
+		})
+		if err != nil {
+			t.Fatal(err.Error())
+		}
 	}
 	time.Sleep(2 * time.Second)
 	assertHasFlag()
