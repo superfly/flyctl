@@ -706,10 +706,6 @@ func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) 
 }
 
 func (m *v2PlatformMigrator) validateScaling(ctx context.Context) error {
-	// FIXME: for now we fail if there is autoscaling.. remove this once we create any extra machines based on autoscaling config
-	if m.autoscaleConfig.Enabled {
-		// return fmt.Errorf("cannot migrate app %s with autoscaling config, yet; watch https://community.fly.io for announcements about autoscale support with migrations", m.appCompact.Name)
-	}
 	return nil
 }
 
