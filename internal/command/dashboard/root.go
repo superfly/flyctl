@@ -26,6 +26,7 @@ func New() *cobra.Command {
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 	cmd.Aliases = []string{"dash"}
 	return cmd
@@ -42,6 +43,7 @@ func newDashboardMetrics() *cobra.Command {
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 	return cmd
 }

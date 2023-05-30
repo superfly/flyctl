@@ -44,6 +44,7 @@ func newAutoscaleDisable() *cobra.Command {
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
@@ -64,6 +65,7 @@ max=int - maximum number of instances to be allocated globally.`
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
@@ -81,6 +83,7 @@ func newAutoscaleShow() *cobra.Command {
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.NoArgs

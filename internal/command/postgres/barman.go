@@ -275,6 +275,7 @@ func newCheckBarman() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -291,6 +292,7 @@ func newBarmanListBackup() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -309,6 +311,7 @@ func newBarmanShowBackup() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -325,6 +328,7 @@ func newBarmanBackup() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -341,6 +345,7 @@ func newBarmanSwitchWal() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -359,6 +364,7 @@ func newBarmanRecover() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.String{
 			Name:        "backup-id",
 			Shorthand:   "b",
