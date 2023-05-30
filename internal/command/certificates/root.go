@@ -51,6 +51,7 @@ func newCertificatesList() *cobra.Command {
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.NoArgs
@@ -69,6 +70,7 @@ as a parameter for the certificate.`
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -88,6 +90,7 @@ as a parameter to locate the certificate.`
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.Yes(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -107,6 +110,7 @@ Takes hostname as a parameter to locate the certificate.`
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
@@ -125,6 +129,7 @@ Displays results in the same format as the SHOW command.`
 	)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	cmd.Args = cobra.ExactArgs(1)

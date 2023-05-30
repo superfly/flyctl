@@ -3,6 +3,8 @@ package tokens
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
@@ -11,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -73,6 +74,7 @@ func newDeploy() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 		flag.String{
 			Name:        "name",
