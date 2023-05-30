@@ -151,7 +151,7 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	argsStr := fmt.Sprintf(flyctlCmd, vals...)
 	args, err := shlex.Split(argsStr)
 	if err != nil {
-		f.t.Fatalf("failed to parse argStr: %s error: %v", argsStr, err)
+		f.Fatalf("failed to parse argStr: %s error: %v", argsStr, err)
 	}
 	testIostreams, stdIn, stdOut, stdErr := iostreams.Test()
 	res := &FlyctlResult{
@@ -170,7 +170,7 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	cmd.Stderr = testIostreams.ErrOut
 	err = cmd.Start()
 	if err != nil {
-		f.t.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
+		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
 	err = cmd.Wait()
 	if err == nil {
@@ -178,7 +178,7 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
 		res.exitCode = exitErr.ExitCode()
 	} else {
-		f.t.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
+		f.Fatalf("unexpected error waiting on command: %s [error]: %v", res.cmdStr, err)
 	}
 	f.cmdHistory = append(f.cmdHistory, res)
 	if !cfg.NoAssertSuccessfulExit {
@@ -212,10 +212,10 @@ func (f *FlyctlTestEnv) verifyTestOrgExists() {
 	var orgMap map[string]string
 	err := json.Unmarshal(result.stdOut.Bytes(), &orgMap)
 	if err != nil {
-		f.t.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
 	}
 	if _, present := orgMap[f.orgSlug]; !present {
-		f.t.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
+		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
 }
 
@@ -239,7 +239,7 @@ func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
 	var machList []*api.Machine
 	err := json.Unmarshal(cmdResult.stdOut.Bytes(), &machList)
 	if err != nil {
-		f.t.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
+		f.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
 	}
 	return machList
 }
@@ -248,7 +248,7 @@ func (f *FlyctlTestEnv) VolumeList(appName string) []*api.Volume {
 	cmdResult := f.Fly("volume list --app %s --json", appName)
 	var list []*api.Volume
 	if err := json.Unmarshal(cmdResult.stdOut.Bytes(), &list); err != nil {
-		f.t.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
+		f.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
 	}
 	return list
 }
