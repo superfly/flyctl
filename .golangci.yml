@@ -131,3 +131,6 @@ linters-settings:
           - github.com/superfly/flyctl/terminal.Infof
           - github.com/superfly/flyctl/terminal.Warnf
           - github.com/superfly/flyctl/terminal.Errorf
+          - github.com/superfly/flyctl/render.Printf
+          - github.com/superfly/flyctl/render.Detailf
+          - github.com/superfly/flyctl/render.Donef
