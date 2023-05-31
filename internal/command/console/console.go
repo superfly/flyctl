@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/samber/lo"
@@ -18,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -269,18 +271,36 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	}
 	fmt.Fprintf(io.Out, "Created an ephemeral machine %s to run the console.\n", colorize.Bold(machine.ID))
 
+	sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", machine.ID))
+	defer sp.Stop()
+
 	const waitTimeout = 15 * time.Second
-	fmt.Fprintf(io.Out, "Waiting for %s to start ...", colorize.Bold(machine.ID))
-	err = flapsClient.Wait(ctx, machine, api.MachineStateStarted, waitTimeout)
-	if err == nil {
-		fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
-		return machine, true, nil
+	var flapsErr *flaps.FlapsError
+
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+
+	for {
+		err := flapsClient.Wait(ctx, machine, api.MachineStateStarted, waitTimeout)
+		if err == nil {
+			return machine, true, nil
+		}
+
+		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusRequestTimeout {
+			// The machine may not be ready yet.
+		} else {
+			break
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, false, ctx.Err()
+		case <-t.C:
+		}
 	}
 
-	fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
-	var flapsErr *flaps.FlapsError
-	destroyed := false
-	if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == 404 {
+	var destroyed bool
+	if flapsErr != nil && flapsErr.ResponseStatusCode == http.StatusNotFound {
 		destroyed, err = checkMachineDestruction(ctx, machine, err)
 	}
 
