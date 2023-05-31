@@ -55,20 +55,18 @@ func runScaleCount(ctx context.Context) error {
 
 	args := flag.Args(ctx)
 
-	groupName := ""
-
 	processNames := appConfig.ProcessNames()
-	if !slices.Contains(processNames, api.MachineProcessGroupApp) {
-		// No app group found, so we require the process-group flag
-		groupName = flag.GetString(ctx, "process-group")
+	groupName := flag.GetString(ctx, "process-group")
 
-		if groupName == "" {
+	if groupName == "" {
+		groupName = api.MachineProcessGroupApp
+		if !slices.Contains(processNames, groupName) {
 			return fmt.Errorf("--process-group flag is required when no group named 'app' is defined")
 		}
 	}
 
-	if groupName == "" {
-		groupName = appConfig.DefaultProcessName()
+	if !slices.Contains(processNames, groupName) {
+		return fmt.Errorf("process group '%s' not found", groupName)
 	}
 
 	groups, err := parseGroupCounts(args, groupName)
