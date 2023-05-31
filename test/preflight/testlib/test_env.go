@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/shlex"
@@ -234,6 +235,7 @@ func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 }
 
 func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
+	time.Sleep(200 * time.Millisecond) // fly m list is eventually consistent, yay!
 	cmdResult := f.Fly("machines list --app %s --json", appName)
 	cmdResult.AssertSuccessfulExit()
 	var machList []*api.Machine
