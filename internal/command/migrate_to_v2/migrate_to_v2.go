@@ -780,6 +780,7 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
+		return err
 	}
 	return nil
 }
