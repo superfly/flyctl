@@ -127,7 +127,7 @@ func (m *Machine) HealthCheckStatus() *HealthCheckStatus {
 		switch check.Status {
 		case "passing":
 			res.Passing += 1
-		case "warn":
+		case "warning":
 			res.Warn += 1
 		case "critical":
 			res.Critical += 1
@@ -353,7 +353,7 @@ type MachineHTTPHeader struct {
 
 type MachineCheckStatus struct {
 	Name      string     `json:"name,omitempty"`
-	Status    string     `json:"status,omitempty"`
+	Status    string     `json:"status,omitempty"` // "critical", "warning", or "passing"
 	Output    string     `json:"output,omitempty"`
 	UpdatedAt *time.Time `json:"updated_at,omitempty"`
 }

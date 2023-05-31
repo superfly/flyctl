@@ -48,7 +48,7 @@ func passingChecks(checks []*api.MachineCheckStatus) (n int) {
 
 func warnChecks(checks []*api.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == "warn" {
+		if check.Status == "warning" {
 			n++
 		}
 	}
