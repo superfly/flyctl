@@ -112,8 +112,15 @@ query GetNearestRegion{
 mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON, $expiry: String!) {
 	createLimitedAccessToken(input: {name: $name, organizationId: $organizationId, profile: $profile, profileParams: $profileParams, expiry: $expiry}) {
 		limitedAccessToken {
+			token
 			tokenHeader
 		}
+	}
+}
+
+mutation DeleteLimitedAccessToken($token: ID!) {
+	deleteLimitedAccessToken(input: {token: $token}) {
+		token
 	}
 }
 
@@ -131,4 +138,12 @@ mutation DeleteAddOn($name: String) {
 	deleteAddOn(input: {name: $name}) {
 		deletedAddOnName
 	}
+}
+
+query GetImageConfig($appName: String!, $imageRef: String!) {
+	app(name: $appName) {
+    image(ref: $imageRef) {
+      config
+    }
+  }
 }

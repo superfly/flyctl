@@ -4,14 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -26,14 +29,20 @@ func New() *cobra.Command {
 	const (
 		usage = "console"
 		short = "Run a console in a new or existing machine"
-		long  = "Run a console in a new or existing machine. The console command is\n" +
-			"specified by the `console_command` configuration field. By default, a\n" +
-			"new machine is created by default using the app's most recently deployed\n" +
-			"image. An existing machine can be used instead with --machine."
+		long  = "Run a console in a new or existing machine. By default, a new\n" +
+			"machine is created by using the app's most recently deployed image.\n" +
+			"In this case the console command defaults to the `console_command` \n" +
+			"configuration field. Any positional arguments passed here are forwarded\n" +
+			"(appended) to it. A specific image can also be passed with --image.\n" +
+			"In this case, the image's ENTRYPOINT will be used by default (ENTRYPOINT\n" +
+			"or `console_command` are overridable by passing the --entrypoint flag)\n" +
+			"An existing machine can be used instead with --machine.\n" +
+			"--fly-credentials generates & passes a temporary FLY_API_TOKEN\n" +
+			"with permissions limited to this app"
 	)
 	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.RequireAppName)
 
-	cmd.Args = cobra.NoArgs
+	cmd.Args = cobra.ArbitraryArgs
 	flag.Add(
 		cmd,
 		flag.App(),
@@ -68,6 +77,20 @@ func New() *cobra.Command {
 			Description: "Unix username to connect as",
 			Default:     ssh.DefaultSshUsername,
 		},
+		flag.Bool{
+			Name:        "fly-credentials",
+			Description: "Give the machine a temporary FLY_API_TOKEN with permissions limited to this app",
+			Default:     false,
+		},
+		flag.String{
+			Name:        "image",
+			Shorthand:   "i",
+			Description: "Image for the machine",
+		},
+		flag.String{
+			Name:        "entrypoint",
+			Description: "ENTRYPOINT or `console_command` replacement",
+		},
 	)
 
 	return cmd
@@ -80,6 +103,15 @@ func runConsole(ctx context.Context) error {
 		appName   = appconfig.NameFromContext(ctx)
 		apiClient = client.FromContext(ctx).API()
 	)
+
+	if flag.IsSpecified(ctx, "select") || flag.IsSpecified(ctx, "machine") {
+		if flag.IsSpecified(ctx, "image") {
+			return errors.New("cannot use --select or --machine with --image (it needs to create a new machine)")
+		}
+		if flag.IsSpecified(ctx, "fly-credentials") {
+			return errors.New("cannot use --select or --machine with --fly-credentials (it needs to create a new machine)")
+		}
+	}
 
 	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -100,7 +132,12 @@ func runConsole(ctx context.Context) error {
 	if appConfig == nil {
 		appConfig, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
-			return fmt.Errorf("failed to fetch app config from backend: %w", err)
+			if strings.HasPrefix(err.Error(), "failed to grab app config from existing machines, error: could not create a fly.toml from any machines") {
+				// App is maybe freshly created, try to create a minimal one
+				appConfig = &appconfig.Config{AppName: appName}
+			} else {
+				return fmt.Errorf("failed to fetch app config from backend: %w", err)
+			}
 		}
 	}
 
@@ -109,6 +146,34 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
+	if flag.IsSpecified(ctx, "fly-credentials") {
+		expiry := time.Hour * 24
+		resp, err := gql.CreateLimitedAccessToken(
+			ctx,
+			apiClient.GenqClient,
+			"ephemeral console token",
+			app.Organization.ID,
+			"deploy",
+			&gql.LimitedAccessTokenOptions{
+				"app_id": app.ID,
+			},
+			expiry.String(),
+		)
+		if err != nil {
+			return fmt.Errorf("failed creating deploy token: %w", err)
+		}
+		fmt.Fprintf(io.Out, "Created an ephemeral Fly token.\n")
+		flyToken := resp.CreateLimitedAccessToken.LimitedAccessToken
+		defer func() {
+			if _, err := gql.DeleteLimitedAccessToken(ctx, apiClient.GenqClient, flyToken.Token); err != nil {
+				terminal.Warnf("Failed to revoke ephemeral Fly token: %v\n", err)
+				terminal.Warn("You may need to revoke it manually in your web dashboard.")
+			} else {
+				fmt.Fprintf(io.Out, "Revoked the ephemeral Fly token.\n")
+			}
+		}()
+		appConfig.Env = lo.Assign(appConfig.Env, map[string]string{"FLY_API_TOKEN": flyToken.TokenHeader})
+	}
 	machine, ephemeral, err := selectMachine(ctx, app, appConfig)
 	if err != nil {
 		return err
@@ -159,7 +224,37 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	return ssh.Console(ctx, sshClient, appConfig.ConsoleCommand, true)
+	var consoleCommand string
+	if flag.IsSpecified(ctx, "entrypoint") {
+		consoleCommand = flag.GetString(ctx, "entrypoint") + " " + strings.Join(flag.Args(ctx), " ")
+	} else {
+		if flag.IsSpecified(ctx, "image") {
+			resp, err := gql.GetImageConfig(ctx, apiClient.GenqClient, appName, flag.GetString(ctx, "image"))
+			if err != nil {
+				return fmt.Errorf("failed to get image config: %w", err)
+			}
+			type config struct {
+				Config struct {
+					Entrypoint []string
+					WorkingDir string
+				}
+			}
+			var cfg config
+			err = mapstructure.Decode(resp.App.Image.Config, &cfg)
+			if err != nil {
+				return fmt.Errorf("failed to decode config: %w", err)
+			}
+			consoleCommand = fmt.Sprintf(
+				"/bin/sh -c 'cd %s && %s %s'",
+				cfg.Config.WorkingDir,
+				strings.Join(cfg.Config.Entrypoint, " "),
+				strings.Join(flag.Args(ctx), " "),
+			)
+		} else {
+			consoleCommand = appConfig.ConsoleCommand + " " + strings.Join(flag.Args(ctx), " ")
+		}
+	}
+	return ssh.Console(ctx, sshClient, consoleCommand, true)
 }
 
 func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, bool, error) {
@@ -245,19 +340,22 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 		flapsClient = flaps.FromContext(ctx)
 	)
 
-	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
-	if err != nil {
-		return nil, false, err
-	}
-	if currentRelease == nil {
-		return nil, false, errors.New("can't create an ephemeral console machine since the app has not yet been released")
-	}
-
 	machConfig, err := appConfig.ToConsoleMachineConfig()
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
-	machConfig.Image = currentRelease.ImageRef
+	if flag.IsSpecified(ctx, "image") {
+		machConfig.Image = flag.GetString(ctx, "image")
+	} else {
+		currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
+		if err != nil {
+			return nil, false, err
+		}
+		if currentRelease == nil {
+			return nil, false, errors.New("can't create an ephemeral console machine since the app has not yet been deployed, run `fly deploy` first, or use the --image flag")
+		}
+		machConfig.Image = currentRelease.ImageRef
+	}
 	machConfig.Guest = guest
 
 	launchInput := api.LaunchMachineInput{
