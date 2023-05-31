@@ -74,23 +74,6 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		Callback:   NodeFrameworkCallback,
 	}
 
-	flyToml := "fly.toml"
-	_, err = os.Stat(flyToml)
-	if os.IsNotExist(err) {
-		// "touch" fly.toml
-		file, err := os.Create(flyToml)
-		if err != nil {
-			log.Fatal(err)
-		}
-		file.Close()
-
-		// inform caller of the presence of this file
-		srcInfo.MergeConfig = &MergeConfigStruct{
-			Name:      flyToml,
-			Temporary: true,
-		}
-	}
-
 	return srcInfo, nil
 }
 
@@ -99,13 +82,12 @@ func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[stri
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)
 	if os.IsNotExist(err) {
-		// "touch" fly.toml
-		file, err := os.Create(flyToml)
+		// create a fly.toml consisting only of an app name
+		contents := fmt.Sprintf("app = \"%s\"\n", appName)
+		err := os.WriteFile(flyToml, []byte(contents), 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Fprintf(file, "app = \"%s\"\n", appName)
-		file.Close()
 
 		// inform caller of the presence of this file
 		srcInfo.MergeConfig = &MergeConfigStruct{
