@@ -143,6 +143,13 @@ type WireGuardStates map[string]*wg.WireGuardState
 func GetWireGuardState() (WireGuardStates, error) {
 	states := WireGuardStates{}
 
+	// Re-read the config to make sure we are working with the latest on-disk version.
+	// Otherwise we might write stale data that was there when the agent was started
+	// (like deleted token).
+	if err := viper.ReadInConfig(); err != nil && !os.IsNotExist(err) {
+		return states, err
+	}
+
 	if err := viper.UnmarshalKey(flyctl.ConfigWireGuardState, &states); err != nil {
 		return nil, errors.Wrap(err, "invalid wireguard state")
 	}
