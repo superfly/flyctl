@@ -19,9 +19,8 @@ preflight-test: build
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
 	go test ./test/preflight --tags=integration -v -timeout 30m --run="$(T)"
 
-ci-preflight: build
-	go test ./test/preflight --tags=integration -v -timeout 30m -json --run="$(T)" >ci-preflight-test-results.njson ||:
-	go run ./scripts/report-ci-preflight-results ./ci-preflight-test-results.njson
+ci-preflight:
+	$(MAKE) preflight-test FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL=true
 
 cmddocs: generate
 	@echo Running Docs Generation

@@ -30,6 +30,7 @@ type FlyctlTestEnv struct {
 	primaryRegion       string
 	otherRegions        []string
 	cmdHistory          []*FlyctlResult
+	noHistoryOnFail     bool
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -54,28 +55,31 @@ func (f *FlyctlTestEnv) OtherRegions() []string {
 
 func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 	tempDir := socketSafeTempDir(t)
+	_, noHistoryOnFail := os.LookupEnv("FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL")
 	env := NewTestEnvFromConfig(t, TestEnvConfig{
-		homeDir:       tempDir,
-		workDir:       tempDir,
-		flyctlBin:     os.Getenv("FLY_PREFLIGHT_TEST_FLYCTL_BINARY_PATH"),
-		orgSlug:       os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"),
-		primaryRegion: primaryRegionFromEnv(),
-		otherRegions:  otherRegionsFromEnv(),
-		accessToken:   os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
-		logLevel:      os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
+		homeDir:         tempDir,
+		workDir:         tempDir,
+		flyctlBin:       os.Getenv("FLY_PREFLIGHT_TEST_FLYCTL_BINARY_PATH"),
+		orgSlug:         os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"),
+		primaryRegion:   primaryRegionFromEnv(),
+		otherRegions:    otherRegionsFromEnv(),
+		accessToken:     os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
+		logLevel:        os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
+		noHistoryOnFail: noHistoryOnFail,
 	})
 	return env
 }
 
 type TestEnvConfig struct {
-	homeDir       string
-	workDir       string
-	flyctlBin     string
-	orgSlug       string
-	primaryRegion string
-	otherRegions  []string
-	accessToken   string
-	logLevel      string
+	homeDir         string
+	workDir         string
+	flyctlBin       string
+	orgSlug         string
+	primaryRegion   string
+	otherRegions    []string
+	accessToken     string
+	logLevel        string
+	noHistoryOnFail bool
 }
 
 func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
@@ -107,6 +111,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		homeDir:             cfg.homeDir,
 		workDir:             cfg.workDir,
 		originalAccessToken: cfg.accessToken,
+		noHistoryOnFail:     cfg.noHistoryOnFail,
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -198,7 +203,7 @@ func (f *FlyctlTestEnv) ResetAuthAccessToken() {
 
 func (f *FlyctlTestEnv) DebugPrintHistory() {
 	f.t.Helper()
-	if f.Failed() {
+	if f.Failed() || f.noHistoryOnFail {
 		return
 	}
 	for i, r := range f.cmdHistory {
