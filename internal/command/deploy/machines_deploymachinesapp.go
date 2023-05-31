@@ -79,6 +79,26 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
+func (md *machineDeployment) inferCanaryGuest(name string) *api.MachineGuest {
+	canaryGuest := md.machineGuest
+	for _, lm := range md.machineSet.GetMachines() {
+		machine := lm.Machine()
+		machineGuest := machine.Config.Guest
+		switch {
+		case machine.ProcessGroup() != name:
+			continue
+		case machineGuest == nil: // shouldn't be possible but just in case
+			continue
+		case machineGuest.CPUKind != canaryGuest.CPUKind,
+			machineGuest.CPUs != canaryGuest.CPUs,
+			machineGuest.MemoryMB != canaryGuest.MemoryMB:
+			return machineGuest
+		}
+	}
+
+	return canaryGuest
+}
+
 // deployMachinesApp executes the following flow:
 //   - Run release command
 //   - Remove spare machines from removed groups
@@ -104,7 +124,10 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 		total := len(groupsInConfig)
 		for idx, name := range groupsInConfig {
 			fmt.Fprintf(md.io.Out, "Creating canary machine for group %s\n", md.colorize.Bold(name))
-			machine, err := md.spawnMachineInGroup(ctx, name, idx, total, nil, metadata{key: "fly_canary", value: "true"})
+			machine, err := md.spawnMachineInGroup(ctx, name, idx, total, nil,
+				withMeta(metadata{key: "fly_canary", value: "true"}),
+				withGuest(md.inferCanaryGuest(name)),
+			)
 			if err != nil {
 				return err
 			}
@@ -336,18 +359,45 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return nil
 }
 
+type spawnOptions struct {
+	meta  []metadata
+	guest *api.MachineGuest
+}
+
+type spawnOptionsFn func(*spawnOptions)
+
+func withMeta(m metadata) spawnOptionsFn {
+	return func(o *spawnOptions) {
+		o.meta = append(o.meta, m)
+	}
+}
+
+func withGuest(guest *api.MachineGuest) spawnOptionsFn {
+	return func(o *spawnOptions) {
+		o.guest = guest
+	}
+}
+
 type metadata struct {
 	key   string
 	value string
 }
 
-func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string, meta ...metadata) (machine.LeasableMachine, error) {
-	launchInput, err := md.launchInputForLaunch(groupName, md.machineGuest, standbyFor)
+func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName string, i, total int, standbyFor []string, opts ...spawnOptionsFn) (machine.LeasableMachine, error) {
+	options := spawnOptions{
+		meta:  []metadata{},
+		guest: md.machineGuest,
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
+	launchInput, err := md.launchInputForLaunch(groupName, options.guest, standbyFor)
 	if err != nil {
 		return nil, fmt.Errorf("error creating machine configuration: %w", err)
 	}
 
-	for _, m := range meta {
+	for _, m := range options.meta {
 		launchInput.Config.Metadata[m.key] = m.value
 	}
 
