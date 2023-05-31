@@ -268,7 +268,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 	// Invoke Callback, if any
-	if err := runCallback(ctx, srcInfo, options); err != nil {
+	if err := runCallback(ctx, appConfig.AppName, srcInfo, options); err != nil {
 		return err
 	}
 	// Run any initialization commands

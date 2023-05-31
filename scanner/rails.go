@@ -90,7 +90,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(srcInfo *SourceInfo, options map[string]bool) error {
+func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
 	// install dockerfile-rails gem, if not already included
 	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {

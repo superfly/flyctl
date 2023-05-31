@@ -74,15 +74,20 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		Callback:   NodeFrameworkCallback,
 	}
 
+	return srcInfo, nil
+}
+
+func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
-	_, err = os.Stat(flyToml)
+	_, err := os.Stat(flyToml)
 	if os.IsNotExist(err) {
-		// "touch" fly.toml
-		file, err := os.Create(flyToml)
+		// create a fly.toml consisting only of an app name
+		contents := fmt.Sprintf("app = \"%s\"\n", appName)
+		err := os.WriteFile(flyToml, []byte(contents), 0644)
 		if err != nil {
 			log.Fatal(err)
 		}
-		file.Close()
 
 		// inform caller of the presence of this file
 		srcInfo.MergeConfig = &MergeConfigStruct{
@@ -91,12 +96,8 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
-	return srcInfo, nil
-}
-
-func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
 	// generate Dockerfile if it doesn't already exist
-	_, err := os.Stat("Dockerfile")
+	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
 		var args []string
 

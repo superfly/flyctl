@@ -314,12 +314,12 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	return nil
 }
 
-func runCallback(ctx context.Context, srcInfo *scanner.SourceInfo, options map[string]bool) error {
+func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInfo, options map[string]bool) error {
 	if srcInfo == nil || srcInfo.Callback == nil {
 		return nil
 	}
 
-	err := srcInfo.Callback(srcInfo, options)
+	err := srcInfo.Callback(appName, srcInfo, options)
 
 	if srcInfo.MergeConfig != nil {
 		if err == nil {
