@@ -38,7 +38,7 @@ func MachineHealthChecksSummary(machines ...*api.Machine) string {
 
 func passingChecks(checks []*api.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == "passing" {
+		if check.Status == api.Passing {
 			n++
 		}
 	}
@@ -48,7 +48,7 @@ func passingChecks(checks []*api.MachineCheckStatus) (n int) {
 
 func warnChecks(checks []*api.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == "warn" {
+		if check.Status == api.Warning {
 			n++
 		}
 	}
@@ -58,7 +58,7 @@ func warnChecks(checks []*api.MachineCheckStatus) (n int) {
 
 func critChecks(checks []*api.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == "critical" {
+		if check.Status == api.Critical {
 			n++
 		}
 	}

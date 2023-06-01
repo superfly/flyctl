@@ -73,7 +73,7 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 			if nameFilter != "" && nameFilter != check.Name {
 				continue
 			}
-			table.Append([]string{check.Name, check.Status, machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output})
+			table.Append([]string{check.Name, string(check.Status), machine.ID, format.RelativeTime(*check.UpdatedAt), check.Output})
 		}
 	}
 	table.Render()

@@ -124,7 +124,7 @@ func passingChecks(checks []api.CheckState) (n int) {
 
 func warnChecks(checks []api.CheckState) (n int) {
 	for _, check := range checks {
-		if check.Status == "warn" {
+		if check.Status == "warning" {
 			n++
 		}
 	}

@@ -323,7 +323,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 		role := "unknown"
 		for _, check := range machine.Checks {
 			if check.Name == "role" {
-				if check.Status == "passing" {
+				if check.Status == api.Passing {
 					role = check.Output
 				} else {
 					role = "error"
