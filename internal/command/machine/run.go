@@ -141,8 +141,9 @@ var sharedFlags = flag.Set{
 		Default:     true,
 	},
 	flag.String{
-		Name:        "restart",
-		Description: "Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'. Default is set to always",
+		Name: "restart",
+		Description: `Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'.
+	Default is set to always for ordinary machines and on-fail for machines with a schedule`,
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
@@ -814,7 +815,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 			machineConf.Restart.Policy = ""
 		} else if !input.updating {
 			// This is a new machine; apply the default.
-			machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+			if machineConf.Schedule != "" {
+				machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+			} else {
+				machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+			}
 		}
 	default:
 		return machineConf, errors.New("invalid restart provided")
