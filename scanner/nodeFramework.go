@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -76,9 +77,27 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 	return srcInfo, nil
 }
 
-func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
+func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+	// create temporary fly.toml for merge purposes
+	flyToml := "fly.toml"
+	_, err := os.Stat(flyToml)
+	if os.IsNotExist(err) {
+		// create a fly.toml consisting only of an app name
+		contents := fmt.Sprintf("app = \"%s\"\n", appName)
+		err := os.WriteFile(flyToml, []byte(contents), 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// inform caller of the presence of this file
+		srcInfo.MergeConfig = &MergeConfigStruct{
+			Name:      flyToml,
+			Temporary: true,
+		}
+	}
+
 	// generate Dockerfile if it doesn't already exist
-	_, err := os.Stat("Dockerfile")
+	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
 		var args []string
 
@@ -116,6 +135,7 @@ func NodeFrameworkCallback(srcInfo *SourceInfo, options map[string]bool) error {
 
 		// install/run command
 		if !installed || args[0] == "npx" {
+			fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 			cmd := exec.Command(args[0], args[1:]...)
 			cmd.Stdin = nil
 			cmd.Stdout = os.Stdout

@@ -241,7 +241,24 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	var selectedMachine *api.Machine
 
 	for _, machine := range machines {
-		namesWithRegion = append(namesWithRegion, fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name))
+		nameWithRegion := fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name)
+
+		role := ""
+		for _, check := range machine.Checks {
+			if check.Name == "role" {
+				if check.Status == "passing" {
+					role = check.Output
+				} else {
+					role = "error"
+				}
+			}
+		}
+
+		if role != "" {
+			nameWithRegion += fmt.Sprintf(" (%s)", role)
+		}
+
+		namesWithRegion = append(namesWithRegion, nameWithRegion)
 	}
 
 	if flag.GetBool(ctx, "select") {

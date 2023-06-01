@@ -39,6 +39,7 @@ func newRegionsAdd() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(1)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.Yes(),
 		flag.JSONOutput(),
 		flag.String{Name: "group", Description: "The process group to add the region to"},
@@ -58,6 +59,7 @@ func newRegionsRemove() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(1)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.Yes(),
 		flag.JSONOutput(),
 		flag.String{Name: "group", Description: "The process group to add the region to"},
@@ -77,6 +79,7 @@ func newRegionsSet() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(1)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.Yes(),
 		flag.JSONOutput(),
 		flag.String{Name: "group", Description: "The process group to add the region to"},
@@ -96,6 +99,7 @@ func newRegionsBackup() *cobra.Command {
 	cmd.Args = cobra.MinimumNArgs(1)
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.Yes(),
 		flag.JSONOutput(),
 	)
@@ -114,6 +118,7 @@ func newRegionsList() *cobra.Command {
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 	)
 	return cmd

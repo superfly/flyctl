@@ -59,7 +59,7 @@ type SourceInfo struct {
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
 	Concurrency                  map[string]int
-	Callback                     func(srcInfo *SourceInfo, options map[string]bool) error
+	Callback                     func(appName string, srcInfo *SourceInfo, options map[string]bool) error
 	HttpCheckPath                string
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
@@ -74,8 +74,9 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
 }
 type Volume struct {
-	Source      string `toml:"source" json:"source"`
-	Destination string `toml:"destination" json:"destination"`
+	Source      string   `toml:"source" json:"source,omitempty"`
+	Destination string   `toml:"destination" json:"destination,omitempty"`
+	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 type ScannerConfig struct {
 	Mode         string

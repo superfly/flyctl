@@ -314,20 +314,26 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	return nil
 }
 
-func runCallback(ctx context.Context, srcInfo *scanner.SourceInfo, options map[string]bool) error {
+func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInfo, options map[string]bool) error {
 	if srcInfo == nil || srcInfo.Callback == nil {
 		return nil
 	}
 
-	err := srcInfo.Callback(srcInfo, options)
+	err := srcInfo.Callback(appName, srcInfo, options)
 
 	if srcInfo.MergeConfig != nil {
 		if err == nil {
 			cfg, err := appconfig.LoadConfig(srcInfo.MergeConfig.Name)
 			if err == nil {
 				// In theory, any part of the configuration could be merged here, but for now
-				// we will only copy over the processes
-				srcInfo.Processes = cfg.Processes
+				// we will only copy over the processes and volume
+				if srcInfo.Processes == nil {
+					srcInfo.Processes = cfg.Processes
+				}
+
+				if len(srcInfo.Volumes) == 0 && len(cfg.Mounts) > 0 {
+					srcInfo.Volumes = []scanner.Volume{cfg.Mounts[0]}
+				}
 			}
 		}
 

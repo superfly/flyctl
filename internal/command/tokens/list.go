@@ -3,7 +3,6 @@ package tokens
 import (
 	"context"
 	"fmt"
-
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -29,6 +28,7 @@ func newList() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.App(),
+		flag.AppConfig(),
 		flag.JSONOutput(),
 		flag.String{
 			Name:        "scope",
@@ -59,9 +59,6 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 		}
 
-		if app.LimitedAccessTokens == nil {
-			return fmt.Errorf("no access tokens")
-		}
 		for _, token := range app.LimitedAccessTokens.Nodes {
 			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
 		}
@@ -72,9 +69,6 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
-		if org.LimitedAccessTokens == nil {
-			return fmt.Errorf("no access tokens")
-		}
 		for _, token := range org.LimitedAccessTokens.Nodes {
 			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
 		}
