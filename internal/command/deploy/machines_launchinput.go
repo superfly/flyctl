@@ -62,6 +62,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		return nil, err
 	}
 	mConfig.Image = md.img
+	mConfig.Guest = md.machineGuest
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()
