@@ -57,11 +57,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	mID := origMachineRaw.ID
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
-	mConfig, err := md.appConfig.ToMachineConfigWithGuest(processGroup, origMachineRaw.Config, md.machineGuest)
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
 	if err != nil {
 		return nil, err
 	}
 	mConfig.Image = md.img
+	mConfig.Guest = md.machineGuest
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()

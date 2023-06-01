@@ -17,17 +17,6 @@ func (c *Config) ToMachineConfig(processGroup string, src *api.MachineConfig) (*
 	return fc.updateMachineConfig(src)
 }
 
-func (c *Config) ToMachineConfigWithGuest(processGroup string, src *api.MachineConfig, guest *api.MachineGuest) (*api.MachineConfig, error) {
-	configWithoutGuest, err := c.ToMachineConfig(processGroup, src)
-	if err != nil {
-		return nil, err
-	}
-
-	configWithoutGuest.Guest = guest
-
-	return configWithoutGuest, nil
-}
-
 func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 	releaseCmd, err := shlex.Split(c.Deploy.ReleaseCommand)
 	if err != nil {
