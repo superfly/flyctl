@@ -252,3 +252,31 @@ func (c *Client) GetVolumeSnapshots(ctx context.Context, volID string) ([]Snapsh
 
 	return data.Volume.Snapshots.Nodes, nil
 }
+
+func (c *Client) MarkVolumeReplaced(ctx context.Context, volID string, lockId string) error {
+	query := `
+		mutation($input: MarkVolumeReplacedInput!) {
+			markVolumeReplaced(input: $input) {
+				app {
+					name
+				}
+			}
+		}
+	`
+
+	input := MarkVolumeReplacedInput{
+		VolumeID: volID,
+		LockID:   lockId,
+	}
+
+	req := c.NewRequest(query)
+
+	req.Var("input", input)
+
+	_, err := c.RunWithContext(ctx, req)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

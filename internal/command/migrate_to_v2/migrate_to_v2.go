@@ -188,7 +188,7 @@ type v2PlatformMigrator struct {
 	recovery                recoveryState
 	usesForkedVolumes       bool
 	createdVolumes          []*NewVolume
-	replacedVolumes         map[string]int
+	replacedVolumes         map[string][]*api.Volume
 	isPostgres              bool
 	pgConsulUrl             string
 	targetImg               string
@@ -294,7 +294,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		oldAttachedVolumes:      attachedVolumes,
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
-		replacedVolumes:         map[string]int{},
+		replacedVolumes:         map[string][]*api.Volume{},
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
@@ -621,6 +621,14 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 
 	if !m.isPostgres {
 		configSaveErr = m.appConfig.WriteToDisk(ctx, m.configPath)
+	}
+
+	if err := m.markReplacedVolumes(ctx); err != nil {
+		fmt.Fprintf(m.io.ErrOut, "Failed to mark volumes as replaced: %v\n", err)
+		fmt.Fprintf(m.io.ErrOut, "Your app was successfully migrated, but there was an issue")
+		fmt.Fprintf(m.io.ErrOut, "marking the old volumes (the original volumes, without the _machines suffix)")
+		fmt.Fprintf(m.io.ErrOut, "as replaced. You might want to check that your app works, then remove")
+		fmt.Fprintf(m.io.ErrOut, "these volumes, otherwise you might end up mistakenly charged for them.")
 	}
 
 	tb.Done("Done")

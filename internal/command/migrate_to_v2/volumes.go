@@ -99,7 +99,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			previousAllocId: allocId,
 			mountPoint:      path,
 		})
-		m.replacedVolumes[vol.Name]++
+		m.replacedVolumes[vol.Name] = append(m.replacedVolumes[vol.Name], &vol)
 	}
 	return nil
 }
@@ -129,10 +129,21 @@ func (m *v2PlatformMigrator) printReplacedVolumes() {
 	keys := lo.Keys(m.replacedVolumes)
 	slices.Sort(keys)
 	for _, name := range keys {
-		num := m.replacedVolumes[name]
+		num := len(m.replacedVolumes[name])
 		s := lo.Ternary(num == 1, "", "s")
 		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s' [replaced by '%s']\n", num, s, name, nomadVolNameToV2VolName(name))
 	}
+}
+
+func (m *v2PlatformMigrator) markReplacedVolumes(ctx context.Context) (lastErr error) {
+	for _, vols := range m.replacedVolumes {
+		for _, v := range vols {
+			if err := m.apiClient.MarkVolumeReplaced(ctx, v.ID, m.appLock); err != nil {
+				lastErr = err
+			}
+		}
+	}
+	return
 }
 
 func nomadVolNameToV2VolName(name string) string {

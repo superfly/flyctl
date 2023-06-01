@@ -172,10 +172,11 @@ type Query struct {
 	CreateOrganization CreateOrganizationPayload
 	DeleteOrganization DeleteOrganizationPayload
 
-	CreateVolume CreateVolumePayload
-	DeleteVolume DeleteVolumePayload
-	ExtendVolume ExtendVolumePayload
-	ForkVolume   ForkVolumePayload
+	CreateVolume       CreateVolumePayload
+	DeleteVolume       DeleteVolumePayload
+	MarkVolumeReplaced MarkVolumeReplacedPayload
+	ExtendVolume       ExtendVolumePayload
+	ForkVolume         ForkVolumePayload
 
 	AddWireGuardPeer              CreatedWireGuardPeer
 	EstablishSSHKey               SSHCertificate
@@ -423,6 +424,15 @@ type DeleteVolumeInput struct {
 }
 
 type DeleteVolumePayload struct {
+	App App
+}
+
+type MarkVolumeReplacedInput struct {
+	VolumeID string `json:"volumeId"`
+	LockID   string `json:"lockId,omitempty"`
+}
+
+type MarkVolumeReplacedPayload struct {
 	App App
 }
 
