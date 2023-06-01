@@ -72,7 +72,7 @@ func getImage(machines []*api.Machine) (string, error) {
 	return latestImage, nil
 }
 
-func renderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer) error {
+func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer) error {
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()

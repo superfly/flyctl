@@ -76,6 +76,9 @@ func newMigrateToV2() *cobra.Command {
 			Description: "Specify primary region if one is not set in fly.toml",
 		},
 	)
+
+	cmd.AddCommand(newDebug())
+
 	return cmd
 }
 
