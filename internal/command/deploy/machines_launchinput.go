@@ -57,7 +57,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	mID := origMachineRaw.ID
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
-	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
+	mConfig, err := md.appConfig.ToMachineConfigWithGuest(processGroup, origMachineRaw.Config, md.machineGuest)
 	if err != nil {
 		return nil, err
 	}
