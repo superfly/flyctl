@@ -90,8 +90,8 @@ func runMachineStatus(ctx context.Context) (err error) {
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			string(entrypoint),
-			string(cmd),
+			entrypoint,
+			cmd,
 		},
 	}
 
