@@ -1,0 +1,61 @@
+name: Preflight Tests
+
+on:
+  schedule:
+    - cron: '21 */2 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Brief reason for running this workflow manually
+        required: false
+        default: User initiated run
+        type: string
+  push:
+    branches: [master]
+
+jobs:
+  preflight-tests:
+    runs-on: ubuntu-latest
+    concurrency: preflight-tests
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
+      - name: Run preflight tests
+        env:
+          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
+          FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
+        run: make ci-preflight
+      - name: Post failure to slack
+        if: failure()
+        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":sob: preflight tests failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: always()
+      - name: Clean up any un-deleted preflight apps
+        if: always()
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
+        run: ./scripts/delete_preflight_apps.sh

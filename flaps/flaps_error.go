@@ -1,5 +1,11 @@
 package flaps
 
+import "net/http"
+
+var (
+	FlapsErrorNotFound = &FlapsError{ResponseStatusCode: http.StatusNotFound}
+)
+
 type FlapsError struct {
 	OriginalError      error
 	ResponseStatusCode int
@@ -12,6 +18,13 @@ func (fe *FlapsError) Error() string {
 		return ""
 	}
 	return fe.OriginalError.Error()
+}
+
+func (fe *FlapsError) Is(target error) bool {
+	if other, ok := target.(*FlapsError); ok {
+		return fe.ResponseStatusCode == other.ResponseStatusCode
+	}
+	return false
 }
 
 func (fe *FlapsError) Unwrap() error {

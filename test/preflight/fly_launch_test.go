@@ -5,6 +5,7 @@ package preflight
 
 import (
 	"testing"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -260,7 +261,7 @@ func TestFlyLaunch_case08(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"launch --ha=false --detach --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		"launch --ha=false --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x --smoke-checks=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
@@ -296,8 +297,9 @@ func TestFlyLaunch_case09(t *testing.T) {
 `)
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	time.Sleep(500 * time.Millisecond)
 	ml := f.MachinesList(appName)
-	require.Equal(f, 5, len(ml))
+	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
 		return m.ProcessGroup()
 	})

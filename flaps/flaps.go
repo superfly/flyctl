@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/go-querystring/query"
+	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 
 	"github.com/superfly/flyctl/agent"
@@ -376,6 +377,23 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
 	allMachines := make([]*api.Machine, 0)
 	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
+	tries := 0
+	b := &backoff.Backoff{
+		Factor: 2,
+		Jitter: true,
+		Min:    500 * time.Millisecond,
+		Max:    1500 * time.Millisecond,
+	}
+	if errors.Is(err, FlapsErrorNotFound) {
+		for {
+			if tries > 3 || (err != nil && !errors.Is(err, FlapsErrorNotFound)) {
+				break
+			}
+			time.Sleep(b.Duration())
+			err = f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
+			tries += 1
+		}
+	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
