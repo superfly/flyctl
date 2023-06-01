@@ -125,11 +125,11 @@ func (m *Machine) HealthCheckStatus() *HealthCheckStatus {
 	res.Total = len(m.Checks)
 	for _, check := range m.Checks {
 		switch check.Status {
-		case "passing":
+		case Passing:
 			res.Passing += 1
-		case "warning":
+		case Warning:
 			res.Warn += 1
-		case "critical":
+		case Critical:
 			res.Critical += 1
 		}
 	}
@@ -351,11 +351,19 @@ type MachineHTTPHeader struct {
 	Values []string `json:"values,omitempty"`
 }
 
+type ConsulCheckStatus string
+
+const (
+	Critical ConsulCheckStatus = "critical"
+	Warning  ConsulCheckStatus = "warning"
+	Passing  ConsulCheckStatus = "passing"
+)
+
 type MachineCheckStatus struct {
-	Name      string     `json:"name,omitempty"`
-	Status    string     `json:"status,omitempty"` // "critical", "warning", or "passing"
-	Output    string     `json:"output,omitempty"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Status    ConsulCheckStatus `json:"status,omitempty"`
+	Output    string            `json:"output,omitempty"`
+	UpdatedAt *time.Time        `json:"updated_at,omitempty"`
 }
 
 type MachinePort struct {

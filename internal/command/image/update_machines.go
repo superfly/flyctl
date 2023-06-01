@@ -231,7 +231,7 @@ func machineRole(machine *api.Machine) (role string) {
 
 	for _, check := range machine.Checks {
 		if check.Name == "role" {
-			if check.Status == "passing" {
+			if check.Status == api.Passing {
 				role = check.Output
 			} else {
 				role = "error"
