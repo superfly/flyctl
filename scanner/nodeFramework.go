@@ -74,6 +74,12 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		Callback:   NodeFrameworkCallback,
 	}
 
+	// don't prompt for redis or postgres unless they are used
+	deps, ok := packageJson["dependencies"].(map[string]interface{})
+	if !ok || (deps["pg"] == nil && deps["redis"] == nil) {
+		srcInfo.SkipDatabase = true
+	}
+
 	return srcInfo, nil
 }
 
