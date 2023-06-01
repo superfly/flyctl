@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
-
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -59,6 +57,24 @@ func runMachineStatus(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, "State: %s\n\n", machine.State)
 
+	entrypoint := func() string {
+		if len(machine.Config.Init.Entrypoint) > 0 {
+			bytes, _ := json.Marshal(machine.Config.Init.Entrypoint)
+			return string(bytes)
+		} else {
+			return ""
+		}
+	}()
+
+	cmd := func() string {
+		if len(machine.Config.Init.Cmd) > 0 {
+			bytes, _ := json.Marshal(machine.Config.Init.Cmd)
+			return string(bytes)
+		} else {
+			return ""
+		}
+	}()
+
 	obj := [][]string{
 		{
 			machine.ID,
@@ -74,8 +90,8 @@ func runMachineStatus(ctx context.Context) (err error) {
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			strings.Join(machine.Config.Init.Entrypoint, " "),
-			strings.Join(machine.Config.Init.Cmd, " "),
+			string(entrypoint),
+			string(cmd),
 		},
 	}
 
