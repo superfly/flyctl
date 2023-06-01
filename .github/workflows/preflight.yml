@@ -2,7 +2,7 @@ name: Preflight Tests
 
 on:
   schedule:
-    - cron: '21 17 * * *'
+    - cron: '21 */2 * * *'
   workflow_dispatch:
     inputs:
       reason:
@@ -11,7 +11,7 @@ on:
         default: User initiated run
         type: string
   push:
-    branches: [master, ci-preflight]
+    branches: [master]
 
 jobs:
   preflight-tests:
@@ -32,6 +32,25 @@ jobs:
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
         run: make ci-preflight
+      - name: Post failure to slack
+        if: failure()
+        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":sob: preflight tests failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
       - uses: superfly/flyctl-actions/setup-flyctl@master
         if: always()
       - name: Clean up any un-deleted preflight apps
