@@ -24,6 +24,10 @@ import (
 )
 
 func TestAppsV2Example(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	var (
 		err    error
 		result *testlib.FlyctlResult
@@ -439,6 +443,10 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 
 // This test takes forever. I'm sorry.
 func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 

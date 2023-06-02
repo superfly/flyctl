@@ -52,6 +52,10 @@ func TestPostgres_autostart(t *testing.T) {
 }
 
 func TestPostgres_FlexFailover(t *testing.T) {
+	if testing.Short() {
+		t.Skip()
+	}
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	findLeaderID := func(ml []*api.Machine) string {
