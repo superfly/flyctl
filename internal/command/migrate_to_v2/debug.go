@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/flag"
@@ -180,7 +181,7 @@ func runDebug(ctx context.Context) error {
 	// Grab nomad allocs now that we know the app has been migrated
 	allocs, err := client.GetAllocations(ctx, app.Name, false)
 	if err != nil {
-		return fmt.Errorf("could not list nomad allocs: %w", err)
+		return fmt.Errorf("could not list Nomad VMs: %w", err)
 	}
 
 	if app.PlatformVersion == appconfig.DetachedPlatform {
@@ -196,7 +197,7 @@ Please use these tools to troubleshoot and attempt to repair the app.
 
 	if app.PlatformVersion == appconfig.MachinesPlatform {
 		if len(allocs) != 0 {
-			fmt.Fprintf(io.Out, "Detected nomad allocs running on V2 app, cleaning up.\n")
+			fmt.Fprintf(io.Out, "Detected Nomad VMs running on V2 app, cleaning up.\n")
 			return zeroNomadUseMachines(ctx, app, allocs)
 		}
 	}
@@ -217,7 +218,7 @@ func zeroNomadUseMachines(ctx context.Context, app *api.AppCompact, allocs []*ap
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Destroying nomad allocs and setting platform version to machines/Apps V2.\n")
+	fmt.Fprintf(io.Out, "Destroying Nomad VMs and setting platform version to machines/Apps V2.\n")
 	vmGroups := lo.Uniq(lo.Map(allocs, func(alloc *api.AllocationStatus, _ int) string {
 		return alloc.TaskName
 	}))
@@ -245,24 +246,62 @@ func fixDetachedApp(
 ) error {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
+	flapsClient := flaps.FromContext(ctx)
+
 	if len(machines) == 0 && len(allocs) == 0 {
-		fmt.Fprintf(io.Out, "No machines or allocs found. Setting platform version to machines/Apps V2.\n")
+		fmt.Fprintf(io.Out, "No machines or Nomad VMs found. Setting platform version to machines/Apps V2.\n")
 		return setPlatformVersion(ctx, appconfig.MachinesPlatform)
 	}
 
 	if len(machines) == 0 {
-		fmt.Fprintf(io.Out, "No Apps v2 machines found. Setting platform version to nomad.\n")
+		fmt.Fprintf(io.Out, "No Apps v2 machines found. Setting platform version to Nomad.\n")
 		setPlatformVersion(ctx, appconfig.NomadPlatform)
 	}
 
 	if len(allocs) == 0 {
-		fmt.Fprintf(io.Out, "No legacy nomad allocs found. Setting platform version to machines/Apps V2.\n")
+		fmt.Fprintf(io.Out, "No legacy Nomad VMs found. Setting platform version to machines/Apps V2.\n")
 		return setPlatformVersion(ctx, appconfig.MachinesPlatform)
 	}
 
+	autodiagnose := func() string {
+		nomadTaskGroups := make(map[string]bool)
+		for _, alloc := range allocs {
+			nomadTaskGroups[alloc.TaskName] = false
+		}
+		for _, machine := range machines {
+			nomadTaskGroups[machine.ProcessGroup()] = true
+		}
+		missingProcessGroup := false
+		errorStr := "\nProcess group issues:\n"
+		for taskGroup, hasMachine := range nomadTaskGroups {
+			if !hasMachine {
+				errorStr += fmt.Sprintf(" * '%s' has no machines\n", taskGroup)
+				missingProcessGroup = true
+			}
+		}
+		if !missingProcessGroup {
+			errorStr = " * none found\n"
+		}
+		errorStr += "VM count issues:\n"
+		if len(allocs) > len(machines) {
+			errorStr += fmt.Sprintf(" * %d more Nomad VMs than machines\n", len(allocs)-len(machines))
+		} else {
+			errorStr += " * none found\n"
+		}
+		errorStr += "\nTo fix this, you can try:\n"
+		if missingProcessGroup {
+			errorStr += " * running `fly deploy` to create missing process groups,\n   then removing existing Nomad VMs and switching to V2\n"
+		} else {
+			errorStr += " * removing existing Nomad VMs and switching to V2, then using `fly scale count` to scale your app as needed\n"
+		}
+		return errorStr + "\n"
+	}
+
 	const (
+		Autodiagnose            = "Autodiagnose issues"
 		PrintNomad              = "List Nomad allocs"
 		PrintMachines           = "List Machines"
+		Deploy                  = "Deploy Machines (equivalent to 'fly deploy', might help with process groups)"
 		DestroyNomadUseMachines = "Destroy remaining Nomad allocs and use Apps V2"
 		DestroyMachinesUseNomad = "Destroy existing machines and use Nomad"
 		Exit                    = "Exit"
@@ -288,22 +327,26 @@ func fixDetachedApp(
 			Prompt: &survey.Select{
 				Message: "What would you like to do?",
 				Options: []string{
+					Autodiagnose,
 					PrintNomad,
 					PrintMachines,
+					Deploy,
 					DestroyNomadUseMachines,
 					DestroyMachinesUseNomad,
 					Exit,
 				},
-				Default: PrintMachines,
+				Default: Autodiagnose,
 			},
 		}}, &opt)
 		if err != nil {
 			return err
 		}
 		switch opt.Choice {
+		case Autodiagnose:
+			fmt.Fprint(io.Out, autodiagnose())
 		case PrintNomad:
-			fmt.Fprintf(io.Out, "Nomad allocs:\n")
-			err = render.AllocationStatuses(io.Out, "Nomad Allocs", backupRegions, appStatus.Allocations...)
+			fmt.Fprint(io.Out, "Nomad VMs:\n")
+			err = render.AllocationStatuses(io.Out, "Nomad VMs", backupRegions, appStatus.Allocations...)
 			if err != nil {
 				return err
 			}
@@ -311,10 +354,18 @@ func fixDetachedApp(
 			if err := status.RenderMachineStatus(ctx, app, io.Out); err != nil {
 				return err
 			}
+		case Deploy:
+			if err := deployMachines(ctx); err != nil {
+				fmt.Fprintf(io.ErrOut, "Error deploying machines: %s\n", err)
+			}
+			machines, err = flapsClient.List(ctx, "")
+			if err != nil {
+				return fmt.Errorf("could not list machines: %w", err)
+			}
 		case DestroyNomadUseMachines:
 			return zeroNomadUseMachines(ctx, app, allocs)
 		case DestroyMachinesUseNomad:
-			fmt.Fprintf(io.Out, "Destroying machines and setting platform version to nomad.\n")
+			fmt.Fprint(io.Out, "Destroying machines and setting platform version to nomad.\n")
 
 			for _, mach := range machines {
 				err := machine.Destroy(ctx, app, mach, true)
@@ -332,4 +383,46 @@ func fixDetachedApp(
 			return nil
 		}
 	}
+}
+
+func deployMachines(ctx context.Context) (err error) {
+	io := iostreams.FromContext(ctx)
+	tb := render.NewTextBlock(ctx, "Verifying app config")
+	appName := appconfig.NameFromContext(ctx)
+
+	var cfg *appconfig.Config
+	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
+		cfg, err = appconfig.FromRemoteApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Always prefer the app name passed via --app
+	if appName != "" {
+		cfg.AppName = appName
+	}
+
+	err, extraInfo := cfg.Validate(ctx)
+	if extraInfo != "" {
+		fmt.Fprintf(io.Out, extraInfo)
+	}
+	if err != nil {
+		return err
+	}
+
+	tb.Done("Verified app config")
+
+	// Hack!
+	newDeployCmd := deploy.New()
+	fakeFlagCtx := flag.NewContext(ctx, newDeployCmd.Flags())
+
+	if err := flag.SetString(fakeFlagCtx, flag.AppConfigFilePathName, flag.GetAppConfigFilePath(ctx)); err != nil {
+		return err
+	}
+	if err := flag.SetString(fakeFlagCtx, flag.AppName, flag.GetApp(ctx)); err != nil {
+		return err
+	}
+
+	return deploy.DeployWithConfig(fakeFlagCtx, cfg, false)
 }
