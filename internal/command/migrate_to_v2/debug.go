@@ -363,8 +363,28 @@ func fixDetachedApp(
 				return fmt.Errorf("could not list machines: %w", err)
 			}
 		case DestroyNomadUseMachines:
+			confirm := false
+			if err := survey.AskOne(&survey.Confirm{
+				Message: "Are you sure you want to remove existing Nomad VMs and switch to V2?",
+			}, &confirm); err != nil {
+				return err
+			}
+			if !confirm {
+				continue
+			}
+
 			return zeroNomadUseMachines(ctx, app, allocs)
 		case DestroyMachinesUseNomad:
+			confirm := false
+			if err := survey.AskOne(&survey.Confirm{
+				Message: "Are you sure you want to remove all Machines and switch back to Nomad?",
+			}, &confirm); err != nil {
+				return err
+			}
+			if !confirm {
+				continue
+			}
+
 			fmt.Fprint(io.Out, "Destroying machines and setting platform version to nomad.\n")
 
 			for _, mach := range machines {
