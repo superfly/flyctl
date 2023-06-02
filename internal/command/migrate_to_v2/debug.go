@@ -280,7 +280,7 @@ func fixDetachedApp(
 			}
 		}
 		if !missingProcessGroup {
-			errorStr = " * none found\n"
+			errorStr += " * none found\n"
 		}
 		errorStr += "VM count issues:\n"
 		if len(allocs) > len(machines) {
