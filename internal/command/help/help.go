@@ -89,7 +89,7 @@ func Help(root *cobra.Command) func(ctx context.Context) error {
 		fmt.Printf(`
 Deploying apps and machines:
 `)
-		listCommands([]string{"apps", "machine", "launch", "deploy", "restart", "destroy", "open"})
+		listCommands([]string{"apps", "machine", "launch", "deploy", "destroy", "open"})
 
 		fmt.Printf(`
 Scaling and configuring:
