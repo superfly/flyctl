@@ -33,12 +33,11 @@ func newDebug() *cobra.Command {
 		usage, short, long, runDebug,
 		command.RequireSession,
 		command.RequireAppName,
-		command.LoadAppConfigIfPresent,
 	)
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd,
-		flag.AppConfig(),
 		flag.App(),
+		flag.AppConfig(),
 	)
 	return cmd
 }
@@ -145,8 +144,9 @@ func unsuspend(ctx context.Context, app *api.AppCompact) error {
 
 func runDebug(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
-	app, err := client.GetAppCompact(ctx, flag.GetApp(ctx))
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func zeroNomadUseMachines(ctx context.Context, app *api.AppCompact, allocs []*ap
 }
 
 func setPlatformVersion(ctx context.Context, ver string) error {
-	return apps.UpdateAppPlatformVersion(ctx, flag.GetApp(ctx), ver)
+	return apps.UpdateAppPlatformVersion(ctx, appconfig.NameFromContext(ctx), ver)
 }
 
 func fixDetachedApp(
