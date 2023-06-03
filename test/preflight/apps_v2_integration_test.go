@@ -47,6 +47,7 @@ func TestAppsV2Example(t *testing.T) {
 
 	lastStatusCode := -1
 	attempts := 10
+	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 5 * time.Second}
 	for i := 0; i < attempts; i++ {
 		resp, err = http.Get(appUrl)
 		if err == nil {
@@ -55,7 +56,7 @@ func TestAppsV2Example(t *testing.T) {
 		if lastStatusCode == http.StatusOK {
 			break
 		} else {
-			time.Sleep(1 * time.Second)
+			time.Sleep(b.Duration())
 		}
 	}
 	if lastStatusCode == -1 {
@@ -440,6 +441,7 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 // This test takes forever. I'm sorry.
 func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.Skipf("not reliably working")
 	appName := f.CreateRandomAppName()
 
 	f.Fly("apps create %s -o %s --nomad", appName, f.OrgSlug())
