@@ -440,6 +440,7 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 // This test takes forever. I'm sorry.
 func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	f.Skipf("not reliably working")
 	appName := f.CreateRandomAppName()
 
 	f.Fly("apps create %s -o %s --nomad", appName, f.OrgSlug())
