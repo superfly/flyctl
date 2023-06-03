@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
@@ -299,6 +300,11 @@ func TestFlyLaunch_case09(t *testing.T) {
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(500 * time.Millisecond)
 	ml := f.MachinesList(appName)
+	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 3 * time.Second}
+	for i := 0; len(ml) < 5 || i < 5; i++ {
+		time.Sleep(b.Duration())
+		ml = f.MachinesList(appName)
+	}
 	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
 		return m.ProcessGroup()
