@@ -26,6 +26,22 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		return nil, nil
 	}
 
+	// verify that the bundle will install before proceeding
+	args := []string{"install"}
+
+	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
+		args = append(args, "--quiet")
+	}
+
+	cmd := exec.Command("bundle", args...)
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, errors.Wrap(err, "Failed to install bundle, exiting")
+	}
+
 	s := &SourceInfo{
 		Family:         "Rails",
 		Callback:       RailsCallback,
