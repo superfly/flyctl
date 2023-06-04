@@ -163,7 +163,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to generate Dockefile")
+			return errors.Wrap(err, "Failed to generate Dockerfile")
 		}
 	} else {
 		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
