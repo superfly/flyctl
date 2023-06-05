@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -513,7 +512,8 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 	}()
 
-	aborted := atomic.Bool{}
+	cancelableCtx, setAborted := context.WithCancel(ctx)
+	defer setAborted()
 	// Hook into Ctrl+C so that aborting the migration
 	// leaves the app in a stable, unlocked, non-detached state
 	{
@@ -529,7 +529,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 			<-signalCh
 			// most terminals print ^C, this makes things easier to read.
 			fmt.Fprintf(m.io.ErrOut, "\n")
-			aborted.Store(true)
+			setAborted()
 		}()
 	}
 
@@ -558,7 +558,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
@@ -568,7 +568,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-		if aborted.Load() {
+		if cancelableCtx.Err() != nil {
 			return abortedErr
 		}
 	}
@@ -576,12 +576,12 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if m.requiresDowntime() {
 		tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
 
-		err = m.scaleNomadToZero(ctx)
+		err = m.scaleNomadToZero(cancelableCtx)
 		if err != nil {
 			return err
 		}
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
@@ -591,7 +591,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
@@ -601,7 +601,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
@@ -611,7 +611,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
@@ -625,7 +625,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 	m.newMachines.StartBackgroundLeaseRefresh(ctx, m.leaseTimeout, m.leaseDelayBetween)
@@ -634,16 +634,16 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
 	m.newMachines.ReleaseLeases(ctx)
-	err = m.deployApp(ctx)
+	err = m.deployApp(cancelableCtx)
 	if err != nil {
 		return err
 	}
-	if aborted.Load() {
+	if cancelableCtx.Err() != nil {
 		return abortedErr
 	}
 
@@ -678,7 +678,7 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-		if aborted.Load() {
+		if cancelableCtx.Err() != nil {
 			return abortedErr
 		}
 	}
