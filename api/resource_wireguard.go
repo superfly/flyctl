@@ -6,30 +6,6 @@ import (
 	"os"
 )
 
-// GetWireGuardPeerStatus is distinct from the rest of the WireGuard
-// accessors because we don't to ask for status routinely, only when
-// the user actually needs it (it incurs costs serverside)
-func (c *Client) GetWireGuardPeerStatus(ctx context.Context, slug, name string) (*WireGuardPeerStatus, error) {
-	req := c.NewRequest(`
-query($slug: String!, $name: String!) {
-  organization(slug: $slug) {
-    wireGuardPeer(name: $name) {
-      gatewayStatus
-    }
-  }
-}
-`)
-	req.Var("slug", slug)
-	req.Var("name", name)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.Organization.WireGuardPeer.GatewayStatus, nil
-}
-
 func (c *Client) GetWireGuardPeer(ctx context.Context, slug, name string) (*WireGuardPeer, error) {
 	req := c.NewRequest(`
 query($slug: String!, $name: String!) {

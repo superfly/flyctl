@@ -18,7 +18,6 @@ func New() *cobra.Command {
 		newWireguardList(),
 		newWireguardCreate(),
 		newWireguardRemove(),
-		newWireguardStatus(),
 		newWireguardReset(),
 		newWireguardWebsockets(),
 		newWireguardToken(),
@@ -74,18 +73,6 @@ func newWireguardReset() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
-	return cmd
-}
-
-func newWireguardStatus() *cobra.Command {
-	const (
-		short = "Get status a WireGuard peer connection"
-		long  = `Get status for a WireGuard peer connection`
-	)
-	cmd := command.New("status [org] [name]", short, long, runWireguardStatus,
-		command.RequireSession,
-	)
-	cmd.Args = cobra.MaximumNArgs(2)
 	return cmd
 }
 
