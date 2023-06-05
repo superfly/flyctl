@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -59,6 +60,10 @@ func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLau
 		region = alloc.Region
 	} else {
 		region = m.appConfig.PrimaryRegion
+	}
+
+	if strings.HasSuffix(region, "2") {
+		region = region[0:3]
 	}
 
 	launchMachineInput := api.LaunchMachineInput{
