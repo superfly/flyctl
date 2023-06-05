@@ -26,7 +26,7 @@ done
 
 shift $(($OPTIND - 1))
 
-
+test_opts=
 if [[ "$ref" != "refs/heads/master" ]]; then
     test_opts=-short
 fi
