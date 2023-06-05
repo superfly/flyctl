@@ -145,6 +145,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		client   = client.FromContext(ctx).API()
+		cfg      = config.FromContext(ctx)
 	)
 
 	flaps, err := flaps.New(ctx, app)
@@ -166,7 +167,16 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version = machine.ImageVersion()
 		}
 
-		obj := [][]string{
+		obj := map[string]string{
+			"MachineID":  machine.ID,
+			"Registry":   machine.ImageRef.Registry,
+			"Repository": machine.ImageRef.Repository,
+			"Tag":        machine.ImageRef.Tag,
+			"Version":    version,
+			"Digest":     machine.ImageRef.Digest,
+		}
+
+		rows := [][]string{
 			{
 				machine.ImageRef.Registry,
 				machine.ImageRef.Repository,
@@ -176,7 +186,11 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			},
 		}
 
-		return render.VerticalTable(io.Out, "Image Details", obj,
+		if cfg.JSONOutput {
+			return render.JSON(io.Out, obj)
+		}
+
+		return render.VerticalTable(io.Out, "Image Details", rows,
 			"Registry",
 			"Repository",
 			"Tag",
@@ -239,7 +253,8 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
-	rows := [][]string{}
+	var rows [][]string
+	var objs []map[string]string
 
 	for _, machine := range machines {
 		image := machine.ImageRef
@@ -250,6 +265,15 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version = machine.ImageVersion()
 		}
 
+		objs = append(objs, map[string]string{
+			"MachineID":  machine.ID,
+			"Registry":   image.Registry,
+			"Repository": image.Repository,
+			"Tag":        image.Tag,
+			"Version":    version,
+			"Digest":     image.Digest,
+		})
+
 		rows = append(rows, []string{
 			machine.ID,
 			image.Registry,
@@ -258,6 +282,10 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version,
 			image.Digest,
 		})
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, objs)
 	}
 
 	return render.Table(
