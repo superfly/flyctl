@@ -11,12 +11,15 @@ on:
         default: User initiated run
         type: string
   push:
-    branches: [master]
 
 jobs:
   preflight-tests:
     runs-on: ubuntu-latest
-    concurrency: preflight-tests
+    strategy:
+      fail-fast: false
+      matrix:
+        parallelism: [5]
+        index: [0,1,2,3,4]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -26,14 +29,20 @@ jobs:
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
+      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX and build flyctl
+        run: |
+          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
+          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
+          make
       - name: Run preflight tests
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
-        run: make ci-preflight
+        run: |
+          PATH=$PWD/bin:$PATH ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}"
       - name: Post failure to slack
-        if: failure()
+        if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
@@ -58,4 +67,5 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-        run: ./scripts/delete_preflight_apps.sh
+        run: |
+          ./scripts/delete_preflight_apps.sh "$FLY_PREFLIGHT_TEST_APP_PREFIX"

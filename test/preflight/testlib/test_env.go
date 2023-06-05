@@ -226,7 +226,12 @@ func (f *FlyctlTestEnv) verifyTestOrgExists() {
 }
 
 func (f *FlyctlTestEnv) CreateRandomAppName() string {
-	appName := randomName(f, "preflight")
+	prefix := os.Getenv("FLY_PREFLIGHT_TEST_APP_PREFIX")
+	if prefix == "" {
+		prefix = "preflight"
+	}
+
+	appName := randomName(f, prefix)
 	f.Cleanup(func() {
 		f.FlyAllowExitFailure("apps destroy --yes %s", appName)
 	})
