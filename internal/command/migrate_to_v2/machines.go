@@ -95,6 +95,9 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("failed creating a machine in region %s: %w", machineInput.Region, err)
 		}
+		if m.verbose {
+			fmt.Fprintf(m.io.Out, "Created machine %s in %s\n", newMachine.ID, machineInput.Region)
+		}
 		newlyCreatedMachines = append(newlyCreatedMachines, newMachine)
 	}
 	for _, mach := range newlyCreatedMachines {
