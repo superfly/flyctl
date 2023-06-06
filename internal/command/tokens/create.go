@@ -31,6 +31,7 @@ func newCreate() *cobra.Command {
 	cmd.AddCommand(
 		newDeploy(),
 		newOrg(),
+		newLiteFSCloud(),
 	)
 
 	return cmd
@@ -87,6 +88,42 @@ func newDeploy() *cobra.Command {
 			Shorthand:   "x",
 			Description: "The duration that the token will be valid",
 			Default:     time.Hour * 24 * 365 * 20,
+		},
+	)
+
+	return cmd
+}
+
+func newLiteFSCloud() *cobra.Command {
+	const (
+		short = "Create LiteFS Cloud tokens"
+		long  = "Create an API token limited to a single LiteFS Cloud cluster."
+		usage = "litefs-cloud"
+	)
+
+	cmd := command.New(usage, short, long, runLiteFSCloud,
+		command.RequireSession,
+	)
+
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.Org(),
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "LiteFS Cloud token",
+		},
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
+		flag.String{
+			Name:        "cluster",
+			Shorthand:   "c",
+			Description: "Cluster name",
 		},
 	)
 
@@ -158,6 +195,44 @@ func runDeploy(ctx context.Context) (err error) {
 
 	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
 		"app_id": app.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
+func runLiteFSCloud(ctx context.Context) (err error) {
+	var token string
+	apiClient := client.FromContext(ctx).API()
+
+	expiry := ""
+	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	cluster := flag.GetString(ctx, "cluster")
+	if cluster == "" {
+		return fmt.Errorf("cluster name is not provided")
+	}
+
+	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving org %w", err)
+	}
+
+	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "litefs_cloud", &gql.LimitedAccessTokenOptions{
+		"cluster": cluster,
 	})
 	if err != nil {
 		return err
