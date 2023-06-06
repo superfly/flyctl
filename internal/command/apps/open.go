@@ -48,11 +48,11 @@ func runOpen(ctx context.Context) error {
 
 	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+		return fmt.Errorf("Failed retrieving app %s: %w", appName, err)
 	}
 
 	if !app.Deployed && app.PlatformVersion != "machines" {
-		return errors.New("app has not been deployed yet. Please try deploying your app first")
+		return errors.New("App has not been deployed yet. Please try deploying your app first")
 	}
 
 	appConfig := appconfig.ConfigFromContext(ctx)
@@ -64,14 +64,14 @@ func runOpen(ctx context.Context) error {
 	if relURI := flag.FirstArg(ctx); relURI != "" {
 		newURL, err := appURL.Parse(relURI)
 		if err != nil {
-			return fmt.Errorf("failed to parse relative URI '%s': %w", relURI, err)
+			return fmt.Errorf("Failed to parse relative URI '%s': %w", relURI, err)
 		}
 		appURL = newURL
 	}
 
-	fmt.Fprintf(iostream.Out, "opening %s ...\n", appURL)
+	fmt.Fprintf(iostream.Out, "Opening %s\n", appURL)
 	if err := open.Run(appURL.String()); err != nil {
-		return fmt.Errorf("failed opening %s: %w", appURL, err)
+		return fmt.Errorf("Failed opening %s: %w", appURL, err)
 	}
 
 	return nil
