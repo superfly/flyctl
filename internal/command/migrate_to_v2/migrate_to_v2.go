@@ -75,6 +75,11 @@ func newMigrateToV2() *cobra.Command {
 			Name:        "primary-region",
 			Description: "Specify primary region if one is not set in fly.toml",
 		},
+		flag.Bool{
+			Name:        "verbose",
+			Description: "Verbose output for automated migrations",
+			Hidden:      true,
+		},
 	)
 	return cmd
 }
@@ -121,15 +126,13 @@ func runMigrateToV2(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if !flag.GetYes(ctx) {
-		confirm, err := migrator.ConfirmChanges(ctx)
-		if err != nil {
-			return err
-		}
-		if !confirm {
-			sendMetric = false
-			return nil
-		}
+	confirm, err := migrator.ConfirmChanges(ctx)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		sendMetric = false
+		return nil
 	}
 	err = migrator.Migrate(ctx)
 	if err != nil {
@@ -192,6 +195,7 @@ type v2PlatformMigrator struct {
 	isPostgres              bool
 	pgConsulUrl             string
 	targetImg               string
+	verbose                 bool
 }
 
 type recoveryState struct {
@@ -306,6 +310,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
 		replacedVolumes:         map[string]int{},
+		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
@@ -910,6 +915,10 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		} else {
 			fmt.Fprintf(m.io.Out, " * Save the app's config file to '%s'\n", m.configPath)
 		}
+	}
+
+	if flag.GetYes(ctx) {
+		return true, nil
 	}
 
 	confirm := false

@@ -94,6 +94,9 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
 			}
 		}
+		if m.verbose {
+			fmt.Fprintf(m.io.Out, "Forked volume %s[%s] into %s[%s]\n", vol.Name, vol.ID, newVol.Name, newVol.ID)
+		}
 		m.createdVolumes = append(m.createdVolumes, &NewVolume{
 			vol:             newVol,
 			previousAllocId: allocId,
