@@ -4,15 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
-
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"time"
 )
 
 func newStatus() *cobra.Command {
@@ -45,6 +43,15 @@ func newStatus() *cobra.Command {
 	return cmd
 }
 
+func optJsonStrings(v []string) string {
+	if len(v) > 0 {
+		bytes, _ := json.Marshal(v)
+		return string(bytes)
+	} else {
+		return ""
+	}
+}
+
 func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
@@ -74,11 +81,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			strings.Join(machine.Config.Init.Cmd, " "),
+			optJsonStrings(machine.Config.Init.Entrypoint),
+			optJsonStrings(machine.Config.Init.Cmd),
 		},
 	}
 
-	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Command"}
+	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
 
 	if len(machine.Config.Mounts) > 0 {
 		cols = append(cols, "Volume")
