@@ -48,8 +48,6 @@ func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLau
 		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	}
 
-	// We have manual overrides for some regions with the names <region>2 e.g ams2, iad2.
-	// These cause migrations to fail. Here we handle that specific case.
 	if m.appConfig == nil {
 		// FIXME better error message here
 		return nil, fmt.Errorf("Could not find app config")
@@ -62,6 +60,8 @@ func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLau
 		region = m.appConfig.PrimaryRegion
 	}
 
+	// We have manual overrides for some regions with the names <region>2 e.g ams2, iad2.
+	// These cause migrations to fail. Here we handle that specific case.
 	if strings.HasSuffix(region, "2") {
 		region = region[0:3]
 	}
