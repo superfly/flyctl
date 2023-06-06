@@ -43,6 +43,15 @@ func newStatus() *cobra.Command {
 	return cmd
 }
 
+func optJsonStrings(v []string) string {
+	if len(v) > 0 {
+		bytes, _ := json.Marshal(v)
+		return string(bytes)
+	} else {
+		return ""
+	}
+}
+
 func runMachineStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
@@ -56,24 +65,6 @@ func runMachineStatus(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, "State: %s\n\n", machine.State)
-
-	entrypoint := func() string {
-		if len(machine.Config.Init.Entrypoint) > 0 {
-			bytes, _ := json.Marshal(machine.Config.Init.Entrypoint)
-			return string(bytes)
-		} else {
-			return ""
-		}
-	}()
-
-	cmd := func() string {
-		if len(machine.Config.Init.Cmd) > 0 {
-			bytes, _ := json.Marshal(machine.Config.Init.Cmd)
-			return string(bytes)
-		} else {
-			return ""
-		}
-	}()
 
 	obj := [][]string{
 		{
@@ -90,8 +81,8 @@ func runMachineStatus(ctx context.Context) (err error) {
 			fmt.Sprint(machine.Config.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			entrypoint,
-			cmd,
+			optJsonStrings(machine.Config.Init.Entrypoint),
+			optJsonStrings(machine.Config.Init.Cmd),
 		},
 	}
 
