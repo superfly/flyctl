@@ -251,8 +251,19 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+
+	// sort allocs by version descending
+	slices.SortFunc(allocs, func(i, j *api.AllocationStatus) bool {
+		return i.Version > j.Version
+	})
+
+	var highestVersion int
 	allocs = lo.Filter(allocs, func(alloc *api.AllocationStatus, _ int) bool {
-		return alloc.Status == "running" && alloc.LatestVersion
+		if alloc.Status == "running" && alloc.Version >= highestVersion {
+			highestVersion = alloc.Version
+			return true
+		}
+		return false
 	})
 
 	attachedVolumes := lo.Filter(appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
