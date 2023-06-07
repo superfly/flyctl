@@ -662,6 +662,10 @@ func (m *v2PlatformMigrator) inRegionMachines() []*api.Machine {
 }
 
 func (m *v2PlatformMigrator) validate(ctx context.Context) error {
+	if err := m.validateKnownUnmigratableApps(ctx); err != nil {
+		return err
+	}
+
 	var err error
 	err, extraInfo := m.appConfig.ValidateForMachinesPlatform(ctx)
 	if err != nil {
@@ -669,10 +673,6 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
 
-	err = m.validateScaling(ctx)
-	if err != nil {
-		return err
-	}
 	err = m.validateVolumes(ctx)
 	if err != nil {
 		return err
@@ -690,7 +690,14 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	return nil
 }
 
-func (m *v2PlatformMigrator) validateScaling(ctx context.Context) error {
+func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) error {
+	// This is as last meassure for very special cases
+	knownUnmigratableApps := []string{
+		"globalconfig-dht", // https://flyio.discourse.team/t/x/2860/6
+	}
+	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
+		return fmt.Errorf("Your app uses features incompatible with the V2 platform. Please contact support to discuss how to successfully migrate")
+	}
 	return nil
 }
 
