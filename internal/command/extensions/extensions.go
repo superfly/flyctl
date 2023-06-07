@@ -17,6 +17,6 @@ func New() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.NoArgs
 
-	cmd.AddCommand(newSentry())
+	cmd.AddCommand(newSentry(), newPlanetscale())
 	return
 }

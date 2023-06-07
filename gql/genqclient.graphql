@@ -29,6 +29,7 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			publicUrl
 			ssoLink
 			token
+			environment
 		}
 	}
 }
