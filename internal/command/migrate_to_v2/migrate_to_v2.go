@@ -81,6 +81,9 @@ func newMigrateToV2() *cobra.Command {
 			Hidden:      true,
 		},
 	)
+
+	cmd.AddCommand(newTroubleshoot())
+
 	return cmd
 }
 
@@ -441,9 +444,39 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 				header = "(!) An error has occurred. Attempting to rollback changes..."
 			}
 			fmt.Fprintf(m.io.ErrOut, "failed while migrating: %v\n", err)
-			recoveryBlock := render.NewTextBlock(ctx, header)
-			if recoveryErr := m.rollback(ctx, recoveryBlock); recoveryErr != nil {
-				fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
+
+			enterTroubleshooting := false
+			if !flag.GetYes(ctx) && err != abortedErr && m.io.IsInteractive() {
+				askErr := survey.AskOne(&survey.Confirm{
+					Message: "Would you like to enter interactive troubleshooting mode? If not, the migration will be rolled back.",
+					Default: true,
+				}, &enterTroubleshooting)
+				if askErr != nil {
+					enterTroubleshooting = false
+				}
+			}
+
+			if enterTroubleshooting {
+
+				migrateErr := func() error {
+					t, err := newTroubleshooter(ctx, m.appCompact.Name)
+					if err != nil {
+						return err
+					}
+
+					return t.run(ctx)
+				}()
+				if migrateErr != nil {
+					fmt.Fprintf(m.io.ErrOut, "failed while troubleshooting: %v\n", err)
+				} else {
+					err = nil // Printing an error message below a successful troubleshooting run is confusing
+				}
+
+			} else {
+				recoveryBlock := render.NewTextBlock(ctx, header)
+				if recoveryErr := m.rollback(ctx, recoveryBlock); recoveryErr != nil {
+					fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
+				}
 			}
 		}
 	}()
