@@ -508,6 +508,46 @@ primary_region = "%s"
 	assertHasFlag()
 }
 
+// this test is really slow :(
+func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
+	var (
+		err     error
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
+	time.Sleep(3 * time.Second)
+	f.Fly("autoscale set min=3 max=10")
+	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
+	result := f.Fly("status --json")
+
+	var statusMap map[string]any
+	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
+	if err != nil {
+		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
+	}
+	platformVersion, _ := statusMap["PlatformVersion"].(string)
+	require.Equal(f, "machines", platformVersion)
+
+	machines := f.MachinesList(appName)
+	require.Equal(f, 10, len(machines))
+
+	for _, machine := range machines {
+		services := machine.Config.Services
+		require.Equal(f, 1, len(services))
+
+		service := services[0]
+		require.Equal(f, *service.MinMachinesRunning, 3)
+	}
+
+	result = f.Fly("config show -a %s", appName)
+
+	require.Contains(f, result.StdOut().String(), `"min_machines_running": 3,`)
+	require.Contains(f, result.StdOut().String(), `"auto_start_machines": true,`)
+	require.Contains(f, result.StdOut().String(), `"auto_stop_machines": true,`)
+
+}
+
 func TestNoPublicIPDeployMachines(t *testing.T) {
 	var (
 		result *testlib.FlyctlResult

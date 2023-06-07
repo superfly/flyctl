@@ -195,6 +195,7 @@ type v2PlatformMigrator struct {
 	isPostgres              bool
 	pgConsulUrl             string
 	targetImg               string
+	backupMachines          map[string]int
 	verbose                 bool
 }
 
@@ -314,6 +315,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
+		backupMachines: map[string]int{},
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -671,10 +673,6 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
 
-	err = m.validateScaling(ctx)
-	if err != nil {
-		return err
-	}
 	err = m.validateVolumes(ctx)
 	if err != nil {
 		return err
@@ -700,14 +698,7 @@ func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) 
 	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
 		return fmt.Errorf("Your app uses features incompatible with the V2 platform. Please contact support to discuss how to successfully migrate")
 	}
-	return nil
-}
 
-func (m *v2PlatformMigrator) validateScaling(ctx context.Context) error {
-	// FIXME: for now we fail if there is autoscaling.. remove this once we create any extra machines based on autoscaling config
-	if m.autoscaleConfig.Enabled {
-		return fmt.Errorf("cannot migrate app %s with autoscaling config, yet; watch https://community.fly.io for announcements about autoscale support with migrations", m.appCompact.Name)
-	}
 	return nil
 }
 
@@ -896,6 +887,18 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 			s = ""
 		}
 		fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" machine%s\n", count, name, s)
+	}
+
+	if len(m.backupMachines) > 0 {
+
+		fmt.Fprintf(m.io.Out, " * Create autostop machines, copying the configuration of each existing VM\n")
+		for name, count := range m.backupMachines {
+			s := "s"
+			if count == 1 {
+				s = ""
+			}
+			fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" autostop machine%s\n", count, name, s)
+		}
 	}
 
 	if m.isPostgres {
