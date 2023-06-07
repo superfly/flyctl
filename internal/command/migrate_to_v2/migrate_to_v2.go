@@ -698,6 +698,7 @@ func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) 
 	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
 		return fmt.Errorf("Your app uses features incompatible with the V2 platform. Please contact support to discuss how to successfully migrate")
 	}
+
 	return nil
 }
 
