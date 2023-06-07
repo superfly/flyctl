@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -157,7 +158,14 @@ func (t DockerDaemonType) PrefersLocal() bool {
 }
 
 func NewLocalDockerClient() (*dockerclient.Client, error) {
-	c, err := dockerclient.NewClientWithOpts(dockerclient.WithAPIVersionNegotiation())
+	opts := []dockerclient.Opt{dockerclient.WithAPIVersionNegotiation()}
+
+	host, err := exec.Command("docker", "context", "inspect", "-f", "{{ .Endpoints.docker.Host }}").Output()
+	if err == nil {
+		opts = append(opts, dockerclient.WithHost(string(host)))
+	}
+
+	c, err := dockerclient.NewClientWithOpts(opts...)
 	if err != nil {
 		return nil, err
 	}
