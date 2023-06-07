@@ -30,15 +30,15 @@ Oops! We ran into issues migrating your app.
 We're constantly working to improve the migration and squash bugs, but for
 now please let this debug wizard guide you down a yellow brick road
 of potential solutions...
-               ,,,,,                    
-       ,,.,,,,,,,,, .                   
-   .,,,,,,,                             
-  ,,,,,,,,,.,,                          
-     ,,,,,,,,,,,,,,,,,,,                
-         ,,,,,,,,,,,,,,,,,,,,           
-            ,,,,,,,,,,,,,,,,,,,,,       
-           ,,,,,,,,,,,,,,,,,,,,,,,      
-        ,,,,,,,,,,,,,,,,,,,,,,,,,,,,.   
+               ,,,,,
+       ,,.,,,,,,,,, .
+   .,,,,,,,
+  ,,,,,,,,,.,,
+     ,,,,,,,,,,,,,,,,,,,
+         ,,,,,,,,,,,,,,,,,,,,
+            ,,,,,,,,,,,,,,,,,,,,,
+           ,,,,,,,,,,,,,,,,,,,,,,,
+        ,,,,,,,,,,,,,,,,,,,,,,,,,,,,.
    , ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
 
 `
