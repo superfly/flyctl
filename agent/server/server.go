@@ -300,9 +300,6 @@ func (s *server) probeTunnel(ctx context.Context, slug string) (err error) {
 
 	s.printf("probing %q ...", slug)
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
 	var results []net.IP
 	switch results, err = tunnel.LookupAAAA(ctx, "_api.internal"); {
 	case err != nil:
