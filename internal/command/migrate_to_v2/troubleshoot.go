@@ -8,6 +8,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/jpillora/backoff"
+	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -25,11 +26,12 @@ import (
 )
 
 const (
-	yellowBrickRoad = `
+	yellowBrickRoadPreface = `
 Oops! We ran into issues migrating your app.
 We're constantly working to improve the migration and squash bugs, but for
-now please let this debug wizard guide you down a yellow brick road
-of potential solutions...
+now please let this troubleshooting wizard guide you down a yellow brick road
+of potential solutions...`
+	yellowBrickRoadArt = `
                ,,,,,
        ,,.,,,,,,,,, .
    .,,,,,,,
@@ -43,6 +45,15 @@ of potential solutions...
 
 `
 )
+
+func printYellowBrickRoad(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+
+	if io.IsInteractive() {
+		fmt.Fprint(io.Out, aurora.BrightBlack(yellowBrickRoadPreface))
+		fmt.Fprint(io.Out, aurora.BrightYellow(yellowBrickRoadArt))
+	}
+}
 
 func newTroubleshoot() *cobra.Command {
 	const (
@@ -201,7 +212,7 @@ func (t *troubleshooter) run(ctx context.Context) error {
 	//   * we have at least one nomad alloc
 	// (meaning: we've got issues)
 
-	fmt.Fprint(io.Out, yellowBrickRoad)
+	printYellowBrickRoad(ctx)
 
 	if t.app.PlatformVersion != appconfig.MachinesPlatform {
 		err := t.unsuspend(ctx)
