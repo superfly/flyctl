@@ -445,8 +445,13 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 			}
 			fmt.Fprintf(m.io.ErrOut, "failed while migrating: %v\n", err)
 
+			canSuggestTroubleshooting := !flag.GetYes(ctx) && m.io.IsInteractive()
+			if err == abortedErr || strings.Contains(err.Error(), "failed to launch VM: To create more than") {
+				canSuggestTroubleshooting = false
+			}
+
 			enterTroubleshooting := false
-			if !flag.GetYes(ctx) && err != abortedErr && m.io.IsInteractive() {
+			if canSuggestTroubleshooting {
 				askErr := survey.AskOne(&survey.Confirm{
 					Message: "Would you like to enter interactive troubleshooting mode? If not, the migration will be rolled back.",
 					Default: true,
