@@ -77,7 +77,7 @@ func newMigrateToV2() *cobra.Command {
 		},
 	)
 
-	cmd.AddCommand(newDebug())
+	cmd.AddCommand(newTroubleshoot())
 
 	return cmd
 }
