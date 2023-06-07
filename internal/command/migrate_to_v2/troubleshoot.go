@@ -203,8 +203,8 @@ func (t *troubleshooter) run(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
 	if t.app.PlatformVersion == appconfig.MachinesPlatform && len(t.allocs) == 0 {
-
 		fmt.Fprintf(io.Out, "No issues detected.\n")
+		return nil
 	}
 
 	// From here on out we know that we're either
