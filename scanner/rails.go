@@ -48,6 +48,11 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		ConsoleCommand: "/rails/bin/rails console",
 	}
 
+	// don't prompt for pg, redis if litestack is in the Gemfile
+	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
+		s.SkipDatabase = true
+	}
+
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
