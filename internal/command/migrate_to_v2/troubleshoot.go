@@ -24,6 +24,26 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const (
+	yellowBrickRoad = `
+Oops! We ran into issues migrating your app.
+We're constantly working to improve the migration and squash bugs, but for
+now please let this debug wizard guide you down a yellow brick road
+of potential solutions...
+               ,,,,,                    
+       ,,.,,,,,,,,, .                   
+   .,,,,,,,                             
+  ,,,,,,,,,.,,                          
+     ,,,,,,,,,,,,,,,,,,,                
+         ,,,,,,,,,,,,,,,,,,,,           
+            ,,,,,,,,,,,,,,,,,,,,,       
+           ,,,,,,,,,,,,,,,,,,,,,,,      
+        ,,,,,,,,,,,,,,,,,,,,,,,,,,,,.   
+   , ,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,
+
+`
+)
+
 func newTroubleshoot() *cobra.Command {
 	const (
 		usage = `troubleshoot`
@@ -43,13 +63,17 @@ func newTroubleshoot() *cobra.Command {
 	return cmd
 }
 
-func runTroubleshoot(ctx context.Context) error {
+func runTroubleshoot(ctx context.Context) (err error) {
 	var (
-		appName = appconfig.NameFromContext(ctx)
-
+		appName     = appconfig.NameFromContext(ctx)
 		flapsClient *flaps.Client
-		err         error
 	)
+
+	defer func() {
+		if err != nil {
+			err = wrapTroubleshootingErrWithSuggestions(err)
+		}
+	}()
 
 	flapsClient, err = flaps.NewFromAppName(ctx, appName)
 	if err != nil {
@@ -64,6 +88,10 @@ func runTroubleshoot(ctx context.Context) error {
 	}
 
 	return t.run(ctx)
+}
+
+func wrapTroubleshootingErrWithSuggestions(err error) error {
+	return fmt.Errorf("%w\nplease try running `fly migrate-to-v2 troubleshoot` later, or contact hello@fly.io\n", err)
 }
 
 type troubleshooter struct {
@@ -160,6 +188,18 @@ func (t *troubleshooter) hasMigrated(ctx context.Context) bool {
 func (t *troubleshooter) run(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
+	if t.app.PlatformVersion == appconfig.MachinesPlatform && len(t.allocs) == 0 {
+
+		fmt.Fprintf(io.Out, "No issues detected.\n")
+	}
+
+	// From here on out we know that we're either
+	//   * not on the machines platform, or
+	//   * we have at least one nomad alloc
+	// (meaning: we've got issues)
+
+	fmt.Fprint(io.Out, yellowBrickRoad)
+
 	if t.app.PlatformVersion != appconfig.MachinesPlatform {
 		err := t.unsuspend(ctx)
 		if err != nil {
@@ -167,7 +207,14 @@ func (t *troubleshooter) run(ctx context.Context) error {
 		}
 	}
 
-	if t.app.PlatformVersion == appconfig.DetachedPlatform {
+	switch t.app.PlatformVersion {
+	case appconfig.NomadPlatform:
+		// Already handled in newTroubleshooter by the hasMigrated check
+		return nil
+	case appconfig.MachinesPlatform:
+		fmt.Fprintf(io.Out, "Detected Nomad VMs running on V2 app, cleaning up.\n")
+		return t.cleanupNomadSwitchToMachines(ctx)
+	case appconfig.DetachedPlatform:
 		fmt.Fprintf(io.Out, `The app's platform version is 'detached'
 This means that the app is stuck in a half-migrated state, and wasn't able to
 be fully recovered during the migration error rollback process.
@@ -178,16 +225,7 @@ Please use these tools to troubleshoot and attempt to repair the app.
 		return t.detachedInteractiveTroubleshoot(ctx)
 	}
 
-	if t.app.PlatformVersion == appconfig.MachinesPlatform {
-		if len(t.allocs) != 0 {
-			fmt.Fprintf(io.Out, "Detected Nomad VMs running on V2 app, cleaning up.\n")
-			return t.cleanupNomadSwitchToMachines(ctx)
-		}
-	}
-
-	fmt.Fprintf(io.Out, "No issues detected.\n")
-
-	return nil
+	return fmt.Errorf("unknown platform version: %s", t.app.PlatformVersion)
 }
 
 const timedOutErr = "timed out"
@@ -353,6 +391,11 @@ func (t *troubleshooter) detachedInteractiveTroubleshoot(ctx context.Context) er
 	if len(t.allocs) == 0 {
 		fmt.Fprintf(io.Out, "No legacy Nomad VMs found. Setting platform version to machines/Apps V2.\n")
 		return t.setPlatformVersion(ctx, appconfig.MachinesPlatform)
+	}
+
+	if !io.IsInteractive() {
+		fmt.Fprintf(io.Out, "Troubleshooting mode is intended for interactive use.\nOutput of autodiagnose:\n%s\n", t.detachedAutodiagnose(ctx))
+		return nil
 	}
 
 	const (
