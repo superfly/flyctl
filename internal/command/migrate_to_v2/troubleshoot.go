@@ -91,7 +91,10 @@ func runTroubleshoot(ctx context.Context) (err error) {
 }
 
 func wrapTroubleshootingErrWithSuggestions(err error) error {
-	return fmt.Errorf("%w\nplease try running `fly migrate-to-v2 troubleshoot` later, or contact hello@fly.io\n", err)
+	return fmt.Errorf("%w%s", err, `
+please try running 'fly migrate-to-v2 troubleshoot' later.
+if the problem persists, try bringing it up in the community forum (https://community.fly.io),
+or if you have one, your plan's support mailbox`)
 }
 
 type troubleshooter struct {
