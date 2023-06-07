@@ -91,7 +91,7 @@ func (m *v2PlatformMigrator) prepMachinesToCreate(ctx context.Context) (err erro
 
 func (m *v2PlatformMigrator) prepAutoscaleMachinesToCreate(ctx context.Context) error {
 	// If the service being migrated doesn't use autoscaling, just return nil
-	if m.autoscaleConfig == nil {
+	if m.autoscaleConfig == nil || !m.autoscaleConfig.Enabled {
 		return nil
 	}
 
