@@ -29,11 +29,12 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s := &SourceInfo{
 		Env: map[string]string{
-			"APP_ENV":              "production",
-			"LOG_CHANNEL":          "stderr",
-			"LOG_LEVEL":            "info",
-			"LOG_STDERR_FORMATTER": "Monolog\\Formatter\\JsonFormatter",
-			"SESSION_DRIVER":       "cookie",
+			"APP_ENV":               "production",
+			"LOG_CHANNEL":           "stderr",
+			"LOG_LEVEL":             "info",
+			"LOG_STDERR_FORMATTER":  "Monolog\\Formatter\\JsonFormatter",
+			"SESSION_DRIVER":        "cookie",
+			"SESSION_SECURE_COOKIE": "true",
 		},
 		Family: "Laravel",
 		Files:  files,
