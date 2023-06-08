@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -162,7 +163,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 
 	host, err := exec.Command("docker", "context", "inspect", "-f", "{{ .Endpoints.docker.Host }}").Output()
 	if err == nil {
-		opts = append(opts, dockerclient.WithHost(string(host)))
+		opts = append(opts, dockerclient.WithHost(strings.TrimSpace(string(host))))
 	}
 
 	c, err := dockerclient.NewClientWithOpts(opts...)
@@ -174,7 +175,8 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 		return nil, err
 	}
 
-	if _, err = c.Ping(context.TODO()); err != nil {
+	p, err := c.Ping(context.TODO())
+	if err != nil {
 		return nil, err
 	}
 
