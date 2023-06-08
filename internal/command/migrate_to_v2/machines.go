@@ -178,6 +178,8 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 
 		// workaround for `maa` region deprecation
 		if machineInput.Region == "maa" {
+			io := iostreams.FromContext(ctx)
+			fmt.Fprintf(io.Out, "Region 'maa' is deprecated, creating machine in fallback region 'bom'")
 			machineInput.Region = "bom"
 		}
 
