@@ -175,8 +175,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 		return nil, err
 	}
 
-	p, err := c.Ping(context.TODO())
-	if err != nil {
+	if _, err := c.Ping(context.TODO()); err != nil {
 		return nil, err
 	}
 
