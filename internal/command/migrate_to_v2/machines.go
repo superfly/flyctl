@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLaunch bool) (*api.LaunchMachineInput, error) {
@@ -175,6 +176,14 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 				Volume: nv.vol.ID,
 			}}
 		}
+
+		// workaround for `maa` region deprecation
+		if machineInput.Region == "maa" {
+			io := iostreams.FromContext(ctx)
+			fmt.Fprintf(io.Out, "Region 'maa' is deprecated, creating machine in fallback region 'bom'\n")
+			machineInput.Region = "bom"
+		}
+
 		// Launch machine
 		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
 		if err != nil {
