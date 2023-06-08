@@ -175,6 +175,12 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 				Volume: nv.vol.ID,
 			}}
 		}
+
+		// workaround for `maa` region deprecation
+		if machineInput.Region == "maa" {
+			machineInput.Region = "bom"
+		}
+
 		// Launch machine
 		newMachine, err := m.flapsClient.Launch(ctx, *machineInput)
 		if err != nil {
