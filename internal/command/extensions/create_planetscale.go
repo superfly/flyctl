@@ -71,12 +71,14 @@ func runPlanetscaleCreate(ctx context.Context) (err error) {
 			return err
 		}
 
+		fmt.Fprintf(io.Out, "Created PlanetScale database %s for app %s\n", createAddOnResponse.CreateAddOn.AddOn.Name, appName)
+		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
+
 		env := make(map[string]string)
 		for key, value := range createAddOnResponse.CreateAddOn.AddOn.Environment.(map[string]interface{}) {
 			env[key] = value.(string)
+			fmt.Println(key)
 		}
-
-		fmt.Fprintf(io.Out, "%+v", env)
 
 		secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
 
