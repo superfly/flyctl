@@ -17,7 +17,7 @@ import (
 func newPlanetscaleCreate() (cmd *cobra.Command) {
 
 	const (
-		short = "Provision a Sentry project for a Fly.io app"
+		short = "Provision a PlanetScale project for a Fly.io app"
 		long  = short + "\n"
 	)
 
@@ -82,7 +82,7 @@ func runPlanetscaleCreate(ctx context.Context) (err error) {
 
 		return nil
 	} else {
-		fmt.Fprintln(io.Out, "A Planetscale project already exists for this app")
+		fmt.Fprintln(io.Out, "A PlanetScale database already exists for this app")
 	}
 
 	return
