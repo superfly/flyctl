@@ -163,8 +163,6 @@ func (t *troubleshooter) refreshAllocs(ctx context.Context) error {
 }
 
 func (t *troubleshooter) hasMigrated(ctx context.Context) bool {
-	client := client.FromContext(ctx).API()
-
 	if t.app.PlatformVersion == appconfig.DetachedPlatform {
 		return true
 	}
@@ -183,20 +181,7 @@ func (t *troubleshooter) hasMigrated(ctx context.Context) bool {
 		}
 	}
 
-	// Look for a release created by admin-bot@fly.io
-	releases, err := client.GetAppReleasesMachines(ctx, t.app.Name, "", 25)
-	if err != nil {
-		return false
-	}
-	for _, release := range releases {
-		// Technically, I don't think this is the only time we could use admin-bot@fly.io,
-		// but we use it infrequently and soon we'll be done dealing with this,
-		// so it's probably an acceptable way to determine this for now.
-		if release.User.Email == "admin-bot@fly.io" {
-			return true
-		}
-	}
-	return false
+	return true
 }
 
 func (t *troubleshooter) run(ctx context.Context) error {
