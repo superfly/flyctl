@@ -2,16 +2,10 @@ package extensions
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newPlanetscaleCreate() (cmd *cobra.Command) {
@@ -25,67 +19,19 @@ func newPlanetscaleCreate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Org(),
+		flag.Region(),
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of your Redis database",
+		},
 	)
 	return cmd
 }
 
 func runPlanetscaleCreate(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API().GenqClient
-	io := iostreams.FromContext(ctx)
-	appName := appconfig.NameFromContext(ctx)
-
-	if err != nil {
-		return err
-	}
-
-	// Fetch the target organization from the app
-	appResponse, err := gql.GetApp(ctx, client, appName)
-
-	if err != nil {
-		return err
-	}
-
-	targetApp := appResponse.App.AppData
-	targetOrg := targetApp.Organization
-
-	if err != nil {
-		return err
-	}
-
-	// Fetch or create the Logtail integration for the app
-
-	_, err = gql.GetAddOn(ctx, client, appName)
-
-	if err != nil {
-
-		input := gql.CreateAddOnInput{
-			OrganizationId: targetOrg.Id,
-			Name:           appName,
-			AppId:          targetApp.Id,
-			Type:           "planetscale",
-		}
-
-		createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
-
-		if err != nil {
-			return err
-		}
-
-		fmt.Fprintf(io.Out, "Created PlanetScale database %s for app %s\n", createAddOnResponse.CreateAddOn.AddOn.Name, appName)
-		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
-
-		env := make(map[string]string)
-		for key, value := range createAddOnResponse.CreateAddOn.AddOn.Environment.(map[string]interface{}) {
-			env[key] = value.(string)
-			fmt.Println(key)
-		}
-
-		secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
-
-		return nil
-	} else {
-		fmt.Fprintln(io.Out, "A PlanetScale database already exists for this app")
-	}
+	_, err = ProvisionExtension(ctx, "planetscale")
 
 	return
 }

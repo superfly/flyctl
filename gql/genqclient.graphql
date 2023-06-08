@@ -133,3 +133,13 @@ mutation DeleteAddOn($name: String) {
 		deletedAddOnName
 	}
 }
+
+query GetAddOnProvider($name: String!) {
+	addOnProvider(name: $name) {
+		id
+		name
+		excludedRegions {
+			code
+		}
+	}
+}

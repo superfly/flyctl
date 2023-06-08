@@ -37,18 +37,6 @@ func New() (cmd *cobra.Command) {
 func GetExcludedRegions(ctx context.Context) (excludedRegions []string, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 
-	_ = `# @genqlient
-	query GetAddOnProvider($name: String!) {
-		addOnProvider(name: $name) {
-			id
-			name
-			excludedRegions {
-				code
-			}
-		}
-	}
-	`
-
 	response, err := gql.GetAddOnProvider(ctx, client, "upstash_redis")
 
 	if err != nil {
