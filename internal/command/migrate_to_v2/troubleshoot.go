@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -21,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -137,6 +139,58 @@ func newTroubleshooter(ctx context.Context, appName string) (*troubleshooter, er
 	return t, nil
 }
 
+func (t *troubleshooter) unlockApp(ctx context.Context) error {
+	var (
+		apiClient = client.FromContext(ctx).API()
+		io        = iostreams.FromContext(ctx)
+	)
+
+	_ = `# @genqlient
+	query GetAppLock($appName: String!) {
+        app(name: $appName) {
+			# @genqlient(pointer: true)
+			currentLock {
+				lockId
+				expiration
+			}
+        }
+	}
+	`
+	resp, err := gql.GetAppLock(ctx, apiClient.GenqClient, t.app.Name)
+	if err != nil {
+		return err
+	}
+	lock := resp.App.CurrentLock
+	if lock == nil {
+		return nil
+	}
+
+	if io.IsInteractive() {
+		removeLock := true
+		fmt.Fprintf(io.Out, "The app is currently locked - this lock expires at %s\n", format.Time(lock.Expiration))
+		askErr := survey.AskOne(&survey.Confirm{
+			Message: "Remove this lock?",
+			Default: true,
+		}, &removeLock)
+		if askErr != nil {
+			removeLock = true
+		}
+		if !removeLock {
+			return fmt.Errorf("cannot troubleshoot app while it is locked")
+		}
+	}
+
+	_, err = gql.UnlockApp(ctx, apiClient.GenqClient, gql.UnlockAppInput{
+		AppId:  t.app.ID,
+		LockId: lock.LockId,
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (t *troubleshooter) refreshMachines(ctx context.Context) error {
 
 	flapsClient := flaps.FromContext(ctx)
@@ -180,6 +234,11 @@ func (t *troubleshooter) run(ctx context.Context) error {
 	// (meaning: we've got issues)
 
 	printYellowBrickRoad(ctx)
+
+	err := t.unlockApp(ctx)
+	if err != nil {
+		return err
+	}
 
 	if t.app.PlatformVersion != appconfig.MachinesPlatform {
 		err := t.unsuspend(ctx)
