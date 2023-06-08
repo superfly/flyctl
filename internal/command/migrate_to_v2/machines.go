@@ -10,6 +10,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLaunch bool) (*api.LaunchMachineInput, error) {
