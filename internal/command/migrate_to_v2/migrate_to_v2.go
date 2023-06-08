@@ -245,10 +245,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 
 	var img string
 	switch {
-	case appFull.ImageDetails.Tag != "":
-		img = fmt.Sprintf("%s/%s:%s", appFull.ImageDetails.Registry, appFull.ImageDetails.Repository, appFull.ImageDetails.Tag)
 	case appFull.ImageDetails.Digest != "":
 		img = fmt.Sprintf("%s/%s@%s", appFull.ImageDetails.Registry, appFull.ImageDetails.Repository, appFull.ImageDetails.Digest)
+	case appFull.ImageDetails.Tag != "":
+		img = fmt.Sprintf("%s/%s:%s", appFull.ImageDetails.Registry, appFull.ImageDetails.Repository, appFull.ImageDetails.Tag)
 	default:
 		return nil, fmt.Errorf("failed to get image info: no tag or digest found")
 	}
