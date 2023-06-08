@@ -33,6 +33,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 			"LOG_CHANNEL":          "stderr",
 			"LOG_LEVEL":            "info",
 			"LOG_STDERR_FORMATTER": "Monolog\\Formatter\\JsonFormatter",
+			"SESSION_DRIVER":       "cookie",
 		},
 		Family: "Laravel",
 		Files:  files,
