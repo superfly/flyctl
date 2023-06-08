@@ -328,6 +328,17 @@ func TestToMachineConfig_services(t *testing.T) {
 			InternalPort: 1004,
 			Autostart:    nil,
 			Autostop:     nil,
+			Checks: []api.MachineCheck{
+				{
+					Port: api.Pointer(9090),
+					Type: api.Pointer("tcp"),
+				}, {
+					Port:       api.Pointer(2020),
+					Type:       api.Pointer("http"),
+					HTTPMethod: api.Pointer("GET"),
+					HTTPPath:   api.Pointer("/"),
+				},
+			},
 		},
 	}
 

@@ -3,7 +3,6 @@ package appconfig
 import (
 	"fmt"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/sentry"
 )
@@ -24,6 +23,7 @@ type Service struct {
 }
 
 type ServiceTCPCheck struct {
+	Port        *int          `json:"port,omitempty" toml:"port,omitempty"`
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
@@ -32,6 +32,7 @@ type ServiceTCPCheck struct {
 }
 
 type ServiceHTTPCheck struct {
+	Port        *int          `json:"port,omitempty" toml:"port,omitempty"`
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
@@ -114,7 +115,12 @@ func (svc *Service) toMachineService() *api.MachineService {
 }
 
 func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
+	var httpHeaders []api.MachineHTTPHeader
+	for k, v := range chk.HTTPHeaders {
+		httpHeaders = append(httpHeaders, api.MachineHTTPHeader{Name: k, Values: []string{v}})
+	}
 	return &api.MachineCheck{
+		Port:              chk.Port,
 		Type:              api.Pointer("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
@@ -123,10 +129,7 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
-		HTTPHeaders: lo.MapToSlice(
-			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
-				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
-			}),
+		HTTPHeaders:       httpHeaders,
 	}
 }
 
@@ -136,6 +139,7 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 
 func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
 	return &api.MachineCheck{
+		Port:        chk.Port,
 		Type:        api.Pointer("tcp"),
 		Interval:    chk.Interval,
 		Timeout:     chk.Timeout,

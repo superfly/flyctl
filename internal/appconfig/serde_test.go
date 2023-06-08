@@ -495,6 +495,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
+						Port:         api.Pointer(1001),
 						Interval:     api.MustParseDuration("21s"),
 						Timeout:      api.MustParseDuration("4s"),
 						GracePeriod:  api.MustParseDuration("1s"),
@@ -504,6 +505,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
+						Port:              api.Pointer(2020),
 						Interval:          api.MustParseDuration("81s"),
 						Timeout:           api.MustParseDuration("7s"),
 						GracePeriod:       api.MustParseDuration("2s"),

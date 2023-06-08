@@ -111,12 +111,14 @@ console_command = "/bin/bash"
     force_https = true
 
   [[services.tcp_checks]]
+    port = 1001
     interval = "21s"
     timeout = "4s"
     grace_period = "1s"
     restart_limit = 3
 
   [[services.http_checks]]
+    port = 2020
     interval = "1m21s"
     timeout = "7s"
     grace_period = "2s"
