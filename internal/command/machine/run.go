@@ -202,12 +202,11 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName  = appconfig.NameFromContext(ctx)
-		client   = client.FromContext(ctx).API()
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		err      error
-		app      *api.AppCompact
+		appName = appconfig.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
+		io      = iostreams.FromContext(ctx)
+		err     error
+		app     *api.AppCompact
 	)
 
 	if appName == "" {
@@ -321,8 +320,6 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if !flag.GetDetach(ctx) {
-		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
-
 		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
 			return err
 		}
