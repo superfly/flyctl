@@ -37,7 +37,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-var defaultWaitTimeout = 5 * time.Minute
+const defaultWaitTimeout = 5 * time.Minute
 
 func New() *cobra.Command {
 	return newMigrateToV2()
