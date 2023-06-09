@@ -9,6 +9,7 @@ operations:
   - internal/command/**/*.go
   - internal/command/**/**/*.go
   - internal/build/imgsrc/*.go
+  - scripts/clean-up-preflight-apps/*.go
 bindings:
   JSON:
     type: interface{}
