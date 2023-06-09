@@ -62,6 +62,7 @@ func run() error {
 			cmd := exec.CommandContext(ctx, flyctlBin, cmdParts[1:]...)
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
+			cmd.Env = append(cmd.Env, os.Environ()...)
 			cmd.Env = append(cmd.Env, fmt.Sprintf("FLY_API_TOKEN=%s", os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG")))
 			fmt.Fprintln(os.Stderr, cmdStr)
 			err = cmd.Start()
