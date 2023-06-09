@@ -114,9 +114,9 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	}
 
 	s.handler = args[0]
+	metrics.Started(ctx, s.metricKeyStatus())
 	finishTiming := metrics.StartTiming(ctx, s.metricKeyDuration())
 	defer finishTiming()
-	metrics.Started(ctx, s.metricKeyStatus())
 	fn(s, ctx, args[1:]...)
 }
 
