@@ -1,0 +1,55 @@
+name: Preflight Tests Cleanup
+
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: Brief reason for running this workflow manually
+        required: false
+        default: User initiated run
+        type: string
+  push:
+    branches: [master, preflight-cleanup]
+
+jobs:
+  preflight-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Run cleanup script
+        env:
+          FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
+          FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
+          FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
+          FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
+        run: |
+          go run ./scripts/clean-up-preflight-apps
+      - name: Post failure to slack
+        if: ${{ github.ref == 'refs/heads/master' && failure() }}
+        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        with:
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": ":warning: preflight test cleanup failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
