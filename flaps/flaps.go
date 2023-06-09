@@ -362,7 +362,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 
 	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &machines, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list VMs: %w", err)
+		return nil, fmt.Errorf("failed to list active VMs: %w", err)
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
@@ -395,7 +395,7 @@ func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.
 		}
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list VMs: %w", err)
+		return nil, nil, fmt.Errorf("failed to list VMs even after %d retries: %w", tries, err)
 	}
 	var releaseCmdMachine *api.Machine
 	machines := make([]*api.Machine, 0)
