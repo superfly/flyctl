@@ -163,40 +163,7 @@ func (t *troubleshooter) refreshAllocs(ctx context.Context) error {
 }
 
 func (t *troubleshooter) hasMigrated(ctx context.Context) bool {
-	client := client.FromContext(ctx).API()
-
-	if t.app.PlatformVersion == appconfig.DetachedPlatform {
-		return true
-	}
-
-	// Check that the app is not currently on nomad
-	if t.app.PlatformVersion == appconfig.NomadPlatform {
-		return false
-	}
-
-	// Look for a machine tied to a previous alloc
-	for _, machine := range t.machines {
-		if machine.Config != nil && machine.Config.Metadata != nil {
-			if _, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc]; ok {
-				return true
-			}
-		}
-	}
-
-	// Look for a release created by admin-bot@fly.io
-	releases, err := client.GetAppReleasesMachines(ctx, t.app.Name, "", 25)
-	if err != nil {
-		return false
-	}
-	for _, release := range releases {
-		// Technically, I don't think this is the only time we could use admin-bot@fly.io,
-		// but we use it infrequently and soon we'll be done dealing with this,
-		// so it's probably an acceptable way to determine this for now.
-		if release.User.Email == "admin-bot@fly.io" {
-			return true
-		}
-	}
-	return false
+	return t.app.PlatformVersion != appconfig.NomadPlatform
 }
 
 func (t *troubleshooter) run(ctx context.Context) error {
