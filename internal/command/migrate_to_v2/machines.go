@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -207,7 +206,7 @@ func (m *v2PlatformMigrator) createMachines(ctx context.Context) error {
 	}
 
 	for _, mach := range newlyCreatedMachines {
-		err := machine.WaitForStartOrStop(ctx, mach.machine, mach.expectedState, time.Minute*5)
+		err := machine.WaitForStartOrStop(ctx, mach.machine, mach.expectedState, m.machineWaitTimeout)
 		if err != nil {
 			return err
 		}

@@ -37,6 +37,8 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const defaultWaitTimeout = 5 * time.Minute
+
 func New() *cobra.Command {
 	return newMigrateToV2()
 }
@@ -79,6 +81,12 @@ func newMigrateToV2() *cobra.Command {
 			Name:        "verbose",
 			Description: "Verbose output for automated migrations",
 			Hidden:      true,
+		},
+		flag.Duration{
+			Name:        "wait-timeout",
+			Description: "duration to wait for new machines to start before failing the migration.",
+			Hidden:      true,
+			Default:     defaultWaitTimeout,
 		},
 	)
 
@@ -200,6 +208,7 @@ type v2PlatformMigrator struct {
 	targetImg               string
 	backupMachines          map[string]int
 	verbose                 bool
+	machineWaitTimeout      time.Duration
 }
 
 type recoveryState struct {
@@ -315,7 +324,8 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
-		backupMachines: map[string]int{},
+		backupMachines:     map[string]int{},
+		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -803,9 +813,17 @@ func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platf
 }
 
 func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
+	// We shouldn't have to wait as long to deploy because the machines have already been created
+	// and updates are much faster since there's no need to re-pull the image.
+	waitTimeout := time.Duration((2 * len(m.newMachines.GetMachines()))) * time.Minute
+	if waitTimeout < defaultWaitTimeout {
+		waitTimeout = defaultWaitTimeout
+	}
+
 	input := deploy.MachineDeploymentArgs{
 		AppCompact:  m.appCompact,
 		RestartOnly: true,
+		WaitTimeout: waitTimeout,
 	}
 	if m.isPostgres {
 		if len(m.appConfig.Mounts) > 0 {
