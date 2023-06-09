@@ -10,8 +10,6 @@ on:
         required: false
         default: User initiated run
         type: string
-  push:
-    branches: [master, preflight-cleanup]
 
 jobs:
   preflight-tests:
