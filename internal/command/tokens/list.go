@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -64,7 +63,7 @@ func runList(ctx context.Context) (err error) {
 		}
 
 	case "org":
-		org, err := orgs.OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
+		org, err := orgs.OrgFromFirstArgOrSelect(ctx)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
