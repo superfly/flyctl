@@ -26,10 +26,31 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		return nil, nil
 	}
 
+	// verify that the bundle will install before proceeding
+	args := []string{"install"}
+
+	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
+		args = append(args, "--quiet")
+	}
+
+	cmd := exec.Command("bundle", args...)
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return nil, errors.Wrap(err, "Failed to install bundle, exiting")
+	}
+
 	s := &SourceInfo{
 		Family:         "Rails",
 		Callback:       RailsCallback,
 		ConsoleCommand: "/rails/bin/rails console",
+	}
+
+	// don't prompt for pg, redis if litestack is in the Gemfile
+	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
+		s.SkipDatabase = true
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
@@ -163,7 +184,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to generate Dockefile")
+			return errors.Wrap(err, "Failed to generate Dockerfile")
 		}
 	} else {
 		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {

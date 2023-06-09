@@ -63,9 +63,9 @@ func emailFromSecondArgOrPrompt(ctx context.Context) (email string, err error) {
 
 var errSlugArgMustBeSpecified = prompt.NonInteractiveError("slug argument must be specified when not running interactively")
 
-func slugFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (slug string, err error) {
-	if slug = flag.FirstArg(ctx); slug != "" {
-		return
+func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.OrganizationFilter) (slug string, err error) {
+	if orgSlug != "" {
+		return orgSlug, nil
 	}
 
 	io := iostreams.FromContext(ctx)
@@ -94,7 +94,16 @@ func slugFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFi
 }
 
 func OrgFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
-	slug, err := slugFromFirstArgOrSelect(ctx, filters...)
+	slug, err := slugFromArgOrSelect(ctx, flag.FirstArg(ctx), filters...)
+	if err != nil {
+		return nil, err
+	}
+
+	return OrgFromSlug(ctx, slug)
+}
+
+func OrgFromFlagOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
+	slug, err := slugFromArgOrSelect(ctx, flag.GetOrg(ctx), filters...)
 	if err != nil {
 		return nil, err
 	}

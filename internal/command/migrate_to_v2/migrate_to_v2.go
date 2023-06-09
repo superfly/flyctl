@@ -75,7 +75,15 @@ func newMigrateToV2() *cobra.Command {
 			Name:        "primary-region",
 			Description: "Specify primary region if one is not set in fly.toml",
 		},
+		flag.Bool{
+			Name:        "verbose",
+			Description: "Verbose output for automated migrations",
+			Hidden:      true,
+		},
 	)
+
+	cmd.AddCommand(newTroubleshoot())
+
 	return cmd
 }
 
@@ -121,15 +129,13 @@ func runMigrateToV2(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	if !flag.GetYes(ctx) {
-		confirm, err := migrator.ConfirmChanges(ctx)
-		if err != nil {
-			return err
-		}
-		if !confirm {
-			sendMetric = false
-			return nil
-		}
+	confirm, err := migrator.ConfirmChanges(ctx)
+	if err != nil {
+		return err
+	}
+	if !confirm {
+		sendMetric = false
+		return nil
 	}
 	err = migrator.Migrate(ctx)
 	if err != nil {
@@ -192,6 +198,8 @@ type v2PlatformMigrator struct {
 	isPostgres              bool
 	pgConsulUrl             string
 	targetImg               string
+	backupMachines          map[string]int
+	verbose                 bool
 }
 
 type recoveryState struct {
@@ -234,16 +242,13 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
-	imageInfo, err := apiClient.GetImageInfo(ctx, appName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get image info: %w", err)
-	}
+
 	var img string
 	switch {
-	case imageInfo.ImageDetails.Tag != "":
-		img = fmt.Sprintf("%s/%s:%s", imageInfo.ImageDetails.Registry, imageInfo.ImageDetails.Repository, imageInfo.ImageDetails.Tag)
-	case imageInfo.ImageDetails.Digest != "":
-		img = fmt.Sprintf("%s/%s@%s", imageInfo.ImageDetails.Registry, imageInfo.ImageDetails.Repository, imageInfo.ImageDetails.Digest)
+	case appFull.ImageDetails.Digest != "":
+		img = fmt.Sprintf("%s/%s@%s", appFull.ImageDetails.Registry, appFull.ImageDetails.Repository, appFull.ImageDetails.Digest)
+	case appFull.ImageDetails.Tag != "":
+		img = fmt.Sprintf("%s/%s:%s", appFull.ImageDetails.Registry, appFull.ImageDetails.Repository, appFull.ImageDetails.Tag)
 	default:
 		return nil, fmt.Errorf("failed to get image info: no tag or digest found")
 	}
@@ -251,8 +256,19 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+
+	// sort allocs by version descending
+	slices.SortFunc(allocs, func(i, j *api.AllocationStatus) bool {
+		return i.Version > j.Version
+	})
+
+	var highestVersion int
 	allocs = lo.Filter(allocs, func(alloc *api.AllocationStatus, _ int) bool {
-		return alloc.Status == "running" && alloc.LatestVersion
+		if alloc.Status == "running" && alloc.Version >= highestVersion {
+			highestVersion = alloc.Version
+			return true
+		}
+		return false
 	})
 
 	attachedVolumes := lo.Filter(appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
@@ -295,9 +311,11 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
 		replacedVolumes:         map[string]int{},
+		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
+		backupMachines: map[string]int{},
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -423,9 +441,44 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 				header = "(!) An error has occurred. Attempting to rollback changes..."
 			}
 			fmt.Fprintf(m.io.ErrOut, "failed while migrating: %v\n", err)
-			recoveryBlock := render.NewTextBlock(ctx, header)
-			if recoveryErr := m.rollback(ctx, recoveryBlock); recoveryErr != nil {
-				fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
+
+			canSuggestTroubleshooting := !flag.GetYes(ctx) && m.io.IsInteractive()
+			if err == abortedErr || strings.Contains(err.Error(), "failed to launch VM: To create more than") {
+				canSuggestTroubleshooting = false
+			}
+
+			enterTroubleshooting := false
+			if canSuggestTroubleshooting {
+				askErr := survey.AskOne(&survey.Confirm{
+					Message: "Would you like to enter interactive troubleshooting mode? If not, the migration will be rolled back.",
+					Default: true,
+				}, &enterTroubleshooting)
+				if askErr != nil {
+					enterTroubleshooting = false
+				}
+			}
+
+			if enterTroubleshooting {
+
+				migrateErr := func() error {
+					t, err := newTroubleshooter(ctx, m.appCompact.Name)
+					if err != nil {
+						return err
+					}
+
+					return t.run(ctx)
+				}()
+				if migrateErr != nil {
+					fmt.Fprintf(m.io.ErrOut, "failed while troubleshooting: %v\n", err)
+				} else {
+					err = nil // Printing an error message below a successful troubleshooting run is confusing
+				}
+
+			} else {
+				recoveryBlock := render.NewTextBlock(ctx, header)
+				if recoveryErr := m.rollback(ctx, recoveryBlock); recoveryErr != nil {
+					fmt.Fprintf(m.io.ErrOut, "failed while rolling back application: %v\n", recoveryErr)
+				}
 			}
 		}
 	}()
@@ -655,10 +708,6 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
 
-	err = m.validateScaling(ctx)
-	if err != nil {
-		return err
-	}
 	err = m.validateVolumes(ctx)
 	if err != nil {
 		return err
@@ -684,14 +733,7 @@ func (m *v2PlatformMigrator) validateKnownUnmigratableApps(ctx context.Context) 
 	if slices.Contains(knownUnmigratableApps, m.appCompact.ID) {
 		return fmt.Errorf("Your app uses features incompatible with the V2 platform. Please contact support to discuss how to successfully migrate")
 	}
-	return nil
-}
 
-func (m *v2PlatformMigrator) validateScaling(ctx context.Context) error {
-	// FIXME: for now we fail if there is autoscaling.. remove this once we create any extra machines based on autoscaling config
-	if m.autoscaleConfig.Enabled {
-		return fmt.Errorf("cannot migrate app %s with autoscaling config, yet; watch https://community.fly.io for announcements about autoscale support with migrations", m.appCompact.Name)
-	}
 	return nil
 }
 
@@ -882,6 +924,18 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" machine%s\n", count, name, s)
 	}
 
+	if len(m.backupMachines) > 0 {
+
+		fmt.Fprintf(m.io.Out, " * Create autostop machines, copying the configuration of each existing VM\n")
+		for name, count := range m.backupMachines {
+			s := "s"
+			if count == 1 {
+				s = ""
+			}
+			fmt.Fprintf(m.io.Out, "   * Create %d \"%s\" autostop machine%s\n", count, name, s)
+		}
+	}
+
 	if m.isPostgres {
 		fmt.Fprintf(m.io.Out, " * Wait for at least one new in-region PG replica to become synced\n")
 	}
@@ -899,6 +953,10 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		} else {
 			fmt.Fprintf(m.io.Out, " * Save the app's config file to '%s'\n", m.configPath)
 		}
+	}
+
+	if flag.GetYes(ctx) {
+		return true, nil
 	}
 
 	confirm := false

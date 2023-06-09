@@ -152,7 +152,10 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 					}
 				}
 				imageDetails {
+					registry
 					repository
+					tag
+					digest
 					version
 				}
 				volumes {
