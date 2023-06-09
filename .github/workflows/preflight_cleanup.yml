@@ -26,12 +26,13 @@ jobs:
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - uses: superfly/flyctl-actions/setup-flyctl@master
+      - run: flyctl auth whoami
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
       - name: Run cleanup script
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-          FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
-          FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
         run: |
           go run ./scripts/clean-up-preflight-apps
       - name: Post failure to slack
