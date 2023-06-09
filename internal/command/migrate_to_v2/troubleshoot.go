@@ -163,25 +163,7 @@ func (t *troubleshooter) refreshAllocs(ctx context.Context) error {
 }
 
 func (t *troubleshooter) hasMigrated(ctx context.Context) bool {
-	if t.app.PlatformVersion == appconfig.DetachedPlatform {
-		return true
-	}
-
-	// Check that the app is not currently on nomad
-	if t.app.PlatformVersion == appconfig.NomadPlatform {
-		return false
-	}
-
-	// Look for a machine tied to a previous alloc
-	for _, machine := range t.machines {
-		if machine.Config != nil && machine.Config.Metadata != nil {
-			if _, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc]; ok {
-				return true
-			}
-		}
-	}
-
-	return true
+	return t.app.PlatformVersion != appconfig.NomadPlatform
 }
 
 func (t *troubleshooter) run(ctx context.Context) error {
