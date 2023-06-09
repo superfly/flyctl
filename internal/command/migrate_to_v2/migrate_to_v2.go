@@ -813,10 +813,17 @@ func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platf
 }
 
 func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
+	// We shouldn't have to wait as long to deploy because the machines have already been created
+	// and updates are much faster since there's no need to re-pull the image.
+	waitTimeout := time.Duration((2 * len(m.newMachines.GetMachines()))) * time.Minute
+	if waitTimeout < defaultWaitTimeout {
+		waitTimeout = defaultWaitTimeout
+	}
+
 	input := deploy.MachineDeploymentArgs{
 		AppCompact:  m.appCompact,
 		RestartOnly: true,
-		WaitTimeout: m.machineWaitTimeout,
+		WaitTimeout: waitTimeout,
 	}
 	if m.isPostgres {
 		if len(m.appConfig.Mounts) > 0 {
