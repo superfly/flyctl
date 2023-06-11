@@ -169,6 +169,50 @@ type AgentGetInstancesResponse struct {
 // GetApp returns AgentGetInstancesResponse.App, and is useful for accessing the field via an interface.
 func (v *AgentGetInstancesResponse) GetApp() AgentGetInstancesApp { return v.App }
 
+// AllAppsOrganization includes the requested fields of the GraphQL type Organization.
+type AllAppsOrganization struct {
+	Apps AllAppsOrganizationAppsAppConnection `json:"apps"`
+}
+
+// GetApps returns AllAppsOrganization.Apps, and is useful for accessing the field via an interface.
+func (v *AllAppsOrganization) GetApps() AllAppsOrganizationAppsAppConnection { return v.Apps }
+
+// AllAppsOrganizationAppsAppConnection includes the requested fields of the GraphQL type AppConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for App.
+type AllAppsOrganizationAppsAppConnection struct {
+	// A list of nodes.
+	Nodes []AllAppsOrganizationAppsAppConnectionNodesApp `json:"nodes"`
+}
+
+// GetNodes returns AllAppsOrganizationAppsAppConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *AllAppsOrganizationAppsAppConnection) GetNodes() []AllAppsOrganizationAppsAppConnectionNodesApp {
+	return v.Nodes
+}
+
+// AllAppsOrganizationAppsAppConnectionNodesApp includes the requested fields of the GraphQL type App.
+type AllAppsOrganizationAppsAppConnectionNodesApp struct {
+	// Unique application ID
+	Id        string    `json:"id"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+// GetId returns AllAppsOrganizationAppsAppConnectionNodesApp.Id, and is useful for accessing the field via an interface.
+func (v *AllAppsOrganizationAppsAppConnectionNodesApp) GetId() string { return v.Id }
+
+// GetCreatedAt returns AllAppsOrganizationAppsAppConnectionNodesApp.CreatedAt, and is useful for accessing the field via an interface.
+func (v *AllAppsOrganizationAppsAppConnectionNodesApp) GetCreatedAt() time.Time { return v.CreatedAt }
+
+// AllAppsResponse is returned by AllApps on success.
+type AllAppsResponse struct {
+	// Find an organization by ID
+	Organization AllAppsOrganization `json:"organization"`
+}
+
+// GetOrganization returns AllAppsResponse.Organization, and is useful for accessing the field via an interface.
+func (v *AllAppsResponse) GetOrganization() AllAppsOrganization { return v.Organization }
+
 // AppData includes the GraphQL fields of App requested by the fragment AppData.
 type AppData struct {
 	// Unique application ID
@@ -2184,6 +2228,14 @@ type __AgentGetInstancesInput struct {
 // GetAppName returns __AgentGetInstancesInput.AppName, and is useful for accessing the field via an interface.
 func (v *__AgentGetInstancesInput) GetAppName() string { return v.AppName }
 
+// __AllAppsInput is used internally by genqlient
+type __AllAppsInput struct {
+	OrgSlug string `json:"orgSlug"`
+}
+
+// GetOrgSlug returns __AllAppsInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__AllAppsInput) GetOrgSlug() string { return v.OrgSlug }
+
 // __CreateAddOnInput is used internally by genqlient
 type __CreateAddOnInput struct {
 	Input CreateAddOnInput `json:"input"`
@@ -2468,6 +2520,43 @@ query AgentGetInstances ($appName: String!) {
 	var err error
 
 	var data AgentGetInstancesResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func AllApps(
+	ctx context.Context,
+	client graphql.Client,
+	orgSlug string,
+) (*AllAppsResponse, error) {
+	req := &graphql.Request{
+		OpName: "AllApps",
+		Query: `
+query AllApps ($orgSlug: String!) {
+	organization(slug: $orgSlug) {
+		apps {
+			nodes {
+				id
+				createdAt
+			}
+		}
+	}
+}
+`,
+		Variables: &__AllAppsInput{
+			OrgSlug: orgSlug,
+		},
+	}
+	var err error
+
+	var data AllAppsResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

@@ -12,5 +12,6 @@ do
     if [[ -n "$prefix" && ! "$app" =~ ^$prefix ]]; then
 	continue
     fi
+    echo "Destroy $app"
     flyctl apps destroy --yes "${app}"
 done

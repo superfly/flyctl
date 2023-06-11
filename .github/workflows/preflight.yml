@@ -40,6 +40,7 @@ jobs:
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
           FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
+          FLY_FORCE_TRACE: "true"
         run: |
           PATH=$PWD/bin:$PATH ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}"
       - name: Post failure to slack

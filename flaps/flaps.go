@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/google/go-querystring/query"
-	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 
 	"github.com/superfly/flyctl/agent"
@@ -362,7 +362,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 
 	err := f.sendRequest(ctx, http.MethodGet, getEndpoint, nil, &machines, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list VMs: %w", err)
+		return nil, fmt.Errorf("failed to list active VMs: %w", err)
 	}
 
 	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
@@ -372,30 +372,27 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	return machines, nil
 }
 
-// returns apps that are part of the fly apps platform that are not destroyed,
-// excluding console machines
+// ListFlyAppsMachines returns apps that are part of the Fly apps platform.
+// Destroyed machines and console machines are excluded.
+// Unlike other List functions, this function retries multiple times.
 func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
 	allMachines := make([]*api.Machine, 0)
-	err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
-	tries := 0
-	b := &backoff.Backoff{
-		Factor: 2,
-		Jitter: true,
-		Min:    500 * time.Millisecond,
-		Max:    1500 * time.Millisecond,
-	}
-	if errors.Is(err, FlapsErrorNotFound) {
-		for {
-			if tries > 3 || (err != nil && !errors.Is(err, FlapsErrorNotFound)) {
-				break
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = 500 * time.Millisecond
+	b.MaxElapsedTime = 5 * time.Second
+	err := backoff.Retry(func() error {
+		err := f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
+		if err != nil {
+			if errors.Is(err, FlapsErrorNotFound) {
+				return err
+			} else {
+				return backoff.Permanent(err)
 			}
-			time.Sleep(b.Duration())
-			err = f.sendRequest(ctx, http.MethodGet, "", nil, &allMachines, nil)
-			tries += 1
 		}
-	}
+		return nil
+	}, backoff.WithContext(b, ctx))
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to list VMs: %w", err)
+		return nil, nil, fmt.Errorf("failed to list VMs even after retries: %w", err)
 	}
 	var releaseCmdMachine *api.Machine
 	machines := make([]*api.Machine, 0)
