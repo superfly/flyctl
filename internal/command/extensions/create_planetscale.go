@@ -24,7 +24,7 @@ func newPlanetscaleCreate() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "The name of your Redis database",
+			Description: "The name of your database",
 		},
 	)
 	return cmd

@@ -143,3 +143,23 @@ query GetAddOnProvider($name: String!) {
 		}
 	}
 }
+
+query ListAddOns($addOnType: AddOnType) {
+	addOns(type: $addOnType) {
+		nodes {
+			id
+			name
+			addOnPlan {
+				displayName
+			}
+			privateIp
+			primaryRegion
+			readRegions
+			options
+			organization {
+				id
+				slug
+			}
+		}
+	}
+}

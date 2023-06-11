@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/client"
@@ -121,6 +122,28 @@ func GetExcludedRegions(ctx context.Context, provider string) (excludedRegions [
 
 	for _, region := range response.AddOnProvider.ExcludedRegions {
 		excludedRegions = append(excludedRegions, region.Code)
+	}
+
+	return
+}
+
+func OpenDashboard(ctx context.Context, extensionName string) (err error) {
+	var (
+		io     = iostreams.FromContext(ctx)
+		client = client.FromContext(ctx).API().GenqClient
+	)
+
+	result, err := gql.GetAddOn(ctx, client, extensionName)
+
+	if err != nil {
+		return err
+	}
+
+	url := result.AddOn.SsoLink
+	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
+
+	if err := open.Run(url); err != nil {
+		return fmt.Errorf("failed opening %s: %w", url, err)
 	}
 
 	return
