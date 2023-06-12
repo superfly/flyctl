@@ -4,3 +4,4 @@ package gql
 type AddOn = CreateAddOnCreateAddOnCreateAddOnPayloadAddOn
 type AddOnOptions map[string]interface{}
 type LimitedAccessTokenOptions map[string]interface{}
+type AddOnEnvironment map[string]interface{}

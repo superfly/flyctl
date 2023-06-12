@@ -101,6 +101,11 @@ type AddOn implements Node {
   app: App
 
   """
+  Environment variables for the add-on
+  """
+  environment: JSON
+
+  """
   DNS hostname for the add-on
   """
   hostname: String
@@ -155,6 +160,11 @@ type AddOn implements Node {
   Redis database statistics
   """
   stats: JSON
+
+  """
+  Status of the add-on
+  """
+  status: String
 
   """
   Token for the add-on
@@ -259,6 +269,11 @@ enum AddOnType {
   A Logtail log receiver
   """
   logtail
+
+  """
+  A PlanetScale database
+  """
+  planetscale
 
   """
   An Upstash Redis database
@@ -854,6 +869,7 @@ type App implements Node {
     Returns the last _n_ elements from the list.
     """
     last: Int
+    status: String
   ): ReleaseUnprocessedConnection!
   role: AppRole
 
@@ -4427,7 +4443,7 @@ input DischargeRootTokenInput {
   """
   clientMutationId: String
   expiry: String
-  organizationId: ID!
+  organizationId: Int!
   rootToken: String!
 }
 
@@ -5022,6 +5038,11 @@ input ForkVolumeInput {
   Volume name
   """
   name: String
+
+  """
+  Enables experimental cross-host volume forking
+  """
+  remote: Boolean
 
   """
   The volume to fork
@@ -10768,7 +10789,6 @@ type VolumeSnapshotEdge {
 }
 
 type WireGuardPeer implements Node {
-  gatewayStatus: JSON!
   id: ID!
   name: String!
   network: String

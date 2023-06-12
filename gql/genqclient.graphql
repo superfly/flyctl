@@ -29,6 +29,7 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			publicUrl
 			ssoLink
 			token
+			environment
 		}
 	}
 }
@@ -130,5 +131,35 @@ mutation SetNomadVMCount($input: SetVMCountInput!) {
 mutation DeleteAddOn($name: String) {
 	deleteAddOn(input: {name: $name}) {
 		deletedAddOnName
+	}
+}
+
+query GetAddOnProvider($name: String!) {
+	addOnProvider(name: $name) {
+		id
+		name
+		excludedRegions {
+			code
+		}
+	}
+}
+
+query ListAddOns($addOnType: AddOnType) {
+	addOns(type: $addOnType) {
+		nodes {
+			id
+			name
+			addOnPlan {
+				displayName
+			}
+			privateIp
+			primaryRegion
+			readRegions
+			options
+			organization {
+				id
+				slug
+			}
+		}
 	}
 }
