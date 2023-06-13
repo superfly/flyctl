@@ -16,7 +16,7 @@ import (
 
 func newListPlanetscale() (cmd *cobra.Command) {
 	const (
-		long  = `List Upstash Redis databases for an organization`
+		long  = `List PlanetScale databases for an organization`
 		short = long
 		usage = "list"
 	)
