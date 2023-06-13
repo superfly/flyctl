@@ -59,7 +59,7 @@ func (m *v2PlatformMigrator) unlockApp(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) scaleNomadToZero(ctx context.Context) error {
-	err := scaleNomadToZero(ctx, m.appCompact, m.appLock, lo.Keys(m.oldVmCounts))
+	err := scaleNomadToZero(ctx, m.appCompact, m.appLock, lo.Keys(m.rawNomadScaleMapping))
 	if err != nil {
 		return err
 	}
