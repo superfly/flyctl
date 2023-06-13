@@ -275,9 +275,9 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		launchInput := e.launchInput
 		indexStr := formatIndex(i, len(updateEntries))
 
-		if launchInput.ID != lm.Machine().ID {
-			// If IDs don't match, destroy the original machine and launch a new one
-			// This can be the case for machines that changes its volumes or any other immutable config
+		if launchInput.RequiresReplacement {
+			// If machine requires replacement, destroy old machine and launch a new one
+			// This can be the case for machines that changes its volumes.
 			fmt.Fprintf(md.io.ErrOut, "  %s Replacing %s by new machine\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
 			if err := lm.Destroy(ctx, true); err != nil {
 				if md.strategy != "immediate" {

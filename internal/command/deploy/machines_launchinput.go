@@ -55,6 +55,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 
 func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
+	machineShouldBeReplaced := false
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
@@ -76,7 +77,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		switch {
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
-			mID = "" // Forces machine replacement
+			machineShouldBeReplaced = true
 			terminal.Warnf("Machine %s has a volume attached but fly.toml doesn't have a [mounts] section\n", mID)
 		case oMounts[0].Name == "":
 			// It's rare but can happen, we don't know the mounted volume name
@@ -94,7 +95,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 				return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mount0.Name, origMachineRaw.Region)
 			}
 			mount0.Volume = vol.ID
-			mID = "" // Forces machine replacement
+			machineShouldBeReplaced = true
 		case mMounts[0].Path != oMounts[0].Path:
 			// The volume is the same but its mount path changed. Not a big deal.
 			terminal.Warnf(
@@ -117,7 +118,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			return nil, fmt.Errorf("machine in group '%s' needs an unattached volume named '%s' in region '%s'", processGroup, mMounts[0].Name, origMachineRaw.Region)
 		}
 		mount0.Volume = vol.ID
-		mID = "" // Forces machine replacement
+		machineShouldBeReplaced = true
 	}
 
 	// If this is a standby machine that now has a service, then clear
@@ -127,10 +128,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	}
 
 	return &api.LaunchMachineInput{
-		ID:         mID,
-		Region:     origMachineRaw.Region,
-		Config:     mConfig,
-		SkipLaunch: len(mConfig.Standbys) > 0,
+		ID:                  mID,
+		Region:              origMachineRaw.Region,
+		Config:              mConfig,
+		SkipLaunch:          len(mConfig.Standbys) > 0,
+		RequiresReplacement: machineShouldBeReplaced,
 	}, nil
 }
 

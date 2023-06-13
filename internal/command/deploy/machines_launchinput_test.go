@@ -146,7 +146,8 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
-	assert.Equal(t, "", li.ID)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.True(t, li.RequiresReplacement)
 	assert.Equal(t, api.MachineMount{Volume: "vol_10002", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
@@ -158,7 +159,8 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, "", li.ID)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.True(t, li.RequiresReplacement)
 	assert.Empty(t, li.Config.Mounts)
 }
 
