@@ -41,7 +41,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*api.Machine, 
 	}
 	fmt.Fprintf(io.Out, "%s.\n", creationMsg)
 
-	sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", machine.ID))
+	sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", colorize.Bold(machine.ID)))
 	defer sp.Stop()
 
 	const waitTimeout = 15 * time.Second
