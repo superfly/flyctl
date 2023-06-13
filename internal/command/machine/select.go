@@ -201,9 +201,29 @@ func sortAndBuildOptions(machines []*api.Machine) []string {
 		if group := machine.ProcessGroup(); group != "" {
 			details += fmt.Sprintf(", process group '%s'", group)
 		}
+		role := getMachineRole(machine)
+		if role != "" {
+			details += fmt.Sprintf(", role '%s'", role)
+		}
 		options = append(options, fmt.Sprintf("%s %s (%s)", machine.ID, machine.Name, details))
 	}
 	return options
+}
+
+func getMachineRole(machine *api.Machine) string {
+	if machine.State != api.MachineStateStarted {
+		return ""
+	}
+	for _, check := range machine.Checks {
+		if check.Name == "role" {
+			if check.Status == api.Passing {
+				return check.Output
+			} else {
+				return "error"
+			}
+		}
+	}
+	return ""
 }
 
 func rewriteMachineNotFoundErrors(ctx context.Context, err error, machineID string) error {
