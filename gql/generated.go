@@ -999,6 +999,8 @@ type GetAddOnAddOn struct {
 	Password string `json:"password"`
 	// Token for the add-on
 	Token string `json:"token"`
+	// Status of the add-on
+	Status string `json:"status"`
 	// Region where the primary instance is deployed
 	PrimaryRegion string `json:"primaryRegion"`
 	// Regions where replica instances are deployed
@@ -1030,6 +1032,9 @@ func (v *GetAddOnAddOn) GetPassword() string { return v.Password }
 
 // GetToken returns GetAddOnAddOn.Token, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetToken() string { return v.Token }
+
+// GetStatus returns GetAddOnAddOn.Status, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetStatus() string { return v.Status }
 
 // GetPrimaryRegion returns GetAddOnAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPrimaryRegion() string { return v.PrimaryRegion }
@@ -2818,6 +2823,7 @@ query GetAddOn ($name: String) {
 		privateIp
 		password
 		token
+		status
 		primaryRegion
 		readRegions
 		options
