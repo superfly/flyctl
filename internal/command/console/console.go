@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"time"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -19,8 +17,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -80,7 +78,6 @@ func New() *cobra.Command {
 func runConsole(ctx context.Context) error {
 	var (
 		io        = iostreams.FromContext(ctx)
-		colorize  = io.ColorScheme()
 		appName   = appconfig.NameFromContext(ctx)
 		apiClient = client.FromContext(ctx).API()
 	)
@@ -113,37 +110,13 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	machine, ephemeral, err := selectMachine(ctx, app, appConfig)
+	machine, cleanup, err := selectMachine(ctx, app, appConfig)
 	if err != nil {
 		return err
 	}
 
-	if ephemeral {
-		defer func() {
-			const stopTimeout = 5 * time.Second
-
-			stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
-			defer cancel()
-
-			stopInput := api.StopMachineInput{
-				ID:      machine.ID,
-				Timeout: api.Duration{Duration: stopTimeout},
-			}
-			if err := flapsClient.Stop(stopCtx, stopInput, ""); err != nil {
-				terminal.Warnf("Failed to stop ephemeral console machine: %v\n", err)
-				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
-				return
-			}
-
-			fmt.Fprintf(io.Out, "Waiting for ephemeral console machine %s to be destroyed ...", colorize.Bold(machine.ID))
-			if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
-				fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
-				terminal.Warnf("Failed to wait for ephemeral console machine to be destroyed: %v\n", err)
-				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
-			} else {
-				fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
-			}
-		}()
+	if cleanup != nil {
+		defer cleanup()
 	}
 
 	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, false)
@@ -166,7 +139,7 @@ func runConsole(ctx context.Context) error {
 	return ssh.Console(ctx, sshClient, appConfig.ConsoleCommand, true)
 }
 
-func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, bool, error) {
+func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
 	if flag.GetBool(ctx, "select") {
 		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
@@ -174,21 +147,21 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	} else {
 		guest, err := determineEphemeralConsoleMachineGuest(ctx)
 		if err != nil {
-			return nil, false, err
+			return nil, nil, err
 		}
 		return makeEphemeralConsoleMachine(ctx, app, appConfig, guest)
 	}
 }
 
-func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, bool, error) {
+func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "machine") {
-		return nil, false, errors.New("--machine can't be used with -s/--select")
+		return nil, nil, errors.New("--machine can't be used with -s/--select")
 	}
 
 	flapsClient := flaps.FromContext(ctx)
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	machines = lo.Filter(machines, func(machine *api.Machine, _ int) bool {
 		return machine.State == api.MachineStateStarted
@@ -196,7 +169,7 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 
 	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	cpuS := lo.Ternary(ephemeralGuest.CPUs == 1, "", "s")
 	ephemeralGuestStr := fmt.Sprintf("%d %s CPU%s, %d MB of memory", ephemeralGuest.CPUs, ephemeralGuest.CPUKind, cpuS, ephemeralGuest.MemoryMB)
@@ -208,144 +181,67 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 
 	index := 0
 	if err := prompt.Select(ctx, &index, "Select a machine:", "", options...); err != nil {
-		return nil, false, fmt.Errorf("failed to prompt for a machine: %w", err)
+		return nil, nil, fmt.Errorf("failed to prompt for a machine: %w", err)
 	}
 	if index == 0 {
 		return makeEphemeralConsoleMachine(ctx, app, appConfig, ephemeralGuest)
 	} else {
-		return machines[index-1], false, nil
+		return machines[index-1], nil, nil
 	}
 }
 
-func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
+func getMachineByID(ctx context.Context) (*api.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "vm-cpus") {
-		return nil, false, errors.New("--vm-cpus can't be used with --machine")
+		return nil, nil, errors.New("--vm-cpus can't be used with --machine")
 	}
 	if flag.IsSpecified(ctx, "vm-memory") {
-		return nil, false, errors.New("--vm-memory can't be used with --machine")
+		return nil, nil, errors.New("--vm-memory can't be used with --machine")
 	}
 	if flag.IsSpecified(ctx, "region") {
-		return nil, false, errors.New("--region can't be used with --machine")
+		return nil, nil, errors.New("--region can't be used with --machine")
 	}
 
 	flapsClient := flaps.FromContext(ctx)
 	machineID := flag.GetString(ctx, "machine")
 	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	if machine.State != api.MachineStateStarted {
-		return nil, false, fmt.Errorf("machine %s is not started", machineID)
+		return nil, nil, fmt.Errorf("machine %s is not started", machineID)
 	}
 	if machine.IsFlyAppsReleaseCommand() {
-		return nil, false, fmt.Errorf("machine %s is a release command machine", machineID)
+		return nil, nil, fmt.Errorf("machine %s is a release command machine", machineID)
 	}
 
-	return machine, false, nil
+	return machine, nil, nil
 }
 
-func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, bool, error) {
-	var (
-		io          = iostreams.FromContext(ctx)
-		colorize    = io.ColorScheme()
-		apiClient   = client.FromContext(ctx).API()
-		flapsClient = flaps.FromContext(ctx)
-		region      = config.FromContext(ctx).Region
-	)
-
+func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, func(), error) {
+	apiClient := client.FromContext(ctx).API()
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {
-		return nil, false, err
+		return nil, nil, err
 	}
 	if currentRelease == nil {
-		return nil, false, errors.New("can't create an ephemeral console machine since the app has not yet been released")
+		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
 	machConfig, err := appConfig.ToConsoleMachineConfig()
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
+		return nil, nil, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
 	machConfig.Image = currentRelease.ImageRef
 	machConfig.Guest = guest
 
-	launchInput := api.LaunchMachineInput{
-		Config: machConfig,
-		Region: region,
+	input := &machine.EphemeralInput{
+		LaunchInput: api.LaunchMachineInput{
+			Config: machConfig,
+			Region: config.FromContext(ctx).Region,
+		},
+		What: "to run the console",
 	}
-	machine, err := flapsClient.Launch(ctx, launchInput)
-	if err != nil {
-		return nil, false, fmt.Errorf("failed to launch ephemeral console machine: %w", err)
-	}
-	fmt.Fprintf(io.Out, "Created an ephemeral machine %s to run the console.\n", colorize.Bold(machine.ID))
-
-	sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", machine.ID))
-	defer sp.Stop()
-
-	const waitTimeout = 15 * time.Second
-	var flapsErr *flaps.FlapsError
-
-	t := time.NewTicker(time.Second)
-	defer t.Stop()
-
-	for {
-		err = flapsClient.Wait(ctx, machine, api.MachineStateStarted, waitTimeout)
-		if err == nil {
-			return machine, true, nil
-		}
-
-		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusRequestTimeout {
-			// The machine may not be ready yet.
-		} else {
-			break
-		}
-
-		select {
-		case <-ctx.Done():
-			return nil, false, ctx.Err()
-		case <-t.C:
-		}
-	}
-
-	var destroyed bool
-	if flapsErr != nil && flapsErr.ResponseStatusCode == http.StatusNotFound {
-		destroyed, err = checkMachineDestruction(ctx, machine, err)
-	}
-
-	if !destroyed {
-		terminal.Warn("You may need to destroy the machine manually (`fly machine destroy`).")
-	}
-	return nil, false, err
-}
-
-func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr error) (bool, error) {
-	flapsClient := flaps.FromContext(ctx)
-	machine, err := flapsClient.Get(ctx, machine.ID)
-	if err != nil {
-		return false, fmt.Errorf("failed to check status of machine: %w", err)
-	}
-
-	if machine.State != api.MachineStateDestroyed && machine.State != api.MachineStateDestroying {
-		return false, firstErr
-	}
-
-	var exitEvent *api.MachineEvent
-	for _, event := range machine.Events {
-		if event.Type == "exit" {
-			exitEvent = event
-			break
-		}
-	}
-
-	if exitEvent == nil || exitEvent.Request == nil {
-		return true, errors.New("machine was destroyed unexpectedly")
-	}
-
-	exitCode, err := exitEvent.Request.GetExitCode()
-	if err != nil {
-		return true, errors.New("machine exited unexpectedly")
-	}
-
-	return true, fmt.Errorf("machine exited unexpectedly with code %v", exitCode)
+	return machine.LaunchEphemeral(ctx, input)
 }
 
 func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
