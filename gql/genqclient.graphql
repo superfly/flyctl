@@ -6,6 +6,7 @@ query GetAddOn($name: String) {
 		privateIp
 		password
 		token
+		status
 		primaryRegion
 		readRegions
 		options

@@ -13,7 +13,7 @@ func newPlanetscale() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("planetscale", short, long, nil)
-	cmd.AddCommand(newPlanetscaleCreate(), newPlanetscaleDestroy(), newDashboardPlanetscale(), newListPlanetscale())
+	cmd.AddCommand(newPlanetscaleCreate(), newPlanetscaleDestroy(), newDashboardPlanetscale(), newListPlanetscale(), newStatusPlanetscale())
 
 	return cmd
 }
