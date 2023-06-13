@@ -45,7 +45,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	ruby, err = exec.LookPath("ruby")
 	if err != nil {
 		if errors.Is(err, exec.ErrDot) {
-			bundle, err = filepath.Abs(ruby)
+			ruby, err = filepath.Abs(ruby)
 		}
 
 		if err != nil {
@@ -102,7 +102,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		rake, err := exec.LookPath("rake")
 		if err != nil {
 			if errors.Is(err, exec.ErrDot) {
-				bundle, err = filepath.Abs(ruby)
+				rake, err = filepath.Abs(rake)
 			}
 
 			if err != nil {
