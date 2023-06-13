@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -46,8 +47,20 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 		}
 	}
 
+	// ensure node is in $PATH
+	node, err := exec.LookPath("node")
+	if err != nil && !errors.Is(err, exec.ErrDot) {
+		return nil, nil
+	}
+
+	// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
+	node, err = filepath.Abs(node)
+	if err != nil {
+		return nil, nil
+	}
+
 	// ensure node version is at least 16.0.0
-	out, err := exec.Command("node", "-v").Output()
+	out, err := exec.Command(node, "-v").Output()
 	if err != nil {
 		return nil, nil
 	} else {
@@ -154,7 +167,19 @@ func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[stri
 
 		// run the package if we haven't already
 		if args[0] != "npx" {
-			cmd := exec.Command("npx", "dockerfile")
+			// find npx in PATH
+			npx, err := exec.LookPath("npx")
+			if err != nil && !errors.Is(err, exec.ErrDot) {
+				return fmt.Errorf("failure finding npx executable in PATH")
+			}
+
+			// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
+			npx, err = filepath.Abs(npx)
+			if err != nil {
+				return fmt.Errorf("failure finding npx executable in PATH")
+			}
+
+			cmd := exec.Command(npx, "dockerfile")
 			cmd.Stdin = nil
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr

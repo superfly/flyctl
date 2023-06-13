@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -13,6 +14,7 @@ import (
 )
 
 var healthcheck_channel = make(chan string)
+var bundle, ruby string
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
@@ -26,6 +28,31 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		return nil, nil
 	}
 
+	// find absolute pat to bundle, ruby executables
+	// see: https://tip.golang.org/doc/go1.19#os-exec-path
+	var err error
+	bundle, err = exec.LookPath("bundle")
+	if err != nil {
+		if errors.Is(err, exec.ErrDot) {
+			bundle, err = filepath.Abs(bundle)
+		}
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failure finding bundle executable")
+		}
+	}
+
+	ruby, err = exec.LookPath("ruby")
+	if err != nil {
+		if errors.Is(err, exec.ErrDot) {
+			bundle, err = filepath.Abs(ruby)
+		}
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failure finding ruby executable")
+		}
+	}
+
 	// verify that the bundle will install before proceeding
 	args := []string{"install"}
 
@@ -33,7 +60,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		args = append(args, "--quiet")
 	}
 
-	cmd := exec.Command("bundle", args...)
+	cmd := exec.Command(bundle, args...)
 	cmd.Stdin = nil
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -71,9 +98,21 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 			},
 		}
 	} else {
+		// find absolute path to rake executable
+		rake, err := exec.LookPath("rake")
+		if err != nil {
+			if errors.Is(err, exec.ErrDot) {
+				bundle, err = filepath.Abs(ruby)
+			}
+
+			if err != nil {
+				return nil, errors.Wrap(err, "failure finding rake executable")
+			}
+		}
+
 		// support Rails 4 through 5.1 applications, or ones that started out
 		// there and never were fully upgraded.
-		out, err := exec.Command("rake", "secret").Output()
+		out, err := exec.Command(rake, "secret").Output()
 
 		if err == nil {
 			s.Secrets = []Secret{
@@ -98,7 +137,13 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 
 	// fetch healthcheck route in a separate thread
 	go func() {
-		out, err := exec.Command("ruby", "./bin/rails", "runner",
+		ruby, err := exec.LookPath("ruby")
+		if err != nil {
+			healthcheck_channel <- ""
+			return
+		}
+
+		out, err := exec.Command(ruby, "./bin/rails", "runner",
 			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
 
 		if err == nil {
@@ -117,7 +162,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 	if err != nil {
 		panic(err)
 	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
-		cmd := exec.Command("bundle", "add", "dockerfile-rails",
+		cmd := exec.Command(bundle, "add", "dockerfile-rails",
 			"--optimistic", "--group", "development", "--skip-install")
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
@@ -127,7 +172,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 			return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
 		}
 
-		cmd = exec.Command("bundle", "install", "--quiet")
+		cmd = exec.Command(bundle, "install", "--quiet")
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -138,9 +183,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
-	if out, err := exec.Command("bundle", "platform").Output(); err == nil {
+	if out, err := exec.Command(bundle, "platform").Output(); err == nil {
 		if !strings.Contains(string(out), "x86_64-linux") {
-			cmd := exec.Command("bundle", "lock", "--add-platform", "x86_64-linux")
+			cmd := exec.Command(bundle, "lock", "--add-platform", "x86_64-linux")
 			if err := cmd.Run(); err != nil {
 				return errors.Wrap(err, "Failed to add x86_64-linux platform, exiting")
 			}
@@ -178,7 +223,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 			args = append(args, "--redis")
 		}
 
-		cmd := exec.Command("ruby", args...)
+		cmd := exec.Command(ruby, args...)
 		cmd.Stdin = nil
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -188,14 +233,14 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		}
 	} else {
 		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
-			cmd := exec.Command("bundle", "add", "pg")
+			cmd := exec.Command(bundle, "add", "pg")
 			if err := cmd.Run(); err != nil {
 				return errors.Wrap(err, "Failed to install pg gem")
 			}
 		}
 
 		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
-			cmd := exec.Command("bundle", "add", "redis")
+			cmd := exec.Command(bundle, "add", "redis")
 			if err := cmd.Run(); err != nil {
 				return errors.Wrap(err, "Failed to install redis gem")
 			}
