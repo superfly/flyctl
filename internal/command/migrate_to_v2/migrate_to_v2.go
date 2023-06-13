@@ -342,6 +342,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	err = migrator.filterAllocsWithExistingMachines(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = migrator.prepMachinesToCreate(ctx)
 	if err != nil {
 		return nil, err
@@ -789,6 +793,29 @@ func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
 	for _, alloc := range m.oldAllocs {
 		m.oldVmCounts[alloc.TaskName] += 1
 	}
+}
+
+func (m *v2PlatformMigrator) filterAllocsWithExistingMachines(ctx context.Context) error {
+
+	existingMachines, _, err := m.flapsClient.ListFlyAppsMachines(ctx)
+	if err != nil {
+		return err
+	}
+
+	allocsWithMachines := lo.FilterMap(existingMachines, func(mach *api.Machine, _ int) (string, bool) {
+		if mach.Config != nil && mach.Config.Metadata != nil {
+			if a, ok := mach.Config.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc]; ok {
+				return a, true
+			}
+		}
+		return "", false
+	})
+
+	m.oldAllocs = lo.Filter(m.oldAllocs, func(alloc *api.AllocationStatus, _ int) bool {
+		return !slices.Contains(allocsWithMachines, alloc.ID)
+	})
+
+	return nil
 }
 
 func (m *v2PlatformMigrator) updateAppPlatformVersion(ctx context.Context, platform string) error {
