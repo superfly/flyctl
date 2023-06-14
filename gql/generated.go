@@ -1199,6 +1199,40 @@ func (v *GetAppApp) __premarshalJSON() (*__premarshalGetAppApp, error) {
 	return &retval, nil
 }
 
+// GetAppLockApp includes the requested fields of the GraphQL type App.
+type GetAppLockApp struct {
+	CurrentLock *GetAppLockAppCurrentLockAppLock `json:"currentLock"`
+}
+
+// GetCurrentLock returns GetAppLockApp.CurrentLock, and is useful for accessing the field via an interface.
+func (v *GetAppLockApp) GetCurrentLock() *GetAppLockAppCurrentLockAppLock { return v.CurrentLock }
+
+// GetAppLockAppCurrentLockAppLock includes the requested fields of the GraphQL type AppLock.
+// The GraphQL type's documentation follows.
+//
+// app lock
+type GetAppLockAppCurrentLockAppLock struct {
+	// Lock ID
+	LockId string `json:"lockId"`
+	// Time when the lock expires
+	Expiration time.Time `json:"expiration"`
+}
+
+// GetLockId returns GetAppLockAppCurrentLockAppLock.LockId, and is useful for accessing the field via an interface.
+func (v *GetAppLockAppCurrentLockAppLock) GetLockId() string { return v.LockId }
+
+// GetExpiration returns GetAppLockAppCurrentLockAppLock.Expiration, and is useful for accessing the field via an interface.
+func (v *GetAppLockAppCurrentLockAppLock) GetExpiration() time.Time { return v.Expiration }
+
+// GetAppLockResponse is returned by GetAppLock on success.
+type GetAppLockResponse struct {
+	// Find an app by name
+	App GetAppLockApp `json:"app"`
+}
+
+// GetApp returns GetAppLockResponse.App, and is useful for accessing the field via an interface.
+func (v *GetAppLockResponse) GetApp() GetAppLockApp { return v.App }
+
 // GetAppResponse is returned by GetApp on success.
 type GetAppResponse struct {
 	// Find an app by name
@@ -2440,6 +2474,14 @@ type __GetAppInput struct {
 // GetName returns __GetAppInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAppInput) GetName() string { return v.Name }
 
+// __GetAppLockInput is used internally by genqlient
+type __GetAppLockInput struct {
+	AppName string `json:"appName"`
+}
+
+// GetAppName returns __GetAppLockInput.AppName, and is useful for accessing the field via an interface.
+func (v *__GetAppLockInput) GetAppName() string { return v.AppName }
+
 // __GetAppWithAddonsInput is used internally by genqlient
 type __GetAppWithAddonsInput struct {
 	Name      string    `json:"name"`
@@ -3049,6 +3091,41 @@ fragment AppData on App {
 	var err error
 
 	var data GetAppResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func GetAppLock(
+	ctx context.Context,
+	client graphql.Client,
+	appName string,
+) (*GetAppLockResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetAppLock",
+		Query: `
+query GetAppLock ($appName: String!) {
+	app(name: $appName) {
+		currentLock {
+			lockId
+			expiration
+		}
+	}
+}
+`,
+		Variables: &__GetAppLockInput{
+			AppName: appName,
+		},
+	}
+	var err error
+
+	var data GetAppLockResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

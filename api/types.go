@@ -348,11 +348,17 @@ type App struct {
 	LimitedAccessTokens *struct {
 		Nodes []LimitedAccessToken
 	}
+
+	CurrentLock *AppLock
 }
 type LimitedAccessToken struct {
 	Id        string
 	Name      string
 	ExpiresAt time.Time
+}
+type AppLock struct {
+	ID         int `json:"lockId"`
+	Expiration time.Time
 }
 type TaskGroupCount struct {
 	Name  string
