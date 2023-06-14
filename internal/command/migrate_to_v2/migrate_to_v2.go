@@ -796,11 +796,11 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
-	m.numMachinesToSpawn = map[string]int{}
+	m.rawNomadScaleMapping = map[string]int{}
 	for _, alloc := range m.oldAllocs {
-		m.numMachinesToSpawn[alloc.TaskName] += 1
+		m.rawNomadScaleMapping[alloc.TaskName] += 1
 	}
-	m.rawNomadScaleMapping = helpers.Clone(m.numMachinesToSpawn)
+	m.numMachinesToSpawn = helpers.Clone(m.rawNomadScaleMapping)
 }
 
 func (m *v2PlatformMigrator) filterAllocsWithExistingMachines(ctx context.Context) error {
