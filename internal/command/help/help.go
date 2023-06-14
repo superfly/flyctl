@@ -112,6 +112,11 @@ Monitoring and managing things:
 		listCommands([]string{"logs", "status", "dashboard", "dig", "ping", "ssh", "sftp"})
 
 		fmt.Printf(`
+Platform overview:
+`)
+		listCommands([]string{"platform"})
+
+		fmt.Printf(`
 Access control:
 `)
 		listCommands([]string{"orgs", "auth", "move"})
