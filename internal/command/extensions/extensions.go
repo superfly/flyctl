@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
@@ -36,9 +37,9 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
-
+	colorize := io.ColorScheme()
 	// Fetch the target organization from the app
-	appResponse, err := gql.GetApp(ctx, client, appName)
+	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(provider))
 
 	if err != nil {
 		return nil, err
@@ -47,28 +48,36 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	targetApp := appResponse.App.AppData
 	targetOrg := targetApp.Organization
 
+	if len(appResponse.App.AddOns.Nodes) > 0 {
+		errMsg := fmt.Sprintf("A PlanetScale database named %s already exists for this app", colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
+		return nil, errors.New(errMsg)
+	}
+
 	var name = flag.GetString(ctx, "name")
 
 	if name == "" {
-		err = prompt.String(ctx, &name, "Choose a name (leave blank to generate one):", "", false)
+		err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", targetApp.Name+"-db", false)
 
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	_, err = gql.GetAddOn(ctx, client, appName)
+	fmt.Println(name)
+	excludedRegions, err := GetExcludedRegions(ctx, provider)
 
-	// TODO: Check for a not-found error instead of a general error
 	if err != nil {
+		return addOn, err
+	}
 
-		excludedRegions, err := GetExcludedRegions(ctx, provider)
+	var primaryRegion string
 
-		if err != nil {
-			return addOn, err
-		}
+	cfg := appconfig.ConfigFromContext(ctx)
 
-		primaryRegion, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
+	primaryRegion = cfg.PrimaryRegion
+
+	if cfg.PrimaryRegion == "" {
+		region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
 			Message:             "Choose the primary region (can't be changed later)",
 			ExcludedRegionCodes: excludedRegions,
 		})
@@ -77,38 +86,36 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 			return addOn, err
 		}
 
-		input := gql.CreateAddOnInput{
-			OrganizationId: targetOrg.Id,
-			Name:           appName,
-			PrimaryRegion:  primaryRegion.Code,
-			AppId:          targetApp.Id,
-			Type:           gql.AddOnType(provider),
-		}
-
-		createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
-
-		if err != nil {
-			return nil, err
-		}
-
-		addOn := createAddOnResponse.CreateAddOn.AddOn
-		fmt.Fprintf(io.Out, "Created %s for app %s\n", addOn.Name, appName)
-		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
-
-		env := make(map[string]string)
-		for key, value := range addOn.Environment.(map[string]interface{}) {
-			env[key] = value.(string)
-			fmt.Println(key)
-		}
-
-		secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
-
-		return &addOn, nil
-	} else {
-		fmt.Fprintln(io.Out, "A PlanetScale database already exists for this app")
+		primaryRegion = region.Code
 	}
 
-	return
+	input := gql.CreateAddOnInput{
+		OrganizationId: targetOrg.Id,
+		Name:           name,
+		PrimaryRegion:  primaryRegion,
+		AppId:          targetApp.Id,
+		Type:           gql.AddOnType(provider),
+	}
+
+	createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
+
+	if err != nil {
+		return nil, err
+	}
+
+	addOn = &createAddOnResponse.CreateAddOn.AddOn
+	fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(addOn.Name), colorize.Green(primaryRegion), colorize.Green(appName))
+	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
+
+	env := make(map[string]string)
+	for key, value := range addOn.Environment.(map[string]interface{}) {
+		env[key] = value.(string)
+		fmt.Println(key)
+	}
+
+	secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
+
+	return addOn, nil
 }
 
 func GetExcludedRegions(ctx context.Context, provider string) (excludedRegions []string, err error) {

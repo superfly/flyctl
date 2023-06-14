@@ -65,6 +65,17 @@ query GetApp($name: String!) {
 	}
 }
 
+query GetAppWithAddons($name: String!, $addOnType: AddOnType!) {
+	app(name: $name) {
+		...AppData
+		addOns(type: $addOnType) {
+			nodes {
+				name
+			}
+		}
+	}
+}
+
 query GetAppsByRole($role: String!, $organizationId: ID!) {
 	apps(role: $role, organizationId: $organizationId) {
 		nodes {

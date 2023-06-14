@@ -1208,6 +1208,117 @@ type GetAppResponse struct {
 // GetApp returns GetAppResponse.App, and is useful for accessing the field via an interface.
 func (v *GetAppResponse) GetApp() GetAppApp { return v.App }
 
+// GetAppWithAddonsApp includes the requested fields of the GraphQL type App.
+type GetAppWithAddonsApp struct {
+	AppData `json:"-"`
+	AddOns  GetAppWithAddonsAppAddOnsAddOnConnection `json:"addOns"`
+}
+
+// GetAddOns returns GetAppWithAddonsApp.AddOns, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetAddOns() GetAppWithAddonsAppAddOnsAddOnConnection { return v.AddOns }
+
+// GetId returns GetAppWithAddonsApp.Id, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetId() string { return v.AppData.Id }
+
+// GetName returns GetAppWithAddonsApp.Name, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetName() string { return v.AppData.Name }
+
+// GetPlatformVersion returns GetAppWithAddonsApp.PlatformVersion, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetPlatformVersion() PlatformVersionEnum {
+	return v.AppData.PlatformVersion
+}
+
+// GetOrganization returns GetAppWithAddonsApp.Organization, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
+
+func (v *GetAppWithAddonsApp) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetAppWithAddonsApp
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetAppWithAddonsApp = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.AppData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetAppWithAddonsApp struct {
+	AddOns GetAppWithAddonsAppAddOnsAddOnConnection `json:"addOns"`
+
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+
+	Organization AppDataOrganization `json:"organization"`
+}
+
+func (v *GetAppWithAddonsApp) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetAppWithAddonsApp) __premarshalJSON() (*__premarshalGetAppWithAddonsApp, error) {
+	var retval __premarshalGetAppWithAddonsApp
+
+	retval.AddOns = v.AddOns
+	retval.Id = v.AppData.Id
+	retval.Name = v.AppData.Name
+	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Organization = v.AppData.Organization
+	return &retval, nil
+}
+
+// GetAppWithAddonsAppAddOnsAddOnConnection includes the requested fields of the GraphQL type AddOnConnection.
+// The GraphQL type's documentation follows.
+//
+// The connection type for AddOn.
+type GetAppWithAddonsAppAddOnsAddOnConnection struct {
+	// A list of nodes.
+	Nodes []GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn `json:"nodes"`
+}
+
+// GetNodes returns GetAppWithAddonsAppAddOnsAddOnConnection.Nodes, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnection) GetNodes() []GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn {
+	return v.Nodes
+}
+
+// GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
+type GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
+	// The service name according to the provider
+	Name string `json:"name"`
+}
+
+// GetName returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.Name }
+
+// GetAppWithAddonsResponse is returned by GetAppWithAddons on success.
+type GetAppWithAddonsResponse struct {
+	// Find an app by name
+	App GetAppWithAddonsApp `json:"app"`
+}
+
+// GetApp returns GetAppWithAddonsResponse.App, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsResponse) GetApp() GetAppWithAddonsApp { return v.App }
+
 // GetAppsByRoleAppsAppConnection includes the requested fields of the GraphQL type AppConnection.
 // The GraphQL type's documentation follows.
 //
@@ -2329,6 +2440,18 @@ type __GetAppInput struct {
 // GetName returns __GetAppInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAppInput) GetName() string { return v.Name }
 
+// __GetAppWithAddonsInput is used internally by genqlient
+type __GetAppWithAddonsInput struct {
+	Name      string    `json:"name"`
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetName returns __GetAppWithAddonsInput.Name, and is useful for accessing the field via an interface.
+func (v *__GetAppWithAddonsInput) GetName() string { return v.Name }
+
+// GetAddOnType returns __GetAppWithAddonsInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__GetAppWithAddonsInput) GetAddOnType() AddOnType { return v.AddOnType }
+
 // __GetAppsByRoleInput is used internally by genqlient
 type __GetAppsByRoleInput struct {
 	Role           string `json:"role"`
@@ -2926,6 +3049,56 @@ fragment AppData on App {
 	var err error
 
 	var data GetAppResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+func GetAppWithAddons(
+	ctx context.Context,
+	client graphql.Client,
+	name string,
+	addOnType AddOnType,
+) (*GetAppWithAddonsResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetAppWithAddons",
+		Query: `
+query GetAppWithAddons ($name: String!, $addOnType: AddOnType!) {
+	app(name: $name) {
+		... AppData
+		addOns(type: $addOnType) {
+			nodes {
+				name
+			}
+		}
+	}
+}
+fragment AppData on App {
+	id
+	name
+	platformVersion
+	organization {
+		id
+		slug
+		rawSlug
+		paidPlan
+	}
+}
+`,
+		Variables: &__GetAppWithAddonsInput{
+			Name:      name,
+			AddOnType: addOnType,
+		},
+	}
+	var err error
+
+	var data GetAppWithAddonsResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
