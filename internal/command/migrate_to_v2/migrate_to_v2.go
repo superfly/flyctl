@@ -280,17 +280,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return false
 	})
 
-	attachedVolumes := lo.Filter(appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
-		if v.AttachedAllocation != nil {
-			for _, a := range allocs {
-				if a.ID == v.AttachedAllocation.ID {
-					return true
-				}
-			}
-		}
-		return false
-	})
-
 	vmSize, _, groups, err := apiClient.AppVMResources(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -316,7 +305,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		formattedProcessConfigs: formattedProcessConfigs,
 		img:                     img,
 		oldAllocs:               allocs,
-		oldAttachedVolumes:      attachedVolumes,
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
 		replacedVolumes:         map[string]int{},
@@ -346,6 +334,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	migrator.resolveOldVolumes()
 	err = migrator.prepMachinesToCreate(ctx)
 	if err != nil {
 		return nil, err
