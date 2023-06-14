@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -196,19 +197,25 @@ type v2PlatformMigrator struct {
 	oldAllocs               []*api.AllocationStatus
 	oldAttachedVolumes      []api.Volume
 	machineGuests           map[string]*api.MachineGuest
-	oldVmCounts             map[string]int
-	newMachinesInput        []*api.LaunchMachineInput
-	newMachines             machine.MachineSet
-	recovery                recoveryState
-	usesForkedVolumes       bool
-	createdVolumes          []*NewVolume
-	replacedVolumes         map[string]int
-	isPostgres              bool
-	pgConsulUrl             string
-	targetImg               string
-	backupMachines          map[string]int
-	verbose                 bool
-	machineWaitTimeout      time.Duration
+	// mapping from task/process group to number of allocs.
+	// filtered to include allocs without existing machines.
+	// for an unfiltered list, use rawNomadScaleMapping
+	numMachinesToSpawn map[string]int
+	// mapping from task/process group to number of allocs.
+	// you probably want numMachinesToSpawn, this is only used for nomad scale-down
+	rawNomadScaleMapping map[string]int
+	newMachinesInput     []*api.LaunchMachineInput
+	newMachines          machine.MachineSet
+	recovery             recoveryState
+	usesForkedVolumes    bool
+	createdVolumes       []*NewVolume
+	replacedVolumes      map[string]int
+	isPostgres           bool
+	pgConsulUrl          string
+	targetImg            string
+	backupMachines       map[string]int
+	verbose              bool
+	machineWaitTimeout   time.Duration
 }
 
 type recoveryState struct {
@@ -326,6 +333,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
+	migrator.resolveProcessGroups(ctx)
 	err = migrator.determinePrimaryRegion(ctx)
 	if err != nil {
 		return nil, err
@@ -343,7 +351,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	if err != nil {
 		return nil, err
 	}
-	migrator.resolveProcessGroups(ctx)
 	return migrator, nil
 }
 
@@ -411,7 +418,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 
 		input := gql.SetVMCountInput{
 			AppId: m.appConfig.AppName,
-			GroupCounts: lo.MapToSlice(m.oldVmCounts, func(name string, count int) gql.VMCountInput {
+			GroupCounts: lo.MapToSlice(m.rawNomadScaleMapping, func(name string, count int) gql.VMCountInput {
 				return gql.VMCountInput{Group: name, Count: count}
 			}),
 			LockId: lo.Ternary(m.recovery.appLocked, m.appLock, ""),
@@ -778,10 +785,11 @@ func (m *v2PlatformMigrator) createRelease(ctx context.Context) error {
 }
 
 func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
-	m.oldVmCounts = map[string]int{}
+	m.rawNomadScaleMapping = map[string]int{}
 	for _, alloc := range m.oldAllocs {
-		m.oldVmCounts[alloc.TaskName] += 1
+		m.rawNomadScaleMapping[alloc.TaskName] += 1
 	}
+	m.numMachinesToSpawn = helpers.Clone(m.rawNomadScaleMapping)
 }
 
 func (m *v2PlatformMigrator) filterAllocsWithExistingMachines(ctx context.Context) error {
@@ -801,7 +809,11 @@ func (m *v2PlatformMigrator) filterAllocsWithExistingMachines(ctx context.Contex
 	})
 
 	m.oldAllocs = lo.Filter(m.oldAllocs, func(alloc *api.AllocationStatus, _ int) bool {
-		return !slices.Contains(allocsWithMachines, alloc.ID)
+		filtered := slices.Contains(allocsWithMachines, alloc.ID)
+		if filtered {
+			m.numMachinesToSpawn[alloc.TaskName] -= 1
+		}
+		return !filtered
 	})
 
 	return nil
@@ -950,7 +962,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	}
 
 	fmt.Fprintf(m.io.Out, " * Create machines, copying the configuration of each existing VM\n")
-	for name, count := range m.oldVmCounts {
+	for name, count := range m.numMachinesToSpawn {
 		s := "s"
 		if count == 1 {
 			s = ""

@@ -66,3 +66,19 @@ func TestClonePointer(t *testing.T) {
 
 	assert.NotEqualValues(t, c.Ch.S, clonedObj.Ch.S)
 }
+
+func TestCloneMap(t *testing.T) {
+	cloneMe := map[string]int{
+		"one": 1,
+		"two": 2,
+	}
+
+	cloned := Clone(cloneMe)
+
+	assert.EqualValues(t, cloneMe, cloned)
+
+	cloned["two"]++
+
+	assert.Equal(t, cloneMe["two"], 2)
+	assert.Equal(t, cloned["two"], 3)
+}
