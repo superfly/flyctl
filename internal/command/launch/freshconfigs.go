@@ -16,6 +16,7 @@ func freshV2Config(appName string, srcCfg *appconfig.Config) (*appconfig.Config,
 		AutoStartMachines:  api.Pointer(true),
 		AutoStopMachines:   api.Pointer(true),
 		MinMachinesRunning: api.Pointer(0),
+		Processes:          []string{"app"},
 	}
 	if err := newCfg.SetMachinesPlatform(); err != nil {
 		return nil, err
