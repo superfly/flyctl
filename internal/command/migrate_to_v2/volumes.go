@@ -124,6 +124,21 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 	return ""
 }
 
+// Must run *after* allocs are filtered
+func (m *v2PlatformMigrator) resolveOldVolumes() {
+
+	m.oldAttachedVolumes = lo.Filter(m.appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
+		if v.AttachedAllocation != nil {
+			for _, a := range m.oldAllocs {
+				if a.ID == v.AttachedAllocation.ID {
+					return true
+				}
+			}
+		}
+		return false
+	})
+}
+
 func (m *v2PlatformMigrator) printReplacedVolumes() {
 	if len(m.replacedVolumes) == 0 {
 		return
