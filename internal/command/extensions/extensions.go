@@ -63,7 +63,6 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 		}
 	}
 
-	fmt.Println(name)
 	excludedRegions, err := GetExcludedRegions(ctx, provider)
 
 	if err != nil {
