@@ -39,7 +39,7 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType("planetscale"))
+	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(provider))
 
 	if err != nil {
 		return nil, err
