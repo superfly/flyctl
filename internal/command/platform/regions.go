@@ -54,13 +54,17 @@ func runRegions(ctx context.Context) error {
 		if region.GatewayAvailable {
 			gateway = "✓"
 		}
-
+		paidPlan := ""
+		if region.RequiresPaidPlan {
+			paidPlan = "✓"
+		}
 		rows = append(rows, []string{
 			region.Code,
 			region.Name,
 			gateway,
+			paidPlan,
 		})
 	}
 
-	return render.Table(out, "", rows, "Code", "Name", "Gateway")
+	return render.Table(out, "", rows, "Code", "Name", "Gateway", "Paid Plan Only")
 }
