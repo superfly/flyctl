@@ -281,7 +281,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	defer t.Stop()
 
 	for {
-		err := flapsClient.Wait(ctx, machine, api.MachineStateStarted, waitTimeout)
+		err = flapsClient.Wait(ctx, machine, api.MachineStateStarted, waitTimeout)
 		if err == nil {
 			return machine, true, nil
 		}
