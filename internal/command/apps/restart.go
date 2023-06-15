@@ -42,7 +42,7 @@ func newRestart() *cobra.Command {
 		},
 	)
 
-	cmd.ValidArgsFunction = completion.AdaptFn(completion.InitFlyApi(completion.CompleteApps))
+	cmd.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return cmd
 }

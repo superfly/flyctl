@@ -35,7 +35,7 @@ the number of configured instances.
 	resume.Hidden = true
 	resume.Args = cobra.ExactArgs(1)
 
-	resume.ValidArgsFunction = completion.AdaptFn(completion.InitFlyApi(completion.CompleteApps))
+	resume.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return resume
 }

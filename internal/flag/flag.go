@@ -121,7 +121,7 @@ func (s String) addTo(cmd *cobra.Command) {
 
 	// Completion
 	if s.CompletionFn != nil {
-		err := cmd.RegisterFlagCompletionFunc(s.Name, completion.AdaptFn(s.CompletionFn))
+		err := cmd.RegisterFlagCompletionFunc(s.Name, completion.Adapt(s.CompletionFn))
 		if err != nil {
 			panic(err)
 		}
@@ -268,7 +268,7 @@ func Org() String {
 		Name:         flagnames.Org,
 		Description:  "The target Fly organization",
 		Shorthand:    "o",
-		CompletionFn: completion.InitFlyApi(completion.CompleteOrgs),
+		CompletionFn: completion.CompleteOrgs,
 	}
 }
 
@@ -278,7 +278,7 @@ func Region() String {
 		Name:         flagnames.Region,
 		Description:  "The target region (see 'flyctl platform regions')",
 		Shorthand:    "r",
-		CompletionFn: completion.InitFlyApi(completion.CompleteRegions),
+		CompletionFn: completion.CompleteRegions,
 	}
 }
 
@@ -297,7 +297,7 @@ func App() String {
 		Name:         flagnames.App,
 		Shorthand:    "a",
 		Description:  "Application name",
-		CompletionFn: completion.InitFlyApi(completion.CompleteApps),
+		CompletionFn: completion.CompleteApps,
 	}
 }
 

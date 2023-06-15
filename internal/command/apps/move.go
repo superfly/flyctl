@@ -42,7 +42,7 @@ organization the current user belongs to.
 		},
 	)
 
-	move.ValidArgsFunction = completion.AdaptFn(completion.InitFlyApi(completion.CompleteApps))
+	move.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return move
 }

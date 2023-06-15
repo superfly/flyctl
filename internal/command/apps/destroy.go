@@ -33,7 +33,7 @@ from the Fly platform.
 		flag.Yes(),
 	)
 
-	destroy.ValidArgsFunction = completion.AdaptFn(completion.InitFlyApi(completion.CompleteApps))
+	destroy.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return destroy
 }

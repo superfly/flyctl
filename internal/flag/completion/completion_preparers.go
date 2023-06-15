@@ -37,11 +37,13 @@ func prepareInitialCtx(cmd *cobra.Command) (context.Context, error) {
 	return ctx, nil
 }
 
-func AdaptFn(
+// Adapt takes a function that expects a standard flyctl command context and returns completion ideas or an error,
+// and adapts it to the completion function signature expected by cobra.
+// It also sets up the context with a subset of the preparers that are needed for basic functions of flyctl.
+func Adapt(
 	fn func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error),
 ) func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 	return func(cmd *cobra.Command, args []string, partial string) (ideas []string, code cobra.ShellCompDirective) {
-		terminal.Debugf("\n---\nDOING COMPLETION FOR %s\n---\n", cmd.Name())
 
 		var err error
 		defer func() {
@@ -55,23 +57,16 @@ func AdaptFn(
 			return nil, cobra.ShellCompDirectiveError
 		}
 
+		ctx, err = preparers.InitClient(ctx)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+
 		res, err := fn(ctx, cmd, args, partial)
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		} else {
 			return res, cobra.ShellCompDirectiveNoFileComp
 		}
-	}
-}
-
-func InitFlyApi(
-	fn func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error),
-) func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error) {
-	return func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error) {
-		ctx, err := preparers.InitClient(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return fn(ctx, cmd, args, partial)
 	}
 }
