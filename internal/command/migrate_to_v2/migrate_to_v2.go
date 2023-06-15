@@ -89,6 +89,12 @@ func newMigrateToV2() *cobra.Command {
 			Hidden:      true,
 			Default:     defaultWaitTimeout,
 		},
+		flag.Bool{
+			Name:        "skip-health-checks",
+			Description: "Migrate without requiring health checks to pass (ignored for fly postgres)",
+			Default:     false,
+			Hidden:      true,
+		},
 	)
 
 	cmd.AddCommand(newTroubleshoot())
@@ -216,6 +222,7 @@ type v2PlatformMigrator struct {
 	backupMachines       map[string]int
 	verbose              bool
 	machineWaitTimeout   time.Duration
+	skipHealthChecks     bool
 }
 
 type recoveryState struct {
@@ -321,6 +328,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		},
 		backupMachines:     map[string]int{},
 		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
+		skipHealthChecks:   flag.GetBool(ctx, "skip-health-checks"),
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -849,9 +857,10 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	}
 
 	input := deploy.MachineDeploymentArgs{
-		AppCompact:  m.appCompact,
-		RestartOnly: true,
-		WaitTimeout: waitTimeout,
+		AppCompact:       m.appCompact,
+		RestartOnly:      true,
+		WaitTimeout:      waitTimeout,
+		SkipHealthChecks: m.skipHealthChecks,
 	}
 	if m.isPostgres {
 		if len(m.appConfig.Mounts) > 0 {
@@ -987,7 +996,11 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	}
 
 	if !m.requiresDowntime() {
-		printAllocs("after health checks pass for the new machines")
+		afterHealthChecks := "after health checks pass for the new machines"
+		if m.skipHealthChecks {
+			afterHealthChecks = ""
+		}
+		printAllocs(afterHealthChecks)
 	}
 
 	fmt.Fprintf(m.io.Out, " * Set the application platform version to \"machines\"\n")
