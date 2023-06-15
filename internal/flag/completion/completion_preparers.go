@@ -16,7 +16,11 @@ func prepareInitialCtx(cmd *cobra.Command) (context.Context, error) {
 	io := iostreams.System()
 	ctx := cmd.Context()
 	ctx = flagctx.NewContext(ctx, cmd.Flags())
-	ctx, err := preparers.DetermineUserHomeDir(ctx)
+	ctx, err := preparers.ApplyAliases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ctx, err = preparers.DetermineUserHomeDir(ctx)
 	if err != nil {
 		return nil, err
 	}
