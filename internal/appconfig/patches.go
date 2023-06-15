@@ -18,6 +18,7 @@ var configPatches = []patchFuncType{
 	patchTopLevelChecks,
 	patchMounts,
 	patchTopFields,
+	patchBuild,
 }
 
 func applyPatches(cfgMap map[string]any) (*Config, error) {
@@ -122,6 +123,33 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 			return nil, fmt.Errorf("Unknown processes type: %T", cast)
 		}
 	}
+	return cfg, nil
+}
+
+func patchBuild(cfg map[string]any) (map[string]any, error) {
+	raw, ok := cfg["build"]
+	if !ok {
+		return cfg, nil
+	}
+
+	cast, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("Build section of unknown type: %T", raw)
+	}
+
+	for k, v := range cast {
+		switch k {
+		case "build_target":
+			cast["build-target"] = v
+		}
+	}
+
+	if len(cast) == 0 {
+		delete(cfg, "build")
+	} else {
+		cfg["build"] = cast
+	}
+
 	return cfg, nil
 }
 
