@@ -267,9 +267,134 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 	return err
 }
 
+type machineWaitResponse struct {
+	err error
+	id  string
+}
+
+func waitForStarted(ctx context.Context, doneCh chan<- machineWaitResponse, m machine.LeasableMachine) {
+	doneCh <- machineWaitResponse{
+		err: machine.WaitForStartOrStop(ctx, m.Machine(), "start", time.Minute*5),
+		id:  m.FormattedMachineId(),
+	}
+}
+
+// func allMachinesStarted(stateMap map[string]int) bool {
+// 	started := 0
+// 	for _, v := range stateMap {
+// 		started += v
+// 	}
+
+// 	return started == len(stateMap)
+// }
+
+func (md *machineDeployment) displayMachineStates(ctx context.Context, stateMap map[string]int) {
+	states := []string{}
+	for id := range stateMap {
+		states = append(states, fmt.Sprintf("  Machine %s : %s", md.colorize.Bold(id), md.colorize.Green("success")))
+	}
+
+	fmt.Fprintf(md.io.ErrOut, strings.Join(states, "\n"))
+}
+
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
-	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+
+	if md.strategy == "bluegreen" {
+		greenMachines := []machine.LeasableMachine{}
+		machineIDToState := map[string]int{}
+
+		// create green machines
+		for _, e := range updateEntries {
+			launchInput := e.launchInput
+
+			// this flags disables service registration on machine
+			// this ensures it's hidden from the proxy
+			launchInput.SkipServiceRegistration = true
+
+			newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
+			if err != nil {
+				return err
+			}
+
+			greenMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+			greenMachines = append(greenMachines, greenMachine)
+			machineIDToState[newMachineRaw.ID] = 0
+
+			fmt.Fprintf(md.io.ErrOut, "  [*] Created machine %s\n", md.colorize.Bold(greenMachine.FormattedMachineId()))
+			defer greenMachine.ReleaseLease(ctx)
+		}
+
+		fmt.Fprintf(md.io.ErrOut, "Waiting for green machines to started")
+
+		// concurrently wait for all machines to start
+		stateChan := make(chan machineWaitResponse, len(greenMachines))
+		wait := time.NewTicker(6 * time.Minute)
+		for _, gm := range greenMachines {
+			go waitForStarted(ctx, stateChan, gm)
+		}
+
+		// update the machine state view everytime a machine is started
+		for {
+			select {
+			case mwr := <-stateChan:
+				if mwr.err != nil {
+					// im yet to figure out what to if we fail to wait for a machine to be started
+					// but for now i'm just going to continue
+					// todo(@gwuah)
+					continue
+				}
+
+				// for every machine whose state is started, we update our map and regenerate our view
+				machineIDToState[mwr.id] = 1
+
+				md.logClearLinesAbove(1)
+				md.displayMachineStates(ctx, machineIDToState)
+			case <-wait.C:
+				// some machine couldn't reach the started state after 6 minutes
+				// what to do here, idk.
+				// but for now, i'll return
+				// todo(@gwuah)
+				break
+			}
+		}
+
+		// // concurrently wait for all machines to start
+		// stateChan := make(chan machineWaitResponse, len(greenMachines))
+		// wait := time.NewTicker(6 * time.Minute)
+		// for _, gm := range greenMachines {
+		// 	go waitForStarted(ctx, stateChan, gm)
+		// }
+
+		// // update the machine state view everytime a machine is started
+		// for {
+		// 	select {
+		// 	case mwr := <-stateChan:
+		// 		if mwr.err != nil {
+		// 			// im yet to figure out what to if we fail to wait for a machine to be started
+		// 			// but for now i'm just going to continue
+		// 			// todo(@gwuah)
+		// 			continue
+		// 		}
+
+		// 		// for every machine whose state is started, we update our map and regenerate our view
+		// 		machineIDToState[mwr.id] = 1
+
+		// 		md.logClearLinesAbove(1)
+		// 		md.displayMachineStates(ctx, machineIDToState)
+		// 	case <-wait.C:
+		// 		// some machine couldn't reach the started state after 6 minutes
+		// 		// what to do here, idk.
+		// 		// but for now, i'll return
+		// 		// todo(@gwuah)
+		// 		break
+		// 	}
+		// }
+
+		// wait for all machines to pass healthchecks
+
+	}
+
 	for i, e := range updateEntries {
 		lm := e.leasableMachine
 		launchInput := e.launchInput

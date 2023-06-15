@@ -561,11 +561,13 @@ type MachineStartResponse struct {
 }
 
 type LaunchMachineInput struct {
-	Config     *MachineConfig `json:"config,omitempty"`
-	Region     string         `json:"region,omitempty"`
-	Name       string         `json:"name,omitempty"`
-	SkipLaunch bool           `json:"skip_launch,omitempty"`
-	LeaseTTL   int            `json:"lease_ttl,omitempty"`
+	Config                  *MachineConfig `json:"config,omitempty"`
+	Region                  string         `json:"region,omitempty"`
+	Name                    string         `json:"name,omitempty"`
+	SkipLaunch              bool           `json:"skip_launch,omitempty"`
+	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
+
+	LeaseTTL int `json:"lease_ttl,omitempty"`
 
 	// Client side only
 	ID                  string `json:"-"`

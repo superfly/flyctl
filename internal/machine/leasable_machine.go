@@ -269,6 +269,57 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPref
 	}
 }
 
+// func (lm *leasableMachine) WaitForChecks(ctx context.Context, timeout time.Duration, logPrefix string) error {
+// 	if len(lm.Machine().Checks) == 0 {
+// 		return nil
+// 	}
+// 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+// 	defer cancel()
+
+// 	checkDefs := maps.Values(lm.Machine().Config.Checks)
+// 	for _, s := range lm.Machine().Config.Services {
+// 		checkDefs = append(checkDefs, s.Checks...)
+// 	}
+// 	shortestInterval := 60 * time.Second
+// 	for _, c := range checkDefs {
+// 		if c.Interval != nil && c.Interval.Duration < shortestInterval {
+// 			shortestInterval = c.Interval.Duration
+// 		}
+// 	}
+
+// 	flapsClient := flaps.FromContext(ctx)
+
+// 	var machine *api.Machine
+// 	err := retry.Do(
+// 		func() (err error) {
+// 			machine, err = flapsClient.Get(waitCtx, lm.Machine().ID)
+// 			return err
+// 		},
+// 		retry.Attempts(3), retry.MaxDelay(10*time.Second), retry.Context(ctx),
+// 	)
+
+// 	switch {
+// 	case errors.Is(waitCtx.Err(), context.Canceled):
+// 		return err
+// 	case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+// 		return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
+// 	case err != nil:
+// 		return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
+// 	case !updateMachine.HealthCheckStatus().AllPassing():
+// 		if !printedFirst || lm.io.IsInteractive() {
+// 			lm.logClearLinesAbove(1)
+// 			lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
+// 			printedFirst = true
+// 		}
+// 		time.Sleep(b.Duration())
+// 		continue
+// 	}
+// 	lm.logClearLinesAbove(1)
+// 	lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
+// 	return nil
+
+// }
+
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration, logPrefix string) error {
 	if len(lm.Machine().Checks) == 0 {
 		return nil
