@@ -5,6 +5,9 @@ app = "foo"
   FOO = "STRING"
   BAR = 123
 
+[build]
+build_target = "thalayer"
+
 [[services]]
   # Stringified internal port
   internal_port = "8080"

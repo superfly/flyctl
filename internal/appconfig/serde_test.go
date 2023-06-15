@@ -246,6 +246,9 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		configFilePath:   "./testdata/old-format.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
+		Build: &Build{
+			DockerBuildTarget: "thalayer",
+		},
 		Env: map[string]string{
 			"FOO": "STRING",
 			"BAR": "123",
@@ -292,6 +295,9 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		},
 		RawDefinition: map[string]any{
 			"app": "foo",
+			"build": map[string]any{
+				"build_target": "thalayer",
+			},
 			"env": map[string]any{
 				"FOO": "STRING",
 				"BAR": int64(123),
