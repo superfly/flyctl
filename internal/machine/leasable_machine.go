@@ -26,6 +26,7 @@ type LeasableMachine interface {
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
+	Stop(context.Context) error
 	WaitForState(context.Context, string, time.Duration, string, bool) error
 	WaitForSmokeChecksToPass(context.Context, string) error
 	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
@@ -41,6 +42,7 @@ type leasableMachine struct {
 	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
+	stopped                bool
 }
 
 func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *api.Machine) LeasableMachine {
@@ -153,6 +155,24 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (lm *leasableMachine) Stop(ctx context.Context) error {
+	if lm.IsStopped() {
+		return fmt.Errorf("error cannot stop machine %s that was already stop", lm.machine.ID)
+	}
+
+	input := api.StopMachineInput{
+		ID: lm.machine.ID,
+	}
+
+	err := lm.flapsClient.Stop(ctx, input, lm.leaseNonce)
+	if err != nil {
+		return err
+	}
+
+	lm.stopped = true
 	return nil
 }
 
@@ -269,57 +289,6 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPref
 	}
 }
 
-// func (lm *leasableMachine) WaitForChecks(ctx context.Context, timeout time.Duration, logPrefix string) error {
-// 	if len(lm.Machine().Checks) == 0 {
-// 		return nil
-// 	}
-// 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
-// 	defer cancel()
-
-// 	checkDefs := maps.Values(lm.Machine().Config.Checks)
-// 	for _, s := range lm.Machine().Config.Services {
-// 		checkDefs = append(checkDefs, s.Checks...)
-// 	}
-// 	shortestInterval := 60 * time.Second
-// 	for _, c := range checkDefs {
-// 		if c.Interval != nil && c.Interval.Duration < shortestInterval {
-// 			shortestInterval = c.Interval.Duration
-// 		}
-// 	}
-
-// 	flapsClient := flaps.FromContext(ctx)
-
-// 	var machine *api.Machine
-// 	err := retry.Do(
-// 		func() (err error) {
-// 			machine, err = flapsClient.Get(waitCtx, lm.Machine().ID)
-// 			return err
-// 		},
-// 		retry.Attempts(3), retry.MaxDelay(10*time.Second), retry.Context(ctx),
-// 	)
-
-// 	switch {
-// 	case errors.Is(waitCtx.Err(), context.Canceled):
-// 		return err
-// 	case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-// 		return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
-// 	case err != nil:
-// 		return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
-// 	case !updateMachine.HealthCheckStatus().AllPassing():
-// 		if !printedFirst || lm.io.IsInteractive() {
-// 			lm.logClearLinesAbove(1)
-// 			lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
-// 			printedFirst = true
-// 		}
-// 		time.Sleep(b.Duration())
-// 		continue
-// 	}
-// 	lm.logClearLinesAbove(1)
-// 	lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
-// 	return nil
-
-// }
-
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration, logPrefix string) error {
 	if len(lm.Machine().Checks) == 0 {
 		return nil
@@ -413,6 +382,10 @@ func (lm *leasableMachine) HasLease() bool {
 
 func (lm *leasableMachine) IsDestroyed() bool {
 	return lm.destroyed
+}
+
+func (lm *leasableMachine) IsStopped() bool {
+	return lm.stopped
 }
 
 func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Duration) error {

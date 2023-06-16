@@ -267,34 +267,121 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 	return err
 }
 
-type machineWaitResponse struct {
+type machineStateWaitResponse struct {
 	err error
 	id  string
 }
 
-func waitForStarted(ctx context.Context, doneCh chan<- machineWaitResponse, m machine.LeasableMachine) {
-	doneCh <- machineWaitResponse{
+func (md *machineDeployment) waitForStarted(ctx context.Context, doneCh chan<- machineStateWaitResponse, m machine.LeasableMachine) {
+	doneCh <- machineStateWaitResponse{
 		err: machine.WaitForStartOrStop(ctx, m.Machine(), "start", time.Minute*5),
 		id:  m.FormattedMachineId(),
 	}
 }
 
-// func allMachinesStarted(stateMap map[string]int) bool {
-// 	started := 0
-// 	for _, v := range stateMap {
-// 		started += v
-// 	}
+type machineHealthcheckResponse struct {
+	err error
+	hcs api.HealthCheckStatus
+	id  string
+}
 
-// 	return started == len(stateMap)
-// }
-
-func (md *machineDeployment) displayMachineStates(ctx context.Context, stateMap map[string]int) {
-	states := []string{}
-	for id := range stateMap {
-		states = append(states, fmt.Sprintf("  Machine %s : %s", md.colorize.Bold(id), md.colorize.Green("success")))
+func (md *machineDeployment) getHealthchecks(ctx context.Context, checksChan chan<- machineHealthcheckResponse, lm machine.LeasableMachine) {
+	if len(lm.Machine().Checks) == 0 {
+		checksChan <- machineHealthcheckResponse{err: errors.New("no checks")}
+		return
 	}
 
-	fmt.Fprintf(md.io.ErrOut, strings.Join(states, "\n"))
+	waitCtx, cancel := context.WithTimeout(ctx, md.waitTimeout)
+	defer cancel()
+
+	checkDefs := maps.Values(lm.Machine().Config.Checks)
+	for _, s := range lm.Machine().Config.Services {
+		checkDefs = append(checkDefs, s.Checks...)
+	}
+	shortestInterval := 120 * time.Second
+	shortestGracePeriod := time.Second
+	for _, c := range checkDefs {
+		if c.Interval != nil && c.Interval.Duration < shortestInterval {
+			shortestInterval = c.Interval.Duration
+		}
+
+		if c.GracePeriod != nil && c.GracePeriod.Duration < shortestGracePeriod {
+			shortestGracePeriod = c.GracePeriod.Duration
+		}
+	}
+
+	fmt.Println("check every", shortestInterval.String())
+
+	time.Sleep(shortestGracePeriod)
+
+	for {
+		updateMachine, err := md.flapsClient.Get(waitCtx, lm.Machine().ID)
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			checksChan <- machineHealthcheckResponse{err: err}
+			return
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			checksChan <- machineHealthcheckResponse{err: fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)}
+			return
+		case err != nil:
+			checksChan <- machineHealthcheckResponse{err: fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)}
+			return
+		}
+
+		checksChan <- machineHealthcheckResponse{hcs: *updateMachine.HealthCheckStatus(), id: lm.FormattedMachineId()}
+
+		if updateMachine.HealthCheckStatus().Passing == updateMachine.HealthCheckStatus().Total {
+			return
+		}
+
+		time.Sleep(shortestInterval)
+	}
+}
+
+func (md *machineDeployment) displayMachineStates(ctx context.Context, stateMap map[string]int) {
+	rows := []string{}
+	for id, value := range stateMap {
+		status := "created"
+		if value == 1 {
+			status = "started"
+		}
+		rows = append(rows, fmt.Sprintf("  Machine %s : %s", md.colorize.Bold(id), md.colorize.Green(status)))
+	}
+
+	fmt.Fprint(md.io.ErrOut, strings.Join(rows, "\n"))
+}
+
+func (md *machineDeployment) displayMachineHealthchecks(ctx context.Context, healthMap map[string]machineHealthcheckResponse) {
+	rows := []string{}
+	for id, value := range healthMap {
+		status := "unchecked"
+		if value.hcs.Total != 0 {
+			status = fmt.Sprintf("%d/%d passing", value.hcs.Passing, value.hcs.Total)
+		}
+		rows = append(rows, fmt.Sprintf("  Machine %s : %s", md.colorize.Bold(id), md.colorize.Green(status)))
+	}
+
+	fmt.Fprint(md.io.ErrOut, strings.Join(rows, "\n"))
+}
+
+func allMachinesHaveStarted(stateMap map[string]int) bool {
+	started := 0
+	for _, v := range stateMap {
+		started += v
+	}
+
+	return started == len(stateMap)
+}
+
+func allMachinesAreHealthy(stateMap map[string]machineHealthcheckResponse) bool {
+	passed := 0
+	for _, v := range stateMap {
+		if v.hcs.Passing == v.hcs.Total {
+			passed += 1
+		}
+	}
+
+	return passed == len(stateMap)
 }
 
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
@@ -303,6 +390,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	if md.strategy == "bluegreen" {
 		greenMachines := []machine.LeasableMachine{}
 		machineIDToState := map[string]int{}
+		machineIDToHealthStatus := map[string]machineHealthcheckResponse{}
 
 		// create green machines
 		for _, e := range updateEntries {
@@ -321,21 +409,28 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			greenMachines = append(greenMachines, greenMachine)
 			machineIDToState[newMachineRaw.ID] = 0
 
-			fmt.Fprintf(md.io.ErrOut, "  [*] Created machine %s\n", md.colorize.Bold(greenMachine.FormattedMachineId()))
+			fmt.Fprintf(md.io.ErrOut, "  [+] Created machine %s\n", md.colorize.Bold(greenMachine.FormattedMachineId()))
 			defer greenMachine.ReleaseLease(ctx)
 		}
 
 		fmt.Fprintf(md.io.ErrOut, "Waiting for green machines to started")
 
 		// concurrently wait for all machines to start
-		stateChan := make(chan machineWaitResponse, len(greenMachines))
 		wait := time.NewTicker(6 * time.Minute)
+
+		stateChan := make(chan machineStateWaitResponse, len(greenMachines))
 		for _, gm := range greenMachines {
-			go waitForStarted(ctx, stateChan, gm)
+			machineIDToState[gm.FormattedMachineId()] = 0
+			go md.waitForStarted(ctx, stateChan, gm)
 		}
 
 		// update the machine state view everytime a machine is started
 		for {
+
+			if allMachinesHaveStarted(machineIDToState) {
+				break
+			}
+
 			select {
 			case mwr := <-stateChan:
 				if mwr.err != nil {
@@ -348,51 +443,102 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				// for every machine whose state is started, we update our map and regenerate our view
 				machineIDToState[mwr.id] = 1
 
-				md.logClearLinesAbove(1)
+				// md.logClearLinesAbove(1)
 				md.displayMachineStates(ctx, machineIDToState)
 			case <-wait.C:
 				// some machine couldn't reach the started state after 6 minutes
 				// what to do here, idk.
 				// but for now, i'll return
 				// todo(@gwuah)
+			}
+
+			break
+		}
+
+		// concurrently wait for all machines to pass healthchecks
+		checksChan := make(chan machineHealthcheckResponse)
+		wait = time.NewTicker(6 * time.Minute)
+		for _, gm := range greenMachines {
+			machineIDToHealthStatus[gm.FormattedMachineId()] = machineHealthcheckResponse{}
+			go md.getHealthchecks(ctx, checksChan, gm)
+		}
+
+		// update the machine state view everytime a machine is started
+		for {
+
+			if allMachinesAreHealthy(machineIDToHealthStatus) {
 				break
+			}
+
+			select {
+			case mcr := <-checksChan:
+				if mcr.err != nil {
+					// im yet to figure out what to if we fail to get healthchecks
+					// but for now i'm just going to continue
+					// todo(@gwuah)
+					continue
+				}
+
+				// for successful healthcheck status we make, we repaint the view
+				machineIDToHealthStatus[mcr.id] = mcr
+
+				// md.logClearLinesAbove(1)
+				md.displayMachineHealthchecks(ctx, machineIDToHealthStatus)
+			case <-wait.C:
+				// some machine couldn't reach the started state after 6 minutes
+				// what to do here, idk.
+				// but for now, i'll leave it blank
+				// todo(@gwuah)
+			}
+
+			break
+		}
+
+		// uncordon all machines
+		fmt.Fprintf(md.io.ErrOut, "Directing traffic to green machines\n")
+
+		for _, gm := range greenMachines {
+			err := md.flapsClient.UnCordon(ctx, gm.Machine().ID)
+			if err != nil {
+				// couldn't register service of cordoned machine
+				// what to do here, idk.
+				// but for now, i'll leave it blank
+				// todo(@gwuah)
+				continue
 			}
 		}
 
-		// // concurrently wait for all machines to start
-		// stateChan := make(chan machineWaitResponse, len(greenMachines))
-		// wait := time.NewTicker(6 * time.Minute)
-		// for _, gm := range greenMachines {
-		// 	go waitForStarted(ctx, stateChan, gm)
-		// }
+		msg := "Destroying all blue machines"
+		if md.previousRelease == "stop" {
+			msg = "Stopping all blue machines"
+		}
 
-		// // update the machine state view everytime a machine is started
-		// for {
-		// 	select {
-		// 	case mwr := <-stateChan:
-		// 		if mwr.err != nil {
-		// 			// im yet to figure out what to if we fail to wait for a machine to be started
-		// 			// but for now i'm just going to continue
-		// 			// todo(@gwuah)
-		// 			continue
-		// 		}
+		action := "destroyed"
+		if md.previousRelease == "stop" {
+			action = "stopped"
+		}
+		fmt.Fprintf(md.io.ErrOut, "%s\n", msg)
 
-		// 		// for every machine whose state is started, we update our map and regenerate our view
-		// 		machineIDToState[mwr.id] = 1
+		// stop all blue machines
+		for _, entry := range updateEntries {
+			var err error
+			if md.previousRelease == "stop" {
+				err = entry.leasableMachine.Stop(ctx)
+			} else {
+				err = entry.leasableMachine.Destroy(ctx, true)
+			}
+			if err != nil {
+				// couldn't register service of cordoned machine
+				// what to do here, idk.
+				// but for now, i'll leave it blank
+				// todo(@gwuah)
+				continue
+			}
 
-		// 		md.logClearLinesAbove(1)
-		// 		md.displayMachineStates(ctx, machineIDToState)
-		// 	case <-wait.C:
-		// 		// some machine couldn't reach the started state after 6 minutes
-		// 		// what to do here, idk.
-		// 		// but for now, i'll return
-		// 		// todo(@gwuah)
-		// 		break
-		// 	}
-		// }
+			fmt.Fprintf(md.io.ErrOut, "  [-] Machine %s %s\n", md.colorize.Bold(entry.leasableMachine.FormattedMachineId()), action)
+		}
 
-		// wait for all machines to pass healthchecks
-
+		fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
 	}
 
 	for i, e := range updateEntries {

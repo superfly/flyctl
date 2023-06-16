@@ -114,6 +114,11 @@ var CommonFlags = flag.Set{
 		Description: "Memory (in megabytes) to attribute to the VM",
 		Aliases:     []string{"memory"},
 	},
+	flag.String{
+		Name:        "previous-release",
+		Description: "What to do with previous release. Possible values are 'destroy' or 'stop'",
+		Default:     "destroy",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -254,6 +259,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		VMCPUKind:             flag.GetString(ctx, "vm-cpukind"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
+		PreviousRelease:       flag.GetString(ctx, "previous-release"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
