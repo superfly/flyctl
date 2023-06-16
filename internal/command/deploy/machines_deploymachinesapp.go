@@ -377,7 +377,7 @@ func (md *machineDeployment) displayMachineHealthchecks() func(ctx context.Conte
 			md.logClearLinesAbove(len(rows))
 		}
 
-		fmt.Fprintf(md.io.ErrOut, "\n%s", strings.Join(rows, "\n"))
+		fmt.Fprintf(md.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
 		firstRun = false
 	}
 }
@@ -530,7 +530,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				continue
 			}
 
-			fmt.Fprintf(md.io.ErrOut, " Machine %s now serving traffic", gm.FormattedMachineId())
+			fmt.Fprintf(md.io.ErrOut, "  Machine %s now serving traffic\n", gm.FormattedMachineId())
 		}
 
 		msg := "\nDestroying all blue machines"
@@ -563,7 +563,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			fmt.Fprintf(md.io.ErrOut, "  Machine %s %s\n", md.colorize.Bold(entry.leasableMachine.FormattedMachineId()), action)
 		}
 
-		fmt.Fprintf(md.io.ErrOut, "Deployment Complete\n")
+		fmt.Fprintf(md.io.ErrOut, "\nDeployment Complete\n")
 		return nil
 	}
 

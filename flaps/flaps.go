@@ -525,7 +525,7 @@ func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
 		}
 	}()
 
-	if err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("%s/cordon", machineID), nil, nil, nil); err != nil {
+	if err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/cordon", machineID), nil, nil, nil); err != nil {
 		return fmt.Errorf("failed to cordon VM: %w", err)
 	}
 
@@ -542,8 +542,8 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 		}
 	}()
 
-	if err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("%s/uncordon", machineID), nil, nil, nil); err != nil {
-		return fmt.Errorf("failed to cordon VM: %w", err)
+	if err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/uncordon", machineID), nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to uncordon VM: %w", err)
 	}
 
 	return nil
@@ -610,6 +610,8 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	if err != nil {
 		return nil, err
 	}
+
+	// fmt.Println("[targetEndpoint]]", targetEndpoint)
 
 	if in != nil {
 		b, err := json.Marshal(in)
