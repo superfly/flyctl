@@ -310,8 +310,6 @@ func (md *machineDeployment) getHealthchecks(ctx context.Context, checksChan cha
 		}
 	}
 
-	fmt.Println("check every", shortestInterval.String())
-
 	time.Sleep(shortestGracePeriod)
 
 	for {
@@ -328,9 +326,11 @@ func (md *machineDeployment) getHealthchecks(ctx context.Context, checksChan cha
 			return
 		}
 
-		checksChan <- machineHealthcheckResponse{hcs: *updateMachine.HealthCheckStatus(), id: lm.FormattedMachineId()}
+		status := *updateMachine.HealthCheckStatus()
 
-		if updateMachine.HealthCheckStatus().Passing == updateMachine.HealthCheckStatus().Total {
+		checksChan <- machineHealthcheckResponse{hcs: status, id: lm.FormattedMachineId()}
+
+		if status.Passing == status.Total {
 			return
 		}
 
@@ -338,30 +338,48 @@ func (md *machineDeployment) getHealthchecks(ctx context.Context, checksChan cha
 	}
 }
 
-func (md *machineDeployment) displayMachineStates(ctx context.Context, stateMap map[string]int) {
-	rows := []string{}
-	for id, value := range stateMap {
-		status := "created"
-		if value == 1 {
-			status = "started"
-		}
-		rows = append(rows, fmt.Sprintf("  Machine %s : %s", md.colorize.Bold(id), md.colorize.Green(status)))
-	}
+func (md *machineDeployment) displayMachineStates() func(ctx context.Context, stateMap map[string]int) {
+	firstRun := true
 
-	fmt.Fprint(md.io.ErrOut, strings.Join(rows, "\n"))
+	return func(ctx context.Context, stateMap map[string]int) {
+		rows := []string{}
+		for id, value := range stateMap {
+			status := "created"
+			if value == 1 {
+				status = "started"
+			}
+			rows = append(rows, fmt.Sprintf("  Machine %s - %s", md.colorize.Bold(id), md.colorize.Green(status)))
+		}
+
+		if !firstRun {
+			md.logClearLinesAbove(len(rows))
+		}
+
+		fmt.Fprintf(md.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+		firstRun = false
+	}
 }
 
-func (md *machineDeployment) displayMachineHealthchecks(ctx context.Context, healthMap map[string]machineHealthcheckResponse) {
-	rows := []string{}
-	for id, value := range healthMap {
-		status := "unchecked"
-		if value.hcs.Total != 0 {
-			status = fmt.Sprintf("%d/%d passing", value.hcs.Passing, value.hcs.Total)
-		}
-		rows = append(rows, fmt.Sprintf("  Machine %s : %s", md.colorize.Bold(id), md.colorize.Green(status)))
-	}
+func (md *machineDeployment) displayMachineHealthchecks() func(ctx context.Context, healthMap map[string]machineHealthcheckResponse) {
+	firstRun := true
 
-	fmt.Fprint(md.io.ErrOut, strings.Join(rows, "\n"))
+	return func(ctx context.Context, healthMap map[string]machineHealthcheckResponse) {
+		rows := []string{}
+		for id, value := range healthMap {
+			status := "unchecked"
+			if value.hcs.Total != 0 {
+				status = fmt.Sprintf("%d/%d passing", value.hcs.Passing, value.hcs.Total)
+			}
+			rows = append(rows, fmt.Sprintf("  Machine %s - %s", md.colorize.Bold(id), md.colorize.Green(status)))
+		}
+
+		if !firstRun {
+			md.logClearLinesAbove(len(rows))
+		}
+
+		fmt.Fprintf(md.io.ErrOut, "\n%s", strings.Join(rows, "\n"))
+		firstRun = false
+	}
 }
 
 func allMachinesHaveStarted(stateMap map[string]int) bool {
@@ -375,8 +393,9 @@ func allMachinesHaveStarted(stateMap map[string]int) bool {
 
 func allMachinesAreHealthy(stateMap map[string]machineHealthcheckResponse) bool {
 	passed := 0
+
 	for _, v := range stateMap {
-		if v.hcs.Passing == v.hcs.Total {
+		if v.hcs.Passing == v.hcs.Total && v.hcs.Total != 0 {
 			passed += 1
 		}
 	}
@@ -393,11 +412,9 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		machineIDToHealthStatus := map[string]machineHealthcheckResponse{}
 
 		// create green machines
+		fmt.Fprintf(md.io.Out, "\nCreating green machines\n")
 		for _, e := range updateEntries {
 			launchInput := e.launchInput
-
-			// this flags disables service registration on machine
-			// this ensures it's hidden from the proxy
 			launchInput.SkipServiceRegistration = true
 
 			newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
@@ -407,26 +424,25 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 			greenMachine := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 			greenMachines = append(greenMachines, greenMachine)
-			machineIDToState[newMachineRaw.ID] = 0
 
-			fmt.Fprintf(md.io.ErrOut, "  [+] Created machine %s\n", md.colorize.Bold(greenMachine.FormattedMachineId()))
+			fmt.Fprintf(md.io.ErrOut, "  Created machine %s\n", md.colorize.Bold(greenMachine.FormattedMachineId()))
 			defer greenMachine.ReleaseLease(ctx)
 		}
 
-		fmt.Fprintf(md.io.ErrOut, "Waiting for green machines to started")
-
+		time.Sleep(300 * time.Millisecond)
 		// concurrently wait for all machines to start
-		wait := time.NewTicker(6 * time.Minute)
-
+		fmt.Fprintf(md.io.ErrOut, "\nWaiting for all green machines to start\n")
+		wait := time.NewTicker(1 * time.Minute)
+		renderStateChecks := md.displayMachineStates()
 		stateChan := make(chan machineStateWaitResponse, len(greenMachines))
 		for _, gm := range greenMachines {
 			machineIDToState[gm.FormattedMachineId()] = 0
-			go md.waitForStarted(ctx, stateChan, gm)
+
+			go func(lm machine.LeasableMachine) {
+				md.waitForStarted(ctx, stateChan, lm)
+			}(gm)
 		}
-
-		// update the machine state view everytime a machine is started
 		for {
-
 			if allMachinesHaveStarted(machineIDToState) {
 				break
 			}
@@ -440,11 +456,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 					continue
 				}
 
-				// for every machine whose state is started, we update our map and regenerate our view
+				// for every started machine, update state and regenerate view
 				machineIDToState[mwr.id] = 1
 
-				// md.logClearLinesAbove(1)
-				md.displayMachineStates(ctx, machineIDToState)
+				renderStateChecks(ctx, machineIDToState)
+				continue
 			case <-wait.C:
 				// some machine couldn't reach the started state after 6 minutes
 				// what to do here, idk.
@@ -456,11 +472,17 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		}
 
 		// concurrently wait for all machines to pass healthchecks
+		fmt.Fprintf(md.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 		checksChan := make(chan machineHealthcheckResponse)
-		wait = time.NewTicker(6 * time.Minute)
+		wait = time.NewTicker(1 * time.Minute)
+		renderHealthhecks := md.displayMachineHealthchecks()
+
 		for _, gm := range greenMachines {
 			machineIDToHealthStatus[gm.FormattedMachineId()] = machineHealthcheckResponse{}
-			go md.getHealthchecks(ctx, checksChan, gm)
+
+			go func(m machine.LeasableMachine) {
+				md.getHealthchecks(ctx, checksChan, m)
+			}(gm)
 		}
 
 		// update the machine state view everytime a machine is started
@@ -482,8 +504,8 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				// for successful healthcheck status we make, we repaint the view
 				machineIDToHealthStatus[mcr.id] = mcr
 
-				// md.logClearLinesAbove(1)
-				md.displayMachineHealthchecks(ctx, machineIDToHealthStatus)
+				renderHealthhecks(ctx, machineIDToHealthStatus)
+				continue
 			case <-wait.C:
 				// some machine couldn't reach the started state after 6 minutes
 				// what to do here, idk.
@@ -495,7 +517,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		}
 
 		// uncordon all machines
-		fmt.Fprintf(md.io.ErrOut, "Directing traffic to green machines\n")
+		fmt.Fprintf(md.io.ErrOut, "\nMarking green machines as ready for traffic\n")
 
 		for _, gm := range greenMachines {
 			err := md.flapsClient.UnCordon(ctx, gm.Machine().ID)
@@ -504,11 +526,14 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				// what to do here, idk.
 				// but for now, i'll leave it blank
 				// todo(@gwuah)
+				fmt.Fprint(md.io.ErrOut, err.Error())
 				continue
 			}
+
+			fmt.Fprintf(md.io.ErrOut, " Machine %s now serving traffic", gm.FormattedMachineId())
 		}
 
-		msg := "Destroying all blue machines"
+		msg := "\nDestroying all blue machines"
 		if md.previousRelease == "stop" {
 			msg = "Stopping all blue machines"
 		}
@@ -535,10 +560,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 				continue
 			}
 
-			fmt.Fprintf(md.io.ErrOut, "  [-] Machine %s %s\n", md.colorize.Bold(entry.leasableMachine.FormattedMachineId()), action)
+			fmt.Fprintf(md.io.ErrOut, "  Machine %s %s\n", md.colorize.Bold(entry.leasableMachine.FormattedMachineId()), action)
 		}
 
-		fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
+		fmt.Fprintf(md.io.ErrOut, "Deployment Complete\n")
+		return nil
 	}
 
 	for i, e := range updateEntries {
