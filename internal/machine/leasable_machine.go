@@ -26,7 +26,6 @@ type LeasableMachine interface {
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
-	Stop(context.Context) error
 	WaitForState(context.Context, string, time.Duration, string, bool) error
 	WaitForSmokeChecksToPass(context.Context, string) error
 	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
@@ -43,7 +42,6 @@ type leasableMachine struct {
 	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
-	stopped                bool
 }
 
 func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *api.Machine) LeasableMachine {
@@ -156,24 +154,6 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return nil
-}
-
-func (lm *leasableMachine) Stop(ctx context.Context) error {
-	if lm.IsStopped() {
-		return fmt.Errorf("error cannot stop machine %s that was already stop", lm.machine.ID)
-	}
-
-	input := api.StopMachineInput{
-		ID: lm.machine.ID,
-	}
-
-	err := lm.flapsClient.Stop(ctx, input, lm.leaseNonce)
-	if err != nil {
-		return err
-	}
-
-	lm.stopped = true
 	return nil
 }
 
@@ -383,10 +363,6 @@ func (lm *leasableMachine) HasLease() bool {
 
 func (lm *leasableMachine) IsDestroyed() bool {
 	return lm.destroyed
-}
-
-func (lm *leasableMachine) IsStopped() bool {
-	return lm.stopped
 }
 
 func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Duration) error {

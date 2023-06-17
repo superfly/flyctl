@@ -50,7 +50,6 @@ type MachineDeploymentArgs struct {
 	VMCPUKind             string
 	IncreasedAvailability bool
 	AllocPublicIP         bool
-	PreviousRelease       string
 }
 
 type machineDeployment struct {
@@ -79,7 +78,6 @@ type machineDeployment struct {
 	machineGuest          *api.MachineGuest
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
-	previousRelease       string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
