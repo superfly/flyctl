@@ -323,17 +323,17 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
-		case !updateMachine.HealthCheckStatus().AllPassing():
+		case !updateMachine.AllHealthChecks().AllPassing():
 			if !printedFirst || lm.io.IsInteractive() {
 				lm.logClearLinesAbove(1)
-				lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
+				lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
 				printedFirst = true
 			}
 			time.Sleep(b.Duration())
 			continue
 		}
 		lm.logClearLinesAbove(1)
-		lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
+		lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
 		return nil
 	}
 }

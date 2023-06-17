@@ -326,11 +326,11 @@ func (md *machineDeployment) getHealthchecks(ctx context.Context, checksChan cha
 			return
 		}
 
-		status := *updateMachine.HealthCheckStatus()
+		status := *updateMachine.TopLevelChecks()
 
 		checksChan <- machineHealthcheckResponse{hcs: status, id: lm.FormattedMachineId()}
 
-		if status.Passing == status.Total {
+		if status.Total == status.Passing {
 			return
 		}
 
