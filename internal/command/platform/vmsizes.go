@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -62,22 +63,34 @@ func runVMSizes(ctx context.Context) error {
 
 func runMachineVMSizes(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
-	presets := api.MachinePresets
+
+	type preset struct {
+		guest   *api.MachineGuest
+		strings []string
+	}
+	sortedPresets := lo.MapToSlice(api.MachinePresets, func(key string, value *api.MachineGuest) preset {
+		arr := []string{
+			key,
+			cores(value.CPUs),
+			memory(value.MemoryMB),
+		}
+		return preset{value, arr}
+	})
+	sort.Slice(sortedPresets, func(i, j int) bool {
+		a := sortedPresets[i].guest
+		b := sortedPresets[j].guest
+		if a.CPUs == b.CPUs {
+			return a.MemoryMB < b.MemoryMB
+		}
+		return a.CPUs < b.CPUs
+	})
 
 	// Filter and display shared cpu sizes.
-	var shared [][]string
-	for key, guest := range presets {
-		if guest.CPUKind != "shared" {
-			continue
+	shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+		if p.guest.CPUKind == "shared" {
+			return p.strings, true
 		}
-		shared = append(shared, []string{
-			key,
-			cores(guest.CPUs),
-			memory(guest.MemoryMB),
-		})
-	}
-	sort.Slice(shared, func(i, j int) bool {
-		return shared[j][1] > shared[i][1]
+		return nil, false
 	})
 	err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory")
 	if err != nil {
@@ -85,19 +98,11 @@ func runMachineVMSizes(ctx context.Context) error {
 	}
 
 	// Filter and display performance cpu sizes.
-	var performance [][]string
-	for key, guest := range presets {
-		if guest.CPUKind != "performance" {
-			continue
+	performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+		if p.guest.CPUKind == "performance" {
+			return p.strings, true
 		}
-		performance = append(performance, []string{
-			key,
-			cores(guest.CPUs),
-			memory(guest.MemoryMB),
-		})
-	}
-	sort.Slice(performance, func(i, j int) bool {
-		return performance[j][1] > performance[i][1]
+		return nil, false
 	})
 	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
 }
