@@ -395,6 +395,8 @@ func allMachinesAreHealthy(stateMap map[string]machineHealthcheckResponse) bool 
 	passed := 0
 
 	for _, v := range stateMap {
+		// we initialize all machine ids with an empty struct, so all fields are zero'd on init.
+		// without v.hcs.Total != 0, the first call to this function will pass since 0 == 0
 		if v.hcs.Passing == v.hcs.Total && v.hcs.Total != 0 {
 			passed += 1
 		}
@@ -405,6 +407,14 @@ func allMachinesAreHealthy(stateMap map[string]machineHealthcheckResponse) bool 
 
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+
+	if md.strategy == "bluegreen" {
+		bg := NewBlueGreenStrategy(md, updateEntries)
+		if err := bg.Deploy(ctx); err != nil {
+			return bg.Rollback(ctx, err)
+		}
+		return nil
+	}
 
 	if md.strategy == "bluegreen" {
 		greenMachines := []machine.LeasableMachine{}
@@ -430,6 +440,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		}
 
 		time.Sleep(300 * time.Millisecond)
+
 		// concurrently wait for all machines to start
 		fmt.Fprintf(md.io.ErrOut, "\nWaiting for all green machines to start\n")
 		wait := time.NewTicker(1 * time.Minute)
