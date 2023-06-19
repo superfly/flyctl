@@ -2,6 +2,7 @@ package completion
 
 import (
 	"context"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/cmdutil/preparers"
@@ -56,6 +57,9 @@ func Adapt(
 		if err != nil {
 			return nil, cobra.ShellCompDirectiveError
 		}
+
+		ctx, cancelFn := context.WithTimeout(ctx, 5*time.Second)
+		defer cancelFn()
 
 		ctx, err = preparers.InitClient(ctx)
 		if err != nil {

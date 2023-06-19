@@ -21,6 +21,12 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 )
 
+// Preparers are split between here and `command/command.go` because
+// tab-completion needs to run *some* of them, and importing the command package from there
+// would create a circular dependency. Likewise, if *all* the preparers were in this module,
+// that would also cause a circular dependency.
+// I don't like this, but it's shippable until someone else fixes it
+
 type Preparer func(context.Context) (context.Context, error)
 
 func LoadConfig(ctx context.Context) (context.Context, error) {

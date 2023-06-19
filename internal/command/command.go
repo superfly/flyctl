@@ -44,6 +44,11 @@ func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.C
 	}
 }
 
+// Preparers are split between here and the preparers package because
+// tab-completion needs to run *some* of them, and importing this package from there
+// would create a circular dependency. Likewise, if *all* the preparers were in the preparers module,
+// that would also create a circular dependency.
+// I don't like this, but it's shippable until someone else fixes it
 var commonPreparers = []preparers.Preparer{
 	preparers.ApplyAliases,
 	determineHostname,

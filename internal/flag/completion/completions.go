@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"golang.org/x/exp/slices"
 )
 
@@ -27,7 +28,7 @@ func CompleteApps(
 	)
 
 	// We can't use `flag.*` here because of import cycles. *sigh*
-	orgFlag := cmd.Flag("org")
+	orgFlag := cmd.Flag(flagnames.Org)
 	if orgFlag != nil && orgFlag.Changed {
 		var org *api.Organization
 		org, err = clientApi.GetOrganizationBySlug(ctx, orgFlag.Value.String())
