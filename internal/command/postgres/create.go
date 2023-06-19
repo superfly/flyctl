@@ -216,9 +216,9 @@ func run(ctx context.Context) (err error) {
 		}
 
 		// Confirm that the region matches the region of the fork target
-		if reg != "" && reg != vol.Region {
-			return fmt.Errorf("Target region %q must match the region of the fork volume target: %q", reg, vol.Region)
-		}
+		// if reg != "" && reg != vol.Region {
+		// 	return fmt.Errorf("Target region %q must match the region of the fork volume target: %q", reg, vol.Region)
+		// }
 
 		// If the volume size isn't specified, set the volume size of the fork target
 		if pgConfig.DiskGb == 0 {
@@ -237,14 +237,18 @@ func run(ctx context.Context) (err error) {
 
 	params.PostgresConfiguration = *pgConfig
 
-	var region *api.Region
-	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
-		Message: "",
-	})
-	if err != nil {
-		return
+	region := &api.Region{
+		Code: flag.GetString(ctx, "region"),
 	}
 
+	// region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+	// 	Message: "",
+	// })
+	// if err != nil {
+	// 	return
+	// }
+
+	fmt.Printf("Region: %s\n", region.Name)
 	// Set the default manager if not specified or already resolved
 	if params.Manager == "" {
 		params.Manager = flypg.ReplicationManager
