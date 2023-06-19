@@ -20,6 +20,11 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	BATCHING_CUTOFF     = 6
+	BATCHING_GROUP_SIZE = 5
+)
+
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
@@ -270,6 +275,54 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+
+	useBatches := md.batchMachineWaits &&
+		(md.strategy == "rolling" || md.strategy == "canary") &&
+		len(updateEntries) >= BATCHING_CUTOFF
+
+	type batchJob struct {
+		lm       machine.LeasableMachine
+		indexStr string
+	}
+	var batch []batchJob
+
+	waitForMachine := func(lm machine.LeasableMachine, inBatch bool, indexStr string) error {
+
+		if md.strategy == "immediate" {
+			return nil
+		}
+
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return err
+		}
+
+		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
+			return err
+		}
+
+		if !md.skipHealthChecks {
+			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
+				md.warnAboutIncorrectListenAddress(ctx, lm)
+				err = suggestChangeWaitTimeout(err, "wait-timeout")
+				return err
+			}
+			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
+				indexStr,
+				md.colorize.Bold(lm.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
+			if inBatch {
+				fmt.Fprint(md.io.ErrOut, "\n")
+			}
+		}
+
+		md.warnAboutIncorrectListenAddress(ctx, lm)
+		return nil
+	}
+
 	for i, e := range updateEntries {
 		lm := e.leasableMachine
 		launchInput := e.launchInput
@@ -324,35 +377,23 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			continue
 		}
 
-		if md.strategy == "immediate" {
-			continue
-		}
+		if useBatches && i != 0 {
 
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
-		}
-
-		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
-			return err
-		}
-
-		if !md.skipHealthChecks {
-			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
-				md.warnAboutIncorrectListenAddress(ctx, lm)
-				err = suggestChangeWaitTimeout(err, "wait-timeout")
+			batch = append(batch, batchJob{lm, indexStr})
+			if len(batch) == BATCHING_GROUP_SIZE || i == len(updateEntries)-1 {
+				for _, job := range batch {
+					if err := waitForMachine(job.lm, true, job.indexStr); err != nil {
+						return err
+					}
+				}
+				batch = nil
+			}
+			md.logClearLinesAbove(1)
+		} else {
+			if err := waitForMachine(lm, false, indexStr); err != nil {
 				return err
 			}
-			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
-				indexStr,
-				md.colorize.Bold(lm.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
 		}
-
-		md.warnAboutIncorrectListenAddress(ctx, lm)
 	}
 
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")

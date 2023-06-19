@@ -36,6 +36,7 @@ type MachineDeploymentArgs struct {
 	AppCompact            *api.AppCompact
 	DeploymentImage       string
 	Strategy              string
+	BatchMachineWaits     bool
 	EnvFromFlags          []string
 	PrimaryRegionFlag     string
 	SkipSmokeChecks       bool
@@ -65,6 +66,7 @@ type machineDeployment struct {
 	releaseCommandMachine machine.MachineSet
 	volumes               map[string][]api.Volume
 	strategy              string
+	batchMachineWaits     bool
 	releaseId             string
 	releaseVersion        int
 	skipSmokeChecks       bool
@@ -136,6 +138,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		app:                   args.AppCompact,
 		appConfig:             appConfig,
 		img:                   args.DeploymentImage,
+		batchMachineWaits:     args.BatchMachineWaits,
 		skipSmokeChecks:       args.SkipSmokeChecks,
 		skipHealthChecks:      args.SkipHealthChecks,
 		restartOnly:           args.RestartOnly,

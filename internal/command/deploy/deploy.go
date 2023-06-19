@@ -114,6 +114,14 @@ var CommonFlags = flag.Set{
 		Description: "Memory (in megabytes) to attribute to the VM",
 		Aliases:     []string{"memory"},
 	},
+	flag.Bool{
+		Name: "strategy-batch",
+		Description: fmt.Sprintf(
+			"For \"rolling\" and \"canary\": batch Machine updates into groups of %d when updating more than %d.",
+			BATCHING_GROUP_SIZE, BATCHING_CUTOFF,
+		),
+		Default: true,
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -241,6 +249,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
+		BatchMachineWaits:     flag.GetBool(ctx, "strategy-batch"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
 		PrimaryRegionFlag:     appConfig.PrimaryRegion,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
