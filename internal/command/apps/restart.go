@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -40,6 +41,8 @@ func newRestart() *cobra.Command {
 			Default:     false,
 		},
 	)
+
+	cmd.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return cmd
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
@@ -119,8 +120,8 @@ func runListEvents(ctx context.Context) error {
 		return fmt.Errorf("this feature is not compatible with this postgres service ")
 	}
 
-	ignoreFlags := []string{flag.AccessTokenName, flag.AppName, flag.AppConfigFilePathName,
-		flag.VerboseName, "help"}
+	ignoreFlags := []string{flagnames.AccessToken, flagnames.App, flagnames.AppConfigFilePath,
+		flagnames.Verbose, "help"}
 
 	flagsName := flag.GetFlagsName(ctx, ignoreFlags)
 

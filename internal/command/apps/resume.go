@@ -8,6 +8,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
@@ -33,6 +34,8 @@ the number of configured instances.
 
 	resume.Hidden = true
 	resume.Args = cobra.ExactArgs(1)
+
+	resume.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return resume
 }

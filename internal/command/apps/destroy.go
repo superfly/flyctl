@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/iostreams"
 
@@ -31,6 +32,8 @@ from the Fly platform.
 	flag.Add(destroy,
 		flag.Yes(),
 	)
+
+	destroy.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return destroy
 }

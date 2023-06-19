@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -40,6 +41,8 @@ organization the current user belongs to.
 			Default:     false,
 		},
 	)
+
+	move.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
 	return move
 }

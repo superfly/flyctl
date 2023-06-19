@@ -6,19 +6,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -26,11 +22,10 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
+	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/httptracing"
-	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -38,13 +33,9 @@ import (
 	"github.com/superfly/flyctl/internal/update"
 )
 
-type (
-	Preparer func(context.Context) (context.Context, error)
+type Runner func(context.Context) error
 
-	Runner func(context.Context) error
-)
-
-func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
+func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.Command {
 	return &cobra.Command{
 		Use:   usage,
 		Short: short,
@@ -53,20 +44,25 @@ func New(usage, short, long string, fn Runner, p ...Preparer) *cobra.Command {
 	}
 }
 
-var commonPreparers = []Preparer{
-	applyAliases,
+// Preparers are split between here and the preparers package because
+// tab-completion needs to run *some* of them, and importing this package from there
+// would create a circular dependency. Likewise, if *all* the preparers were in the preparers module,
+// that would also create a circular dependency.
+// I don't like this, but it's shippable until someone else fixes it
+var commonPreparers = []preparers.Preparer{
+	preparers.ApplyAliases,
 	determineHostname,
 	determineWorkingDir,
-	determineUserHomeDir,
-	determineConfigDir,
+	preparers.DetermineUserHomeDir,
+	preparers.DetermineConfigDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
 	loadCache,
-	loadConfig,
+	preparers.LoadConfig,
 	initTaskManager,
 	startQueryingForNewRelease,
 	promptToUpdate,
-	initClient,
+	preparers.InitClient,
 	killOldAgent,
 	recordMetricsCommandContext,
 }
@@ -87,7 +83,7 @@ func sendOsMetric(ctx context.Context, state string) {
 	metrics.SendNoData(ctx, fmt.Sprintf("runs/%s/%s", osName, state))
 }
 
-func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) error {
+func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []string) error {
 	if fn == nil {
 		return nil
 	}
@@ -124,7 +120,7 @@ func newRunE(fn Runner, preparers ...Preparer) func(*cobra.Command, []string) er
 	}
 }
 
-func prepare(parent context.Context, preparers ...Preparer) (ctx context.Context, err error) {
+func prepare(parent context.Context, preparers ...preparers.Preparer) (ctx context.Context, err error) {
 	ctx = parent
 
 	for _, p := range preparers {
@@ -151,76 +147,6 @@ func finalize(ctx context.Context) {
 	}
 }
 
-// applyAliases consolidates flags with aliases into a single source-of-truth flag.
-// After calling this, the main flags will have their values set as follows:
-//   - If the main flag was already set, it will keep its value.
-//   - If it was not set, but an alias was, it will take the value of the first specified alias flag.
-//     This will set flag.Changed to true, as if it were specified manually.
-//   - If none of the flags were set, the main flag will remain its default value.
-func applyAliases(ctx context.Context) (context.Context, error) {
-
-	var (
-		invalidFlagNames []string
-		invalidTypes     []string
-
-		flags = flag.FromContext(ctx)
-	)
-	flags.VisitAll(func(f *pflag.Flag) {
-		aliases, ok := f.Annotations["flyctl_alias"]
-		if !ok {
-			return
-		}
-
-		name := f.Name
-		gotValue := false
-		origFlag := flags.Lookup(name)
-
-		if origFlag == nil {
-			invalidFlagNames = append(invalidFlagNames, name)
-		} else {
-			gotValue = origFlag.Changed
-		}
-
-		for _, alias := range aliases {
-			aliasFlag := flags.Lookup(alias)
-			if aliasFlag == nil {
-				invalidFlagNames = append(invalidFlagNames, alias)
-				continue
-			}
-			if origFlag == nil {
-				continue // nothing left to do here if we have no root flag
-			}
-			if aliasFlag.Value.Type() != origFlag.Value.Type() {
-				invalidTypes = append(invalidTypes, fmt.Sprintf("%s (%s) and %s (%s)", name, origFlag.Value.Type(), alias, aliasFlag.Value.Type()))
-			}
-			if !gotValue && aliasFlag.Changed {
-				err := origFlag.Value.Set(aliasFlag.Value.String())
-				if err != nil {
-					panic(err)
-				}
-				origFlag.Changed = true
-			}
-		}
-	})
-
-	var err error
-	{
-		var errorMessages []string
-		if len(invalidFlagNames) > 0 {
-			errorMessages = append(errorMessages, fmt.Sprintf("flags '%v' are not valid flags", invalidFlagNames))
-		}
-		if len(invalidTypes) > 0 {
-			errorMessages = append(errorMessages, fmt.Sprintf("flags '%v' have different types", invalidTypes))
-		}
-		if len(errorMessages) > 1 {
-			err = fmt.Errorf("multiple errors occured:\n > %s\n", strings.Join(errorMessages, "\n > "))
-		} else if len(errorMessages) == 1 {
-			err = fmt.Errorf("%s", errorMessages[0])
-		}
-	}
-	return ctx, err
-}
-
 func determineHostname(ctx context.Context) (context.Context, error) {
 	h, err := os.Hostname()
 	if err != nil {
@@ -243,27 +169,6 @@ func determineWorkingDir(ctx context.Context) (context.Context, error) {
 		Debugf("determined working directory: %q", wd)
 
 	return state.WithWorkingDirectory(ctx, wd), nil
-}
-
-func determineUserHomeDir(ctx context.Context) (context.Context, error) {
-	wd, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed determining user home directory: %w", err)
-	}
-
-	logger.FromContext(ctx).
-		Debugf("determined user home directory: %q", wd)
-
-	return state.WithUserHomeDirectory(ctx, wd), nil
-}
-
-func determineConfigDir(ctx context.Context) (context.Context, error) {
-	dir := filepath.Join(state.UserHomeDirectory(ctx), ".fly")
-
-	logger.FromContext(ctx).
-		Debugf("determined config directory: %q", dir)
-
-	return state.WithConfigDirectory(ctx, dir), nil
 }
 
 func ensureConfigDirExists(ctx context.Context) (context.Context, error) {
@@ -334,44 +239,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	logger.Debug("cache loaded.")
 
 	return cache.NewContext(ctx, c), nil
-}
-
-func loadConfig(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-
-	cfg := config.New()
-
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, err
-	}
-
-	// Apply config from the environment, overriding anything from the file
-	cfg.ApplyEnv()
-
-	// Finally, apply command line options, overriding any previous setting
-	cfg.ApplyFlags(flag.FromContext(ctx))
-
-	logger.Debug("config initialized.")
-
-	return config.NewContext(ctx, cfg), nil
-}
-
-func initClient(ctx context.Context) (context.Context, error) {
-	logger := logger.FromContext(ctx)
-	cfg := config.FromContext(ctx)
-
-	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(httptracing.NewTransport(http.DefaultTransport))
-
-	c := client.FromToken(cfg.AccessToken)
-	logger.Debug("client initialized.")
-
-	return client.NewContext(ctx, c), nil
 }
 
 func initTaskManager(ctx context.Context) (context.Context, error) {

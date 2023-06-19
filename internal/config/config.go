@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/superfly/flyctl/internal/env"
-	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
 const (
@@ -153,15 +153,15 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 	defer cfg.mu.Unlock()
 
 	applyStringFlags(fs, map[string]*string{
-		flag.AccessTokenName: &cfg.AccessToken,
-		flag.OrgName:         &cfg.Organization,
-		flag.RegionName:      &cfg.Region,
+		flagnames.AccessToken: &cfg.AccessToken,
+		flagnames.Org:         &cfg.Organization,
+		flagnames.Region:      &cfg.Region,
 	})
 
 	applyBoolFlags(fs, map[string]*bool{
-		flag.VerboseName:    &cfg.VerboseOutput,
-		flag.JSONOutputName: &cfg.JSONOutput,
-		flag.LocalOnlyName:  &cfg.LocalOnly,
+		flagnames.Verbose:    &cfg.VerboseOutput,
+		flagnames.JSONOutput: &cfg.JSONOutput,
+		flagnames.LocalOnly:  &cfg.LocalOnly,
 	})
 }
 
