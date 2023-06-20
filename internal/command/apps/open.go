@@ -56,6 +56,12 @@ func runOpen(ctx context.Context) error {
 	}
 
 	appConfig := appconfig.ConfigFromContext(ctx)
+	if appConfig == nil {
+		if appConfig, err = appconfig.FromAppCompact(ctx, app); err != nil {
+			return errors.New("The app config could not be found")
+		}
+	}
+
 	appURL := appConfig.URL()
 	if appURL == nil {
 		return errors.New("The app doesn't exspose a public http service")
