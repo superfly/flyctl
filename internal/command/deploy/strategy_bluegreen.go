@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -19,8 +21,10 @@ import (
 )
 
 var (
-	ErrAborted            = errors.New("deployment aborted by user")
-	ErrCreateGreenMachine = errors.New("failed to create green machines")
+	ErrAborted             = errors.New("deployment aborted by user")
+	ErrWaitTimeout         = errors.New("wait for goroutine timeout")
+	ErrCreateGreenMachine  = errors.New("failed to create green machines")
+	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 )
 
 type blueGreen struct {
@@ -97,6 +101,88 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	return nil
 }
 
+func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
+	firstRun := true
+
+	return func() {
+		rows := []string{}
+		bg.stateLock.RLock()
+		for id, value := range state {
+			status := "created"
+			if value == 1 {
+				status = "started"
+			}
+			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
+		}
+		bg.stateLock.RUnlock()
+
+		if !firstRun {
+			bg.clearLinesAbove(len(rows))
+		}
+
+		sort.Strings(rows)
+
+		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+		firstRun = false
+	}
+}
+
+func allMachinesStarted(stateMap map[string]int) bool {
+	started := 0
+	for _, v := range stateMap {
+		started += v
+	}
+
+	return started == len(stateMap)
+}
+
+func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error {
+	wait := time.NewTicker(bg.timeout)
+	machineIDToState := map[string]int{}
+	render := bg.renderMachineStates(machineIDToState)
+	errChan := make(chan error)
+
+	for _, gm := range bg.greenMachines {
+		machineIDToState[gm.FormattedMachineId()] = 0
+	}
+
+	for _, gm := range bg.greenMachines {
+		id := gm.FormattedMachineId()
+
+		go func(lm machine.LeasableMachine) {
+			err := machine.WaitForStartOrStop(ctx, lm.Machine(), "start", bg.timeout)
+			if err != nil {
+				errChan <- err
+				return
+			}
+
+			bg.stateLock.Lock()
+			machineIDToState[id] = 1
+			bg.stateLock.Unlock()
+		}(gm)
+	}
+
+	for {
+		if allMachinesStarted(machineIDToState) {
+			return nil
+		}
+
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
+
+		select {
+		case <-wait.C:
+			return ErrWaitTimeout
+		case err := <-errChan:
+			return err
+		default:
+			time.Sleep(90 * time.Millisecond)
+			render()
+		}
+	}
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
@@ -106,6 +192,18 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.Out, "\nCreating green machines\n")
 	if err := bg.CreateGreenMachines(ctx); err != nil {
 		return errors.Wrap(err, ErrCreateGreenMachine.Error())
+	}
+
+	if bg.aborted.Load() {
+		return ErrAborted
+	}
+
+	// because computers are too fast and everyone deserves a break sometimes
+	time.Sleep(300 * time.Millisecond)
+
+	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
+	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
+		return errors.Wrap(err, ErrWaitForStartedState.Error())
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
