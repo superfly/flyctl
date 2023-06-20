@@ -515,6 +515,40 @@ func (f *Client) GetProcesses(ctx context.Context, machineID string) (api.Machin
 	return out, nil
 }
 
+func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
+	metrics.Started(ctx, "machine_cordon")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_cordon/duration")
+	defer func() {
+		metrics.Status(ctx, "machine_cordon", err == nil)
+		if err == nil {
+			sendUpdateMetrics()
+		}
+	}()
+
+	if err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/cordon", machineID), nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to cordon VM: %w", err)
+	}
+
+	return nil
+}
+
+func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
+	metrics.Started(ctx, "machine_uncordon")
+	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_uncordon/duration")
+	defer func() {
+		metrics.Status(ctx, "machine_uncordon", err == nil)
+		if err == nil {
+			sendUpdateMetrics()
+		}
+	}()
+
+	if err := f.sendRequest(ctx, http.MethodPost, fmt.Sprintf("/%s/uncordon", machineID), nil, nil, nil); err != nil {
+		return fmt.Errorf("failed to uncordon VM: %w", err)
+	}
+
+	return nil
+}
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
 	defer timing.End()
@@ -576,6 +610,8 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	if err != nil {
 		return nil, err
 	}
+
+	// fmt.Println("[targetEndpoint]]", targetEndpoint)
 
 	if in != nil {
 		b, err := json.Marshal(in)
