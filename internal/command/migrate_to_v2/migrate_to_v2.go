@@ -351,6 +351,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return nil, err
 	}
 	migrator.resolveOldVolumes()
+	err = migrator.validateVolumes(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = migrator.prepMachinesToCreate(ctx)
 	if err != nil {
 		return nil, err
