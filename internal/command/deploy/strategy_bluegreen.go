@@ -29,6 +29,7 @@ var (
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
 	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready for traffic")
 	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
+	ErrValidationError     = errors.New("app not in valid state for bluegreen deployments")
 )
 
 type blueGreen struct {
@@ -42,24 +43,26 @@ type blueGreen struct {
 	aborted         atomic.Bool
 	healthLock      sync.RWMutex
 	stateLock       sync.RWMutex
+
+	hangingBlueMachines []string
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
 	bg := &blueGreen{
-		greenMachines:   []machine.LeasableMachine{},
-		blueMachines:    blueMachines,
-		flaps:           md.flapsClient,
-		timeout:         md.waitTimeout,
-		io:              md.io,
-		colorize:        md.colorize,
-		clearLinesAbove: md.logClearLinesAbove,
-		aborted:         atomic.Bool{},
-		healthLock:      sync.RWMutex{},
-		stateLock:       sync.RWMutex{},
+		greenMachines:       []machine.LeasableMachine{},
+		blueMachines:        blueMachines,
+		flaps:               md.flapsClient,
+		timeout:             md.waitTimeout,
+		io:                  md.io,
+		colorize:            md.colorize,
+		clearLinesAbove:     md.logClearLinesAbove,
+		aborted:             atomic.Bool{},
+		healthLock:          sync.RWMutex{},
+		stateLock:           sync.RWMutex{},
+		hangingBlueMachines: []string{},
 	}
 
-	// Hook into Ctrl+C so that aborting the migration
-	// leaves the app in a stable, unlocked, non-detached state
+	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
 	{
 		signalCh := make(chan os.Signal, 1)
 		abortSignals := []os.Signal{os.Interrupt}
@@ -303,6 +306,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) error {
 	for _, gm := range bg.greenMachines {
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
 		err := bg.flaps.UnCordon(ctx, gm.Machine().ID)
 		if err != nil {
 			return err
@@ -316,8 +322,12 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 
 func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	for _, gm := range bg.blueMachines {
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
 		err := gm.leasableMachine.Destroy(ctx, true)
 		if err != nil {
+			bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
 			continue
 		}
 
@@ -368,7 +378,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	bg.attachCustomTopLevelChecks()
 
-	fmt.Fprintf(bg.io.Out, "\nCreating green machines\n")
+	for _, entry := range bg.blueMachines {
+		if len(entry.launchInput.Config.Checks) == 0 {
+			fmt.Fprintf(bg.io.ErrOut, "\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
+			return ErrValidationError
+		}
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nCreating green machines\n")
 	if err := bg.CreateGreenMachines(ctx); err != nil {
 		return errors.Wrap(err, ErrCreateGreenMachine.Error())
 	}
@@ -419,10 +436,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
-		// todo(@gwuah)
-		// if we fail to destroy previous deployment, there's no need to cancel the deployment
-		// we can just show the user how to cleanup (flydev machines destroy --force <machine-id>)
-		// or we can retry?
+		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
+		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
 		return nil
 	}
 

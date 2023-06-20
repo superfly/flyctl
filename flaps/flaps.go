@@ -611,8 +611,6 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		return nil, err
 	}
 
-	// fmt.Println("[targetEndpoint]]", targetEndpoint)
-
 	if in != nil {
 		b, err := json.Marshal(in)
 		if err != nil {
