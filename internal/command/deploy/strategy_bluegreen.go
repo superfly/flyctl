@@ -326,11 +326,47 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	return nil
 }
 
+func (bg *blueGreen) attachCustomTopLevelChecks() {
+	for _, entry := range bg.blueMachines {
+		for _, service := range entry.launchInput.Config.Services {
+			servicePort := service.InternalPort
+			serviceProtocol := service.Protocol
+
+			for _, check := range service.Checks {
+				cc := api.MachineCheck{
+					Port:              check.Port,
+					Type:              check.Type,
+					Interval:          check.Interval,
+					Timeout:           check.Timeout,
+					GracePeriod:       check.GracePeriod,
+					HTTPMethod:        check.HTTPMethod,
+					HTTPPath:          check.HTTPPath,
+					HTTPProtocol:      check.HTTPProtocol,
+					HTTPSkipTLSVerify: check.HTTPSkipTLSVerify,
+					HTTPHeaders:       check.HTTPHeaders,
+				}
+
+				if cc.Port == nil {
+					cc.Port = &servicePort
+				}
+
+				if cc.Type == nil {
+					cc.Type = &serviceProtocol
+				}
+
+				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
+			}
+		}
+	}
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
 		return ErrAborted
 	}
+
+	bg.attachCustomTopLevelChecks()
 
 	fmt.Fprintf(bg.io.Out, "\nCreating green machines\n")
 	if err := bg.CreateGreenMachines(ctx); err != nil {
