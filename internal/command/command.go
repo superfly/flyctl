@@ -544,6 +544,33 @@ func RequireAppName(ctx context.Context) (context.Context, error) {
 	return appconfig.WithName(ctx, name), nil
 }
 
+// RequireAppNameNoFlag is a Preparer which makes sure the user has selected an
+// application name via the environment or an application
+// config file (fly.toml). It embeds LoadAppConfigIfPresent.
+//
+// Identical to RequireAppName but does not check for the --app flag.
+func RequireAppNameNoFlag(ctx context.Context) (context.Context, error) {
+	ctx, err := LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// First consult with the environment
+	name := env.First("FLY_APP")
+	if name == "" {
+		// and then with the config file (if any)
+		if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+			name = cfg.AppName
+		}
+	}
+
+	if name == "" {
+		return nil, ErrRequireAppName
+	}
+
+	return appconfig.WithName(ctx, name), nil
+}
+
 // LoadAppNameIfPresent is a Preparer which adds app name if the user has used --app or there appConfig
 // but unlike RequireAppName it does not error if the user has not specified an app name.
 func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
