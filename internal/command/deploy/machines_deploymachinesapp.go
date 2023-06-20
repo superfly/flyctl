@@ -351,6 +351,15 @@ func (b *batcher[T]) Batch() []T {
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
+	if md.strategy == "bluegreen" {
+		bg := BlueGreenStrategy(md, updateEntries)
+		if err := bg.Deploy(ctx); err != nil {
+			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
+			return bg.Rollback(ctx, err)
+		}
+		return nil
+	}
+
 	useBatches := md.batchMachineWaits &&
 		(md.strategy == "rolling" || md.strategy == "canary") &&
 		len(updateEntries) >= batchingCutoff
