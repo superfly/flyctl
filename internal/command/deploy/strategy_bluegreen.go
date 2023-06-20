@@ -28,6 +28,7 @@ var (
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
 	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready for traffic")
+	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
 )
 
 type blueGreen struct {
@@ -313,6 +314,18 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 	return nil
 }
 
+func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
+	for _, gm := range bg.blueMachines {
+		err := gm.leasableMachine.Destroy(ctx, true)
+		if err != nil {
+			continue
+		}
+
+		fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+	}
+	return nil
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
@@ -354,11 +367,28 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
 
+	if bg.aborted.Load() {
+		return ErrAborted
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
+	if err := bg.DestroyBlueMachines(ctx); err != nil {
+		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
+	}
+
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
 	return nil
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
+
+	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
+		// todo(@gwuah)
+		// if we fail to destroy previous deployment, there's no need to cancel the deployment
+		// we can just show the user how to cleanup (flydev machines destroy --force <machine-id>)
+		// or we can retry?
+		return nil
+	}
 
 	for _, mach := range bg.greenMachines {
 		err := mach.Destroy(ctx, true)
