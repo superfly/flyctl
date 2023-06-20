@@ -364,6 +364,9 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 					cc.Type = &serviceProtocol
 				}
 
+				if entry.launchInput.Config.Checks == nil {
+					entry.launchInput.Config.Checks = make(map[string]api.MachineCheck)
+				}
 				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
 			}
 		}
