@@ -15,6 +15,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -25,6 +26,7 @@ var (
 	ErrWaitTimeout         = errors.New("wait for goroutine timeout")
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
+	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
 )
 
 type blueGreen struct {
@@ -183,6 +185,120 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	}
 }
 
+func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheckStatus) func() {
+	firstRun := true
+
+	return func() {
+		rows := []string{}
+		bg.healthLock.RLock()
+		for id, value := range state {
+			status := "unchecked"
+			if value.Total != 0 {
+				status = fmt.Sprintf("%d/%d passing", value.Passing, value.Total)
+			}
+			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
+		}
+		bg.healthLock.RUnlock()
+
+		if !firstRun {
+			bg.clearLinesAbove(len(rows))
+		}
+
+		sort.Strings(rows)
+
+		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+		firstRun = false
+	}
+}
+
+func allMachinesHealthy(stateMap map[string]*api.HealthCheckStatus) bool {
+	passed := 0
+
+	for _, v := range stateMap {
+		// we initialize all machine ids with an empty struct, so all fields are zero'd on init.
+		// without v.hcs.Total != 0, the first call to this function will pass since 0 == 0
+		if v.Total == 0 {
+			continue
+		}
+
+		if v.Passing == v.Total {
+			passed += 1
+		}
+	}
+
+	return passed == len(stateMap)
+}
+
+func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error {
+	wait := time.NewTicker(bg.timeout)
+	machineIDToHealthStatus := map[string]*api.HealthCheckStatus{}
+	errChan := make(chan error)
+	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
+
+	for _, gm := range bg.greenMachines {
+		machineIDToHealthStatus[gm.FormattedMachineId()] = &api.HealthCheckStatus{}
+	}
+
+	for _, gm := range bg.greenMachines {
+
+		go func(m machine.LeasableMachine) {
+			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
+			defer cancel()
+
+			interval, gracePeriod := m.GetMinIntervalAndMinGracePeriod()
+
+			time.Sleep(gracePeriod)
+
+			for {
+				updateMachine, err := bg.flaps.Get(waitCtx, m.Machine().ID)
+
+				switch {
+				case waitCtx.Err() != nil:
+					errChan <- waitCtx.Err()
+					return
+				case err != nil:
+					errChan <- err
+					return
+				}
+
+				status := updateMachine.TopLevelChecks()
+				bg.healthLock.Lock()
+				machineIDToHealthStatus[m.FormattedMachineId()] = status
+				bg.healthLock.Unlock()
+				if status.Total == status.Passing {
+					return
+				}
+
+				time.Sleep(interval)
+			}
+
+		}(gm)
+	}
+
+	for {
+
+		if allMachinesHealthy(machineIDToHealthStatus) {
+			break
+		}
+
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
+
+		select {
+		case err := <-errChan:
+			return err
+		case <-wait.C:
+			return ErrWaitTimeout
+		default:
+			time.Sleep(90 * time.Millisecond)
+			render()
+		}
+	}
+
+	return nil
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
@@ -204,6 +320,15 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
 	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
 		return errors.Wrap(err, ErrWaitForStartedState.Error())
+	}
+
+	if bg.aborted.Load() {
+		return ErrAborted
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
+	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
+		return errors.Wrap(err, ErrWaitForHealthy.Error())
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")

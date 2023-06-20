@@ -31,6 +31,7 @@ type LeasableMachine interface {
 	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*api.MachineEvent, error)
 	FormattedMachineId() string
+	GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration)
 }
 
 type leasableMachine struct {
@@ -303,17 +304,17 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
-		case !updateMachine.HealthCheckStatus().AllPassing():
+		case !updateMachine.AllHealthChecks().AllPassing():
 			if !printedFirst || lm.io.IsInteractive() {
 				lm.logClearLinesAbove(1)
-				lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
+				lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
 				printedFirst = true
 			}
 			time.Sleep(b.Duration())
 			continue
 		}
 		lm.logClearLinesAbove(1)
-		lm.logHealthCheckStatus(updateMachine.HealthCheckStatus(), logPrefix)
+		lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
 		return nil
 	}
 }
@@ -456,4 +457,25 @@ func (lm *leasableMachine) resetLease() {
 	if lm.leaseRefreshCancelFunc != nil {
 		lm.leaseRefreshCancelFunc()
 	}
+}
+
+func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration) {
+	minInterval := 60 * time.Second
+
+	checkDefs := maps.Values(lm.Machine().Config.Checks)
+	for _, s := range lm.Machine().Config.Services {
+		checkDefs = append(checkDefs, s.Checks...)
+	}
+	minGracePeriod := time.Second
+	for _, c := range checkDefs {
+		if c.Interval != nil && c.Interval.Duration < minInterval {
+			minInterval = c.Interval.Duration
+		}
+
+		if c.GracePeriod != nil && c.GracePeriod.Duration < minGracePeriod {
+			minGracePeriod = c.GracePeriod.Duration
+		}
+	}
+
+	return minInterval, minGracePeriod
 }
