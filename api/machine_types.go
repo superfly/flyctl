@@ -112,6 +112,28 @@ func (m *Machine) ImageRepository() string {
 	return m.ImageRef.Repository
 }
 
+func (m *Machine) TopLevelChecks() *HealthCheckStatus {
+	res := &HealthCheckStatus{}
+	total := 0
+
+	for _, check := range m.Checks {
+		if !strings.HasPrefix(check.Name, "servicecheck-") {
+			total++
+			switch check.Status {
+			case Passing:
+				res.Passing += 1
+			case Warning:
+				res.Warn += 1
+			case Critical:
+				res.Critical += 1
+			}
+		}
+	}
+
+	res.Total = total
+	return res
+}
+
 type HealthCheckStatus struct {
 	Total, Passing, Warn, Critical int
 }
@@ -120,7 +142,7 @@ func (hcs *HealthCheckStatus) AllPassing() bool {
 	return hcs.Passing == hcs.Total
 }
 
-func (m *Machine) HealthCheckStatus() *HealthCheckStatus {
+func (m *Machine) AllHealthChecks() *HealthCheckStatus {
 	res := &HealthCheckStatus{}
 	res.Total = len(m.Checks)
 	for _, check := range m.Checks {
@@ -561,15 +583,18 @@ type MachineStartResponse struct {
 }
 
 type LaunchMachineInput struct {
-	Config     *MachineConfig `json:"config,omitempty"`
-	Region     string         `json:"region,omitempty"`
-	Name       string         `json:"name,omitempty"`
-	SkipLaunch bool           `json:"skip_launch,omitempty"`
-	LeaseTTL   int            `json:"lease_ttl,omitempty"`
+	Config                  *MachineConfig `json:"config,omitempty"`
+	Region                  string         `json:"region,omitempty"`
+	Name                    string         `json:"name,omitempty"`
+	SkipLaunch              bool           `json:"skip_launch,omitempty"`
+	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
+
+	LeaseTTL int `json:"lease_ttl,omitempty"`
 
 	// Client side only
-	ID               string `json:"-"`
-	SkipHealthChecks bool   `json:"-"`
+	ID                  string `json:"-"`
+	SkipHealthChecks    bool   `json:"-"`
+	RequiresReplacement bool   `json:"-"`
 }
 
 type MachineProcess struct {
