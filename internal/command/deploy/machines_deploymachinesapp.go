@@ -349,7 +349,6 @@ func (b *batcher[T]) Batch() []T {
 }
 
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
-	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
 	useBatches := md.batchMachineWaits &&
