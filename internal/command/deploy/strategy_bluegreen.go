@@ -19,7 +19,8 @@ import (
 )
 
 var (
-	ErrAborted = errors.New("deployment aborted by user")
+	ErrAborted            = errors.New("deployment aborted by user")
+	ErrCreateGreenMachine = errors.New("failed to create green machines")
 )
 
 type blueGreen struct {
@@ -72,13 +73,53 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 
 }
 
+func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
+	var greenMachines []machine.LeasableMachine
+
+	for _, mach := range bg.blueMachines {
+		launchInput := mach.launchInput
+		launchInput.SkipServiceRegistration = true
+
+		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
+		if err != nil {
+			return err
+		}
+
+		greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
+		defer greenMachine.ReleaseLease(ctx)
+
+		greenMachines = append(greenMachines, greenMachine)
+
+		fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
+	}
+
+	bg.greenMachines = greenMachines
+	return nil
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
+
+	if bg.aborted.Load() {
+		return ErrAborted
+	}
+
+	fmt.Fprintf(bg.io.Out, "\nCreating green machines\n")
+	if err := bg.CreateGreenMachines(ctx); err != nil {
+		return errors.Wrap(err, ErrCreateGreenMachine.Error())
+	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
 	return nil
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
+
+	for _, mach := range bg.greenMachines {
+		err := mach.Destroy(ctx, true)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
