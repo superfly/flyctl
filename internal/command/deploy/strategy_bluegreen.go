@@ -27,6 +27,7 @@ var (
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
+	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready for traffic")
 )
 
 type blueGreen struct {
@@ -299,6 +300,19 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	return nil
 }
 
+func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) error {
+	for _, gm := range bg.greenMachines {
+		err := bg.flaps.UnCordon(ctx, gm.Machine().ID)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(bg.io.ErrOut, "  Machine %s now serving traffic\n", gm.FormattedMachineId())
+	}
+
+	return nil
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
@@ -329,6 +343,15 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
 		return errors.Wrap(err, ErrWaitForHealthy.Error())
+	}
+
+	if bg.aborted.Load() {
+		return ErrAborted
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready for traffic\n")
+	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
+		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
