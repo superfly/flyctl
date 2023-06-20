@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -40,6 +41,8 @@ type blueGreen struct {
 	clearLinesAbove func(count int)
 	timeout         time.Duration
 	aborted         atomic.Bool
+	healthLock      sync.RWMutex
+	stateLock       sync.RWMutex
 }
 
 func NewBlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -51,9 +54,11 @@ func NewBlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEn
 		colorize:        md.colorize,
 		clearLinesAbove: md.logClearLinesAbove,
 		aborted:         atomic.Bool{},
+		healthLock:      sync.RWMutex{},
+		stateLock:       sync.RWMutex{},
 
 		// todo(@gwuah) - use the right value
-		timeout: 2 * time.Minute,
+		timeout: 1 * time.Minute,
 	}
 
 	// Hook into Ctrl+C so that aborting the migration
@@ -123,7 +128,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 				return
 			}
 
+			bg.stateLock.Lock()
 			machineIDToState[id] = 1
+			bg.stateLock.Unlock()
 		}(gm)
 	}
 
@@ -181,7 +188,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 				}
 
 				status := updateMachine.TopLevelChecks()
+				bg.healthLock.Lock()
 				machineIDToHealthStatus[m.FormattedMachineId()] = status
+				bg.healthLock.Unlock()
 				if status.Total == status.Passing {
 					return
 				}
@@ -271,6 +280,7 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 
 	return func() {
 		rows := []string{}
+		bg.stateLock.RLock()
 		for id, value := range state {
 			status := "created"
 			if value == 1 {
@@ -278,6 +288,7 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 			}
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
+		bg.stateLock.RUnlock()
 
 		if !firstRun {
 			bg.clearLinesAbove(len(rows))
@@ -295,6 +306,7 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 
 	return func() {
 		rows := []string{}
+		bg.healthLock.RLock()
 		for id, value := range state {
 			status := "unchecked"
 			if value.Total != 0 {
@@ -302,6 +314,7 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 			}
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
+		bg.healthLock.RUnlock()
 
 		if !firstRun {
 			bg.clearLinesAbove(len(rows))
@@ -314,11 +327,47 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 	}
 }
 
+func (bg *blueGreen) attachCustomTopLevelChecks() {
+	for _, entry := range bg.blueMachines {
+		for _, service := range entry.launchInput.Config.Services {
+			servicePort := service.InternalPort
+			serviceProtocol := service.Protocol
+
+			for _, check := range service.Checks {
+				cc := api.MachineCheck{
+					Port:              check.Port,
+					Type:              check.Type,
+					Interval:          check.Interval,
+					Timeout:           check.Timeout,
+					GracePeriod:       check.GracePeriod,
+					HTTPMethod:        check.HTTPMethod,
+					HTTPPath:          check.HTTPPath,
+					HTTPProtocol:      check.HTTPProtocol,
+					HTTPSkipTLSVerify: check.HTTPSkipTLSVerify,
+					HTTPHeaders:       check.HTTPHeaders,
+				}
+
+				if cc.Port == nil {
+					cc.Port = &servicePort
+				}
+
+				if cc.Type == nil {
+					cc.Type = &serviceProtocol
+				}
+
+				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
+			}
+		}
+	}
+}
+
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
 		return ErrAborted
 	}
+
+	bg.attachCustomTopLevelChecks()
 
 	fmt.Fprintf(bg.io.Out, "\nCreating green machines\n")
 	if err := bg.CreateGreenMachines(ctx); err != nil {
