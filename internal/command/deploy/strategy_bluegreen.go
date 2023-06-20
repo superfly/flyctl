@@ -32,9 +32,8 @@ var (
 )
 
 type blueGreen struct {
-	greenMachines []machine.LeasableMachine
-	blueMachines  []*machineUpdateEntry
-
+	greenMachines   []machine.LeasableMachine
+	blueMachines    []*machineUpdateEntry
 	flaps           *flaps.Client
 	io              *iostreams.IOStreams
 	colorize        *iostreams.ColorScheme
@@ -45,7 +44,7 @@ type blueGreen struct {
 	stateLock       sync.RWMutex
 }
 
-func NewBlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
+func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
 	bg := &blueGreen{
 		greenMachines:   []machine.LeasableMachine{},
 		blueMachines:    blueMachines,
@@ -56,9 +55,7 @@ func NewBlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEn
 		aborted:         atomic.Bool{},
 		healthLock:      sync.RWMutex{},
 		stateLock:       sync.RWMutex{},
-
-		// todo(@gwuah) - use the right value
-		timeout: 1 * time.Minute,
+		timeout:         md.waitTimeout,
 	}
 
 	// Hook into Ctrl+C so that aborting the migration
@@ -422,8 +419,11 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
-		// if we fail to destroy previoys deployment, there's no need to cancel the deployment
-		// todo(@gwuah) - figure out what to do.
+		// todo(@gwuah)
+		// if we fail to destroy previous deployment, there's no need to cancel the deployment
+		// we can just show the user how to cleanup (flydev machines destroy --force <machine-id>)
+		// or we can retry?
+		return nil
 	}
 
 	for _, mach := range bg.greenMachines {

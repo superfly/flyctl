@@ -271,7 +271,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
 	if md.strategy == "bluegreen" {
-		bg := NewBlueGreenStrategy(md, updateEntries)
+		bg := BlueGreenStrategy(md, updateEntries)
 		if err := bg.Deploy(ctx); err != nil {
 			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 			return bg.Rollback(ctx, err)
