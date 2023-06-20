@@ -51,11 +51,12 @@ func runUpgrade(ctx context.Context) error {
 			release.Version, err)
 	}
 
-	if buildinfo.Version().GTE(latest) {
-		return errors.New("no available update")
-	}
-
 	io := iostreams.FromContext(ctx)
+
+	if buildinfo.Version().GTE(latest) {
+		fmt.Fprintf(io.Out, "Already running latest flyctl v%s\n", buildinfo.Version().String())
+		return nil
+	}
 
 	homebrew := update.IsUnderHomebrew()
 
