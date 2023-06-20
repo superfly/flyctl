@@ -117,8 +117,9 @@ var CommonFlags = flag.Set{
 	flag.Bool{
 		Name: "strategy-batch",
 		Description: fmt.Sprintf(
-			"For \"rolling\" and \"canary\": batch Machine updates into groups of %d when updating more than %d.",
-			BATCHING_GROUP_SIZE, BATCHING_CUTOFF,
+			"For \"rolling\" and \"canary\": batch Machine updates into %d groups when updating more than %d.",
+			batchingGroupCount,
+			batchingCutoff,
 		),
 		Default: true,
 	},
