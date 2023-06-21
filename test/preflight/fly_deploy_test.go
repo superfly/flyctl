@@ -4,6 +4,7 @@
 package preflight
 
 import (
+	"strings"
 	"testing"
 
 	//"github.com/samber/lo"
@@ -77,4 +78,14 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	output := deployRes.StdErr().String()
 	require.Contains(f, output, "exited with non-zero status of 1")
 	require.NotContains(f, output, "401 Unauthorized")
+}
+
+func TestFlyDeploy_Dockerfile(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.WriteFile("Dockerfile", `FROM nginx
+ENV PREFLIGHT_TEST=true`)
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
+	sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
+	require.Equal(f, "true", strings.TrimSpace(sshResult.StdOut().String()), "expected PREFLIGHT_TEST env var to be set in machine")
 }
