@@ -133,6 +133,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 			machine, err := md.spawnMachineInGroup(ctx, name, idx, total, nil,
 				withMeta(metadata{key: "fly_canary", value: "true"}),
 				withGuest(md.inferCanaryGuest(name)),
+				withDns(&api.DNSConfig{SkipRegistration: true}),
 			)
 			if err != nil {
 				return err
@@ -489,6 +490,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 type spawnOptions struct {
 	meta  []metadata
 	guest *api.MachineGuest
+	dns   *api.DNSConfig
 }
 
 type spawnOptionsFn func(*spawnOptions)
@@ -502,6 +504,12 @@ func withMeta(m metadata) spawnOptionsFn {
 func withGuest(guest *api.MachineGuest) spawnOptionsFn {
 	return func(o *spawnOptions) {
 		o.guest = guest
+	}
+}
+
+func withDns(dns *api.DNSConfig) spawnOptionsFn {
+	return func(o *spawnOptions) {
+		o.dns = dns
 	}
 }
 
@@ -526,6 +534,10 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	for _, m := range options.meta {
 		launchInput.Config.Metadata[m.key] = m.value
+	}
+
+	if options.dns != nil {
+		launchInput.Config.DNS = options.dns
 	}
 
 	// Acquire a lease on the new machine to ensure external factors can't stop or update it
