@@ -26,7 +26,7 @@ func newRestart() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
-		command.RequireAppNameNoFlag,
+		command.LoadAppNameIfPresentNoFlag,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 

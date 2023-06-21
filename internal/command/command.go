@@ -583,6 +583,17 @@ func LoadAppNameIfPresent(ctx context.Context) (context.Context, error) {
 	return localCtx, err
 }
 
+// LoadAppNameIfPresentNoFlag is like LoadAppNameIfPresent, but it does not check for the --app flag.
+func LoadAppNameIfPresentNoFlag(ctx context.Context) (context.Context, error) {
+	localCtx, err := RequireAppNameNoFlag(ctx)
+
+	if errors.Is(err, ErrRequireAppName) {
+		return appconfig.WithName(ctx, ""), nil
+	}
+
+	return localCtx, err
+}
+
 func ChangeWorkingDirectoryToFirstArgIfPresent(ctx context.Context) (context.Context, error) {
 	wd := flag.FirstArg(ctx)
 	if wd == "" {
