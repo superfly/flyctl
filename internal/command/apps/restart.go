@@ -2,6 +2,7 @@ package apps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -57,6 +58,9 @@ func runRestart(ctx context.Context) error {
 
 	if appName == "" {
 		appName = appconfig.NameFromContext(ctx)
+		if appName == "" {
+			return errors.New("no app name was provided, and none is available from the environment or fly.toml")
+		}
 	}
 
 	app, err := client.GetAppCompact(ctx, appName)
