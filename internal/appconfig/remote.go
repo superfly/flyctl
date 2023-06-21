@@ -20,6 +20,18 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 		return nil, fmt.Errorf("error getting app: %w", err)
 	}
 
+	return getConfig(ctx, apiClient, appCompact)
+}
+
+func FromAppCompact(ctx context.Context, appCompact *api.AppCompact) (*Config, error) {
+	apiClient := client.FromContext(ctx).API()
+
+	return getConfig(ctx, apiClient, appCompact)
+}
+
+func getConfig(ctx context.Context, apiClient *api.Client, appCompact *api.AppCompact) (*Config, error) {
+	appName := appCompact.Name
+
 	switch appCompact.PlatformVersion {
 	// Need a more elegant way to find out what side of detached we are on
 	case NomadPlatform, "detached":
