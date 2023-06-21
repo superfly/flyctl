@@ -351,6 +351,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return nil, err
 	}
 	migrator.resolveOldVolumes()
+	err = migrator.validateVolumes(ctx)
+	if err != nil {
+		return nil, err
+	}
 	err = migrator.prepMachinesToCreate(ctx)
 	if err != nil {
 		return nil, err
@@ -724,11 +728,6 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	if err != nil {
 		fmt.Println(extraInfo)
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
-	}
-
-	err = m.validateVolumes(ctx)
-	if err != nil {
-		return err
 	}
 	err = m.validateProcessGroupsOnAllocs(ctx)
 	if err != nil {
