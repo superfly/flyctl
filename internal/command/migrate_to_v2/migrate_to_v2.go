@@ -729,11 +729,6 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 		fmt.Println(extraInfo)
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
-
-	err = m.validateVolumes(ctx)
-	if err != nil {
-		return err
-	}
 	err = m.validateProcessGroupsOnAllocs(ctx)
 	if err != nil {
 		return err
