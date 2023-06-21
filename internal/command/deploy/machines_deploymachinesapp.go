@@ -20,6 +20,12 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+const (
+	batchingGroupCount = 5
+	// batchingCutoff should be at least batchingGroupCount + 1
+	batchingCutoff = 6
+)
+
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
@@ -267,17 +273,152 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 	return err
 }
 
+// batcher is a helper for adapting a series of jobs into batches of work.
+// As you iterate through the jobs, you can call Add(jobInfo) to add a job to the current batch.
+// At the end of each iteration, loop over Batch() to get the current batch of jobs.
+// (it returns the current batch when it's ready to process)
+// E.g.
+//
+//	for _, a := range items {
+//	  itemToFurtherProcess := doSomething(a)
+//	  batcher.Add(itemToFurtherProcess)
+//	  for _, item := range batcher.Batch() {
+//	     doSomethingElse(item)
+//	  }
+//	}
+type batcher[T any] struct {
+	// How many items in total we will process
+	TotalJobs int
+	// How many groups we want to split the jobs into
+	GroupCount int
+	// If true, the first job will be processed by itself
+	SoloFirst bool
+
+	// current index into TotalJobs
+	idx int
+	// current batch number (out of GroupCount)
+	batchNum int
+	// index into the current batch
+	batchIdx int
+	// the jobs in the current batch
+	jobs []T
+}
+
+// Add a job to the current batch
+func (b *batcher[T]) Add(job T) {
+	b.jobs = append(b.jobs, job)
+	b.idx++
+	b.batchIdx++
+}
+
+// Ready returns true if the current batch is ready to be processed
+func (b *batcher[T]) Ready() bool {
+	// Normally index checks are 0-based, but at this point we've already added the job,
+	// which increments the index. So, for the first go-around, idx will =1 here.
+	if (b.SoloFirst && b.idx == 1) || b.idx == b.TotalJobs {
+		return true
+	}
+	// If we solo'd the first job, ignore it in batch calculations
+	batchedJobs := b.TotalJobs
+	if b.SoloFirst {
+		batchedJobs--
+	}
+	// Distribute the jobs evenly.
+	// If there's a remainder N, the first N batches will have 1 extra job
+	rem := batchedJobs % b.GroupCount
+	groupSize := batchedJobs / b.GroupCount
+	if b.batchNum < rem {
+		groupSize++
+	}
+	return b.batchIdx == groupSize
+}
+
+// Batch returns the current batch if it's Ready, otherwise nil
+// If the batch is returned, the batcher is reset
+// It's safe to just always loop over the result of Batch - if it's not ready,
+// the loop will exit immediately
+func (b *batcher[T]) Batch() []T {
+	if b.Ready() {
+		jobs := b.jobs
+		b.jobs = nil
+		b.batchNum++
+		b.batchIdx = 0
+		return jobs
+	}
+	return nil
+}
+
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
-	// FIXME: handle deploy strategy: rolling, immediate, canary, bluegreen
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+
+	if md.strategy == "bluegreen" {
+		bg := BlueGreenStrategy(md, updateEntries)
+		if err := bg.Deploy(ctx); err != nil {
+			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
+			return bg.Rollback(ctx, err)
+		}
+		return nil
+	}
+
+	useBatches := md.batchMachineWaits &&
+		(md.strategy == "rolling" || md.strategy == "canary") &&
+		len(updateEntries) >= batchingCutoff
+
+	type batchJob struct {
+		lm       machine.LeasableMachine
+		indexStr string
+	}
+	b := batcher[batchJob]{
+		TotalJobs:  len(updateEntries),
+		GroupCount: batchingGroupCount,
+		SoloFirst:  true,
+	}
+
+	waitForMachine := func(lm machine.LeasableMachine, inBatch bool, indexStr string) error {
+
+		if md.strategy == "immediate" {
+			return nil
+		}
+
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return err
+		}
+
+		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
+			return err
+		}
+
+		if !md.skipHealthChecks {
+			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
+				md.warnAboutIncorrectListenAddress(ctx, lm)
+				err = suggestChangeWaitTimeout(err, "wait-timeout")
+				return err
+			}
+			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+			md.logClearLinesAbove(1)
+			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
+				indexStr,
+				md.colorize.Bold(lm.FormattedMachineId()),
+				md.colorize.Green("success"),
+			)
+			if inBatch {
+				fmt.Fprint(md.io.ErrOut, "\n")
+			}
+		}
+
+		md.warnAboutIncorrectListenAddress(ctx, lm)
+		return nil
+	}
+
 	for i, e := range updateEntries {
 		lm := e.leasableMachine
 		launchInput := e.launchInput
 		indexStr := formatIndex(i, len(updateEntries))
 
-		if launchInput.ID != lm.Machine().ID {
-			// If IDs don't match, destroy the original machine and launch a new one
-			// This can be the case for machines that changes its volumes or any other immutable config
+		if launchInput.RequiresReplacement {
+			// If machine requires replacement, destroy old machine and launch a new one
+			// This can be the case for machines that changes its volumes.
 			fmt.Fprintf(md.io.ErrOut, "  %s Replacing %s by new machine\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
 			if err := lm.Destroy(ctx, true); err != nil {
 				if md.strategy != "immediate" {
@@ -324,35 +465,21 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			continue
 		}
 
-		if md.strategy == "immediate" {
-			continue
-		}
+		if useBatches {
 
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
-		}
+			b.Add(batchJob{lm, indexStr})
 
-		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
-			return err
-		}
-
-		if !md.skipHealthChecks {
-			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
-				md.warnAboutIncorrectListenAddress(ctx, lm)
-				err = suggestChangeWaitTimeout(err, "wait-timeout")
+			for _, job := range b.Batch() {
+				if err := waitForMachine(job.lm, true, job.indexStr); err != nil {
+					return err
+				}
+			}
+			md.logClearLinesAbove(1)
+		} else {
+			if err := waitForMachine(lm, false, indexStr); err != nil {
 				return err
 			}
-			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
-				indexStr,
-				md.colorize.Bold(lm.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
 		}
-
-		md.warnAboutIncorrectListenAddress(ctx, lm)
 	}
 
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")

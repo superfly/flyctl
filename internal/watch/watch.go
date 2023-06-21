@@ -326,7 +326,7 @@ func MachinesChecks(ctx context.Context, machines []*api.Machine) error {
 			if len(machine.Checks) == 0 {
 				continue
 			}
-			checkStatus := machine.HealthCheckStatus()
+			checkStatus := machine.AllHealthChecks()
 			checksPassed += checkStatus.Passing
 			// Waiting for xxxxxxxx to become healthy (started, 3/3)
 			fmt.Fprintf(io.ErrOut, "  Waiting for %s to become healthy (%s, %s)\n",

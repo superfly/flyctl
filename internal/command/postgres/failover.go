@@ -348,7 +348,7 @@ func pickNewLeader(ctx context.Context, app *api.AppCompact, machinesWithinPrima
 		if isLeader(machine) {
 			isValid = false
 			machineReasons[machine.ID] = "already leader"
-		} else if !machine.HealthCheckStatus().AllPassing() {
+		} else if !machine.AllHealthChecks().AllPassing() {
 			isValid = false
 			machineReasons[machine.ID] = "1+ health checks are not passing"
 		} else if !passesDryRun(ctx, app, machine) {
