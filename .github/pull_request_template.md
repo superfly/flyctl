@@ -1,8 +1,8 @@
 ### Change Summary
 
-What and Why: 
+What and Why:
 
-How: 
+How:
 
 Related to:
 
