@@ -43,7 +43,7 @@ func TestFlyLaunch_case01(t *testing.T) {
 			"auto_stop_machines":   true,
 			"auto_start_machines":  true,
 			"min_machines_running": int64(0),
-			"processes":            append(make([]interface{}, 0), "app"),
+			"processes":            []any{"app"},
 		},
 	}
 	require.EqualValues(f, want, toml)
