@@ -2,6 +2,7 @@ package apps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -26,7 +27,7 @@ func newRestart() *cobra.Command {
 
 	cmd := command.New(usage, short, long, runRestart,
 		command.RequireSession,
-		command.RequireAppNameNoFlag,
+		command.LoadAppNameIfPresentNoFlag,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 
@@ -57,6 +58,9 @@ func runRestart(ctx context.Context) error {
 
 	if appName == "" {
 		appName = appconfig.NameFromContext(ctx)
+		if appName == "" {
+			return errors.New("no app name was provided, and none is available from the environment or fly.toml")
+		}
 	}
 
 	app, err := client.GetAppCompact(ctx, appName)
