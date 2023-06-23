@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -177,6 +178,16 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
+	}
+
+	for _, potentialSecretSubstr := range commonSecretSubstrings {
+		for env := range appConfig.Env {
+			if strings.Contains(env, potentialSecretSubstr) {
+				warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), potentialSecretSubstr)
+				fmt.Fprintln(io.ErrOut, warning, potentialSecretSubstr)
+			}
+
+		}
 	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
