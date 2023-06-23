@@ -36,6 +36,14 @@ func SetSendMetrics(path string, sendMetrics bool) error {
 	})
 }
 
+// SetAutoUpdate sets the value of the autoupdate flag at the configuration file
+// found at path.
+func SetAutoUpdate(path string, autoUpdate bool) error {
+	return set(path, map[string]interface{}{
+		AutoUpdateFileKey: autoUpdate,
+	})
+}
+
 // Clear clears the access token, metrics token, and wireguard-related keys of the configuration
 // file found at path.
 func Clear(path string) (err error) {
