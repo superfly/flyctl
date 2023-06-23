@@ -42,7 +42,6 @@ jobs:
           FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
-          FLY_REGISTRY_HOST: "registry2.flyio.net"
         run: |
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
