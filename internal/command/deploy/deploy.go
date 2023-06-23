@@ -180,10 +180,15 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		return err
 	}
 
-	for _, potentialSecret := range commonSecrets {
-		if _, ok := appConfig.Env[potentialSecret]; ok {
-			warning := fmt.Sprintf("%s %s is possibly a sensitive value. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), potentialSecret)
-			fmt.Fprintf(io.ErrOut, warning, potentialSecret)
+	for _, potentialSecretSubstr := range commonSecretSubstrings {
+		for env, _ := range appConfig.Env {
+			if strings.Contains(env, potentialSecretSubstr) {
+				warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), potentialSecretSubstr)
+				fmt.Fprintln(io.ErrOut, warning, potentialSecretSubstr)
+			}
+
+		}
+		if _, ok := appConfig.Env[potentialSecretSubstr]; ok {
 		}
 	}
 
