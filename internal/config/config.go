@@ -23,6 +23,7 @@ const (
 	MetricsTokenEnvKey    = envKeyPrefix + "METRICS_TOKEN"
 	MetricsTokenFileKey   = "metrics_token"
 	SendMetricsFileKey    = "send_metrics"
+	AutoUpdateFileKey     = "auto_update"
 	WireGuardStateFileKey = "wire_guard_state"
 	APITokenEnvKey        = envKeyPrefix + "API_TOKEN"
 	orgEnvKey             = envKeyPrefix + "ORG"
@@ -69,6 +70,9 @@ type Config struct {
 
 	// SendMetrics denotes whether the user wants to send metrics.
 	SendMetrics bool
+
+	// AutoUpdate denotes whether the user wants to automatically update flyctl.
+	AutoUpdate bool
 
 	// Organization denotes the organizational slug the user has selected.
 	Organization string
@@ -134,13 +138,16 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 		AccessToken  string `yaml:"access_token"`
 		MetricsToken string `yaml:"metrics_token"`
 		SendMetrics  bool   `yaml:"send_metrics"`
+		AutoUpdate   bool   `yaml:"auto_update"`
 	}
 	w.SendMetrics = true
+	w.AutoUpdate = true
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.AccessToken = w.AccessToken
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
+		cfg.AutoUpdate = w.AutoUpdate
 	}
 
 	return
