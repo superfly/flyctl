@@ -440,6 +440,21 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			ProxyProtoOptions: &api.ProxyProtoOptions{
 				Version: "v2",
 			},
+			HTTPChecks: []*ServiceHTTPCheck{
+				{
+					Interval:          api.MustParseDuration("81s"),
+					Timeout:           api.MustParseDuration("7s"),
+					GracePeriod:       api.MustParseDuration("2s"),
+					RestartLimit:      4,
+					HTTPMethod:        api.Pointer("GET"),
+					HTTPPath:          api.Pointer("/"),
+					HTTPProtocol:      api.Pointer("https"),
+					HTTPTLSSkipVerify: api.Pointer(true),
+					HTTPHeaders: map[string]string{
+						"My-Custom-Header": "whatever",
+					},
+				},
+			},
 		},
 
 		Statics: []Static{
