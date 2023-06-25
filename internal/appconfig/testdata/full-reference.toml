@@ -56,7 +56,7 @@ console_command = "/bin/bash"
     tls_skip_verify = true
     [http_service.checks.headers]
       My-Custom-Header = "whatever"
-  
+
   [http_service.concurrency]
     type = "donuts"
     hard_limit = 10
