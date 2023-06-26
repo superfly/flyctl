@@ -81,3 +81,12 @@ func Test_parse_with_equal(t *testing.T) {
 		"FOO": "BAR BAZ",
 	}, secrets)
 }
+
+func Test_parse_with_double_quotes(t *testing.T) {
+	reader := strings.NewReader(`FOO="BAR BAZ"`)
+	secrets, err := parseSecrets(reader)
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"FOO": "BAR BAZ",
+	}, secrets)
+}
