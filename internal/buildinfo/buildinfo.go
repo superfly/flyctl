@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"time"
-
-	"github.com/blang/semver"
 )
 
 var cachedName string // populated during init
@@ -30,7 +28,7 @@ func Name() string {
 
 type info struct {
 	Name         string
-	Version      semver.Version
+	Version      Version
 	Commit       string
 	BranchName   string
 	BuildDate    time.Time
@@ -56,7 +54,7 @@ func (i info) String() string {
 func Info() info {
 	return info{
 		Name:         Name(),
-		Version:      Version(),
+		Version:      ParsedVersion(),
 		Commit:       Commit(),
 		BranchName:   BranchName(),
 		BuildDate:    BuildDate(),

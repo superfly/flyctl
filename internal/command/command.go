@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -345,14 +344,12 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 
 	logger := logger.FromContext(ctx)
 
-	current := buildinfo.Info().Version
-
-	switch latest, err := semver.ParseTolerant(r.Version); {
-	case err != nil:
+	current := buildinfo.ParsedVersion()
+	outdated, err := current.Outdated(r.Version)
+	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", r.Version, err)
-
 		return ctx, nil
-	case latest.LTE(current):
+	} else if !outdated {
 		return ctx, nil
 	}
 

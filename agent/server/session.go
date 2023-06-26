@@ -140,7 +140,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 	}
 
 	_ = s.marshal(agent.PingResponse{
-		Version:    buildinfo.Version(),
+		Version:    buildinfo.ParsedVersion(),
 		PID:        os.Getpid(),
 		Background: s.srv.Options.Background,
 	})

@@ -15,7 +15,7 @@ func TestProdMeta(t *testing.T) {
 
 	loadMeta()
 
-	assert.Equal(t, "1.2.3", Version().String())
+	assert.Equal(t, "1.2.3", ParsedVersion().String())
 	assert.Equal(t, "2020-06-05T13:32:23Z", BuildDate().Format(time.RFC3339))
 }
 
@@ -25,5 +25,5 @@ func TestDevMeta(t *testing.T) {
 
 	loadMeta()
 
-	assert.Equal(t, fmt.Sprintf("0.0.0-%d+dev", BuildDate().Unix()), Version().String())
+	assert.Equal(t, fmt.Sprintf("0.0.0-%d+dev", BuildDate().Unix()), ParsedVersion().String())
 }

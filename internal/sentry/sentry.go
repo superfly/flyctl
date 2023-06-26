@@ -26,7 +26,7 @@ func init() {
 		// TODO: maybe set Debug to buildinfo.IsDev?
 		// Debug:       true,
 		Environment: buildinfo.Environment(),
-		Release:     "v" + buildinfo.Version().String(),
+		Release:     "v" + buildinfo.ParsedVersion().String(),
 		Transport: &sentry.HTTPSyncTransport{
 			Timeout: 3 * time.Second,
 		},

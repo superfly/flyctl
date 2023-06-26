@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/blang/semver"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/agent/internal/proto"
@@ -46,12 +45,12 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return StartDaemon(ctx)
 	}
 
-	if buildinfo.Version().EQ(res.Version) {
+	if buildinfo.ParsedVersion().EQ(res.Version) {
 		return c, nil
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
+	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.ParsedVersion())
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
@@ -171,7 +170,7 @@ func (c *Client) Kill(ctx context.Context) error {
 
 type PingResponse struct {
 	PID        int
-	Version    semver.Version
+	Version    buildinfo.Version
 	Background bool
 }
 
