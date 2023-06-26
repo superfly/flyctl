@@ -37,10 +37,15 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				// Switch to multiline
 				parserState = parserStateMultiline
 				parsedKey = parts[0]
-				parsedVal.WriteString(strings.TrimPrefix(parts[1], "\"\"\""))
+				parsedVal.WriteString(strings.TrimPrefix(parts[1], `"""`))
 				parsedVal.WriteString("\n")
 			} else {
-				secrets[parts[0]] = parts[1]
+				value := parts[1]
+				if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
+					// Remove double quotes
+					value = value[1 : len(value)-1]
+				}
+				secrets[parts[0]] = value
 			}
 		case parserStateMultiline:
 			if strings.HasSuffix(line, `"""`) {
