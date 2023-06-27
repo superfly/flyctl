@@ -50,10 +50,9 @@ func runUpgrade(ctx context.Context) error {
 		return fmt.Errorf("error parsing version: %q, %w", release.Version, err)
 	}
 
-	outdated := latest.Before()
 	io := iostreams.FromContext(ctx)
 
-	if !outdated {
+	if !latest.Newer() {
 		fmt.Fprintf(io.Out, "Already running latest flyctl v%s\n", buildinfo.ParsedVersion().String())
 		return nil
 	}

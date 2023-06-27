@@ -350,8 +350,7 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	outdated := latest.Before()
-	if !outdated {
+	if !latest.Newer() {
 		return ctx, nil
 	}
 
