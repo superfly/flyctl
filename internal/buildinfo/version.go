@@ -117,7 +117,7 @@ func (s Versions) Less(i, j int) bool {
 }
 
 func (s Versions) Swap(i, j int) {
-    s[i], s[j] = s[j], s[i]
+	s[i], s[j] = s[j], s[i]
 }
 
 var (
