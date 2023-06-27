@@ -14,7 +14,7 @@ import (
 type Version interface {
 	String() string
 	EQ(other Version) bool
-	Outdated(string) (bool, error)
+	Outdated() bool
 }
 
 type SemverVersion struct {
@@ -38,12 +38,14 @@ func (v SemverVersion) EQ(other Version) bool {
 	}
 }
 
-func (v *SemverVersion) Outdated(other string) (bool, error) {
-	otherParsed, err := ParseSemver(other)
-	if err != nil {
-		return false, err
+func (v *SemverVersion) Outdated() bool {
+	_, ok := parsedVersion.(*CalverVersion)
+	if ok {
+		return true
+	} else {
+		other := parsedVersion.(*SemverVersion)
+		return other.Version.LT(v.Version)
 	}
-	return v.LT(otherParsed.Version), nil
 }
 
 type CalverVersion struct {
@@ -69,12 +71,13 @@ func (v CalverVersion) EQ(other Version) bool {
 	}
 }
 
-func (v *CalverVersion) Outdated(other string) (bool, error) {
-	otherParsed, err := ParseCalver(other)
-	if err != nil {
-		return false, err
+func (v *CalverVersion) Outdated() bool {
+	other, ok := parsedVersion.(*CalverVersion)
+	if ok {
+		return v.Version.CompareTo(&other.Version) == 1
+	} else {
+		return false
 	}
-	return v.CompareTo(&otherParsed.Version) < 0, nil
 }
 
 func ParseVersion(other string) (Version, error) {

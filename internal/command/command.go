@@ -344,12 +344,14 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 
 	logger := logger.FromContext(ctx)
 
-	current := buildinfo.ParsedVersion()
-	outdated, err := current.Outdated(r.Version)
+	latest, err := buildinfo.ParseVersion(r.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", r.Version, err)
-		return ctx, nil
-	} else if !outdated {
+		return ctx, err
+	}
+
+	outdated := latest.Outdated()
+	if !outdated {
 		return ctx, nil
 	}
 
@@ -357,8 +359,8 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	colorize := io.ColorScheme()
 
 	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
-		current,
-		r.Version,
+		buildinfo.ParsedVersion,
+		latest,
 		colorize.Bold(buildinfo.Name()+" version upgrade"),
 	)
 

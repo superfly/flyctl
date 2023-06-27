@@ -45,11 +45,12 @@ func runUpgrade(ctx context.Context) error {
 		return fmt.Errorf("failed querying latest release information: %w", err)
 	}
 
-	outdated, err := buildinfo.ParsedVersion().Outdated(release.Version)
+	latest, err := buildinfo.ParseVersion(release.Version)
 	if err != nil {
-		return fmt.Errorf("error comparing versions: %q, %w", release.Version, err)
+		return fmt.Errorf("error parsing version: %q, %w", release.Version, err)
 	}
 
+	outdated := latest.Outdated()
 	io := iostreams.FromContext(ctx)
 
 	if !outdated {
