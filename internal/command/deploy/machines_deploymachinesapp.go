@@ -389,13 +389,10 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			continue
 		}
 
-		fmt.Println("useBatches", useBatches)
 		if useBatches {
 			b.Add(batchJob{lm, indexStr})
-			fmt.Println("b.Ready()", b.Ready())
 
-			for idx, job := range b.Batch() {
-				fmt.Println("range b.Batch", idx, job.indexStr)
+			for _, job := range b.Batch() {
 				if err := waitForMachine(job.lm, true, job.indexStr); err != nil {
 					return err
 				}
