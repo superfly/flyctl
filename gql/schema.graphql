@@ -8247,11 +8247,6 @@ type Queries {
   Fly.io product and price information
   """
   products: [Product!]!
-
-  """
-  Check if an extension ToS agreement exists
-  """
-  tosAgreementExists(addOnProviderName: String!, organizationId: ID!): Boolean!
   validateConfig(definition: JSON!): AppConfig!
   viewer: Principal!
 

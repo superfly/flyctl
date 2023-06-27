@@ -56,8 +56,10 @@ mutation CreateTosAgreement($input: CreateExtensionTosAgreementInput!) {
 	}
 }
 
-query TosAgreementExists($addOnProviderName: String!, $organizationId: ID!) {
-	tosAgreementExists(addOnProviderName: $addOnProviderName, organizationId: $organizationId)
+query AgreedToProviderTos($addOnProviderName: String!, $organizationId: ID!) {
+	organization(id: $organizationId) {
+		agreedToProviderTos(providerName: $addOnProviderName)
+	}
 }
 
 query GetOrganization($slug: String!) {
@@ -185,4 +187,3 @@ query ListAddOns($addOnType: AddOnType) {
 		}
 	}
 }
-
