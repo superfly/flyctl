@@ -359,13 +359,19 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
-		current,
-		r.Version,
-		colorize.Bold(buildinfo.Name()+" version upgrade"),
-	)
+	fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, r.Version)))
 
-	fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
+	if cfg.AutoUpdate && !env.IsCI() {
+		fmt.Fprintln(io.ErrOut, colorize.Green("Automatically updating..."))
+
+		if err := update.UpgradeAndRelaunch(ctx, io, r.Prerelease); err != nil {
+			fmt.Fprintf(io.ErrOut, fmt.Sprintf("failed to update: %s\n", err))
+
+			return ctx, nil
+		}
+	} else {
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
+	}
 
 	return ctx, nil
 }

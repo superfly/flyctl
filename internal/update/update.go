@@ -199,6 +199,40 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	return cmd.Run()
 }
 
+// UpgradeAndRelaunch does not return on success.
+func UpgradeAndRelaunch(ctx context.Context, io *iostreams.IOStreams, prerelease bool) error {
+
+	err := UpgradeInPlace(ctx, io, prerelease)
+	if err != nil {
+		return err
+	}
+
+	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return err
+	}
+	terminal.Debugf("relaunching %s, found at %s\n", os.Args[0], binPath)
+
+	cmd := exec.Command(binPath, os.Args[1:]...)
+	cmd.Stdout = io.Out
+	cmd.Stderr = io.ErrOut
+	cmd.Stdin = io.In
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return err
+	}
+
+	os.Exit(0)
+	return nil
+}
+
 func commandInPath(command string) bool {
 	for _, dir := range filepath.SplitList(os.Getenv("PATH")) {
 		path := filepath.Join(dir, command)
