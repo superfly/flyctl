@@ -13,6 +13,10 @@ func TestAuthorizationHeader(t *testing.T) {
 	}
 
 	check("foobar", "Bearer foobar")
+	check(" foobar ", "Bearer foobar")
 	check("FlyV1 foobar", "FlyV1 foobar")
+	check(" FlyV1 foobar ", "FlyV1 foobar")
 	check("FlyV1foobar", "Bearer FlyV1foobar")
+	check("fm1r_hello", "FlyV1 fm1r_hello")
+	check(" fm1r_hello ", "FlyV1 fm1r_hello")
 }
