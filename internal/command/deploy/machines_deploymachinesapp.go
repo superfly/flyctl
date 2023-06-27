@@ -21,9 +21,9 @@ import (
 )
 
 const (
-	batchingGroupCount = 5
+	batchingGroupCount = 3
 	// batchingCutoff should be at least batchingGroupCount + 1
-	batchingCutoff = 6
+	batchingCutoff = 4
 )
 
 type ProcessGroupsDiff struct {
