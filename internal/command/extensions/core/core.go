@@ -37,12 +37,19 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	}
 
 	if !tosResp.Organization.AgreedToProviderTos {
-		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("Your organization must agree to the %s Terms Of Service to continue. Do you agree?", provider))
+		resp, err := gql.GetAddOnProvider(ctx, client, provider)
+
 		if err != nil {
 			return nil, err
 		}
-		if confirmTos {
 
+		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To continue, your organization must agree to the Terms Of Service at %s. Do you agree?", resp.AddOnProvider.TosUrl))
+
+		if err != nil {
+			return nil, err
+		}
+
+		if confirmTos {
 			_, err := gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
 				OrganizationId:    targetOrg.Id,
 				AddOnProviderName: provider,
