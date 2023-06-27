@@ -1,4 +1,4 @@
-package extensions
+package sentry_ext
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newSentryCreate() (cmd *cobra.Command) {
+func create() (cmd *cobra.Command) {
 
 	const (
 		short = "Provision a Sentry project for a Fly.io app"

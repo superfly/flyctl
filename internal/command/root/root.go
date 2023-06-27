@@ -38,6 +38,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
 	"github.com/superfly/flyctl/internal/command/monitor"
 	"github.com/superfly/flyctl/internal/command/move"
+	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -158,6 +159,7 @@ To read more, use the docs command to view Fly's help on the web.
 		domains.New(),
 		console.New(),
 		settings.New(),
+		mysql.New(),
 	)
 
 	// if os.Getenv("DEV") != "" {

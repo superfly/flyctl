@@ -53,7 +53,8 @@ Here's a few commands to get you started:
   fly launch      Launch a new application
   fly apps        Create and manage apps
   fly postgres    Create and manage Postgres databases
-  fly redis       Create and manage Redis databases
+	fly mysql       Create and manage PlanetScale MySQL databases
+  fly redis       Create and manage Upstash Redis databases
   fly machines    Create and manage individual Fly.io machines
 
 If you need help along the way:
@@ -78,6 +79,11 @@ func Help(root *cobra.Command) func(ctx context.Context) error {
 		for _, cmd := range root.Commands() {
 			cmd := cmd
 			commands[cmd.Name()] = cmd
+			if len(cmd.Aliases) > 0 {
+				for _, alias := range cmd.Aliases {
+					commands[alias] = cmd
+				}
+			}
 		}
 
 		listCommands := func(names []string) {
@@ -99,7 +105,7 @@ Scaling and configuring:
 		fmt.Printf(`
 Provisioning storage:
 `)
-		listCommands([]string{"volumes", "postgres", "redis", "consul"})
+		listCommands([]string{"volumes", "mysql", "postgres", "redis", "consul"})
 
 		fmt.Printf(`
 Networking configuration:

@@ -1,4 +1,4 @@
-package extensions
+package planetscale
 
 import (
 	"context"
@@ -14,9 +14,9 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 )
 
-func newListPlanetscale() (cmd *cobra.Command) {
+func list() (cmd *cobra.Command) {
 	const (
-		long  = `List PlanetScale databases for an organization`
+		long  = `List your provisioned PlanetScale MySQL databases`
 		short = long
 		usage = "list"
 	)
