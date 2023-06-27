@@ -50,7 +50,7 @@ func runUpgrade(ctx context.Context) error {
 		return fmt.Errorf("error parsing version: %q, %w", release.Version, err)
 	}
 
-	outdated := latest.Outdated()
+	outdated := latest.Before()
 	io := iostreams.FromContext(ctx)
 
 	if !outdated {

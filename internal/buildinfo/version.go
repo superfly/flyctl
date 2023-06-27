@@ -14,7 +14,7 @@ import (
 type Version interface {
 	String() string
 	EQ(other Version) bool
-	Outdated() bool
+	Before() bool
 }
 
 type SemverVersion struct {
@@ -38,7 +38,7 @@ func (v SemverVersion) EQ(other Version) bool {
 	}
 }
 
-func (v *SemverVersion) Outdated() bool {
+func (v *SemverVersion) Before() bool {
 	_, ok := parsedVersion.(*CalverVersion)
 	if ok {
 		return true
@@ -71,7 +71,7 @@ func (v CalverVersion) EQ(other Version) bool {
 	}
 }
 
-func (v *CalverVersion) Outdated() bool {
+func (v *CalverVersion) Before() bool {
 	other, ok := parsedVersion.(*CalverVersion)
 	if ok {
 		return v.Version.CompareTo(&other.Version) == 1
