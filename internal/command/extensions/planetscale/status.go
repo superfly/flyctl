@@ -1,4 +1,4 @@
-package extensions
+package planetscale
 
 import (
 	"context"
@@ -12,9 +12,9 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newStatusPlanetscale() *cobra.Command {
+func status() *cobra.Command {
 	const (
-		short = "Show status of a PlanetScale database"
+		short = "Show details about a PlanetScale MySQL database"
 		long  = short + "\n"
 
 		usage = "status <name>"

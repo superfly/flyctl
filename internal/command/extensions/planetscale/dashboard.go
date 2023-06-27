@@ -1,4 +1,4 @@
-package extensions
+package planetscale
 
 import (
 	"context"
@@ -6,12 +6,13 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/command"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-func newDashboardPlanetscale() (cmd *cobra.Command) {
+func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `View your PlanetScale database dashboard`
+		long = `Visit the PlanetScale database dashboard`
 
 		short = long
 		usage = "dashboard <database_name>"
@@ -25,6 +26,6 @@ func newDashboardPlanetscale() (cmd *cobra.Command) {
 }
 
 func runDashboard(ctx context.Context) (err error) {
-	err = OpenDashboard(ctx, flag.FirstArg(ctx))
+	err = extensions_core.OpenDashboard(ctx, flag.FirstArg(ctx))
 	return
 }

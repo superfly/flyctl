@@ -1,4 +1,4 @@
-package extensions
+package planetscale
 
 import (
 	"context"
@@ -15,9 +15,9 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
-func newPlanetscaleDestroy() (cmd *cobra.Command) {
+func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy a database`
+		long = `Permanently destroy a PlanetScale MySQL database`
 
 		short = long
 		usage = "destroy <name>"

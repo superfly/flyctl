@@ -1,17 +1,18 @@
-package extensions
+package planetscale
 
 import (
 	"context"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-func newPlanetscaleCreate() (cmd *cobra.Command) {
+func create() (cmd *cobra.Command) {
 
 	const (
-		short = "Provision a PlanetScale project for a Fly.io app"
+		short = "Provision a PlanetScale MySQL database"
 		long  = short + "\n"
 	)
 
@@ -31,7 +32,7 @@ func newPlanetscaleCreate() (cmd *cobra.Command) {
 }
 
 func runPlanetscaleCreate(ctx context.Context) (err error) {
-	_, err = ProvisionExtension(ctx, "planetscale")
+	_, err = extensions_core.ProvisionExtension(ctx, "planetscale")
 
 	return
 }
