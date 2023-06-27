@@ -304,6 +304,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 
 	// add HealthCheck (if found)
 	srcInfo.HttpCheckPath = <-healthcheck_channel
+	if srcInfo.HttpCheckPath != "" {
+		srcInfo.HttpCheckHeaders = map[string]string{"X-Forwarded-Proto": "https"}
+	}
 
 	return nil
 }

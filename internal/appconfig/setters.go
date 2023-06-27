@@ -33,7 +33,7 @@ func (c *Config) v1SetInternalPort(port int) {
 	}
 }
 
-func (c *Config) SetHttpCheck(path string) {
+func (c *Config) SetHttpCheck(path string, headers map[string]string) {
 	c.v1SetHttpCheck(path)
 	switch {
 	case c.HTTPService != nil:
@@ -50,6 +50,7 @@ func (c *Config) SetHttpCheck(path string) {
 			Interval:          &api.Duration{Duration: 10 * time.Second},
 			Timeout:           &api.Duration{Duration: 2 * time.Second},
 			GracePeriod:       &api.Duration{Duration: 5 * time.Second},
+			HTTPHeaders:       headers,
 		}
 	case len(c.Services) > 0:
 		service := &c.Services[0]
