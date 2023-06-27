@@ -103,8 +103,25 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 	flapsClient := flaps.FromContext(ctx)
 
+	var vol *api.Volume
+	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
+		splitVolumeInfo := strings.Split(volumeInfo, ":")
+		volID := splitVolumeInfo[0]
+
+		vol, err = client.GetVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("could not get existing volume: %w", err)
+		}
+	}
+
 	region := flag.GetString(ctx, "region")
-	if region == "" {
+	if vol != nil && region != "" {
+		if vol.Region != region {
+			return fmt.Errorf("specified region %s but volume is in region %s, use the same region as the volume", region, vol.Region)
+		}
+	} else if vol != nil && region == "" {
+		region = vol.Region
+	} else {
 		region = source.Region
 	}
 
