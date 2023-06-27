@@ -162,6 +162,7 @@ query GetAddOnProvider($name: String!) {
 	addOnProvider(name: $name) {
 		id
 		name
+		tosUrl
 		excludedRegions {
 			code
 		}
