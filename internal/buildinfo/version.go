@@ -9,7 +9,6 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/loadsmart/calver-go/calver"
-	"github.com/superfly/flyctl/terminal"
 )
 
 type Version interface {
@@ -202,13 +201,4 @@ func ParsedVersion() Version {
 
 func BuildDate() time.Time {
 	return parsedBuildDate
-}
-
-func parseVesion(v string) semver.Version {
-	parsedV, err := semver.ParseTolerant(v)
-	if err != nil {
-		terminal.Warnf("error parsing version number '%s': %s\n", v, err)
-		return semver.Version{}
-	}
-	return parsedV
 }
