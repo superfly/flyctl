@@ -50,6 +50,18 @@ mutation CreateApp($input: CreateAppInput!) {
 	}
 }
 
+mutation CreateTosAgreement($input: CreateExtensionTosAgreementInput!) {
+	createExtensionTosAgreement(input: $input) {
+		clientMutationId
+	}
+}
+
+query AgreedToProviderTos($addOnProviderName: String!, $organizationId: ID!) {
+	organization(id: $organizationId) {
+		agreedToProviderTos(providerName: $addOnProviderName)
+	}
+}
+
 query GetOrganization($slug: String!) {
 	organization(slug: $slug) {
 		id

@@ -30,6 +30,32 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	targetApp := appResponse.App.AppData
 	targetOrg := targetApp.Organization
 
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, provider, targetOrg.Id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !tosResp.Organization.AgreedToProviderTos {
+		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("Your organization must agree to the %s Terms Of Service to continue. Do you agree?", provider))
+		if err != nil {
+			return nil, err
+		}
+		if confirmTos {
+
+			_, err := gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
+				OrganizationId:    targetOrg.Id,
+				AddOnProviderName: provider,
+			})
+
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, nil
+		}
+	}
+
 	if len(appResponse.App.AddOns.Nodes) > 0 {
 		errMsg := fmt.Sprintf("A PlanetScale database named %s already exists for this app", colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
 		return nil, errors.New(errMsg)
