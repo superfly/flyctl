@@ -121,7 +121,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		}
 	} else if vol != nil && region == "" {
 		region = vol.Region
-	} else {
+	} else if region == "" {
 		region = source.Region
 	}
 
