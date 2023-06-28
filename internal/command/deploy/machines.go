@@ -414,10 +414,31 @@ func (md *machineDeployment) setMachineGuest(vmSize string, vmCPUKind string, vm
 	return nil
 }
 
+func (md *machineDeployment) deployMethodIsCompatible(method string) error {
+	switch strings.ToLower(method) {
+	case "canary", "bluegreen":
+		if len(md.appConfig.Mounts) > 0 {
+			return fmt.Errorf("%s deployments are incompatible with mounted volumes", method)
+		}
+		return nil
+	case "rolling", "immediate":
+		return nil
+	default:
+		return fmt.Errorf("unknown deployment method '%s'", method)
+	}
+}
+
 func (md *machineDeployment) setStrategy() error {
-	md.strategy = "rolling"
 	if md.appConfig.Deploy != nil && md.appConfig.Deploy.Strategy != "" {
+		if err := md.deployMethodIsCompatible(md.appConfig.Deploy.Strategy); err != nil {
+			return err
+		}
 		md.strategy = md.appConfig.Deploy.Strategy
+		return nil
+	}
+	md.strategy = "canary"
+	if err := md.deployMethodIsCompatible(md.strategy); err != nil {
+		md.strategy = "rolling"
 	}
 	return nil
 }
