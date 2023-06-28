@@ -274,6 +274,10 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 }
 
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
+	if len(updateEntries) == 0 {
+		return nil
+	}
+
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
 	if md.strategy == "bluegreen" {
