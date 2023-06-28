@@ -88,9 +88,12 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 
 	cfg := appconfig.ConfigFromContext(ctx)
 
-	primaryRegion = cfg.PrimaryRegion
+	if cfg != nil && cfg.PrimaryRegion != "" {
 
-	if cfg.PrimaryRegion == "" {
+		primaryRegion = cfg.PrimaryRegion
+
+	} else {
+
 		region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
 			Message:             "Choose the primary region (can't be changed later)",
 			ExcludedRegionCodes: excludedRegions,
