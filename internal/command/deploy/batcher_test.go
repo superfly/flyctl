@@ -40,4 +40,7 @@ func Test_batcher(t *testing.T) {
 	assert.Equal(t, []int{2, 2, 1, 1, 1}, prepBatch(7, 5, false))
 	assert.Equal(t, []int{1, 5, 5, 5, 4, 4}, prepBatch(24, 5, true))
 	assert.Equal(t, []int{5, 5, 5, 5, 4}, prepBatch(24, 5, false))
+
+	assert.Equal(t, []int{1, 2, 2, 2}, prepBatch(7, 3, true))
+	assert.Equal(t, []int{1, 8, 8, 7}, prepBatch(24, 3, true))
 }
