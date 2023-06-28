@@ -326,7 +326,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 
 func promptToUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
-	if cfg.JSONOutput || shouldIgnore(ctx, [][]string{
+	if shouldIgnore(ctx, [][]string{
 		{"version", "upgrade"},
 	}) {
 		return ctx, nil
@@ -336,40 +336,46 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	c := cache.FromContext(ctx)
+	var (
+		cache    = cache.FromContext(ctx)
+		logger   = logger.FromContext(ctx)
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
 
-	r := c.LatestRelease()
-	if r == nil {
+		current   = buildinfo.Info().Version
+		silent    = cfg.JSONOutput
+		latestRel = cache.LatestRelease()
+	)
+	if latestRel == nil {
 		return ctx, nil
 	}
 
-	logger := logger.FromContext(ctx)
-
-	current := buildinfo.Info().Version
-
-	switch latest, err := semver.ParseTolerant(r.Version); {
+	switch latest, err := semver.ParseTolerant(latestRel.Version); {
 	case err != nil:
-		logger.Warnf("error parsing version number '%s': %s", r.Version, err)
+		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
 
 		return ctx, nil
 	case latest.LTE(current):
 		return ctx, nil
 	}
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+	if !silent {
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
+	}
 
-	fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, r.Version)))
-
+	// The env.IsCI check is technically redundant (it should be done in update.Check), but
+	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() {
-		fmt.Fprintln(io.ErrOut, colorize.Green("Automatically updating..."))
+		if !silent {
+			fmt.Fprintln(io.ErrOut, colorize.Green("Automatically updating..."))
+		}
 
-		if err := update.UpgradeAndRelaunch(ctx, io, r.Prerelease); err != nil {
+		if err := update.UpgradeAndRelaunch(ctx, io, latestRel.Prerelease, silent); err != nil {
 			fmt.Fprintf(io.ErrOut, fmt.Sprintf("failed to update: %s\n", err))
 
 			return ctx, nil
 		}
-	} else {
+	} else if !silent {
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
 	}
 

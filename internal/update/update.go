@@ -155,7 +155,7 @@ func upgradeCommand(prerelease bool) string {
 	}
 }
 
-func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool) error {
+func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, silent bool) error {
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
@@ -188,23 +188,30 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 	fmt.Println(shellToUse, switchToUse)
 
 	command := upgradeCommand(prelease)
-
-	fmt.Fprintf(io.ErrOut, "Running automatic upgrade [%s]\n", command)
-
 	cmd := exec.Command(shellToUse, switchToUse, command)
-	cmd.Stdout = io.Out
-	cmd.Stderr = io.ErrOut
-	cmd.Stdin = io.In
+
+	if !silent {
+		fmt.Fprintf(io.ErrOut, "Running automatic upgrade [%s]\n", command)
+
+		cmd.Stdout = io.Out
+		cmd.Stderr = io.ErrOut
+		cmd.Stdin = io.In
+	}
 
 	return cmd.Run()
 }
 
 // UpgradeAndRelaunch does not return on success.
-func UpgradeAndRelaunch(ctx context.Context, io *iostreams.IOStreams, prerelease bool) error {
+func UpgradeAndRelaunch(ctx context.Context, io *iostreams.IOStreams, prerelease, silent bool) error {
 
-	err := UpgradeInPlace(ctx, io, prerelease)
+	err := UpgradeInPlace(ctx, io, prerelease, silent)
 	if err != nil {
 		return err
+	}
+
+	if !silent {
+		// Divide between update logging and the output from the actual command the user is running
+		fmt.Fprint(io.Out, "\n----\n\n")
 	}
 
 	binPath, err := exec.LookPath(os.Args[0])
