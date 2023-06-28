@@ -39,4 +39,30 @@ func TestNewerSemver(t *testing.T) {
 	assert.Equal(t, "1.2.3", ParsedVersion().String())
 	v, _ := ParseVersion("1.2.4")
 	assert.True(t, v.Newer())
+	v, _ = ParseVersion("1.2.2")
+	assert.False(t, v.Newer())
+}
+
+func TestNewerCalver(t *testing.T) {
+	environment = "production"
+	version = "2023.06.30.1"
+
+	loadMeta()
+
+	assert.Equal(t, "2023.06.30.1", ParsedVersion().String())
+	v, _ := ParseVersion("2023.07.01.1")
+	assert.True(t, v.Newer())
+	v, _ = ParseVersion("2023.06.29.1")
+	assert.False(t, v.Newer())
+}
+
+func TestCalverAlwaysNewer(t *testing.T) {
+	environment = "production"
+	version = "1.2.3"
+
+	loadMeta()
+
+	assert.Equal(t, "1.2.3", ParsedVersion().String())
+	v, _ := ParseVersion("2023.07.01.1")
+	assert.True(t, v.Newer())
 }
