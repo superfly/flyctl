@@ -149,25 +149,27 @@ func loadMeta() {
 	}
 
 	if IsDev() {
-		envVersionNum := os.Getenv("FLY_DEV_VERSION_NUM")
-		versionNum := uint64(parsedBuildDate.Unix())
+		parsed, err := ParseVersion(version)
+		if err == nil {
+			parsedVersion = parsed
+		} else {
+			versionNum := int(parsedBuildDate.Unix())
+			envVersionNum := os.Getenv("FLY_DEV_VERSION_NUM")
 
-		if envVersionNum != "" {
-			num, err := strconv.ParseUint(envVersionNum, 10, 64)
-
-			if err == nil {
-				versionNum = num
+			if envVersionNum != "" {
+				v, err := strconv.ParseUint(envVersionNum, 10, 64)
+				if err == nil {
+					versionNum = int(v)
+				}
 			}
 
-		}
-
-		parsed, err := calver.NewVersion(calverFormat, int(versionNum))
-		if err == nil {
-			parsedVersion = &CalverVersion{Version: *parsed}
+			version, err := calver.NewVersion(calverFormat, versionNum)
+			if err == nil {
+				parsedVersion = &CalverVersion{Version: *version}
+			}
 		}
 	} else {
 		parsedBuildDate = parsedBuildDate.UTC()
-
 		parsed, err := ParseVersion(version)
 		if err == nil {
 			parsedVersion = parsed
