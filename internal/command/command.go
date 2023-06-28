@@ -358,7 +358,7 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	colorize := io.ColorScheme()
 
 	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
-		buildinfo.ParsedVersion,
+		buildinfo.ParsedVersion(),
 		latest,
 		colorize.Bold(buildinfo.Name()+" version upgrade"),
 	)
