@@ -32,7 +32,13 @@ func create() (cmd *cobra.Command) {
 }
 
 func runPlanetscaleCreate(ctx context.Context) (err error) {
-	_, err = extensions_core.ProvisionExtension(ctx, "planetscale")
+
+	_, err = extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionOptions{
+		Provider:     "planetscale",
+		SelectName:   true,
+		SelectRegion: true,
+		NameSuffix:   "db",
+	})
 
 	return
 }

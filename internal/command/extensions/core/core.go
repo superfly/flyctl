@@ -15,13 +15,20 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn, err error) {
+type ExtensionOptions struct {
+	Provider     string
+	SelectName   bool
+	SelectRegion bool
+	NameSuffix   string
+}
+
+func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *gql.AddOn, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(provider))
+	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(options.Provider))
 
 	if err != nil {
 		return nil, err
@@ -29,21 +36,26 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 
 	targetApp := appResponse.App.AppData
 	targetOrg := targetApp.Organization
+	resp, err := gql.GetAddOnProvider(ctx, client, options.Provider)
 
-	tosResp, err := gql.AgreedToProviderTos(ctx, client, provider, targetOrg.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	addOnProvider := resp.AddOnProvider
+
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, options.Provider, targetOrg.Id)
 
 	if err != nil {
 		return nil, err
 	}
 
 	if !tosResp.Organization.AgreedToProviderTos {
-		resp, err := gql.GetAddOnProvider(ctx, client, provider)
-
 		if err != nil {
 			return nil, err
 		}
 
-		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To continue, your organization must agree to the Terms Of Service at %s. Do you agree?", resp.AddOnProvider.TosUrl))
+		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To continue, your organization must agree to the %s Terms Of Service (%s). Do you agree?", addOnProvider.DisplayName, resp.AddOnProvider.TosUrl))
 
 		if err != nil {
 			return nil, err
@@ -52,7 +64,7 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 		if confirmTos {
 			_, err := gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
 				OrganizationId:    targetOrg.Id,
-				AddOnProviderName: provider,
+				AddOnProviderName: options.Provider,
 			})
 
 			if err != nil {
@@ -64,54 +76,67 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	}
 
 	if len(appResponse.App.AddOns.Nodes) > 0 {
-		errMsg := fmt.Sprintf("A PlanetScale database named %s already exists for this app", colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
+		errMsg := fmt.Sprintf("A %s extension named %s already exists for this app", addOnProvider.DisplayName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
 		return nil, errors.New(errMsg)
 	}
 
-	var name = flag.GetString(ctx, "name")
+	var name string
 
-	if name == "" {
-		err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", targetApp.Name+"-db", false)
+	if options.SelectName {
+		var name = flag.GetString(ctx, "name")
 
-		if err != nil {
-			return nil, err
+		if name == "" {
+			if options.NameSuffix != "" {
+				name = targetApp.Name + "-" + options.NameSuffix
+			}
+			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
+
+			if err != nil {
+				return nil, err
+			}
 		}
-	}
-
-	excludedRegions, err := GetExcludedRegions(ctx, provider)
-
-	if err != nil {
-		return addOn, err
-	}
-
-	var primaryRegion string
-
-	cfg := appconfig.ConfigFromContext(ctx)
-
-	if cfg != nil && cfg.PrimaryRegion != "" {
-
-		primaryRegion = cfg.PrimaryRegion
-
 	} else {
-
-		region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
-			Message:             "Choose the primary region (can't be changed later)",
-			ExcludedRegionCodes: excludedRegions,
-		})
-
-		if err != nil {
-			return addOn, err
-		}
-
-		primaryRegion = region.Code
+		name = targetApp.Name
 	}
 
 	input := gql.CreateAddOnInput{
 		OrganizationId: targetOrg.Id,
 		Name:           name,
-		PrimaryRegion:  primaryRegion,
 		AppId:          targetApp.Id,
-		Type:           gql.AddOnType(provider),
+		Type:           gql.AddOnType(options.Provider),
+	}
+
+	if options.SelectRegion {
+
+		var primaryRegion string
+
+		excludedRegions, err := GetExcludedRegions(ctx, options.Provider)
+
+		if err != nil {
+			return addOn, err
+		}
+
+		cfg := appconfig.ConfigFromContext(ctx)
+
+		if cfg != nil && cfg.PrimaryRegion != "" {
+
+			primaryRegion = cfg.PrimaryRegion
+
+		} else {
+
+			region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
+				Message:             "Choose the primary region (can't be changed later)",
+				ExcludedRegionCodes: excludedRegions,
+			})
+
+			if err != nil {
+				return addOn, err
+			}
+
+			primaryRegion = region.Code
+		}
+
+		input.PrimaryRegion = primaryRegion
 	}
 
 	createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
@@ -121,7 +146,10 @@ func ProvisionExtension(ctx context.Context, provider string) (addOn *gql.AddOn,
 	}
 
 	addOn = &createAddOnResponse.CreateAddOn.AddOn
-	fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(addOn.Name), colorize.Green(primaryRegion), colorize.Green(appName))
+
+	if options.SelectRegion {
+		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(addOn.Name), colorize.Green(addOn.PrimaryRegion), colorize.Green(appName))
+	}
 	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
 
 	env := make(map[string]string)

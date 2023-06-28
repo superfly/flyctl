@@ -31,6 +31,7 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			ssoLink
 			token
 			environment
+			primaryRegion
 		}
 	}
 }
@@ -163,6 +164,7 @@ query GetAddOnProvider($name: String!) {
 		id
 		name
 		tosUrl
+		displayName
 		excludedRegions {
 			code
 		}
