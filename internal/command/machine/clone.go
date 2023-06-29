@@ -117,7 +117,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	region := flag.GetString(ctx, "region")
 	if vol != nil && region != "" {
 		if vol.Region != region {
-			return fmt.Errorf("specified region %s but volume is in region %s, use the same region as the volume", region, vol.Region)
+			return fmt.Errorf("specified region %s but volume is in region %s, use the same region as the volume", colorize.Bold(region), colorize.Bold(vol.Region))
 		}
 	} else if vol != nil && region == "" {
 		region = vol.Region
