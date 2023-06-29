@@ -39,6 +39,22 @@ type info struct {
 	Environment  string
 }
 
+type simpleInfo struct {
+	Name    string
+	Version semver.Version
+}
+
+func (s simpleInfo) String() string {
+	return fmt.Sprintf("v%d.%d.%d\n", s.Version.Major, s.Version.Minor, s.Version.Patch)
+}
+
+func SimpleInfo(i info) simpleInfo {
+	return simpleInfo{
+		Name:    i.Name,
+		Version: i.Version,
+	}
+}
+
 func (i info) String() string {
 	res := fmt.Sprintf("%s v%s %s/%s Commit: %s BuildDate: %s",
 		i.Name,

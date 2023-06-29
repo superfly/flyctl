@@ -60,15 +60,22 @@ func run(ctx context.Context) (err error) {
 	}
 
 	var (
-		cfg  = config.FromContext(ctx)
-		info = buildinfo.Info()
-		out  = iostreams.FromContext(ctx).Out
+		cfg        = config.FromContext(ctx)
+		info       = buildinfo.Info()
+		simpleInfo = buildinfo.SimpleInfo(info)
+		out        = iostreams.FromContext(ctx).Out
+		verbose    = flag.GetBool(ctx, "verbose")
 	)
 
-	if cfg.JSONOutput {
+	switch {
+	case cfg.JSONOutput && verbose:
 		err = json.NewEncoder(out).Encode(info)
-	} else {
+	case cfg.JSONOutput && !verbose:
+		err = json.NewEncoder(out).Encode(simpleInfo)
+	case !cfg.JSONOutput && verbose:
 		_, err = fmt.Fprintln(out, info)
+	default:
+		_, err = fmt.Fprintln(out, simpleInfo)
 	}
 
 	return
