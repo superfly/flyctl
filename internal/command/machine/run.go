@@ -887,6 +887,9 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		file.RawValue = &rawValue
 		return nil
 	})
+	if err != nil {
+		return machineConf, fmt.Errorf("failed to read file-local: %w", err)
+	}
 	machineFiles = append(machineFiles, localFiles...)
 
 	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *api.File) error {
@@ -894,6 +897,9 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		file.RawValue = &encodedValue
 		return nil
 	})
+	if err != nil {
+		return machineConf, fmt.Errorf("failed to read file-literal: %w", err)
+	}
 	machineFiles = append(machineFiles, literalFiles...)
 
 	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *api.File) error {
