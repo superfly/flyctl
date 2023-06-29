@@ -13,7 +13,7 @@ func TestSettersWithService(t *testing.T) {
 	assert.NoError(t, err)
 
 	cfg.SetInternalPort(1234)
-	cfg.SetHttpCheck("/status")
+	cfg.SetHttpCheck("/status", nil)
 	cfg.SetConcurrency(12, 34)
 
 	assert.Equal(t, cfg.Services, []Service{{
@@ -63,7 +63,7 @@ func TestSettersWithHTTPService(t *testing.T) {
 	require.NoError(t, err)
 
 	cfg.SetInternalPort(1234)
-	cfg.SetHttpCheck("/status")
+	cfg.SetHttpCheck("/status", nil)
 	cfg.SetConcurrency(12, 34)
 
 	assert.Empty(t, cfg.Services)
@@ -94,7 +94,7 @@ func TestSettersWithHTTPService(t *testing.T) {
 func TestSettersWithouServices(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetInternalPort(1234)
-	cfg.SetHttpCheck("/status")
+	cfg.SetHttpCheck("/status", nil)
 	cfg.SetConcurrency(12, 34)
 	assert.Nil(t, cfg.Services, nil)
 	assert.Nil(t, cfg.HTTPService, nil)

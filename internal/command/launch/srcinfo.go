@@ -227,7 +227,7 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	}
 
 	if srcInfo.HttpCheckPath != "" {
-		appConfig.SetHttpCheck(srcInfo.HttpCheckPath)
+		appConfig.SetHttpCheck(srcInfo.HttpCheckPath, srcInfo.HttpCheckHeaders)
 	}
 
 	if srcInfo.Concurrency != nil {
