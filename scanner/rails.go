@@ -216,7 +216,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 			"--label=fly_launch_runtime:rails"}
 
 		if options["postgresql"] {
-			args = append(args, "--postgresql")
+			args = append(args, "--postgresql", "--no-prepare")
 		}
 
 		if options["redis"] {
