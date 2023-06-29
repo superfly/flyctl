@@ -2,9 +2,7 @@ package buildinfo
 
 import (
 	"errors"
-	"os"
 	"runtime/debug"
-	"strconv"
 	"time"
 
 	"github.com/blang/semver"
@@ -154,15 +152,6 @@ func loadMeta() {
 			parsedVersion = parsed
 		} else {
 			versionNum := int(parsedBuildDate.Unix())
-			envVersionNum := os.Getenv("FLY_DEV_VERSION_NUM")
-
-			if envVersionNum != "" {
-				v, err := strconv.ParseUint(envVersionNum, 10, 64)
-				if err == nil {
-					versionNum = int(v)
-				}
-			}
-
 			version, err := calver.NewVersion(calverFormat, versionNum)
 			if err == nil {
 				parsedVersion = &CalverVersion{Version: *version}

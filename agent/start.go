@@ -13,7 +13,6 @@ import (
 	"github.com/azazeal/pause"
 
 	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/logger"
@@ -44,14 +43,9 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	env := os.Environ()
 	env = append(env, "FLY_NO_UPDATE_CHECK=1")
-
-	if buildinfo.IsDev() {
-		versionNum := buildinfo.ParsedVersion()
-		env = append(env, fmt.Sprintf("FLY_DEV_VERSION_NUM=%d", versionNum))
-	}
 	env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.FromContext(ctx).AccessToken))
-
 	cmd.Env = env
+
 	setSysProcAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
