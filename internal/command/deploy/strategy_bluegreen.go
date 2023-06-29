@@ -275,11 +275,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 				machineIDToHealthStatus[m.FormattedMachineId()] = status
 				bg.healthLock.Unlock()
 
-				if status.Total == 0 {
-					continue
-				}
-
-				if status.Total == status.Passing {
+				if (status.Total == status.Passing) && (status.Total != 0) {
 					return
 				}
 
