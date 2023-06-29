@@ -134,11 +134,13 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 	}
 }
 
-func allMachinesStarted(stateMap map[string]int) bool {
+func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
 	started := 0
+	bg.stateLock.Lock()
 	for _, v := range stateMap {
 		started += v
 	}
+	bg.stateLock.Unlock()
 
 	return started == len(stateMap)
 }
@@ -170,7 +172,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	}
 
 	for {
-		if allMachinesStarted(machineIDToState) {
+		if bg.allMachinesStarted(machineIDToState) {
 			return nil
 		}
 
@@ -216,9 +218,10 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 	}
 }
 
-func allMachinesHealthy(stateMap map[string]*api.HealthCheckStatus) bool {
+func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*api.HealthCheckStatus) bool {
 	passed := 0
 
+	bg.healthLock.RLock()
 	for _, v := range stateMap {
 		// we initialize all machine ids with an empty struct, so all fields are zero'd on init.
 		// without v.hcs.Total != 0, the first call to this function will pass since 0 == 0
@@ -230,6 +233,7 @@ func allMachinesHealthy(stateMap map[string]*api.HealthCheckStatus) bool {
 			passed += 1
 		}
 	}
+	bg.healthLock.RUnlock()
 
 	return passed == len(stateMap)
 }
@@ -282,7 +286,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 	for {
 
-		if allMachinesHealthy(machineIDToHealthStatus) {
+		if bg.allMachinesHealthy(machineIDToHealthStatus) {
 			break
 		}
 
