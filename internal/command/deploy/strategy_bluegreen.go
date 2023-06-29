@@ -136,11 +136,11 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 
 func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
 	started := 0
-	bg.stateLock.Lock()
+	bg.stateLock.RLock()
 	for _, v := range stateMap {
 		started += v
 	}
-	bg.stateLock.Unlock()
+	bg.stateLock.RUnlock()
 
 	return started == len(stateMap)
 }
@@ -274,6 +274,11 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 				bg.healthLock.Lock()
 				machineIDToHealthStatus[m.FormattedMachineId()] = status
 				bg.healthLock.Unlock()
+
+				if status.Total == 0 {
+					continue
+				}
+
 				if status.Total == status.Passing {
 					return
 				}
