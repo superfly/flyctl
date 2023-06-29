@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -549,8 +550,30 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 	return nil
 }
 
+type flapsCall struct {
+	Call     string  `json:"c"`
+	Duration float64 `json:"d"`
+}
+
+var re = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
+
+	defer func() {
+		matches := re.FindStringSubmatch(endpoint)
+		index := re.SubexpIndex("flapsCall")
+
+		// unless something changes about flaps, this should always be true
+		if len(matches) > index {
+			call := matches[index]
+			metrics.Send(ctx, "flaps_call", flapsCall{
+				Call:     call,
+				Duration: time.Since(timing.Start).Seconds(),
+			})
+		}
+
+	}()
 	defer timing.End()
 
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
