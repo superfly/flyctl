@@ -566,7 +566,7 @@ var re = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
 
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
-	invocationID := metrics.InstanceIDFromContext(ctx)
+	invocationID := metrics.InvocationIDFromContext(ctx)
 
 	defer func() {
 		matches := re.FindStringSubmatch(endpoint)
@@ -596,7 +596,7 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		return err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
-	req.Header.Set("Invocation-ID", invocationID)
+	req.Header.Set("Flyctl-Invocation-ID", invocationID)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
