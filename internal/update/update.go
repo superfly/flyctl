@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cli/safeexec"
+	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -212,8 +213,8 @@ func Relaunch(ctx context.Context, silent bool) error {
 	}
 
 	// Wait a bit for the update to take effect.
-	// Windows seemed to need this.
-	time.Sleep(500 * time.Millisecond)
+	// Windows seemed to need this for whatever reason.
+	time.Sleep(250 * time.Millisecond)
 
 	binPath, err := exec.LookPath(os.Args[0])
 	if err != nil {
@@ -240,6 +241,13 @@ func Relaunch(ctx context.Context, silent bool) error {
 			os.Exit(exitErr.ExitCode())
 		}
 		return err
+	}
+
+	// Remove the line that says `Run 'flyctl --help' to get started`
+	if io.IsInteractive() {
+		builder := aec.EmptyBuilder
+		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(io.ErrOut, str.String())
 	}
 
 	os.Exit(0)
@@ -290,27 +298,8 @@ func currentWindowsBinaries() ([]string, error) {
 	}, nil
 }
 
-type deferredUpdateDef struct {
-	prerel    bool
-	silent    bool
-	iostreams *iostreams.IOStreams
-}
-
-var deferredUpdate *deferredUpdateDef
-
 // BackgroundUpdate begins an update in the background.
-func BackgroundUpdate(ctx context.Context, prerel, silent bool) error {
-
-	if runtime.GOOS == "windows" {
-		// On Windows, updates are slow and display a UAC prompt.
-		// This is pretty awful UX, so we defer the update until execution is over.
-		deferredUpdate = &deferredUpdateDef{
-			prerel,
-			silent,
-			iostreams.FromContext(ctx),
-		}
-		return nil
-	}
+func BackgroundUpdate() error {
 
 	binPath, err := exec.LookPath(os.Args[0])
 	if err != nil {
@@ -319,16 +308,12 @@ func BackgroundUpdate(ctx context.Context, prerel, silent bool) error {
 	terminal.Debugf("launching `%s version update` with binary %s\n", os.Args[0], binPath)
 
 	cmd := exec.Command(binPath, "version", "upgrade")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
 
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 	return nil
-}
-
-func DoDeferredUpdate() error {
-	if deferredUpdate == nil {
-		return nil
-	}
-	return UpgradeInPlace(context.Background(), deferredUpdate.iostreams, deferredUpdate.prerel, deferredUpdate.silent)
 }
