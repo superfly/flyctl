@@ -360,16 +360,14 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	if !silent {
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
-	}
+	promptForUpdate := false
 
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() {
 		if severelyOutOfDate(current, latest) {
 			if !silent {
-				fmt.Fprintln(io.ErrOut, colorize.Green("Automatically updating..."))
+				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
 
 			if err := update.UpgradeInPlace(ctx, io, latestRel.Prerelease, silent); err != nil {
@@ -377,16 +375,19 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			} else if err := update.Relaunch(ctx, silent); err != nil {
 				return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
 			}
-		} else if runtime.GOOS == "windows" {
+		} else if runtime.GOOS != "windows" {
 			// Background auto-update has terrible UX on windows,
 			// with flickery powershell progress bars and UAC prompts.
 			// For Windows, we just prompt for updates, and only auto-update in dire circumstances.
 			if err := update.BackgroundUpdate(); err != nil {
 				fmt.Fprintf(io.ErrOut, "failed to autoupdate: %s\n", err)
+			} else {
+				promptForUpdate = false
 			}
 		}
 	}
-	if !silent {
+	if promptForUpdate && !silent {
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
 	}
 
