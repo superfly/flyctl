@@ -61,7 +61,7 @@ var commonPreparers = []preparers.Preparer{
 	preparers.LoadConfig,
 	initTaskManager,
 	startQueryingForNewRelease,
-	promptToUpdate,
+	promptAndAutoUpdate,
 	preparers.InitClient,
 	killOldAgent,
 	recordMetricsCommandContext,
@@ -324,7 +324,7 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	return false
 }
 
-func promptToUpdate(ctx context.Context) (context.Context, error) {
+func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
 		{"version", "upgrade"},
@@ -350,12 +350,13 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	switch latest, err := semver.ParseTolerant(latestRel.Version); {
-	case err != nil:
+	latest, err := semver.ParseTolerant(latestRel.Version)
+	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
 
 		return ctx, nil
-	case latest.LTE(current):
+	}
+	if latest.LTE(current) {
 		return ctx, nil
 	}
 
@@ -366,20 +367,41 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() {
-		if !silent {
-			fmt.Fprintln(io.ErrOut, colorize.Green("Automatically updating..."))
-		}
+		if severelyOutOfDate(current, latest) {
+			if !silent {
+				fmt.Fprintln(io.ErrOut, colorize.Green("Automatically updating..."))
+			}
 
-		if err := update.UpgradeAndRelaunch(ctx, io, latestRel.Prerelease, silent); err != nil {
-			fmt.Fprintf(io.ErrOut, fmt.Sprintf("failed to update: %s\n", err))
-
-			return ctx, nil
+			if err := update.UpgradeInPlace(ctx, io, latestRel.Prerelease, silent); err != nil {
+				return nil, fmt.Errorf("failed to update, and the current version is severely out of date: %w", err)
+			} else if err := update.Relaunch(ctx, silent); err != nil {
+				return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
+			}
+		} else if err := update.BackgroundUpdate(); err != nil {
+			fmt.Fprintf(io.ErrOut, "failed to autoupdate: %s\n", err)
 		}
-	} else if !silent {
+	}
+	if !silent {
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
 	}
 
 	return ctx, nil
+}
+
+// TODO: Move this into the generalized Version interface once that's merged
+// https://github.com/superfly/flyctl/pull/2484
+func severelyOutOfDate(current semver.Version, latest semver.Version) bool {
+
+	if current.Major < latest.Major {
+		return true
+	}
+	if current.Minor < latest.Minor {
+		return true
+	}
+	if current.Patch+5 < latest.Patch {
+		return true
+	}
+	return false
 }
 
 func PromptToMigrate(ctx context.Context, app *api.AppCompact) {

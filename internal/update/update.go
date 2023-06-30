@@ -201,13 +201,10 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 	return cmd.Run()
 }
 
-// UpgradeAndRelaunch does not return on success.
-func UpgradeAndRelaunch(ctx context.Context, io *iostreams.IOStreams, prerelease, silent bool) error {
+// Relaunch only returns on error
+func Relaunch(ctx context.Context, silent bool) error {
 
-	err := UpgradeInPlace(ctx, io, prerelease, silent)
-	if err != nil {
-		return err
-	}
+	io := iostreams.FromContext(ctx)
 
 	if !silent {
 		// Divide between update logging and the output from the actual command the user is running
@@ -282,4 +279,21 @@ func currentWindowsBinaries() ([]string, error) {
 		canonicalPath,
 		filepath.Join(filepath.Dir(canonicalPath), "wintun.dll"),
 	}, nil
+}
+
+// BackgroundUpdate begins an update in the background.
+func BackgroundUpdate() error {
+
+	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return err
+	}
+	terminal.Debugf("launching `%s version update` with binary %s\n", os.Args[0], binPath)
+
+	cmd := exec.Command(binPath, "version", "upgrade")
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return nil
 }
