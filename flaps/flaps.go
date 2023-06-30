@@ -19,17 +19,18 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/go-querystring/query"
 	"github.com/samber/lo"
-	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -573,12 +574,15 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		// unless something changes about flaps, this should always be false
 		if index >= len(matches) {
 			return
+		} else {
+			err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, re.String())
+			sentry.CaptureException(err)
 		}
 
 		call := matches[index]
 		metrics.Send(ctx, "flaps_call", flapsCall{
 			Call:         call,
-			Command:      ctx.Value("cobraCommand").(*cobra.Command).Name(),
+			Command:      command_context.FromContext(ctx).Name(),
 			Duration:     time.Since(timing.Start).Seconds(),
 			InvocationID: metrics.InstanceIDFromContext(ctx),
 		})
