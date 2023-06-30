@@ -270,9 +270,10 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	}
 
 	channel := cache.Channel()
-	tm := task.FromContext(ctx)
 
-	tm.Run(func(parent context.Context) {
+	queryRelease := func(parent context.Context) {
+		logger.Debug("started querying for new release")
+
 		ctx, cancel := context.WithTimeout(parent, time.Second)
 		defer cancel()
 
@@ -290,9 +291,15 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 		default:
 			logger.Warnf("failed querying for new release: %v", err)
 		}
-	})
+	}
 
-	logger.Debug("started querying for new release")
+	// If it's been more than a week since we've checked for a new release,
+	// check synchronously. Otherwise, check asynchronously.
+	if time.Since(cache.LastCheckedAt()) > (24 * time.Hour * 7) {
+		queryRelease(ctx)
+	} else {
+		task.FromContext(ctx).Run(queryRelease)
+	}
 
 	return ctx, nil
 }
