@@ -113,6 +113,7 @@ func v2deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Rele
 		AppCompact:       app,
 		RestartOnly:      true,
 		SkipHealthChecks: detach,
+		Strategy:         cfg.Deploy.Strategy,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
