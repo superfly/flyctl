@@ -186,7 +186,6 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 			shellToUse = "/bin/bash"
 		}
 	}
-	fmt.Println(shellToUse, switchToUse)
 
 	command := upgradeCommand(prelease)
 	cmd := exec.Command(shellToUse, switchToUse, command)
