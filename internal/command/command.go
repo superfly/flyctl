@@ -377,8 +377,13 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			} else if err := update.Relaunch(ctx, silent); err != nil {
 				return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
 			}
-		} else if err := update.BackgroundUpdate(); err != nil {
-			fmt.Fprintf(io.ErrOut, "failed to autoupdate: %s\n", err)
+		} else if runtime.GOOS == "windows" {
+			// Background auto-update has terrible UX on windows,
+			// with flickery powershell progress bars and UAC prompts.
+			// For Windows, we just prompt for updates, and only auto-update in dire circumstances.
+			if err := update.BackgroundUpdate(); err != nil {
+				fmt.Fprintf(io.ErrOut, "failed to autoupdate: %s\n", err)
+			}
 		}
 	}
 	if !silent {

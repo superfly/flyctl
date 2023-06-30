@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cli/safeexec"
+	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -211,7 +212,16 @@ func Relaunch(ctx context.Context, silent bool) error {
 		fmt.Fprint(io.Out, "\n----\n\n")
 	}
 
+	// Wait a bit for the update to take effect.
+	// Windows seemed to need this for whatever reason.
+	time.Sleep(250 * time.Millisecond)
+
 	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return err
+	}
+
+	binPath, err = filepath.EvalSymlinks(binPath)
 	if err != nil {
 		return err
 	}
@@ -231,6 +241,13 @@ func Relaunch(ctx context.Context, silent bool) error {
 			os.Exit(exitErr.ExitCode())
 		}
 		return err
+	}
+
+	// Remove the line that says `Run 'flyctl --help' to get started`
+	if io.IsInteractive() {
+		builder := aec.EmptyBuilder
+		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(io.ErrOut, str.String())
 	}
 
 	os.Exit(0)
@@ -291,6 +308,9 @@ func BackgroundUpdate() error {
 	terminal.Debugf("launching `%s version update` with binary %s\n", os.Args[0], binPath)
 
 	cmd := exec.Command(binPath, "version", "upgrade")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
 
 	if err := cmd.Start(); err != nil {
 		return err
