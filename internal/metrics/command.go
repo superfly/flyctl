@@ -32,7 +32,7 @@ func NewContext(ctx context.Context) context.Context {
 	return context.WithValue(ctx, contextKey{}, ulid.Make().String())
 }
 
-func InstanceIDFromContext(ctx context.Context) string {
+func InvocationIDFromContext(ctx context.Context) string {
 	return ctx.Value(contextKey{}).(string)
 }
 
