@@ -113,7 +113,7 @@ func runExtend(ctx context.Context) error {
 		if needsRestart {
 			fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your machine to increase the size of the FS"))
 		} else {
-			fmt.Fprintln(out, colorize.Green("Your machine got its file size extended without a restart"))
+			fmt.Fprintln(out, colorize.Green("Your machine got its volume size extended without needing a restart"))
 		}
 	}
 
