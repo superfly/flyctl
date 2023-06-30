@@ -18,8 +18,8 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/go-querystring/query"
-	"github.com/oklog/ulid/v2"
 	"github.com/samber/lo"
+	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -34,7 +34,6 @@ import (
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
-var InvocationID = ulid.Make()
 
 const headerFlyRequestId = "fly-request-id"
 
@@ -579,9 +578,9 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		call := matches[index]
 		metrics.Send(ctx, "flaps_call", flapsCall{
 			Call:         call,
-			Command:      "",
+			Command:      ctx.Value("cobraCommand").(*cobra.Command).Name(),
 			Duration:     time.Since(timing.Start).Seconds(),
-			InvocationID: InvocationID.String(),
+			InvocationID: metrics.InstanceIDFromContext(ctx),
 		})
 
 	}()
