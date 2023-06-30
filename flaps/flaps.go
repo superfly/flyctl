@@ -18,6 +18,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/go-querystring/query"
+	"github.com/oklog/ulid/v2"
 	"github.com/samber/lo"
 
 	"github.com/superfly/flyctl/agent"
@@ -33,6 +34,7 @@ import (
 )
 
 var NonceHeader = "fly-machine-lease-nonce"
+var InvocationID = ulid.Make()
 
 const headerFlyRequestId = "fly-request-id"
 
@@ -55,6 +57,9 @@ func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
 type NewClientOpts struct {
 	// required:
 	AppName string
+
+	// required:
+	Command string
 
 	// optional, avoids API roundtrip when connecting to flaps by wireguard:
 	AppCompact *api.AppCompact
@@ -551,8 +556,10 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 }
 
 type flapsCall struct {
-	Call     string  `json:"c"`
-	Duration float64 `json:"d"`
+	Call         string  `json:"c"`
+	Command      string  `json:"co"`
+	Duration     float64 `json:"d"`
+	InvocationID string  `json:"i"`
 }
 
 var re = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
@@ -564,14 +571,18 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		matches := re.FindStringSubmatch(endpoint)
 		index := re.SubexpIndex("flapsCall")
 
-		// unless something changes about flaps, this should always be true
-		if len(matches) > index {
-			call := matches[index]
-			metrics.Send(ctx, "flaps_call", flapsCall{
-				Call:     call,
-				Duration: time.Since(timing.Start).Seconds(),
-			})
+		// unless something changes about flaps, this should always be false
+		if index >= len(matches) {
+			return
 		}
+
+		call := matches[index]
+		metrics.Send(ctx, "flaps_call", flapsCall{
+			Call:         call,
+			Command:      "",
+			Duration:     time.Since(timing.Start).Seconds(),
+			InvocationID: InvocationID.String(),
+		})
 
 	}()
 	defer timing.End()
