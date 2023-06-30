@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/slices"
 )
 
 type ExtensionOptions struct {
@@ -122,6 +123,14 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 
 			primaryRegion = cfg.PrimaryRegion
 
+			if slices.Contains(excludedRegions, primaryRegion) {
+				fmt.Fprintf(io.ErrOut, "%s is only available in regions with low latency (<10ms) to Fly.io regions. That doesn't include '%s'.\n", addOnProvider.DisplayName, primaryRegion)
+
+				confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Would you like to provision anyway in the nearest region to '%s'?", primaryRegion))
+				if err != nil || !confirm {
+					return nil, err
+				}
+			}
 		} else {
 
 			region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
