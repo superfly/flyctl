@@ -419,8 +419,9 @@ type CreateVolumePayload struct {
 }
 
 type ExtendVolumePayload struct {
-	App    App
-	Volume Volume
+	App          App
+	Volume       Volume
+	NeedsRestart bool
 }
 
 type DeleteVolumeInput struct {

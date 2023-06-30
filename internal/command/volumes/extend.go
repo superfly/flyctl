@@ -94,7 +94,7 @@ func runExtend(ctx context.Context) error {
 		SizeGb:   flag.GetInt(ctx, "size"),
 	}
 
-	volume, err := client.ExtendVolume(ctx, input)
+	volume, needsRestart, err := client.ExtendVolume(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}
@@ -110,7 +110,11 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "machines" {
-		fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your machine to increase the size of the FS"))
+		if needsRestart {
+			fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your machine to increase the size of the FS"))
+		} else {
+			fmt.Fprintln(out, colorize.Green("Your machine got its file size extended without a restart"))
+		}
 	}
 
 	return nil
