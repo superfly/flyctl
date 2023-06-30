@@ -556,10 +556,9 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 }
 
 type flapsCall struct {
-	Call         string  `json:"c"`
-	Command      string  `json:"co"`
-	Duration     float64 `json:"d"`
-	InvocationID string  `json:"i"`
+	Call     string  `json:"c"`
+	Command  string  `json:"co"`
+	Duration float64 `json:"d"`
 }
 
 var re = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
@@ -582,10 +581,9 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 
 		call := matches[index]
 		metrics.Send(ctx, "flaps_call", flapsCall{
-			Call:         call,
-			Command:      command_context.FromContext(ctx).Name(),
-			Duration:     time.Since(timing.Start).Seconds(),
-			InvocationID: invocationID,
+			Call:     call,
+			Command:  command_context.FromContext(ctx).Name(),
+			Duration: time.Since(timing.Start).Seconds(),
 		})
 
 	}()
@@ -596,7 +594,7 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		return err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
-	req.Header.Set("Flyctl-Invocation-ID", invocationID)
+	req.Header.Set("Invocation-ID", invocationID)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
