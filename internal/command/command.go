@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/cmdutil/preparers"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/deployment"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -616,4 +617,8 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func CreateDeploymentID(ctx context.Context) (context.Context, error) {
+	return deployment.WithDeployID(ctx, deployment.ID()), nil
 }

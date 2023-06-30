@@ -139,6 +139,7 @@ func New() (cmd *cobra.Command) {
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
+		command.CreateDeploymentID,
 	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
