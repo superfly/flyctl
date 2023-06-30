@@ -27,7 +27,7 @@ var (
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
-	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready for traffic")
+	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready")
 	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
 	ErrValidationError     = errors.New("app not in valid state for bluegreen deployments")
 )
@@ -245,10 +245,24 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
 
 	for _, gm := range bg.greenMachines {
+		// in some cases, not all processes have healthchecks setup
+		// eg. processes that run background workers, etc.
+		// there's no point checking for health, a started state is enough
+		if len(gm.Machine().Checks) == 0 {
+			continue
+		}
+
 		machineIDToHealthStatus[gm.FormattedMachineId()] = &api.HealthCheckStatus{}
 	}
 
 	for _, gm := range bg.greenMachines {
+
+		// in some cases, not all processes have healthchecks setup
+		// eg. processes that run background workers, etc.
+		// there's no point checking for health, a started state is enough
+		if len(gm.Machine().Checks) == 0 {
+			continue
+		}
 
 		go func(m machine.LeasableMachine) {
 			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
@@ -319,7 +333,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 			return err
 		}
 
-		fmt.Fprintf(bg.io.ErrOut, "  Machine %s now serving traffic\n", gm.FormattedMachineId())
+		fmt.Fprintf(bg.io.ErrOut, "  Machine %s now ready\n", gm.FormattedMachineId())
 	}
 
 	return nil
@@ -386,11 +400,19 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	bg.attachCustomTopLevelChecks()
 
+	totalChecks := 0
 	for _, entry := range bg.blueMachines {
 		if len(entry.launchInput.Config.Checks) == 0 {
-			fmt.Fprintf(bg.io.ErrOut, "\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
-			return ErrValidationError
+			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check it's health.", entry.leasableMachine.FormattedMachineId())
+			continue
 		}
+
+		totalChecks++
+	}
+
+	if totalChecks == 0 {
+		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
+		return ErrValidationError
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nCreating green machines\n")
@@ -423,7 +445,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready for traffic\n")
+	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready\n")
 	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
 		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
