@@ -377,7 +377,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			} else if err := update.Relaunch(ctx, silent); err != nil {
 				return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
 			}
-		} else if err := update.BackgroundUpdate(); err != nil {
+		} else if err := update.BackgroundUpdate(ctx, latestRel.Prerelease, silent); err != nil {
 			fmt.Fprintf(io.ErrOut, "failed to autoupdate: %s\n", err)
 		}
 	}

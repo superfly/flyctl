@@ -211,7 +211,16 @@ func Relaunch(ctx context.Context, silent bool) error {
 		fmt.Fprint(io.Out, "\n----\n\n")
 	}
 
+	// Wait a bit for the update to take effect.
+	// Windows seemed to need this.
+	time.Sleep(500 * time.Millisecond)
+
 	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return err
+	}
+
+	binPath, err = filepath.EvalSymlinks(binPath)
 	if err != nil {
 		return err
 	}
@@ -281,8 +290,27 @@ func currentWindowsBinaries() ([]string, error) {
 	}, nil
 }
 
+type deferredUpdateDef struct {
+	prerel    bool
+	silent    bool
+	iostreams *iostreams.IOStreams
+}
+
+var deferredUpdate *deferredUpdateDef
+
 // BackgroundUpdate begins an update in the background.
-func BackgroundUpdate() error {
+func BackgroundUpdate(ctx context.Context, prerel, silent bool) error {
+
+	if runtime.GOOS == "windows" {
+		// On Windows, updates are slow and display a UAC prompt.
+		// This is pretty awful UX, so we defer the update until execution is over.
+		deferredUpdate = &deferredUpdateDef{
+			prerel,
+			silent,
+			iostreams.FromContext(ctx),
+		}
+		return nil
+	}
 
 	binPath, err := exec.LookPath(os.Args[0])
 	if err != nil {
@@ -296,4 +324,11 @@ func BackgroundUpdate() error {
 		return err
 	}
 	return nil
+}
+
+func DoDeferredUpdate() error {
+	if deferredUpdate == nil {
+		return nil
+	}
+	return UpgradeInPlace(context.Background(), deferredUpdate.iostreams, deferredUpdate.prerel, deferredUpdate.silent)
 }

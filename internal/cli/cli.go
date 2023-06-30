@@ -11,6 +11,7 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/update"
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
@@ -42,6 +43,10 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	defer metrics.FlushPending()
 
 	cmd, err := cmd.ExecuteContextC(ctx)
+
+	if e := update.DoDeferredUpdate(); e != nil {
+		fmt.Fprintf(io.ErrOut, "Error updating: %v\n", e)
+	}
 
 	switch {
 	case err == nil:
