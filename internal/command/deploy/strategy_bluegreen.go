@@ -403,7 +403,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	totalChecks := 0
 	for _, entry := range bg.blueMachines {
 		if len(entry.launchInput.Config.Checks) == 0 {
-			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check it's health.", entry.leasableMachine.FormattedMachineId())
+			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check its health.", entry.leasableMachine.FormattedMachineId())
 			continue
 		}
 
