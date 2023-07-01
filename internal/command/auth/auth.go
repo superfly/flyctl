@@ -40,6 +40,7 @@ If you do have an account, begin with the AUTH LOGIN subcommand.
 		newToken(),
 		newLogin(),
 		newDocker(),
+		newPodman(),
 		newLogout(),
 		newSignup(),
 	)
