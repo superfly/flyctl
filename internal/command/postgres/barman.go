@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/ip"
@@ -176,6 +177,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyManagedPostgres: "true",
 		"managed-by-fly-deploy":                        "true",

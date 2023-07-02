@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
@@ -340,6 +341,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyManagedPostgres: "true",
 		"managed-by-fly-deploy":                        "true",

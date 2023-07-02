@@ -5,6 +5,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 type defaultValues struct {
@@ -74,6 +75,7 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	mc.Image = d.image
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = d.releaseVersion
+	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 
 	return mc, nil
 }
