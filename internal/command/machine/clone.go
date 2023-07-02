@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -145,6 +146,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			targetConfig.Metadata = make(map[string]string)
 		}
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
+		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
