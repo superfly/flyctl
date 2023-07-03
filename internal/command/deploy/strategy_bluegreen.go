@@ -355,41 +355,21 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	return nil
 }
 
-func (bg *blueGreen) attachCustomTopLevelChecks() {
+func (bg *blueGreen) getChecksPerMachine() (map[string]int, int) {
+	checksPerMachine := map[string]int{}
+	total := 0
+
 	for _, entry := range bg.blueMachines {
+		checksPerMachine[entry.leasableMachine.FormattedMachineId()] = 0
 		for _, service := range entry.launchInput.Config.Services {
-			servicePort := service.InternalPort
-			serviceProtocol := service.Protocol
-
-			for _, check := range service.Checks {
-				cc := api.MachineCheck{
-					Port:              check.Port,
-					Type:              check.Type,
-					Interval:          check.Interval,
-					Timeout:           check.Timeout,
-					GracePeriod:       check.GracePeriod,
-					HTTPMethod:        check.HTTPMethod,
-					HTTPPath:          check.HTTPPath,
-					HTTPProtocol:      check.HTTPProtocol,
-					HTTPSkipTLSVerify: check.HTTPSkipTLSVerify,
-					HTTPHeaders:       check.HTTPHeaders,
-				}
-
-				if cc.Port == nil {
-					cc.Port = &servicePort
-				}
-
-				if cc.Type == nil {
-					cc.Type = &serviceProtocol
-				}
-
-				if entry.launchInput.Config.Checks == nil {
-					entry.launchInput.Config.Checks = make(map[string]api.MachineCheck)
-				}
-				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
+			for range service.Checks {
+				checksPerMachine[entry.leasableMachine.FormattedMachineId()]++
+				total++
 			}
 		}
 	}
+
+	return checksPerMachine, total
 }
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
@@ -398,16 +378,13 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	bg.attachCustomTopLevelChecks()
+	checksPerMachine, totalChecks := bg.getChecksPerMachine()
 
-	totalChecks := 0
-	for _, entry := range bg.blueMachines {
-		if len(entry.launchInput.Config.Checks) == 0 {
-			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check its health.", entry.leasableMachine.FormattedMachineId())
+	for id, checks := range checksPerMachine {
+		if checks == 0 {
+			fmt.Fprintf(bg.io.ErrOut, "\n[WARN] Machine %s doesn't have healthchecks setup. We won't check its health.", id)
 			continue
 		}
-
-		totalChecks++
 	}
 
 	if totalChecks == 0 {
