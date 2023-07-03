@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,11 +24,13 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -54,6 +57,9 @@ func NewFromAppName(ctx context.Context, appName string) (*Client, error) {
 type NewClientOpts struct {
 	// required:
 	AppName string
+
+	// required:
+	Command string
 
 	// optional, avoids API roundtrip when connecting to flaps by wireguard:
 	AppCompact *api.AppCompact
@@ -549,8 +555,17 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 	return nil
 }
 
+type flapsCall struct {
+	Call       string  `json:"c"`
+	Command    string  `json:"co"`
+	Duration   float64 `json:"d"`
+	StatusCode int     `json:"s"`
+}
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
+	invocationID := metrics.InvocationIDFromContext(ctx)
+
 	defer timing.End()
 
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
@@ -558,6 +573,7 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		return err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
+	req.Header.Set("Invocation-ID", invocationID)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
@@ -569,6 +585,9 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 			terminal.Debugf("error closing response body: %v\n", err)
 		}
 	}()
+
+	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
+	defer sendFlapsCallMetric(ctx, endpoint, timing, resp.StatusCode)
 
 	if resp.StatusCode > 299 {
 		responseBody, err := ioutil.ReadAll(resp.Body)
@@ -588,6 +607,29 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		}
 	}
 	return nil
+}
+
+var flapsCallRegex = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>[a-zA-Z0-9]*)`)
+
+func sendFlapsCallMetric(ctx context.Context, endpoint string, timing instrument.CallTimer, statusCode int) {
+
+	matches := flapsCallRegex.FindStringSubmatch(endpoint)
+	index := flapsCallRegex.SubexpIndex("flapsCall")
+
+	// unless something changes about flaps, this should always be false (meaning the regex passes)
+	if index >= len(matches) {
+		err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
+		sentry.CaptureException(err)
+		return
+	}
+
+	call := matches[index]
+	metrics.Send(ctx, "flaps_call", flapsCall{
+		Call:       call,
+		Command:    command_context.FromContext(ctx).Name(),
+		Duration:   time.Since(timing.Start).Seconds(),
+		StatusCode: statusCode,
+	})
 }
 
 func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {

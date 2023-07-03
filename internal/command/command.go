@@ -92,6 +92,7 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		ctx := cmd.Context()
 		ctx = NewContext(ctx, cmd)
 		ctx = flag.NewContext(ctx, cmd.Flags())
+		ctx = metrics.NewContextWithInvocationID(ctx)
 
 		// run the common preparers
 		if ctx, err = prepare(ctx, commonPreparers...); err != nil {

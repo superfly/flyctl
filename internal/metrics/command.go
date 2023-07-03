@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/oklog/ulid/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/instrument"
 )
@@ -22,6 +23,17 @@ type commandStats struct {
 	GraphQLDuration float64 `json:"gd"`
 	FlapsCalls      int     `json:"fc"`
 	FlapsDuration   float64 `json:"fd"`
+}
+
+type contextKey struct{}
+
+// Adds the InovicationID to context
+func NewContextWithInvocationID(ctx context.Context) context.Context {
+	return context.WithValue(ctx, contextKey{}, ulid.Make().String())
+}
+
+func InvocationIDFromContext(ctx context.Context) string {
+	return ctx.Value(contextKey{}).(string)
 }
 
 func RecordCommandContext(ctx context.Context) {
