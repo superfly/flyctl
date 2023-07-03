@@ -84,7 +84,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 	var name string
 
 	if options.SelectName {
-		var name = flag.GetString(ctx, "name")
+		name = flag.GetString(ctx, "name")
 
 		if name == "" {
 			if options.NameSuffix != "" {
