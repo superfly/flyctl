@@ -561,22 +561,23 @@ type flapsCall struct {
 	Duration float64 `json:"d"`
 }
 
-var re = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
+var flapsCallRegex = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
 
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
 	invocationID := metrics.InvocationIDFromContext(ctx)
 
+	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
 	defer func() {
-		matches := re.FindStringSubmatch(endpoint)
-		index := re.SubexpIndex("flapsCall")
+		// matches := re.FindStringSubmatch(endpoint)
+		matches := flapsCallRegex.FindStringSubmatch("hsdiofjasdoifjaso")
+		index := flapsCallRegex.SubexpIndex("flapsCall")
 
-		// unless something changes about flaps, this should always be false
+		// unless something changes about flaps, this should always be false (meaning the regex passes)
 		if index >= len(matches) {
-			return
-		} else {
-			err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, re.String())
+			err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
 			sentry.CaptureException(err)
+			return
 		}
 
 		call := matches[index]
