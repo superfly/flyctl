@@ -284,7 +284,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 					return
 				}
 
-				status := updateMachine.TopLevelChecks()
+				status := updateMachine.AllHealthChecks()
 				bg.healthLock.Lock()
 				machineIDToHealthStatus[m.FormattedMachineId()] = status
 				bg.healthLock.Unlock()
