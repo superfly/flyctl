@@ -27,8 +27,8 @@ type commandStats struct {
 
 type contextKey struct{}
 
-// Adds the InstanceID to context
-func NewContext(ctx context.Context) context.Context {
+// Adds the InovicationID to context
+func NewContextWithInvocationID(ctx context.Context) context.Context {
 	return context.WithValue(ctx, contextKey{}, ulid.Make().String())
 }
 
