@@ -562,8 +562,6 @@ type flapsCall struct {
 	StatusCode int     `json:"s"`
 }
 
-var flapsCallRegex = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
-
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
 	invocationID := metrics.InvocationIDFromContext(ctx)
@@ -610,6 +608,8 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	}
 	return nil
 }
+
+var flapsCallRegex = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>[a-zA-Z0-9]*)`)
 
 func sendFlapsCallMetric(ctx context.Context, endpoint string, timing instrument.CallTimer, statusCode int) {
 
