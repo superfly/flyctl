@@ -556,9 +556,10 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 }
 
 type flapsCall struct {
-	Call     string  `json:"c"`
-	Command  string  `json:"co"`
-	Duration float64 `json:"d"`
+	Call       string  `json:"c"`
+	Command    string  `json:"co"`
+	Duration   float64 `json:"d"`
+	StatusCode int     `json:"s"`
 }
 
 var flapsCallRegex = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>.*)`)
@@ -567,27 +568,6 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	timing := instrument.Flaps.Begin()
 	invocationID := metrics.InvocationIDFromContext(ctx)
 
-	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
-	defer func() {
-		// matches := re.FindStringSubmatch(endpoint)
-		matches := flapsCallRegex.FindStringSubmatch("hsdiofjasdoifjaso")
-		index := flapsCallRegex.SubexpIndex("flapsCall")
-
-		// unless something changes about flaps, this should always be false (meaning the regex passes)
-		if index >= len(matches) {
-			err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
-			sentry.CaptureException(err)
-			return
-		}
-
-		call := matches[index]
-		metrics.Send(ctx, "flaps_call", flapsCall{
-			Call:     call,
-			Command:  command_context.FromContext(ctx).Name(),
-			Duration: time.Since(timing.Start).Seconds(),
-		})
-
-	}()
 	defer timing.End()
 
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
@@ -608,6 +588,9 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		}
 	}()
 
+	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
+	defer sendFlapsCallMetric(ctx, endpoint, timing, resp.StatusCode)
+
 	if resp.StatusCode > 299 {
 		responseBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
@@ -626,6 +609,27 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		}
 	}
 	return nil
+}
+
+func sendFlapsCallMetric(ctx context.Context, endpoint string, timing instrument.CallTimer, statusCode int) {
+
+	matches := flapsCallRegex.FindStringSubmatch(endpoint)
+	index := flapsCallRegex.SubexpIndex("flapsCall")
+
+	// unless something changes about flaps, this should always be false (meaning the regex passes)
+	if index >= len(matches) {
+		err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
+		sentry.CaptureException(err)
+		return
+	}
+
+	call := matches[index]
+	metrics.Send(ctx, "flaps_call", flapsCall{
+		Call:       call,
+		Command:    command_context.FromContext(ctx).Name(),
+		Duration:   time.Since(timing.Start).Seconds(),
+		StatusCode: statusCode,
+	})
 }
 
 func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
