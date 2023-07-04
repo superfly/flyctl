@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -37,11 +38,6 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Env: map[string]string{
@@ -55,6 +51,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}, li)
@@ -105,11 +102,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Env: map[string]string{
@@ -123,6 +115,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Metrics: &api.MachineMetrics{
 				Port: 9000,
@@ -151,10 +144,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	}, li)
 
 	got := md.launchInputForReleaseCommand(nil)
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, got.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(got.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
 
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
@@ -174,6 +163,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "fly_app_release_command",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Restart: api.MachineRestart{
 				Policy: api.MachineRestartPolicyNo,
@@ -204,11 +194,6 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 
 	got = md.launchInputForReleaseCommand(origMachine)
 
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, got.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(got.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Env: map[string]string{
@@ -223,6 +208,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "fly_app_release_command",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Init: api.MachineInit{
 				Cmd: []string{"touch", "sky"},
@@ -256,11 +242,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
 
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Image: "super/balloon",
@@ -269,6 +250,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Env: map[string]string{
 				"FLY_PROCESS_GROUP": "app",
@@ -294,11 +276,6 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	li, err = md.launchInputForUpdate(origMachine)
 	require.NoError(t, err)
 
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Image: "super/balloon",
@@ -307,6 +284,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Env: map[string]string{
 				"FLY_PROCESS_GROUP": "app",
@@ -341,10 +319,6 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	}
 
 	got := md.launchInputForRestart(origMachine)
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, got.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(got.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
 
 	assert.Equal(t, &api.LaunchMachineInput{
 		ID: "OrigID",
@@ -355,6 +329,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}, got)
@@ -390,12 +365,6 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	}
 
 	got := md.launchInputForRestart(origMachine)
-
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, got.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(got.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, &api.LaunchMachineInput{
 		ID: "OrigID",
 		Config: &api.MachineConfig{
@@ -405,6 +374,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 				"fly_process_group":    "awesome-group",
 				"fly_release_id":       "",
 				"fly_release_version":  "2",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}, got)

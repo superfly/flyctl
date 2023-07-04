@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 // Test the basic flow of launching, restarting and updating a machine for default process group
@@ -38,17 +39,12 @@ func Test_launchInputFor_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
-
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	assert.Equal(t, want, li)
 
 	// Restart the machine
@@ -72,11 +68,6 @@ func Test_launchInputFor_Basic(t *testing.T) {
 	want.Config.Metadata["fly_release_version"] = "4"
 	want.Config.Metadata["user-added-me"] = "keep it"
 	li = md.launchInputForRestart(origMachineRaw)
-
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
 	assert.Equal(t, want, li)
 
 	// Now updating the machines must include changes to appConfig
@@ -88,12 +79,6 @@ func Test_launchInputFor_Basic(t *testing.T) {
 	want.Config.Image = "super/globe"
 	want.Config.Env["NOT_SET_ON_RESTART_ONLY"] = "true"
 	li, err = md.launchInputForUpdate(origMachineRaw)
-
-	// flyctl version is a generated value that differs across builds & it's not very easy to mock it
-	// so we assert it's not empty and delete it before diffing
-	assert.NotEmpty(t, li.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion])
-	delete(li.Config.Metadata, api.MachineConfigMetadataKeyFlyctlVersion)
-
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
 }
