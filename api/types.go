@@ -406,6 +406,7 @@ type CreateVolumeInput struct {
 	Encrypted         bool    `json:"encrypted"`
 	SnapshotID        *string `json:"snapshotId,omitempty"`
 	RequireUniqueZone bool    `json:"requireUniqueZone"`
+	FSType            *string `json:"fsType,omitempty"`
 }
 
 type ExtendVolumeInput struct {

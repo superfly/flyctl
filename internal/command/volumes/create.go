@@ -61,6 +61,12 @@ sets the size as the number of gigabytes the volume will consume.`
 			Name:        "snapshot-id",
 			Description: "Create volume from a specified snapshot",
 		},
+		flag.String{
+			Name:        "FSType",
+			Description: "one of ext4 or raw",
+			Hidden:      true,
+			Default:     "ext4",
+		},
 		flag.Yes(),
 	)
 
@@ -108,6 +114,12 @@ func runCreate(ctx context.Context) error {
 		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
+	FSType := flag.GetString(ctx, "FSType")
+
+	if FSType != "ext4" && FSType != "raw" {
+		return fmt.Errorf("FSType '%s' is not one of ext4 or raw", FSType)
+	}
+
 	input := api.CreateVolumeInput{
 		AppID:             app.ID,
 		Name:              volumeName,
@@ -116,6 +128,7 @@ func runCreate(ctx context.Context) error {
 		Encrypted:         !flag.GetBool(ctx, "no-encryption"),
 		RequireUniqueZone: flag.GetBool(ctx, "require-unique-zone"),
 		SnapshotID:        snapshotID,
+		FSType:            &FSType,
 	}
 
 	volume, err := client.CreateVolume(ctx, input)
