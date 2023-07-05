@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
-func TestFlyDeploy_case01(t *testing.T) {
+func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 

@@ -27,7 +27,7 @@ import (
 // - Internal port is set in first call and not replaced unless --internal-port is passed again
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 // - As we are reusing an existing app, the --org param is not needed after the first call
-func TestFlyLaunch_case01(t *testing.T) {
+func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -67,7 +67,7 @@ func TestFlyLaunch_case01(t *testing.T) {
 }
 
 // Same as case01 but for Nomad apps
-func TestFlyLaunch_case02(t *testing.T) {
+func TestFlyLaunchV1(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -122,7 +122,7 @@ func TestFlyLaunch_case02(t *testing.T) {
 }
 
 // Run fly launch from a template Fly App directory (fly.toml without app name)
-func TestFlyLaunch_case03(t *testing.T) {
+func TestFlyLaunchWithTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -158,7 +158,7 @@ func TestFlyLaunch_case03(t *testing.T) {
 }
 
 // Trying to import an invalid fly.toml should fail before creating the app
-func TestFlyLaunch_case04(t *testing.T) {
+func TestFlyLaunchWithInvalidTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -176,7 +176,7 @@ app = "foo"
 
 // Fail if the existing app doesn't match the forced platform version
 // V2 app forced as V1
-func TestFlyLaunch_case05a(t *testing.T) {
+func TestFlyLaunchForceV1(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	appName := f.CreateRandomAppName()
@@ -186,7 +186,7 @@ func TestFlyLaunch_case05a(t *testing.T) {
 }
 
 // V1 app forced as V2
-func TestFlyLaunch_case05b(t *testing.T) {
+func TestFlyLaunchForceV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	appName := f.CreateRandomAppName()
@@ -199,7 +199,7 @@ func TestFlyLaunch_case05b(t *testing.T) {
 }
 
 // test --generate-name, --name and reuse imported name
-func TestFlyLaunch_case06(t *testing.T) {
+func TestFlyLaunchReuseName(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// V2 app forced as V1
@@ -230,7 +230,7 @@ primary_region = "%s"
 }
 
 // test volumes are created on first launch
-func TestFlyLaunch_case07(t *testing.T) {
+func TestFlyLaunchWithVolumes(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -258,7 +258,7 @@ func TestFlyLaunch_case07(t *testing.T) {
 }
 
 // test --vm-size sets the machine guest on first deploy
-func TestFlyLaunch_case08(t *testing.T) {
+func TestFlyLaunchWithSize(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -273,7 +273,7 @@ func TestFlyLaunch_case08(t *testing.T) {
 }
 
 // test default HA setup
-func TestFlyLaunch_case09(t *testing.T) {
+func TestFlyLaunchHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -328,7 +328,7 @@ func TestFlyLaunch_case09(t *testing.T) {
 }
 
 // test first deploy with single mount for multiple processes
-func TestFlyLaunch_case10(t *testing.T) {
+func TestFlyLaunchSigleMount(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
