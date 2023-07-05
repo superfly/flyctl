@@ -13,7 +13,7 @@ import (
 )
 
 func newAutoUpdate() *cobra.Command {
-	metricsRoot := command.New("autoupdate", "Control automatic updates", "", runAutoupdateStatus)
+	autoupdateRoot := command.New("autoupdate", "Control automatic updates", "", runAutoupdateStatus)
 
 	optIn := command.New("enable", "Enable automatic updates", "", func(ctx context.Context) error {
 		return setAutoupdateEnabled(ctx, true)
@@ -22,10 +22,10 @@ func newAutoUpdate() *cobra.Command {
 		return setAutoupdateEnabled(ctx, false)
 	})
 
-	metricsRoot.AddCommand(optIn)
-	metricsRoot.AddCommand(optOut)
+	autoupdateRoot.AddCommand(optIn)
+	autoupdateRoot.AddCommand(optOut)
 
-	return metricsRoot
+	return autoupdateRoot
 }
 
 func printAutoupdateEnabled(ctx context.Context, enabled bool) {
@@ -42,7 +42,7 @@ func runAutoupdateStatus(ctx context.Context) error {
 		io  = iostreams.FromContext(ctx)
 	)
 
-	printAutoupdateEnabled(ctx, cfg.SendMetrics)
+	printAutoupdateEnabled(ctx, cfg.AutoUpdate)
 
 	fmt.Fprintf(io.Out, "\nThis can be controlled with 'fly settings autoupdate <enable/disable>'\n")
 
@@ -52,7 +52,7 @@ func runAutoupdateStatus(ctx context.Context) error {
 func setAutoupdateEnabled(ctx context.Context, enabled bool) error {
 	path := state.ConfigFile(ctx)
 
-	if err := config.SetSendMetrics(path, enabled); err != nil {
+	if err := config.SetAutoUpdate(path, enabled); err != nil {
 		return fmt.Errorf("failed persisting %s in %s: %w\n",
 			config.AutoUpdateFileKey, path, err)
 	}
