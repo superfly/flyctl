@@ -13,13 +13,13 @@ import (
 )
 
 func newAnalytics() *cobra.Command {
-	metricsRoot := command.New("analytics", "Control anonymized analytics collection", "", runStatus)
+	metricsRoot := command.New("analytics", "Control anonymized analytics collection", "", runAnalyticsStatus)
 
 	optIn := command.New("enable", "Enable analytics", "", func(ctx context.Context) error {
-		return setMetricsEnabled(ctx, true)
+		return setAnalyticsEnabled(ctx, true)
 	})
 	optOut := command.New("disable", "Disable analytics", "", func(ctx context.Context) error {
-		return setMetricsEnabled(ctx, false)
+		return setAnalyticsEnabled(ctx, false)
 	})
 
 	metricsRoot.AddCommand(optIn)
@@ -28,7 +28,7 @@ func newAnalytics() *cobra.Command {
 	return metricsRoot
 }
 
-func printEnabled(ctx context.Context, enabled bool) {
+func printAnalyticsEnabled(ctx context.Context, enabled bool) {
 
 	enabledStr := lo.Ternary(enabled, "enabled", "disabled")
 
@@ -36,20 +36,20 @@ func printEnabled(ctx context.Context, enabled bool) {
 	fmt.Fprintf(io.Out, "Anonymized analytics: %s\n", enabledStr)
 }
 
-func runStatus(ctx context.Context) error {
+func runAnalyticsStatus(ctx context.Context) error {
 	var (
 		cfg = config.FromContext(ctx)
 		io  = iostreams.FromContext(ctx)
 	)
 
-	printEnabled(ctx, cfg.SendMetrics)
+	printAnalyticsEnabled(ctx, cfg.SendMetrics)
 
 	fmt.Fprintf(io.Out, "\nThis can be controlled with 'fly settings analytics <enable/disable>'\n")
 
 	return nil
 }
 
-func setMetricsEnabled(ctx context.Context, enabled bool) error {
+func setAnalyticsEnabled(ctx context.Context, enabled bool) error {
 	path := state.ConfigFile(ctx)
 
 	if err := config.SetSendMetrics(path, enabled); err != nil {
@@ -57,7 +57,7 @@ func setMetricsEnabled(ctx context.Context, enabled bool) error {
 			config.SendMetricsFileKey, path, err)
 	}
 
-	printEnabled(ctx, enabled)
+	printAnalyticsEnabled(ctx, enabled)
 
 	return nil
 }
