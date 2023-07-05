@@ -100,6 +100,7 @@ func BuildDate() time.Time {
 func parseVesion(v string) semver.Version {
 	parsedV, err := semver.ParseTolerant(v)
 	if err != nil {
+		// Can't use terminal.Warnf here because of a circular dependency
 		fmt.Printf("WARN: error parsing version number '%s': %s\n", v, err)
 		return semver.Version{}
 	}

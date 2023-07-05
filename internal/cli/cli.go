@@ -41,7 +41,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		}()
 	}
 
-	ctx = logger.NewContext(ctx, term2.DefaultLogger)
+	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut).AndLogToFile())
 
 	httptracing.Init()
 	defer httptracing.Finish()
