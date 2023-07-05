@@ -238,7 +238,8 @@ type AppData struct {
 	// Unique application ID
 	Id string `json:"id"`
 	// The unique application name
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Deployed bool   `json:"deployed"`
 	// Fly platform version
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 	// Organization that owns this app
@@ -250,6 +251,9 @@ func (v *AppData) GetId() string { return v.Id }
 
 // GetName returns AppData.Name, and is useful for accessing the field via an interface.
 func (v *AppData) GetName() string { return v.Name }
+
+// GetDeployed returns AppData.Deployed, and is useful for accessing the field via an interface.
+func (v *AppData) GetDeployed() bool { return v.Deployed }
 
 // GetPlatformVersion returns AppData.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *AppData) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
@@ -600,6 +604,9 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) GetId() string { return v.AppDat
 // GetName returns CreateAppCreateAppCreateAppPayloadApp.Name, and is useful for accessing the field via an interface.
 func (v *CreateAppCreateAppCreateAppPayloadApp) GetName() string { return v.AppData.Name }
 
+// GetDeployed returns CreateAppCreateAppCreateAppPayloadApp.Deployed, and is useful for accessing the field via an interface.
+func (v *CreateAppCreateAppCreateAppPayloadApp) GetDeployed() bool { return v.AppData.Deployed }
+
 // GetPlatformVersion returns CreateAppCreateAppCreateAppPayloadApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *CreateAppCreateAppCreateAppPayloadApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
@@ -644,6 +651,8 @@ type __premarshalCreateAppCreateAppCreateAppPayloadApp struct {
 
 	Name string `json:"name"`
 
+	Deployed bool `json:"deployed"`
+
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -664,6 +673,7 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) __premarshalJSON() (*__premarsha
 	retval.Regions = v.Regions
 	retval.Id = v.AppData.Id
 	retval.Name = v.AppData.Name
+	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1218,6 +1228,9 @@ func (v *GetAppApp) GetId() string { return v.AppData.Id }
 // GetName returns GetAppApp.Name, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetName() string { return v.AppData.Name }
 
+// GetDeployed returns GetAppApp.Deployed, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetDeployed() bool { return v.AppData.Deployed }
+
 // GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
@@ -1254,6 +1267,8 @@ type __premarshalGetAppApp struct {
 
 	Name string `json:"name"`
 
+	Deployed bool `json:"deployed"`
+
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1272,6 +1287,7 @@ func (v *GetAppApp) __premarshalJSON() (*__premarshalGetAppApp, error) {
 
 	retval.Id = v.AppData.Id
 	retval.Name = v.AppData.Name
+	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1335,6 +1351,9 @@ func (v *GetAppWithAddonsApp) GetId() string { return v.AppData.Id }
 // GetName returns GetAppWithAddonsApp.Name, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsApp) GetName() string { return v.AppData.Name }
 
+// GetDeployed returns GetAppWithAddonsApp.Deployed, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetDeployed() bool { return v.AppData.Deployed }
+
 // GetPlatformVersion returns GetAppWithAddonsApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
@@ -1375,6 +1394,8 @@ type __premarshalGetAppWithAddonsApp struct {
 
 	Name string `json:"name"`
 
+	Deployed bool `json:"deployed"`
+
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1394,6 +1415,7 @@ func (v *GetAppWithAddonsApp) __premarshalJSON() (*__premarshalGetAppWithAddonsA
 	retval.AddOns = v.AddOns
 	retval.Id = v.AppData.Id
 	retval.Name = v.AppData.Name
+	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -1456,6 +1478,9 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetId() string { return v.AppDa
 // GetName returns GetAppsByRoleAppsAppConnectionNodesApp.Name, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetName() string { return v.AppData.Name }
 
+// GetDeployed returns GetAppsByRoleAppsAppConnectionNodesApp.Deployed, and is useful for accessing the field via an interface.
+func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetDeployed() bool { return v.AppData.Deployed }
+
 // GetPlatformVersion returns GetAppsByRoleAppsAppConnectionNodesApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
@@ -1496,6 +1521,8 @@ type __premarshalGetAppsByRoleAppsAppConnectionNodesApp struct {
 
 	Name string `json:"name"`
 
+	Deployed bool `json:"deployed"`
+
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
 	Organization AppDataOrganization `json:"organization"`
@@ -1514,6 +1541,7 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) __premarshalJSON() (*__premarsh
 
 	retval.Id = v.AppData.Id
 	retval.Name = v.AppData.Name
+	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
@@ -2934,6 +2962,7 @@ mutation CreateApp ($input: CreateAppInput!) {
 fragment AppData on App {
 	id
 	name
+	deployed
 	platformVersion
 	organization {
 		id
@@ -3242,6 +3271,7 @@ query GetApp ($name: String!) {
 fragment AppData on App {
 	id
 	name
+	deployed
 	platformVersion
 	organization {
 		id
@@ -3326,6 +3356,7 @@ query GetAppWithAddons ($name: String!, $addOnType: AddOnType!) {
 fragment AppData on App {
 	id
 	name
+	deployed
 	platformVersion
 	organization {
 		id
@@ -3373,6 +3404,7 @@ query GetAppsByRole ($role: String!, $organizationId: ID!) {
 fragment AppData on App {
 	id
 	name
+	deployed
 	platformVersion
 	organization {
 		id
