@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
 
+	term2 "github.com/superfly/flyctl/terminal"
+
 	"github.com/superfly/flyctl/internal/command/root"
 )
 
@@ -26,7 +28,20 @@ import (
 // exit code the application should exit with.
 func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	ctx = iostreams.NewContext(ctx, io)
-	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut))
+
+	err := logger.InitLogFile()
+	if err != nil {
+		term2.Debugf("failed to initialize file logger: %s", err)
+	} else {
+		defer func() {
+			err := logger.CloseLogFile()
+			if err != nil {
+				term2.Debugf("failed to close file logger: %s", err)
+			}
+		}()
+	}
+
+	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut).AndLogToFile())
 
 	httptracing.Init()
 	defer httptracing.Finish()
@@ -41,7 +56,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	defer metrics.FlushPending()
 
-	cmd, err := cmd.ExecuteContextC(ctx)
+	cmd, err = cmd.ExecuteContextC(ctx)
 
 	switch {
 	case err == nil:
