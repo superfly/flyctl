@@ -59,12 +59,11 @@ var commonPreparers = []preparers.Preparer{
 	ensureConfigDirPerms,
 	loadCache,
 	preparers.LoadConfig,
-	initTaskManager,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
 	preparers.InitClient,
 	killOldAgent,
-	recordMetricsCommandContext,
+	startMetrics,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -98,17 +97,20 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 			return
 		}
 
+		// run the preparers specific to the command
+		if ctx, err = prepare(ctx, preparers...); err != nil {
+			return
+		}
+
+		// start task manager using the prepared context
+		task.FromContext(ctx).Start(ctx)
+
 		sendOsMetric(ctx, "started")
 		defer func() {
 			if err == nil {
 				sendOsMetric(ctx, "successful")
 			}
 		}()
-
-		// run the preparers specific to the command
-		if ctx, err = prepare(ctx, preparers...); err != nil {
-			return
-		}
 
 		// run the command
 		if err = fn(ctx); err == nil {
@@ -133,9 +135,7 @@ func prepare(parent context.Context, preparers ...preparers.Preparer) (ctx conte
 }
 
 func finalize(ctx context.Context) {
-	// shutdown async tasks
-	task.FromContext(ctx).Shutdown()
-
+	// todo[md] move this to a background task
 	// flush the cache to disk if required
 	if c := cache.FromContext(ctx); c.Dirty() {
 		path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
@@ -239,14 +239,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	logger.Debug("cache loaded.")
 
 	return cache.NewContext(ctx, c), nil
-}
-
-func initTaskManager(ctx context.Context) (context.Context, error) {
-	tm := task.New(ctx)
-
-	logger.FromContext(ctx).Debug("initialized task manager.")
-
-	return task.NewContext(ctx, tm), nil
 }
 
 func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {
@@ -479,8 +471,13 @@ func killOldAgent(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func recordMetricsCommandContext(ctx context.Context) (context.Context, error) {
+func startMetrics(ctx context.Context) (context.Context, error) {
 	metrics.RecordCommandContext(ctx)
+
+	task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
+		metrics.FlushPending()
+	})
+
 	return ctx, nil
 }
 
