@@ -106,6 +106,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureNextJs,
 		configureNode,
 		configureStatic,
+		configureDotnet,
 	}
 
 	for _, scanner := range scanners {
