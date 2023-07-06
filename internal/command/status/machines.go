@@ -169,10 +169,10 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 			if len(machine.Config.Standbys) > 0 {
 				hasStandbys = true
 			}
-			var role = "N/A"
+			var role string
 
-			if machine.Config.Metadata["role"] != "" {
-				role = machine.Config.Metadata["role"]
+			if v := machine.Config.Metadata["role"]; v != "" {
+				role = v
 			}
 			rows = append(rows, []string{
 				getProcessgroup(machine),
