@@ -15,8 +15,6 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
@@ -74,23 +72,10 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
-	needsVolumes := map[string]bool{}
+	// needsVolumes := map[string]bool{}
 	for _, action := range actions {
 		size := action.MachineConfig.Guest.ToSize()
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
-		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
-			needsVolumes[action.GroupName] = true
-		}
-	}
-
-	if len(needsVolumes) > 0 {
-		groupNames := maps.Keys(needsVolumes)
-		slices.Sort(groupNames)
-		return fmt.Errorf(
-			"'fly scale count' can't scale up groups with mounts, "+
-				"use 'fly machine clone' to add machines for: %s",
-			strings.Join(groupNames, " "),
-		)
 	}
 
 	if !flag.GetYes(ctx) {
@@ -111,7 +96,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action)
+				m, err := launchMachine(ctx, action, appConfig)
 				if err != nil {
 					return err
 				}
@@ -132,8 +117,44 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) {
+func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.Config) (*api.Machine, error) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 	flapsClient := flaps.FromContext(ctx)
+	apiClient := client.FromContext(ctx).API()
+
+	app, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
+		for _, mnt := range action.MachineConfig.Mounts {
+			var vol *api.Volume
+			fmt.Fprintf(io.Out, "Volume '%s' will start empty\n", colorize.Bold(mnt.Name))
+
+			volInput := api.CreateVolumeInput{
+				AppID:             app.ID,
+				Name:              mnt.Name,
+				Region:            action.Region,
+				SizeGb:            mnt.SizeGb,
+				Encrypted:         mnt.Encrypted,
+				SnapshotID:        nil,
+				RequireUniqueZone: false,
+			}
+			vol, err = apiClient.CreateVolume(ctx, volInput)
+			if err != nil {
+				return nil, err
+			}
+
+			action.MachineConfig.Mounts = []api.MachineMount{
+				{
+					Volume: vol.ID,
+					Path:   mnt.Path,
+				},
+			}
+		}
+	}
 
 	input := api.LaunchMachineInput{
 		Region: action.Region,
