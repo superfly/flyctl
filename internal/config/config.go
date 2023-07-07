@@ -38,7 +38,7 @@ const (
 	defaultAPIBaseURL     = "https://api.fly.io"
 	defaultFlapsBaseURL   = "https://api.machines.dev"
 	defaultRegistryHost   = "registry.fly.io"
-	defaultMetricsBaseURL = "https://flyctl-metrics-billy.fly.dev"
+	defaultMetricsBaseURL = "https://flyctl-metrics.fly.dev"
 )
 
 // Config wraps the functionality of the configuration file.
