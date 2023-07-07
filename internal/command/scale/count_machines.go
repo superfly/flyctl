@@ -72,7 +72,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
-	// needsVolumes := map[string]bool{}
 	for _, action := range actions {
 		size := action.MachineConfig.Guest.ToSize()
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
@@ -92,11 +91,19 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	fmt.Fprintf(io.Out, "Executing scale plan\n")
+	volumes, err := apiClient.GetVolumes(ctx, appName)
+	if err != nil {
+		return err
+	}
+	volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
+		return !v.IsAttached()
+	})
+
 	for _, action := range actions {
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action, appConfig)
+				m, err := launchMachine(ctx, action, appConfig, &volumes)
 				if err != nil {
 					return err
 				}
@@ -117,7 +124,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.Config) (*api.Machine, error) {
+func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.Config, volumes *[]api.Volume) (*api.Machine, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	flapsClient := flaps.FromContext(ctx)
@@ -128,23 +135,33 @@ func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.C
 		return nil, err
 	}
 
-	if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
+	if len(action.MachineConfig.Mounts) > 0 {
+		// Is this ever more than 1?
 		for _, mnt := range action.MachineConfig.Mounts {
 			var vol *api.Volume
-			fmt.Fprintf(io.Out, "Volume '%s' will start empty\n", colorize.Bold(mnt.Name))
+			volumesInRegion := lo.Filter(*volumes, func(v api.Volume, _ int) bool {
+				return v.Region == action.Region
+			})
+			if len(*volumes) > 0 {
+				// TODO: Need to remove the volume from the list 
+				vol = &volumesInRegion[0]
+				fmt.Fprintf(io.Out, "Using unattached volume '%s'", colorize.Bold(vol.ID))
+			} else {
+				fmt.Fprintf(io.Out, "Creating new volume '%s'. Will start empty\n", colorize.Bold(mnt.Name))
 
-			volInput := api.CreateVolumeInput{
-				AppID:             app.ID,
-				Name:              mnt.Name,
-				Region:            action.Region,
-				SizeGb:            mnt.SizeGb,
-				Encrypted:         mnt.Encrypted,
-				SnapshotID:        nil,
-				RequireUniqueZone: false,
-			}
-			vol, err = apiClient.CreateVolume(ctx, volInput)
-			if err != nil {
-				return nil, err
+				volInput := api.CreateVolumeInput{
+					AppID:             app.ID,
+					Name:              mnt.Name,
+					Region:            action.Region,
+					SizeGb:            mnt.SizeGb,
+					Encrypted:         mnt.Encrypted,
+					SnapshotID:        nil,
+					RequireUniqueZone: false,
+				}
+				vol, err = apiClient.CreateVolume(ctx, volInput)
+				if err != nil {
+					return nil, err
+				}
 			}
 
 			action.MachineConfig.Mounts = []api.MachineMount{
