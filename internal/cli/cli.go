@@ -7,10 +7,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/task"
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
@@ -42,6 +44,8 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	}
 
 	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut).AndLogToFile())
+	// initialize the background task runner early so command preparers can start running stuff immediately
+	ctx = task.NewWithContext(ctx)
 
 	httptracing.Init()
 	defer httptracing.Finish()
@@ -54,13 +58,17 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cs := io.ColorScheme()
 
-	defer metrics.FlushPending()
-
 	cmd, err = cmd.ExecuteContextC(ctx)
+
+	if err != nil {
+		metrics.RecordCommandFinish(cmd)
+	}
+
+	// shutdown background tasks, giving up to 5s for them to finish
+	task.FromContext(ctx).ShutdownWithTimeout(5 * time.Second)
 
 	switch {
 	case err == nil:
-		metrics.RecordCommandFinish(cmd)
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
