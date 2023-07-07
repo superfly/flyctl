@@ -49,7 +49,7 @@ func newSFTPShell() *cobra.Command {
 		usage = "shell"
 	)
 
-	cmd := command.New(usage, short, long, runShell, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runShell, command.RequireSession, command.RequireAppName)
 
 	stdArgsSSH(cmd)
 
@@ -63,7 +63,7 @@ func newFind() *cobra.Command {
 		usage = "find [path]"
 	)
 
-	cmd := command.New(usage, short, long, runLs, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runLs, command.RequireSession, command.RequireAppName)
 
 	stdArgsSSH(cmd)
 
@@ -77,7 +77,7 @@ func newGet() *cobra.Command {
 		usage = "get <path>"
 	)
 
-	cmd := command.New(usage, short, long, runGet, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runGet, command.RequireSession, command.RequireAppName)
 
 	cmd.Args = cobra.MaximumNArgs(2)
 
