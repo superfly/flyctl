@@ -619,12 +619,16 @@ func sendFlapsCallMetric(ctx context.Context, endpoint string, timing instrument
 
 	call := matches[index]
 
-	cmd_ctx := command_context.FromContext(ctx)
-	commandName := cmd_ctx.Parent().Name() + "-"
-	if commandName == "flyctl-" {
-		commandName = ""
+	cmdCtx := command_context.FromContext(ctx)
+	var nameParts []string
+	for cmdCtx != nil {
+		if cmdCtx.Name() == "flyctl" {
+			break
+		}
+		nameParts = append([]string{cmdCtx.Name()}, nameParts...)
+		cmdCtx = cmdCtx.Parent()
 	}
-	commandName += cmd_ctx.Name()
+	commandName := strings.Join(nameParts, "-")
 
 	metrics.Send(ctx, "flaps_call", flapsCall{
 		Call:       call,
