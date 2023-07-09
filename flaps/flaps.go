@@ -11,7 +11,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
+	"time"
+
+	"github.com/cenkalti/backoff/v4"
+	"github.com/google/go-querystring/query"
+	"github.com/samber/lo"
+	"github.com/superfly/flyctl/internal/command_context"
+	"github.com/superfly/flyctl/internal/sentry"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -184,6 +192,9 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		}
 	}()
 
+	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
+	defer sendFlapsCallMetric(ctx, endpoint, timing, resp.StatusCode)
+
 	if resp.StatusCode > 299 {
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -202,6 +213,48 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		}
 	}
 	return nil
+}
+
+var flapsCallRegex = regexp.MustCompile(`\/(?P<machineId>[a-z-A-Z0-9]*)\/(?P<flapsCall>[a-zA-Z0-9]*)`)
+
+type flapsCall struct {
+	Call       string  `json:"c"`
+	Command    string  `json:"co"`
+	Duration   float64 `json:"d"`
+	StatusCode int     `json:"s"`
+}
+
+func sendFlapsCallMetric(ctx context.Context, endpoint string, timing instrument.CallTimer, statusCode int) {
+
+	matches := flapsCallRegex.FindStringSubmatch(endpoint)
+	index := flapsCallRegex.SubexpIndex("flapsCall")
+
+	// unless something changes about flaps, this should always be false (meaning the regex passes)
+	if index >= len(matches) {
+		err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
+		sentry.CaptureException(err)
+		return
+	}
+
+	call := matches[index]
+
+	cmdCtx := command_context.FromContext(ctx)
+	var nameParts []string
+	for cmdCtx != nil {
+		if cmdCtx.Name() == "flyctl" {
+			break
+		}
+		nameParts = append([]string{cmdCtx.Name()}, nameParts...)
+		cmdCtx = cmdCtx.Parent()
+	}
+	commandName := strings.Join(nameParts, "-")
+
+	metrics.Send(ctx, "flaps_call", flapsCall{
+		Call:       call,
+		Command:    commandName,
+		Duration:   time.Since(timing.Start).Seconds(),
+		StatusCode: statusCode,
+	})
 }
 
 func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
