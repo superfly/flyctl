@@ -1,8 +1,6 @@
 package api
 
-import (
-	"context"
-)
+import "context"
 
 func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName string) (*GqlMachine, *App, error) {
 	query := `
