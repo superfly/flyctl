@@ -2,19 +2,12 @@ package scanner
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
-
-func createDockerfile(t *testing.T, dockerfile string) func() {
-	path := "/tmp/Dockerfile"
-
-	assert.NoError(t, os.WriteFile(path, []byte(dockerfile), 0644))
-	return func() {
-		os.Remove(path)
-	}
-}
 
 func TestDockerfileScanner(t *testing.T) {
 	type testcase struct {
@@ -55,11 +48,13 @@ func TestDockerfileScanner(t *testing.T) {
 
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
-			cleanup := createDockerfile(t, tc.dockerfile)
-			defer cleanup()
+			dir := t.TempDir()
 
-			si, err := configureDockerfile("/tmp", &tc.config)
-			assert.NoError(t, err)
+			err := os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte(tc.dockerfile), 0644)
+			require.NoError(t, err)
+
+			si, err := configureDockerfile(dir, &tc.config)
+			require.NoError(t, err)
 
 			assert.Equal(t, tc.expectedPort, si.Port)
 		})
