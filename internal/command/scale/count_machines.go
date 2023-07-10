@@ -17,6 +17,11 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+type trackedVolume struct {
+	volume api.Volume
+	used   bool
+}
+
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
@@ -95,15 +100,24 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	if err != nil {
 		return err
 	}
-	volumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return !v.IsAttached()
+
+	trackedVolumes := lo.FilterMap(volumes, func(v api.Volume, _ int) (*trackedVolume, bool) {
+		if !v.IsAttached() {
+			tv := trackedVolume{
+				volume: v,
+				used:   false,
+			}
+			return &tv, true
+		}
+
+		return &trackedVolume{}, false
 	})
 
 	for _, action := range actions {
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action, appConfig, &volumes)
+				m, err := launchMachine(ctx, action, appConfig, trackedVolumes)
 				if err != nil {
 					return err
 				}
@@ -124,7 +138,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.Config, volumes *[]api.Volume) (*api.Machine, error) {
+func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.Config, volumes []*trackedVolume) (*api.Machine, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	flapsClient := flaps.FromContext(ctx)
@@ -139,12 +153,14 @@ func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.C
 		// Is this ever more than 1?
 		for _, mnt := range action.MachineConfig.Mounts {
 			var vol *api.Volume
-			volumesInRegion := lo.Filter(*volumes, func(v api.Volume, _ int) bool {
-				return v.Region == action.Region
+			availableVolumes := lo.Filter(volumes, func(tv *trackedVolume, _ int) bool {
+				return tv.volume.Region == action.Region && !tv.used
 			})
-			if len(*volumes) > 0 {
-				// TODO: Need to remove the volume from the list 
-				vol = &volumesInRegion[0]
+			if len(availableVolumes) > 0 {
+				trackedVolume := availableVolumes[0]
+				trackedVolume.used = true
+
+				vol = &trackedVolume.volume
 				fmt.Fprintf(io.Out, "Using unattached volume '%s'", colorize.Bold(vol.ID))
 			} else {
 				fmt.Fprintf(io.Out, "Creating new volume '%s'. Will start empty\n", colorize.Bold(mnt.Name))
