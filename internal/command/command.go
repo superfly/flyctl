@@ -335,7 +335,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	var (
-		current = buildinfo.ParsedVersion()
+		current   = buildinfo.ParsedVersion()
 		cache     = cache.FromContext(ctx)
 		logger    = logger.FromContext(ctx)
 		io        = iostreams.FromContext(ctx)
