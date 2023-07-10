@@ -110,7 +110,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 			return &tv, true
 		}
 
-		return &trackedVolume{}, false
+		return nil, false
 	})
 
 	for _, action := range actions {
@@ -153,6 +153,7 @@ func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.C
 		// Is this ever more than 1?
 		for _, mnt := range action.MachineConfig.Mounts {
 			var vol *api.Volume
+
 			availableVolumes := lo.Filter(volumes, func(tv *trackedVolume, _ int) bool {
 				return tv.volume.Region == action.Region && !tv.used
 			})
@@ -161,9 +162,9 @@ func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.C
 				trackedVolume.used = true
 
 				vol = &trackedVolume.volume
-				fmt.Fprintf(io.Out, "Using unattached volume '%s'", colorize.Bold(vol.ID))
+				fmt.Fprintf(io.Out, "Using unattached volume %s\n", colorize.Bold(vol.ID))
 			} else {
-				fmt.Fprintf(io.Out, "Creating new volume '%s'. Will start empty\n", colorize.Bold(mnt.Name))
+				fmt.Fprintf(io.Out, "Creating new volume %s. Will start empty\n", colorize.Bold(mnt.Name))
 
 				volInput := api.CreateVolumeInput{
 					AppID:             app.ID,
@@ -182,8 +183,11 @@ func launchMachine(ctx context.Context, action *planItem, appConfig *appconfig.C
 
 			action.MachineConfig.Mounts = []api.MachineMount{
 				{
-					Volume: vol.ID,
-					Path:   mnt.Path,
+					Volume:    vol.ID,
+					Path:      mnt.Path,
+					Name:      mnt.Name,
+					Encrypted: mnt.Encrypted,
+					SizeGb:    mnt.SizeGb,
 				},
 			}
 		}
