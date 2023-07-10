@@ -30,7 +30,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		return nil, nil
 	}
 
-	// ensure package.json has a start script
+	// ensure package.json has a main, module, or start script
 	data, err := os.ReadFile("package.json")
 
 	if err != nil {
@@ -41,9 +41,30 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			return nil, nil
 		}
 
+		// see if package.json has a "main"
+		main, _ := packageJson["main"].(string)
+
+		// check for tyep="module" and a module being defined
+		ptype, ok := packageJson["type"].(string)
+		if ok && ptype == "module" {
+			module, ok := packageJson["type"].(string)
+			if ok {
+				main = module
+			}
+		}
+
+		// check for a start script
 		scripts, ok := packageJson["scripts"].(map[string]interface{})
 
-		if !ok || scripts["start"] == nil {
+		if ok && scripts["start"] == nil {
+			start, ok := scripts["start"].(string)
+			if ok {
+				main = start
+			}
+		}
+
+		// bail if no entrypoint can be found
+		if main == "" {
 			return nil, nil
 		}
 	}
@@ -164,21 +185,21 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string
 			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
 		} else {
 			// build command to install package using preferred package manager
-			args = []string{"npm", "install", "@flydotio/dockerfile", "--save-dev"}
+			args = []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
 
 			_, err = os.Stat("yarn.lock")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"yarn", "add", "@flydotio/dockerfile", "--dev"}
+				args = []string{"yarn", "add", "@flydotio/dockerfile@latest", "--dev"}
 			}
 
 			_, err = os.Stat("pnpm-lock.yaml")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile"}
+				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
 			}
 
 			_, err = os.Stat("bun.lockb")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"bun", "add", "-d", "@flydotio/dockerfile"}
+				args = []string{"bun", "add", "-d", "@flydotio/dockerfile@latest"}
 			}
 		}
 
