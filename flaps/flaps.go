@@ -609,15 +609,25 @@ func sendFlapsCallMetric(ctx context.Context, endpoint string, timing instrument
 
 	matches := flapsCallRegex.FindStringSubmatch(endpoint)
 	index := flapsCallRegex.SubexpIndex("flapsCall")
+	machineIndex := flapsCallRegex.SubexpIndex("machineId")
+	machineCallOnly := false
 
 	// unless something changes about flaps, this should always be false (meaning the regex passes)
 	if index >= len(matches) {
-		err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
-		sentry.CaptureException(err)
-		return
+		if machineIndex < len(matches) {
+			machineCallOnly = true
+		} else {
+			err := fmt.Errorf("flaps endpoint %s did not match regex %s", endpoint, flapsCallRegex.String())
+			sentry.CaptureException(err)
+			return
+		}
 	}
 
 	call := matches[index]
+
+	if machineCallOnly {
+		call = "machine_call"
+	}
 
 	cmdCtx := command_context.FromContext(ctx)
 	var nameParts []string
