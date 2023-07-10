@@ -13,6 +13,7 @@ type Version interface {
 	String() string
 	EQ(other Version) bool
 	Newer() bool
+	SeverelyOutdated(other Version) bool
 }
 
 type SemverVersion struct {
@@ -46,6 +47,24 @@ func (v *SemverVersion) Newer() bool {
 	}
 }
 
+func (v *SemverVersion) SeverelyOutdated(other Version) bool {
+	otherVer, ok := other.(*SemverVersion)
+	if ok {
+		if v.Major < otherVer.Major {
+			return true
+		}
+		if v.Minor < otherVer.Minor {
+			return true
+		}
+		if v.Patch+5 < otherVer.Patch {
+			return true
+		}
+		return false
+	} else {
+		return false
+	}
+}
+
 type CalverVersion struct {
 	calver.Version
 }
@@ -76,6 +95,12 @@ func (v *CalverVersion) Newer() bool {
 	} else {
 		return true
 	}
+}
+
+func (v *CalverVersion) SeverelyOutdated(other Version) bool {
+	// todo: Figure out how to do this when we actually have outdated calver
+	// versions.
+	return false
 }
 
 func ParseVersion(other string) (Version, error) {

@@ -334,6 +334,16 @@ func (w writerWithFd) Fd() uintptr {
 	return w.orig.Fd()
 }
 
+func IsTerminalWriter(w io.Writer) bool {
+	if w == os.Stdout || w == os.Stderr {
+		return true
+	}
+	if wf, ok := w.(writerWithFd); ok {
+		return wf.Fd() == os.Stdout.Fd() || wf.Fd() == os.Stderr.Fd()
+	}
+	return false
+}
+
 // colorableOut transforms a file writer into one where it is safe to write ANSI escape codes to.
 func colorableOut(w terminal.FileWriter) terminal.FileWriter {
 	if f, ok := w.(*os.File); ok {

@@ -58,12 +58,11 @@ var commonPreparers = []preparers.Preparer{
 	ensureConfigDirPerms,
 	loadCache,
 	preparers.LoadConfig,
-	initTaskManager,
 	startQueryingForNewRelease,
-	promptToUpdate,
+	promptAndAutoUpdate,
 	preparers.InitClient,
 	killOldAgent,
-	recordMetricsCommandContext,
+	startMetrics,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -97,17 +96,20 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 			return
 		}
 
+		// run the preparers specific to the command
+		if ctx, err = prepare(ctx, preparers...); err != nil {
+			return
+		}
+
+		// start task manager using the prepared context
+		task.FromContext(ctx).Start(ctx)
+
 		sendOsMetric(ctx, "started")
 		defer func() {
 			if err == nil {
 				sendOsMetric(ctx, "successful")
 			}
 		}()
-
-		// run the preparers specific to the command
-		if ctx, err = prepare(ctx, preparers...); err != nil {
-			return
-		}
 
 		// run the command
 		if err = fn(ctx); err == nil {
@@ -132,9 +134,7 @@ func prepare(parent context.Context, preparers ...preparers.Preparer) (ctx conte
 }
 
 func finalize(ctx context.Context) {
-	// shutdown async tasks
-	task.FromContext(ctx).Shutdown()
-
+	// todo[md] move this to a background task
 	// flush the cache to disk if required
 	if c := cache.FromContext(ctx); c.Dirty() {
 		path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
@@ -240,14 +240,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	return cache.NewContext(ctx, c), nil
 }
 
-func initTaskManager(ctx context.Context) (context.Context, error) {
-	tm := task.New(ctx)
-
-	logger.FromContext(ctx).Debug("initialized task manager.")
-
-	return task.NewContext(ctx, tm), nil
-}
-
 func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {
 	apiClient := client.FromContext(ctx).API()
 	app, err := apiClient.GetAppBasic(ctx, appName)
@@ -269,9 +261,10 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	}
 
 	channel := cache.Channel()
-	tm := task.FromContext(ctx)
 
-	tm.Run(func(parent context.Context) {
+	queryRelease := func(parent context.Context) {
+		logger.Debug("started querying for new release")
+
 		ctx, cancel := context.WithTimeout(parent, time.Second)
 		defer cancel()
 
@@ -289,9 +282,15 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 		default:
 			logger.Warnf("failed querying for new release: %v", err)
 		}
-	})
+	}
 
-	logger.Debug("started querying for new release")
+	// If it's been more than a week since we've checked for a new release,
+	// check synchronously. Otherwise, check asynchronously.
+	if time.Since(cache.LastCheckedAt()) > (24 * time.Hour * 7) {
+		queryRelease(ctx)
+	} else {
+		task.FromContext(ctx).Run(queryRelease)
+	}
 
 	return ctx, nil
 }
@@ -323,9 +322,9 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	return false
 }
 
-func promptToUpdate(ctx context.Context) (context.Context, error) {
+func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
-	if cfg.JSONOutput || shouldIgnore(ctx, [][]string{
+	if shouldIgnore(ctx, [][]string{
 		{"version", "upgrade"},
 	}) {
 		return ctx, nil
@@ -335,18 +334,23 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	c := cache.FromContext(ctx)
+	var (
+		current = buildinfo.ParsedVersion()
+		cache     = cache.FromContext(ctx)
+		logger    = logger.FromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		colorize  = io.ColorScheme()
+		latestRel = cache.LatestRelease()
+		silent    = cfg.JSONOutput
+	)
 
-	r := c.LatestRelease()
-	if r == nil {
+	if latestRel == nil {
 		return ctx, nil
 	}
 
-	logger := logger.FromContext(ctx)
-
-	latest, err := buildinfo.ParseVersion(r.Version)
+	latest, err := buildinfo.ParseVersion(latestRel.Version)
 	if err != nil {
-		logger.Warnf("error parsing version number '%s': %s", r.Version, err)
+		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
 		return ctx, err
 	}
 
@@ -354,16 +358,38 @@ func promptToUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+	promptForUpdate := false
 
-	msg := fmt.Sprintf("Update available %s -> %s.\nRun \"%s\" to upgrade.",
-		buildinfo.ParsedVersion(),
-		latest,
-		colorize.Bold(buildinfo.Name()+" version upgrade"),
-	)
+	// The env.IsCI check is technically redundant (it should be done in update.Check), but
+	// it's nice to be extra cautious.
+	if cfg.AutoUpdate && !env.IsCI() {
+		if current.SeverelyOutdated(latest) {
+			if !silent {
+				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
+			}
 
-	fmt.Fprintln(io.ErrOut, colorize.Yellow(msg))
+			err := update.UpgradeInPlace(ctx, io, latestRel.Prerelease, silent)
+			if err != nil {
+				return nil, fmt.Errorf("failed to update, and the current version is severely out of date: %w", err)
+			}
+			// Does not return on success
+			err = update.Relaunch(ctx, silent)
+			return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
+		} else if runtime.GOOS != "windows" {
+			// Background auto-update has terrible UX on windows,
+			// with flickery powershell progress bars and UAC prompts.
+			// For Windows, we just prompt for updates, and only auto-update when severely outdated (the before-command update)
+			if err := update.BackgroundUpdate(); err != nil {
+				fmt.Fprintf(io.ErrOut, "failed to autoupdate: %s\n", err)
+			} else {
+				promptForUpdate = false
+			}
+		}
+	}
+	if promptForUpdate && !silent {
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
+		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
+	}
 
 	return ctx, nil
 }
@@ -428,8 +454,13 @@ func killOldAgent(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func recordMetricsCommandContext(ctx context.Context) (context.Context, error) {
+func startMetrics(ctx context.Context) (context.Context, error) {
 	metrics.RecordCommandContext(ctx)
+
+	task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
+		metrics.FlushPending()
+	})
+
 	return ctx, nil
 }
 

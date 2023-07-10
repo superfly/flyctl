@@ -1,11 +1,11 @@
-package extensions
+package sentry_ext
 
 import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 )
 
-func newSentry() (cmd *cobra.Command) {
+func New() (cmd *cobra.Command) {
 
 	const (
 		short = "Setup a Sentry project for this app"
@@ -13,7 +13,7 @@ func newSentry() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("sentry", short, long, nil)
-	cmd.AddCommand(newSentryCreate())
+	cmd.AddCommand(create())
 
 	return cmd
 }

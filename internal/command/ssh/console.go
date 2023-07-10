@@ -102,7 +102,7 @@ func newConsole() *cobra.Command {
 		usage = "console"
 	)
 
-	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runConsole, command.RequireSession, command.RequireAppName)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 

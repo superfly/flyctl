@@ -73,6 +73,8 @@ dockers:
     image_templates:
       - "flyio/flyctl:latest"
       - "flyio/flyctl:v{{ .Version }}"
+      - "ghcr.io/superfly/flyctl:latest"
+      - "ghcr.io/superfly/flyctl:v{{ .Version }}"
     skip_push: auto
 
 checksum:

@@ -139,6 +139,10 @@ func shouldSendMetrics(ctx context.Context) bool {
 }
 
 func FlushPending() {
+	if !Enabled {
+		return
+	}
+
 	// this just waits for metrics to hit write(2) on the websocket connection
 	// there is no need to wait on a response from the collector
 	done.Wait()

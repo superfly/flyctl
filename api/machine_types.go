@@ -14,6 +14,7 @@ const (
 	MachineConfigMetadataKeyFlyReleaseVersion  = "fly_release_version"
 	MachineConfigMetadataKeyFlyProcessGroup    = "fly_process_group"
 	MachineConfigMetadataKeyFlyPreviousAlloc   = "fly_previous_alloc"
+	MachineConfigMetadataKeyFlyctlVersion      = "fly_flyctl_version"
 	MachineFlyPlatformVersion2                 = "v2"
 	MachineProcessGroupApp                     = "app"
 	MachineProcessGroupFlyAppReleaseCommand    = "fly_app_release_command"
@@ -515,6 +516,8 @@ type MachineConfig struct {
 
 	StopConfig *StopConfig `json:"stop_config,omitempty"`
 
+	Files []*File `json:"files,omitempty"`
+
 	// Deprecated: use Guest instead
 	VMSize string `json:"size,omitempty"`
 	// Deprecated: use Service.Autostart instead
@@ -561,6 +564,19 @@ type DNSConfig struct {
 type StopConfig struct {
 	Timeout *Duration `json:"timeout,omitempty"`
 	Signal  *string   `json:"signal,omitempty"`
+}
+
+// File represents a file that will be written to the machine. One of RawValue or SecretName must be set.
+type File struct {
+	// GuestPath is the path on the machine where the file will be written and must be an absolute path.
+	// i.e. /full/path/to/file.json
+	GuestPath string `json:"guest_path,omitempty"`
+
+	// RawValue containts the base64 encoded string of the file contents.
+	RawValue *string `json:"raw_value,omitempty"`
+
+	// SecretName is the name of the secret that contains the base64 encoded file contents.
+	SecretName *string `json:"secret_name,omitempty"`
 }
 
 type MachineLease struct {

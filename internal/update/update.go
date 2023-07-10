@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cli/safeexec"
+	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -155,7 +156,7 @@ func upgradeCommand(prerelease bool) string {
 	}
 }
 
-func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool) error {
+func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, silent bool) error {
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
@@ -185,18 +186,71 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease bool)
 			shellToUse = "/bin/bash"
 		}
 	}
-	fmt.Println(shellToUse, switchToUse)
 
 	command := upgradeCommand(prelease)
-
-	fmt.Fprintf(io.ErrOut, "Running automatic upgrade [%s]\n", command)
-
 	cmd := exec.Command(shellToUse, switchToUse, command)
+
+	if !silent {
+		fmt.Fprintf(io.ErrOut, "Running automatic upgrade [%s]\n", command)
+
+		cmd.Stdout = io.Out
+		cmd.Stderr = io.ErrOut
+		cmd.Stdin = io.In
+	}
+
+	return cmd.Run()
+}
+
+// Relaunch only returns on error
+func Relaunch(ctx context.Context, silent bool) error {
+
+	io := iostreams.FromContext(ctx)
+
+	if !silent {
+		// Divide between update logging and the output from the actual command the user is running
+		fmt.Fprint(io.Out, "\n----\n\n")
+	}
+
+	// Wait a bit for the update to take effect.
+	// Windows seemed to need this for whatever reason.
+	time.Sleep(250 * time.Millisecond)
+
+	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return err
+	}
+
+	binPath, err = filepath.EvalSymlinks(binPath)
+	if err != nil {
+		return err
+	}
+	terminal.Debugf("relaunching %s, found at %s\n", os.Args[0], binPath)
+
+	cmd := exec.Command(binPath, os.Args[1:]...)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
 	cmd.Stdin = io.In
 
-	return cmd.Run()
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+
+	if err := cmd.Wait(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			os.Exit(exitErr.ExitCode())
+		}
+		return err
+	}
+
+	// Remove the line that says `Run 'flyctl --help' to get started`
+	if io.IsInteractive() {
+		builder := aec.EmptyBuilder
+		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(io.ErrOut, str.String())
+	}
+
+	os.Exit(0)
+	return nil
 }
 
 func commandInPath(command string) bool {
@@ -241,4 +295,24 @@ func currentWindowsBinaries() ([]string, error) {
 		canonicalPath,
 		filepath.Join(filepath.Dir(canonicalPath), "wintun.dll"),
 	}, nil
+}
+
+// BackgroundUpdate begins an update in the background.
+func BackgroundUpdate() error {
+
+	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return err
+	}
+	terminal.Debugf("launching `%s version update` with binary %s\n", os.Args[0], binPath)
+
+	cmd := exec.Command(binPath, "version", "upgrade")
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+	cmd.Stdin = nil
+
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	return nil
 }

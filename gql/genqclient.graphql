@@ -31,6 +31,7 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			ssoLink
 			token
 			environment
+			primaryRegion
 		}
 	}
 }
@@ -47,6 +48,18 @@ mutation CreateApp($input: CreateAppInput!) {
 					code
 			}
 		}
+	}
+}
+
+mutation CreateTosAgreement($input: CreateExtensionTosAgreementInput!) {
+	createExtensionTosAgreement(input: $input) {
+		clientMutationId
+	}
+}
+
+query AgreedToProviderTos($addOnProviderName: String!, $organizationId: ID!) {
+	organization(id: $organizationId) {
+		agreedToProviderTos(providerName: $addOnProviderName)
 	}
 }
 
@@ -87,6 +100,7 @@ query GetAppsByRole($role: String!, $organizationId: ID!) {
 fragment AppData on App {
 	id
 	name
+	deployed
 	platformVersion
 	organization {
 		id
@@ -150,6 +164,8 @@ query GetAddOnProvider($name: String!) {
 	addOnProvider(name: $name) {
 		id
 		name
+		tosUrl
+		displayName
 		excludedRegions {
 			code
 		}

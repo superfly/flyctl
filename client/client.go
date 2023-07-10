@@ -37,7 +37,7 @@ func FromToken(token string) *Client {
 }
 
 func NewClient(token string) *api.Client {
-	return api.NewClient(token, buildinfo.Name(), buildinfo.ParsedVersion().String(), logger.FromEnv(iostreams.System().ErrOut))
+	return api.NewClient(token, buildinfo.Name(), buildinfo.ParsedVersion().String(), logger.FromEnv(iostreams.System().ErrOut).AndLogToFile())
 }
 
 type NewClientOpts struct {

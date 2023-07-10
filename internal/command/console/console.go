@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/spinner"
@@ -40,6 +41,7 @@ func New() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Region(),
 		flag.Int{
 			Name:        "vm-cpus",
 			Description: "How many CPUs to give the new machine",
@@ -222,6 +224,9 @@ func getMachineByID(ctx context.Context) (*api.Machine, bool, error) {
 	if flag.IsSpecified(ctx, "vm-memory") {
 		return nil, false, errors.New("--vm-memory can't be used with --machine")
 	}
+	if flag.IsSpecified(ctx, "region") {
+		return nil, false, errors.New("--region can't be used with --machine")
+	}
 
 	flapsClient := flaps.FromContext(ctx)
 	machineID := flag.GetString(ctx, "machine")
@@ -245,6 +250,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 		colorize    = io.ColorScheme()
 		apiClient   = client.FromContext(ctx).API()
 		flapsClient = flaps.FromContext(ctx)
+		region      = config.FromContext(ctx).Region
 	)
 
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
@@ -264,6 +270,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 
 	launchInput := api.LaunchMachineInput{
 		Config: machConfig,
+		Region: region,
 	}
 	machine, err := flapsClient.Launch(ctx, launchInput)
 	if err != nil {

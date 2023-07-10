@@ -11,6 +11,8 @@ import (
 	"github.com/alecthomas/chroma/quick"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type Level int
@@ -20,18 +22,34 @@ const (
 	Info
 	Warn
 	Error
+
+	NoLogLevel = -1
 )
 
+type logSink interface {
+	WriteLog(level Level, line string)
+	UseAnsi() bool
+	Level() Level
+}
+
 type Logger struct {
-	out   io.Writer
-	level Level
+	inner logSink
 }
 
 func FromEnv(out io.Writer) *Logger {
-	return &Logger{
-		out:   out,
-		level: levelFromEnv(),
-	}
+	return &Logger{inner: &WriterLogger{
+		out:    out,
+		level:  levelFromEnv(),
+		isTerm: iostreams.IsTerminalWriter(out),
+	}}
+}
+
+func New(out io.Writer, level Level, isTerm bool) *Logger {
+	return &Logger{inner: &WriterLogger{
+		out:    out,
+		level:  level,
+		isTerm: isTerm,
+	}}
 }
 
 func levelFromEnv() Level {
@@ -54,95 +72,78 @@ func levelFromEnv() Level {
 	}
 }
 
-func (l *Logger) debug(v ...interface{}) {
+func (l *Logger) write(level Level, prefix aurora.Value, v ...any) {
+	if l == nil {
+		return
+	}
+	line := fmt.Sprintf("%s %s\n", prefix.String(), fmt.Sprint(v...))
+	if !l.inner.UseAnsi() {
+		line = cmdutil.StripANSI(line)
+	}
+	l.inner.WriteLog(level, line)
+}
+
+func (l *Logger) Debug(v ...interface{}) {
+	if l == nil {
+		return
+	}
 	if str, ok := v[0].(string); ok {
 		byteString := []byte(str)
 		if json.Valid(byteString) {
 			var prettyJSON bytes.Buffer
 			err := json.Indent(&prettyJSON, byteString, "", "  ")
 			if err == nil {
-				quick.Highlight(l.out, prettyJSON.String()+"\n", "json", "terminal", "monokai")
-
+				jsonStr := prettyJSON.String() + "\n"
+				if l.inner.UseAnsi() {
+					outBuf := &bytes.Buffer{}
+					quick.Highlight(outBuf, prettyJSON.String()+"\n", "json", "terminal", "monokai")
+					jsonStr = outBuf.String()
+				}
+				l.write(Debug, aurora.Faint("DEBUG"), jsonStr)
 				return
 			}
 		}
 	}
 
-	fmt.Fprintln(
-		l.out,
-		aurora.Faint("DEBUG"),
-		fmt.Sprint(v...),
-	)
-}
-
-func (l *Logger) Debug(v ...interface{}) {
-	if l.level <= Debug {
-		l.debug(v...)
-	}
+	l.write(Debug, aurora.Faint("DEBUG"), v...)
 }
 
 func (l *Logger) Debugf(format string, v ...interface{}) {
-	if l.level <= Debug {
-		l.debug(fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *Logger) info(v ...interface{}) {
-	fmt.Fprintln(
-		l.out,
-		aurora.Faint("INFO"),
-		fmt.Sprint(v...),
-	)
+	l.Debug(fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Info(v ...interface{}) {
-	if l.level <= Info {
-		l.info(v...)
-	}
+	l.write(Info, aurora.Faint("INFO"), v...)
 }
 
 func (l *Logger) Infof(format string, v ...interface{}) {
-	if l.level <= Info {
-		l.info(fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *Logger) warn(v ...interface{}) {
-	fmt.Fprintln(
-		l.out,
-		aurora.Yellow("WARN"),
-		fmt.Sprint(v...),
-	)
+	l.Info(fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Warn(v ...interface{}) {
-	if l.level <= Warn {
-		l.warn(v...)
-	}
+	l.write(Warn, aurora.Yellow("WARN"), v...)
 }
 
 func (l *Logger) Warnf(format string, v ...interface{}) {
-	if l.level <= Warn {
-		l.warn(fmt.Sprintf(format, v...))
-	}
-}
-
-func (l *Logger) error(v ...interface{}) {
-	fmt.Fprintln(
-		l.out,
-		aurora.Red("ERROR"),
-		fmt.Sprint(v...),
-	)
+	l.Warn(fmt.Sprintf(format, v...))
 }
 
 func (l *Logger) Error(v ...interface{}) {
-	if l.level <= Error {
-		l.error(v...)
-	}
+	l.write(Error, aurora.Red("ERROR"), v...)
 }
 
 func (l *Logger) Errorf(format string, v ...interface{}) {
-	if l.level <= Error {
-		l.error(fmt.Sprintf(format, v...))
-	}
+	l.Error(fmt.Sprintf(format, v...))
+}
+
+func (l *Logger) AndLogToFile() *Logger {
+	return &Logger{inner: &SplitLogger{
+		terminal: l.inner,
+		file:     &globalLogFile,
+	}}
+}
+
+// Level returns the current log level, or NoLogLevel if not applicable
+func (l *Logger) Level() Level {
+	return l.inner.Level()
 }

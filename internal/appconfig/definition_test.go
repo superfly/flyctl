@@ -213,6 +213,21 @@ func TestToDefinition(t *testing.T) {
 			"proxy_proto_options": map[string]any{
 				"version": "v2",
 			},
+			"checks": []map[string]any{
+				{
+					"interval":        "1m21s",
+					"timeout":         "7s",
+					"grace_period":    "2s",
+					"restart_limit":   int64(4),
+					"method":          "GET",
+					"path":            "/",
+					"protocol":        "https",
+					"tls_skip_verify": true,
+					"headers": map[string]any{
+						"My-Custom-Header": "whatever",
+					},
+				},
+			},
 		},
 
 		"experimental": map[string]any{

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -36,6 +37,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 	require.NoError(t, err)
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
+
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Env: map[string]string{
@@ -49,6 +51,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 		},
 	}, li)
@@ -98,6 +101,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
+
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Env: map[string]string{
@@ -111,6 +115,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 			Metrics: &api.MachineMetrics{
 				Port: 9000,
@@ -138,6 +143,8 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 		},
 	}, li)
 
+	got := md.launchInputForReleaseCommand(nil)
+
 	// New release command machine
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
@@ -156,6 +163,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "fly_app_release_command",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 			Restart: api.MachineRestart{
 				Policy: api.MachineRestartPolicyNo,
@@ -166,7 +174,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
-	}, md.launchInputForReleaseCommand(nil))
+	}, got)
 
 	// Update existing release command machine
 	origMachine := &api.Machine{
@@ -183,6 +191,9 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 		},
 	}
+
+	got = md.launchInputForReleaseCommand(origMachine)
+
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Env: map[string]string{
@@ -197,6 +208,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "fly_app_release_command",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 			Init: api.MachineInit{
 				Cmd: []string{"touch", "sky"},
@@ -210,7 +222,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: api.MachinePresets["shared-cpu-2x"],
 		},
-	}, md.launchInputForReleaseCommand(origMachine))
+	}, got)
 }
 
 // Test Mounts
@@ -229,6 +241,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	// New app machine
 	li, err := md.launchInputForLaunch("", nil, nil)
 	require.NoError(t, err)
+
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Image: "super/balloon",
@@ -237,6 +250,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 			Env: map[string]string{
 				"FLY_PROCESS_GROUP": "app",
@@ -261,6 +275,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	// Reuse app machine
 	li, err = md.launchInputForUpdate(origMachine)
 	require.NoError(t, err)
+
 	assert.Equal(t, &api.LaunchMachineInput{
 		Config: &api.MachineConfig{
 			Image: "super/balloon",
@@ -269,6 +284,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 			Env: map[string]string{
 				"FLY_PROCESS_GROUP": "app",
@@ -302,6 +318,8 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 		},
 	}
 
+	got := md.launchInputForRestart(origMachine)
+
 	assert.Equal(t, &api.LaunchMachineInput{
 		ID: "OrigID",
 		Config: &api.MachineConfig{
@@ -311,9 +329,10 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 		},
-	}, md.launchInputForRestart(origMachine))
+	}, got)
 }
 
 // Test machineDeployment.restartOnlyProcessGroup
@@ -345,6 +364,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 		},
 	}
 
+	got := md.launchInputForRestart(origMachine)
 	assert.Equal(t, &api.LaunchMachineInput{
 		ID: "OrigID",
 		Config: &api.MachineConfig{
@@ -354,7 +374,8 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 				"fly_process_group":    "awesome-group",
 				"fly_release_id":       "",
 				"fly_release_version":  "2",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 		},
-	}, md.launchInputForRestart(origMachine))
+	}, got)
 }

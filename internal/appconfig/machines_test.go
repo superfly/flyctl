@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 func TestToMachineConfig(t *testing.T) {
@@ -24,10 +25,14 @@ func TestToMachineConfig(t *testing.T) {
 				},
 			},
 		},
-		Metadata: map[string]string{"fly_platform_version": "v2", "fly_process_group": "app"},
-		Metrics:  &api.MachineMetrics{Port: 9999, Path: "/metrics"},
-		Statics:  []*api.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
-		Mounts:   []api.MachineMount{{Name: "data", Path: "/data"}},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "app",
+			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+		},
+		Metrics: &api.MachineMetrics{Port: 9999, Path: "/metrics"},
+		Statics: []*api.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Mounts:  []api.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]api.MachineCheck{
 			"listening": {Port: api.Pointer(8080), Type: api.Pointer("tcp")},
 			"status": {
@@ -140,9 +145,13 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Init:        api.MachineInit{Cmd: []string{"migrate-db"}},
-		Env:         map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
-		Metadata:    map[string]string{"fly_platform_version": "v2", "fly_process_group": "fly_app_release_command"},
+		Init: api.MachineInit{Cmd: []string{"migrate-db"}},
+		Env:  map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_release_command",
+			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+		},
 		AutoDestroy: true,
 		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
@@ -242,7 +251,11 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 				},
 			},
 		},
-		Metadata: map[string]string{"fly_platform_version": "v2", "fly_process_group": "app"},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "app",
+			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+		},
 		Checks: map[string]api.MachineCheck{
 			"alive": {
 				Port:        api.Pointer(8080),

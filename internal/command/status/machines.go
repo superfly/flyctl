@@ -169,12 +169,18 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 			if len(machine.Config.Standbys) > 0 {
 				hasStandbys = true
 			}
+			var role string
+
+			if v := machine.Config.Metadata["role"]; v != "" {
+				role = v
+			}
 			rows = append(rows, []string{
 				getProcessgroup(machine),
 				machine.ID,
 				getReleaseVersion(machine),
 				machine.Region,
 				machine.State,
+				role,
 				render.MachineHealthChecksSummary(machine),
 				machine.UpdatedAt,
 			})
@@ -184,7 +190,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 			return slices.Compare(rows[i], rows[j]) < 0
 		})
 
-		err := render.Table(out, "Machines", rows, "Process", "ID", "Version", "Region", "State", "Checks", "Last Updated")
+		err := render.Table(out, "Machines", rows, "Process", "ID", "Version", "Region", "State", "Role", "Checks", "Last Updated")
 		if err != nil {
 			return err
 		}
@@ -265,7 +271,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 		if postgres.IsFlex(machines[0]) {
 			yes, note := isQuorumMet(machines)
 			if !yes {
-				fmt.Fprintf(out, colorize.Yellow(note))
+				fmt.Fprint(out, colorize.Yellow(note))
 			}
 		}
 	} else {

@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 	"golang.zx2c4.com/wireguard/device"
 )
@@ -59,10 +60,10 @@ func (s *WireGuardState) TunnelConfig() *Config {
 	wgr := IPNet(*rnet)
 
 	var wgLogLevel int
-	switch terminal.DefaultLogger.GetLogLevel() {
-	case terminal.LevelDebug:
+	switch terminal.GetLogLevel() {
+	case logger.Debug:
 		wgLogLevel = device.LogLevelVerbose
-	case terminal.LevelInfo | terminal.LevelWarn | terminal.LevelError:
+	case logger.Info | logger.Warn | logger.Error:
 		wgLogLevel = device.LogLevelError
 	}
 

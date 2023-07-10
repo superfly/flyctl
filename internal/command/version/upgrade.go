@@ -59,7 +59,7 @@ func runUpgrade(ctx context.Context) error {
 
 	homebrew := update.IsUnderHomebrew()
 
-	if err = update.UpgradeInPlace(ctx, io, release.Prerelease); err != nil {
+	if err = update.UpgradeInPlace(ctx, io, release.Prerelease, false); err != nil {
 		return err
 	}
 

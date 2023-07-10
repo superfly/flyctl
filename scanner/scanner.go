@@ -61,6 +61,7 @@ type SourceInfo struct {
 	Concurrency                  map[string]int
 	Callback                     func(appName string, srcInfo *SourceInfo, options map[string]bool) error
 	HttpCheckPath                string
+	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
 }
@@ -105,6 +106,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureNextJs,
 		configureNode,
 		configureStatic,
+		configureDotnet,
 	}
 
 	for _, scanner := range scanners {

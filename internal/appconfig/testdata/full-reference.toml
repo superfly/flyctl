@@ -45,6 +45,18 @@ console_command = "/bin/bash"
   internal_port = 8080
   force_https = true
 
+  [[http_service.checks]]
+    interval = "1m21s"
+    timeout = "7s"
+    grace_period = "2s"
+    restart_limit = 4
+    method = "GET"
+    path = "/"
+    protocol = "https"
+    tls_skip_verify = true
+    [http_service.checks.headers]
+      My-Custom-Header = "whatever"
+
   [http_service.concurrency]
     type = "donuts"
     hard_limit = 10

@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -103,8 +104,25 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 	flapsClient := flaps.FromContext(ctx)
 
+	var vol *api.Volume
+	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
+		splitVolumeInfo := strings.Split(volumeInfo, ":")
+		volID := splitVolumeInfo[0]
+
+		vol, err = client.GetVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("could not get existing volume: %w", err)
+		}
+	}
+
 	region := flag.GetString(ctx, "region")
-	if region == "" {
+	if vol != nil && region != "" {
+		if vol.Region != region {
+			return fmt.Errorf("specified region %s but volume is in region %s, use the same region as the volume", colorize.Bold(region), colorize.Bold(vol.Region))
+		}
+	} else if vol != nil && region == "" {
+		region = vol.Region
+	} else if region == "" {
 		region = source.Region
 	}
 
@@ -128,6 +146,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			targetConfig.Metadata = make(map[string]string)
 		}
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
+		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
 
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
