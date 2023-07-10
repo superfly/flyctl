@@ -56,7 +56,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		// check for a start script
 		scripts, ok := packageJson["scripts"].(map[string]interface{})
 
-		if ok && scripts["start"] == nil {
+		if ok && scripts["start"] != nil {
 			start, ok := scripts["start"].(string)
 			if ok {
 				main = start
