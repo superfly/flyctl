@@ -95,6 +95,12 @@ func newMigrateToV2() *cobra.Command {
 			Default:     false,
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "remote-fork",
+			Description: "Enables experimental cross-host volume forking",
+			Hidden:      true,
+			Default:     false,
+		},
 	)
 
 	cmd.AddCommand(newTroubleshoot())
@@ -214,6 +220,7 @@ type v2PlatformMigrator struct {
 	newMachines          machine.MachineSet
 	recovery             recoveryState
 	usesForkedVolumes    bool
+	usesRemoteVolumeFork bool
 	createdVolumes       []*NewVolume
 	replacedVolumes      map[string]int
 	isPostgres           bool
@@ -326,9 +333,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
-		backupMachines:     map[string]int{},
-		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
-		skipHealthChecks:   flag.GetBool(ctx, "skip-health-checks"),
+		backupMachines:       map[string]int{},
+		machineWaitTimeout:   flag.GetDuration(ctx, "wait-timeout"),
+		skipHealthChecks:     flag.GetBool(ctx, "skip-health-checks"),
+		usesRemoteVolumeFork: flag.GetBool(ctx, "remote-fork"),
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -800,7 +808,6 @@ func (m *v2PlatformMigrator) resolveProcessGroups(ctx context.Context) {
 }
 
 func (m *v2PlatformMigrator) filterAllocsWithExistingMachines(ctx context.Context) error {
-
 	existingMachines, _, err := m.flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
