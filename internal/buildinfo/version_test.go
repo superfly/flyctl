@@ -75,3 +75,14 @@ func TestDashedCalver(t *testing.T) {
 
 	assert.Equal(t, "2023.06.30.1", ParsedVersion().String())
 }
+
+func TestDashedCalverRejectsSemver(t *testing.T) {
+	version = "1.2.3-1"
+	buildDate = "2020-06-05T13:32:23Z"
+
+	loadMeta()
+
+	assert.Equal(t, "1.2.3-1", ParsedVersion().String())
+	_, ok := ParsedVersion().(*CalverVersion)
+	assert.False(t, ok)
+}
