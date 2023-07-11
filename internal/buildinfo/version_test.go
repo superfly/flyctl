@@ -87,3 +87,11 @@ func TestDashedCalverRejectsSemver(t *testing.T) {
 	_, ok := ParsedVersion().(*CalverVersion)
 	assert.False(t, ok)
 }
+
+func TestCalverSeverelyOutdated(t *testing.T) {
+	older, _ := ParseVersion("2023.06.30.1")
+	newer, _ := ParseVersion("2023.07.01.1")
+	assert.False(t, older.SeverelyOutdated(newer))
+	newer, _ = ParseVersion("2023.09.01.1")
+	assert.True(t, older.SeverelyOutdated(newer))
+}

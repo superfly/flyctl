@@ -120,9 +120,13 @@ func (v *CalverVersion) Newer() bool {
 }
 
 func (v *CalverVersion) SeverelyOutdated(latest Version) bool {
-	// todo: Figure out how to do this when we actually have outdated calver
-	// versions.
-	return false
+	latestVer, ok := latest.(*CalverVersion)
+	if ok {
+		diff := latestVer.Time().Sub(v.Time())
+		return diff.Hours() >= 24*30
+	} else {
+		return false
+	}
 }
 
 func ParseVersion(other string) (Version, error) {
