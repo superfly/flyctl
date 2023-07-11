@@ -26,7 +26,8 @@ func TestDevMeta(t *testing.T) {
 
 	loadMeta()
 
-	current, _ := calver.NewVersion(calverFormat, int(BuildDate().Unix()))
+	v, _ := calver.NewVersion(calverFormat, int(BuildDate().Unix()))
+	current := &CalverVersion{Version: *v}
 	assert.Equal(t, current.String(), ParsedVersion().String())
 }
 
@@ -49,7 +50,7 @@ func TestNewerCalver(t *testing.T) {
 
 	loadMeta()
 
-	assert.Equal(t, "2023.06.30.1", ParsedVersion().String())
+	assert.Equal(t, "2023.06.30-1", ParsedVersion().String())
 	v, _ := ParseVersion("2023.07.01.1")
 	assert.True(t, v.Newer())
 	v, _ = ParseVersion("2023.06.29.1")
@@ -73,7 +74,7 @@ func TestDashedCalver(t *testing.T) {
 
 	loadMeta()
 
-	assert.Equal(t, "2023.06.30.1", ParsedVersion().String())
+	assert.Equal(t, "2023.06.30-1", ParsedVersion().String())
 }
 
 func TestDashedCalverRejectsSemver(t *testing.T) {
