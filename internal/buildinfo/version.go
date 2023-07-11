@@ -62,7 +62,7 @@ func (v *SemverVersion) SeverelyOutdated(other Version) bool {
 		}
 		return false
 	} else {
-		return false
+		return true
 	}
 }
 
