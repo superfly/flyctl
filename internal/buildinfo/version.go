@@ -48,16 +48,16 @@ func (v *SemverVersion) Newer() bool {
 	}
 }
 
-func (v *SemverVersion) SeverelyOutdated(other Version) bool {
-	otherVer, ok := other.(*SemverVersion)
+func (v *SemverVersion) SeverelyOutdated(latest Version) bool {
+	latestVer, ok := latest.(*SemverVersion)
 	if ok {
-		if v.Major < otherVer.Major {
+		if v.Major < latestVer.Major {
 			return true
 		}
-		if v.Minor < otherVer.Minor {
+		if v.Minor < latestVer.Minor {
 			return true
 		}
-		if v.Patch+5 < otherVer.Patch {
+		if v.Patch+5 < latestVer.Patch {
 			return true
 		}
 		return false
@@ -119,7 +119,7 @@ func (v *CalverVersion) Newer() bool {
 	}
 }
 
-func (v *CalverVersion) SeverelyOutdated(other Version) bool {
+func (v *CalverVersion) SeverelyOutdated(latest Version) bool {
 	// todo: Figure out how to do this when we actually have outdated calver
 	// versions.
 	return false
