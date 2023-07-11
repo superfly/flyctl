@@ -72,6 +72,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			MachinesOnly:   true,
 			Name:           nomadVolNameToV2VolName(vol.Name),
 			LockID:         m.appLock,
+			Remote:         m.usesRemoteVolumeFork,
 		})
 		if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
 			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
@@ -126,7 +127,6 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 
 // Must run *after* allocs are filtered
 func (m *v2PlatformMigrator) resolveOldVolumes() {
-
 	m.oldAttachedVolumes = lo.Filter(m.appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
 		if v.AttachedAllocation != nil {
 			for _, a := range m.oldAllocs {

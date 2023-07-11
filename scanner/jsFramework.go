@@ -18,18 +18,19 @@ import (
 
 var packageJson map[string]interface{}
 
-// Handle node frameworks separate from other node applications.  Currently the requirements
+// Handle js frameworks separate from other node applications.  Currently the requirements
 // for a framework is pretty low: to have a "start" script.  Because we are actually
-// going to be running a node application to generate a Dockerfile there is one more
-// criteria: the running node version must be at least 16.  If there turns out to be
-// demand for earlier versions of node, we can adjust this requirement.
-func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
+// going to be running a js application to generate a Dockerfile there is one more
+// criteria: if you are running node, the running node version must be at least 16,
+// for bun the running bun version must be at least 0.5.3.  If there turns out to be
+// demand for earlier versions of node or bun, we can adjust this requirement.
+func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// first ensure that there is a package.json
 	if !checksPass(sourceDir, fileExists("package.json")) {
 		return nil, nil
 	}
 
-	// ensure package.json has a start script
+	// ensure package.json has a main, module, or start script
 	data, err := os.ReadFile("package.json")
 
 	if err != nil {
@@ -40,43 +41,30 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 			return nil, nil
 		}
 
+		// see if package.json has a "main"
+		main, _ := packageJson["main"].(string)
+
+		// check for tyep="module" and a module being defined
+		ptype, ok := packageJson["type"].(string)
+		if ok && ptype == "module" {
+			module, ok := packageJson["type"].(string)
+			if ok {
+				main = module
+			}
+		}
+
+		// check for a start script
 		scripts, ok := packageJson["scripts"].(map[string]interface{})
 
-		if !ok || scripts["start"] == nil {
-			return nil, nil
-		}
-	}
-
-	// ensure node is in $PATH
-	node, err := exec.LookPath("node")
-	if err != nil && !errors.Is(err, exec.ErrDot) {
-		return nil, nil
-	}
-
-	// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
-	node, err = filepath.Abs(node)
-	if err != nil {
-		return nil, nil
-	}
-
-	// ensure node version is at least 16.0.0
-	out, err := exec.Command(node, "-v").Output()
-	if err != nil {
-		return nil, nil
-	} else {
-		minVersion, err := semver.Make("16.0.0")
-		if err != nil {
-			panic(err)
+		if ok && scripts["start"] != nil {
+			start, ok := scripts["start"].(string)
+			if ok {
+				main = start
+			}
 		}
 
-		nodeVersionString := strings.TrimSpace(string(out))
-		if nodeVersionString[:1] == "v" {
-			nodeVersionString = nodeVersionString[1:]
-		}
-
-		nodeVersion, err := semver.Make(nodeVersionString)
-
-		if err != nil || nodeVersion.LT(minVersion) {
+		// bail if no entrypoint can be found
+		if main == "" {
 			return nil, nil
 		}
 	}
@@ -84,7 +72,78 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 	srcInfo := &SourceInfo{
 		Family:     "NodeJS",
 		SkipDeploy: true,
-		Callback:   NodeFrameworkCallback,
+		Callback:   JsFrameworkCallback,
+	}
+
+	_, err = os.Stat("bun.lockb")
+	if errors.Is(err, fs.ErrNotExist) {
+		// ensure node is in $PATH
+		node, err := exec.LookPath("node")
+		if err != nil && !errors.Is(err, exec.ErrDot) {
+			return nil, nil
+		}
+
+		// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
+		node, err = filepath.Abs(node)
+		if err != nil {
+			return nil, nil
+		}
+
+		// ensure node version is at least 16.0.0
+		out, err := exec.Command(node, "-v").Output()
+		if err != nil {
+			return nil, nil
+		} else {
+			minVersion, err := semver.Make("16.0.0")
+			if err != nil {
+				panic(err)
+			}
+
+			nodeVersionString := strings.TrimSpace(string(out))
+			if nodeVersionString[:1] == "v" {
+				nodeVersionString = nodeVersionString[1:]
+			}
+
+			nodeVersion, err := semver.Make(nodeVersionString)
+
+			if err != nil || nodeVersion.LT(minVersion) {
+				return nil, nil
+			}
+		}
+	} else {
+		// ensure bun is in $PATH
+		bun, err := exec.LookPath("bun")
+		if err != nil && !errors.Is(err, exec.ErrDot) {
+			return nil, nil
+		}
+
+		// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
+		bun, err = filepath.Abs(bun)
+		if err != nil {
+			return nil, nil
+		}
+
+		// ensure bun version is at least 0.5.3, as that's when docker images started
+		// getting published: https://hub.docker.com/r/oven/bun/tags
+		out, err := exec.Command(bun, "-v").Output()
+		if err != nil {
+			return nil, nil
+		} else {
+			minVersion, err := semver.Make("0.5.3")
+			if err != nil {
+				panic(err)
+			}
+
+			bunVersionString := strings.TrimSpace(string(out))
+			bunVersion, err := semver.Make(bunVersionString)
+
+			if err != nil || bunVersion.LT(minVersion) {
+				return nil, nil
+			}
+		}
+
+		// set family
+		srcInfo.Family = "Bun"
 	}
 
 	// don't prompt for redis or postgres unless they are used
@@ -96,7 +155,7 @@ func configureNodeFramework(sourceDir string, config *ScannerConfig) (*SourceInf
 	return srcInfo, nil
 }
 
-func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
 	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)
@@ -126,16 +185,21 @@ func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[stri
 			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
 		} else {
 			// build command to install package using preferred package manager
-			args = []string{"npm", "install", "@flydotio/dockerfile", "--save-dev"}
+			args = []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
 
 			_, err = os.Stat("yarn.lock")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"yarn", "add", "@flydotio/dockerfile", "--dev"}
+				args = []string{"yarn", "add", "@flydotio/dockerfile@latest", "--dev"}
 			}
 
 			_, err = os.Stat("pnpm-lock.yaml")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile"}
+				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+			}
+
+			_, err = os.Stat("bun.lockb")
+			if !errors.Is(err, fs.ErrNotExist) {
+				args = []string{"bun", "add", "-d", "@flydotio/dockerfile@latest"}
 			}
 		}
 
@@ -168,18 +232,26 @@ func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[stri
 		// run the package if we haven't already
 		if args[0] != "npx" {
 			// find npx in PATH
-			npx, err := exec.LookPath("npx")
+			var xcmd string
+
+			if args[0] == "bun" {
+				xcmd = "bunx"
+			} else {
+				xcmd = "npx"
+			}
+
+			xcmdpath, err := exec.LookPath(xcmd)
 			if err != nil && !errors.Is(err, exec.ErrDot) {
-				return fmt.Errorf("failure finding npx executable in PATH")
+				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
 			}
 
 			// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
-			npx, err = filepath.Abs(npx)
+			xcmdpath, err = filepath.Abs(xcmdpath)
 			if err != nil {
-				return fmt.Errorf("failure finding npx executable in PATH")
+				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
 			}
 
-			cmd := exec.Command(npx, "dockerfile")
+			cmd := exec.Command(xcmdpath, "dockerfile")
 			cmd.Stdin = nil
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
@@ -224,13 +296,13 @@ func NodeFrameworkCallback(appName string, srcInfo *SourceInfo, options map[stri
 	srcInfo.Port = port
 
 	// provide some advice
-	srcInfo.DeployDocs += `
+	srcInfo.DeployDocs += fmt.Sprintf(`
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
 
-Now: run 'fly deploy' to deploy your Node app.
-`
+Now: run 'fly deploy' to deploy your %s app.
+`, srcInfo.Family)
 
 	return nil
 }
