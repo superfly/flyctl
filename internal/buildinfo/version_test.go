@@ -66,3 +66,12 @@ func TestCalverAlwaysNewer(t *testing.T) {
 	v, _ := ParseVersion("2023.07.01.1")
 	assert.True(t, v.Newer())
 }
+
+func TestDashedCalver(t *testing.T) {
+	version = "2023.06.30-1"
+	buildDate = "2020-06-05T13:32:23Z"
+
+	loadMeta()
+
+	assert.Equal(t, "2023.06.30.1", ParsedVersion().String())
+}

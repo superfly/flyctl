@@ -3,6 +3,7 @@ package buildinfo
 import (
 	"errors"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -74,7 +75,13 @@ const calverFormat = "YYYY.0M.0D.MICRO"
 func ParseCalver(version string) (*CalverVersion, error) {
 	v, err := calver.Parse(calverFormat, version)
 	if err != nil {
-		return nil, err
+		// Does the version parse as calver without dashes? Needed for semverr
+		// compatibility for goreleaser.
+		dedashedVersion := strings.Replace(version, "-", ".", 1)
+		v, err = calver.Parse(calverFormat, dedashedVersion)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &CalverVersion{*v}, nil
 }
