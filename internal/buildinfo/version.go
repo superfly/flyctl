@@ -86,6 +86,21 @@ func ParseCalver(version string) (*CalverVersion, error) {
 	return &CalverVersion{*v}, nil
 }
 
+func (v CalverVersion) String() string {
+	verStr := []rune(v.Version.String())
+	count := 0
+	for i, v := range verStr {
+		if v == '.' {
+			count++
+		}
+		if count == 3 {
+			verStr[i] = '-'
+			break
+		}
+	}
+	return string(verStr)
+}
+
 func (v CalverVersion) EQ(other Version) bool {
 	o, ok := other.(*CalverVersion)
 	if ok {
