@@ -14,6 +14,7 @@ import (
 
 	"github.com/cli/safeexec"
 	"github.com/morikuni/aec"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -114,9 +115,18 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	}, nil
 }
 
+// memoized value so we're not executing homebrew commands on every call
+// Use IsUnderHomebrew()
+var isUnderHomebrew *bool
+
 // IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
 func IsUnderHomebrew() bool {
+
+	if isUnderHomebrew != nil {
+		return *isUnderHomebrew
+	}
+
 	flyBinary, err := os.Executable()
 	if err != nil {
 		return false
@@ -133,7 +143,9 @@ func IsUnderHomebrew() bool {
 	}
 
 	brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
-	return strings.HasPrefix(flyBinary, brewBinPrefix)
+
+	isUnderHomebrew = api.BoolPointer(strings.HasPrefix(flyBinary, brewBinPrefix))
+	return *isUnderHomebrew
 }
 
 func upgradeCommand(prerelease bool) string {
