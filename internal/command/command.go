@@ -275,6 +275,15 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 				break
 			}
 
+			// The API won't return yanked versions, but we don't have a good way
+			// to yank homebrew releases. If we're under homebrew, we'll validate through the API
+			if update.IsUnderHomebrew() {
+				if relErr := update.ValidateRelease(ctx, r.Version); relErr != nil {
+					logger.Debugf("latest release %s is invalid: %v", r.Version, relErr)
+					break
+				}
+			}
+
 			cache.SetLatestRelease(channel, r)
 
 			logger.Debugf("querying for release resulted to %v", r.Version)
