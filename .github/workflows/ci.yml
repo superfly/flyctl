@@ -11,7 +11,6 @@ env:
 jobs:
   test_build:
     runs-on: ubuntu-latest
-    if: ${{ github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch' }}
     steps:
       - uses: actions/checkout@v3
         with:
@@ -26,6 +25,11 @@ jobs:
         with:
           version: latest
           args: build --clean --snapshot
+      - name: Upload flyctl for preflight
+        uses: actions/upload-artifact@v3
+        with:
+          name: flyctl
+          path: dist/default_linux_amd64_v1/flyctl
 
   test:
     strategy:
@@ -185,3 +189,8 @@ jobs:
           ssh_private_key: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
           commit_message: ${{ github.event.ref }}
           force_push: "true"
+
+  preflight:
+    needs: test_build
+    uses: ./.github/workflows/preflight.yml
+    secrets: inherit
