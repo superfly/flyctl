@@ -321,11 +321,19 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		}
 
 		for regionName, delta := range regionDiffs {
+			var availableVolumes []api.Volume
+			if len(mConfig.Mounts) > 0 {
+				availableVolumes = lo.Filter(volumes, func(v api.Volume, _ int) bool {
+					return !v.IsAttached() && v.Region == regionName
+				})
+			}
+
 			actions = append(actions, &planItem{
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
 				MachineConfig: mConfig,
+				Volumes:       availableVolumes,
 			})
 		}
 	}
