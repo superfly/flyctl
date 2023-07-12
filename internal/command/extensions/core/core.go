@@ -209,3 +209,32 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 
 	return
 }
+
+func Discover(ctx context.Context) (addOn *gql.AddOnData, app *gql.AppData, err error) {
+	client := client.FromContext(ctx).API().GenqClient
+	appName := appconfig.NameFromContext(ctx)
+
+	if len(flag.Args(ctx)) == 1 {
+
+		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		addOn = &response.AddOn.AddOnData
+
+	} else if appName != "" {
+		resp, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnTypePlanetscale)
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		addOn = &resp.App.AddOns.Nodes[0].AddOnData
+		app = &resp.App.AppData
+	} else {
+		return nil, nil, errors.New("Run this command in a Fly app directory or pass a database name as the first argument.")
+	}
+
+	return
+}
