@@ -63,6 +63,11 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
+	appCompact, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
+	if err != nil {
+		return err
+	}
+
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines)
 
 	actions, err := computeActions(machines, expectedGroupCounts, volumes, regions, maxPerRegion, defaults)
@@ -119,7 +124,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 					volume = &action.Volumes[i]
 				}
 
-				m, v, err := launchMachine(ctx, action, volume, appConfig)
+				m, v, err := launchMachine(ctx, action, volume, appCompact)
 				if err != nil {
 					return err
 				}
@@ -145,17 +150,12 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, appConfig *appconfig.Config) (*api.Machine, *api.Volume, error) {
+func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
 	flapsClient := flaps.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
-
-	app, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
-	if err != nil {
-		return nil, nil, err
-	}
+	var err error
 
 	for _, mnt := range action.MachineConfig.Mounts {
-		volume, err = createVolume(ctx, mnt, volume, app.ID, action.Region)
+		volume, err = createVolume(ctx, mnt, volume, appCompact.ID, action.Region)
 		if err != nil {
 			return nil, nil, err
 		}
