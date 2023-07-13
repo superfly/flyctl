@@ -161,11 +161,9 @@ func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, ap
 		}
 		action.MachineConfig.Mounts = []api.MachineMount{
 			{
-				Volume:    volume.ID,
-				Path:      mnt.Path,
-				Name:      mnt.Name,
-				Encrypted: mnt.Encrypted,
-				SizeGb:    mnt.SizeGb,
+				Volume: volume.ID,
+				Path:   mnt.Path,
+				Name:   mnt.Name,
 			},
 		}
 	}
@@ -193,43 +191,44 @@ func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volum
 	withNewVolumes := flag.GetBool(ctx, "with-new-volumes")
 	if volume != nil && !withNewVolumes {
 		fmt.Fprintf(io.Out, "  Using unattached volume %s\n", colorize.Bold(volume.ID))
-	} else {
-		var snapshotID *string
-		switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
-		case "last":
-			snapshots, err := apiClient.GetVolumeSnapshots(ctx, mount.Volume)
-			if err != nil {
-				return nil, err
-			}
-			if len(snapshots) > 0 {
-				snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
-				snapshotID = &snapshot.ID
-				fmt.Fprintf(io.Out, "  Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mount.Volume))
-			} else {
-				fmt.Fprintf(io.Out, "  No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(mount.Volume))
-				snapshotID = nil
-			}
-		case "":
-			fmt.Fprintf(io.Out, "  Volume %s will start empty\n", colorize.Bold(mount.Name))
-		default:
-			snapshotID = &snapID
-			fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
-		}
+		return volume, nil
+	}
 
-		volInput := api.CreateVolumeInput{
-			AppID:             appID,
-			Name:              mount.Name,
-			Region:            region,
-			SizeGb:            mount.SizeGb,
-			Encrypted:         mount.Encrypted,
-			SnapshotID:        snapshotID,
-			RequireUniqueZone: false,
-		}
-
-		volume, err = apiClient.CreateVolume(ctx, volInput)
+	var snapshotID *string
+	switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
+	case "last":
+		snapshots, err := apiClient.GetVolumeSnapshots(ctx, mount.Volume)
 		if err != nil {
 			return nil, err
 		}
+		if len(snapshots) > 0 {
+			snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
+			snapshotID = &snapshot.ID
+			fmt.Fprintf(io.Out, "  Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mount.Volume))
+		} else {
+			fmt.Fprintf(io.Out, "  No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(mount.Volume))
+			snapshotID = nil
+		}
+	case "":
+		fmt.Fprintf(io.Out, "  Volume %s will start empty\n", colorize.Bold(mount.Name))
+	default:
+		snapshotID = &snapID
+		fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
+	}
+
+	volInput := api.CreateVolumeInput{
+		AppID:             appID,
+		Name:              mount.Name,
+		Region:            region,
+		SizeGb:            mount.SizeGb,
+		Encrypted:         mount.Encrypted,
+		SnapshotID:        snapshotID,
+		RequireUniqueZone: false,
+	}
+
+	volume, err = apiClient.CreateVolume(ctx, volInput)
+	if err != nil {
+		return nil, err
 	}
 
 	return volume, nil
