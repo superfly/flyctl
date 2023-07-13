@@ -1,7 +1,6 @@
 query GetAddOn($name: String) {
 	addOn(name: $name) {
-		id
-		name
+		...AddOnData
 		publicUrl
 		privateIp
 		password
@@ -14,6 +13,9 @@ query GetAddOn($name: String) {
 		organization {
 			slug
 			paidPlan
+		}
+		app {
+			...AppData
 		}
 		addOnPlan {
 			id
@@ -78,12 +80,19 @@ query GetApp($name: String!) {
 	}
 }
 
+fragment AddOnData on AddOn {
+	id
+	name
+	primaryRegion
+	status
+}
+
 query GetAppWithAddons($name: String!, $addOnType: AddOnType!) {
 	app(name: $name) {
 		...AppData
 		addOns(type: $addOnType) {
 			nodes {
-				name
+				...AddOnData
 			}
 		}
 	}
