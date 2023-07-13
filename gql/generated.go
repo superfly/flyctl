@@ -10,6 +10,29 @@ import (
 	"github.com/Khan/genqlient/graphql"
 )
 
+// AddOnData includes the GraphQL fields of AddOn requested by the fragment AddOnData.
+type AddOnData struct {
+	Id string `json:"id"`
+	// The service name according to the provider
+	Name string `json:"name"`
+	// Region where the primary instance is deployed
+	PrimaryRegion string `json:"primaryRegion"`
+	// Status of the add-on
+	Status string `json:"status"`
+}
+
+// GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetId() string { return v.Id }
+
+// GetName returns AddOnData.Name, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetName() string { return v.Name }
+
+// GetPrimaryRegion returns AddOnData.PrimaryRegion, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
+
+// GetStatus returns AddOnData.Status, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetStatus() string { return v.Status }
+
 type AddOnType string
 
 const (
@@ -1068,9 +1091,7 @@ func (v *FlyctlDeployGetLatestImageResponse) GetApp() FlyctlDeployGetLatestImage
 
 // GetAddOnAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAddOnAddOn struct {
-	Id string `json:"id"`
-	// The service name according to the provider
-	Name string `json:"name"`
+	AddOnData `json:"-"`
 	// Public URL for this service
 	PublicUrl string `json:"publicUrl"`
 	// Private flycast IP address of the add-on
@@ -1091,15 +1112,11 @@ type GetAddOnAddOn struct {
 	SsoLink string `json:"ssoLink"`
 	// Organization that owns this service
 	Organization GetAddOnAddOnOrganization `json:"organization"`
+	// An app associated with this add-on
+	App GetAddOnAddOnApp `json:"app"`
 	// The add-on plan
 	AddOnPlan GetAddOnAddOnAddOnPlan `json:"addOnPlan"`
 }
-
-// GetId returns GetAddOnAddOn.Id, and is useful for accessing the field via an interface.
-func (v *GetAddOnAddOn) GetId() string { return v.Id }
-
-// GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
-func (v *GetAddOnAddOn) GetName() string { return v.Name }
 
 // GetPublicUrl returns GetAddOnAddOn.PublicUrl, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPublicUrl() string { return v.PublicUrl }
@@ -1131,8 +1148,100 @@ func (v *GetAddOnAddOn) GetSsoLink() string { return v.SsoLink }
 // GetOrganization returns GetAddOnAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOrganization() GetAddOnAddOnOrganization { return v.Organization }
 
+// GetApp returns GetAddOnAddOn.App, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetApp() GetAddOnAddOnApp { return v.App }
+
 // GetAddOnPlan returns GetAddOnAddOn.AddOnPlan, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetAddOnPlan() GetAddOnAddOnAddOnPlan { return v.AddOnPlan }
+
+// GetId returns GetAddOnAddOn.Id, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetId() string { return v.AddOnData.Id }
+
+// GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
+
+func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetAddOnAddOn
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetAddOnAddOn = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.AddOnData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetAddOnAddOn struct {
+	PublicUrl string `json:"publicUrl"`
+
+	PrivateIp string `json:"privateIp"`
+
+	Password string `json:"password"`
+
+	Token string `json:"token"`
+
+	Status string `json:"status"`
+
+	PrimaryRegion string `json:"primaryRegion"`
+
+	ReadRegions []string `json:"readRegions"`
+
+	Options interface{} `json:"options"`
+
+	SsoLink string `json:"ssoLink"`
+
+	Organization GetAddOnAddOnOrganization `json:"organization"`
+
+	App GetAddOnAddOnApp `json:"app"`
+
+	AddOnPlan GetAddOnAddOnAddOnPlan `json:"addOnPlan"`
+
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+}
+
+func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
+	var retval __premarshalGetAddOnAddOn
+
+	retval.PublicUrl = v.PublicUrl
+	retval.PrivateIp = v.PrivateIp
+	retval.Password = v.Password
+	retval.Token = v.Token
+	retval.Status = v.Status
+	retval.PrimaryRegion = v.PrimaryRegion
+	retval.ReadRegions = v.ReadRegions
+	retval.Options = v.Options
+	retval.SsoLink = v.SsoLink
+	retval.Organization = v.Organization
+	retval.App = v.App
+	retval.AddOnPlan = v.AddOnPlan
+	retval.Id = v.AddOnData.Id
+	retval.Name = v.AddOnData.Name
+	return &retval, nil
+}
 
 // GetAddOnAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type GetAddOnAddOnAddOnPlan struct {
@@ -1149,6 +1258,82 @@ func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
 
 // GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
+
+// GetAddOnAddOnApp includes the requested fields of the GraphQL type App.
+type GetAddOnAddOnApp struct {
+	AppData `json:"-"`
+}
+
+// GetId returns GetAddOnAddOnApp.Id, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetId() string { return v.AppData.Id }
+
+// GetName returns GetAddOnAddOnApp.Name, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetName() string { return v.AppData.Name }
+
+// GetDeployed returns GetAddOnAddOnApp.Deployed, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetDeployed() bool { return v.AppData.Deployed }
+
+// GetPlatformVersion returns GetAddOnAddOnApp.PlatformVersion, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
+
+// GetOrganization returns GetAddOnAddOnApp.Organization, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
+
+func (v *GetAddOnAddOnApp) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetAddOnAddOnApp
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetAddOnAddOnApp = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.AppData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetAddOnAddOnApp struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	Deployed bool `json:"deployed"`
+
+	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+
+	Organization AppDataOrganization `json:"organization"`
+}
+
+func (v *GetAddOnAddOnApp) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetAddOnAddOnApp) __premarshalJSON() (*__premarshalGetAddOnAddOnApp, error) {
+	var retval __premarshalGetAddOnAddOnApp
+
+	retval.Id = v.AppData.Id
+	retval.Name = v.AppData.Name
+	retval.Deployed = v.AppData.Deployed
+	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Organization = v.AppData.Organization
+	return &retval, nil
+}
 
 // GetAddOnAddOnOrganization includes the requested fields of the GraphQL type Organization.
 type GetAddOnAddOnOrganization struct {
@@ -1437,12 +1622,79 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnection) GetNodes() []GetAppWithAddons
 
 // GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
-	// The service name according to the provider
-	Name string `json:"name"`
+	AddOnData `json:"-"`
 }
 
+// GetId returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Id, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetId() string { return v.AddOnData.Id }
+
 // GetName returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Name, and is useful for accessing the field via an interface.
-func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetName() string { return v.Name }
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetName() string {
+	return v.AddOnData.Name
+}
+
+// GetPrimaryRegion returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.PrimaryRegion, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetPrimaryRegion() string {
+	return v.AddOnData.PrimaryRegion
+}
+
+// GetStatus returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Status, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetStatus() string {
+	return v.AddOnData.Status
+}
+
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.AddOnData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	PrimaryRegion string `json:"primaryRegion"`
+
+	Status string `json:"status"`
+}
+
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() (*__premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn, error) {
+	var retval __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn
+
+	retval.Id = v.AddOnData.Id
+	retval.Name = v.AddOnData.Name
+	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
+	retval.Status = v.AddOnData.Status
+	return &retval, nil
+}
 
 // GetAppWithAddonsResponse is returned by GetAppWithAddons on success.
 type GetAppWithAddonsResponse struct {
@@ -3176,8 +3428,7 @@ func GetAddOn(
 		Query: `
 query GetAddOn ($name: String) {
 	addOn(name: $name) {
-		id
-		name
+		... AddOnData
 		publicUrl
 		privateIp
 		password
@@ -3191,11 +3442,32 @@ query GetAddOn ($name: String) {
 			slug
 			paidPlan
 		}
+		app {
+			... AppData
+		}
 		addOnPlan {
 			id
 			name
 			displayName
 		}
+	}
+}
+fragment AddOnData on AddOn {
+	id
+	name
+	primaryRegion
+	status
+}
+fragment AppData on App {
+	id
+	name
+	deployed
+	platformVersion
+	organization {
+		id
+		slug
+		rawSlug
+		paidPlan
 	}
 }
 `,
@@ -3348,7 +3620,7 @@ query GetAppWithAddons ($name: String!, $addOnType: AddOnType!) {
 		... AppData
 		addOns(type: $addOnType) {
 			nodes {
-				name
+				... AddOnData
 			}
 		}
 	}
@@ -3364,6 +3636,12 @@ fragment AppData on App {
 		rawSlug
 		paidPlan
 	}
+}
+fragment AddOnData on AddOn {
+	id
+	name
+	primaryRegion
+	status
 }
 `,
 		Variables: &__GetAppWithAddonsInput{
