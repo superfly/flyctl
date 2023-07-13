@@ -147,6 +147,12 @@ func New() (cmd *cobra.Command) {
 		CommonFlags,
 		flag.App(),
 		flag.AppConfig(),
+		// Not in CommonFlags because it's not relevant to a first deploy
+		flag.Bool{
+			Name:        "update-only",
+			Description: "Do not create Machines for new process groups",
+			Default:     false,
+		},
 	)
 
 	return
@@ -275,6 +281,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		VMCPUKind:             flag.GetString(ctx, "vm-cpukind"),
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
+		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)

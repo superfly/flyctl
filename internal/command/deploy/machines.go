@@ -52,6 +52,7 @@ type MachineDeploymentArgs struct {
 	VMCPUKind             string
 	IncreasedAvailability bool
 	AllocPublicIP         bool
+	UpdateOnly            bool
 }
 
 type machineDeployment struct {
@@ -81,6 +82,7 @@ type machineDeployment struct {
 	machineGuest          *api.MachineGuest
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
+	updateOnly            bool
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -149,6 +151,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		releaseCmdTimeout:     args.ReleaseCmdTimeout,
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
+		updateOnly:            args.UpdateOnly,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
