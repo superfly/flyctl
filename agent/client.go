@@ -45,7 +45,12 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return StartDaemon(ctx)
 	}
 
-	if buildinfo.ParsedVersion().EQ(res.Version) {
+	resVer, err := buildinfo.ParseVersion(res.Version)
+	if err != nil {
+		return nil, err
+	}
+
+	if buildinfo.ParsedVersion().EQ(resVer) {
 		return c, nil
 	}
 
@@ -170,7 +175,7 @@ func (c *Client) Kill(ctx context.Context) error {
 
 type PingResponse struct {
 	PID        int
-	Version    buildinfo.Version
+	Version    string
 	Background bool
 }
 
