@@ -42,4 +42,7 @@ const (
 
 	// DetachName denotes the name of the detach flag.
 	Detach = "detach"
+
+	// BindAddr denotes the name of the local bind address flag.
+	BindAddr = "bind-addr"
 )
