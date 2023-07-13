@@ -210,7 +210,7 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 	return
 }
 
-func Discover(ctx context.Context) (addOn *gql.AddOnData, app *gql.AppData, err error) {
+func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData, app *gql.AppData, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
 
@@ -224,7 +224,7 @@ func Discover(ctx context.Context) (addOn *gql.AddOnData, app *gql.AppData, err 
 		addOn = &response.AddOn.AddOnData
 
 	} else if appName != "" {
-		resp, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnTypePlanetscale)
+		resp, err := gql.GetAppWithAddons(ctx, client, appName, provider)
 
 		if err != nil {
 			return nil, nil, err
