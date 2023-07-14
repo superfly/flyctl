@@ -1350,11 +1350,12 @@ func (v *GetAddOnAddOnOrganization) GetPaidPlan() bool { return v.PaidPlan }
 
 // GetAddOnProviderAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
 type GetAddOnProviderAddOnProvider struct {
-	Id              string                                               `json:"id"`
-	Name            string                                               `json:"name"`
-	TosUrl          string                                               `json:"tosUrl"`
-	DisplayName     string                                               `json:"displayName"`
-	ExcludedRegions []GetAddOnProviderAddOnProviderExcludedRegionsRegion `json:"excludedRegions"`
+	Id                string                                               `json:"id"`
+	Name              string                                               `json:"name"`
+	TosUrl            string                                               `json:"tosUrl"`
+	DisplayName       string                                               `json:"displayName"`
+	AsyncProvisioning bool                                                 `json:"asyncProvisioning"`
+	ExcludedRegions   []GetAddOnProviderAddOnProviderExcludedRegionsRegion `json:"excludedRegions"`
 }
 
 // GetId returns GetAddOnProviderAddOnProvider.Id, and is useful for accessing the field via an interface.
@@ -1368,6 +1369,9 @@ func (v *GetAddOnProviderAddOnProvider) GetTosUrl() string { return v.TosUrl }
 
 // GetDisplayName returns GetAddOnProviderAddOnProvider.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetDisplayName() string { return v.DisplayName }
+
+// GetAsyncProvisioning returns GetAddOnProviderAddOnProvider.AsyncProvisioning, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetAsyncProvisioning() bool { return v.AsyncProvisioning }
 
 // GetExcludedRegions returns GetAddOnProviderAddOnProvider.ExcludedRegions, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetExcludedRegions() []GetAddOnProviderAddOnProviderExcludedRegionsRegion {
@@ -3503,6 +3507,7 @@ query GetAddOnProvider ($name: String!) {
 		name
 		tosUrl
 		displayName
+		asyncProvisioning
 		excludedRegions {
 			code
 		}

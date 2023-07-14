@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	"github.com/briandowns/spinner"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
@@ -156,6 +158,14 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 
 	addOn = &createAddOnResponse.CreateAddOn.AddOn
 
+	if addOnProvider.AsyncProvisioning {
+		// wait for provision
+		err = WaitForProvision(ctx, addOn.Name)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	if options.SelectRegion {
 		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(addOn.Name), colorize.Green(addOn.PrimaryRegion), colorize.Green(appName))
 	}
@@ -170,6 +180,44 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 	secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
 
 	return addOn, nil
+}
+
+func WaitForProvision(ctx context.Context, name string) error {
+	io := iostreams.FromContext(ctx)
+	client := client.FromContext(ctx).API().GenqClient
+
+	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
+	s.Writer = io.ErrOut
+	s.Prefix = "Waiting for provisioning to complete"
+	s.Start()
+
+	defer s.Stop()
+	timeout := time.After(4 * time.Minute)
+	ticker := time.NewTicker(2 * time.Second)
+
+	defer ticker.Stop()
+
+	for {
+
+		resp, err := gql.GetAddOn(ctx, client, name)
+
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Status: %s\n", resp.AddOn.Status)
+		if resp.AddOn.Status == "ready" {
+			return nil
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timeout:
+			return errors.New("timed out waiting for provisioning to complete")
+		case <-ctx.Done():
+			return nil
+		}
+	}
 }
 
 func GetExcludedRegions(ctx context.Context, provider string) (excludedRegions []string, err error) {
