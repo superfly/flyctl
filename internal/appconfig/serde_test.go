@@ -285,6 +285,9 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 					{
 						Interval: api.MustParseDuration("30s"),
 						Timeout:  api.MustParseDuration("4s"),
+						HTTPHeaders: map[string]string{
+							"origin": "http://localhost:8000",
+						},
 					},
 					{
 						Interval: api.MustParseDuration("20s"),
@@ -324,7 +327,13 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 					{"interval": "20s", "timeout": "3s"},
 				},
 				"http_checks": []map[string]any{
-					{"interval": int64(30000), "timeout": int64(4000)},
+					{
+						"interval": int64(30000),
+						"timeout":  int64(4000),
+						"headers": []map[string]any{
+							{"name": "origin", "value": "http://localhost:8000"},
+						},
+					},
 					{
 						"interval": "20s",
 						"timeout":  "3s",
