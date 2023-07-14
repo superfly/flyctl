@@ -41,7 +41,7 @@ func runDestroy(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	extension, _, err := extensions_core.Discover(ctx)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
 
 	if err != nil {
 		return err

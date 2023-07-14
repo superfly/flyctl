@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
@@ -38,7 +39,7 @@ func runStatus(ctx context.Context) (err error) {
 		io = iostreams.FromContext(ctx)
 	)
 
-	extension, app, err := extensions_core.Discover(ctx)
+	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
 
 	if err != nil {
 		return err

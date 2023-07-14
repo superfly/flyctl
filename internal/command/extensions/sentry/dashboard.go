@@ -1,4 +1,4 @@
-package planetscale
+package sentry_ext
 
 import (
 	"context"
@@ -13,25 +13,25 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the PlanetScale MySQL database dashboard`
+		long = `View Sentry issues for this application`
 
 		short = long
-		usage = "dashboard [database_name]"
+		usage = "dashboard"
 	)
 
-	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 	)
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.NoArgs
 	return cmd
 }
 
 func runDashboard(ctx context.Context) (err error) {
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSentry)
 
 	if err != nil {
 		return err

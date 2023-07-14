@@ -45,6 +45,14 @@ func runUpgrade(ctx context.Context) error {
 		return fmt.Errorf("failed querying latest release information: %w", err)
 	}
 
+	// The API won't return yanked versions, but we don't have a good way
+	// to yank homebrew releases. If we're under homebrew, we'll validate through the API
+	if update.IsUnderHomebrew() {
+		if relErr := update.ValidateRelease(ctx, release.Version); relErr != nil {
+			return fmt.Errorf("latest version on homebrew is invalid: %s\nplease try again later", relErr)
+		}
+	}
+
 	latest, err := buildinfo.ParseVersion(release.Version)
 	if err != nil {
 		return fmt.Errorf("error parsing version: %q, %w", release.Version, err)

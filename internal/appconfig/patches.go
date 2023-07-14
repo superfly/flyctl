@@ -114,9 +114,33 @@ func _patchEnv(raw any) (map[string]string, error) {
 func patchProcesses(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["processes"]; ok {
 		switch cast := raw.(type) {
-		case []any, []map[string]any:
-			// GQL GetConfig returns an empty array when there are not processes
-			delete(cfg, "processes")
+		case []any:
+			processes := []map[string]any{}
+			for _, item := range cast {
+				if v, ok := item.(map[string]any); ok {
+					processes = append(processes, v)
+				}
+			}
+			cfg["processes"] = processes
+			return patchProcesses(cfg)
+
+		case []map[string]any:
+			processes := make(map[string]string)
+			for _, item := range cast {
+				if rawk, kok := item["name"]; kok {
+					k := castToString(rawk)
+					if v, vok := item["command"]; vok {
+						processes[k] = castToString(v)
+					} else {
+						processes[k] = ""
+					}
+				}
+			}
+			if len(processes) > 0 {
+				cfg["processes"] = processes
+			} else {
+				delete(cfg, "processes")
+			}
 		case map[string]any:
 			// Nothing to do here
 		default:
@@ -404,12 +428,24 @@ func _patchCheck(check map[string]any) (map[string]any, error) {
 			check[attr] = _castDuration(v, time.Millisecond)
 		}
 	}
+
 	if v, ok := check["headers"]; ok {
+		headers := make(map[string]string)
 		switch cast := v.(type) {
 		case []any:
-			if len(cast) == 0 {
-				delete(check, "headers")
+			if len(cast) != 0 {
+				return nil, fmt.Errorf("Unsupported check headers format: %#v", v)
 			}
+		case map[string]any:
+			for name, rawValue := range cast {
+				headers[name] = castToString(rawValue)
+			}
+		}
+
+		if len(headers) > 0 {
+			check["headers"] = headers
+		} else {
+			delete(check, "headers")
 		}
 	}
 	return check, nil
@@ -471,6 +507,13 @@ func castToInt(num any) (int, error) {
 		return 0, fmt.Errorf("Unknown type for cast: %T", cast)
 
 	}
+}
+
+func castToString(rawValue any) string {
+	if v, ok := rawValue.(string); ok {
+		return v
+	}
+	return fmt.Sprintf("%v", rawValue)
 }
 
 func ensureArrayOfMap(raw any) ([]map[string]any, error) {
