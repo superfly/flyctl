@@ -4,6 +4,7 @@ package task
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/superfly/flyctl/internal/logger"
@@ -61,7 +62,8 @@ type Manager interface {
 }
 
 type manager struct {
-	queue chan Task
+	queue   chan Task
+	started atomic.Bool
 	sync.WaitGroup
 }
 
@@ -71,6 +73,13 @@ func (m *manager) Start(ctx context.Context) {
 	log := logger.FromContext(ctx)
 
 	ctx, cancel := context.WithCancel(ctx)
+
+	started := m.started.Swap(true)
+	if started {
+		cancel()
+		log.Debug("Task manager has already started; not starting again")
+		return
+	}
 
 	go func() {
 		defer cancel()
@@ -105,7 +114,10 @@ func (m *manager) RunFinalizer(t Task) {
 
 func (m *manager) Shutdown() {
 	close(m.queue)
-	m.WaitGroup.Wait()
+	started := m.started.Swap(true)
+	if started {
+		m.WaitGroup.Wait()
+	}
 }
 
 func (m *manager) ShutdownWithTimeout(timeout time.Duration) {
