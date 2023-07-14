@@ -335,9 +335,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 						},
 					},
 					{
-						"interval": "20s",
-						"timeout":  "3s",
-						"headers":  map[string]any{"fly-healthcheck": int64(1), "astring": "string", "metoo": true},
+						"interval":     "20s",
+						"timeout":      "3s",
+						"grace_period": "",
+						"headers":      map[string]any{"fly-healthcheck": int64(1), "astring": "string", "metoo": true},
 					},
 				},
 			}},

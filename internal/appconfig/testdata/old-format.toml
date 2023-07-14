@@ -42,6 +42,7 @@ build_target = "thalayer"
     # Additional check of same type to ensure it is not overriden
     interval = "20s"
     timeout = "3s"
+    grace_period = "" # empty duration must be ignored
 
     [services.http_checks.headers]
       fly-healthcheck = 1

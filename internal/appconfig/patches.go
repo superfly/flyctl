@@ -423,7 +423,7 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 }
 
 func _patchCheck(check map[string]any) (map[string]any, error) {
-	for _, attr := range []string{"interval", "timeout"} {
+	for _, attr := range []string{"interval", "timeout", "grace_period"} {
 		if v, ok := check[attr]; ok {
 			check[attr] = _castDuration(v, time.Millisecond)
 		}
