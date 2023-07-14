@@ -289,6 +289,11 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 					{
 						Interval: api.MustParseDuration("20s"),
 						Timeout:  api.MustParseDuration("3s"),
+						HTTPHeaders: map[string]string{
+							"fly-healthcheck": "1",
+							"metoo":           "true",
+							"astring":         "string",
+						},
 					},
 				},
 			},
@@ -320,7 +325,11 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 				},
 				"http_checks": []map[string]any{
 					{"interval": int64(30000), "timeout": int64(4000)},
-					{"interval": "20s", "timeout": "3s"},
+					{
+						"interval": "20s",
+						"timeout":  "3s",
+						"headers":  map[string]any{"fly-healthcheck": int64(1), "astring": "string", "metoo": true},
+					},
 				},
 			}},
 		},

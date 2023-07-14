@@ -39,6 +39,11 @@ build_target = "thalayer"
     interval = "20s"
     timeout = "3s"
 
+    [services.http_checks.headers]
+      fly-healthcheck = 1
+      metoo = true
+      astring = "string"
+
 [experimental]
   # GQL GetConfig always returns an experimental section even if empty
 
