@@ -188,7 +188,7 @@ func WaitForProvision(ctx context.Context, name string) error {
 
 	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
 	s.Writer = io.ErrOut
-	s.Prefix = "Waiting for provisioning to complete"
+	s.Prefix = "Waiting for provisioning to complete "
 	s.Start()
 
 	defer s.Stop()
