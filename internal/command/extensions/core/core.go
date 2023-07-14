@@ -205,7 +205,6 @@ func WaitForProvision(ctx context.Context, name string) error {
 			return err
 		}
 
-		fmt.Printf("Status: %s\n", resp.AddOn.Status)
 		if resp.AddOn.Status == "ready" {
 			return nil
 		}
