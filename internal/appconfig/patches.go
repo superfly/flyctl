@@ -383,7 +383,7 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		if rawChecks, ok := service[checkType]; ok {
 			checks, err := _patchChecks(rawChecks)
 			if err != nil {
-				return nil, fmt.Errorf("Error processing tcp_checks: %T", rawChecks)
+				return nil, fmt.Errorf("Error processing %s: %w", checkType, err)
 			}
 			if len(checks) > 0 {
 				service[checkType] = checks
@@ -430,16 +430,9 @@ func _patchCheck(check map[string]any) (map[string]any, error) {
 	}
 
 	if v, ok := check["headers"]; ok {
-		headers := make(map[string]string)
-		switch cast := v.(type) {
-		case []any:
-			if len(cast) != 0 {
-				return nil, fmt.Errorf("Unsupported check headers format: %#v", v)
-			}
-		case map[string]any:
-			for name, rawValue := range cast {
-				headers[name] = castToString(rawValue)
-			}
+		headers, err := _patchCheckHeaders(v)
+		if err != nil {
+			return nil, err
 		}
 
 		if len(headers) > 0 {
@@ -449,6 +442,45 @@ func _patchCheck(check map[string]any) (map[string]any, error) {
 		}
 	}
 	return check, nil
+}
+
+func _patchCheckHeaders(rawHeaders any) (map[string]string, error) {
+	headers := make(map[string]string)
+	switch cast := rawHeaders.(type) {
+	case []any:
+		acc := []map[string]any{}
+		for _, item := range cast {
+			m, ok := item.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("Can't cast %#v into map[string]any", item)
+			}
+			acc = append(acc, m)
+		}
+		return _patchCheckHeaders(acc)
+
+	case []map[string]any:
+		for _, m := range cast {
+			if k, ok := m["name"]; ok {
+				if v, ok := m["value"]; ok {
+					headers[castToString(k)] = castToString(v)
+				} else {
+					headers[castToString(k)] = ""
+				}
+			} else {
+				return nil, fmt.Errorf("Unsupported headers format %#v", m)
+			}
+		}
+
+	case map[string]any:
+		for name, rawValue := range cast {
+			headers[name] = castToString(rawValue)
+		}
+
+	default:
+		return nil, fmt.Errorf("Unsupported headers format: %#v", rawHeaders)
+	}
+
+	return headers, nil
 }
 
 func _castDuration(v any, shift time.Duration) (ret *string) {

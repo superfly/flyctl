@@ -35,9 +35,13 @@ func runValidate(ctx context.Context) error {
 
 	switch {
 	case flag.GetBool(ctx, "machines"):
-		cfg.SetMachinesPlatform()
+		if err := cfg.SetMachinesPlatform(); err != nil {
+			return err
+		}
 	case flag.GetBool(ctx, "nomad"):
-		cfg.SetNomadPlatform()
+		if err := cfg.SetNomadPlatform(); err != nil {
+			return err
+		}
 	}
 	err, extra_info := cfg.Validate(ctx)
 	fmt.Fprintln(io.Out, extra_info)
