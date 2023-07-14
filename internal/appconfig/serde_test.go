@@ -336,6 +336,32 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 	}, cfg)
 }
 
+func TestLoadTOMLAppConfigOldProcesses(t *testing.T) {
+	const path = "./testdata/old-processes.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Equal(t, &Config{
+		configFilePath:   "./testdata/old-processes.toml",
+		defaultGroupName: "app",
+		Processes: map[string]string{
+			"web":    "./web",
+			"worker": "./worker",
+		},
+		RawDefinition: map[string]any{
+			"processes": []map[string]any{
+				{
+					"name":    "web",
+					"command": "./web",
+				},
+				{
+					"name":    "worker",
+					"command": "./worker",
+				},
+			},
+		},
+	}, cfg)
+}
+
 func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 	const path = "./testdata/old-pg-checks.toml"
 	cfg, err := LoadConfig(path)
