@@ -106,9 +106,23 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		task.FromContext(ctx).Start(ctx)
 
 		sendOsMetric(ctx, "started")
+
 		defer func() {
+			ch := make(chan error, 1)
+
 			if err == nil {
 				sendOsMetric(ctx, "successful")
+			}
+
+			// Give 3 seconds to flush metrics
+			go func() {
+				ch <- metrics.FlushMetricsDB(ctx)
+			}()
+
+			select {
+			// TODO: Handle error
+			case <-ch:
+			case <-time.After(3 * time.Second):
 			}
 		}()
 
