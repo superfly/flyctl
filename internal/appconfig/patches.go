@@ -114,9 +114,33 @@ func _patchEnv(raw any) (map[string]string, error) {
 func patchProcesses(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["processes"]; ok {
 		switch cast := raw.(type) {
-		case []any, []map[string]any:
-			// GQL GetConfig returns an empty array when there are not processes
-			delete(cfg, "processes")
+		case []any:
+			processes := []map[string]any{}
+			for _, item := range cast {
+				if v, ok := item.(map[string]any); ok {
+					processes = append(processes, v)
+				}
+			}
+			cfg["processes"] = processes
+			return patchProcesses(cfg)
+
+		case []map[string]any:
+			processes := make(map[string]string)
+			for _, item := range cast {
+				if rawk, kok := item["name"]; kok {
+					k := castToString(rawk)
+					if v, vok := item["command"]; vok {
+						processes[k] = castToString(v)
+					} else {
+						processes[k] = ""
+					}
+				}
+			}
+			if len(processes) > 0 {
+				cfg["processes"] = processes
+			} else {
+				delete(cfg, "processes")
+			}
 		case map[string]any:
 			// Nothing to do here
 		default:
