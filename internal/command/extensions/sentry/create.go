@@ -2,11 +2,14 @@ package sentry_ext
 
 import (
 	"context"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/scanner"
 )
 
 func create() (cmd *cobra.Command) {
@@ -26,10 +29,30 @@ func create() (cmd *cobra.Command) {
 
 func runSentryCreate(ctx context.Context) (err error) {
 
+	absDir, err := filepath.Abs(".")
+
+	if err != nil {
+		return err
+	}
+
+	srcInfo, err := scanner.Scan(absDir, &scanner.ScannerConfig{})
+
+	if err != nil {
+		return err
+	}
+
+	var options gql.AddOnOptions
+
+	if PlatformMap[srcInfo.Family] != "" {
+		options["platform"] = PlatformMap[srcInfo.Family]
+	}
+
 	_, err = extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionOptions{
-		Provider:     "sentry",
-		SelectName:   false,
-		SelectRegion: false,
+		Provider:       "sentry",
+		SelectName:     false,
+		SelectRegion:   false,
+		DetectPlatform: true,
+		Options:        options,
 	})
 
 	return
