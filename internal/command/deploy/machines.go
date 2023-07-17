@@ -53,6 +53,7 @@ type MachineDeploymentArgs struct {
 	IncreasedAvailability bool
 	AllocPublicIP         bool
 	UpdateOnly            bool
+	Files                 []*api.File
 }
 
 type machineDeployment struct {
@@ -83,6 +84,7 @@ type machineDeployment struct {
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
 	updateOnly            bool
+	files                 []*api.File
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -152,6 +154,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
 		updateOnly:            args.UpdateOnly,
+		files:                 args.Files,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err

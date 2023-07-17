@@ -876,6 +876,18 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
 	}
 
+	machineFiles, err := FilesFromCommand(ctx)
+	if err != nil {
+		return machineConf, err
+	}
+	MergeFiles(machineConf, machineFiles)
+
+	return machineConf, nil
+}
+
+// FilesFromCommand checks the specified flags for files and returns a list of api.File to be used
+// in the machine configuration.
+func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
 	machineFiles := []*api.File{}
 
 	localFiles, err := parseFiles(ctx, "file-local", func(value string, file *api.File) error {
@@ -888,7 +900,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return nil
 	})
 	if err != nil {
-		return machineConf, fmt.Errorf("failed to read file-local: %w", err)
+		return machineFiles, fmt.Errorf("failed to read file-local: %w", err)
 	}
 	machineFiles = append(machineFiles, localFiles...)
 
@@ -898,7 +910,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return nil
 	})
 	if err != nil {
-		return machineConf, fmt.Errorf("failed to read file-literal: %w", err)
+		return machineFiles, fmt.Errorf("failed to read file-literal: %w", err)
 	}
 	machineFiles = append(machineFiles, literalFiles...)
 
@@ -907,11 +919,16 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return nil
 	})
 	if err != nil {
-		return machineConf, fmt.Errorf("failed to read file-secret: %w", err)
+		return machineFiles, fmt.Errorf("failed to read file-secret: %w", err)
 	}
 	machineFiles = append(machineFiles, secretFiles...)
 
-	for _, f := range machineFiles {
+	return machineFiles, nil
+}
+
+// MergeFiles merges the files parsed from the command line into the machine configuration.
+func MergeFiles(machineConf *api.MachineConfig, files []*api.File) {
+	for _, f := range files {
 		idx := slices.IndexFunc(machineConf.Files, func(i *api.File) bool {
 			return i.GuestPath == f.GuestPath
 		})
@@ -921,16 +938,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 			machineConf.Files = append(machineConf.Files, f)
 			continue
 		case f.RawValue == nil && f.SecretName == nil:
-			fmt.Printf("deleting %s\n", f.GuestPath)
 			machineConf.Files = slices.Delete(machineConf.Files, idx, idx+1)
 		default:
-			fmt.Printf("replacing %s\n", f.GuestPath)
 			machineConf.Files = slices.Replace(machineConf.Files, idx, idx+1, f)
 		}
-
 	}
-
-	return machineConf, nil
 }
 
 func parseFiles(ctx context.Context, flagName string, cb func(value string, file *api.File) error) ([]*api.File, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -123,6 +124,18 @@ var CommonFlags = flag.Set{
 			batchingCutoff,
 		),
 		Default: true,
+	},
+	flag.StringArray{
+		Name:        "file-local",
+		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+	},
+	flag.StringArray{
+		Name:        "file-literal",
+		Description: "Set of literals in the form of /path/inside/machine=VALUE pairs where VALUE is the content. Can be specified multiple times.",
+	},
+	flag.StringArray{
+		Name:        "file-secret",
+		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
 }
 
@@ -263,6 +276,11 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		return err
 	}
 
+	files, err := machine.FilesFromCommand(ctx)
+	if err != nil {
+		return err
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
@@ -282,6 +300,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
+		Files:                 files,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
