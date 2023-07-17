@@ -285,6 +285,17 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 
 			cache.SetLatestRelease(channel, r)
 
+			// Check if the current version has been yanked.
+			if cache.IsCurrentVersionInvalid() == "" {
+				currentRelErr := update.ValidateRelease(ctx, buildinfo.ParsedVersion().String())
+				if currentRelErr != nil {
+					var invalidRelErr *update.InvalidReleaseError
+					if errors.As(currentRelErr, &invalidRelErr) {
+						cache.SetCurrentVersionInvalid(invalidRelErr)
+					}
+				}
+			}
+
 			logger.Debugf("querying for release resulted to %v", r.Version)
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			break
@@ -357,6 +368,11 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
+	versionInvalidMsg := cache.IsCurrentVersionInvalid()
+	if versionInvalidMsg != "" && !silent {
+		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s", versionInvalidMsg)
+	}
+
 	latest, err := buildinfo.ParseVersion(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
@@ -364,6 +380,10 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	if !latest.Newer() {
+		if versionInvalidMsg != "" && !silent {
+			// Continuing from versionInvalidMsg above
+			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
+		}
 		return ctx, nil
 	}
 
@@ -372,7 +392,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() {
-		if current.SeverelyOutdated(latest) {
+		if versionInvalidMsg != "" || current.SeverelyOutdated(latest) {
 			if !silent {
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
@@ -395,9 +415,15 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			}
 		}
 	}
-	if promptForUpdate && !silent {
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
+	if !silent {
+		if !cfg.AutoUpdate && versionInvalidMsg != "" {
+			// Continuing from versionInvalidMsg above
+			fmt.Fprintln(io.ErrOut, "Proceed with caution!")
+		}
+		if promptForUpdate {
+			fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
+			fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
+		}
 	}
 
 	return ctx, nil

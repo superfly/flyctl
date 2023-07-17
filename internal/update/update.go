@@ -61,14 +61,25 @@ func (i InvalidReleaseError) StatusCode() int {
 	return i.status
 }
 
+// memoized values for ValidateRelease
+var validatedReleases = map[string]error{}
+
 // ValidateRelease reports whether the given release is valid via an API call.
 // If the version is invalid, the error will be an InvalidReleaseError.
 // Note that other errors may be returned if the API call fails.
-func ValidateRelease(ctx context.Context, version string) error {
+func ValidateRelease(ctx context.Context, version string) (err error) {
 
 	if version[0] == 'v' {
 		version = version[1:]
 	}
+
+	if err, ok := validatedReleases[version]; ok {
+		return err
+	}
+
+	defer func() {
+		validatedReleases[version] = err
+	}()
 
 	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_validate/v%s", version)
 
