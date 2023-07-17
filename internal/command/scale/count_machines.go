@@ -133,7 +133,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 					}
 				}
 
-				m, v, err := launchMachine(ctx, action, volume, appCompact)
+				m, v, err := launchMachine(ctx, *action, volume, appCompact)
 				if err != nil {
 					return err
 				}
@@ -159,7 +159,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
+func launchMachine(ctx context.Context, action planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
 	flapsClient := flaps.FromContext(ctx)
 	var err error
 
@@ -172,14 +172,14 @@ func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, ap
 			{
 				Volume: volume.ID,
 				Path:   mnt.Path,
-				Name:   volume.Name,
+				Name:   mnt.Name,
 			},
 		}
 	}
 
 	input := api.LaunchMachineInput{
 		Region: action.Region,
-		Config: action.MachineConfig,
+		Config: &action.MachineConfig,
 	}
 
 	m, err := flapsClient.Launch(ctx, input)
@@ -257,7 +257,7 @@ type planItem struct {
 	Region        string
 	Delta         int
 	Machines      []*api.Machine
-	MachineConfig *api.MachineConfig
+	MachineConfig api.MachineConfig
 	Volumes       []*availableVolume
 }
 
@@ -316,7 +316,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				Region:        regionName,
 				Delta:         delta,
 				Machines:      perRegionMachines[regionName],
-				MachineConfig: mConfig,
+				MachineConfig: *mConfig,
 				Volumes:       availableVols,
 			})
 		}
@@ -350,7 +350,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
-				MachineConfig: mConfig,
+				MachineConfig: *mConfig,
 				Volumes:       availableVolumes,
 			})
 		}
