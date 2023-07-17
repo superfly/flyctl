@@ -6,7 +6,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -116,8 +115,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				Encrypted: api.Pointer(true),
 			}
 
-			flapsClient := flaps.FromContext(ctx)
-			vol, err := flapsClient.CreateVolume(ctx, input)
+			vol, err := md.flapsClient.CreateVolume(ctx, input)
 			if err != nil {
 				return fmt.Errorf("failed creating volume: %w", err)
 			}

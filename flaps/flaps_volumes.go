@@ -30,7 +30,7 @@ func (f *Client) CreateVolume(ctx context.Context, req api.CreateVolumeRequest) 
 
 	out := new(api.Volume)
 
-	err := f.sendRequestVolumes(ctx, http.MethodGet, createVolumeEndpoint, req, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodPost, createVolumeEndpoint, req, out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create volume: %w", err)
 	}
@@ -79,7 +79,7 @@ func (f *Client) ExtendVolume(ctx context.Context, volumeId string, size_gb int)
 
 	out := new(ExtendVolumeResponse)
 
-	err := f.sendRequestVolumes(ctx, http.MethodGet, extendVolumeEndpoint, req, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodPut, extendVolumeEndpoint, req, out, nil)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to extend volume %s: %w", volumeId, err)
 	}

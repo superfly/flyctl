@@ -71,13 +71,18 @@ sets the size as the number of gigabytes the volume will consume.`
 
 func runCreate(ctx context.Context) error {
 	var (
-		cfg         = config.FromContext(ctx)
-		client      = client.FromContext(ctx).API()
-		flapsClient = flaps.FromContext(ctx)
+		cfg    = config.FromContext(ctx)
+		client = client.FromContext(ctx).API()
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
 	)
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)
