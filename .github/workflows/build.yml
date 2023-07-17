@@ -3,7 +3,6 @@ on:
   schedule:
     - cron: '21 */2 * * *'
   push:
-  pull_request:
 
 # We right now cannot use Go 1.20.6 due to
 # https://community.fly.io/t/git-hub-actions-deployment-error/14126
