@@ -369,6 +369,9 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	versionInvalidMsg := cache.IsCurrentVersionInvalid()
+	if versionInvalidMsg != "" && !silent {
+		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s", versionInvalidMsg)
+	}
 
 	latest, err := buildinfo.ParseVersion(latestRel.Version)
 	if err != nil {
@@ -378,7 +381,8 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 
 	if !latest.Newer() {
 		if versionInvalidMsg != "" && !silent {
-			fmt.Fprintf(io.ErrOut, "Current flyctl version %s is invalid: %s\nbut there is not a newer version available. Proceed with caution!\n", current.String(), versionInvalidMsg)
+			// Continuing from versionInvalidMsg above
+			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
 		}
 		return ctx, nil
 	}
@@ -390,9 +394,6 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	if cfg.AutoUpdate && !env.IsCI() {
 		if versionInvalidMsg != "" || current.SeverelyOutdated(latest) {
 			if !silent {
-				if versionInvalidMsg != "" {
-					fmt.Fprintf(io.ErrOut, "Current flyctl version %s is invalid: %s\n", current.String(), versionInvalidMsg)
-				}
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
 
@@ -414,9 +415,15 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			}
 		}
 	}
-	if promptForUpdate && !silent {
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
+	if !silent {
+		if !cfg.AutoUpdate && versionInvalidMsg != "" {
+			// Continuing from versionInvalidMsg above
+			fmt.Fprintln(io.ErrOut, "Proceed with caution!")
+		}
+		if promptForUpdate {
+			fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Update available %s -> %s.", current, latestRel.Version)))
+			fmt.Fprintln(io.ErrOut, colorize.Yellow(fmt.Sprintf("Run \"%s\" to upgrade.", colorize.Bold(buildinfo.Name()+" version upgrade"))))
+		}
 	}
 
 	return ctx, nil
