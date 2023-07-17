@@ -15,6 +15,7 @@ import (
 
 	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
+	"github.com/rs/xid"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
@@ -676,11 +677,14 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 }
 
 func createInvocationID(ctx context.Context) (context.Context, error) {
-	command := FromContext(ctx).CommandPath()
+	var (
+		command = FromContext(ctx).CommandPath()
+		guid    = xid.New()
+	)
 
-	invocationID := fmt.Sprintf("%s-%d", strings.ReplaceAll(command, " ", "-"), time.Now().UnixNano())
+	invocationID := fmt.Sprintf("%s-%s", strings.ReplaceAll(command, " ", "-"), guid.String())
 
-	logger.FromContext(ctx).Debugf("Invocation id: %s", invocationID)
+	logger.FromContext(ctx).Debugf("Invocation ID: %s", invocationID)
 
 	return state.WithInvocationID(ctx, invocationID), nil
 }

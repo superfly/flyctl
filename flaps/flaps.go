@@ -34,7 +34,7 @@ import (
 const (
 	NonceHeader        = "fly-machine-lease-nonce"
 	headerFlyRequestId = "fly-request-id"
-	invocationIDHeader = "Invocation-ID"
+	invocationIDHeader = "fly-invocation-id"
 )
 
 type Client struct {
