@@ -172,7 +172,7 @@ func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, ap
 			{
 				Volume: volume.ID,
 				Path:   mnt.Path,
-				Name:   mnt.Name,
+				Name:   volume.Name,
 			},
 		}
 	}
@@ -272,6 +272,9 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
 		return m.ProcessGroup()
 	})
+	volumeGroups := lo.GroupBy(volumes, func(v *availableVolume) string {
+		return v.Volume.Name
+	})
 
 	for groupName, groupMachines := range machineGroups {
 		expected, ok := expectedGroupCounts[groupName]
@@ -301,8 +304,10 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		for regionName, delta := range regionDiffs {
 			var availableVols []*availableVolume
 			if len(mConfig.Mounts) > 0 {
-				availableVols = lo.Filter(volumes, func(av *availableVolume, _ int) bool {
-					return !av.Volume.IsAttached() && av.Volume.Region == regionName
+				volumeName := mConfig.Mounts[0].Name
+				groupVolumes := volumeGroups[volumeName]
+				availableVols = lo.Filter(groupVolumes, func(av *availableVolume, _ int) bool {
+					return !av.Volume.IsAttached() && av.Volume.Region == regionName && av.Volume.Name == volumeName
 				})
 			}
 
