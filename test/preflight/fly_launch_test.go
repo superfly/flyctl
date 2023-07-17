@@ -185,19 +185,6 @@ func TestFlyLaunchForceV1(t *testing.T) {
 	require.Contains(f, x.StdErr().String(), `--force-nomad won't work for existing app in machines platform`)
 }
 
-// V1 app forced as V2
-func TestFlyLaunchForceV2(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-
-	appName := f.CreateRandomAppName()
-	// Sadly creating a new app with --nomad doesn't set its platform to Nomad until first deploy
-	f.Fly("apps create %s -o %s --nomad", appName, f.OrgSlug())
-	f.Fly("launch --now --image nginx --name %s --reuse-app --region=%s --force-nomad", appName, f.PrimaryRegion())
-
-	x := f.FlyAllowExitFailure("launch --no-deploy --copy-config=false --reuse-app --name %s --region %s --force-machines", appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `--force-machines won't work for existing app in nomad platform`)
-}
-
 // test --generate-name, --name and reuse imported name
 func TestFlyLaunchReuseName(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)

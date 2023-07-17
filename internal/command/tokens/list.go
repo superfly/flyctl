@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -28,7 +29,6 @@ func newList() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.JSONOutput(),
 		flag.String{
 			Name:        "scope",
 			Shorthand:   "s",

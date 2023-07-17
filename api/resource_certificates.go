@@ -1,6 +1,6 @@
 package api
 
-import "golang.org/x/net/context"
+import "context"
 
 func (c *Client) GetAppCertificates(ctx context.Context, appName string) ([]AppCertificateCompact, error) {
 	query := `

@@ -175,6 +175,7 @@ query GetAddOnProvider($name: String!) {
 		name
 		tosUrl
 		displayName
+		asyncProvisioning
 		excludedRegions {
 			code
 		}
