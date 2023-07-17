@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/blang/semver"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -345,26 +344,26 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	var (
-		cache    = cache.FromContext(ctx)
-		logger   = logger.FromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-
-		current   = buildinfo.Info().Version
-		silent    = cfg.JSONOutput
+		current   = buildinfo.ParsedVersion()
+		cache     = cache.FromContext(ctx)
+		logger    = logger.FromContext(ctx)
+		io        = iostreams.FromContext(ctx)
+		colorize  = io.ColorScheme()
 		latestRel = cache.LatestRelease()
+		silent    = cfg.JSONOutput
 	)
+
 	if latestRel == nil {
 		return ctx, nil
 	}
 
-	latest, err := semver.ParseTolerant(latestRel.Version)
+	latest, err := buildinfo.ParseVersion(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
-
-		return ctx, nil
+		return ctx, err
 	}
-	if latest.LTE(current) {
+
+	if !latest.Newer() {
 		return ctx, nil
 	}
 
@@ -373,7 +372,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() {
-		if severelyOutOfDate(current, latest) {
+		if current.SeverelyOutdated(latest) {
 			if !silent {
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
@@ -402,22 +401,6 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
-}
-
-// TODO: Move this into the generalized Version interface once that's merged
-// https://github.com/superfly/flyctl/pull/2484
-func severelyOutOfDate(current semver.Version, latest semver.Version) bool {
-
-	if current.Major < latest.Major {
-		return true
-	}
-	if current.Minor < latest.Minor {
-		return true
-	}
-	if current.Patch+5 < latest.Patch {
-		return true
-	}
-	return false
 }
 
 func PromptToMigrate(ctx context.Context, app *api.AppCompact) {

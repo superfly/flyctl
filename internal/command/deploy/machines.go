@@ -224,7 +224,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	for _, m := range machines {
 		if m.Config != nil && m.Config.Metadata != nil {
-			m.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
+			m.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
 			if m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == "" {
 				m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = md.appConfig.DefaultProcessName()
 			}

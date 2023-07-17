@@ -31,6 +31,7 @@ require (
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jinzhu/copier v0.3.5
 	github.com/jpillora/backoff v1.0.0
+	github.com/loadsmart/calver-go v0.0.0-20230323142215-56cf73a68e8a
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.19
@@ -184,3 +185,5 @@ require (
 )
 
 replace github.com/superfly/flyctl/api => ./api
+
+replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936

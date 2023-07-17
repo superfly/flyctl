@@ -75,7 +75,7 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	mc.Image = d.image
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = d.releaseVersion
-	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
+	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
 
 	return mc, nil
 }
