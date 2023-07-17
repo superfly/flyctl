@@ -2,7 +2,6 @@ package scanner
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,7 +104,7 @@ a Postgresql database.
 	return s, nil
 }
 
-func PhoenixCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+func PhoenixCallback(appName string, _ *SourceInfo, options map[string]bool) error {
 	envEExPath := "rel/env.sh.eex"
 	envEExContents := `
 # configure node for distributed erlang with IPV6 support
@@ -120,27 +119,23 @@ export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
 		fmt.Fprintln(os.Stdout, "Generating rel/env.sh.eex for distributed Elixir support")
 		contents := fmt.Sprintf("#!/bin/sh\n%s", envEExContents)
 
-		if err := os.MkdirAll("rel", 0o755); err != nil {
-			log.Fatal(err)
+		if err := os.MkdirAll("rel", 0o755); err != nil { // skipcq: GSC-G301
 			return err
 		}
 
-		if err := os.WriteFile(envEExPath, []byte(contents), 0o755); err != nil {
-			log.Fatal(err)
+		if err := os.WriteFile(envEExPath, []byte(contents), 0o755); err != nil { // skipcq: GSC-G302
 			return err
 		}
 	} else if !fileContains(envEExPath, "RELEASE_NODE") {
 		fmt.Fprintln(os.Stdout, "Updating rel/env.sh.eex for distributed Elixir support")
 		appendedContents := fmt.Sprintf("# appended by fly launch: configure node for distributed erlang with IPV6 support\n%s", envEExContents)
-		f, err := os.OpenFile(envEExPath, os.O_APPEND|os.O_WRONLY, 0o755)
+		f, err := os.OpenFile(envEExPath, os.O_APPEND|os.O_WRONLY, 0o755) // skipcq: GSC-G302
 		if err != nil {
-			log.Fatal(err)
 			return err
 		}
-		defer f.Close()
+		defer f.Close() // skipcq: GO-S2307
 
 		if _, err := f.WriteString(appendedContents); err != nil {
-			log.Fatal(err)
 			return err
 		}
 	}
