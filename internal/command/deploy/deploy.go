@@ -232,7 +232,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	if appURL := appConfig.URL(); appURL != nil {
-		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
+		fmt.Fprintf(io.Out, "\nRun 'fly open' to visit your newly deployed app at %s\n", appURL)
 	}
 
 	return err

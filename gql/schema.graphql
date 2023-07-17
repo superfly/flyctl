@@ -9475,7 +9475,7 @@ enum ServiceHandlerType {
   HTTP
 
   """
-  Handle TLS for PostgreSQL connections
+  Handle TLS for Postgres connections
   """
   PG_TLS
 

@@ -19,7 +19,7 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Create a new PostgreSQL cluster"
+		short = "Create a new Postgres cluster"
 		long  = short + "\n"
 	)
 
@@ -294,7 +294,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		config = &postgresConfigurations(input.Manager)[selected]
 
 		if input.Manager == flypg.ReplicationManager && config.VMSize == "shared-cpu-1x" {
-			confirm, err := prompt.Confirm(ctx, "Scale single node pg to zero after one hour?")
+			confirm, err := prompt.Confirm(ctx, "Scale single Postgres machine to zero after one hour?")
 			if err != nil {
 				return err
 			}

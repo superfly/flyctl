@@ -141,7 +141,7 @@ func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName s
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgresql database now?")
+	confirmPg, err := prompt.Confirm(ctx, "Would you like to set up a Postgres database now?")
 	if confirmPg && err == nil {
 		db_app_name := fmt.Sprintf("%s-db", appName)
 		should_attach_db := false
@@ -149,7 +149,7 @@ func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName s
 		if apps, err := client.GetApps(ctx, nil); err == nil {
 			for _, app := range apps {
 				if app.Name == db_app_name {
-					msg := fmt.Sprintf("We found an existing Postgresql database with the name %s. Would you like to attach it to your app?", app.Name)
+					msg := fmt.Sprintf("We found an existing Postgres database with the name %s. Would you like to attach it to your app?", app.Name)
 					confirmAttachPg, err := prompt.Confirm(ctx, msg)
 
 					if confirmAttachPg && err == nil {
@@ -185,7 +185,7 @@ func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName s
 		} else {
 			err := LaunchPostgres(ctx, appName, org, region)
 			if err != nil {
-				const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
+				const msg = "Error creating Postgres database. Be warned that this may affect deploys"
 				fmt.Fprintln(io.Out, colorize.Red(msg))
 			}
 		}

@@ -273,12 +273,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		fmt.Fprintf(io.Out, "  Flycast:     %s\n", addr.Address)
 	}
 	fmt.Fprintf(io.Out, "  Proxy port:  5432\n")
-	fmt.Fprintf(io.Out, "  Postgres port:  5433\n")
+	fmt.Fprintf(io.Out, "  Database port:  5433\n")
 	fmt.Fprintf(io.Out, "  Connection string: %s\n", connStr)
 	fmt.Fprintln(io.Out, colorize.Italic("Save your credentials in a secure place -- you won't be able to see them again!"))
 
 	fmt.Fprintln(io.Out)
-	fmt.Fprintln(io.Out, colorize.Bold("Connect to postgres"))
+	fmt.Fprintln(io.Out, colorize.Bold("Connect to Postgres"))
 	fmt.Fprintf(io.Out, "Any app within the %s organization can connect to this Postgres using the above connection string\n", config.Organization.Name)
 
 	fmt.Fprintln(io.Out)
