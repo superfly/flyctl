@@ -147,8 +147,8 @@ func (c *cache) SetLatestRelease(channel string, r *update.Release) {
 }
 
 type invalidVer struct {
-	ver    string
-	reason string
+	Ver    string
+	Reason string
 }
 
 func (c *cache) SetCurrentVersionInvalid(err error) {
@@ -157,7 +157,7 @@ func (c *cache) SetCurrentVersionInvalid(err error) {
 
 	c.dirty = true
 
-	c.invalidVer = &invalidVer{ver: buildinfo.ParsedVersion().String(), reason: err.Error()}
+	c.invalidVer = &invalidVer{Ver: buildinfo.ParsedVersion().String(), Reason: err.Error()}
 }
 
 func (c *cache) IsCurrentVersionInvalid() string {
@@ -168,17 +168,18 @@ func (c *cache) IsCurrentVersionInvalid() string {
 		return ""
 	}
 
-	if c.invalidVer.ver != buildinfo.ParsedVersion().String() {
+	if c.invalidVer.Ver != buildinfo.ParsedVersion().String() {
 		return ""
 	}
 
-	return c.invalidVer.reason
+	return c.invalidVer.Reason
 }
 
 type wrapper struct {
 	Channel       string          `yaml:"channel,omitempty"`
 	LastCheckedAt time.Time       `yaml:"last_checked_at,omitempty"`
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
+	InvalidVer    *invalidVer
 }
 
 func lockPath() string {
@@ -197,6 +198,10 @@ func (c *cache) Save(path string) (err error) {
 		Channel:       c.channel,
 		LastCheckedAt: c.lastCheckedAt,
 		LatestRelease: c.latestRelease,
+		InvalidVer:    c.invalidVer,
+	}
+	if c.invalidVer != nil && c.IsCurrentVersionInvalid() == "" {
+		w.InvalidVer = nil
 	}
 
 	if err = yaml.NewEncoder(&b).Encode(w); err != nil {
@@ -247,6 +252,7 @@ func Load(path string) (c Cache, err error) {
 			channel:       w.Channel,
 			lastCheckedAt: w.LastCheckedAt,
 			latestRelease: w.LatestRelease,
+			invalidVer:    w.InvalidVer,
 		}
 	}
 
