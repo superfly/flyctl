@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/update"
 )
@@ -49,6 +50,14 @@ type Cache interface {
 	// is set to has no effect.
 	SetLatestRelease(channel string, r *update.Release)
 
+	// SetCurrentVersionInvalid sets the current version of flyctl as invalid
+	// because of the given error.
+	SetCurrentVersionInvalid(err error)
+
+	// IsCurrentVersionInvalid returns an error message if the given version
+	// of flyctl is currently invalid. If not, it returns an empty string.
+	IsCurrentVersionInvalid() string
+
 	// Save writes the YAML-encoded representation of c to the named file path via
 	// os.WriteFile.
 	Save(path string) error
@@ -69,6 +78,7 @@ type cache struct {
 	channel       string
 	lastCheckedAt time.Time
 	latestRelease *update.Release
+	invalidVer    *invalidVer
 }
 
 func (c *cache) Channel() string {
@@ -134,6 +144,35 @@ func (c *cache) SetLatestRelease(channel string, r *update.Release) {
 
 	c.latestRelease = r
 	c.lastCheckedAt = time.Now()
+}
+
+type invalidVer struct {
+	ver    string
+	reason string
+}
+
+func (c *cache) SetCurrentVersionInvalid(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.dirty = true
+
+	c.invalidVer = &invalidVer{ver: buildinfo.ParsedVersion().String(), reason: err.Error()}
+}
+
+func (c *cache) IsCurrentVersionInvalid() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.invalidVer != nil {
+		return ""
+	}
+
+	if c.invalidVer.ver != buildinfo.ParsedVersion().String() {
+		return ""
+	}
+
+	return c.invalidVer.reason
 }
 
 type wrapper struct {

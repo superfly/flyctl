@@ -285,6 +285,17 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 
 			cache.SetLatestRelease(channel, r)
 
+			// Check if the current version has been yanked.
+			if cache.IsCurrentVersionInvalid() == "" {
+				currentRelErr := update.ValidateRelease(ctx, buildinfo.ParsedVersion().String())
+				if currentRelErr != nil {
+					var invalidRelErr *update.InvalidReleaseError
+					if errors.As(currentRelErr, &invalidRelErr) {
+						cache.SetCurrentVersionInvalid(invalidRelErr)
+					}
+				}
+			}
+
 			logger.Debugf("querying for release resulted to %v", r.Version)
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			break
@@ -357,6 +368,8 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
+	versionInvalidMsg := cache.IsCurrentVersionInvalid()
+
 	latest, err := buildinfo.ParseVersion(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
@@ -364,6 +377,9 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	if !latest.Newer() {
+		if versionInvalidMsg != "" && !silent {
+			fmt.Fprintf(io.ErrOut, "Current flyctl version %s is invalid: %s\nbut there is not a newer version available. Proceed with caution!\n", current.String(), versionInvalidMsg)
+		}
 		return ctx, nil
 	}
 
@@ -372,8 +388,11 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() {
-		if current.SeverelyOutdated(latest) {
+		if versionInvalidMsg != "" || current.SeverelyOutdated(latest) {
 			if !silent {
+				if versionInvalidMsg != "" {
+					fmt.Fprintf(io.ErrOut, "Current flyctl version %s is invalid: %s\n", current.String(), versionInvalidMsg)
+				}
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
 
