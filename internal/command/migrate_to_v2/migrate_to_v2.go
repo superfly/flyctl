@@ -410,7 +410,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	if len(m.createdVolumes) > 0 {
 		tb.Detailf("Removing migration-created volumes")
 		for _, vol := range m.createdVolumes {
-			_, err := m.apiClient.DeleteVolume(ctx, vol.vol.ID, m.appLock)
+			_, err := m.flapsClient.DestroyVolume(ctx, vol.vol.ID) // , m.appLock TODO LOCK
 			if err != nil {
 				return err
 			}

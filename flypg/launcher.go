@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -185,30 +184,29 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			// Setting FLY_RESTORED_FROM will treat the provision as a restore.
 			machineConf.Env["FLY_RESTORED_FROM"] = config.ForkFrom
 
-			volInput := api.ForkVolumeInput{
-				AppID:          app.ID,
-				SourceVolumeID: config.ForkFrom,
-				MachinesOnly:   true,
+			volInput := api.CreateVolumeRequest{
+				SourceVolumeID: &config.ForkFrom,
 				Name:           "pg_data",
-				Remote:         flag.GetBool(ctx, "remote-fork"),
 			}
 
-			vol, err = l.client.ForkVolume(ctx, volInput)
+			flapsClient := flaps.FromContext(ctx)
+
+			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {
 				return fmt.Errorf("failed to fork volume: %w", err)
 			}
 		} else {
-			volInput := api.CreateVolumeInput{
-				AppID:             app.ID,
+			volInput := api.CreateVolumeRequest{
 				Name:              volumeName,
 				Region:            config.Region,
 				SizeGb:            *config.VolumeSize,
-				Encrypted:         true,
-				RequireUniqueZone: false,
+				Encrypted:         api.Pointer(true),
+				RequireUniqueZone: api.Pointer(false),
 				SnapshotID:        snapshot,
 			}
 
-			vol, err = l.client.CreateVolume(ctx, volInput)
+			flapsClient := flaps.FromContext(ctx)
+			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {
 				return fmt.Errorf("failed to create volume: %w", err)
 			}

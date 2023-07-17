@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -197,16 +198,19 @@ func run(ctx context.Context) (err error) {
 			params.ForkFrom = volID
 		}
 
+		flapsClient := flaps.FromContext(ctx)
+
 		// Resolve the volume
-		vol, err := client.GetVolume(ctx, params.ForkFrom)
+		vol, err := flapsClient.GetVolume(ctx, params.ForkFrom)
 		if err != nil {
 			return fmt.Errorf("Failed to resolve the specified fork-from volume %s: %w", params.ForkFrom, err)
 		}
 
 		// Confirm that the volume is associated with the fork-from app
-		if vol.App.Name != forkApp.Name {
-			return fmt.Errorf("The volume %q specified must be associated with the fork-from app %q", vol.ID, forkApp.Name)
-		}
+		// todo: flaps only returns volumes associated with the given app
+		// if vol.App.Name != forkApp.Name {
+		// 	return fmt.Errorf("The volume %q specified must be associated with the fork-from app %q", vol.ID, forkApp.Name)
+		// }
 
 		// If the region isn't specified, set the region of the fork target
 		reg := flag.GetString(ctx, "region")

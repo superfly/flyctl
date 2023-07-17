@@ -172,11 +172,6 @@ type Query struct {
 	CreateOrganization CreateOrganizationPayload
 	DeleteOrganization DeleteOrganizationPayload
 
-	CreateVolume CreateVolumePayload
-	DeleteVolume DeleteVolumePayload
-	ExtendVolume ExtendVolumePayload
-	ForkVolume   ForkVolumePayload
-
 	AddWireGuardPeer              CreatedWireGuardPeer
 	EstablishSSHKey               SSHCertificate
 	IssueCertificate              IssuedCertificate
@@ -363,88 +358,6 @@ type AppLock struct {
 type TaskGroupCount struct {
 	Name  string
 	Count int
-}
-
-type Snapshot struct {
-	ID        string `json:"id"`
-	Digest    string
-	Size      string
-	CreatedAt time.Time
-}
-
-type Volume struct {
-	ID  string `json:"id"`
-	App struct {
-		Name            string
-		PlatformVersion string
-	}
-	Name      string
-	SizeGb    int
-	Snapshots struct {
-		Nodes []Snapshot
-	}
-	State              string
-	Region             string
-	Encrypted          bool
-	CreatedAt          time.Time
-	AttachedAllocation *AllocationStatus
-	AttachedMachine    *GqlMachine
-	Host               struct {
-		ID string
-	}
-}
-
-func (v *Volume) IsAttached() bool {
-	return v.AttachedAllocation != nil || v.AttachedMachine != nil
-}
-
-type CreateVolumeInput struct {
-	AppID             string  `json:"appId"`
-	Name              string  `json:"name"`
-	Region            string  `json:"region"`
-	SizeGb            int     `json:"sizeGb"`
-	Encrypted         bool    `json:"encrypted"`
-	SnapshotID        *string `json:"snapshotId,omitempty"`
-	RequireUniqueZone bool    `json:"requireUniqueZone"`
-}
-
-type ExtendVolumeInput struct {
-	VolumeID string `json:"volumeId"`
-	SizeGb   int    `json:"sizeGb"`
-}
-
-type CreateVolumePayload struct {
-	App    App
-	Volume Volume
-}
-
-type ExtendVolumePayload struct {
-	App          App
-	Volume       Volume
-	NeedsRestart bool
-}
-
-type DeleteVolumeInput struct {
-	VolumeID string `json:"volumeId"`
-	LockID   string `json:"lockId,omitempty"`
-}
-
-type DeleteVolumePayload struct {
-	App App
-}
-
-type ForkVolumeInput struct {
-	AppID          string `json:"appId"`
-	SourceVolumeID string `json:"sourceVolId"`
-	Name           string `json:"name,omitempty"`
-	MachinesOnly   bool   `json:"machinesOnly,omitempty"`
-	LockID         string `json:"lockId,omitempty"`
-	Remote         bool   `json:"remote,omitempty"`
-}
-
-type ForkVolumePayload struct {
-	App    App
-	Volume Volume
 }
 
 type AppCertsCompact struct {

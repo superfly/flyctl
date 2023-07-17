@@ -6,9 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -34,11 +35,16 @@ number to operate. This can be found through the volumes list command`
 
 func runShow(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := client.FromContext(ctx).API()
+	appName := appconfig.NameFromContext(ctx)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("could not create flaps client: %w", err)
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	volumeID := flag.FirstArg(ctx)
 
-	volume, err := client.GetVolume(ctx, volumeID)
+	volume, err := flapsClient.GetVolume(ctx, volumeID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving volume: %w", err)
 	}
@@ -49,5 +55,5 @@ func runShow(ctx context.Context) error {
 		return render.JSON(out, volume)
 	}
 
-	return printVolume(out, volume)
+	return printVolume(out, volume, appName)
 }

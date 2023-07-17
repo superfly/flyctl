@@ -529,8 +529,8 @@ func determineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	appName := appconfig.NameFromContext(ctx)
 	apiclient := client.FromContext(ctx).API()
+	flapsClient := flaps.FromContext(ctx)
 
 	if regionCode == "" {
 		region, err := apiclient.GetNearestRegion(ctx)
@@ -540,7 +540,7 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 		regionCode = region.Code
 	}
 
-	volumes, err := apiclient.GetVolumes(ctx, appName)
+	volumes, err := flapsClient.ListVolumes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
 	}

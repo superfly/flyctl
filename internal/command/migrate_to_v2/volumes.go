@@ -66,13 +66,10 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 	}))
 
 	for _, vol := range m.oldAttachedVolumes {
-		newVol, err := m.apiClient.ForkVolume(ctx, api.ForkVolumeInput{
-			AppID:          m.appFull.ID,
-			SourceVolumeID: vol.ID,
-			MachinesOnly:   true,
+		newVol, err := m.flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
+			SourceVolumeID: &vol.ID,
 			Name:           nomadVolNameToV2VolName(vol.Name),
-			LockID:         m.appLock,
-			Remote:         m.usesRemoteVolumeFork,
+			// LockID:         m.appLock, TODO LOCK
 		})
 		if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
 			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
@@ -82,10 +79,9 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 
 		allocId := ""
 		path := ""
-		if alloc := vol.AttachedAllocation; alloc != nil {
-			allocId = alloc.ID
+		if allocId := vol.AttachedAllocation; allocId != nil {
 			alloc, ok := lo.Find(m.oldAllocs, func(a *api.AllocationStatus) bool {
-				return a.ID == allocId
+				return a.ID == *allocId
 			})
 			if !ok {
 				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, allocId)
@@ -130,7 +126,7 @@ func (m *v2PlatformMigrator) resolveOldVolumes() {
 	m.oldAttachedVolumes = lo.Filter(m.appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
 		if v.AttachedAllocation != nil {
 			for _, a := range m.oldAllocs {
-				if a.ID == v.AttachedAllocation.ID {
+				if a.ID == *v.AttachedAllocation {
 					return true
 				}
 			}

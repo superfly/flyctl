@@ -6,6 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -108,15 +109,15 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 
 			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. Use 'fly vol extend' to increase its size\n", m.Source, groupName)
 
-			input := api.CreateVolumeInput{
-				AppID:     md.app.ID,
+			input := api.CreateVolumeRequest{
 				Name:      m.Source,
 				Region:    groupConfig.PrimaryRegion,
 				SizeGb:    1,
-				Encrypted: true,
+				Encrypted: api.Pointer(true),
 			}
 
-			vol, err := md.apiClient.CreateVolume(ctx, input)
+			flapsClient := flaps.FromContext(ctx)
+			vol, err := flapsClient.CreateVolume(ctx, input)
 			if err != nil {
 				return fmt.Errorf("failed creating volume: %w", err)
 			}

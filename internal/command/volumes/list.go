@@ -8,6 +8,7 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -43,11 +44,21 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	client := client.FromContext(ctx).API()
 
-	appName := appconfig.NameFromContext(ctx)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("could not create flaps client: %w", err)
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
-	volumes, err := client.GetVolumes(ctx, appName)
+	app, err := client.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app: %w", err)
+	}
+
+	volumes, err := flapsClient.ListVolumes(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving volumes: %w", err)
 	}
@@ -62,16 +73,28 @@ func runList(ctx context.Context) error {
 	for _, volume := range volumes {
 		var attachedVMID string
 
-		if volume.App.PlatformVersion == "machines" {
+		if app.PlatformVersion == "machines" {
 			if volume.AttachedMachine != nil {
-				attachedVMID = volume.AttachedMachine.ID
+				attachedVMID = *volume.AttachedMachine
 			}
 		} else {
-			if volume.AttachedAllocation != nil {
-				attachedVMID = volume.AttachedAllocation.IDShort
+			// we'll get this lazily
+			var allocationTaskNames *map[string]string
 
-				if volume.AttachedAllocation.TaskName != "app" {
-					attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
+			if volume.AttachedAllocation != nil {
+				if allocationTaskNames == nil {
+					val, err := client.GetAllocationTaskNames(ctx, appName)
+					if err != nil {
+						return err
+					}
+					allocationTaskNames = &val
+				}
+
+				attachedVMID = *volume.AttachedAllocation
+				taskName := (*allocationTaskNames)[*volume.AttachedAllocation]
+
+				if taskName != "app" {
+					attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation, taskName)
 				}
 			}
 		}
@@ -82,7 +105,7 @@ func runList(ctx context.Context) error {
 			volume.Name,
 			strconv.Itoa(volume.SizeGb) + "GB",
 			volume.Region,
-			volume.Host.ID,
+			volume.Zone,
 			fmt.Sprint(volume.Encrypted),
 			attachedVMID,
 			humanize.Time(volume.CreatedAt),

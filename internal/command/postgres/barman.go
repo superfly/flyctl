@@ -197,17 +197,21 @@ func runBarmanCreate(ctx context.Context) error {
 
 	var vol *api.Volume
 
-	volInput := api.CreateVolumeInput{
-		AppID:             app.ID,
+	volInput := api.CreateVolumeRequest{
 		Name:              volumeName,
 		Region:            region.Code,
 		SizeGb:            flag.GetInt(ctx, "volume-size"),
-		Encrypted:         true,
-		RequireUniqueZone: true,
+		Encrypted:         api.Pointer(true),
+		RequireUniqueZone: api.Pointer(true),
+	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return err
 	}
 
 	if volInput.SizeGb == 0 {
-		otherVolumes, err := client.GetVolumes(ctx, app.Name)
+		otherVolumes, err := flapsClient.ListVolumes(ctx)
 		if err != nil {
 			return err
 		}
@@ -226,7 +230,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
 
-	vol, err = client.CreateVolume(ctx, volInput)
+	vol, err = flapsClient.CreateVolume(ctx, volInput)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
@@ -244,10 +248,6 @@ func runBarmanCreate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning barman machine with image %s\n", machineConfig.Image)
 
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return err
-	}
 	machine, err := flapsClient.Launch(ctx, launchInput)
 	if err != nil {
 		return err
