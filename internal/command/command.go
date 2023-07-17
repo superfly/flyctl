@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/blang/semver"
@@ -675,9 +676,11 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 }
 
 func createInvocationID(ctx context.Context) (context.Context, error) {
-	cmd := FromContext(ctx)
+	command := FromContext(ctx).CommandPath()
 
-	invocationID := fmt.Sprintf("%s-%d", cmd.UseLine(), time.Now().UnixNano())
+	invocationID := fmt.Sprintf("%s-%d", strings.ReplaceAll(command, " ", "-"), time.Now().UnixNano())
+
+	logger.FromContext(ctx).Debugf("Invocation id: %s", invocationID)
 
 	return state.WithInvocationID(ctx, invocationID), nil
 }
