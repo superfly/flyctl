@@ -16,6 +16,7 @@ const (
 	workDirKey
 	userHomeDirKey
 	configDirKey
+	invocationIDKey
 )
 
 // WithHostname returns a copy of ctx that carries hostname.
@@ -69,6 +70,16 @@ func ConfigDirectory(ctx context.Context) string {
 // ctx carries no config directory.
 func ConfigFile(ctx context.Context) string {
 	return filepath.Join(ConfigDirectory(ctx), config.FileName)
+}
+
+// InvocationID returns the unique id that identifies this particular invocation of flyctl
+func InvocationID(ctx context.Context) string {
+	return get(ctx, invocationIDKey).(string)
+}
+
+// WithInvocationID derives a Context that carries the given invocation id from ctx.
+func WithInvocationID(ctx context.Context, id string) context.Context {
+	return set(ctx, invocationIDKey, id)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {

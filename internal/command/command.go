@@ -63,6 +63,7 @@ var commonPreparers = []preparers.Preparer{
 	promptAndAutoUpdate,
 	preparers.InitClient,
 	killOldAgent,
+	createInvocationID,
 	startMetrics,
 }
 
@@ -671,4 +672,12 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func createInvocationID(ctx context.Context) (context.Context, error) {
+	cmd := FromContext(ctx)
+
+	invocationID := fmt.Sprintf("%s-%d", cmd.UseLine(), time.Now().UnixNano())
+
+	return state.WithInvocationID(ctx, invocationID), nil
 }

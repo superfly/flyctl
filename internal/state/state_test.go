@@ -17,6 +17,7 @@ func TestStrings(t *testing.T) {
 		"WorkingDirectory":  {WorkingDirectory, WithWorkingDirectory},
 		"UserHomeDirectory": {UserHomeDirectory, WithUserHomeDirectory},
 		"ConfigDirectory":   {ConfigDirectory, WithConfigDirectory},
+		"InvocationID":      {InvocationID, WithInvocationID},
 	}
 
 	for name := range cases {

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -28,12 +27,15 @@ import (
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 )
 
-var NonceHeader = "fly-machine-lease-nonce"
-
-const headerFlyRequestId = "fly-request-id"
+const (
+	NonceHeader        = "fly-machine-lease-nonce"
+	headerFlyRequestId = "fly-request-id"
+	invocationIDHeader = "Invocation-ID"
+)
 
 type Client struct {
 	appName    string
@@ -550,6 +552,8 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 }
 
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	var invocationID = state.InvocationID(ctx)
+
 	timing := instrument.Flaps.Begin()
 	defer timing.End()
 
@@ -558,6 +562,8 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 		return err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
+
+	req.Header.Set(invocationIDHeader, invocationID)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
@@ -571,7 +577,7 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	}()
 
 	if resp.StatusCode > 299 {
-		responseBody, err := ioutil.ReadAll(resp.Body)
+		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			responseBody = make([]byte, 0)
 		}
