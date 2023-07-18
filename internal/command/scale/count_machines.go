@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -133,7 +134,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 					}
 				}
 
-				m, v, err := launchMachine(ctx, *action, volume, appCompact)
+				m, v, err := launchMachine(ctx, action, volume, appCompact)
 				if err != nil {
 					return err
 				}
@@ -159,8 +160,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
+func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
 	flapsClient := flaps.FromContext(ctx)
+	mConfig := helpers.Clone(*action.MachineConfig)
 	var err error
 
 	for _, mnt := range action.MachineConfig.Mounts {
@@ -168,18 +170,17 @@ func launchMachine(ctx context.Context, action planItem, volume *api.Volume, app
 		if err != nil {
 			return nil, nil, err
 		}
-		action.MachineConfig.Mounts = []api.MachineMount{
+		mConfig.Mounts = []api.MachineMount{
 			{
 				Volume: volume.ID,
 				Path:   mnt.Path,
-				Name:   mnt.Name,
 			},
 		}
 	}
 
 	input := api.LaunchMachineInput{
 		Region: action.Region,
-		Config: &action.MachineConfig,
+		Config: &mConfig,
 	}
 
 	m, err := flapsClient.Launch(ctx, input)
@@ -257,7 +258,7 @@ type planItem struct {
 	Region        string
 	Delta         int
 	Machines      []*api.Machine
-	MachineConfig api.MachineConfig
+	MachineConfig *api.MachineConfig
 	Volumes       []*availableVolume
 }
 
@@ -307,7 +308,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				volumeName := mConfig.Mounts[0].Name
 				groupVolumes := volumeGroups[volumeName]
 				availableVols = lo.Filter(groupVolumes, func(av *availableVolume, _ int) bool {
-					return !av.Volume.IsAttached() && av.Volume.Region == regionName && av.Volume.Name == volumeName
+					return !av.Volume.IsAttached() && av.Volume.Region == regionName
 				})
 			}
 
@@ -316,7 +317,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				Region:        regionName,
 				Delta:         delta,
 				Machines:      perRegionMachines[regionName],
-				MachineConfig: *mConfig,
+				MachineConfig: mConfig,
 				Volumes:       availableVols,
 			})
 		}
@@ -350,7 +351,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
-				MachineConfig: *mConfig,
+				MachineConfig: mConfig,
 				Volumes:       availableVolumes,
 			})
 		}
