@@ -96,14 +96,14 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
 			numExistingVolumesUsed := lo.Min([]int{action.Delta, len(action.Volumes)})
 			numNewVolumesNeeded := action.Delta - numExistingVolumesUsed
-
 			withNewVolumes := flag.GetBool(ctx, "with-new-volumes")
+
 			if numExistingVolumesUsed > 0 && numNewVolumesNeeded > 0 && !withNewVolumes {
-				fmt.Fprintf(io.Out, "%+4d new volumes for group '%s' and using %d existing volumes in region '%s'\n", numNewVolumesNeeded, action.GroupName, numExistingVolumesUsed, action.Region)
+				fmt.Fprintf(io.Out, "%+4d new volumes and using %d existing volumes for group '%s' in region '%s'\n", numNewVolumesNeeded, numExistingVolumesUsed, action.GroupName, action.Region)
 			} else if numExistingVolumesUsed > 0 && !withNewVolumes {
 				fmt.Fprintf(io.Out, "  Using %d existing volumes for group '%s' in region '%s'\n", numExistingVolumesUsed, action.GroupName, action.Region)
-			} else if numNewVolumesNeeded > 0 {
-				fmt.Fprintf(io.Out, "%+4d new volumes for group '%s' in region '%s'\n", numNewVolumesNeeded, action.GroupName, action.Region)
+			} else {
+				fmt.Fprintf(io.Out, "%+4d new volumes for group '%s' in region '%s'\n", action.Delta, action.GroupName, action.Region)
 			}
 		}
 	}
