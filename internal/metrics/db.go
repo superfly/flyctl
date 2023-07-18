@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 )
 
 // FIXME: Obviously, we should actually use an sqlite DB
@@ -30,7 +31,11 @@ func FlushMetricsDB(ctx context.Context) error {
 		return err
 	}
 
-	request, err := http.NewRequest("POST", "http://localhost:8081/metrics_post", bytes.NewBuffer(json))
+	cfg := config.FromContext(ctx)
+	request, err := http.NewRequest("POST", cfg.MetricsBaseURL+"/metrics_post", bytes.NewBuffer(json))
+	if err != nil {
+		return err
+	}
 
 	request.Header.Set("Authorization", authToken)
 	request.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
