@@ -98,11 +98,11 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 			withNewVolumes := flag.GetBool(ctx, "with-new-volumes")
 			if numExistingVolumesUsed > 0 && numNewVolumesNeeded > 0 && !withNewVolumes {
-				fmt.Fprintf(io.Out, "%+4d new volumes and using %d existing volumes in region '%s'\n", numNewVolumesNeeded, numExistingVolumesUsed, action.Region)
+				fmt.Fprintf(io.Out, "%+4d new volumes for group '%s' and using %d existing volumes in region '%s'\n", numNewVolumesNeeded, action.GroupName, numExistingVolumesUsed, action.Region)
 			} else if numExistingVolumesUsed > 0 && !withNewVolumes {
-				fmt.Fprintf(io.Out, "  Using %d existing volumes in region '%s'\n", numExistingVolumesUsed, action.Region)
+				fmt.Fprintf(io.Out, "  Using %d existing volumes for group '%s' in region '%s'\n", numExistingVolumesUsed, action.GroupName, action.Region)
 			} else if numNewVolumesNeeded > 0 {
-				fmt.Fprintf(io.Out, "%+4d new volumes in region '%s'\n", numNewVolumesNeeded, action.Region)
+				fmt.Fprintf(io.Out, "%+4d new volumes for group '%s' in region '%s'\n", numNewVolumesNeeded, action.GroupName, action.Region)
 			}
 		}
 	}
