@@ -36,6 +36,8 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.Int{Name: "max-per-region", Description: "Max number of VMs per region", Default: -1},
 		flag.String{Name: "region", Description: "Comma separated list of regions to act on. Defaults to all regions where there is at least one machine running for the app"},
 		flag.String{Name: "process-group", Description: "The process group to scale"},
+		flag.Bool{Name: "with-new-volumes", Description: "New machines each get a new volumes even if there are unattached volumes available"},
+		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
 	)
 	return cmd
 }

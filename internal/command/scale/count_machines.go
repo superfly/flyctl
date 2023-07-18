@@ -10,13 +10,12 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
@@ -60,9 +59,25 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
+	volumes, err := apiClient.GetVolumes(ctx, appName)
+	if err != nil {
+		return err
+	}
+	availableVols := lo.Map(volumes, func(v api.Volume, _ int) *availableVolume {
+		return &availableVolume{
+			Volume:    &v,
+			Available: !v.IsAttached(),
+		}
+	})
+
+	appCompact, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
+	if err != nil {
+		return err
+	}
+
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines)
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(machines, expectedGroupCounts, availableVols, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -74,23 +89,23 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
-	needsVolumes := map[string]bool{}
 	for _, action := range actions {
 		size := action.MachineConfig.Guest.ToSize()
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
-		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
-			needsVolumes[action.GroupName] = true
-		}
-	}
 
-	if len(needsVolumes) > 0 {
-		groupNames := maps.Keys(needsVolumes)
-		slices.Sort(groupNames)
-		return fmt.Errorf(
-			"'fly scale count' can't scale up groups with mounts, "+
-				"use 'fly machine clone' to add machines for: %s",
-			strings.Join(groupNames, " "),
-		)
+		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
+			numExistingVolumesUsed := lo.Min([]int{action.Delta, len(action.Volumes)})
+			numNewVolumesNeeded := action.Delta - numExistingVolumesUsed
+			withNewVolumes := flag.GetBool(ctx, "with-new-volumes")
+
+			if numExistingVolumesUsed > 0 && numNewVolumesNeeded > 0 && !withNewVolumes {
+				fmt.Fprintf(io.Out, "%+4d new volumes and using %d existing volumes for group '%s' in region '%s'\n", numNewVolumesNeeded, numExistingVolumesUsed, action.GroupName, action.Region)
+			} else if numExistingVolumesUsed > 0 && !withNewVolumes {
+				fmt.Fprintf(io.Out, "  Using %d existing volumes for group '%s' in region '%s'\n", numExistingVolumesUsed, action.GroupName, action.Region)
+			} else {
+				fmt.Fprintf(io.Out, "%+4d new volumes for group '%s' in region '%s'\n", action.Delta, action.GroupName, action.Region)
+			}
+		}
 	}
 
 	if !flag.GetYes(ctx) {
@@ -111,11 +126,24 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action)
+				var volume *api.Volume
+				if i < len(action.Volumes) {
+					if av := action.Volumes[i]; av.Available {
+						av.Available = false
+						volume = av.Volume
+					}
+				}
+
+				m, v, err := launchMachine(ctx, action, volume, appCompact)
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				if v != nil {
+					fmt.Fprintf(io.Out, " volume:%s\n", v.ID)
+				} else {
+					fmt.Fprintln(io.Out)
+				}
 			}
 		case action.Delta < 0:
 			for i := 0; i > action.Delta; i-- {
@@ -132,14 +160,88 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) {
+func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
 	flapsClient := flaps.FromContext(ctx)
+	mConfig := helpers.Clone(*action.MachineConfig)
+	var err error
+
+	for _, mnt := range action.MachineConfig.Mounts {
+		volume, err = createVolume(ctx, mnt, volume, appCompact.ID, action.Region)
+		if err != nil {
+			return nil, nil, err
+		}
+		mConfig.Mounts = []api.MachineMount{
+			{
+				Volume: volume.ID,
+				Path:   mnt.Path,
+			},
+		}
+	}
 
 	input := api.LaunchMachineInput{
 		Region: action.Region,
-		Config: action.MachineConfig,
+		Config: &mConfig,
 	}
-	return flapsClient.Launch(ctx, input)
+
+	m, err := flapsClient.Launch(ctx, input)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return m, volume, nil
+}
+
+func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volume, appID string, region string) (*api.Volume, error) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	apiClient := client.FromContext(ctx).API()
+
+	var err error
+
+	withNewVolumes := flag.GetBool(ctx, "with-new-volumes")
+	if volume != nil && !withNewVolumes {
+		fmt.Fprintf(io.Out, "  Using unattached volume %s\n", colorize.Bold(volume.ID))
+		return volume, nil
+	}
+
+	var snapshotID *string
+	switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
+	case "last":
+		snapshots, err := apiClient.GetVolumeSnapshots(ctx, mount.Volume)
+		if err != nil {
+			return nil, err
+		}
+		if len(snapshots) > 0 {
+			snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
+			snapshotID = &snapshot.ID
+			fmt.Fprintf(io.Out, "  Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mount.Volume))
+		} else {
+			fmt.Fprintf(io.Out, "  No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(mount.Volume))
+			snapshotID = nil
+		}
+	case "":
+		fmt.Fprintf(io.Out, "  Volume %s will start empty\n", colorize.Bold(mount.Name))
+	default:
+		snapshotID = &snapID
+		fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
+	}
+
+	volInput := api.CreateVolumeInput{
+		AppID:             appID,
+		Name:              mount.Name,
+		Region:            region,
+		SizeGb:            mount.SizeGb,
+		Encrypted:         mount.Encrypted,
+		SnapshotID:        snapshotID,
+		RequireUniqueZone: false,
+	}
+
+	volume, err = apiClient.CreateVolume(ctx, volInput)
+	if err != nil {
+		return nil, err
+	}
+
+	return volume, nil
 }
 
 func destroyMachine(ctx context.Context, machine *api.Machine) error {
@@ -157,13 +259,22 @@ type planItem struct {
 	Delta         int
 	Machines      []*api.Machine
 	MachineConfig *api.MachineConfig
+	Volumes       []*availableVolume
 }
 
-func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+type availableVolume struct {
+	Volume    *api.Volume
+	Available bool
+}
+
+func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, volumes []*availableVolume, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
 		return m.ProcessGroup()
+	})
+	volumeGroups := lo.GroupBy(volumes, func(v *availableVolume) string {
+		return v.Volume.Name
 	})
 
 	for groupName, groupMachines := range machineGroups {
@@ -192,12 +303,22 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		mConfig.Standbys = nil
 
 		for regionName, delta := range regionDiffs {
+			var availableVolumes []*availableVolume
+			if len(mConfig.Mounts) > 0 {
+				volumeName := mConfig.Mounts[0].Name
+				groupVolumes := volumeGroups[volumeName]
+				availableVolumes = lo.Filter(groupVolumes, func(av *availableVolume, _ int) bool {
+					return av.Available && av.Volume.Region == regionName
+				})
+			}
+
 			actions = append(actions, &planItem{
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
 				Machines:      perRegionMachines[regionName],
 				MachineConfig: mConfig,
+				Volumes:       availableVolumes,
 			})
 		}
 	}
@@ -219,11 +340,19 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		}
 
 		for regionName, delta := range regionDiffs {
+			var availableVolumes []*availableVolume
+			if len(mConfig.Mounts) > 0 {
+				availableVolumes = lo.Filter(volumes, func(av *availableVolume, _ int) bool {
+					return av.Available && av.Volume.Region == regionName
+				})
+			}
+
 			actions = append(actions, &planItem{
 				GroupName:     groupName,
 				Region:        regionName,
 				Delta:         delta,
 				MachineConfig: mConfig,
+				Volumes:       availableVolumes,
 			})
 		}
 	}
