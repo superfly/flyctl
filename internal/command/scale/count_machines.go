@@ -66,7 +66,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	availableVols := lo.Map(volumes, func(v api.Volume, _ int) *availableVolume {
 		return &availableVolume{
 			Volume:    &v,
-			Available: true,
+			Available: !v.IsAttached(),
 		}
 	})
 
@@ -303,12 +303,12 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		mConfig.Standbys = nil
 
 		for regionName, delta := range regionDiffs {
-			var availableVols []*availableVolume
+			var availableVolumes []*availableVolume
 			if len(mConfig.Mounts) > 0 {
 				volumeName := mConfig.Mounts[0].Name
 				groupVolumes := volumeGroups[volumeName]
-				availableVols = lo.Filter(groupVolumes, func(av *availableVolume, _ int) bool {
-					return !av.Volume.IsAttached() && av.Volume.Region == regionName
+				availableVolumes = lo.Filter(groupVolumes, func(av *availableVolume, _ int) bool {
+					return av.Available && av.Volume.Region == regionName
 				})
 			}
 
@@ -318,7 +318,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				Delta:         delta,
 				Machines:      perRegionMachines[regionName],
 				MachineConfig: mConfig,
-				Volumes:       availableVols,
+				Volumes:       availableVolumes,
 			})
 		}
 	}
@@ -343,7 +343,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 			var availableVolumes []*availableVolume
 			if len(mConfig.Mounts) > 0 {
 				availableVolumes = lo.Filter(volumes, func(av *availableVolume, _ int) bool {
-					return !av.Volume.IsAttached() && av.Volume.Region == regionName
+					return av.Available && av.Volume.Region == regionName
 				})
 			}
 
