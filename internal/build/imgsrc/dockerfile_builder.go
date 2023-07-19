@@ -357,9 +357,16 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	ch := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		con, err := console.ConsoleFromFile(os.Stderr)
+		var (
+			con console.Console
+			err error
+		)
+		// On GitHub Actions, os.Stderr is not console.
+		// https://community.fly.io/t/error-failed-to-fetch-an-image-or-build-from-source-error-building-provided-file-is-not-a-console/14273
+		con, err = console.ConsoleFromFile(os.Stderr)
 		if err != nil {
-			return err
+			// It should be nil, but just in case.
+			con = nil
 		}
 		return progressui.DisplaySolveStatus(ctx, "", con, os.Stdout, ch)
 	})
