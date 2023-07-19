@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,7 +16,8 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	}
 
 	s := &SourceInfo{
-		Family: "Phoenix",
+		Family:   "Phoenix",
+		Callback: PhoenixCallback,
 		Concurrency: map[string]int{
 			"soft_limit": 1000,
 			"hard_limit": 1000,
@@ -46,12 +48,8 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	s.KillSignal = "SIGTERM"
 	s.Port = 8080
 	s.Env = map[string]string{
-		"PORT":     "8080",
 		"PHX_HOST": "APP_FQDN",
-	}
-	s.DockerfileAppendix = []string{
-		"ENV ECTO_IPV6 true",
-		"ENV ERL_AFLAGS \"-proto_dist inet6_tcp\"",
+		"PORT":     "8080",
 	}
 	s.InitCommands = []InitCommand{
 		{
@@ -104,4 +102,53 @@ a Postgresql database.
 	}
 
 	return s, nil
+}
+
+func PhoenixCallback(appName string, _ *SourceInfo, options map[string]bool) error {
+	envEExPath := "rel/env.sh.eex"
+	envEExContents := `
+# configure node for distributed erlang with IPV6 support
+export ERL_AFLAGS="-proto_dist inet6_tcp"
+export ECTO_IPV6="true"
+export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
+export RELEASE_DISTRIBUTION="name"
+export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
+
+# enable swap if not already enabled
+if ! [ -f "/swapfile" ]; then
+  echo "Creating swapfile"
+  fallocate -l 512M /swapfile
+  chmod 0600 /swapfile
+  mkswap /swapfile
+  echo 10 > /proc/sys/vm/swappiness
+  swapon /swapfile
+  echo 1 > /proc/sys/vm/overcommit_memory
+fi
+`
+	_, err := os.Stat(envEExPath)
+	if os.IsNotExist(err) {
+		fmt.Fprintln(os.Stdout, "Generating rel/env.sh.eex for distributed Elixir support")
+		contents := fmt.Sprintf("#!/bin/sh\n%s", envEExContents)
+
+		if err := os.MkdirAll("rel", 0o755); err != nil { // skipcq: GSC-G301
+			return err
+		}
+
+		if err := os.WriteFile(envEExPath, []byte(contents), 0o755); err != nil { // skipcq: GSC-G302
+			return err
+		}
+	} else if !fileContains(envEExPath, "RELEASE_NODE") {
+		fmt.Fprintln(os.Stdout, "Updating rel/env.sh.eex for distributed Elixir support")
+		appendedContents := fmt.Sprintf("# appended by fly launch: configure erlang with IPV6 and enable swap\n%s", envEExContents)
+		f, err := os.OpenFile(envEExPath, os.O_APPEND|os.O_WRONLY, 0o755) // skipcq: GSC-G302
+		if err != nil {
+			return err
+		}
+		defer f.Close() // skipcq: GO-S2307
+
+		if _, err := f.WriteString(appendedContents); err != nil {
+			return err
+		}
+	}
+	return nil
 }
