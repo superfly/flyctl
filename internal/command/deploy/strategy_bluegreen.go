@@ -380,6 +380,8 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
 
+	defer bg.ctrlcHook.Done()
+
 	if bg.aborted.Load() {
 		return ErrAborted
 	}
@@ -446,7 +448,6 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
-	bg.ctrlcHook.Done()
 	return nil
 }
 
