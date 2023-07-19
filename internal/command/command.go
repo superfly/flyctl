@@ -404,7 +404,9 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 			// Does not return on success
 			err = update.Relaunch(ctx, silent)
 			return nil, fmt.Errorf("failed to relaunch after updating: %w", err)
-		} else if runtime.GOOS != "windows" {
+
+			// TODO(allison): reenable autoupdate after release process gets refined a bit
+		} else if runtime.GOOS != "windows" && false {
 			// Background auto-update has terrible UX on windows,
 			// with flickery powershell progress bars and UAC prompts.
 			// For Windows, we just prompt for updates, and only auto-update when severely outdated (the before-command update)
