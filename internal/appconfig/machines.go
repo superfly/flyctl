@@ -185,15 +185,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	c.tomachineSetStopConfig(mConfig)
 
 	// Files
-	files := make([]*api.File, 0, len(c.Files))
-	for _, f := range c.Files {
-		machineFile, err := f.toMachineFile()
-		if err != nil {
-			return nil, err
-		}
-		files = append(files, machineFile)
-	}
-	machine.MergeFiles(mConfig, files)
+	machine.MergeFiles(mConfig, c.MergedFiles)
 
 	return mConfig, nil
 }

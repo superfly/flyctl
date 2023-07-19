@@ -84,7 +84,6 @@ type machineDeployment struct {
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
 	updateOnly            bool
-	files                 []*api.File
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -94,7 +93,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.Files)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +154,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
 		updateOnly:            args.UpdateOnly,
-		files:                 args.Files,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
@@ -487,7 +485,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, files []*api.File) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -518,6 +516,11 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 	appName := appconfig.NameFromContext(ctx)
 	if appName != "" {
 		appConfig.AppName = appName
+	}
+
+	// Merge in any files passed via --file flags.
+	if err := appConfig.MergeFiles(files); err != nil {
+		return nil, err
 	}
 
 	return appConfig, nil

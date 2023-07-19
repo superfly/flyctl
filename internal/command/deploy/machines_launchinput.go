@@ -47,9 +47,6 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		mConfig.Standbys = standbyFor
 	}
 
-	// Merge files from the app config and the parsed flags.
-	machine.MergeFiles(mConfig, md.files)
-
 	return &api.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
@@ -130,9 +127,6 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	if len(mConfig.Services) > 0 && len(mConfig.Standbys) > 0 {
 		mConfig.Standbys = nil
 	}
-
-	// Merge files from the app config and the parsed flags.
-	machine.MergeFiles(mConfig, md.files)
 
 	return &api.LaunchMachineInput{
 		ID:                  mID,

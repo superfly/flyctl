@@ -11,6 +11,7 @@ import (
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/scanner"
 	"golang.org/x/exp/slices"
 )
@@ -55,6 +56,9 @@ type Config struct {
 	Services    []Service                 `toml:"services,omitempty" json:"services,omitempty"`
 	Checks      map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Files       []File                    `toml:"files,omitempty" json:"files,omitempty"`
+
+	// MergedFiles is a list of files that have been merged from the app config and flags.
+	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Others, less important.
 	Statics []Static            `toml:"statics,omitempty" json:"statics,omitempty"`
@@ -287,4 +291,29 @@ func (cfg *Config) URL() *url.URL {
 
 func (cfg *Config) PlatformVersion() string {
 	return cfg.platformVersion
+}
+
+// MergeFiles merges the provided files with the files in the config wherein the provided files
+// take precedence.
+func (cfg *Config) MergeFiles(files []*api.File) error {
+	// First convert the Config files to Machine files.
+	cfgFiles := make([]*api.File, 0, len(cfg.Files))
+	for _, f := range cfg.Files {
+		machineFile, err := f.toMachineFile()
+		if err != nil {
+			return err
+		}
+		cfgFiles = append(cfgFiles, machineFile)
+	}
+
+	// Merge the config files with the provided files.
+	mConfig := &api.MachineConfig{
+		Files: files,
+	}
+	machine.MergeFiles(mConfig, files)
+
+	// Persist the merged files back to the config to be used later for deploying.
+	cfg.MergedFiles = mConfig.Files
+
+	return nil
 }
