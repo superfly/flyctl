@@ -4,7 +4,6 @@ package appconfig
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -112,8 +111,6 @@ func (f File) toMachineFile() (*api.File, error) {
 	case f.RawValue != "":
 		encodedValue := base64.StdEncoding.EncodeToString([]byte(f.RawValue))
 		file.RawValue = &encodedValue
-	default:
-		return nil, errors.New("invalid file definition, one of local_path, secret_name or raw_value must be set")
 	}
 	return file, nil
 }
