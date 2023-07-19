@@ -7,7 +7,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	machinecmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -48,7 +47,8 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		mConfig.Standbys = standbyFor
 	}
 
-	mConfig.Files = md.files
+	// Merge files from the app config and the parsed flags.
+	machine.MergeFiles(mConfig, md.files)
 
 	return &api.LaunchMachineInput{
 		Region:     region,
@@ -131,7 +131,8 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mConfig.Standbys = nil
 	}
 
-	machinecmd.MergeFiles(mConfig, md.files)
+	// Merge files from the app config and the parsed flags.
+	machine.MergeFiles(mConfig, md.files)
 
 	return &api.LaunchMachineInput{
 		ID:                  mID,

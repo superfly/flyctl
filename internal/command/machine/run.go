@@ -880,7 +880,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	if err != nil {
 		return machineConf, err
 	}
-	MergeFiles(machineConf, machineFiles)
+	mach.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
 }
@@ -924,25 +924,6 @@ func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
 	machineFiles = append(machineFiles, secretFiles...)
 
 	return machineFiles, nil
-}
-
-// MergeFiles merges the files parsed from the command line into the machine configuration.
-func MergeFiles(machineConf *api.MachineConfig, files []*api.File) {
-	for _, f := range files {
-		idx := slices.IndexFunc(machineConf.Files, func(i *api.File) bool {
-			return i.GuestPath == f.GuestPath
-		})
-
-		switch {
-		case idx == -1:
-			machineConf.Files = append(machineConf.Files, f)
-			continue
-		case f.RawValue == nil && f.SecretName == nil:
-			machineConf.Files = slices.Delete(machineConf.Files, idx, idx+1)
-		default:
-			machineConf.Files = slices.Replace(machineConf.Files, idx, idx+1, f)
-		}
-	}
 }
 
 func parseFiles(ctx context.Context, flagName string, cb func(value string, file *api.File) error) ([]*api.File, error) {

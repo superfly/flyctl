@@ -81,7 +81,7 @@ func (c *Config) DefaultProcessName() string {
 
 // Flatten generates a machine config specific to a process_group.
 //
-// Only services, mounts & checks specific to the provided progress group will be in the returned config.
+// Only services, mounts, checks & files specific to the provided progress group will be in the returned config.
 func (c *Config) Flatten(groupName string) (*Config, error) {
 	if err := c.SetMachinesPlatform(); err != nil {
 		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
@@ -146,6 +146,11 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[Mounts]]
 	dst.Mounts = lo.Filter(c.Mounts, func(x Mount, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+
+	// [[Files]]
+	dst.Files = lo.Filter(c.Files, func(x File, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
 

@@ -3,8 +3,11 @@
 package appconfig
 
 import (
+	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"reflect"
 
 	"github.com/superfly/flyctl/api"
@@ -51,6 +54,7 @@ type Config struct {
 	HTTPService *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Services    []Service                 `toml:"services,omitempty" json:"services,omitempty"`
 	Checks      map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
+	Files       []File                    `toml:"files,omitempty" json:"files,omitempty"`
 
 	// Others, less important.
 	Statics []Static            `toml:"statics,omitempty" json:"statics,omitempty"`
@@ -77,6 +81,37 @@ type Config struct {
 type Deploy struct {
 	ReleaseCommand string `toml:"release_command,omitempty" json:"release_command,omitempty"`
 	Strategy       string `toml:"strategy,omitempty" json:"strategy,omitempty"`
+}
+
+type File struct {
+	GuestPath  string   `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
+	LocalPath  string   `toml:"local_path" json:"local_path,omitempty"`
+	SecretName string   `toml:"secret_name" json:"secret_name,omitempty"`
+	RawValue   string   `toml:"raw_value" json:"raw_value,omitempty"`
+	Processes  []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+
+func (f File) toMachineFile() (*api.File, error) {
+	file := &api.File{
+		GuestPath: f.GuestPath,
+	}
+	switch {
+	case f.LocalPath != "":
+		content, err := os.ReadFile(f.LocalPath)
+		if err != nil {
+			return nil, fmt.Errorf("could not read file %s: %w", f.LocalPath, err)
+		}
+		rawValue := base64.StdEncoding.EncodeToString(content)
+		file.RawValue = &rawValue
+	case f.SecretName != "":
+		file.SecretName = &f.SecretName
+	case f.RawValue != "":
+		encodedValue := base64.StdEncoding.EncodeToString([]byte(f.RawValue))
+		file.RawValue = &encodedValue
+	default:
+		return nil, errors.New("invalid file definition, one of local_path, secret_name or raw_value must be set")
+	}
+	return file, nil
 }
 
 type Static struct {

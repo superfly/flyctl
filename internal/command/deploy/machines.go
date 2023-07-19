@@ -98,6 +98,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.Validate(ctx); err != nil {
 		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)

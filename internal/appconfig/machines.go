@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/machine"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *api.MachineConfig) (*api.MachineConfig, error) {
@@ -182,6 +183,17 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 
 	// StopConfig
 	c.tomachineSetStopConfig(mConfig)
+
+	// Files
+	files := make([]*api.File, 0, len(c.Files))
+	for _, f := range c.Files {
+		machineFile, err := f.toMachineFile()
+		if err != nil {
+			return nil, err
+		}
+		files = append(files, machineFile)
+	}
+	machine.MergeFiles(mConfig, files)
 
 	return mConfig, nil
 }
