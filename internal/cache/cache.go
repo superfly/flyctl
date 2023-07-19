@@ -164,7 +164,7 @@ func (c *cache) IsCurrentVersionInvalid() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	if c.invalidVer != nil {
+	if c.invalidVer == nil {
 		return ""
 	}
 
