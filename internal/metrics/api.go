@@ -8,12 +8,9 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/net/websocket"
 )
 
 var Enabled = true
-var websocketConn *websocket.Conn
-var websocketMu sync.Mutex
 var done sync.WaitGroup
 
 type websocketMessage struct {
@@ -41,10 +38,10 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 
 	go func() {
 		defer done.Done()
-		insertMetricToDB(message)
+		handleErr(insertMetricToDB(message))
 	}()
 
-	// TODO: Do we need this? probably not, right?
+	// TODO(billy): Do we need this? probably not, right?
 	done.Add(1)
 }
 

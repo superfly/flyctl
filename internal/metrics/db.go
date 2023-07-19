@@ -11,15 +11,16 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 )
 
-// FIXME: Obviously, we should actually use an sqlite DB
+// TODO(billy): Obviously, we should actually use an sqlite DB
 var inMemoryMetricsDB []websocketMessage = make([]websocketMessage, 0)
 
-func insertMetricToDB(metric websocketMessage) {
+func insertMetricToDB(metric websocketMessage) error {
 	inMemoryMetricsDB = append(inMemoryMetricsDB, metric)
+	return nil
 }
 
 // TODO: this should be done by the agent
-// FIXME: Actually clear the DB
+// TODO(billy): Actually clear the DB
 func FlushMetricsDB(ctx context.Context) error {
 	json, err := json.Marshal(inMemoryMetricsDB)
 	if err != nil {
