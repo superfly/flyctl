@@ -113,6 +113,17 @@ export ECTO_IPV6="true"
 export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
 export RELEASE_DISTRIBUTION="name"
 export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
+
+# enable swap if not already enabled
+if ! [ -f "/swapfile" ]; then
+  echo "Creating swapfile"
+  fallocate -l 512M /swapfile
+  chmod 0600 /swapfile
+  mkswap /swapfile
+  echo 10 > /proc/sys/vm/swappiness
+  swapon /swapfile
+  echo 1 > /proc/sys/vm/overcommit_memory
+fi
 `
 	_, err := os.Stat(envEExPath)
 	if os.IsNotExist(err) {
@@ -128,7 +139,7 @@ export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
 		}
 	} else if !fileContains(envEExPath, "RELEASE_NODE") {
 		fmt.Fprintln(os.Stdout, "Updating rel/env.sh.eex for distributed Elixir support")
-		appendedContents := fmt.Sprintf("# appended by fly launch: configure node for distributed erlang with IPV6 support\n%s", envEExContents)
+		appendedContents := fmt.Sprintf("# appended by fly launch: configure erlang with IPV6 and enable swap\n%s", envEExContents)
 		f, err := os.OpenFile(envEExPath, os.O_APPEND|os.O_WRONLY, 0o755) // skipcq: GSC-G302
 		if err != nil {
 			return err
