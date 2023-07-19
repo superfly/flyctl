@@ -20,9 +20,9 @@ import (
 
 func newExtend() *cobra.Command {
 	const (
-		long = `Extends a target volume to the size specified. Volumes with attached nomad allocations
-		will be restarted automatically. Machines will require a manual restart to increase the size
-		of the FS.`
+		long = `Extends a target volume to the size specified. The instance is automatically restarted for Nomad (V1) apps. 
+		Most Machines (V2 apps) don't require a restart. Older Machines get a message to manually restart the Machine
+		to increase the size of the FS.`
 
 		short = "Extend a target volume"
 
