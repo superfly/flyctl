@@ -213,7 +213,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		}
 
 		args := []string{"./bin/rails", "generate", "dockerfile",
-			"--label=fly_launch_runtime:rails"}
+			"--sentry", "--label=fly_launch_runtime:rails"}
 
 		if options["postgresql"] {
 			args = append(args, "--postgresql", "--no-prepare")
