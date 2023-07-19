@@ -11,6 +11,7 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
@@ -179,6 +180,7 @@ func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfi
 
 func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, logPrefix string, allowInfinite bool) error {
 	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
@@ -205,7 +207,10 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		case notFoundResponse && desiredState != api.MachineStateDestroyed:
 			return err
 		case !notFoundResponse && err != nil:
-			time.Sleep(b.Duration())
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
 			continue
 		}
 		lm.logClearLinesAbove(1)
@@ -235,7 +240,7 @@ func (lm *leasableMachine) isConstantlyRestarting(machine *api.Machine) bool {
 }
 
 func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPrefix string) error {
-	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, 10*time.Second))
 	defer cancel()
 
 	b := &backoff.Backoff{
@@ -265,7 +270,10 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPref
 		case lm.isConstantlyRestarting(machine):
 			return fmt.Errorf("the app appears to be crashing")
 		default:
-			time.Sleep(b.Duration())
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
 		}
 	}
 }
@@ -274,7 +282,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	if len(lm.Machine().Checks) == 0 {
 		return nil
 	}
-	waitCtx, cancel := context.WithTimeout(ctx, timeout)
+	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
 	defer cancel()
 
 	checkDefs := maps.Values(lm.Machine().Config.Checks)
@@ -310,7 +318,10 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 				lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
 				printedFirst = true
 			}
-			time.Sleep(b.Duration())
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
 			continue
 		}
 		lm.logClearLinesAbove(1)
@@ -322,6 +333,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 // waits for an eventType1 type event to show up after we see a eventType2 event, and returns it
 func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration, allowInfinite bool) (*api.MachineEvent, error) {
 	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
 	b := &backoff.Backoff{
 		Min:    500 * time.Millisecond,
@@ -348,7 +360,10 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 		if exitEvent != nil {
 			return exitEvent, nil
 		} else {
-			time.Sleep(b.Duration())
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
 		}
 	}
 }
