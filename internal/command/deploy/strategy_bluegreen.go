@@ -3,20 +3,17 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"os"
-	"os/signal"
-	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -43,6 +40,7 @@ type blueGreen struct {
 	aborted         atomic.Bool
 	healthLock      sync.RWMutex
 	stateLock       sync.RWMutex
+	ctrlcHook       ctrlc.Handle
 
 	hangingBlueMachines []string
 }
@@ -63,22 +61,10 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
-	{
-		signalCh := make(chan os.Signal, 1)
-		abortSignals := []os.Signal{os.Interrupt}
-		if runtime.GOOS != "windows" {
-			abortSignals = append(abortSignals, syscall.SIGTERM)
-		}
-		// Prevent ctx from being cancelled, we need it to do recovery operations
-		signal.Reset(abortSignals...)
-		signal.Notify(signalCh, abortSignals...)
-		go func() {
-			<-signalCh
-			// most terminals print ^C, this makes things easier to read.
-			fmt.Fprintf(bg.io.ErrOut, "\n")
-			bg.aborted.Store(true)
-		}()
-	}
+	ctrlc.ClearHandlers()
+	bg.ctrlcHook = ctrlc.Hook(func() {
+		bg.aborted.Store(true)
+	})
 
 	return bg
 
@@ -460,6 +446,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
+	bg.ctrlcHook.Done()
 	return nil
 }
 

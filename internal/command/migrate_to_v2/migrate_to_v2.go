@@ -4,11 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/signal"
-	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2"
@@ -24,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -512,26 +509,9 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		}
 	}()
 
-	cancelableCtx, setAborted := context.WithCancel(ctx)
+	ctrlc.ClearHandlers()
+	cancelableCtx, setAborted := ctrlc.HookContext(ctx)
 	defer setAborted()
-	// Hook into Ctrl+C so that aborting the migration
-	// leaves the app in a stable, unlocked, non-detached state
-	{
-		signalCh := make(chan os.Signal, 1)
-		abortSignals := []os.Signal{os.Interrupt}
-		if runtime.GOOS != "windows" {
-			abortSignals = append(abortSignals, syscall.SIGTERM)
-		}
-		// Prevent ctx from being cancelled, we need it to do recovery operations
-		signal.Reset(abortSignals...)
-		signal.Notify(signalCh, abortSignals...)
-		go func() {
-			<-signalCh
-			// most terminals print ^C, this makes things easier to read.
-			fmt.Fprintf(m.io.ErrOut, "\n")
-			setAborted()
-		}()
-	}
 
 	if m.isPostgres {
 		tb.Detail("Upgrading postgres image")
