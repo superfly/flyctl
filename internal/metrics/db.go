@@ -39,7 +39,7 @@ func FlushMetricsDB(ctx context.Context) error {
 	}
 
 	request.Header.Set("Authorization", authToken)
-	request.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+	request.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Info().Version))
 
 	client := &http.Client{}
 
