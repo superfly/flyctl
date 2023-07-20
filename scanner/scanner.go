@@ -42,6 +42,7 @@ type SourceInfo struct {
 	DockerCommand                string
 	DockerEntrypoint             string
 	KillSignal                   string
+	SwapSizeMB                   int
 	Buildpacks                   []string
 	Secrets                      []Secret
 	Files                        []SourceFile
@@ -137,7 +138,6 @@ func templatesExecute(name string, vars map[string]interface{}) (files []SourceF
 		template := template.Must(template.New("name").Parse(string(input)))
 		result := strings.Builder{}
 		err := template.Execute(&result, vars)
-
 		if err != nil {
 			panic(err)
 		}
