@@ -53,6 +53,7 @@ type MachineDeploymentArgs struct {
 	IncreasedAvailability bool
 	AllocPublicIP         bool
 	UpdateOnly            bool
+	Files                 []*api.File
 }
 
 type machineDeployment struct {
@@ -92,10 +93,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.Files)
 	if err != nil {
 		return nil, err
 	}
+
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.Validate(ctx); err != nil {
 		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
@@ -483,7 +485,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, files []*api.File) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -514,6 +516,11 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 	appName := appconfig.NameFromContext(ctx)
 	if appName != "" {
 		appConfig.AppName = appName
+	}
+
+	// Merge in any files passed via --file flags.
+	if err := appConfig.MergeFiles(files); err != nil {
+		return nil, err
 	}
 
 	return appConfig, nil

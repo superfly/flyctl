@@ -83,6 +83,19 @@ console_command = "/bin/bash"
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"
 
+[[files]]
+  guest_path = "/path/to/hello.txt"
+  raw_value = "aGVsbG8gd29ybGQK"
+
+[[files]]
+  guest_path = "/path/to/secret.txt"
+  secret_name = "SUPER_SECRET"
+
+[[files]]
+  guest_path = "/path/to/config.yaml"
+  local_path = "/local/path/config.yaml"
+  processes = ["web"]
+
 [mounts]
   source = "data"
   destination = "/data"

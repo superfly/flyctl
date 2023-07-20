@@ -256,6 +256,27 @@ func TestToDefinition(t *testing.T) {
 				"url_prefix": "/static-assets",
 			},
 		},
+		"files": []map[string]any{
+			{
+				"guest_path":  "/path/to/hello.txt",
+				"raw_value":   "aGVsbG8gd29ybGQK",
+				"local_path":  "",
+				"secret_name": "",
+			},
+			{
+				"guest_path":  "/path/to/secret.txt",
+				"raw_value":   "",
+				"secret_name": "SUPER_SECRET",
+				"local_path":  "",
+			},
+			{
+				"guest_path":  "/path/to/config.yaml",
+				"raw_value":   "",
+				"secret_name": "",
+				"local_path":  "/local/path/config.yaml",
+				"processes":   []any{"web"},
+			},
+		},
 		"mounts": []map[string]any{{
 			"source":      "data",
 			"destination": "/data",
