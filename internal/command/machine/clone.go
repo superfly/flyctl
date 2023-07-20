@@ -77,6 +77,7 @@ func newClone() *cobra.Command {
 			Name:        "standby-for",
 			Description: "Comma separated list of machine ids to watch for. You can use '--standby-for=source' to create a standby for the cloned machine",
 		},
+		flag.Detach(),
 	)
 
 	return cmd
@@ -287,6 +288,10 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(out, "  Machine %s has been created...\n", colorize.Bold(launchedMachine.ID))
+
+	if flag.GetDetach(ctx) {
+		return nil
+	}
 
 	if !input.SkipLaunch {
 		fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
