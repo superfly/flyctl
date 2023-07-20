@@ -13,7 +13,7 @@ import (
 var Enabled = true
 var done sync.WaitGroup
 
-type websocketMessage struct {
+type metricsMessage struct {
 	Metric  string          `json:"m"`
 	Payload json.RawMessage `json:"p"`
 }
@@ -31,7 +31,7 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 		return
 	}
 
-	message := websocketMessage{
+	message := metricsMessage{
 		Metric:  metricSlug,
 		Payload: payload,
 	}
@@ -41,7 +41,6 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 		handleErr(insertMetricToDB(message))
 	}()
 
-	// TODO(billy): Do we need this? probably not, right?
 	done.Add(1)
 }
 

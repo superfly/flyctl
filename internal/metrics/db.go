@@ -12,9 +12,9 @@ import (
 )
 
 // TODO(billy): Obviously, we should actually use an sqlite DB
-var inMemoryMetricsDB []websocketMessage = make([]websocketMessage, 0)
+var inMemoryMetricsDB []metricsMessage = make([]metricsMessage, 0)
 
-func insertMetricToDB(metric websocketMessage) error {
+func insertMetricToDB(metric metricsMessage) error {
 	inMemoryMetricsDB = append(inMemoryMetricsDB, metric)
 	return nil
 }
