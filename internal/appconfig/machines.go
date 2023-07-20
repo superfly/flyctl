@@ -118,6 +118,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 		mConfig.Init.Exec = c.Experimental.Exec
 	}
 	mConfig.Init.Cmd = cmd
+	mConfig.Init.SwapSizeMB = c.SwapSizeMB
 
 	// Metadata
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{

@@ -554,6 +554,7 @@ type MachineInit struct {
 	Entrypoint []string `json:"entrypoint,omitempty"`
 	Cmd        []string `json:"cmd,omitempty"`
 	Tty        bool     `json:"tty,omitempty"`
+	SwapSizeMB int      `json:"swap_size_mb,omitempty"`
 }
 
 type DNSConfig struct {
