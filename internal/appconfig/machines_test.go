@@ -47,6 +47,9 @@ func TestToMachineConfig(t *testing.T) {
 			Timeout: api.MustParseDuration("10s"),
 			Signal:  api.Pointer("SIGTERM"),
 		},
+		Init: api.MachineInit{
+			SwapSizeMB: 512,
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
