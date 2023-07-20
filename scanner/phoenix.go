@@ -46,6 +46,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	}
 
 	s.KillSignal = "SIGTERM"
+	s.SwapSizeMB = 512
 	s.Port = 8080
 	s.Env = map[string]string{
 		"PHX_HOST": "APP_FQDN",
