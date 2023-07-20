@@ -84,11 +84,11 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 				return a.ID == *allocId
 			})
 			if !ok {
-				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, allocId)
+				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *allocId)
 			}
 			path = m.nomadVolPath(&vol, alloc.TaskName)
 			if path == "" {
-				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
+				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, *allocId)
 			}
 		}
 		if m.verbose {

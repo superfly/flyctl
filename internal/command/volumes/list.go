@@ -94,7 +94,7 @@ func runList(ctx context.Context) error {
 				taskName := (*allocationTaskNames)[*volume.AttachedAllocation]
 
 				if taskName != "app" {
-					attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation, taskName)
+					attachedVMID = fmt.Sprintf("%s (%s)", *volume.AttachedAllocation, taskName)
 				}
 			}
 		}
