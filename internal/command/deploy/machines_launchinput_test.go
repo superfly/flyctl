@@ -39,7 +39,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
-				"fly_flyctl_version":   buildinfo.Version().String(),
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
 			},
 		},
 	}
@@ -240,4 +240,95 @@ func Test_launchInputForUpdate_clearStandbysWithServices(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 0, len(li.Config.Standbys))
+}
+
+func Test_launchInputForLaunch_Files(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-files-app",
+		PrimaryRegion: "atl",
+		MergedFiles: []*api.File{
+			{
+				GuestPath: "/path/to/hello.txt",
+				RawValue:  api.StringPointer("aGVsbG8gd29ybGQK"),
+			},
+		},
+	})
+	require.NoError(t, err)
+	md.releaseId = "release_id"
+	md.releaseVersion = 3
+
+	// Launch a new machine
+	want := &api.LaunchMachineInput{
+		Region: "atl",
+		Config: &api.MachineConfig{
+			Env: map[string]string{
+				"PRIMARY_REGION":    "atl",
+				"FLY_PROCESS_GROUP": "app",
+			},
+			Image: "super/balloon",
+			Metadata: map[string]string{
+				"fly_platform_version": "v2",
+				"fly_process_group":    "app",
+				"fly_release_id":       "release_id",
+				"fly_release_version":  "3",
+				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+			},
+			Files: []*api.File{
+				{
+					GuestPath: "/path/to/hello.txt",
+					RawValue:  api.StringPointer("aGVsbG8gd29ybGQK"),
+				},
+			},
+		},
+	}
+	li, err := md.launchInputForLaunch("", nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, want, li)
+}
+
+func Test_launchInputForUpdate_Files(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-files-app",
+		PrimaryRegion: "atl",
+		MergedFiles: []*api.File{
+			{
+				GuestPath:  "/path/to/config/yaml",
+				SecretName: api.StringPointer("SECRET_CONFIG"),
+			},
+			{
+				GuestPath: "/path/to/be/deleted",
+			},
+			{
+				GuestPath: "/path/to/hello.txt",
+				RawValue:  api.StringPointer("Z29vZGJ5ZQo="),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	li, err := md.launchInputForUpdate(&api.Machine{
+		Config: &api.MachineConfig{
+			Files: []*api.File{
+				{
+					GuestPath: "/path/to/hello.txt",
+					RawValue:  api.StringPointer("aGVsbG8gd29ybGQK"),
+				},
+				{
+					GuestPath: "/path/to/be/deleted",
+					RawValue:  api.StringPointer("ZGVsZXRlIG1lCg=="),
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []*api.File{
+		{
+			GuestPath: "/path/to/hello.txt",
+			RawValue:  api.StringPointer("Z29vZGJ5ZQo="),
+		},
+		{
+			GuestPath:  "/path/to/config/yaml",
+			SecretName: api.StringPointer("SECRET_CONFIG"),
+		},
+	}, li.Config.Files)
 }

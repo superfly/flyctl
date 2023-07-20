@@ -1,5 +1,7 @@
 package buildinfo
 
+import "strings"
+
 var environment = "development"
 
 func Environment() string {
@@ -7,7 +9,7 @@ func Environment() string {
 }
 
 func IsDev() bool {
-	return environment == "development"
+	return strings.Contains(version, "-snapshot.") || environment == "development"
 }
 
 func IsRelease() bool {

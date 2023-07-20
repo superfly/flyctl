@@ -17,6 +17,7 @@ type ConnectParams struct {
 	AppName          string
 	OrganizationSlug string
 	Dialer           agent.Dialer
+	BindAddr         string
 	Ports            []string
 	RemoteHost       string
 	PromptInstance   bool
@@ -52,12 +53,13 @@ func Start(ctx context.Context, p *ConnectParams) error {
 
 func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 	var (
-		io         = iostreams.FromContext(ctx)
-		client     = client.FromContext(ctx).API()
-		orgSlug    = p.OrganizationSlug
-		localPort  = p.Ports[0]
-		remotePort = localPort
-		remoteAddr string
+		io            = iostreams.FromContext(ctx)
+		client        = client.FromContext(ctx).API()
+		orgSlug       = p.OrganizationSlug
+		localBindAddr = p.BindAddr
+		localPort     = p.Ports[0]
+		remotePort    = localPort
+		remoteAddr    string
 	)
 
 	if len(p.Ports) > 1 {
@@ -96,7 +98,7 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 
 	if _, err := strconv.Atoi(localPort); err == nil {
 		// just numbers
-		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
+		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", localBindAddr, localPort))
 		if err != nil {
 			return nil, err
 		}

@@ -1,8 +1,6 @@
 name: Preflight Tests
 
 on:
-  schedule:
-    - cron: '21 */2 * * *'
   workflow_dispatch:
     inputs:
       reason:
@@ -10,7 +8,7 @@ on:
         required: false
         default: User initiated run
         type: string
-  push:
+  workflow_call:
 
 jobs:
   preflight-tests:
@@ -34,7 +32,10 @@ jobs:
         run: |
           curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
-          make
+      - uses: actions/download-artifact@v3
+        with:
+          name: flyctl
+          path: master-build
       - name: Run preflight tests
         id: preflight
         env:
@@ -44,12 +45,14 @@ jobs:
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
         run: |
+          mv master-build/flyctl bin/flyctl
+          chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
           ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

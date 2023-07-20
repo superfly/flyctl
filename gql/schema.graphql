@@ -283,6 +283,7 @@ type AddOnPlanEdge {
 }
 
 type AddOnProvider {
+  asyncProvisioning: Boolean!
   displayName: String
   excludedRegions: [Region!]
   id: ID!
@@ -1662,7 +1663,7 @@ input BuildVolumeInput {
   Desired volume size, in GB
   """
   sizeGb: Int!
-  snapshotId: ID
+  snapshot: ID
 }
 
 """
@@ -1674,6 +1675,8 @@ type BuildVolumePayload {
   """
   clientMutationId: String
   ok: Boolean!
+  restoreKey: String
+  vaultSecretPath: String
 }
 
 input BuilderMetaInput {
@@ -2557,7 +2560,7 @@ input CreateAppInput {
   """
   clientMutationId: String
   heroku: Boolean
-  machines: Boolean = false
+  machines: Boolean = true
 
   """
   The name of the new application. Defaults to a random name.
@@ -5036,6 +5039,7 @@ type ExtendVolumePayload {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
+  needsRestart: Boolean!
   volume: Volume!
 }
 

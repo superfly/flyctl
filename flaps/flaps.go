@@ -88,7 +88,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		baseUrl:    flapsUrl,
 		authToken:  config.FromContext(ctx).AccessToken,
 		httpClient: httpClient,
-		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.ParsedVersion())),
 	}, nil
 }
 
@@ -150,7 +150,7 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 		baseUrl:    flapsBaseUrl,
 		authToken:  config.FromContext(ctx).AccessToken,
 		httpClient: httpClient,
-		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.ParsedVersion())),
 	}, nil
 }
 

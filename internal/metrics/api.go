@@ -57,7 +57,7 @@ func connectWebsocket(ctx context.Context) (*websocket.Conn, error) {
 	}
 
 	wsCfg.Header.Set("Authorization", authToken)
-	wsCfg.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+	wsCfg.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.ParsedVersion().String()))
 
 	return websocket.DialConfig(wsCfg)
 }

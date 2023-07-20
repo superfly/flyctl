@@ -72,6 +72,7 @@ func runMachineProxy(ctx context.Context) error {
 	// ports := strings.Split(args[0], ":")
 
 	params := &proxy.ConnectParams{
+		BindAddr:         flag.GetBindAddr(ctx),
 		Ports:            []string{"4280"},
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,

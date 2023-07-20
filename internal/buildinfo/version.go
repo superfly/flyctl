@@ -2,14 +2,174 @@ package buildinfo
 
 import (
 	"errors"
-	"fmt"
-	"os"
 	"runtime/debug"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/blang/semver"
+	"github.com/loadsmart/calver-go/calver"
 )
+
+type Version interface {
+	String() string
+	EQ(other Version) bool
+	Newer() bool
+	SeverelyOutdated(other Version) bool
+}
+
+type SemverVersion struct {
+	semver.Version
+}
+
+func ParseSemver(version string) (*SemverVersion, error) {
+	v, err := semver.ParseTolerant(version)
+	if err != nil {
+		return nil, err
+	}
+	return &SemverVersion{v}, nil
+}
+
+func (v SemverVersion) EQ(other Version) bool {
+	o, ok := other.(*SemverVersion)
+	if ok {
+		return v.Version.EQ(o.Version)
+	} else {
+		return false
+	}
+}
+
+func (v *SemverVersion) Newer() bool {
+	_, ok := parsedVersion.(*CalverVersion)
+	if ok {
+		return false
+	} else {
+		other := parsedVersion.(*SemverVersion)
+		return v.Version.GT(other.Version)
+	}
+}
+
+func (v *SemverVersion) SeverelyOutdated(latest Version) bool {
+	latestVer, ok := latest.(*SemverVersion)
+	if ok {
+		if v.Major < latestVer.Major {
+			return true
+		}
+		if v.Minor < latestVer.Minor {
+			return true
+		}
+		if v.Patch+5 < latestVer.Patch {
+			return true
+		}
+		return false
+	} else {
+		return true
+	}
+}
+
+type CalverVersion struct {
+	calver.Version
+}
+
+const calverFormat = "YYYY.0M.0D.MICRO"
+
+func ParseCalver(version string) (*CalverVersion, error) {
+	v, err := calver.Parse(calverFormat, version)
+	if err != nil {
+		// Does the version parse as calver without dashes? Needed for semverr
+		// compatibility for goreleaser.
+		dedashedVersion := strings.Replace(version, "-", ".", 1)
+		v, err = calver.Parse(calverFormat, dedashedVersion)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &CalverVersion{*v}, nil
+}
+
+func (v CalverVersion) String() string {
+	verStr := []rune(v.Version.String())
+	count := 0
+	for i, v := range verStr {
+		if v == '.' {
+			count++
+		}
+		if count == 3 {
+			verStr[i] = '-'
+			break
+		}
+	}
+	return string(verStr)
+}
+
+func (v CalverVersion) EQ(other Version) bool {
+	o, ok := other.(*CalverVersion)
+	if ok {
+		return v.Version.CompareTo(&o.Version) == 0
+	} else {
+		return false
+	}
+}
+
+func (v *CalverVersion) Newer() bool {
+	other, ok := parsedVersion.(*CalverVersion)
+	if ok {
+		return v.Version.CompareTo(&other.Version) == 1
+	} else {
+		return true
+	}
+}
+
+func (v *CalverVersion) SeverelyOutdated(latest Version) bool {
+	latestVer, ok := latest.(*CalverVersion)
+	if ok {
+		diff := latestVer.Time().Sub(v.Time())
+		return diff.Hours() >= 24*30
+	} else {
+		return false
+	}
+}
+
+func ParseVersion(other string) (Version, error) {
+	version, err := ParseCalver(other)
+	if err != nil {
+		return ParseSemver(other)
+	} else {
+		return version, nil
+	}
+}
+
+type Versions []Version
+
+func (v Versions) Len() int {
+	return len(v)
+}
+
+func (s Versions) Less(i, j int) bool {
+	v1, ok := s[i].(*CalverVersion)
+	if ok {
+		v2, ok := s[j].(*CalverVersion)
+		if ok {
+			return v1.CompareTo(&v2.Version) == -1
+		} else {
+			// All calver versions are > semver versions.
+			return false
+		}
+	} else {
+		v1 := s[i].(*SemverVersion)
+		_, ok := s[j].(*CalverVersion)
+		if ok {
+			// All semver versions are < calver versions.
+			return true
+		} else {
+			v2 := s[j].(*SemverVersion)
+			return v1.Version.LT(v2.Version)
+		}
+	}
+}
+
+func (s Versions) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
 
 var (
 	buildDate  = "<date>"
@@ -18,7 +178,7 @@ var (
 )
 
 var (
-	parsedVersion   semver.Version
+	parsedVersion   Version
 	parsedBuildDate time.Time
 )
 
@@ -38,31 +198,22 @@ func loadMeta() {
 	}
 
 	if IsDev() {
-		envVersionNum := os.Getenv("FLY_DEV_VERSION_NUM")
-		versionNum := uint64(parsedBuildDate.Unix())
-
-		if envVersionNum != "" {
-			num, err := strconv.ParseUint(envVersionNum, 10, 64)
-
+		parsed, err := ParseVersion(version)
+		if err == nil {
+			parsedVersion = parsed
+		} else {
+			versionNum := int(parsedBuildDate.Unix())
+			version, err := calver.NewVersion(calverFormat, versionNum)
 			if err == nil {
-				versionNum = num
+				parsedVersion = &CalverVersion{Version: *version}
 			}
-
-		}
-
-		parsedVersion = semver.Version{
-			Pre: []semver.PRVersion{
-				{
-					VersionNum: versionNum,
-					IsNum:      true,
-				},
-			},
-			Build: []string{"dev"},
 		}
 	} else {
 		parsedBuildDate = parsedBuildDate.UTC()
-
-		parsedVersion = semver.MustParse(version)
+		parsed, err := ParseVersion(version)
+		if err == nil {
+			parsedVersion = parsed
+		}
 	}
 }
 
@@ -89,32 +240,10 @@ func BranchName() string {
 	return branchName
 }
 
-func Version() semver.Version {
+func ParsedVersion() Version {
 	return parsedVersion
 }
 
 func BuildDate() time.Time {
 	return parsedBuildDate
-}
-
-func parseVesion(v string) semver.Version {
-	parsedV, err := semver.ParseTolerant(v)
-	if err != nil {
-		// Can't use terminal.Warnf here because of a circular dependency
-		fmt.Printf("WARN: error parsing version number '%s': %s\n", v, err)
-		return semver.Version{}
-	}
-	return parsedV
-}
-
-func IsVersionSame(otherVerison string) bool {
-	return parsedVersion.EQ(parseVesion(otherVerison))
-}
-
-func IsVersionOlder(otherVerison string) bool {
-	return parsedVersion.LT(parseVesion(otherVerison))
-}
-
-func IsVersionNewer(otherVerison string) bool {
-	return parsedVersion.GT(parseVesion(otherVerison))
 }

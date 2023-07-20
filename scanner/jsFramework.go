@@ -231,7 +231,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string
 
 		// run the package if we haven't already
 		if args[0] != "npx" {
-			// find npx in PATH
+			// determine whether we need bunx or npx
 			var xcmd string
 
 			if args[0] == "bun" {
@@ -240,9 +240,24 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string
 				xcmd = "npx"
 			}
 
+			// build a new command
+			args = []string{"dockerfile"}
+
+			// find npx/bunx in path
 			xcmdpath, err := exec.LookPath(xcmd)
 			if err != nil && !errors.Is(err, exec.ErrDot) {
-				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
+				if xcmd != "bunx" {
+					return fmt.Errorf("failure finding %s executable in PATH", xcmd)
+				} else {
+					// switch to "bun x" if bunx is not found.
+					// see: https://github.com/oven-sh/bun/issues/2786
+					xcmd = "bun"
+					xcmdpath, err = exec.LookPath("bun")
+					if err != nil && !errors.Is(err, exec.ErrDot) {
+						return fmt.Errorf("failure finding %s executable in PATH", xcmd)
+					}
+					args = append([]string{"x"}, args...)
+				}
 			}
 
 			// resolve to absolute path, see: https://tip.golang.org/doc/go1.19#os-exec-path
@@ -251,7 +266,8 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string
 				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
 			}
 
-			cmd := exec.Command(xcmdpath, "dockerfile")
+			// execute (via npx, bunx, or bun x) the docker module
+			cmd := exec.Command(xcmdpath, args...)
 			cmd.Stdin = nil
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr

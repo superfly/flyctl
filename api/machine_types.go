@@ -499,7 +499,8 @@ type MachineConfig struct {
 	Statics  []*Static               `json:"statics,omitempty"`
 
 	// Set by fly deploy or fly machines commands
-	Image string `json:"image,omitempty"`
+	Image string  `json:"image,omitempty"`
+	Files []*File `json:"files,omitempty"`
 
 	// The following fields can only be set or updated by `fly machines run|update` commands
 	// "fly deploy" must preserve them, if you add anything here, ensure it is propagated on deploys
@@ -515,8 +516,6 @@ type MachineConfig struct {
 	Standbys []string `json:"standbys,omitempty"`
 
 	StopConfig *StopConfig `json:"stop_config,omitempty"`
-
-	Files []*File `json:"files,omitempty"`
 
 	// Deprecated: use Guest instead
 	VMSize string `json:"size,omitempty"`

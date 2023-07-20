@@ -77,6 +77,7 @@ func newClone() *cobra.Command {
 			Name:        "standby-for",
 			Description: "Comma separated list of machine ids to watch for. You can use '--standby-for=source' to create a standby for the cloned machine",
 		},
+		flag.Detach(),
 	)
 
 	return cmd
@@ -146,7 +147,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			targetConfig.Metadata = make(map[string]string)
 		}
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
-		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
+		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
 
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
@@ -286,6 +287,10 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	fmt.Fprintf(out, "  Machine %s has been created...\n", colorize.Bold(launchedMachine.ID))
+
+	if flag.GetDetach(ctx) {
+		return nil
+	}
 
 	if !input.SkipLaunch {
 		fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))

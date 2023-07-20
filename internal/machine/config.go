@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/exp/slices"
 )
 
 type ErrNoConfigChangesFound struct{}
@@ -112,4 +113,23 @@ func configCompare(ctx context.Context, original api.MachineConfig, new api.Mach
 	}
 	// We know the objects are different, if we can't cleanup return the best we have got
 	return str
+}
+
+// MergeFiles merges the files parsed from the command line or fly.toml into the machine configuration.
+func MergeFiles(machineConf *api.MachineConfig, files []*api.File) {
+	for _, f := range files {
+		idx := slices.IndexFunc(machineConf.Files, func(i *api.File) bool {
+			return i.GuestPath == f.GuestPath
+		})
+
+		switch {
+		case idx == -1:
+			machineConf.Files = append(machineConf.Files, f)
+			continue
+		case f.RawValue == nil && f.SecretName == nil:
+			machineConf.Files = slices.Delete(machineConf.Files, idx, idx+1)
+		default:
+			machineConf.Files = slices.Replace(machineConf.Files, idx, idx+1, f)
+		}
+	}
 }

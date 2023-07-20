@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"sort"
 	"strings"
 
-	"github.com/blang/semver"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/terminal"
@@ -53,16 +53,15 @@ func runUpgrade(ctx context.Context) error {
 		}
 	}
 
-	latest, err := semver.ParseTolerant(release.Version)
+	latest, err := buildinfo.ParseVersion(release.Version)
 	if err != nil {
-		return fmt.Errorf("error parsing latest release version number %q: %w",
-			release.Version, err)
+		return fmt.Errorf("error parsing version: %q, %w", release.Version, err)
 	}
 
 	io := iostreams.FromContext(ctx)
 
-	if buildinfo.Version().GTE(latest) {
-		fmt.Fprintf(io.Out, "Already running latest flyctl v%s\n", buildinfo.Version().String())
+	if !latest.Newer() {
+		fmt.Fprintf(io.Out, "Already running latest flyctl v%s\n", buildinfo.ParsedVersion().String())
 		return nil
 	}
 
@@ -72,7 +71,7 @@ func runUpgrade(ctx context.Context) error {
 		return err
 	}
 
-	err = printVersionUpgrade(ctx, buildinfo.Version(), homebrew)
+	err = printVersionUpgrade(ctx, buildinfo.ParsedVersion(), homebrew)
 	if err != nil {
 		terminal.Debugf("Error printing version upgrade: %v", err)
 	}
@@ -80,11 +79,11 @@ func runUpgrade(ctx context.Context) error {
 }
 
 // printVersionUpgrade prints "Upgraded flyctl [oldVersion] -> [newVersion]"
-func printVersionUpgrade(ctx context.Context, oldVersion semver.Version, homebrew bool) error {
+func printVersionUpgrade(ctx context.Context, oldVersion buildinfo.Version, homebrew bool) error {
 
 	var (
 		io         = iostreams.FromContext(ctx)
-		currentVer semver.Version
+		currentVer buildinfo.Version
 		err        error
 	)
 
@@ -121,9 +120,9 @@ func printVersionUpgrade(ctx context.Context, oldVersion semver.Version, homebre
 
 // getNewVersionFlyInstaller queries homebrew for the latest currently installed version of flyctl
 // It parses the output of `brew info flyctl --json`
-func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
+func getNewVersionHomebrew(ctx context.Context) (buildinfo.Version, error) {
 
-	var ver semver.Version
+	var ver buildinfo.Version
 
 	newVersionJson, err := exec.CommandContext(ctx, "brew", "info", "flyctl", "--json").CombinedOutput()
 	if err != nil {
@@ -135,7 +134,7 @@ func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
 		return ver, fmt.Errorf("failed to parse version output from brew: %w", err)
 	}
 
-	versions := lo.Map(parsed, func(def map[string]any, _ int) []*semver.Version {
+	versions := lo.Map(parsed, func(def map[string]any, _ int) []*buildinfo.Version {
 		if def["name"] != "flyctl" {
 			return nil
 		}
@@ -143,20 +142,20 @@ func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
 		if !ok {
 			return nil
 		}
-		return lo.FilterMap(installed, func(defAny any, _ int) (*semver.Version, bool) {
+		return lo.FilterMap(installed, func(defAny any, _ int) (*buildinfo.Version, bool) {
 			version, ok := defAny.(map[string]any)["version"].(string)
 			if !ok {
 				return nil, false
 			}
-			parsed, err := semver.ParseTolerant(version)
+			parsed, err := buildinfo.ParseVersion(version)
 			if err != nil {
 				return nil, false
 			}
 			return &parsed, true
 		})
 	})
-	versionsFlat := lo.Map(lo.Flatten(versions), func(v *semver.Version, _ int) semver.Version { return *v })
-	semver.Sort(versionsFlat)
+	versionsFlat := lo.Map(lo.Flatten(versions), func(v *buildinfo.Version, _ int) buildinfo.Version { return *v })
+	sort.Sort(buildinfo.Versions(versionsFlat))
 
 	if len(versionsFlat) == 0 {
 		return ver, errors.New("brew reports no installed flyctl version")
@@ -165,9 +164,9 @@ func getNewVersionHomebrew(ctx context.Context) (semver.Version, error) {
 }
 
 // getNewVersionFlyInstaller executes [os.Args[0], "version", "--json"] and parses the output into a semver.Version
-func getNewVersionFlyInstaller(ctx context.Context) (semver.Version, error) {
+func getNewVersionFlyInstaller(ctx context.Context) (buildinfo.Version, error) {
 
-	var ver semver.Version
+	var ver buildinfo.Version
 
 	newVersionJson, err := exec.CommandContext(ctx, os.Args[0], "version", "--json").CombinedOutput()
 	if err != nil {
@@ -179,11 +178,11 @@ func getNewVersionFlyInstaller(ctx context.Context) (semver.Version, error) {
 	if err = json.Unmarshal(newVersionJson, &parsed); err != nil {
 		return ver, fmt.Errorf("failed to parse version of new flyctl binary: %w", err)
 	}
-	semverStr, ok := parsed["Version"]
+	verStr, ok := parsed["Version"]
 	if !ok {
 		return ver, errors.New("failed to parse version of new flyctl binary: field 'Version' not in output of 'fly version --json'")
 	}
-	ver, err = semver.ParseTolerant(semverStr)
+	ver, err = buildinfo.ParseVersion(verStr)
 	if err != nil {
 		return ver, fmt.Errorf("failed to parse version of new flyctl binary: %w", err)
 	}

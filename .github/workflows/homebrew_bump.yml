@@ -49,7 +49,7 @@ jobs:
         run: if [ ${{ env.SLACK_WEBHOOK_EXISTS }} != "true" ] ; then echo "No webhook url :-(" ; fi
       - name: Post failure to slack
         if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == 'update_needed' }}
-        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        uses: slackapi/slack-github-action@e28cf165c92ffef168d23c5c9000cffc8a25e117
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

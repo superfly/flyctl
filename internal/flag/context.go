@@ -135,6 +135,11 @@ func GetAppConfigFilePath(ctx context.Context) string {
 	}
 }
 
+// GetBindAddr is shorthand for GetString(ctx, BindAddr).
+func GetBindAddr(ctx context.Context) string {
+	return GetString(ctx, flagnames.BindAddr)
+}
+
 // GetFlagsName returns the name of flags that have been set except unwanted flags.
 func GetFlagsName(ctx context.Context, ignoreFlags []string) []string {
 	flagsName := []string{}

@@ -1,7 +1,6 @@
 package imgsrc
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,11 +16,9 @@ import (
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/progress"
 	"github.com/docker/docker/pkg/streamformatter"
-	"github.com/docker/docker/pkg/stringid"
 	"github.com/moby/buildkit/client"
-	"github.com/moby/buildkit/session/secrets/secretsprovider"
+	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/util/progress/progressui"
-	"github.com/moby/term"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -55,6 +52,50 @@ func (out *lastProgressOutput) WriteProgress(prog progress.Progress) error {
 	return out.output.WriteProgress(prog)
 }
 
+func makeBuildContext(dockerfile string, opts ImageOptions, isRemote bool) (io.ReadCloser, error) {
+	archiveOpts := archiveOptions{
+		sourcePath: opts.WorkingDir,
+		compressed: isRemote,
+	}
+
+	var relativedockerfilePath string
+
+	// copy dockerfile into the archive if it's outside the context dir
+	if !isPathInRoot(dockerfile, opts.WorkingDir) {
+		dockerfileData, err := os.ReadFile(dockerfile)
+		if err != nil {
+			return nil, errors.Wrap(err, "error reading Dockerfile")
+		}
+		archiveOpts.additions = map[string][]byte{
+			"Dockerfile": dockerfileData,
+		}
+	} else {
+		// pass the relative path to Dockerfile within the context
+		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
+		if err != nil {
+			return nil, err
+		}
+		// On Windows, convert \ to a slash / as the docker build will
+		// run in a Linux VM at the end.
+		relativedockerfilePath = filepath.ToSlash(p)
+	}
+
+	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, relativedockerfilePath)
+	if err != nil {
+		return nil, errors.Wrap(err, "error reading .dockerignore")
+	}
+	archiveOpts.exclusions = excludes
+
+	// Start tracking this build
+
+	// Create the docker build context as a compressed tar stream
+	r, err := archiveDirectory(archiveOpts)
+	if err != nil {
+		return nil, errors.Wrap(err, "error archiving build context")
+	}
+	return r, nil
+}
+
 func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
@@ -82,6 +123,18 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", nil
 	}
 
+	var relDockerfile string
+	if isPathInRoot(dockerfile, opts.WorkingDir) {
+		// pass the relative path to Dockerfile within the context
+		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
+		if err != nil {
+			return nil, "", err
+		}
+		// On Windows, convert \ to a slash / as the docker build will
+		// run in a Linux VM at the end.
+		relDockerfile = filepath.ToSlash(p)
+	}
+
 	build.BuilderInitStart()
 	docker, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
@@ -90,6 +143,14 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
 	defer docker.Close() // skipcq: GO-S2307
+
+	buildkitEnabled, err := buildkitEnabled(docker)
+	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
+	if err != nil {
+		build.BuildFinish()
+		build.BuilderInitFinish()
+		return nil, "", fmt.Errorf("error checking for buildkit support: %w", err)
+	}
 
 	build.BuilderInitFinish()
 	defer func() {
@@ -101,67 +162,32 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		}
 	}()
 
-	build.ContextBuildStart()
-	tb := render.NewTextBlock(ctx, "Creating build context")
+	// Without Buildkit, we need to explicitly build a build context beforehand.
+	var buildContext io.ReadCloser
+	if !buildkitEnabled {
+		build.ContextBuildStart()
 
-	archiveOpts := archiveOptions{
-		sourcePath: opts.WorkingDir,
-		compressed: dockerFactory.IsRemote(),
-	}
+		tb := render.NewTextBlock(ctx, "Creating build context")
 
-	var relativedockerfilePath string
-
-	// copy dockerfile into the archive if it's outside the context dir
-	if !isPathInRoot(dockerfile, opts.WorkingDir) {
-		dockerfileData, err := os.ReadFile(dockerfile)
-		if err != nil {
-			build.BuildFinish()
-			build.ContextBuildFinish()
-			return nil, "", errors.Wrap(err, "error reading Dockerfile")
-		}
-		archiveOpts.additions = map[string][]byte{
-			"Dockerfile": dockerfileData,
-		}
-	} else {
-		// pass the relative path to Dockerfile within the context
-		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
+		r, err := makeBuildContext(dockerfile, opts, dockerFactory.IsRemote())
 		if err != nil {
 			build.BuildFinish()
 			build.ContextBuildFinish()
 			return nil, "", err
 		}
-		// On Windows, convert \ to a slash / as the docker build will
-		// run in a Linux VM at the end.
-		relativedockerfilePath = filepath.ToSlash(p)
-	}
 
-	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, relativedockerfilePath)
-	if err != nil {
-		build.BuildFinish()
+		tb.Done("Creating build context done")
+
 		build.ContextBuildFinish()
-		return nil, "", errors.Wrap(err, "error reading .dockerignore")
+
+		// Setup an upload progress bar
+		progressOutput := streamformatter.NewProgressOutput(streams.Out)
+		if !streams.IsStdoutTTY() {
+			progressOutput = &lastProgressOutput{output: progressOutput}
+		}
+
+		buildContext = progress.NewProgressReader(r, progressOutput, 0, "", "Sending build context to Docker daemon")
 	}
-	archiveOpts.exclusions = excludes
-
-	// Start tracking this build
-
-	// Create the docker build context as a compressed tar stream
-	r, err := archiveDirectory(archiveOpts)
-	if err != nil {
-		build.BuildFinish()
-		build.ContextBuildFinish()
-		return nil, "", errors.Wrap(err, "error archiving build context")
-	}
-	build.ContextBuildFinish()
-	tb.Done("Creating build context done")
-
-	// Setup an upload progress bar
-	progressOutput := streamformatter.NewProgressOutput(streams.Out)
-	if !streams.IsStdoutTTY() {
-		progressOutput = &lastProgressOutput{output: progressOutput}
-	}
-
-	r = progress.NewProgressReader(r, progressOutput, 0, "", "Sending build context to Docker daemon")
 
 	var imageID string
 
@@ -192,19 +218,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
-	buildkitEnabled, err := buildkitEnabled(docker)
-	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
-	if err != nil {
-		if dockerFactory.IsRemote() {
-			metrics.SendNoData(ctx, "remote_builder_failure")
-		}
-		build.ImageBuildFinish()
-		build.BuildFinish()
-		return nil, "", errors.Wrap(err, "error checking for buildkit support")
-	}
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, docker, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -214,7 +230,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			return nil, "", errors.Wrap(err, "error building")
 		}
 	} else {
-		imageID, err = runClassicBuild(ctx, streams, docker, r, opts, relativedockerfilePath, buildArgs)
+		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -296,142 +312,89 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	return imageID, nil
 }
 
-const uploadRequestRemote = "upload-request"
+func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) client.SolveOpt {
+	attrs := map[string]string{
+		"filename": filepath.Base(dockerfilePath),
+		"target":   opts.Target,
+		// Fly.io only supports linux/amd64, but local Docker Engine could be running on ARM,
+		// including Apple Silicon.
+		"platform": "linux/amd64",
+	}
+	attrs["target"] = opts.Target
+	if opts.NoCache {
+		attrs["no-cache"] = ""
+	}
 
-func runBuildKitBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
-	io := iostreams.FromContext(ctx)
-	s, err := createBuildSession(opts.WorkingDir)
+	for k, v := range buildArgs {
+		if v == nil {
+			continue
+		}
+		attrs["build-arg:"+k] = *v
+	}
+
+	return client.SolveOpt{
+		Frontend:      "dockerfile.v0",
+		FrontendAttrs: attrs,
+		LocalDirs: map[string]string{
+			"dockerfile": filepath.Dir(dockerfilePath),
+			"context":    opts.WorkingDir,
+		},
+		// Docker Engine's worker only supports three exporters.
+		// "moby" exporter works best for flyctl, since we want to keep images in
+		// Docker Engine's image store. The others are exporting images to somewhere else.
+		// https://github.com/moby/moby/blob/v20.10.24/builder/builder-next/worker/worker.go#L221
+		Exports: []client.ExportEntry{
+			{Type: "moby", Attrs: map[string]string{"name": opts.Tag}},
+		},
+	}
+}
+
+func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (string, error) {
+	// Connect to Docker Engine's embedded Buildkit.
+	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
+		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
+	}
+	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast)
 	if err != nil {
-		panic(err)
-	}
-	s.Allow(newBuildkitAuthProvider(config.FromContext(ctx).AccessToken))
-
-	if s == nil {
-		panic("buildkit not supported")
-	}
-
-	finalSecrets := make(map[string][]byte)
-
-	for k, v := range opts.BuildSecrets {
-		finalSecrets[k] = []byte(v)
-	}
-
-	s.Allow(secretsprovider.FromMap(finalSecrets))
-
-	eg, errCtx := errgroup.WithContext(ctx)
-
-	dialSession := func(ctx context.Context, proto string, meta map[string][]string) (net.Conn, error) {
-		return docker.DialHijack(errCtx, "/session", proto, meta)
-	}
-	eg.Go(func() error {
-		return s.Run(context.TODO(), dialSession)
-	})
-
-	buildID := stringid.GenerateRandomID()
-	eg.Go(func() error {
-		buildOptions := types.ImageBuildOptions{
-			Version: types.BuilderBuildKit,
-			BuildID: uploadRequestRemote + ":" + buildID,
-		}
-
-		response, err := docker.ImageBuild(ctx, r, buildOptions)
-		if err != nil {
-			return err
-		}
-		defer response.Body.Close() // skipcq: GO-S2307
-		return nil
-	})
-
-	eg.Go(func() error {
-		defer s.Close()
-
-		buildOpts := types.ImageBuildOptions{
-			Tags:          []string{opts.Tag},
-			BuildArgs:     buildArgs,
-			Version:       types.BuilderBuildKit,
-			AuthConfigs:   authConfigs(config.FromContext(ctx).AccessToken),
-			SessionID:     s.ID(),
-			RemoteContext: uploadRequestRemote,
-			BuildID:       buildID,
-			Platform:      "linux/amd64",
-			Dockerfile:    dockerfilePath,
-			Target:        opts.Target,
-			NoCache:       opts.NoCache,
-		}
-
-		return func() error {
-			resp, err := docker.ImageBuild(ctx, nil, buildOpts)
-			if err != nil {
-				return err
-			}
-			defer resp.Body.Close() // skipcq: GO-S2307
-
-			done := make(chan struct{})
-			defer close(done)
-
-			eg.Go(func() error {
-				select {
-				case <-ctx.Done():
-					return docker.BuildCancel(context.TODO(), buildOpts.BuildID)
-				case <-done:
-				}
-				return nil
-			})
-
-			// TODO: replace with iostreams
-			termFd, isTerm := term.GetFdInfo(os.Stderr)
-			tracer := newTracer()
-			var c2 console.Console
-			if io.ColorEnabled() {
-				if cons, err := console.ConsoleFromFile(os.Stderr); err == nil {
-					c2 = cons
-				}
-			}
-
-			consoleLogs := make(chan *client.SolveStatus)
-
-			eg.Go(func() error {
-				defer close(consoleLogs)
-
-				for v := range tracer.displayCh {
-					consoleLogs <- v
-				}
-				return nil
-			})
-
-			eg.Go(func() error {
-				return progressui.DisplaySolveStatus(context.TODO(), "", c2, os.Stderr, consoleLogs)
-			})
-
-			auxCallback := func(m jsonmessage.JSONMessage) {
-				if m.ID == "moby.image.id" {
-					var result types.BuildResult
-					if err := json.Unmarshal(*m.Aux, &result); err != nil {
-						fmt.Fprintf(streams.Out, "failed to parse aux message: %v", err)
-					}
-					imageID = result.ID
-					return
-				}
-
-				tracer.write(m)
-			}
-			defer close(tracer.displayCh)
-
-			buf := bytes.NewBuffer(nil)
-
-			if err := jsonmessage.DisplayJSONMessagesStream(resp.Body, buf, termFd, isTerm, auxCallback); err != nil {
-				return err
-			}
-
-			return nil
-		}()
-	})
-
-	if err := eg.Wait(); err != nil {
 		return "", err
 	}
 
-	return imageID, nil
+	// Build the image.
+	ch := make(chan *client.SolveStatus)
+	eg, ctx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		var (
+			con console.Console
+			err error
+		)
+		// On GitHub Actions, os.Stderr is not console.
+		// https://community.fly.io/t/error-failed-to-fetch-an-image-or-build-from-source-error-building-provided-file-is-not-a-console/14273
+		con, err = console.ConsoleFromFile(os.Stderr)
+		if err != nil {
+			// It should be nil, but just in case.
+			con = nil
+		}
+		return progressui.DisplaySolveStatus(ctx, "", con, os.Stdout, ch)
+	})
+	var res *client.SolveResponse
+	eg.Go(func() error {
+		// To pull images from local Docker Engine with Fly's access token,
+		// we need to pass the provider. Remote builders don't need that.
+		provider := newBuildkitAuthProvider(config.FromContext(ctx).AccessToken)
+		options := solveOptFromImageOptions(opts, dockerfilePath, buildArgs)
+		options.Session = append(options.Session, provider)
+
+		res, err = bc.Solve(ctx, nil, options, ch)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	err = eg.Wait()
+	if err != nil {
+		return "", err
+	}
+	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
 func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {

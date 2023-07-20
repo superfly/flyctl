@@ -509,6 +509,22 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 
+		Files: []File{
+			{
+				GuestPath: "/path/to/hello.txt",
+				RawValue:  "aGVsbG8gd29ybGQK",
+			},
+			{
+				GuestPath:  "/path/to/secret.txt",
+				SecretName: "SUPER_SECRET",
+			},
+			{
+				GuestPath: "/path/to/config.yaml",
+				LocalPath: "/local/path/config.yaml",
+				Processes: []string{"web"},
+			},
+		},
+
 		Mounts: []Mount{{
 			Source:      "data",
 			Destination: "/data",
