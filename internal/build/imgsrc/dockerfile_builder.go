@@ -313,7 +313,13 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 }
 
 func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) client.SolveOpt {
-	attrs := map[string]string{"filename": filepath.Base(dockerfilePath)}
+	attrs := map[string]string{
+		"filename": filepath.Base(dockerfilePath),
+		"target":   opts.Target,
+		// Fly.io only supports linux/amd64, but local Docker Engine could be running on ARM,
+		// including Apple Silicon.
+		"platform": "linux/amd64",
+	}
 	attrs["target"] = opts.Target
 	if opts.NoCache {
 		attrs["no-cache"] = ""
