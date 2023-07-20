@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/pkg/streamformatter"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
+	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
@@ -378,11 +379,18 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	})
 	var res *client.SolveResponse
 	eg.Go(func() error {
-		// To pull images from local Docker Engine with Fly's access token,
-		// we need to pass the provider. Remote builders don't need that.
-		provider := newBuildkitAuthProvider(config.FromContext(ctx).AccessToken)
 		options := solveOptFromImageOptions(opts, dockerfilePath, buildArgs)
-		options.Session = append(options.Session, provider)
+		secrets := make(map[string][]byte)
+		for k, v := range opts.BuildSecrets {
+			secrets[k] = []byte(v)
+		}
+		options.Session = append(
+			options.Session,
+			// To pull images from local Docker Engine with Fly's access token,
+			// we need to pass the provider. Remote builders don't need that.
+			newBuildkitAuthProvider(config.FromContext(ctx).AccessToken),
+			secretsprovider.FromMap(secrets),
+		)
 
 		res, err = bc.Solve(ctx, nil, options, ch)
 		if err != nil {
