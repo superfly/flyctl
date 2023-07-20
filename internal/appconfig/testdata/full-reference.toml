@@ -1,6 +1,7 @@
 app = "foo"
 kill_signal = "SIGTERM"
 kill_timeout = "3s"
+swap_size_mb = 512
 primary_region = "sea"
 console_command = "/bin/bash"
 

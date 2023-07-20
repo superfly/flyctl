@@ -167,6 +167,7 @@ func TestToDefinition(t *testing.T) {
 		"primary_region":  "sea",
 		"kill_signal":     "SIGTERM",
 		"kill_timeout":    "3s",
+		"swap_size_mb":    int64(512),
 		"console_command": "/bin/bash",
 
 		"build": map[string]any{
