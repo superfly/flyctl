@@ -59,7 +59,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
-	volumes, err := apiClient.GetVolumes(ctx, appName)
+	volumes, err := flapsClient.ListVolumes(ctx)
 	if err != nil {
 		return err
 	}
@@ -194,7 +194,7 @@ func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, ap
 func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volume, appID string, region string) (*api.Volume, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	apiClient := client.FromContext(ctx).API()
+	flapsClient := flaps.FromContext(ctx)
 
 	var err error
 
@@ -207,12 +207,12 @@ func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volum
 	var snapshotID *string
 	switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
 	case "last":
-		snapshots, err := apiClient.GetVolumeSnapshots(ctx, mount.Volume)
+		snapshots, err := flapsClient.GetVolumeSnapshots(ctx, mount.Volume)
 		if err != nil {
 			return nil, err
 		}
 		if len(snapshots) > 0 {
-			snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
+			snapshot := lo.MaxBy(snapshots, func(i, j api.VolumeSnapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
 			snapshotID = &snapshot.ID
 			fmt.Fprintf(io.Out, "  Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mount.Volume))
 		} else {
@@ -226,17 +226,16 @@ func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volum
 		fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 	}
 
-	volInput := api.CreateVolumeInput{
-		AppID:             appID,
+	volInput := api.CreateVolumeRequest{
 		Name:              mount.Name,
 		Region:            region,
 		SizeGb:            mount.SizeGb,
-		Encrypted:         mount.Encrypted,
+		Encrypted:         api.Pointer(mount.Encrypted),
 		SnapshotID:        snapshotID,
-		RequireUniqueZone: false,
+		RequireUniqueZone: api.Pointer(false),
 	}
 
-	volume, err = apiClient.CreateVolume(ctx, volInput)
+	volume, err = flapsClient.CreateVolume(ctx, volInput)
 	if err != nil {
 		return nil, err
 	}
