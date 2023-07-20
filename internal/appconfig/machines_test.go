@@ -172,6 +172,37 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
+func TestToConsoleMachineConfig(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine.toml")
+	require.NoError(t, err)
+
+	want := &api.MachineConfig{
+		Init: api.MachineInit{
+			Exec:       []string{"/bin/sleep", "inf"},
+			SwapSizeMB: 512,
+		},
+		Env: map[string]string{
+			"FOO":               "BAR",
+			"PRIMARY_REGION":    "mia",
+			"FLY_PROCESS_GROUP": "fly_app_console",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_console",
+			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+		},
+		AutoDestroy: true,
+		Restart: api.MachineRestart{
+			Policy: api.MachineRestartPolicyNo,
+		},
+		DNS: &api.DNSConfig{SkipRegistration: true},
+	}
+
+	got, err := cfg.ToConsoleMachineConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
 func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/tomachine-processgroups.toml")
 	require.NoError(t, err)
