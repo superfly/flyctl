@@ -148,8 +148,11 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Init: api.MachineInit{Cmd: []string{"migrate-db"}},
-		Env:  map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
+		Init: api.MachineInit{
+			Cmd:        []string{"migrate-db"},
+			SwapSizeMB: 512,
+		},
+		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
 		Metadata: map[string]string{
 			"fly_platform_version": "v2",
 			"fly_process_group":    "fly_app_release_command",

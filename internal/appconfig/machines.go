@@ -27,7 +27,8 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 
 	mConfig := &api.MachineConfig{
 		Init: api.MachineInit{
-			Cmd: releaseCmd,
+			Cmd:        releaseCmd,
+			SwapSizeMB: c.SwapSizeMB,
 		},
 		Restart: api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
@@ -67,7 +68,8 @@ func (c *Config) ToConsoleMachineConfig() (*api.MachineConfig, error) {
 			// command at all. That way we don't rely on /bin/sleep
 			// being available and working right. However, there's no
 			// way to do that yet.
-			Exec: []string{"/bin/sleep", "inf"},
+			Exec:       []string{"/bin/sleep", "inf"},
+			SwapSizeMB: c.SwapSizeMB,
 		},
 		Restart: api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
