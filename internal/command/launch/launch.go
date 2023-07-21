@@ -77,12 +77,23 @@ func New() (cmd *cobra.Command) {
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
 		},
+		// Launch V2
+		flag.Bool{
+			Name:        "ui",
+			Description: "Use the Launch V2 interface",
+			Hidden:      true,
+		},
 	)
 
 	return
 }
 
 func run(ctx context.Context) (err error) {
+
+	if flag.GetBool(ctx, "ui") {
+		return runUi(ctx)
+	}
+
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()
 	workingDir := flag.GetString(ctx, "path")
