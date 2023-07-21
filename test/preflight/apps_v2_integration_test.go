@@ -530,14 +530,14 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	require.Equal(f, "machines", platformVersion)
 
 	machines := f.MachinesList(appName)
-	require.Equal(f, 10, len(machines))
+	require.Equal(f, 4, len(machines))
 
 	for _, machine := range machines {
 		services := machine.Config.Services
 		require.Equal(f, 1, len(services))
 
 		service := services[0]
-		require.Equal(f, *service.MinMachinesRunning, 3)
+		require.Equal(f, *service.MinMachinesRunning, 2)
 	}
 
 	result = f.Fly("config show -a %s", appName)
