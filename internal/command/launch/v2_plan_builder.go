@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/scanner"
 )
 
-func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) {
+func v2BuildPlan(ctx context.Context) (*launchState, error) {
 
 	var (
 		client    = client.FromContext(ctx)
@@ -27,14 +27,14 @@ func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) 
 
 	appConfig, copiedConfig, err := v2DetermineBaseAppConfig(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
 	org, orgExplanation, err := v2DetermineOrg(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
@@ -45,7 +45,7 @@ func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) 
 
 	region, regionExplanation, err := v2DetermineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var envVars map[string]string = nil
@@ -53,31 +53,31 @@ func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) 
 	if len(envFlags) > 0 {
 		envVars, err = cmdutil.ParseKVStringsToMap(envFlags)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed parsing --env flags: %w", err)
+			return nil, fmt.Errorf("failed parsing --env flags: %w", err)
 		}
 	}
 
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
-			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
+			return nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
 		}
 	}
 
 	var srcInfo *scanner.SourceInfo
 	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir(ctx))
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	appName, appNameExplanation, err := v2DetermineAppName(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	guest, guestExplanation, err := v2DetermineGuest(ctx, appConfig, srcInfo)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	lp := &launchPlan{
@@ -96,7 +96,11 @@ func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) 
 		Env:            envVars,
 	}
 
-	return lp, srcInfo, nil
+	return &launchState{
+		plan:       lp,
+		appConfig:  appConfig,
+		sourceInfo: srcInfo,
+	}, nil
 }
 
 func workingDir(ctx context.Context) string {

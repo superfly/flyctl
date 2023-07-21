@@ -6,10 +6,17 @@ import (
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
+
+type launchState struct {
+	plan       *launchPlan
+	appConfig  *appconfig.Config
+	sourceInfo *scanner.SourceInfo
+}
 
 func familyToAppType(si *scanner.SourceInfo) string {
 	if si == nil {
@@ -34,13 +41,13 @@ func runUi(ctx context.Context) (err error) {
 
 	// TODO: Metrics
 
-	plan, srcInfo, err := v2BuildPlan(ctx)
+	state, err := v2BuildPlan(ctx)
 	if err != nil {
 		return err
 	}
 
 	fmt.Fprintf(io.Out, "We're about to launch your %s on Fly.io. Here's what you're getting:\n\n", familyToAppType(srcInfo))
-	fmt.Fprintln(io.Out, plan.Summary())
+	fmt.Fprintln(io.Out, state.plan.Summary())
 
 	confirm := false
 	prompt := &survey.Confirm{
@@ -53,13 +60,13 @@ func runUi(ctx context.Context) (err error) {
 	}
 
 	if confirm {
-		plan, err = v2TweakPlan(ctx, plan)
+		err = state.tweakPlanWebUI(ctx)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = v2Launch(ctx, plan, srcInfo)
+	err = state.launch(ctx)
 	if err != nil {
 		return err
 	}
