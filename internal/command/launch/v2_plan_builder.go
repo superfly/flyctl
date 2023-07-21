@@ -150,7 +150,20 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 		}
 	}
 
-	return appconfig.NewConfig(), false, nil
+	newCfg := appconfig.NewConfig()
+	newCfg.HTTPService = &appconfig.HTTPService{
+		InternalPort:       8080,
+		ForceHTTPS:         true,
+		AutoStartMachines:  api.Pointer(true),
+		AutoStopMachines:   api.Pointer(true),
+		MinMachinesRunning: api.Pointer(0),
+		Processes:          []string{"app"},
+	}
+	if err := newCfg.SetMachinesPlatform(); err != nil {
+		return nil, false, err
+	}
+
+	return newCfg, false, nil
 }
 
 func v2DetermineAppName(ctx context.Context) (string, string, error) {
