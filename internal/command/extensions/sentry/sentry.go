@@ -5,6 +5,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 )
 
+// Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py
 var Platforms = []string{
 	"android",
 	"apple-ios",
