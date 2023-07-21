@@ -137,8 +137,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
 		switch ip.Type {
-		case "v4":
-		case "shared_v4":
+		case "v4", "shared_v4":
 			v4s[ip.Address] = true
 		case "v6":
 			v6s[ip.Address] = true
