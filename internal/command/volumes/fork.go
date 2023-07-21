@@ -46,6 +46,12 @@ but is currently restricted to same-host forks and may not be available for near
 			Hidden:      true,
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "machines-only",
+			Description: "volume will be visible to machines platform only",
+			Hidden:      true,
+			Default:     false,
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -79,11 +85,16 @@ func runFork(ctx context.Context) error {
 		name = flag.GetString(ctx, "name")
 	}
 
+	machinesOnly := (app.PlatformVersion == "machines")
+	if flag.IsSpecified(ctx, "machines-only") {
+		machinesOnly = flag.GetBool(ctx, "machines-only")
+	}
+
 	input := api.ForkVolumeInput{
 		AppID:          app.ID,
 		SourceVolumeID: vol.ID,
 		Name:           name,
-		MachinesOnly:   app.PlatformVersion == "machines",
+		MachinesOnly:   machinesOnly,
 		Remote:         flag.GetBool(ctx, "remote-fork"),
 	}
 

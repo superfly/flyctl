@@ -58,7 +58,6 @@ func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 
 func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 	m.appConfig.SetMounts(lo.Map(m.appConfig.Mounts, func(v appconfig.Mount, _ int) appconfig.Mount {
-		v.Source = nomadVolNameToV2VolName(v.Source)
 		if len(v.Processes) == 0 {
 			v.Processes = m.appConfig.ProcessNames()
 		}
@@ -70,9 +69,9 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			AppID:          m.appFull.ID,
 			SourceVolumeID: vol.ID,
 			MachinesOnly:   true,
-			Name:           nomadVolNameToV2VolName(vol.Name),
+			Remote:         true,
+			Name:           vol.Name,
 			LockID:         m.appLock,
-			Remote:         m.usesRemoteVolumeFork,
 		})
 		if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
 			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
@@ -112,13 +111,8 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 	if v.AttachedAllocation == nil {
 		return ""
 	}
-
-	// The config has already been patched to use the v2 volume names,
-	// so we have to account for that here
-	name := nomadVolNameToV2VolName(v.Name)
-
 	for _, mount := range m.appConfig.Mounts {
-		if mount.Source == name && lo.Contains(mount.Processes, group) {
+		if mount.Source == v.Name && lo.Contains(mount.Processes, group) {
 			return mount.Destination
 		}
 	}
@@ -149,10 +143,6 @@ func (m *v2PlatformMigrator) printReplacedVolumes() {
 	for _, name := range keys {
 		num := m.replacedVolumes[name]
 		s := lo.Ternary(num == 1, "", "s")
-		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s' [replaced by '%s']\n", num, s, name, nomadVolNameToV2VolName(name))
+		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s'\n", num, s, name)
 	}
-}
-
-func nomadVolNameToV2VolName(name string) string {
-	return name + forkedVolSuffix
 }
