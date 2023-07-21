@@ -19,10 +19,12 @@ import (
 )
 
 type ExtensionOptions struct {
-	Provider     string
-	SelectName   bool
-	SelectRegion bool
-	NameSuffix   string
+	Provider       string
+	SelectName     bool
+	SelectRegion   bool
+	NameSuffix     string
+	DetectPlatform bool
+	Options        gql.AddOnOptions
 }
 
 func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *gql.AddOn, err error) {
@@ -107,6 +109,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 		Name:           name,
 		AppId:          targetApp.Id,
 		Type:           gql.AddOnType(options.Provider),
+		Options:        options.Options,
 	}
 
 	if options.SelectRegion {
