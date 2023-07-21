@@ -96,9 +96,8 @@ func newMigrateToV2() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "remote-fork",
-			Description: "Enables experimental cross-host volume forking",
+			Description: "PLACEHOLDER - this is the default now",
 			Hidden:      true,
-			Default:     false,
 		},
 	)
 
@@ -219,9 +218,8 @@ type v2PlatformMigrator struct {
 	newMachines          machine.MachineSet
 	recovery             recoveryState
 	usesForkedVolumes    bool
-	usesRemoteVolumeFork bool
 	createdVolumes       []*NewVolume
-	replacedVolumes      map[string]int
+	replacedVolumes      map[string][]string
 	isPostgres           bool
 	pgConsulUrl          string
 	targetImg            string
@@ -327,15 +325,14 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		oldAllocs:               allocs,
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
-		replacedVolumes:         map[string]int{},
+		replacedVolumes:         map[string][]string{},
 		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
 		},
-		backupMachines:       map[string]int{},
-		machineWaitTimeout:   flag.GetDuration(ctx, "wait-timeout"),
-		skipHealthChecks:     flag.GetBool(ctx, "skip-health-checks"),
-		usesRemoteVolumeFork: flag.GetBool(ctx, "remote-fork"),
+		backupMachines:     map[string]int{},
+		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
+		skipHealthChecks:   flag.GetBool(ctx, "skip-health-checks"),
 	}
 	if migrator.isPostgres {
 		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
@@ -971,7 +968,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	}
 	if m.usesForkedVolumes {
 		fmt.Fprintf(m.io.Out, " * Create clones of each volume in use, for the new machines\n")
-		fmt.Fprintf(m.io.Out, "   * These cloned volumes will have the suffix '%s' appended to their names\n", forkedVolSuffix)
+		fmt.Fprintf(m.io.Out, "   * These cloned volumes will have the same name but different id\n")
 		fmt.Fprintf(m.io.Out, "   * Please note that your old volumes will not be removed.\n")
 		fmt.Fprintf(m.io.Out, "     (you can do this manually, after making sure the migration was a success)\n")
 	}
