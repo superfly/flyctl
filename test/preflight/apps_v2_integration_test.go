@@ -517,7 +517,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	)
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(3 * time.Second)
-	f.Fly("autoscale set min=3 max=10")
+	f.Fly("autoscale set min=2 max=4")
 	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
 	result := f.Fly("status --json")
 
