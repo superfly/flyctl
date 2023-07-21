@@ -137,7 +137,7 @@ func (m *v2PlatformMigrator) printReplacedVolumes() {
 	if len(m.replacedVolumes) == 0 {
 		return
 	}
-	fmt.Fprintf(m.io.Out, "The following volumes have been migrated to new volumes, and are no longer needed:\n")
+	fmt.Fprintf(m.io.Out, "The following volumes have been migrated to new volumes, and are no longer needed, remove them once you are sure your data is safe to prevent extra costs\n")
 	keys := lo.Keys(m.replacedVolumes)
 	slices.Sort(keys)
 	for _, name := range keys {
