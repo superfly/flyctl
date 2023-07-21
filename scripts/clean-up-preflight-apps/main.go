@@ -52,7 +52,7 @@ func run() error {
 		return err
 	}
 	for _, app := range resp.Organization.Apps.Nodes {
-		if time.Since(app.CreatedAt) > 30*time.Minute {
+		if time.Since(app.CreatedAt) > 60*time.Minute {
 			flyctlBin := "flyctl"
 			cmdStr := fmt.Sprintf("%s apps destroy --yes %s", flyctlBin, app.Id)
 			cmdParts, err := shlex.Split(cmdStr)
