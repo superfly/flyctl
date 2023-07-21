@@ -128,7 +128,7 @@ func runFailover(ctx context.Context) (err error) {
 			}
 			return nil
 		},
-		retry.Context(ctx), retry.Attempts(30), retry.Delay(time.Second), retry.DelayType(retry.FixedDelay),
+		retry.Context(ctx), retry.Attempts(30), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay),
 	); err != nil {
 		return err
 	}
@@ -149,7 +149,7 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 
 	io := iostreams.FromContext(ctx)
 
-	leader, err := pickLeader(ctx, machines)
+	oldLeader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
 	}
@@ -181,7 +181,7 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 		}
 
 		// We don't need to consider the existing leader here.
-		if machine == leader {
+		if machine == oldLeader {
 			continue
 		}
 
@@ -198,16 +198,16 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	}
 
 	// Stop the leader
-	fmt.Println("Stopping current leader... ", leader.ID)
+	fmt.Println("Stopping current leader... ", oldLeader.ID)
 	machineStopInput := api.StopMachineInput{
-		ID:     leader.ID,
+		ID:     oldLeader.ID,
 		Signal: "SIGINT",
 	}
 
 	flapsClient := flaps.FromContext(ctx)
-	err = flapsClient.Stop(ctx, machineStopInput, leader.LeaseNonce)
+	err = flapsClient.Stop(ctx, machineStopInput, oldLeader.LeaseNonce)
 	if err != nil {
-		return fmt.Errorf("could not stop pg leader %s: %w", leader.ID, err)
+		return fmt.Errorf("could not stop pg leader %s: %w", oldLeader.ID, err)
 	}
 
 	fmt.Println("Starting new leader")
@@ -232,25 +232,31 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 		return fmt.Errorf("failed to promote machine %s: %s", newLeader.ID, err)
 	}
 
-	// Restart the old leader
-	fmt.Fprintf(io.Out, "Restarting old leader... %s\n", leader.ID)
-	mach, err := flapsClient.Start(ctx, leader.ID, leader.LeaseNonce)
+	fmt.Println("Waiting 30 seconds for the old leader to stop...")
+	err = flapsClient.Wait(ctx, oldLeader, "stopped", time.Second*30)
 	if err != nil {
-		return fmt.Errorf("failed to start machine %s: %s", leader.ID, err)
+		return err
+	}
+
+	// Restart the old leader
+	fmt.Fprintf(io.Out, "Restarting old leader... %s\n", oldLeader.ID)
+	mach, err := flapsClient.Start(ctx, oldLeader.ID, oldLeader.LeaseNonce)
+	if err != nil {
+		return fmt.Errorf("failed to start machine %s: %s", oldLeader.ID, err)
 	}
 	if mach.Status == "error" {
-		return fmt.Errorf("old leader %s could not be started: %s", leader.ID, mach.Message)
+		return fmt.Errorf("old leader %s could not be started: %s", oldLeader.ID, mach.Message)
 	}
 
 	fmt.Printf("Waiting for leadership to swap to %s...\n", newLeader.ID)
 	if err := retry.Do(
 		func() error {
-			leader, err = flapsClient.Get(ctx, newLeader.ID)
+			oldLeader, err = flapsClient.Get(ctx, newLeader.ID)
 			if err != nil {
 				return err
 			}
 
-			if isLeader(leader) {
+			if isLeader(oldLeader) {
 				return nil
 			} else {
 				return fmt.Errorf("Machine %s never became the leader", newLeader.ID)
