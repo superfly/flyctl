@@ -298,6 +298,10 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 		appConfig.SetKillSignal(srcInfo.KillSignal)
 	}
 
+	if srcInfo.SwapSizeMB > 0 {
+		appConfig.SwapSizeMB = &srcInfo.SwapSizeMB
+	}
+
 	// Append any requested Dockerfile entries
 	if len(srcInfo.DockerfileAppendix) > 0 {
 		if err := appendDockerfileAppendix(srcInfo.DockerfileAppendix); err != nil {

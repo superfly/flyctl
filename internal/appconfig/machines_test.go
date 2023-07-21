@@ -47,6 +47,9 @@ func TestToMachineConfig(t *testing.T) {
 			Timeout: api.MustParseDuration("10s"),
 			Signal:  api.Pointer("SIGTERM"),
 		},
+		Init: api.MachineInit{
+			SwapSizeMB: api.Pointer(512),
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -145,8 +148,11 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	want := &api.MachineConfig{
-		Init: api.MachineInit{Cmd: []string{"migrate-db"}},
-		Env:  map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
+		Init: api.MachineInit{
+			Cmd:        []string{"migrate-db"},
+			SwapSizeMB: api.Pointer(512),
+		},
+		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
 		Metadata: map[string]string{
 			"fly_platform_version": "v2",
 			"fly_process_group":    "fly_app_release_command",
@@ -162,6 +168,37 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	}
 
 	got, err := cfg.ToReleaseMachineConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func TestToConsoleMachineConfig(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine.toml")
+	require.NoError(t, err)
+
+	want := &api.MachineConfig{
+		Init: api.MachineInit{
+			Exec:       []string{"/bin/sleep", "inf"},
+			SwapSizeMB: api.Pointer(512),
+		},
+		Env: map[string]string{
+			"FOO":               "BAR",
+			"PRIMARY_REGION":    "mia",
+			"FLY_PROCESS_GROUP": "fly_app_console",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_console",
+			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+		},
+		AutoDestroy: true,
+		Restart: api.MachineRestart{
+			Policy: api.MachineRestartPolicyNo,
+		},
+		DNS: &api.DNSConfig{SkipRegistration: true},
+	}
+
+	got, err := cfg.ToConsoleMachineConfig()
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
 }

@@ -40,6 +40,7 @@ type Config struct {
 	PrimaryRegion  string        `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
 	KillSignal     *string       `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
 	KillTimeout    *api.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	SwapSizeMB     *int          `toml:"swap_size_mb,omitempty" json:"swap_size_mb,omitempty"`
 	ConsoleCommand string        `toml:"console_command,omitempty" json:"console_command,omitempty"`
 
 	// Sections that are typically short and benefit from being on top
