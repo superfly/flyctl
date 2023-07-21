@@ -2,9 +2,11 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -25,6 +27,10 @@ func familyToAppType(si *scanner.SourceInfo) string {
 func runUi(ctx context.Context) (err error) {
 
 	io := iostreams.FromContext(ctx)
+
+	if err := warnLegacyBehavior(ctx); err != nil {
+		return err
+	}
 
 	// TODO: Metrics
 
@@ -58,5 +64,14 @@ func runUi(ctx context.Context) (err error) {
 		return err
 	}
 
+	return nil
+}
+
+func warnLegacyBehavior(ctx context.Context) error {
+	// TODO(Allison): We probably want to support re-configuring an existing app, but
+	// that is different from the launch-into behavior of reuse-app, which basically just deployed.
+	if flag.IsSpecified(ctx, "reuse-app") {
+		return errors.New("the --reuse-app flag is no longer supported. you are likely looking for 'fly deploy'")
+	}
 	return nil
 }

@@ -25,10 +25,6 @@ func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) 
 		clientApi = client.API()
 	)
 
-	if err := warnLegacyBehavior(ctx); err != nil {
-		return nil, nil, err
-	}
-
 	appConfig, copiedConfig, err := v2DetermineBaseAppConfig(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -101,13 +97,6 @@ func v2BuildPlan(ctx context.Context) (*launchPlan, *scanner.SourceInfo, error) 
 	}
 
 	return lp, srcInfo, nil
-}
-
-func warnLegacyBehavior(ctx context.Context) error {
-	// if flag.IsSpecified(ctx, "strategy") {
-	//	return errors.New("the --strategy flag is no longer supported. you are likely looking for 'fly deploy'")
-	// }
-	return nil
 }
 
 func workingDir(ctx context.Context) string {
