@@ -968,7 +968,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	}
 	if m.usesForkedVolumes {
 		fmt.Fprintf(m.io.Out, " * Create clones of each volume in use, for the new machines\n")
-		fmt.Fprintf(m.io.Out, "   * These cloned volumes will have the suffix '%s' appended to their names\n", forkedVolSuffix)
+		fmt.Fprintf(m.io.Out, "   * These cloned volumes will have the same name but different id\n")
 		fmt.Fprintf(m.io.Out, "   * Please note that your old volumes will not be removed.\n")
 		fmt.Fprintf(m.io.Out, "     (you can do this manually, after making sure the migration was a success)\n")
 	}

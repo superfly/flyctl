@@ -11,10 +11,6 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const (
-	forkedVolSuffix = "_machines"
-)
-
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
 	if m.isPostgres {
 		return nil
