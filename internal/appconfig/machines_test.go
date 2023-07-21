@@ -48,7 +48,7 @@ func TestToMachineConfig(t *testing.T) {
 			Signal:  api.Pointer("SIGTERM"),
 		},
 		Init: api.MachineInit{
-			SwapSizeMB: 512,
+			SwapSizeMB: api.Pointer(512),
 		},
 	}
 
@@ -150,7 +150,7 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	want := &api.MachineConfig{
 		Init: api.MachineInit{
 			Cmd:        []string{"migrate-db"},
-			SwapSizeMB: 512,
+			SwapSizeMB: api.Pointer(512),
 		},
 		Env: map[string]string{"FOO": "BAR", "PRIMARY_REGION": "mia", "RELEASE_COMMAND": "1", "FLY_PROCESS_GROUP": "fly_app_release_command"},
 		Metadata: map[string]string{
@@ -179,7 +179,7 @@ func TestToConsoleMachineConfig(t *testing.T) {
 	want := &api.MachineConfig{
 		Init: api.MachineInit{
 			Exec:       []string{"/bin/sleep", "inf"},
-			SwapSizeMB: 512,
+			SwapSizeMB: api.Pointer(512),
 		},
 		Env: map[string]string{
 			"FOO":               "BAR",

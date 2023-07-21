@@ -299,7 +299,7 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	}
 
 	if srcInfo.SwapSizeMB > 0 {
-		appConfig.SwapSizeMB = srcInfo.SwapSizeMB
+		appConfig.SwapSizeMB = &srcInfo.SwapSizeMB
 	}
 
 	// Append any requested Dockerfile entries

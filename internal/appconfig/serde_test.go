@@ -415,7 +415,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		AppName:          "foo",
 		KillSignal:       api.Pointer("SIGTERM"),
 		KillTimeout:      api.MustParseDuration("3s"),
-		SwapSizeMB:       512,
+		SwapSizeMB:       api.Pointer(512),
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
 		Experimental: &Experimental{
