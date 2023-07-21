@@ -102,7 +102,7 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			previousAllocId: allocId,
 			mountPoint:      path,
 		})
-		m.replacedVolumes[vol.Name]++
+		m.replacedVolumes[vol.Name] = append(m.replacedVolumes[vol.Name], vol.ID)
 	}
 	return nil
 }
@@ -141,8 +141,9 @@ func (m *v2PlatformMigrator) printReplacedVolumes() {
 	keys := lo.Keys(m.replacedVolumes)
 	slices.Sort(keys)
 	for _, name := range keys {
-		num := m.replacedVolumes[name]
+		volIds := m.replacedVolumes[name]
+		num := len(volIds)
 		s := lo.Ternary(num == 1, "", "s")
-		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s'\n", num, s, name)
+		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s' with ids: %v\n", num, s, name, volIds)
 	}
 }

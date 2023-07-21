@@ -219,7 +219,7 @@ type v2PlatformMigrator struct {
 	recovery             recoveryState
 	usesForkedVolumes    bool
 	createdVolumes       []*NewVolume
-	replacedVolumes      map[string]int
+	replacedVolumes      map[string][]string
 	isPostgres           bool
 	pgConsulUrl          string
 	targetImg            string
@@ -325,7 +325,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		oldAllocs:               allocs,
 		machineGuests:           machineGuests,
 		isPostgres:              appCompact.IsPostgresApp(),
-		replacedVolumes:         map[string]int{},
+		replacedVolumes:         map[string][]string{},
 		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
