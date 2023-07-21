@@ -41,9 +41,9 @@ func runSentryCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var options gql.AddOnOptions
+	options := gql.AddOnOptions{}
 
-	if PlatformMap[srcInfo.Family] != "" {
+	if srcInfo != nil && PlatformMap[srcInfo.Family] != "" {
 		options["platform"] = PlatformMap[srcInfo.Family]
 	}
 

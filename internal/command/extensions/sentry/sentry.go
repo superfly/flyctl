@@ -5,19 +5,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 )
 
-func New() (cmd *cobra.Command) {
-
-	const (
-		short = "Setup a Sentry project for this app"
-		long  = short + "\n"
-	)
-
-	cmd = command.New("sentry", short, long, nil)
-	cmd.AddCommand(create(), dashboard())
-
-	return cmd
-}
-
 var Platforms = []string{
 	"android",
 	"apple-ios",
@@ -129,4 +116,17 @@ var PlatformMap = map[string]string{
 	"Remix":         "javscript-remix",
 	"Remix/Prisma":  "javscript-remix",
 	"Ruby":          "ruby",
+}
+
+func New() (cmd *cobra.Command) {
+
+	const (
+		short = "Setup a Sentry project for this app"
+		long  = short + "\n"
+	)
+
+	cmd = command.New("sentry", short, long, nil)
+	cmd.AddCommand(create(), dashboard())
+
+	return cmd
 }
