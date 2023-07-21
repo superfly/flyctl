@@ -18,18 +18,20 @@ main() {
 	flyctl_install="${FLYCTL_INSTALL:-$HOME/.fly}"
 
 	bin_dir="$flyctl_install/bin"
+	tmp_dir="$flyctl_install/tmp"
 	exe="$bin_dir/flyctl"
 	simexe="$bin_dir/fly"
 
-	if [ ! -d "$bin_dir" ]; then
-		mkdir -p "$bin_dir"
-	fi
+	mkdir -p "$bin_dir"
+	mkdir -p "$tmp_dir"
 
-	curl -q --fail --location --progress-bar --output "$exe.tar.gz" "$flyctl_uri"
-	cd "$bin_dir"
-	tar xzf "$exe.tar.gz"
-	chmod +x "$exe"
-	rm "$exe.tar.gz"
+	curl -q --fail --location --progress-bar --output "$tmp_dir/flyctl.tar.gz" "$flyctl_uri"
+	# extract to tmp dir so we don't open existing executable file for writing:
+	tar -C "$tmp_dir" -xzf "$tmp_dir/flyctl.tar.gz"
+	chmod +x "$tmp_dir/flyctl"
+	# atomically rename into place:
+	mv "$tmp_dir/flyctl" "$exe"
+	rm -rf "$tmp_dir"
 
 	ln -sf $exe $simexe
 
