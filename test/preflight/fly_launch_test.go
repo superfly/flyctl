@@ -9,6 +9,7 @@ import (
 
 	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/test/preflight/testlib"
@@ -338,4 +339,19 @@ func TestFlyLaunchSigleMount(t *testing.T) {
 	require.Equal(f, 2, len(ml))
 	vl := f.VolumeList(appName)
 	require.Equal(f, 2, len(vl))
+}
+
+func TestFlyLaunchWithBuildSecrets(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	// secrets are mounted under /run/secrets by default.
+	// https://docs.docker.com/engine/reference/builder/#run---mounttypesecret
+	f.WriteFile("Dockerfile", `FROM nginx
+RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
+`)
+
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
+	ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
+	assert.Equal(f, "SECRET1", ssh.StdOut().String())
 }
