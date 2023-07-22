@@ -40,7 +40,7 @@ func runRegions(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
 	sort.Slice(regions, func(i, j int) bool {
-		return regions[i].Code < regions[j].Code
+		return regions[i].Name < regions[j].Name
 	})
 
 	out := iostreams.FromContext(ctx).Out
@@ -59,12 +59,12 @@ func runRegions(ctx context.Context) error {
 			paidPlan = "✓"
 		}
 		rows = append(rows, []string{
-			region.Code,
 			region.Name,
+			region.Code,
 			gateway,
 			paidPlan,
 		})
 	}
 
-	return render.Table(out, "", rows, "Code", "Name", "Gateway", "Paid Plan Only")
+	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Paid Plan Only")
 }
