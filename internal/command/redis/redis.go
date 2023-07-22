@@ -29,6 +29,7 @@ func New() (cmd *cobra.Command) {
 		newConnect(),
 		newDashboard(),
 		newReset(),
+		newProxy(),
 	)
 
 	return cmd
