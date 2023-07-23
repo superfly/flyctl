@@ -281,14 +281,18 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
 		msg := "Select configuration:"
+		configurations := postgresConfigurations(input.Manager)
 		var selected int
 
 		options := []string{}
-		for _, cfg := range postgresConfigurations(input.Manager) {
+		for i, cfg := range configurations {
 			options = append(options, cfg.Description)
+                        if selected == 0 && !strings.HasPrefix(cfg.Description, "Dev") {
+                                selected = i
+                        }
 		}
 
-		if err := prompt.Select(ctx, &selected, msg, "", options...); err != nil {
+		if err := prompt.Select(ctx, &selected, msg, configurations[selected].Description, options...); err != nil {
 			return err
 		}
 		config = &postgresConfigurations(input.Manager)[selected]
