@@ -287,9 +287,9 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		options := []string{}
 		for i, cfg := range configurations {
 			options = append(options, cfg.Description)
-                        if selected == 0 && !strings.HasPrefix(cfg.Description, "Dev") {
-                                selected = i
-                        }
+			if selected == 0 && !strings.HasPrefix(cfg.Description, "Dev") {
+				selected = i
+			}
 		}
 
 		if err := prompt.Select(ctx, &selected, msg, configurations[selected].Description, options...); err != nil {
