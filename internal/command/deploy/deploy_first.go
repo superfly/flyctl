@@ -6,6 +6,9 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/gql"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -14,12 +17,41 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 		return nil
 	}
 	if err := md.provisionIpsOnFirstDeploy(ctx, allocPublicIPs); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
+		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses. Use `fly ips` commands to remediate it. ERROR: %s", err)
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
+
+	if err := md.provisionSentryOnFirstDeploy(ctx); err != nil {
+		fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again. ERROR: %s", err)
+		return fmt.Errorf("failed to provision Sentry: %w", err)
+	}
+
 	return nil
+}
+
+func (md *machineDeployment) provisionSentryOnFirstDeploy(ctx context.Context) error {
+	extension, err := extensions_core.ProvisionExtension(ctx, sentry_ext.SentryOptions)
+
+	if err != nil {
+		return err
+	}
+
+	input := gql.SetSecretsInput{
+		AppId: md.app.ID,
+	}
+
+	fmt.Fprintf(md.io.Out, "Setting the following secrets on %s:\n", md.app.Name)
+
+	for key, value := range extension.Environment.(map[string]interface{}) {
+		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
+		fmt.Println(key)
+	}
+
+	_, err = gql.SetSecrets(ctx, md.gqlClient, input)
+
+	return err
 }
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allocPublicIPs bool) error {

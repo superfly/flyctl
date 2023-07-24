@@ -12,6 +12,13 @@ import (
 	"github.com/superfly/flyctl/scanner"
 )
 
+var SentryOptions = extensions_core.ExtensionOptions{
+	Provider:       "sentry",
+	SelectName:     false,
+	SelectRegion:   false,
+	DetectPlatform: true,
+}
+
 func create() (cmd *cobra.Command) {
 
 	const (

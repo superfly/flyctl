@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -27,7 +26,7 @@ type ExtensionOptions struct {
 	Options        gql.AddOnOptions
 }
 
-func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *gql.AddOn, err error) {
+func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extension *gql.ExtensionData, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
@@ -119,7 +118,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 		excludedRegions, err := GetExcludedRegions(ctx, options.Provider)
 
 		if err != nil {
-			return addOn, err
+			return extension, err
 		}
 
 		cfg := appconfig.ConfigFromContext(ctx)
@@ -144,7 +143,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 			})
 
 			if err != nil {
-				return addOn, err
+				return extension, err
 			}
 
 			primaryRegion = region.Code
@@ -153,36 +152,26 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 		input.PrimaryRegion = primaryRegion
 	}
 
-	createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
+	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
 		return nil, err
 	}
 
-	addOn = &createAddOnResponse.CreateAddOn.AddOn
+	extension = &createResp.CreateAddOn.AddOn.ExtensionData
 
 	if addOnProvider.AsyncProvisioning {
 		// wait for provision
-		err = WaitForProvision(ctx, addOn.Name)
+		err = WaitForProvision(ctx, extension.Name)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	if options.SelectRegion {
-		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(addOn.Name), colorize.Green(addOn.PrimaryRegion), colorize.Green(appName))
+		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(extension.Name), colorize.Green(extension.PrimaryRegion), colorize.Green(appName))
 	}
-	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
-
-	env := make(map[string]string)
-	for key, value := range addOn.Environment.(map[string]interface{}) {
-		env[key] = value.(string)
-		fmt.Println(key)
-	}
-
-	secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
-
-	return addOn, nil
+	return extension, nil
 }
 
 func WaitForProvision(ctx context.Context, name string) error {

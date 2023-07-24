@@ -25,6 +25,13 @@ query GetAddOn($name: String) {
 	}
 }
 
+fragment AddOnData on AddOn {
+	id
+	name
+	primaryRegion
+	status
+}
+
 mutation CreateAddOn($input: CreateAddOnInput!) {
 	createAddOn(input: $input) {
 		addOn {
@@ -34,6 +41,22 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			token
 			environment
 			primaryRegion
+		}
+	}
+}
+
+fragment ExtensionData on AddOn {
+	name
+	ssoLink
+	environment
+	primaryRegion
+}
+
+
+mutation CreateExtension($input: CreateAddOnInput!) {
+	createAddOn(input: $input) {
+		addOn {
+			...ExtensionData
 		}
 	}
 }
@@ -78,13 +101,6 @@ query GetApp($name: String!) {
 	app(name: $name) {
 		...AppData
 	}
-}
-
-fragment AddOnData on AddOn {
-	id
-	name
-	primaryRegion
-	status
 }
 
 query GetAppWithAddons($name: String!, $addOnType: AddOnType!) {
