@@ -31,7 +31,7 @@ main() {
 	chmod +x "$tmp_dir/flyctl"
 	# atomically rename into place:
 	mv "$tmp_dir/flyctl" "$exe"
-	rm -rf "$tmp_dir"
+	rm "$tmp_dir/flyctl.tar.gz"
 
 	ln -sf $exe $simexe
 
