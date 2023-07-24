@@ -23,6 +23,7 @@ import (
 func v2BuildPlan(ctx context.Context) (*launchState, error) {
 
 	var (
+		io        = iostreams.FromContext(ctx)
 		client    = client.FromContext(ctx)
 		clientApi = client.API()
 	)
@@ -66,13 +67,20 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		}
 	}
 
+	workingDir := flag.GetString(ctx, "path")
+	if absDir, err := filepath.Abs(workingDir); err == nil {
+		workingDir = absDir
+	}
+	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
+	fmt.Fprintln(io.Out, "Creating app in", workingDir)
+
 	var srcInfo *scanner.SourceInfo
-	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir(ctx))
+	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
 	if err != nil {
 		return nil, err
 	}
 
-	appName, appNameExplanation, err := v2DetermineAppName(ctx)
+	appName, appNameExplanation, err := v2DetermineAppName(ctx, configPath)
 	if err != nil {
 		return nil, err
 	}
@@ -101,30 +109,12 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 	}
 
 	return &launchState{
+		workingDir: workingDir,
+		configPath: configPath,
 		plan:       lp,
 		appConfig:  appConfig,
 		sourceInfo: srcInfo,
 	}, nil
-}
-
-func workingDir(ctx context.Context) string {
-	workingDir := flag.GetString(ctx, "path")
-
-	if absDir, err := filepath.Abs(workingDir); err == nil {
-		workingDir = absDir
-	}
-	return workingDir
-}
-
-func configPath(ctx context.Context) string {
-
-	io := iostreams.FromContext(ctx)
-	dir := workingDir(ctx)
-
-	configFilePath := filepath.Join(dir, appconfig.DefaultConfigFileName)
-	fmt.Fprintln(io.Out, "Creating app in", dir)
-
-	return configFilePath
 }
 
 // determineBaseAppConfig looks for existing app config, ask to reuse or returns an empty config
@@ -175,12 +165,11 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 }
 
 // v2DetermineAppName determines the app name from the config file or directory name
-func v2DetermineAppName(ctx context.Context) (string, string, error) {
+func v2DetermineAppName(ctx context.Context, configPath string) (string, string, error) {
 
 	appName := flag.GetString(ctx, "name")
 	if appName == "" {
-		tomlPath := configPath(ctx)
-		appName = filepath.Base(filepath.Dir(tomlPath))
+		appName = filepath.Base(filepath.Dir(configPath))
 	}
 	if appName == "" {
 		return "", "", errors.New("enable to determine app name, please specify one with --name")

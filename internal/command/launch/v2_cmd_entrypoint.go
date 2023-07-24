@@ -13,6 +13,8 @@ import (
 )
 
 type launchState struct {
+	workingDir string
+	configPath string
 	plan       *launchPlan
 	appConfig  *appconfig.Config
 	sourceInfo *scanner.SourceInfo
