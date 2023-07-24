@@ -229,6 +229,23 @@ func v2DetermineRegion(ctx context.Context, config *appconfig.Config, paidPlan b
 	return region, "this is the fastest region for you", err
 }
 
+// getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
+func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error) {
+	apiClient := client.FromContext(ctx).API()
+
+	allRegions, _, err := apiClient.PlatformRegions(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, r := range allRegions {
+		if r.Code == regionCode {
+			return &r, nil
+		}
+	}
+	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
+}
+
 // v2DetermineGuest returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
 func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {

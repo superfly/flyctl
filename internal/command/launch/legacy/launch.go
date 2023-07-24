@@ -1,4 +1,4 @@
-package launch
+package legacy
 
 import (
 	"context"
@@ -8,14 +8,12 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -26,73 +24,7 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-func New() (cmd *cobra.Command) {
-	const (
-		long  = `Create and configure a new app from source code or a Docker image.`
-		short = long
-	)
-
-	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
-	cmd.Args = cobra.NoArgs
-
-	flag.Add(cmd,
-		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
-		// the launch command in CI environments. We may want to rescind this decision down the line, because
-		// the list of flags is long, but it follows from the precedent of already offering some deployment flags.
-		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
-		deploy.CommonFlags,
-
-		flag.Org(),
-		flag.NoDeploy(),
-		flag.Bool{
-			Name:        "generate-name",
-			Description: "Always generate a name for the app, without prompting",
-		},
-		flag.String{
-			Name:        "path",
-			Description: `Path to the app source root, where fly.toml file will be saved`,
-			Default:     ".",
-		},
-		flag.String{
-			Name:        "name",
-			Description: `Name of the new app`,
-		},
-		flag.Bool{
-			Name:        "copy-config",
-			Description: "Use the configuration file if present without prompting",
-			Default:     false,
-		},
-		flag.Bool{
-			Name:        "reuse-app",
-			Description: "Continue even if app name clashes with an existent app",
-			Default:     false,
-		},
-		flag.Bool{
-			Name:        "dockerignore-from-gitignore",
-			Description: "If a .dockerignore does not exist, create one from .gitignore files",
-			Default:     false,
-		},
-		flag.Int{
-			Name:        "internal-port",
-			Description: "Set internal_port for all services in the generated fly.toml",
-			Default:     -1,
-		},
-		// Launch V2
-		flag.Bool{
-			Name:        "ui",
-			Description: "Use the Launch V2 interface",
-			Hidden:      true,
-		},
-	)
-
-	return
-}
-
-func run(ctx context.Context) (err error) {
-
-	if flag.GetBool(ctx, "ui") {
-		return runUi(ctx)
-	}
+func Run(ctx context.Context) (err error) {
 
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API()

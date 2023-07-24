@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -198,6 +199,27 @@ func (state *launchState) scannerRunInitCommands(ctx context.Context) error {
 		}
 	}
 	return nil
+}
+
+func execInitCommand(ctx context.Context, command scanner.InitCommand) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	binary, err := exec.LookPath(command.Command)
+	if err != nil {
+		return fmt.Errorf("%s not found in $PATH - make sure app dependencies are installed and try again", command.Command)
+	}
+	fmt.Fprintln(io.Out, command.Description)
+	// Run a requested generator command, for example to generate a Dockerfile
+	cmd := exec.CommandContext(ctx, binary, command.Args...)
+
+	if err = cmd.Start(); err != nil {
+		return err
+	}
+
+	if err = cmd.Wait(); err != nil {
+		err = fmt.Errorf("failed running %s: %w ", cmd.String(), err)
+	}
+	return err
 }
 
 func (state *launchState) scannerSetAppconfig(ctx context.Context) error {

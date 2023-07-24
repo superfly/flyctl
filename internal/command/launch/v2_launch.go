@@ -6,12 +6,8 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/scanner"
-	"github.com/superfly/flyctl/terminal"
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
@@ -96,43 +92,4 @@ func (state *launchState) createDatabases(ctx context.Context) (map[string]bool,
 	// Base this on v1's createDatabases()
 
 	return options, nil
-}
-
-// determineDockerIgnore attempts to create a .dockerignore from .gitignore
-func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
-	io := iostreams.FromContext(ctx)
-	dockerIgnore := ".dockerignore"
-	gitIgnore := ".gitignore"
-	allGitIgnores := scanner.FindGitignores(state.workingDir)
-	createDockerignoreFromGitignore := false
-
-	// An existing .dockerignore should always be used instead of .gitignore
-	if helpers.FileExists(dockerIgnore) {
-		terminal.Debugf("Found %s file. Will use when deploying to Fly.\n", dockerIgnore)
-		return
-	}
-
-	// If we find .gitignore files, determine whether they should be converted to .dockerignore
-	if len(allGitIgnores) > 0 {
-
-		if flag.GetBool(ctx, "dockerignore-from-gitignore") {
-			createDockerignoreFromGitignore = true
-		} else {
-			confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Create %s from %d %s files?", dockerIgnore, len(allGitIgnores), gitIgnore))
-			if confirm && err == nil {
-				createDockerignoreFromGitignore = true
-			}
-		}
-
-		if createDockerignoreFromGitignore {
-			createdDockerIgnore, err := createDockerignoreFromGitignores(state.workingDir, allGitIgnores)
-			if err != nil {
-				terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
-			} else {
-				fmt.Fprintf(io.Out, "Created %s from %d %s files.\n", createdDockerIgnore, len(allGitIgnores), gitIgnore)
-			}
-			return nil
-		}
-	}
-	return
 }
