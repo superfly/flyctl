@@ -133,6 +133,7 @@ type launchState struct {
 	workingDir string
 	configPath string
 	plan       *launchPlan
+	env        map[string]string
 	appConfig  *appconfig.Config
 	sourceInfo *scanner.SourceInfo
 }

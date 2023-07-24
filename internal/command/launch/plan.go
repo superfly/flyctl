@@ -26,7 +26,6 @@ type launchPlan struct {
 	Redis       *redisPlan
 	redisSource string
 
-	Env           map[string]string
 	ScannerFamily string
 }
 

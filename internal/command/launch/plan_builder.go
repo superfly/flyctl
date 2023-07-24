@@ -105,7 +105,6 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		postgresSource: "not implemented",
 		Redis:          nil,
 		redisSource:    "not implemented",
-		Env:            envVars,
 		ScannerFamily:  srcInfo.Family,
 	}
 
@@ -113,6 +112,7 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		workingDir: workingDir,
 		configPath: configPath,
 		plan:       lp,
+		env:        envVars,
 		appConfig:  appConfig,
 		sourceInfo: srcInfo,
 	}, nil

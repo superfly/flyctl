@@ -68,8 +68,8 @@ func (state *launchState) Launch(ctx context.Context) error {
 func (state *launchState) updateConfig(ctx context.Context) {
 	state.appConfig.AppName = state.plan.AppName
 	state.appConfig.PrimaryRegion = state.plan.Region.Code
-	if state.plan.Env != nil {
-		state.appConfig.SetEnvVariables(state.plan.Env)
+	if state.env != nil {
+		state.appConfig.SetEnvVariables(state.env)
 	}
 }
 
