@@ -224,6 +224,7 @@ func TestToDefinition(t *testing.T) {
 					"path":            "/",
 					"protocol":        "https",
 					"tls_skip_verify": true,
+					"tls_server_name": "sni2.com",
 					"headers": map[string]any{
 						"My-Custom-Header": "whatever",
 					},
@@ -297,6 +298,7 @@ func TestToDefinition(t *testing.T) {
 				"path":            "/status",
 				"protocol":        "https",
 				"tls_skip_verify": true,
+				"tls_server_name": "sni3.com",
 				"headers": map[string]any{
 					"Content-Type":  "application/json",
 					"Authorization": "super-duper-secret",
@@ -340,6 +342,7 @@ func TestToDefinition(t *testing.T) {
 						"path":            "/",
 						"protocol":        "https",
 						"tls_skip_verify": true,
+						"tls_server_name": "sni.com",
 						"headers": map[string]any{
 							"My-Custom-Header": "whatever",
 						},

@@ -366,6 +366,7 @@ type MachineCheck struct {
 	HTTPPath          *string             `json:"path,omitempty"`
 	HTTPProtocol      *string             `json:"protocol,omitempty"`
 	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
+	HTTPTLSServerName *string             `json:"tls_server_name,omitempty"`
 	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
 }
 

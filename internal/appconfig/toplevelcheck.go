@@ -20,6 +20,7 @@ type ToplevelCheck struct {
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	HTTPTLSServerName *string           `json:"tls_server_name,omitempty" toml:"tls_server_name,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 	Processes         []string          `json:"processes,omitempty" toml:"processes,omitempty"`
 }
@@ -44,6 +45,7 @@ func topLevelCheckFromMachineCheck(mc api.MachineCheck) *ToplevelCheck {
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,
 		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
+		HTTPTLSServerName: mc.HTTPTLSServerName,
 		HTTPHeaders:       headers,
 	}
 }
@@ -62,6 +64,7 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
+		HTTPTLSServerName: chk.HTTPTLSServerName,
 	}
 	if chk.HTTPMethod != nil {
 		res.HTTPMethod = api.Pointer(strings.ToUpper(*chk.HTTPMethod))

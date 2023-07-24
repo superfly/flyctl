@@ -43,6 +43,7 @@ type ServiceHTTPCheck struct {
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	HTTPTLSServerName *string           `json:"tls_server_name,omitempty" toml:"tls_server_name,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
@@ -125,6 +126,7 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
+		HTTPTLSServerName: chk.HTTPTLSServerName,
 		HTTPHeaders: lo.MapToSlice(
 			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
 				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
@@ -206,6 +208,7 @@ func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,
 		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
+		HTTPTLSServerName: mc.HTTPTLSServerName,
 		HTTPHeaders:       headers,
 	}
 }
