@@ -496,6 +496,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					HTTPPath:          api.Pointer("/"),
 					HTTPProtocol:      api.Pointer("https"),
 					HTTPTLSSkipVerify: api.Pointer(true),
+					HTTPTLSServerName: api.Pointer("sni2.com"),
 					HTTPHeaders: map[string]string{
 						"My-Custom-Header": "whatever",
 					},
@@ -547,6 +548,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				HTTPPath:          api.Pointer("/status"),
 				HTTPProtocol:      api.Pointer("https"),
 				HTTPTLSSkipVerify: api.Pointer(true),
+				HTTPTLSServerName: api.Pointer("sni3.com"),
 				HTTPHeaders: map[string]string{
 					"Content-Type":  "application/json",
 					"Authorization": "super-duper-secret",
@@ -595,6 +597,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						HTTPPath:          api.Pointer("/"),
 						HTTPProtocol:      api.Pointer("https"),
 						HTTPTLSSkipVerify: api.Pointer(true),
+						HTTPTLSServerName: api.Pointer("sni.com"),
 						HTTPHeaders: map[string]string{
 							"My-Custom-Header": "whatever",
 						},
