@@ -256,12 +256,8 @@ func errorIsTimeout(err error) bool {
 	}
 
 	// Look for an underlying context.DeadlineExceeded error
-	unwrapped := err
-	for unwrapped != nil {
-		if errors.Is(unwrapped, context.DeadlineExceeded) {
-			return true
-		}
-		unwrapped = errors.Unwrap(err)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
 	}
 	return false
 }
