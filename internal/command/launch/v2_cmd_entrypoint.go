@@ -18,6 +18,8 @@ type launchState struct {
 	sourceInfo *scanner.SourceInfo
 }
 
+// familyToAppType returns a string that describes the app type based on the source info
+// For example, "Dockerfile" apps would return "app" but a rails app would return "Rails app"
 func familyToAppType(si *scanner.SourceInfo) string {
 	if si == nil {
 		return "app"
@@ -46,8 +48,12 @@ func runUi(ctx context.Context) (err error) {
 		return err
 	}
 
-	fmt.Fprintf(io.Out, "We're about to launch your %s on Fly.io. Here's what you're getting:\n\n", familyToAppType(srcInfo))
-	fmt.Fprintln(io.Out, state.plan.Summary())
+	fmt.Fprintf(
+		io.Out,
+		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+		familyToAppType(state.sourceInfo),
+		state.plan.Summary(),
+	)
 
 	confirm := false
 	prompt := &survey.Confirm{
@@ -60,13 +66,13 @@ func runUi(ctx context.Context) (err error) {
 	}
 
 	if confirm {
-		err = state.tweakPlanWebUI(ctx)
+		err = state.EditInWebUi(ctx)
 		if err != nil {
 			return err
 		}
 	}
 
-	err = state.launch(ctx)
+	err = state.Launch(ctx)
 	if err != nil {
 		return err
 	}
@@ -74,6 +80,7 @@ func runUi(ctx context.Context) (err error) {
 	return nil
 }
 
+// warnLegacyBehavior warns the user if they are using a legacy flag
 func warnLegacyBehavior(ctx context.Context) error {
 	// TODO(Allison): We probably want to support re-configuring an existing app, but
 	// that is different from the launch-into behavior of reuse-app, which basically just deployed.

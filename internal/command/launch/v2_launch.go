@@ -6,7 +6,8 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func (state *launchState) launch(ctx context.Context) error {
+// Launch launches the app described by the plan. This is the main entry point for launching a plan.
+func (state *launchState) Launch(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 

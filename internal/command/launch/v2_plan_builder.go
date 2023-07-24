@@ -18,6 +18,8 @@ import (
 	"github.com/superfly/flyctl/scanner"
 )
 
+// v2BuildPlan creates a launchState from command line flags.
+// It shouldn't have any filesystem side effects.
 func v2BuildPlan(ctx context.Context) (*launchState, error) {
 
 	var (
@@ -79,6 +81,8 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	lp := &launchPlan{
 		AppName:        appName,
@@ -170,6 +174,7 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 	return newCfg, false, nil
 }
 
+// v2DetermineAppName determines the app name from the config file or directory name
 func v2DetermineAppName(ctx context.Context) (string, string, error) {
 
 	appName := flag.GetString(ctx, "name")
@@ -183,6 +188,7 @@ func v2DetermineAppName(ctx context.Context) (string, string, error) {
 	return appName, "derived from your directory name", nil
 }
 
+// v2DetermineOrg returns the org specified on the command line, or the personal org if left unspecified
 func v2DetermineOrg(ctx context.Context) (*api.Organization, string, error) {
 	var (
 		client    = client.FromContext(ctx)
@@ -208,6 +214,10 @@ func v2DetermineOrg(ctx context.Context) (*api.Organization, string, error) {
 	return &org, "specified on the command line", nil
 }
 
+// v2DetermineRegion returns the region to use for a new app. In order, it tries:
+//  1. the primary_region field of the config, if one exists
+//  2. the region specified on the command line, if specified
+//  3. the nearest region to the user
 func v2DetermineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
 
 	client := client.FromContext(ctx)
@@ -230,6 +240,8 @@ func v2DetermineRegion(ctx context.Context, config *appconfig.Config, paidPlan b
 	return region, "this is the fastest region for you", err
 }
 
+// v2DetermineGuest returns the guest type to use for a new app.
+// Currently, it defaults to shared-cpu-1x
 func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
 	shared1x := api.MachinePresets["shared-cpu-1x"]
 	return shared1x, "most apps need about 1GB of RAM", nil

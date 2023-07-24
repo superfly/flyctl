@@ -29,6 +29,8 @@ type launchPlan struct {
 	Env map[string]string
 }
 
+// Summary returns a human-readable summary of the launch plan.
+// Used to confirm the plan before executing it.
 func (p *launchPlan) Summary() string {
 
 	guest := p.Guest
