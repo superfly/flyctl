@@ -35,6 +35,7 @@ from the Fly platform.
 
 	destroy.ValidArgsFunction = completion.Adapt(completion.CompleteApps)
 
+	destroy.Aliases = []string{"rm"}
 	return destroy
 }
 
