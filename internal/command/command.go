@@ -346,6 +346,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
 		{"version", "upgrade"},
+		{"settings", "autoupdate"},
 	}) {
 		return ctx, nil
 	}
