@@ -26,7 +26,8 @@ type launchPlan struct {
 	Redis       *redisPlan
 	redisSource string
 
-	Env map[string]string
+	Env           map[string]string
+	ScannerFamily string
 }
 
 // Summary returns a human-readable summary of the launch plan.

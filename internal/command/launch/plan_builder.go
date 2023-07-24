@@ -106,6 +106,7 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		Redis:          nil,
 		redisSource:    "not implemented",
 		Env:            envVars,
+		ScannerFamily:  srcInfo.Family,
 	}
 
 	return &launchState{
