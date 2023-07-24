@@ -137,17 +137,18 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
 		switch ip.Type {
-		case "v4":
-		case "shared_v4":
+		case "v4", "shared_v4":
 			v4s[ip.Address] = true
 		case "v6":
 			v6s[ip.Address] = true
+		case "private_v6":
+			// This is a valid type, but not of interest here.
 		default:
-			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=", ip.Address, ip.Type)
+			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.Address, ip.Type)
 		}
 	}
 	if len(v4s) == 0 && len(v6s) == 0 {
-		ac.lprint(nil, "No ipv4 or ipv6 ip addresses allocated to app %s", ac.app.Name)
+		ac.lprint(nil, "No public ipv4 or ipv6 ip addresses allocated to app %s\n", ac.app.Name)
 		return
 	}
 
