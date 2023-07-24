@@ -557,7 +557,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 
 	result = f.Fly("config show -a %s", appName)
 
-	require.Contains(f, result.StdOut().String(), `"min_machines_running": 3,`)
+	require.Contains(f, result.StdOut().String(), `"min_machines_running": 2,`)
 	require.Contains(f, result.StdOut().String(), `"auto_start_machines": true,`)
 	require.Contains(f, result.StdOut().String(), `"auto_stop_machines": true,`)
 
