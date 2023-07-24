@@ -15,7 +15,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/shlex"
-	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -29,6 +28,7 @@ type FlyctlTestEnv struct {
 	orgSlug             string
 	primaryRegion       string
 	otherRegions        []string
+	env                 map[string]string
 	cmdHistory          []*FlyctlResult
 	noHistoryOnFail     bool
 }
@@ -66,6 +66,7 @@ func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 		accessToken:     os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
 		logLevel:        os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
 		noHistoryOnFail: noHistoryOnFail,
+		envVariables:    make(map[string]string),
 	})
 	return env
 }
@@ -80,6 +81,11 @@ type TestEnvConfig struct {
 	accessToken     string
 	logLevel        string
 	noHistoryOnFail bool
+	envVariables    map[string]string
+}
+
+func (t *TestEnvConfig) Setenv(name string, value string) {
+	t.envVariables[name] = value
 }
 
 func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
@@ -91,13 +97,12 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		}
 	}
 	tryToStopAgentsInOriginalHomeDir(t, flyctlBin)
-	tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
-	t.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
+	// tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
+	cfg.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
 	if cfg.logLevel != "" {
-		t.Setenv("LOG_LEVEL", cfg.logLevel)
+		cfg.Setenv("LOG_LEVEL", cfg.logLevel)
 	}
-	t.Setenv("HOME", cfg.homeDir)
-	require.Nil(t, os.Chdir(cfg.workDir))
+	cfg.Setenv("HOME", cfg.homeDir)
 	primaryReg := cfg.primaryRegion
 	if primaryReg == "" {
 		primaryReg = defaultRegion
@@ -112,6 +117,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		workDir:             cfg.workDir,
 		originalAccessToken: cfg.accessToken,
 		noHistoryOnFail:     cfg.noHistoryOnFail,
+		env:                 cfg.envVariables,
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -171,6 +177,16 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 		stdErr:        stdErr,
 	}
 	cmd := exec.CommandContext(ctx, f.flyctlBin, res.args...)
+	fmt.Printf("CMD: %s\n", res.args)
+
+	var env []string
+
+	for key, val := range f.env {
+		env = append(env, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	cmd.Dir = f.workDir
+	cmd.Env = env
 	cmd.Stdin = testIostreams.In
 	cmd.Stdout = testIostreams.Out
 	cmd.Stderr = testIostreams.ErrOut
@@ -359,7 +375,7 @@ func (f *FlyctlTestEnv) Name() string {
 }
 
 func (f *FlyctlTestEnv) Setenv(key, value string) {
-	f.t.Setenv(key, value)
+	f.env[key] = value
 }
 
 func (f *FlyctlTestEnv) Skip(args ...any) {
