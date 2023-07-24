@@ -27,7 +27,8 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 
 	// TODO(Allison): Do we want to make the executive decision to just *always* deploy?
 
-	deployNow := false
+	deployNow := true
+	// deployNow := false
 	// promptForDeploy := true
 
 	if state.sourceInfo.SkipDeploy || flag.GetBool(ctx, "no-deploy") {
