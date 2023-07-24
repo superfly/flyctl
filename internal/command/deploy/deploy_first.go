@@ -25,7 +25,7 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 
 	if err := md.provisionSentryOnFirstDeploy(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again. ERROR: %s", err)
-		return fmt.Errorf("failed to provision Sentry: %w", err)
+		return nil
 	}
 
 	return nil
