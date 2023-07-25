@@ -186,12 +186,11 @@ Optionally, you can use django.core.management.utils.get_random_secret_key() to 
 		}
 	}
 
-	s.Files = templatesExecute("templates/django", vars)
-
 	// check if project has a postgres dependency
 	if checksPass(sourceDir, dirContains("requirements.txt", "psycopg")) ||
 		checksPass(sourceDir, dirContains("Pipfile", "psycopg")) ||
 		checksPass(sourceDir, dirContains("pyproject.toml", "psycopg")) {
+		vars["hasPostgres"] = true
 		s.ReleaseCmd = "python manage.py migrate"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
@@ -210,6 +209,8 @@ For detailed documentation, see https://fly.dev/docs/django/
 		`
 		}
 	}
+
+	s.Files = templatesExecute("templates/django", vars)
 
 	return s, nil
 }
