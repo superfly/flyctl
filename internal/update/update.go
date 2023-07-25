@@ -309,6 +309,8 @@ func Relaunch(ctx context.Context, silent bool) error {
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
 	cmd.Stdin = io.In
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "FLY_NO_UPDATE_CHECK=1")
 
 	if err := cmd.Start(); err != nil {
 		return err
