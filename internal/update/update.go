@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
 	"github.com/morikuni/aec"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -63,23 +63,27 @@ func (i InvalidReleaseError) StatusCode() int {
 }
 
 // memoized values for ValidateRelease
-var validatedReleases = map[string]error{}
+var _validatedReleases = map[string]error{}
+var _validatedReleaseLock sync.Mutex
 
 // ValidateRelease reports whether the given release is valid via an API call.
 // If the version is invalid, the error will be an InvalidReleaseError.
 // Note that other errors may be returned if the API call fails.
 func ValidateRelease(ctx context.Context, version string) (err error) {
 
+	_validatedReleaseLock.Lock()
+	defer _validatedReleaseLock.Unlock()
+
 	if version[0] == 'v' {
 		version = version[1:]
 	}
 
-	if err, ok := validatedReleases[version]; ok {
+	if err, ok := _validatedReleases[version]; ok {
 		return err
 	}
 
 	defer func() {
-		validatedReleases[version] = err
+		_validatedReleases[version] = err
 	}()
 
 	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_validate/v%s", version)
@@ -185,35 +189,32 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 
 var errBrewNotFound = errors.New("command 'brew' not found")
 
-// memoized value so we're not executing homebrew commands on every call
 // Use brewBinDir()
-var _brewBinDir *string
+var _brewBinDir memoize[string]
 
 func brewBinDir() (string, error) {
-	if _brewBinDir != nil {
-		return *_brewBinDir, nil
-	}
 
-	brewExe, err := safeexec.LookPath("brew")
-	if err != nil {
-		return "", errBrewNotFound
-	}
+	return _brewBinDir.Get(func() (string, error) {
 
-	brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
-	if err != nil {
-		return "", err
-	}
+		brewExe, err := safeexec.LookPath("brew")
+		if err != nil {
+			return "", errBrewNotFound
+		}
 
-	brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
+		brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
+		if err != nil {
+			return "", err
+		}
 
-	_brewBinDir = api.StringPointer(brewBinPrefix)
-	return *_brewBinDir, nil
+		brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
+
+		return brewBinPrefix, nil
+	})
 
 }
 
-// memoized value so we're not executing homebrew commands on every call
 // Use IsUnderHomebrew()
-var _isUnderHomebrew *bool
+var _isUnderHomebrew memoize[bool]
 
 // IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
@@ -223,22 +224,23 @@ func IsUnderHomebrew() bool {
 		return false
 	}
 
-	if _isUnderHomebrew != nil {
-		return *_isUnderHomebrew
-	}
+	val, err := _isUnderHomebrew.Get(func() (bool, error) {
+		flyBinary, err := os.Executable()
+		if err != nil {
+			return false, err
+		}
 
-	flyBinary, err := os.Executable()
+		brewBinPrefix, err := brewBinDir()
+		if err != nil {
+			return false, err
+		}
+
+		return strings.HasPrefix(flyBinary, brewBinPrefix), nil
+	})
 	if err != nil {
 		return false
 	}
-
-	brewBinPrefix, err := brewBinDir()
-	if err != nil {
-		return false
-	}
-
-	_isUnderHomebrew = api.BoolPointer(strings.HasPrefix(flyBinary, brewBinPrefix))
-	return *_isUnderHomebrew
+	return val
 }
 
 func upgradeCommand(prerelease bool) string {
@@ -265,6 +267,17 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
+		}
+	}
+
+	if IsUnderHomebrew() {
+
+		brewExe, err := safeexec.LookPath("brew")
+		if err == nil {
+			err = exec.Command(brewExe, "update").Run()
+		}
+		if err != nil {
+			terminal.Debugf("error updating homebrew cache: %s", err)
 		}
 	}
 
