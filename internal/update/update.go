@@ -2,17 +2,11 @@ package update
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strings"
-	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
@@ -50,75 +44,6 @@ func Check() bool {
 	}
 }
 
-type InvalidReleaseError struct {
-	status int
-	msg    string
-}
-
-func (i InvalidReleaseError) Error() string {
-	return i.msg
-}
-func (i InvalidReleaseError) StatusCode() int {
-	return i.status
-}
-
-// memoized values for ValidateRelease
-var _validatedReleases = map[string]error{}
-var _validatedReleaseLock sync.Mutex
-
-// ValidateRelease reports whether the given release is valid via an API call.
-// If the version is invalid, the error will be an InvalidReleaseError.
-// Note that other errors may be returned if the API call fails.
-func ValidateRelease(ctx context.Context, version string) (err error) {
-
-	_validatedReleaseLock.Lock()
-	defer _validatedReleaseLock.Unlock()
-
-	if version[0] == 'v' {
-		version = version[1:]
-	}
-
-	if err, ok := _validatedReleases[version]; ok {
-		return err
-	}
-
-	defer func() {
-		_validatedReleases[version] = err
-	}()
-
-	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_validate/v%s", version)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", updateUrl, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Add("Accept", "text/plain")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			terminal.Debugf("error closing response body: %s", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return &InvalidReleaseError{
-			status: resp.StatusCode,
-			msg:    string(body),
-		}
-	}
-
-	return nil
-}
-
 // LatestRelease reports the latest release for the given channel.
 func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 
@@ -126,121 +51,7 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 	if IsUnderHomebrew() {
 		return latestHomebrewRelease(ctx, channel)
 	}
-
-	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_releases/%s/%s/%s", runtime.GOOS, runtime.GOARCH, channel)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", updateUrl, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Add("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			terminal.Debugf("error closing response body: %s", err)
-		}
-	}()
-
-	var release Release
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
-		return &release, err
-	}
-
-	return &release, nil
-}
-
-func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://formulae.brew.sh/api/formula/flyctl.json", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Add("Accept", "application/json")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			terminal.Debugf("error closing response body: %s", err)
-		}
-	}()
-
-	var brewResp struct {
-		Versions struct {
-			Stable string `json:"stable"`
-		} `json:"versions"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&brewResp); err != nil {
-		return nil, err
-	}
-
-	return &Release{
-		Version: brewResp.Versions.Stable,
-	}, nil
-}
-
-var errBrewNotFound = errors.New("command 'brew' not found")
-
-// Use brewBinDir()
-var _brewBinDir memoize[string]
-
-func brewBinDir() (string, error) {
-
-	return _brewBinDir.Get(func() (string, error) {
-
-		brewExe, err := safeexec.LookPath("brew")
-		if err != nil {
-			return "", errBrewNotFound
-		}
-
-		brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
-		if err != nil {
-			return "", err
-		}
-
-		brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
-
-		return brewBinPrefix, nil
-	})
-
-}
-
-// Use IsUnderHomebrew()
-var _isUnderHomebrew memoize[bool]
-
-// IsUnderHomebrew reports whether the fly binary was found under the Homebrew
-// prefix.
-func IsUnderHomebrew() bool {
-
-	if runtime.GOOS == "windows" {
-		return false
-	}
-
-	val, err := _isUnderHomebrew.Get(func() (bool, error) {
-		flyBinary, err := os.Executable()
-		if err != nil {
-			return false, err
-		}
-
-		brewBinPrefix, err := brewBinDir()
-		if err != nil {
-			return false, err
-		}
-
-		return strings.HasPrefix(flyBinary, brewBinPrefix), nil
-	})
-	if err != nil {
-		return false
-	}
-	return val
+	return latestApiRelease(ctx, channel)
 }
 
 func upgradeCommand(prerelease bool) string {
