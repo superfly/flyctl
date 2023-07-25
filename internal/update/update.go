@@ -356,7 +356,7 @@ func Relaunch(ctx context.Context, silent bool) error {
 
 	// Wait a bit for the update to take effect.
 	// Windows seemed to need this for whatever reason.
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 
 	binPath, err := GetCurrentBinaryPath()
 	if err != nil {
