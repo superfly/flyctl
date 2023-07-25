@@ -58,7 +58,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 			// We pin versions if they're beta or RC and, as such, don't have a
 			// minor version equivalent Docker tag.
 			pythonVersion = pythonFullVersion
-			s.Notice += fmt.Sprintf(`%s It looks like you have Python %s %s installed, which is not an official release. This version is being explicitly pinned in the generated Dockerfile, and should be changed to an official release before deploying to production.`, aurora.Yellow("[WARNING]"), pythonFullVersion, aurora.Yellow("[WARNING]"))
+			s.Notice += fmt.Sprintf(`%s It looks like you have Python %s installed, which is not an official release. This version is being explicitly pinned in the generated Dockerfile, and should be changed to an official release before deploying to production.`, aurora.Yellow("[WARNING]"), pythonFullVersion)
 		} else {
 			userVersion, userErr := semver.ParseTolerant(pythonFullVersion)
 			supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
@@ -233,7 +233,7 @@ func extractPythonVersion() (string, bool, error) {
 		}
 	}
 
-	re := regexp.MustCompile(`"Python ([0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z]+[0-9]+)?)`)
+	re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z]+[0-9]+)?)`)
 	match := re.FindStringSubmatch(pythonVersionOutput)
 
 	if len(match) > 1 {
