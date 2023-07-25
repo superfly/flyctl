@@ -220,7 +220,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 		headers = make(map[string][]string)
 	}
 
-	targetEndpoint, err := f.urlFromBaseUrl(fmt.Sprintf("/v1/%s", path))
+	targetEndpoint, err := f.urlFromBaseUrl(fmt.Sprintf("/v1%s", path))
 	if err != nil {
 		return nil, err
 	}
