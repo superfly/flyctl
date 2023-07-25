@@ -177,7 +177,6 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 		stdErr:        stdErr,
 	}
 	cmd := exec.CommandContext(ctx, f.flyctlBin, res.args...)
-	fmt.Printf("CMD: %s\n", res.args)
 
 	var env []string
 
