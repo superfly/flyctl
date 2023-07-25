@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -182,16 +183,48 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	}, nil
 }
 
+var errBrewNotFound = errors.New("command 'brew' not found")
+
+// memoized value so we're not executing homebrew commands on every call
+// Use brewBinDir()
+var _brewBinDir *string
+
+func brewBinDir() (string, error) {
+	if _brewBinDir != nil {
+		return *_brewBinDir, nil
+	}
+
+	brewExe, err := safeexec.LookPath("brew")
+	if err != nil {
+		return "", errBrewNotFound
+	}
+
+	brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
+	if err != nil {
+		return "", err
+	}
+
+	brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
+
+	_brewBinDir = api.StringPointer(brewBinPrefix)
+	return *_brewBinDir, nil
+
+}
+
 // memoized value so we're not executing homebrew commands on every call
 // Use IsUnderHomebrew()
-var isUnderHomebrew *bool
+var _isUnderHomebrew *bool
 
 // IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
 func IsUnderHomebrew() bool {
 
-	if isUnderHomebrew != nil {
-		return *isUnderHomebrew
+	if runtime.GOOS == "windows" {
+		return false
+	}
+
+	if _isUnderHomebrew != nil {
+		return *_isUnderHomebrew
 	}
 
 	flyBinary, err := os.Executable()
@@ -199,20 +232,13 @@ func IsUnderHomebrew() bool {
 		return false
 	}
 
-	brewExe, err := safeexec.LookPath("brew")
+	brewBinPrefix, err := brewBinDir()
 	if err != nil {
 		return false
 	}
 
-	brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
-	if err != nil {
-		return false
-	}
-
-	brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
-
-	isUnderHomebrew = api.BoolPointer(strings.HasPrefix(flyBinary, brewBinPrefix))
-	return *isUnderHomebrew
+	_isUnderHomebrew = api.BoolPointer(strings.HasPrefix(flyBinary, brewBinPrefix))
+	return *_isUnderHomebrew
 }
 
 func upgradeCommand(prerelease bool) string {
@@ -277,7 +303,45 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 		cmd.Stdin = io.In
 	}
 
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	// Remove the line that says `Run 'flyctl --help' to get started`
+	if !IsUnderHomebrew() && io.IsInteractive() && !silent {
+		builder := aec.EmptyBuilder
+		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(io.ErrOut, str.String())
+	}
+	return nil
+}
+
+func GetCurrentBinaryPath() (string, error) {
+
+	if IsUnderHomebrew() {
+		brewBinPrefix, err := brewBinDir()
+		if err != nil {
+			return "", err
+		}
+
+		homebrewFlyctl := filepath.Join(brewBinPrefix, "flyctl")
+		if _, err := os.Stat(homebrewFlyctl); err == nil {
+			return homebrewFlyctl, nil
+		}
+		// Not linked (?), use fallback method
+	}
+
+	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return "", err
+	}
+
+	binPath, err = filepath.EvalSymlinks(binPath)
+	if err != nil {
+		return "", err
+	}
+	return binPath, nil
 }
 
 // Relaunch only returns on error
@@ -294,15 +358,11 @@ func Relaunch(ctx context.Context, silent bool) error {
 	// Windows seemed to need this for whatever reason.
 	time.Sleep(250 * time.Millisecond)
 
-	binPath, err := exec.LookPath(os.Args[0])
+	binPath, err := GetCurrentBinaryPath()
 	if err != nil {
 		return err
 	}
 
-	binPath, err = filepath.EvalSymlinks(binPath)
-	if err != nil {
-		return err
-	}
 	terminal.Debugf("relaunching %s, found at %s\n", os.Args[0], binPath)
 
 	cmd := exec.Command(binPath, os.Args[1:]...)
@@ -321,13 +381,6 @@ func Relaunch(ctx context.Context, silent bool) error {
 			os.Exit(exitErr.ExitCode())
 		}
 		return err
-	}
-
-	// Remove the line that says `Run 'flyctl --help' to get started`
-	if io.IsInteractive() {
-		builder := aec.EmptyBuilder
-		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
-		fmt.Fprint(io.ErrOut, str.String())
 	}
 
 	os.Exit(0)
