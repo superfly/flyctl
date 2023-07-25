@@ -73,7 +73,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 						pythonVersion = fmt.Sprintf("%d.%d", v.Major, v.Minor)
 					}
 					s.Notice += fmt.Sprintf(`
-%s Python %s was detected. 'python:%s-slim-buster' image will be set in the Dockerfile.
+%s Python %s was detected. 'python:%s-slim-bullseye' image will be set in the Dockerfile.
 `, aurora.Faint("[INFO]"), pythonFullVersion, pythonVersion)
 				} else {
 					s.Notice += fmt.Sprintf(`
