@@ -2,14 +2,15 @@ package scanner
 
 import (
 	"fmt"
-	"github.com/blang/semver"
-	"github.com/logrusorgru/aurora"
-	"github.com/mattn/go-zglob"
-	"github.com/superfly/flyctl/helpers"
 	"os/exec"
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/blang/semver"
+	"github.com/logrusorgru/aurora"
+	"github.com/mattn/go-zglob"
+	"github.com/superfly/flyctl/helpers"
 )
 
 // setup django with a postgres database
@@ -50,30 +51,37 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	pythonLatestSupported := "3.7.0"
 	pythonVersion := "3.10"
 
-	pythonFullVersion, err := extractPythonVersion()
+	pythonFullVersion, pinned, err := extractPythonVersion()
 
 	if err == nil && pythonFullVersion != "" {
-		userVersion, userErr := semver.ParseTolerant(pythonFullVersion)
-		supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
+		if pinned {
+			// We pin versions if they're beta or RC and, as such, don't have a
+			// minor version equivalent Docker tag.
+			pythonVersion = pythonFullVersion
+			s.Notice += fmt.Sprintf(`%s It looks like you have Python %s %s installed, which is not an official release. This version is being explicitly pinned in the generated Dockerfile, and should be changed to an official release before deploying to production.`, aurora.Yellow("[WARNING]"), pythonFullVersion, aurora.Yellow("[WARNING]"))
+		} else {
+			userVersion, userErr := semver.ParseTolerant(pythonFullVersion)
+			supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
 
-		if userErr == nil && supportedErr == nil {
-			// if Python version is below 3.7.0, use Python 3.10 (default)
-			// it is required to have Major, Minor and Patch (e.g. 3.11.2) to be able to use GT
-			// but only Major and Minor (e.g. 3.11) is used in the Dockerfile
-			if userVersion.GTE(supportedVersion) {
-				v, err := semver.Parse(pythonFullVersion)
-				if err == nil {
-					pythonVersion = fmt.Sprintf("%d.%d", v.Major, v.Minor)
-				}
-				s.Notice += fmt.Sprintf(`
+			if userErr == nil && supportedErr == nil {
+				// if Python version is below 3.7.0, use Python 3.10 (default)
+				// it is required to have Major, Minor and Patch (e.g. 3.11.2) to be able to use GT
+				// but only Major and Minor (e.g. 3.11) is used in the Dockerfile
+				if userVersion.GTE(supportedVersion) {
+					v, err := semver.Parse(pythonFullVersion)
+					if err == nil {
+						pythonVersion = fmt.Sprintf("%d.%d", v.Major, v.Minor)
+					}
+					s.Notice += fmt.Sprintf(`
 %s Python %s was detected. 'python:%s-slim-buster' image will be set in the Dockerfile.
 `, aurora.Faint("[INFO]"), pythonFullVersion, pythonVersion)
-			} else {
-				s.Notice += fmt.Sprintf(`
+				} else {
+					s.Notice += fmt.Sprintf(`
 %s It looks like you have Python %s installed, but it has reached its end of support. Using Python %s to build your image instead.
 Make sure to update the Dockerfile to use an image that is compatible with the Python version you are using.
 %s We highly recommend that you update your application to use Python %s or newer. (https://devguide.python.org/versions/#supported-versions)
 `, aurora.Yellow("[WARNING]"), pythonFullVersion, pythonVersion, aurora.Yellow("[WARNING]"), pythonLatestSupported)
+				}
 			}
 		}
 	} else {
@@ -85,6 +93,7 @@ Make sure to update the Dockerfile to use an image that is compatible with the P
 	}
 
 	vars["pythonVersion"] = pythonVersion
+	vars["pinnedPythonVersion"] = pinned
 
 	if checksPass(sourceDir, fileExists("Pipfile")) {
 		vars["pipenv"] = true
@@ -205,9 +214,10 @@ For detailed documentation, see https://fly.dev/docs/django/
 	return s, nil
 }
 
-func extractPythonVersion() (string, error) {
+func extractPythonVersion() (string, bool, error) {
 	/* Example Output:
 	   Python 3.11.2
+	   Python 3.12.0b4
 	*/
 	pythonVersionOutput := "Python 3.10.0" // Fallback to 3.10
 
@@ -223,11 +233,14 @@ func extractPythonVersion() (string, error) {
 		}
 	}
 
-	re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+\.[0-9]+)`)
+	re := regexp.MustCompile(`"Python ([0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z]+[0-9]+)?)`)
 	match := re.FindStringSubmatch(pythonVersionOutput)
 
 	if len(match) > 1 {
-		return match[1], nil // "3.11.2", nil
+		version := match[1]
+		nonNumericRegex := regexp.MustCompile(`[^0-9.]`)
+		pinned := nonNumericRegex.MatchString(version)
+		return version, pinned, nil
 	}
-	return "", fmt.Errorf("Could not find Python version")
+	return "", false, fmt.Errorf("Could not find Python version")
 }

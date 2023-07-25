@@ -1,3 +1,6 @@
+{{ if .pinnedPythonVersion -}}
+# TODO: Change to an officially released version of Python before deploying to production.
+{{ end -}}
 ARG PYTHON_VERSION={{ .pythonVersion }}-slim-buster
 
 FROM python:${PYTHON_VERSION}
