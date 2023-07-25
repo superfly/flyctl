@@ -71,37 +71,43 @@ func IsUnderHomebrew() bool {
 	return val
 }
 
+var _latestHomebrewRelease memoize[*Release]
+
 func latestHomebrewRelease(ctx context.Context) (*Release, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", "https://formulae.brew.sh/api/formula/flyctl.json", nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Add("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err := resp.Body.Close()
+	return _latestHomebrewRelease.Get(func() (*Release, error) {
+
+		req, err := http.NewRequestWithContext(ctx, "GET", "https://formulae.brew.sh/api/formula/flyctl.json", nil)
 		if err != nil {
-			terminal.Debugf("error closing response body: %s", err)
+			return nil, err
 		}
-	}()
+		req.Header.Add("Accept", "application/json")
 
-	var brewResp struct {
-		Versions struct {
-			Stable string `json:"stable"`
-		} `json:"versions"`
-	}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			err := resp.Body.Close()
+			if err != nil {
+				terminal.Debugf("error closing response body: %s", err)
+			}
+		}()
 
-	if err := json.NewDecoder(resp.Body).Decode(&brewResp); err != nil {
-		return nil, err
-	}
+		var brewResp struct {
+			Versions struct {
+				Stable string `json:"stable"`
+			} `json:"versions"`
+		}
 
-	return &Release{
-		Version: brewResp.Versions.Stable,
-	}, nil
+		if err := json.NewDecoder(resp.Body).Decode(&brewResp); err != nil {
+			return nil, err
+		}
+
+		return &Release{
+			Version: brewResp.Versions.Stable,
+		}, nil
+	})
 }
 
 func updateHomebrewCache(ctx context.Context, remoteRelease *Release) error {
