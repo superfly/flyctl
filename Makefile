@@ -17,7 +17,7 @@ test: FORCE
 # to run one test, use: make preflight-test T=TestAppsV2ConfigSave
 preflight-test: build
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
-	go test ./test/preflight --tags=integration -v -timeout 60m --run="$(T)"
+	go test --parallel=4 ./test/preflight --tags=integration -v -timeout 60m --run="$(T)"
 
 ci-preflight:
 	$(MAKE) preflight-test FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL=true
