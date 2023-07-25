@@ -8,25 +8,25 @@ import (
 )
 
 type launchPlan struct {
-	AppName       string
+	AppName       string `json:"app_name"`
 	appNameSource string
 
-	Region       *api.Region
+	Region       *api.Region `json:"region"`
 	regionSource string
 
-	Org       *api.Organization
+	Org       *api.Organization `json:"org"`
 	orgSource string
 
-	Guest       *api.MachineGuest
+	Guest       *api.MachineGuest `json:"guest"`
 	guestSource string
 
-	Postgres       *postgresPlan
+	Postgres       *postgresPlan `json:"postgres"`
 	postgresSource string
 
-	Redis       *redisPlan
+	Redis       *redisPlan `json:"redis"`
 	redisSource string
 
-	ScannerFamily string
+	ScannerFamily string `json:"scanner_family"`
 }
 
 // Summary returns a human-readable summary of the launch plan.
