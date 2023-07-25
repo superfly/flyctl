@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -46,7 +49,21 @@ func runList(ctx context.Context) error {
 
 	volID := flag.FirstArg(ctx)
 
-	snapshots, err := client.GetVolumeSnapshots(ctx, volID)
+	appName := appconfig.NameFromContext(ctx)
+	if appName == "" {
+		n, err := client.GetAppNameFromVolume(ctx, volID)
+		if err != nil {
+			return err
+		}
+		appName = *n
+	}
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
@@ -69,7 +86,7 @@ func runList(ctx context.Context) error {
 	for _, snapshot := range snapshots {
 		rows = append(rows, []string{
 			snapshot.ID,
-			snapshot.Size,
+			strconv.Itoa(snapshot.Size),
 			humanize.Time(snapshot.CreatedAt),
 		})
 	}

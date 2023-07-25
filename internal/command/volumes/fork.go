@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -66,6 +67,11 @@ func runFork(ctx context.Context) error {
 		volID   = flag.FirstArg(ctx)
 	)
 
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
@@ -75,7 +81,7 @@ func runFork(ctx context.Context) error {
 		return fmt.Errorf("This feature is not available for Postgres apps")
 	}
 
-	vol, err := client.GetVolume(ctx, volID)
+	vol, err := flapsClient.GetVolume(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed to get volume: %w", err)
 	}
@@ -90,15 +96,13 @@ func runFork(ctx context.Context) error {
 		machinesOnly = flag.GetBool(ctx, "machines-only")
 	}
 
-	input := api.ForkVolumeInput{
-		AppID:          app.ID,
-		SourceVolumeID: vol.ID,
+	input := api.CreateVolumeRequest{
+		SourceVolumeID: &vol.ID,
 		Name:           name,
-		MachinesOnly:   machinesOnly,
-		Remote:         flag.GetBool(ctx, "remote-fork"),
+		MachinesOnly:   &machinesOnly,
 	}
 
-	volume, err := client.ForkVolume(ctx, input)
+	volume, err := flapsClient.CreateVolume(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to fork volume: %w", err)
 	}
@@ -109,7 +113,7 @@ func runFork(ctx context.Context) error {
 		return render.JSON(out, volume)
 	}
 
-	if err := printVolume(out, volume); err != nil {
+	if err := printVolume(out, volume, appName); err != nil {
 		return err
 	}
 

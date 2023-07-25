@@ -97,6 +97,12 @@ func runBarmanCreate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
@@ -197,17 +203,16 @@ func runBarmanCreate(ctx context.Context) error {
 
 	var vol *api.Volume
 
-	volInput := api.CreateVolumeInput{
-		AppID:             app.ID,
+	volInput := api.CreateVolumeRequest{
 		Name:              volumeName,
 		Region:            region.Code,
-		SizeGb:            flag.GetInt(ctx, "volume-size"),
-		Encrypted:         true,
-		RequireUniqueZone: true,
+		SizeGb:            api.Pointer(flag.GetInt(ctx, "volume-size")),
+		Encrypted:         api.Pointer(true),
+		RequireUniqueZone: api.Pointer(true),
 	}
 
-	if volInput.SizeGb == 0 {
-		otherVolumes, err := client.GetVolumes(ctx, app.Name)
+	if *volInput.SizeGb == 0 {
+		otherVolumes, err := flapsClient.GetVolumes(ctx)
 		if err != nil {
 			return err
 		}
@@ -219,14 +224,14 @@ func runBarmanCreate(ctx context.Context) error {
 			}
 		}
 
-		if err = prompt.Int(ctx, &volInput.SizeGb, "Volume size (should be at least the size of the other volumes)", suggestedSize, false); err != nil {
+		if err = prompt.Int(ctx, volInput.SizeGb, "Volume size (should be at least the size of the other volumes)", suggestedSize, false); err != nil {
 			return err
 		}
 	}
 
 	fmt.Fprintf(io.Out, "Provisioning volume with %dGB\n", volInput.SizeGb)
 
-	vol, err = client.CreateVolume(ctx, volInput)
+	vol, err = flapsClient.CreateVolume(ctx, volInput)
 	if err != nil {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
@@ -244,10 +249,6 @@ func runBarmanCreate(ctx context.Context) error {
 
 	fmt.Fprintf(io.Out, "Provisioning barman machine with image %s\n", machineConfig.Image)
 
-	flapsClient, err := flaps.New(ctx, app)
-	if err != nil {
-		return err
-	}
 	machine, err := flapsClient.Launch(ctx, launchInput)
 	if err != nil {
 		return err

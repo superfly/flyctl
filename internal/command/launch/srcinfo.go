@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/postgres"
@@ -106,20 +107,18 @@ func createVolumes(ctx context.Context, srcInfo *scanner.SourceInfo, appName str
 		return nil
 	}
 	io := iostreams.FromContext(ctx)
-	client := client.FromContext(ctx).API()
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
 
 	for _, vol := range srcInfo.Volumes {
-		appID, err := client.GetAppID(ctx, appName)
-		if err != nil {
-			return err
-		}
-
-		volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
-			AppID:     appID,
+		volume, err := flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
 			Name:      vol.Source,
 			Region:    regionCode,
-			SizeGb:    1,
-			Encrypted: true,
+			SizeGb:    api.Pointer(1),
+			Encrypted: api.Pointer(true),
 		})
 		if err != nil {
 			return err

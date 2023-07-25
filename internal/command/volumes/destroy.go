@@ -7,9 +7,11 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -43,13 +45,28 @@ func runDestroy(ctx context.Context) error {
 		volID  = flag.FirstArg(ctx)
 	)
 
+	appName := appconfig.NameFromContext(ctx)
+	if appName == "" {
+		n, err := client.GetAppNameFromVolume(ctx, volID)
+		if err != nil {
+			return err
+		}
+		appName = *n
+	}
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
 		return err
 	} else if !confirm {
 		return nil
 	}
 
-	data, err := client.DeleteVolume(ctx, volID, "")
+	data, err := flapsClient.DeleteVolume(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed destroying volume: %w", err)
 	}
@@ -61,9 +78,9 @@ func runDestroy(ctx context.Context) error {
 
 func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 	var (
-		client   = client.FromContext(ctx).API()
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		flapsClient = flaps.FromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 
 		err error
 	)
@@ -74,13 +91,13 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	// fetch the volume so we can get the associated app
 	var volume *api.Volume
-	if volume, err = client.GetVolume(ctx, volID); err != nil {
+	if volume, err = flapsClient.GetVolume(ctx, volID); err != nil {
 		return false, err
 	}
 
 	// fetch the set of volumes for this app. If > 0 we skip the prompt
 	var matches int32
-	if matches, err = countVolumesMatchingName(ctx, volume.App.Name, volume.Name); err != nil {
+	if matches, err = countVolumesMatchingName(ctx, volume.Name); err != nil {
 		return false, err
 	}
 

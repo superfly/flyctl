@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -64,6 +64,12 @@ func runExtend(ctx context.Context) error {
 		volID    = flag.FirstArg(ctx)
 	)
 
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	app, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return err
@@ -89,12 +95,7 @@ func runExtend(ctx context.Context) error {
 		}
 	}
 
-	input := api.ExtendVolumeInput{
-		VolumeID: volID,
-		SizeGb:   flag.GetInt(ctx, "size"),
-	}
-
-	volume, needsRestart, err := client.ExtendVolume(ctx, input)
+	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, flag.GetInt(ctx, "size"))
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}
@@ -105,7 +106,7 @@ func runExtend(ctx context.Context) error {
 		return render.JSON(out, volume)
 	}
 
-	if err := printVolume(out, volume); err != nil {
+	if err := printVolume(out, volume, appName); err != nil {
 		return err
 	}
 
