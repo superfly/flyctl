@@ -58,6 +58,7 @@ func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *stri
 					platformVersion
 					organization {
 						slug
+						name
 					}
 					currentRelease {
 						createdAt
