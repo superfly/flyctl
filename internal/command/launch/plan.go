@@ -1,11 +1,15 @@
 package launch
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type launchPlan struct {
@@ -32,7 +36,7 @@ type launchPlan struct {
 
 // Summary returns a human-readable summary of the launch plan.
 // Used to confirm the plan before executing it.
-func (p *launchPlan) Summary() string {
+func (p *launchPlan) Summary(ctx context.Context) string {
 
 	guest := p.Guest
 	if guest == nil {
@@ -45,7 +49,7 @@ func (p *launchPlan) Summary() string {
 		{"Region", p.Region.Name, p.regionSource},
 		{"App Machines", guest.String(), p.guestSource},
 		{"Postgres", p.Postgres.String(), p.postgresSource},
-		{"Redis", p.Redis.String(), p.redisSource},
+		{"Redis", p.Redis.String(ctx), p.redisSource},
 	}
 
 	colLengths := []int{0, 0, 0}
@@ -87,11 +91,31 @@ func (p *postgresPlan) String() string {
 	return fmt.Sprintf("%d Node%s, %s, %dGB disk", p.Nodes, nodePlural, p.Guest.String(), p.DiskSizeGB)
 }
 
-type redisPlan struct{}
+type redisPlan struct {
+	PlanId       string       `json:"plan_id"`
+	Eviction     bool         `json:"eviction"`
+	ReadReplicas []api.Region `json:"read_replicas"`
+}
 
-func (p *redisPlan) String() string {
+func (p *redisPlan) String(ctx context.Context) string {
 	if p == nil {
 		return "<none>"
 	}
-	return "unimplemented"
+
+	client := client.FromContext(ctx)
+
+	result, err := gql.ListAddOnPlans(ctx, client.API().GenqClient)
+	if err != nil {
+		terminal.Debugf("Failed to list addon plans: %s\n", err)
+		return "<internal error>"
+	}
+
+	for _, plan := range result.AddOnPlans.Nodes {
+		if plan.Id == p.PlanId {
+			evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
+			return fmt.Sprintf("%s: %s Max Data Size, ($%d / month), eviction %s", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth, evictionStatus)
+		}
+	}
+
+	return "<plan not found, this is an error>"
 }

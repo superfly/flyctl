@@ -101,7 +101,7 @@ func run(ctx context.Context) (err error) {
 		io.Out,
 		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
 		familyToAppType(state.sourceInfo),
-		state.plan.Summary(),
+		state.plan.Summary(ctx),
 	)
 
 	confirm := false
