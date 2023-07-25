@@ -49,7 +49,7 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 
 	// If running under homebrew, use the homebrew API to get the latest release
 	if IsUnderHomebrew() {
-		return latestHomebrewRelease(ctx, channel)
+		return latestHomebrewRelease(ctx)
 	}
 	return latestApiRelease(ctx, channel)
 }
@@ -82,6 +82,14 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 	}
 
 	if IsUnderHomebrew() {
+
+		ver, err := latestHomebrewRelease(ctx)
+		if err == nil {
+			err = updateHomebrewCache(ctx, ver)
+			if err != nil {
+				fmt.Fprintf(io.ErrOut, "failed to update homebrew cache, new version might be out-of-date: %s\n", err)
+			}
+		}
 
 		brewExe, err := safeexec.LookPath("brew")
 		if err == nil {

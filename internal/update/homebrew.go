@@ -71,7 +71,7 @@ func IsUnderHomebrew() bool {
 	return val
 }
 
-func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error) {
+func latestHomebrewRelease(ctx context.Context) (*Release, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", "https://formulae.brew.sh/api/formula/flyctl.json", nil)
 	if err != nil {
 		return nil, err
@@ -102,4 +102,37 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	return &Release{
 		Version: brewResp.Versions.Stable,
 	}, nil
+}
+
+func updateHomebrewCache(ctx context.Context, remoteRelease *Release) error {
+
+	brewExe, err := safeexec.LookPath("brew")
+	if err != nil {
+		return errBrewNotFound
+	}
+
+	infoJsonBytes, err := exec.Command(brewExe, "info", "flyctl", "--json").Output()
+	if err != nil {
+		return err
+	}
+
+	var infoJson []struct {
+		Versions struct {
+			Stable string `json:"stable"`
+		} `json:"versions"`
+	}
+	err = json.Unmarshal(infoJsonBytes, &infoJson)
+	if err != nil {
+		return err
+	}
+	if len(infoJson) != 1 {
+		return errors.New("unexpected output length from 'brew info flyctl --json'")
+	}
+	localStable := infoJson[0].Versions.Stable
+	if localStable == remoteRelease.Version {
+		return nil
+	}
+
+	terminal.Debugf("updating homebrew cache for flyctl %s\n", remoteRelease.Version)
+	return exec.Command(brewExe, "fetch", "--force", "flyctl").Run()
 }
