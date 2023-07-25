@@ -62,7 +62,6 @@ func (c *Config) SetHttpCheck(path string, headers map[string]string) {
 			Interval:          &api.Duration{Duration: 10 * time.Second},
 			Timeout:           &api.Duration{Duration: 2 * time.Second},
 			GracePeriod:       &api.Duration{Duration: 5 * time.Second},
-			RestartLimit:      0,
 		})
 	}
 }
