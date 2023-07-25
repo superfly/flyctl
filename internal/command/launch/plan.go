@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 )
 
@@ -72,13 +73,18 @@ func (p *launchPlan) Summary() string {
 }
 
 // TODO
-type postgresPlan struct{}
+type postgresPlan struct {
+	Guest      *api.MachineGuest `json:"guest"`
+	Nodes      int               `json:"nodes"`
+	DiskSizeGB int               `json:"disk_size_gb"`
+}
 
 func (p *postgresPlan) String() string {
 	if p == nil {
 		return "<none>"
 	}
-	return "unimplemented"
+	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
+	return fmt.Sprintf("%d Node%s, %s, %dGB disk", p.Nodes, nodePlural, p.Guest.String(), p.DiskSizeGB)
 }
 
 type redisPlan struct{}
