@@ -75,7 +75,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"))
+		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"), state.plan.Guest())
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct

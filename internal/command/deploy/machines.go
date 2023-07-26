@@ -46,10 +46,7 @@ type MachineDeploymentArgs struct {
 	WaitTimeout           time.Duration
 	LeaseTimeout          time.Duration
 	ReleaseCmdTimeout     time.Duration
-	VMSize                string
-	VMCPUs                int
-	VMMemory              int
-	VMCPUKind             string
+	Guest                 *api.MachineGuest
 	IncreasedAvailability bool
 	AllocPublicIP         bool
 	UpdateOnly            bool
@@ -154,11 +151,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		increasedAvailability: args.IncreasedAvailability,
 		listenAddressChecked:  make(map[string]struct{}),
 		updateOnly:            args.UpdateOnly,
+		machineGuest:          args.Guest,
 	}
 	if err := md.setStrategy(); err != nil {
-		return nil, err
-	}
-	if err := md.setMachineGuest(args.VMSize, args.VMCPUKind, args.VMCPUs, args.VMMemory); err != nil {
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
@@ -399,26 +394,6 @@ func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("current release not found for app %s", md.app.Name)
 	}
 	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
-}
-
-func (md *machineDeployment) setMachineGuest(vmSize string, vmCPUKind string, vmCPUs int, vmMem int) error {
-	md.machineGuest = &api.MachineGuest{}
-	if vmSize == "" {
-		vmSize = DefaultVMSize
-	}
-	if err := md.machineGuest.SetSize(vmSize); err != nil {
-		return err
-	}
-	if vmCPUKind != "" {
-		md.machineGuest.CPUKind = vmCPUKind
-	}
-	if vmCPUs > 0 {
-		md.machineGuest.CPUs = vmCPUs
-	}
-	if vmMem > 0 {
-		md.machineGuest.MemoryMB = vmMem
-	}
-	return nil
 }
 
 func (md *machineDeployment) setStrategy() error {

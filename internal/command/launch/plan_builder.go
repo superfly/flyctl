@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -95,18 +96,20 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 	lp := &launchPlan{
 		AppName:        appName,
 		appNameSource:  appNameExplanation,
-		Region:         region,
+		RegionCode:     region.Code,
 		regionSource:   regionExplanation,
-		Org:            org,
+		OrgSlug:        org.Slug,
 		orgSource:      orgExplanation,
-		Guest:          guest,
 		guestSource:    guestExplanation,
 		Postgres:       nil,
 		postgresSource: "not implemented",
 		Redis:          nil,
 		redisSource:    "not implemented",
 		ScannerFamily:  srcInfo.Family,
+		cache:          map[string]interface{}{},
 	}
+
+	lp.SetGuestFields(guest)
 
 	return &launchState{
 		workingDir: workingDir,
@@ -251,5 +254,9 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 // Currently, it defaults to shared-cpu-1x
 func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
 	shared1x := api.MachinePresets["shared-cpu-1x"]
-	return shared1x, "most apps need about 1GB of RAM", nil
+	reason := "most apps need about 1GB of RAM"
+	if deploy.ApplyFlagsToGuest(ctx, shared1x) {
+		reason = "specified on the command line"
+	}
+	return shared1x, reason, nil
 }

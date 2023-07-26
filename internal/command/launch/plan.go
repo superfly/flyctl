@@ -13,43 +13,102 @@ import (
 )
 
 type launchPlan struct {
-	AppName       string `json:"app_name"`
+	AppName       string `json:"name" query:"name"`
 	appNameSource string
 
-	Region       *api.Region `json:"region"`
+	RegionCode   string `json:"region" query:"region"`
 	regionSource string
 
-	Org       *api.Organization `json:"org"`
+	OrgSlug   string `json:"org" query:"org"`
 	orgSource string
 
-	Guest       *api.MachineGuest `json:"guest"`
+	CPUKind     string `json:"vm_cpukind,omitempty" query:"vm_cpukind,omitempty"`
+	CPUs        int    `json:"vm_cpus,omitempty" query:"vm_cpus,omitempty"`
+	MemoryMB    int    `json:"vm_memory,omitempty" query:"vm_memory,omitempty"`
+	VmSize      string `json:"vm_size,omitempty" query:"vm_size,omitempty"`
 	guestSource string
 
-	Postgres       *postgresPlan `json:"postgres"`
+	Postgres       *postgresPlan `json:"postgres" query:"postgres"`
 	postgresSource string
 
-	Redis       *redisPlan `json:"redis"`
+	Redis       *redisPlan `json:"redis" query:"redis"`
 	redisSource string
 
-	ScannerFamily string `json:"scanner_family"`
+	ScannerFamily string `json:"scanner_family" query:"scanner_family"`
+
+	cache map[string]interface{}
+}
+
+func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
+	if val, ok := cache[key]; ok {
+		return val.(T), nil
+	}
+	val, err := cb()
+	if err != nil {
+		return val, err
+	}
+	cache[key] = val
+	return val, nil
+}
+
+func (p *launchPlan) Org(ctx context.Context) (*api.Organization, error) {
+	apiClient := client.FromContext(ctx).API()
+	return cacheGrab(p.cache, "org,"+p.OrgSlug, func() (*api.Organization, error) {
+		return apiClient.GetOrganizationBySlug(ctx, p.OrgSlug)
+	})
+}
+
+func (p *launchPlan) Region(ctx context.Context) (api.Region, error) {
+
+	apiClient := client.FromContext(ctx).API()
+	regions, err := cacheGrab(p.cache, "regions", func() ([]api.Region, error) {
+		regions, _, err := apiClient.PlatformRegions(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return regions, nil
+	})
+	if err != nil {
+		return api.Region{}, err
+	}
+
+	region, ok := lo.Find(regions, func(r api.Region) bool {
+		return r.Code == p.RegionCode
+	})
+	if !ok {
+		return region, fmt.Errorf("region %s not found", p.RegionCode)
+	}
+	return region, nil
 }
 
 // Summary returns a human-readable summary of the launch plan.
 // Used to confirm the plan before executing it.
-func (p *launchPlan) Summary(ctx context.Context) string {
+func (p *launchPlan) Summary(ctx context.Context) (string, error) {
 
-	guest := p.Guest
-	if guest == nil {
-		guest = api.MachinePresets["shared-cpu-1x"]
+	guest := p.Guest()
+
+	org, err := p.Org(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	region, err := p.Region(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	redisStr, err := p.Redis.Describe(ctx)
+	if err != nil {
+		return "", err
 	}
 
 	rows := [][]string{
-		{"Organization", p.Org.Name, p.orgSource},
+		{"Organization", org.Name, p.orgSource},
 		{"Name", p.AppName, p.appNameSource},
-		{"Region", p.Region.Name, p.regionSource},
+		{"Region", region.Name, p.regionSource},
 		{"App Machines", guest.String(), p.guestSource},
-		{"Postgres", p.Postgres.String(), p.postgresSource},
-		{"Redis", p.Redis.String(ctx), p.redisSource},
+		{"Postgres", p.Postgres.Describe(), p.postgresSource},
+		{"Redis", redisStr, p.redisSource},
 	}
 
 	colLengths := []int{0, 0, 0}
@@ -73,33 +132,59 @@ func (p *launchPlan) Summary(ctx context.Context) string {
 
 		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, value, valueSpaces, source)
 	}
-	return ret
+	return ret, nil
+}
+
+func (p *launchPlan) Guest() *api.MachineGuest {
+	// TODO(Allison): Determine whether we should use VmSize or CPUKind/CPUs
+	guest := api.MachineGuest{
+		CPUs:    p.CPUs,
+		CPUKind: p.CPUKind,
+	}
+	if false {
+		guest.SetSize(p.VmSize)
+	}
+	guest.MemoryMB = p.MemoryMB
+	return &guest
+}
+
+func (p *launchPlan) SetGuestFields(guest *api.MachineGuest) {
+	p.CPUs = guest.CPUs
+	p.CPUKind = guest.CPUKind
+	p.MemoryMB = guest.MemoryMB
+	p.VmSize = guest.ToSize()
 }
 
 // TODO
 type postgresPlan struct {
-	Guest      *api.MachineGuest `json:"guest"`
-	Nodes      int               `json:"nodes"`
-	DiskSizeGB int               `json:"disk_size_gb"`
+	VmSize     string `json:"vm_size" query:"vm_size"`
+	Nodes      int    `json:"nodes" query:"nodes"`
+	DiskSizeGB int    `json:"disk_size_gb" query:"disk_size_gb"`
 }
 
-func (p *postgresPlan) String() string {
+func (p *postgresPlan) Guest() *api.MachineGuest {
+	guest := api.MachineGuest{}
+	guest.SetSize(p.VmSize)
+	return &guest
+}
+
+func (p *postgresPlan) Describe() string {
 	if p == nil {
 		return "<none>"
 	}
 	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
-	return fmt.Sprintf("%d Node%s, %s, %dGB disk", p.Nodes, nodePlural, p.Guest.String(), p.DiskSizeGB)
+	return fmt.Sprintf("%d Node%s, %s, %dGB disk", p.Nodes, nodePlural, p.Guest().String(), p.DiskSizeGB)
 }
 
 type redisPlan struct {
-	PlanId       string       `json:"plan_id"`
-	Eviction     bool         `json:"eviction"`
-	ReadReplicas []api.Region `json:"read_replicas"`
+	PlanId       string   `json:"plan_id" query:"plan_id"`
+	Eviction     bool     `json:"eviction" query:"eviction"`
+	ReadReplicas []string `json:"read_replicas" query:"read_replicas"`
 }
 
-func (p *redisPlan) String(ctx context.Context) string {
+func (p *redisPlan) Describe(ctx context.Context) (string, error) {
 	if p == nil {
-		return "<none>"
+		return "<none>", nil
 	}
 
 	client := client.FromContext(ctx)
@@ -107,15 +192,15 @@ func (p *redisPlan) String(ctx context.Context) string {
 	result, err := gql.ListAddOnPlans(ctx, client.API().GenqClient)
 	if err != nil {
 		terminal.Debugf("Failed to list addon plans: %s\n", err)
-		return "<internal error>"
+		return "<internal error>", err
 	}
 
 	for _, plan := range result.AddOnPlans.Nodes {
 		if plan.Id == p.PlanId {
 			evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
-			return fmt.Sprintf("%s: %s Max Data Size, ($%d / month), eviction %s", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth, evictionStatus)
+			return fmt.Sprintf("%s: %s Max Data Size, ($%d / month), eviction %s", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth, evictionStatus), nil
 		}
 	}
 
-	return "<plan not found, this is an error>"
+	return "<plan not found, this is an error>", fmt.Errorf("plan not found: %s", p.PlanId)
 }

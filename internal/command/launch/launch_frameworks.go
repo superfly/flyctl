@@ -142,14 +142,14 @@ func (state *launchState) scannerCreateVolumes(ctx context.Context) error {
 		volume, err := client.CreateVolume(ctx, api.CreateVolumeInput{
 			AppID:     appID,
 			Name:      vol.Source,
-			Region:    state.plan.Region.Code,
+			Region:    state.plan.RegionCode,
 			SizeGb:    1,
 			Encrypted: true,
 		})
 		if err != nil {
 			return err
 		} else {
-			fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.plan.Region.Code)
+			fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.plan.RegionCode)
 		}
 	}
 	return nil

@@ -97,11 +97,16 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	summary, err := state.plan.Summary(ctx)
+	if err != nil {
+		return err
+	}
+
 	fmt.Fprintf(
 		io.Out,
 		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
 		familyToAppType(state.sourceInfo),
-		state.plan.Summary(ctx),
+		summary,
 	)
 
 	confirm := false
