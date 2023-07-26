@@ -13,28 +13,28 @@ import (
 )
 
 type launchPlan struct {
-	AppName       string `json:"name" query:"name"`
+	AppName       string `json:"name" url:"name"`
 	appNameSource string
 
-	RegionCode   string `json:"region" query:"region"`
+	RegionCode   string `json:"region" url:"region"`
 	regionSource string
 
-	OrgSlug   string `json:"org" query:"org"`
+	OrgSlug   string `json:"org" url:"org"`
 	orgSource string
 
-	CPUKind     string `json:"vm_cpukind,omitempty" query:"vm_cpukind,omitempty"`
-	CPUs        int    `json:"vm_cpus,omitempty" query:"vm_cpus,omitempty"`
-	MemoryMB    int    `json:"vm_memory,omitempty" query:"vm_memory,omitempty"`
-	VmSize      string `json:"vm_size,omitempty" query:"vm_size,omitempty"`
+	CPUKind     string `json:"vm_cpukind,omitempty" url:"vm_cpukind,omitempty"`
+	CPUs        int    `json:"vm_cpus,omitempty" url:"vm_cpus,omitempty"`
+	MemoryMB    int    `json:"vm_memory,omitempty" url:"vm_memory,omitempty"`
+	VmSize      string `json:"vm_size,omitempty" url:"vm_size,omitempty"`
 	guestSource string
 
-	Postgres       *postgresPlan `json:"postgres" query:"postgres"`
+	Postgres       *postgresPlan `json:"-"` // `json:"postgres" url:"postgres"`
 	postgresSource string
 
-	Redis       *redisPlan `json:"redis" query:"redis"`
+	Redis       *redisPlan `json:"-"` // `json:"redis" url:"redis"`
 	redisSource string
 
-	ScannerFamily string `json:"scanner_family" query:"scanner_family"`
+	ScannerFamily string `json:"scanner_family" url:"scanner_family"`
 
 	cache map[string]interface{}
 }
@@ -157,9 +157,9 @@ func (p *launchPlan) SetGuestFields(guest *api.MachineGuest) {
 
 // TODO
 type postgresPlan struct {
-	VmSize     string `json:"vm_size" query:"vm_size"`
-	Nodes      int    `json:"nodes" query:"nodes"`
-	DiskSizeGB int    `json:"disk_size_gb" query:"disk_size_gb"`
+	VmSize     string `json:"vm_size" url:"vm_size"`
+	Nodes      int    `json:"nodes" url:"nodes"`
+	DiskSizeGB int    `json:"disk_size_gb" url:"disk_size_gb"`
 }
 
 func (p *postgresPlan) Guest() *api.MachineGuest {
@@ -177,9 +177,9 @@ func (p *postgresPlan) Describe() string {
 }
 
 type redisPlan struct {
-	PlanId       string   `json:"plan_id" query:"plan_id"`
-	Eviction     bool     `json:"eviction" query:"eviction"`
-	ReadReplicas []string `json:"read_replicas" query:"read_replicas"`
+	PlanId       string   `json:"plan_id" url:"plan_id"`
+	Eviction     bool     `json:"eviction" url:"eviction"`
+	ReadReplicas []string `json:"read_replicas" url:"read_replicas"`
 }
 
 func (p *redisPlan) Describe(ctx context.Context) (string, error) {

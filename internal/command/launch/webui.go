@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -60,7 +62,11 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 
 	oldPlan := helpers.Clone(state.plan)
 
-	// Ugly hack
+	// Hack because somewhere from between UI and here, the numbers get converted to strings
+	if err := patchNumbers(finalSession.Metadata, "vm_cpus", "vm_memory"); err != nil {
+		return err
+	}
+
 	metaJson, err := json.Marshal(finalSession.Metadata)
 	if err != nil {
 		return err
@@ -73,6 +79,42 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	state.plan.ScannerFamily = oldPlan.ScannerFamily
 	state.plan.cache = oldPlan.cache
 
+	return nil
+}
+
+// TODO: I'd like to just fix the round-trip issue here, instead of this bandage.
+// This is mostly so I can get a presentation out before I have to leave :)
+
+// patchNumbers is a hack to fix the round-trip issue with numbers being converted to strings
+// It supports nested paths, such as "vm_cpus" or "some_struct.int_value"
+func patchNumbers(obj map[string]any, labels ...string) error {
+outer:
+	for _, label := range labels {
+
+		// Borrow down to the right element.
+		path := strings.Split(label, ".")
+		iface := obj
+		var ok bool
+		for _, p := range path[:len(path)-1] {
+			if iface, ok = iface[p].(map[string]any); ok {
+				continue outer
+			}
+		}
+
+		// Patch the element
+		name := path[len(path)-1]
+		val, ok := iface[name]
+		if !ok {
+			continue
+		}
+		if numStr, ok := val.(string); ok {
+			num, err := strconv.ParseInt(numStr, 10, 64)
+			if err != nil {
+				return err
+			}
+			iface[name] = num
+		}
+	}
 	return nil
 }
 
