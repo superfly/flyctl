@@ -14,6 +14,8 @@ import (
 )
 
 func TestFlyDeployHA(t *testing.T) {
+	t.Parallel()
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -39,6 +41,8 @@ func TestFlyDeployHA(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
+	t.Parallel()
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -47,6 +51,8 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
+	t.Parallel()
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -64,6 +70,8 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
+	t.Parallel()
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -81,6 +89,8 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 }
 
 func TestFlyDeploy_Dockerfile(t *testing.T) {
+	t.Parallel()
+
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.WriteFile("Dockerfile", `FROM nginx
