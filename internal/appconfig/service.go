@@ -27,16 +27,12 @@ type ServiceTCPCheck struct {
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 
 	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
@@ -182,10 +178,9 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 
 func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
 	return &ServiceTCPCheck{
-		Interval:     mc.Interval,
-		Timeout:      mc.Timeout,
-		GracePeriod:  nil,
-		RestartLimit: 0,
+		Interval:    mc.Interval,
+		Timeout:     mc.Timeout,
+		GracePeriod: nil,
 	}
 }
 
@@ -203,7 +198,6 @@ func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,
 		GracePeriod:       nil,
-		RestartLimit:      0,
 		HTTPMethod:        mc.HTTPMethod,
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,
