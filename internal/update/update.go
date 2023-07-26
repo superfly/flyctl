@@ -357,6 +357,29 @@ func GetCurrentBinaryPath() (string, error) {
 	return binPath, nil
 }
 
+func CanUpdateThisInstallation() bool {
+	if IsUnderHomebrew() {
+		return true
+	}
+	binaryPath, err := GetCurrentBinaryPath()
+	if err != nil {
+		return false
+	}
+	installDir := os.Getenv("FLYCTL_INSTALL")
+	if installDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		installDir = filepath.Join(homeDir, ".fly")
+	}
+	installDirRealpath, err := filepath.EvalSymlinks(installDir)
+	if err == nil {
+		installDir = installDirRealpath
+	}
+	return strings.HasPrefix(binaryPath, installDir+string(filepath.Separator))
+}
+
 // Relaunch only returns on error
 func Relaunch(ctx context.Context, silent bool) error {
 
