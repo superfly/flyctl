@@ -56,4 +56,4 @@ main() {
 	fi
 }
 
-main
+main "$1"
