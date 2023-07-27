@@ -27,6 +27,7 @@ func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted
 					healthyCount
 					unhealthyCount
 				}
+				platformVersion
 				allocations(showCompleted: $showCompleted) {
 					id
 					idShort
@@ -50,6 +51,22 @@ func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted
 						status
 						output
 						name
+					}
+				}
+				machines {
+					nodes {
+						id
+						name
+						state
+						region
+						ips {
+							nodes {
+								family
+								kind
+								ip
+								maskSize
+							}
+						}
 					}
 				}
 			}

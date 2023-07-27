@@ -41,17 +41,23 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 		return err
 	}
 
-	_, backupRegions, err := client.ListAppRegions(ctx, appName)
-	if err != nil {
-		return err
+	switch appstatus.PlatformVersion {
+	case appconfig.NomadPlatform:
+		_, backupRegions, err := client.ListAppRegions(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+		out := iostreams.FromContext(ctx).Out
+		if conf := config.FromContext(ctx); conf.JSONOutput {
+			_ = render.JSON(out, appstatus.Allocations)
+			return nil
+		}
+
+		renderPrivateTable(ctx, appstatus.Allocations, backupRegions)
+	case appconfig.MachinesPlatform:
+		renderPrivateTableMachines(ctx, appstatus.Machines.Nodes)
 	}
 
-	out := iostreams.FromContext(ctx).Out
-	if conf := config.FromContext(ctx); conf.JSONOutput {
-		_ = render.JSON(out, appstatus.Allocations)
-		return nil
-	}
-
-	renderPrivateTable(ctx, appstatus.Allocations, backupRegions)
 	return nil
 }

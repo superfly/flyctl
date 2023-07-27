@@ -532,10 +532,14 @@ type AppStatus struct {
 	Status           string
 	Hostname         string
 	Version          int
+	PlatformVersion  string
 	AppURL           string
 	Organization     Organization
 	DeploymentStatus *DeploymentStatus
 	Allocations      []*AllocationStatus
+	Machines         struct {
+		Nodes []*GqlMachine
+	}
 }
 
 type AppConfig struct {
