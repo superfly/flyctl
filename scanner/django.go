@@ -47,9 +47,9 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	vars := make(map[string]interface{})
 
 	// keep `pythonLatestSupported` up to date: https://devguide.python.org/versions/#supported-versions
-	// Keep the default `pythonVersion` as "3.10" (previously hardcoded on the Dockerfile)
-	pythonLatestSupported := "3.7.0"
-	pythonVersion := "3.10"
+	// Keep the default `pythonVersion` as "3.11"
+	pythonLatestSupported := "3.8.0"
+	pythonVersion := "3.11"
 
 	pythonFullVersion, pinned, err := extractPythonVersion()
 
@@ -64,7 +64,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 			supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
 
 			if userErr == nil && supportedErr == nil {
-				// if Python version is below 3.7.0, use Python 3.10 (default)
+				// if Python version is below 3.8.0, use Python 3.11 (default)
 				// it is required to have Major, Minor and Patch (e.g. 3.11.2) to be able to use GT
 				// but only Major and Minor (e.g. 3.11) is used in the Dockerfile
 				if userVersion.GTE(supportedVersion) {
@@ -220,7 +220,7 @@ func extractPythonVersion() (string, bool, error) {
 	   Python 3.11.2
 	   Python 3.12.0b4
 	*/
-	pythonVersionOutput := "Python 3.10.0" // Fallback to 3.10
+	pythonVersionOutput := "Python 3.11.0" // Fallback to 3.11
 
 	cmd := exec.Command("python3", "--version")
 	out, err := cmd.CombinedOutput()
