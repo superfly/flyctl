@@ -22,6 +22,7 @@ const (
 	AccessTokenFileKey    = "access_token"
 	MetricsTokenEnvKey    = envKeyPrefix + "METRICS_TOKEN"
 	MetricsTokenFileKey   = "metrics_token"
+	SendMetricsEnvKey     = envKeyPrefix + "SEND_METRICS"
 	SendMetricsFileKey    = "send_metrics"
 	AutoUpdateFileKey     = "auto_update"
 	WireGuardStateFileKey = "wire_guard_state"
@@ -126,6 +127,7 @@ func (cfg *Config) ApplyEnv() {
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
+	cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey) || cfg.SendMetrics
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file

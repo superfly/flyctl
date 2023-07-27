@@ -53,6 +53,25 @@ func (f *FlyctlTestEnv) OtherRegions() []string {
 	return f.otherRegions
 }
 
+// Great name I know
+func NewTestEnvFromEnvWithEnv(t testing.TB, envVariables map[string]string) *FlyctlTestEnv {
+	tempDir := socketSafeTempDir(t)
+	_, noHistoryOnFail := os.LookupEnv("FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL")
+	testEnv := NewTestEnvFromConfig(t, TestEnvConfig{
+		homeDir:         tempDir,
+		workDir:         tempDir,
+		flyctlBin:       os.Getenv("FLY_PREFLIGHT_TEST_FLYCTL_BINARY_PATH"),
+		orgSlug:         os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"),
+		primaryRegion:   primaryRegionFromEnv(),
+		otherRegions:    otherRegionsFromEnv(),
+		accessToken:     os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
+		logLevel:        os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
+		noHistoryOnFail: noHistoryOnFail,
+		envVariables:    envVariables,
+	})
+	return testEnv
+}
+
 func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 	tempDir := socketSafeTempDir(t)
 	_, noHistoryOnFail := os.LookupEnv("FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL")
