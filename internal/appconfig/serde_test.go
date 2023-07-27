@@ -65,23 +65,32 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 	want := []Service{{
 		Protocol:     "tcp",
 		InternalPort: 8080,
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80),
-			TLSOptions: &api.TLSOptions{
-				ALPN:     []string{"h2", "http/1.1"},
-				Versions: []string{"TLSv1.2", "TLSv1.3"},
-			},
-			HTTPOptions: &api.HTTPOptions{
-				Compress: api.Pointer(true),
-				Response: &api.HTTPResponseOptions{
-					Headers: map[string]any{
-						"fly-request-id": false,
-						"fly-wasnt-here": "yes, it was",
-						"multi-valued":   []any{"value1", "value2"},
+		Ports: []api.MachinePort{
+			{
+				Port: api.Pointer(80),
+				TLSOptions: &api.TLSOptions{
+					ALPN:     []string{"h2", "http/1.1"},
+					Versions: []string{"TLSv1.2", "TLSv1.3"},
+				},
+				HTTPOptions: &api.HTTPOptions{
+					Compress: api.Pointer(true),
+					Response: &api.HTTPResponseOptions{
+						Headers: map[string]any{
+							"fly-request-id": false,
+							"fly-wasnt-here": "yes, it was",
+							"multi-valued":   []any{"value1", "value2"},
+						},
 					},
 				},
 			},
-		}},
+			{
+				Port:     api.Pointer(82),
+				Handlers: []string{"proxy_proto"},
+				ProxyProtoOptions: &api.ProxyProtoOptions{
+					Version: "v2",
+				},
+			},
+		},
 	}}
 
 	assert.Equal(t, want, p.Services)
@@ -482,9 +491,6 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						"multi-valued":   []any{"value1", "value2"},
 					},
 				},
-			},
-			ProxyProtoOptions: &api.ProxyProtoOptions{
-				Version: "v2",
 			},
 			HTTPChecks: []*ServiceHTTPCheck{
 				{

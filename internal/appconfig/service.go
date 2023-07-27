@@ -58,7 +58,6 @@ type HTTPService struct {
 	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	TLSOptions         *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
 	HTTPOptions        *api.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
-	ProxyProtoOptions  *api.ProxyProtoOptions         `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"checks,omitempty" toml:"checks,omitempty"`
 }
 
@@ -70,17 +69,15 @@ func (s *HTTPService) ToService() *Service {
 		Processes:    s.Processes,
 		HTTPChecks:   s.HTTPChecks,
 		Ports: []api.MachinePort{{
-			Port:              api.IntPointer(80),
-			Handlers:          []string{"http"},
-			ForceHTTPS:        s.ForceHTTPS,
-			HTTPOptions:       s.HTTPOptions,
-			ProxyProtoOptions: s.ProxyProtoOptions,
+			Port:        api.IntPointer(80),
+			Handlers:    []string{"http"},
+			ForceHTTPS:  s.ForceHTTPS,
+			HTTPOptions: s.HTTPOptions,
 		}, {
-			Port:              api.IntPointer(443),
-			Handlers:          []string{"http", "tls"},
-			HTTPOptions:       s.HTTPOptions,
-			TLSOptions:        s.TLSOptions,
-			ProxyProtoOptions: s.ProxyProtoOptions,
+			Port:        api.IntPointer(443),
+			Handlers:    []string{"http", "tls"},
+			HTTPOptions: s.HTTPOptions,
+			TLSOptions:  s.TLSOptions,
 		}},
 		AutoStopMachines:   s.AutoStopMachines,
 		AutoStartMachines:  s.AutoStartMachines,
