@@ -99,3 +99,22 @@ ENV PREFLIGHT_TEST=true`)
 	sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
 	require.Equal(f, "true", strings.TrimSpace(sshResult.StdOut().String()), "expected PREFLIGHT_TEST env var to be set in machine")
 }
+
+// If this test passes at all, that means that a slow metrics server isn't affecting flyctl
+func TestFlyDeploySlowMetrics(t *testing.T) {
+	t.Parallel()
+
+	env := make(map[string]string)
+	env["FLY_METRICS_BASE_URL"] = "https://flyctl-metrics-slow.fly.dev"
+	env["FLY_SEND_METRICS"] = "1"
+
+	f := testlib.NewTestEnvFromEnvWithEnv(t, env)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+
+	f.Fly("deploy")
+}
