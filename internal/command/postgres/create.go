@@ -232,6 +232,8 @@ func run(ctx context.Context) (err error) {
 
 		// Resolve the fork-from app manager
 		params.Manager = resolveForkFromManager(ctx, machines)
+		// Attempt to resolve the fork-from app image ref
+		params.ImageRef = resolveImageFromForkVolume(vol, machines)
 		params.ForkFrom = vol.ID
 	}
 
@@ -403,6 +405,7 @@ type ClusterParams struct {
 	Manager    string
 	ForkFrom   string
 	Autostart  bool
+	ImageRef   string
 }
 
 func postgresConfigurations(manager string) []PostgresConfiguration {
@@ -589,4 +592,21 @@ func resolveForkFromManager(ctx context.Context, machines []*api.Machine) string
 	}
 
 	return flypg.StolonManager
+}
+
+func resolveImageFromForkVolume(vol *api.Volume, machines []*api.Machine) string {
+	// If the volume is not associated with a machine, we can't resolve the image and wil
+	// fallback to the default image.
+	if len(machines) == 0 {
+		return ""
+	}
+
+	// Attempt to resolve the machine image that's associated with the volume
+	for _, m := range machines {
+		if m.Config.Mounts[0].Volume == vol.ID {
+			return m.FullImageRef()
+		}
+	}
+
+	return ""
 }
