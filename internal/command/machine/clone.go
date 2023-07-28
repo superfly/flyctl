@@ -78,7 +78,7 @@ func newClone() *cobra.Command {
 			Description: "Comma separated list of machine ids to watch for. You can use '--standby-for=source' to create a standby for the cloned machine",
 		},
 		flag.Bool{
-			Name:        "require-unique-zone",
+			Name:        "volume-requires-unique-zone",
 			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default false",
 			Default:     false,
 		},
@@ -251,7 +251,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				SizeGb:            mnt.SizeGb,
 				Encrypted:         mnt.Encrypted,
 				SnapshotID:        snapshotID,
-				RequireUniqueZone: flag.GetBool(ctx, "require-unique-zone"),
+				RequireUniqueZone: flag.GetBool(ctx, "volume-requires-unique-zone"),
 			}
 			vol, err = client.CreateVolume(ctx, volInput)
 			if err != nil {
