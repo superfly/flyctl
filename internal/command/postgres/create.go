@@ -232,7 +232,8 @@ func run(ctx context.Context) (err error) {
 
 		// Resolve the fork-from app manager
 		params.Manager = resolveForkFromManager(ctx, machines)
-		// Attempt to resolve the fork-from app image ref
+		// Attempt to resolve the image ref from the machine tied to the
+		// fork volume.
 		params.ImageRef = resolveImageFromForkVolume(vol, machines)
 		params.ForkFrom = vol.ID
 	}
