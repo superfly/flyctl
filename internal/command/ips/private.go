@@ -3,7 +3,9 @@ package ips
 import (
 	"context"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -56,7 +58,10 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 
 		renderPrivateTable(ctx, appstatus.Allocations, backupRegions)
 	case appconfig.MachinesPlatform:
-		renderPrivateTableMachines(ctx, appstatus.Machines.Nodes)
+		machines := lo.Filter(appstatus.Machines.Nodes, func(m *api.GqlMachine, _ int) bool {
+			return !(m.State == "destroyed")
+		})
+		renderPrivateTableMachines(ctx, machines)
 	}
 
 	return nil
