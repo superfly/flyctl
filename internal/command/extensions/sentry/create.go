@@ -54,13 +54,10 @@ func runSentryCreate(ctx context.Context) (err error) {
 		options["platform"] = PlatformMap[srcInfo.Family]
 	}
 
-	_, err = extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionOptions{
-		Provider:       "sentry",
-		SelectName:     false,
-		SelectRegion:   false,
-		DetectPlatform: true,
-		Options:        options,
-	})
+	sentryOptions := SentryOptions
+	sentryOptions.Options = options
+
+	_, err = extensions_core.ProvisionExtension(ctx, sentryOptions)
 
 	return
 }
