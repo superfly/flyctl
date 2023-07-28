@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/helpers"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -189,8 +188,8 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 				AppID:          app.ID,
 				SourceVolumeID: config.ForkFrom,
 				MachinesOnly:   true,
+				Remote:         true,
 				Name:           "pg_data",
-				Remote:         flag.GetBool(ctx, "remote-fork"),
 			}
 
 			vol, err = l.client.ForkVolume(ctx, volInput)

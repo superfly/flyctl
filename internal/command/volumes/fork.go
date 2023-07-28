@@ -95,7 +95,7 @@ func runFork(ctx context.Context) error {
 		SourceVolumeID: vol.ID,
 		Name:           name,
 		MachinesOnly:   machinesOnly,
-		Remote:         flag.GetBool(ctx, "remote-fork"),
+		Remote:         machinesOnly,
 	}
 
 	volume, err := client.ForkVolume(ctx, input)
