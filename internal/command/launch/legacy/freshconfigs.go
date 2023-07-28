@@ -1,4 +1,4 @@
-package launch
+package legacy
 
 import (
 	"github.com/superfly/flyctl/api"

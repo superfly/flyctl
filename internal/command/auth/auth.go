@@ -54,17 +54,17 @@ func runWebLogin(ctx context.Context, signup bool) error {
 	}
 
 	io := iostreams.FromContext(ctx)
-	if err := open.Run(auth.AuthURL); err != nil {
+	if err := open.Run(auth.URL); err != nil {
 		fmt.Fprintf(io.ErrOut,
 			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			auth.AuthURL,
+			auth.URL,
 		)
 	}
 
 	logger := logger.FromContext(ctx)
 
 	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.AuthURL))
+	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
 
 	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {

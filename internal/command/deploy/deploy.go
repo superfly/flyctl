@@ -187,10 +187,10 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "auto-confirm"))
+	return DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "auto-confirm"), nil)
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
@@ -224,7 +224,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		if err := appConfig.EnsureV2Config(); err != nil {
 			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
 		}
-		if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
+		if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
 			return err
 		}
 	} else {
@@ -262,7 +262,37 @@ func determineRelCmdTimeout(timeout string) (time.Duration, error) {
 	return time.Duration(asInt) * time.Second, nil
 }
 
-func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
+// ApplyFlagsToGuest applies CLI flags to a Guest
+// Returns true if any flags were applied
+func ApplyFlagsToGuest(ctx context.Context, guest *api.MachineGuest) bool {
+	modified := false
+	if flag.IsSpecified(ctx, "vm-size") {
+		guest.SetSize(flag.GetString(ctx, "vm-size"))
+		modified = true
+	}
+	if flag.IsSpecified(ctx, "vm-cpus") {
+		guest.CPUs = flag.GetInt(ctx, "vm-cpus")
+		modified = true
+	}
+	if flag.IsSpecified(ctx, "vm-memory") {
+		guest.MemoryMB = flag.GetInt(ctx, "vm-memory")
+		modified = true
+	}
+	if flag.IsSpecified(ctx, "vm-cpukind") {
+		guest.CPUKind = flag.GetString(ctx, "vm-cpukind")
+		modified = true
+	}
+	return modified
+}
+
+// in a rare twist, the guest param takes precedence over CLI flags!
+func deployToMachines(
+	ctx context.Context,
+	appConfig *appconfig.Config,
+	appCompact *api.AppCompact,
+	img *imgsrc.DeploymentImage,
+	guest *api.MachineGuest,
+) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
 
@@ -281,6 +311,12 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		return err
 	}
 
+	if guest == nil {
+		guest = &api.MachineGuest{}
+		guest.SetSize(DefaultVMSize)
+		_ = ApplyFlagsToGuest(ctx, guest)
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
@@ -293,10 +329,7 @@ func deployToMachines(ctx context.Context, appConfig *appconfig.Config, appCompa
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
 		ReleaseCmdTimeout:     releaseCmdTimeout,
-		VMSize:                flag.GetString(ctx, "vm-size"),
-		VMCPUs:                flag.GetInt(ctx, "vm-cpus"),
-		VMMemory:              flag.GetInt(ctx, "vm-memory"),
-		VMCPUKind:             flag.GetString(ctx, "vm-cpukind"),
+		Guest:                 guest,
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
