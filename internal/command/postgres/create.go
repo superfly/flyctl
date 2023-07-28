@@ -230,11 +230,13 @@ func run(ctx context.Context) (err error) {
 			return fmt.Errorf("The target volume size %dGB must be greater than or equal to the volume fork target: %dGB", pgConfig.DiskGb, vol.SizeGb)
 		}
 
+		// Attempt to resolve the image ref from the machine tied to the fork volume.
+		if pgConfig.ImageRef == "" {
+			pgConfig.ImageRef = resolveImageFromForkVolume(vol, machines)
+		}
+
 		// Resolve the fork-from app manager
 		params.Manager = resolveForkFromManager(ctx, machines)
-		// Attempt to resolve the image ref from the machine tied to the
-		// fork volume.
-		params.ImageRef = resolveImageFromForkVolume(vol, machines)
 		params.ForkFrom = vol.ID
 	}
 
@@ -269,7 +271,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	input := &flypg.CreateClusterInput{
 		AppName:      params.Name,
 		Organization: org,
-		ImageRef:     params.ImageRef,
+		ImageRef:     params.PostgresConfiguration.ImageRef,
 		Region:       region.Code,
 		Manager:      params.Manager,
 		Autostart:    params.Autostart,
@@ -406,7 +408,6 @@ type ClusterParams struct {
 	Manager    string
 	ForkFrom   string
 	Autostart  bool
-	ImageRef   string
 }
 
 func postgresConfigurations(manager string) []PostgresConfiguration {
@@ -596,12 +597,6 @@ func resolveForkFromManager(ctx context.Context, machines []*api.Machine) string
 }
 
 func resolveImageFromForkVolume(vol *api.Volume, machines []*api.Machine) string {
-	// If the volume is not associated with a machine, we can't resolve the image and wil
-	// fallback to the default image.
-	if len(machines) == 0 {
-		return ""
-	}
-
 	// Attempt to resolve the machine image that's associated with the volume
 	for _, m := range machines {
 		if m.Config.Mounts[0].Volume == vol.ID {
