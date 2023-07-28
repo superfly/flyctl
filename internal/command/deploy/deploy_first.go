@@ -48,8 +48,8 @@ func (md *machineDeployment) provisionSentryOnFirstDeploy(ctx context.Context) e
 
 	fmt.Fprintf(md.io.Out, "Setting the following secrets on %s:\n", md.app.Name)
 
-	for key, value := range extension.Environment.(map[string]interface{}) {
-		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
+	for key, value := range extension.Environment.(map[string]string) {
+		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value})
 		fmt.Println(key)
 	}
 
