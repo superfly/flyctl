@@ -5,7 +5,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
@@ -56,15 +55,11 @@ func renderPrivateTable(ctx context.Context, allocations []*api.AllocationStatus
 	render.Table(out, "", rows, "ID", "Region", "IP")
 }
 
-func renderPrivateTableMachines(ctx context.Context, machines []*api.GqlMachine) {
+func renderPrivateTableMachines(ctx context.Context, machines []*api.Machine) {
 	rows := make([][]string, 0, len(machines))
 
 	for _, machine := range machines {
-		privateIp := lo.Filter(machine.IPs.Nodes, func(ip *api.MachineIP, _ int) bool {
-			return ip.Kind == "privatenet"
-		})[0]
-
-		rows = append(rows, []string{machine.ID, machine.Region, privateIp.IP})
+		rows = append(rows, []string{machine.ID, machine.Region, machine.PrivateIP})
 	}
 
 	out := iostreams.FromContext(ctx).Out

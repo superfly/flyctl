@@ -537,9 +537,6 @@ type AppStatus struct {
 	Organization     Organization
 	DeploymentStatus *DeploymentStatus
 	Allocations      []*AllocationStatus
-	Machines         struct {
-		Nodes []*GqlMachine
-	}
 }
 
 type AppConfig struct {

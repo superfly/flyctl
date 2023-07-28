@@ -53,22 +53,6 @@ func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted
 						name
 					}
 				}
-				machines {
-					nodes {
-						id
-						name
-						state
-						region
-						ips {
-							nodes {
-								family
-								kind
-								ip
-								maskSize
-							}
-						}
-					}
-				}
 			}
 		}
 	`

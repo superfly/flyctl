@@ -3,10 +3,9 @@ package ips
 import (
 	"context"
 
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -35,17 +34,22 @@ func newPrivate() *cobra.Command {
 }
 
 func runPrivateIPAddressesList(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-
 	appName := appconfig.NameFromContext(ctx)
-	appstatus, err := client.GetAppStatus(ctx, appName, false)
+
+	apiClient := client.FromContext(ctx).API()
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	appstatus, err := apiClient.GetAppStatus(ctx, appName, false)
 	if err != nil {
 		return err
 	}
 
 	switch appstatus.PlatformVersion {
 	case appconfig.NomadPlatform:
-		_, backupRegions, err := client.ListAppRegions(ctx, appName)
+		_, backupRegions, err := apiClient.ListAppRegions(ctx, appName)
 		if err != nil {
 			return err
 		}
@@ -58,9 +62,10 @@ func runPrivateIPAddressesList(ctx context.Context) error {
 
 		renderPrivateTable(ctx, appstatus.Allocations, backupRegions)
 	case appconfig.MachinesPlatform:
-		machines := lo.Filter(appstatus.Machines.Nodes, func(m *api.GqlMachine, _ int) bool {
-			return !(m.State == "destroyed")
-		})
+		machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+		if err != nil {
+			return err
+		}
 		renderPrivateTableMachines(ctx, machines)
 	}
 
