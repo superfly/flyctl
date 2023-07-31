@@ -53,7 +53,7 @@ Here's a few commands to get you started:
   fly launch      Launch a new application
   fly apps        Create and manage apps
   fly postgres    Create and manage Postgres databases
-	fly mysql       Create and manage PlanetScale MySQL databases
+  fly mysql       Create and manage PlanetScale MySQL databases
   fly redis       Create and manage Upstash Redis databases
   fly machines    Create and manage individual Fly.io machines
 
