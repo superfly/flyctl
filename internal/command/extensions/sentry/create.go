@@ -6,18 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/scanner"
 )
-
-var SentryOptions = extensions_core.ExtensionOptions{
-	Provider:       "sentry",
-	SelectName:     false,
-	SelectRegion:   false,
-	DetectPlatform: true,
-}
 
 func create() (cmd *cobra.Command) {
 
@@ -35,6 +30,7 @@ func create() (cmd *cobra.Command) {
 }
 
 func runSentryCreate(ctx context.Context) (err error) {
+	appName := appconfig.NameFromContext(ctx)
 
 	absDir, err := filepath.Abs(".")
 
@@ -54,10 +50,10 @@ func runSentryCreate(ctx context.Context) (err error) {
 		options["platform"] = PlatformMap[srcInfo.Family]
 	}
 
-	sentryOptions := SentryOptions
+	sentryOptions := extensions_core.MonitoringExtensionDefaults
 	sentryOptions.Options = options
 
-	_, err = extensions_core.ProvisionExtension(ctx, sentryOptions)
-
+	extension, err := extensions_core.ProvisionExtension(ctx, appName, sentryOptions)
+	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
 	return
 }

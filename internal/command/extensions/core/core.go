@@ -26,16 +26,33 @@ type ExtensionOptions struct {
 	Options        gql.AddOnOptions
 }
 
-func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extension *gql.ExtensionData, err error) {
+type Extension struct {
+	Data gql.ExtensionData
+	App  gql.AppData
+}
+
+var DbExtensionDefaults = ExtensionOptions{
+	SelectName:   true,
+	SelectRegion: true,
+	NameSuffix:   "db",
+}
+
+var MonitoringExtensionDefaults = ExtensionOptions{
+	Provider:       "sentry",
+	SelectName:     false,
+	SelectRegion:   false,
+	DetectPlatform: true,
+}
+
+func ProvisionExtension(ctx context.Context, appName string, options ExtensionOptions) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
-	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	// Fetch the target organization from the app
 	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(options.Provider))
 
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	targetApp := appResponse.App.AppData
@@ -43,7 +60,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extensio
 	resp, err := gql.GetAddOnProvider(ctx, client, options.Provider)
 
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	addOnProvider := resp.AddOnProvider
@@ -51,18 +68,18 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extensio
 	tosResp, err := gql.AgreedToProviderTos(ctx, client, options.Provider, targetOrg.Id)
 
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	if !tosResp.Organization.AgreedToProviderTos {
 		if err != nil {
-			return nil, err
+			return
 		}
 
 		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To continue, your organization must agree to the %s Terms Of Service (%s). Do you agree?", addOnProvider.DisplayName, resp.AddOnProvider.TosUrl))
 
 		if err != nil {
-			return nil, err
+			return extension, err
 		}
 
 		if confirmTos {
@@ -72,16 +89,16 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extensio
 			})
 
 			if err != nil {
-				return nil, err
+				return extension, err
 			}
 		} else {
-			return nil, nil
+			return extension, nil
 		}
 	}
 
 	if len(appResponse.App.AddOns.Nodes) > 0 {
 		errMsg := fmt.Sprintf("A %s extension named %s already exists for this app", addOnProvider.DisplayName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
-		return nil, errors.New(errMsg)
+		return extension, errors.New(errMsg)
 	}
 
 	var name string
@@ -96,7 +113,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extensio
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
 			if err != nil {
-				return nil, err
+				return
 			}
 		}
 	} else {
@@ -132,7 +149,7 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extensio
 
 				confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Would you like to provision anyway in the nearest region to '%s'?", primaryRegion))
 				if err != nil || !confirm {
-					return nil, err
+					return extension, err
 				}
 			}
 		} else {
@@ -155,22 +172,26 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (extensio
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	extension = &createResp.CreateAddOn.AddOn.ExtensionData
+	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
+	extension.App = targetApp
 
 	if addOnProvider.AsyncProvisioning {
 		// wait for provision
-		err = WaitForProvision(ctx, extension.Name)
+		err = WaitForProvision(ctx, extension.Data.Name)
 		if err != nil {
-			return nil, err
+			return
 		}
 	}
 
 	if options.SelectRegion {
-		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(extension.Name), colorize.Green(extension.PrimaryRegion), colorize.Green(appName))
+		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(extension.Data.Name), colorize.Green(extension.Data.PrimaryRegion), colorize.Green(appName))
 	}
+
+	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+
 	return extension, nil
 }
 
@@ -276,4 +297,28 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	}
 
 	return
+}
+
+func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interface{}) error {
+	var (
+		io     = iostreams.FromContext(ctx)
+		client = client.FromContext(ctx).API().GenqClient
+	)
+
+	input := gql.SetSecretsInput{
+		AppId: app.Id,
+	}
+
+	fmt.Fprintf(io.Out, "\nSetting the following secrets on %s:\n", app.Name)
+
+	for key, value := range secrets {
+		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
+		fmt.Println(key)
+	}
+
+	fmt.Fprintln(io.Out)
+
+	_, err := gql.SetSecrets(ctx, client, input)
+
+	return err
 }

@@ -6,9 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
-	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -36,25 +34,7 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 }
 
 func (md *machineDeployment) provisionSentryOnFirstDeploy(ctx context.Context) error {
-	extension, err := extensions_core.ProvisionExtension(ctx, sentry_ext.SentryOptions)
-
-	if err != nil {
-		return err
-	}
-
-	input := gql.SetSecretsInput{
-		AppId: md.app.ID,
-	}
-
-	fmt.Fprintf(md.io.Out, "Setting the following secrets on %s:\n", md.app.Name)
-
-	for key, value := range extension.Environment.(map[string]string) {
-		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value})
-		fmt.Println(key)
-	}
-
-	_, err = gql.SetSecrets(ctx, md.gqlClient, input)
-
+	_, err := extensions_core.ProvisionExtension(ctx, md.app.Name, extensions_core.MonitoringExtensionDefaults)
 	return err
 }
 
