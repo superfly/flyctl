@@ -3,7 +3,7 @@ module github.com/superfly/flyctl
 go 1.20
 
 require (
-	github.com/AlecAivazis/survey/v2 v2.3.5
+	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/BurntSushi/toml v1.3.2
 	github.com/Khan/genqlient v0.6.0
 	github.com/alecthomas/chroma v0.10.0
