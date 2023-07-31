@@ -55,6 +55,17 @@ func renderPrivateTable(ctx context.Context, allocations []*api.AllocationStatus
 	render.Table(out, "", rows, "ID", "Region", "IP")
 }
 
+func renderPrivateTableMachines(ctx context.Context, machines []*api.Machine) {
+	rows := make([][]string, 0, len(machines))
+
+	for _, machine := range machines {
+		rows = append(rows, []string{machine.ID, machine.Region, machine.PrivateIP})
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	render.Table(out, "", rows, "ID", "Region", "IP")
+}
+
 func renderSharedTable(ctx context.Context, ip net.IP) {
 	rows := make([][]string, 0, 1)
 
