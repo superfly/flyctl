@@ -717,7 +717,7 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	err, extraInfo := m.appConfig.ValidateForMachinesPlatform(ctx)
 	if err != nil {
 		fmt.Println(extraInfo)
-		fmt.Println("Edit fly.toml to address any configuration problem and rerun the migration with '--use-local-config' flag")
+		fmt.Println("Edit fly.toml, fix issues and rerun the migration with '--use-local-config' flag")
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
 	err = m.validateProcessGroupsOnAllocs(ctx)
