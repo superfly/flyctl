@@ -11,6 +11,7 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/fileutils"
 	"github.com/moby/buildkit/frontend/dockerfile/dockerignore"
+	"github.com/moby/patternmatcher"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -136,18 +137,18 @@ func parseDockerignore(r io.Reader, dockerfile string) ([]string, error) {
 		return nil, err
 	}
 
-	if match, _ := fileutils.Matches(".dockerignore", excludes); match {
+	if match, _ := patternmatcher.Matches(".dockerignore", excludes); match {
 		excludes = append(excludes, "!.dockerignore")
 	}
 
 	if dockerfile != "" {
-		if match, _ := fileutils.Matches(dockerfile, excludes); match {
+		if match, _ := patternmatcher.Matches(dockerfile, excludes); match {
 			excludes = append(excludes, "!"+dockerfile)
 		}
 	} else {
-		if match, _ := fileutils.Matches("Dockerfile", excludes); match {
+		if match, _ := patternmatcher.Matches("Dockerfile", excludes); match {
 			excludes = append(excludes, "![Dd]ockerfile")
-		} else if match, _ := fileutils.Matches("dockerfile", excludes); match {
+		} else if match, _ := patternmatcher.Matches("dockerfile", excludes); match {
 			excludes = append(excludes, "![Dd]ockerfile")
 		}
 	}

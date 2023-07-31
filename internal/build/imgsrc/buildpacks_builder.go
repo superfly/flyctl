@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/buildpacks/pack"
+	pack "github.com/buildpacks/pack/pkg/client"
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -19,6 +19,10 @@ type buildpacksBuilder struct{}
 
 func (*buildpacksBuilder) Name() string {
 	return "Buildpacks"
+}
+
+func returnTrue(s string) bool {
+	return true
 }
 
 func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
@@ -87,7 +91,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		Image:          newCacheTag(opts.AppName),
 		Buildpacks:     buildpacks,
 		Env:            normalizeBuildArgs(opts.BuildArgs),
-		TrustBuilder:   true,
+		TrustBuilder:   returnTrue,
 		AdditionalTags: []string{opts.Tag},
 		ProjectDescriptor: projectTypes.Descriptor{
 			Build: projectTypes.Build{
