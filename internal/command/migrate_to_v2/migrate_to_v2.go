@@ -96,6 +96,11 @@ func newMigrateToV2() *cobra.Command {
 			Description: "PLACEHOLDER - this is the default now",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "use-local-config",
+			Description: "Use local fly.toml. Do not attempt to remotely fetch the app configuration from the latest deployed release",
+			Default:     false,
+		},
 	)
 
 	cmd.AddCommand(newTroubleshoot())
@@ -712,6 +717,7 @@ func (m *v2PlatformMigrator) validate(ctx context.Context) error {
 	err, extraInfo := m.appConfig.ValidateForMachinesPlatform(ctx)
 	if err != nil {
 		fmt.Println(extraInfo)
+		fmt.Println("Edit fly.toml to address any configuration problem and rerun the migration with '--use-local-config' flag")
 		return fmt.Errorf("failed to validate config for Apps V2 platform: %w", err)
 	}
 	err = m.validateProcessGroupsOnAllocs(ctx)
@@ -1017,7 +1023,14 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 	// people will expect this to migrate what's _currently_ live.
 	// That said, we need to reference the local config to get the build config, because it's
 	// sanitized out before being sent to the API.
+	//
+	// Also, we have to consider that remote config errors, must be fixed locally after running `fly config save`
+	// and then run `fly migrate-to-v2 --use-local-config` to avoid refetching the invalid remote config
 	localAppConfig := appconfig.ConfigFromContext(ctx)
+	if flag.GetBool(ctx, "use-local-config") {
+		return localAppConfig, nil
+	}
+
 	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err
