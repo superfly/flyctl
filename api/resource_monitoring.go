@@ -27,6 +27,7 @@ func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted
 					healthyCount
 					unhealthyCount
 				}
+				platformVersion
 				allocations(showCompleted: $showCompleted) {
 					id
 					idShort

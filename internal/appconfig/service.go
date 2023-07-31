@@ -27,22 +27,19 @@ type ServiceTCPCheck struct {
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 
 	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	HTTPTLSServerName *string           `json:"tls_server_name,omitempty" toml:"tls_server_name,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
@@ -125,6 +122,7 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
+		HTTPTLSServerName: chk.HTTPTLSServerName,
 		HTTPHeaders: lo.MapToSlice(
 			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
 				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
@@ -180,10 +178,9 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 
 func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
 	return &ServiceTCPCheck{
-		Interval:     mc.Interval,
-		Timeout:      mc.Timeout,
-		GracePeriod:  nil,
-		RestartLimit: 0,
+		Interval:    mc.Interval,
+		Timeout:     mc.Timeout,
+		GracePeriod: nil,
 	}
 }
 
@@ -201,11 +198,11 @@ func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,
 		GracePeriod:       nil,
-		RestartLimit:      0,
 		HTTPMethod:        mc.HTTPMethod,
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,
 		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
+		HTTPTLSServerName: mc.HTTPTLSServerName,
 		HTTPHeaders:       headers,
 	}
 }

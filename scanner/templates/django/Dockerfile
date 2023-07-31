@@ -1,9 +1,21 @@
-ARG PYTHON_VERSION={{ .pythonVersion }}-slim-buster
+{{ if .pinnedPythonVersion -}}
+# TODO: Change to an officially released version of Python before deploying to production.
+{{ end -}}
+ARG PYTHON_VERSION={{ .pythonVersion }}-slim-bullseye
 
 FROM python:${PYTHON_VERSION}
 
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
+
+{{ if .hasPostgres -}}
+# install psycopg2 dependencies.
+RUN apt-get update && apt-get install -y \
+    libpq-dev \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+{{ end -}}
 
 RUN mkdir -p /code
 

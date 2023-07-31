@@ -100,10 +100,9 @@ func TestFromDefinition(t *testing.T) {
 				Processes: []string{"app"},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Timeout:      api.MustParseDuration("2s"),
-						RestartLimit: 0,
-						Interval:     api.MustParseDuration("15s"),
-						GracePeriod:  api.MustParseDuration("1s"),
+						Timeout:     api.MustParseDuration("2s"),
+						Interval:    api.MustParseDuration("15s"),
+						GracePeriod: api.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -219,11 +218,11 @@ func TestToDefinition(t *testing.T) {
 					"interval":        "1m21s",
 					"timeout":         "7s",
 					"grace_period":    "2s",
-					"restart_limit":   int64(4),
 					"method":          "GET",
 					"path":            "/",
 					"protocol":        "https",
 					"tls_skip_verify": true,
+					"tls_server_name": "sni2.com",
 					"headers": map[string]any{
 						"My-Custom-Header": "whatever",
 					},
@@ -297,6 +296,7 @@ func TestToDefinition(t *testing.T) {
 				"path":            "/status",
 				"protocol":        "https",
 				"tls_skip_verify": true,
+				"tls_server_name": "sni3.com",
 				"headers": map[string]any{
 					"Content-Type":  "application/json",
 					"Authorization": "super-duper-secret",
@@ -324,10 +324,9 @@ func TestToDefinition(t *testing.T) {
 				},
 				"tcp_checks": []map[string]any{
 					{
-						"interval":      "21s",
-						"timeout":       "4s",
-						"grace_period":  "1s",
-						"restart_limit": int64(3),
+						"interval":     "21s",
+						"timeout":      "4s",
+						"grace_period": "1s",
 					},
 				},
 				"http_checks": []map[string]any{
@@ -335,11 +334,11 @@ func TestToDefinition(t *testing.T) {
 						"interval":        "1m21s",
 						"timeout":         "7s",
 						"grace_period":    "2s",
-						"restart_limit":   int64(4),
 						"method":          "GET",
 						"path":            "/",
 						"protocol":        "https",
 						"tls_skip_verify": true,
+						"tls_server_name": "sni.com",
 						"headers": map[string]any{
 							"My-Custom-Header": "whatever",
 						},

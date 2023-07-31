@@ -251,7 +251,7 @@ func run(ctx context.Context) error {
 				return err
 			}
 		}
-		return deploy.DeployWithConfig(ctx, appConfig, deployNow)
+		return deploy.DeployWithConfig(ctx, appConfig, deployNow, nil)
 	}
 
 	return nil

@@ -50,11 +50,11 @@ console_command = "/bin/bash"
     interval = "1m21s"
     timeout = "7s"
     grace_period = "2s"
-    restart_limit = 4
     method = "GET"
     path = "/"
     protocol = "https"
     tls_skip_verify = true
+    tls_server_name = "sni2.com"
     [http_service.checks.headers]
       My-Custom-Header = "whatever"
 
@@ -115,6 +115,7 @@ console_command = "/bin/bash"
   path = "/status"
   protocol = "https"
   tls_skip_verify = true
+  tls_server_name = "sni3.com"
   [checks.status.headers]
     Content-Type = "application/json"
     Authorization = "super-duper-secret"
@@ -140,17 +141,16 @@ console_command = "/bin/bash"
     interval = "21s"
     timeout = "4s"
     grace_period = "1s"
-    restart_limit = 3
 
   [[services.http_checks]]
     interval = "1m21s"
     timeout = "7s"
     grace_period = "2s"
-    restart_limit = 4
     method = "GET"
     path = "/"
     protocol = "https"
     tls_skip_verify = true
+    tls_server_name = "sni.com"
     [services.http_checks.headers]
       My-Custom-Header = "whatever"
 

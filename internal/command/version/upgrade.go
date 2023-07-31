@@ -65,6 +65,10 @@ func runUpgrade(ctx context.Context) error {
 		return nil
 	}
 
+	if !update.CanUpdateThisInstallation() {
+		return errors.New("cannot update this installation.\nthe environment variable FLYCTL_INSTALL must be set to the installation directory")
+	}
+
 	homebrew := update.IsUnderHomebrew()
 
 	if err = update.UpgradeInPlace(ctx, io, release.Prerelease, false); err != nil {

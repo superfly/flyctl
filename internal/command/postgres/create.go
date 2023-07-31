@@ -67,12 +67,6 @@ func newCreate() *cobra.Command {
 			Name:        "fork-from",
 			Description: "Specify a source Postgres application to fork from. Format: <app-name> or <app-name>:<volume-id>",
 		},
-		flag.Bool{
-			Name:        "remote-fork",
-			Description: "Enables experimental cross-host volume forking",
-			Hidden:      true,
-			Default:     false,
-		},
 		flag.String{
 			Name:        "image-ref",
 			Description: "Specify a non-default base image for the Postgres app",
@@ -230,6 +224,11 @@ func run(ctx context.Context) (err error) {
 			return fmt.Errorf("The target volume size %dGB must be greater than or equal to the volume fork target: %dGB", pgConfig.DiskGb, vol.SizeGb)
 		}
 
+		// Attempt to resolve the image ref from the machine tied to the fork volume.
+		if pgConfig.ImageRef == "" {
+			pgConfig.ImageRef = resolveImageFromForkVolume(vol, machines)
+		}
+
 		// Resolve the fork-from app manager
 		params.Manager = resolveForkFromManager(ctx, machines)
 		params.ForkFrom = vol.ID
@@ -266,7 +265,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	input := &flypg.CreateClusterInput{
 		AppName:      params.Name,
 		Organization: org,
-		ImageRef:     params.ImageRef,
+		ImageRef:     params.PostgresConfiguration.ImageRef,
 		Region:       region.Code,
 		Manager:      params.Manager,
 		Autostart:    params.Autostart,
@@ -589,4 +588,15 @@ func resolveForkFromManager(ctx context.Context, machines []*api.Machine) string
 	}
 
 	return flypg.StolonManager
+}
+
+func resolveImageFromForkVolume(vol *api.Volume, machines []*api.Machine) string {
+	// Attempt to resolve the machine image that's associated with the volume
+	for _, m := range machines {
+		if m.Config.Mounts[0].Volume == vol.ID {
+			return m.FullImageRef()
+		}
+	}
+
+	return ""
 }

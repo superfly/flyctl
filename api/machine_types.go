@@ -329,6 +329,21 @@ func (mg *MachineGuest) ToSize() string {
 	}
 }
 
+// String returns a string representation of the guest
+// Formatted as "[cpu_kind], XGB RAM"
+// Returns "" if nil
+func (mg *MachineGuest) String() string {
+	if mg == nil {
+		return ""
+	}
+	size := mg.ToSize()
+	gbRam := mg.MemoryMB / 1024
+	if gbRam == 0 {
+		return fmt.Sprintf("%s, %dMB RAM", size, mg.MemoryMB)
+	}
+	return fmt.Sprintf("%s, %dGB RAM", size, gbRam)
+}
+
 const (
 	MIN_MEMORY_MB_PER_SHARED_CPU = 256
 	MIN_MEMORY_MB_PER_CPU        = 2048
@@ -366,6 +381,7 @@ type MachineCheck struct {
 	HTTPPath          *string             `json:"path,omitempty"`
 	HTTPProtocol      *string             `json:"protocol,omitempty"`
 	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
+	HTTPTLSServerName *string             `json:"tls_server_name,omitempty"`
 	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
 }
 

@@ -3,6 +3,7 @@ package update
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,11 +12,11 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cli/safeexec"
 	"github.com/morikuni/aec"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -62,23 +63,27 @@ func (i InvalidReleaseError) StatusCode() int {
 }
 
 // memoized values for ValidateRelease
-var validatedReleases = map[string]error{}
+var _validatedReleases = map[string]error{}
+var _validatedReleaseLock sync.Mutex
 
 // ValidateRelease reports whether the given release is valid via an API call.
 // If the version is invalid, the error will be an InvalidReleaseError.
 // Note that other errors may be returned if the API call fails.
 func ValidateRelease(ctx context.Context, version string) (err error) {
 
+	_validatedReleaseLock.Lock()
+	defer _validatedReleaseLock.Unlock()
+
 	if version[0] == 'v' {
 		version = version[1:]
 	}
 
-	if err, ok := validatedReleases[version]; ok {
+	if err, ok := _validatedReleases[version]; ok {
 		return err
 	}
 
 	defer func() {
-		validatedReleases[version] = err
+		_validatedReleases[version] = err
 	}()
 
 	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_validate/v%s", version)
@@ -182,37 +187,60 @@ func latestHomebrewRelease(ctx context.Context, channel string) (*Release, error
 	}, nil
 }
 
-// memoized value so we're not executing homebrew commands on every call
+var errBrewNotFound = errors.New("command 'brew' not found")
+
+// Use brewBinDir()
+var _brewBinDir memoize[string]
+
+func brewBinDir() (string, error) {
+
+	return _brewBinDir.Get(func() (string, error) {
+
+		brewExe, err := safeexec.LookPath("brew")
+		if err != nil {
+			return "", errBrewNotFound
+		}
+
+		brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
+		if err != nil {
+			return "", err
+		}
+
+		brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
+
+		return brewBinPrefix, nil
+	})
+
+}
+
 // Use IsUnderHomebrew()
-var isUnderHomebrew *bool
+var _isUnderHomebrew memoize[bool]
 
 // IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
 func IsUnderHomebrew() bool {
 
-	if isUnderHomebrew != nil {
-		return *isUnderHomebrew
-	}
-
-	flyBinary, err := os.Executable()
-	if err != nil {
+	if runtime.GOOS == "windows" {
 		return false
 	}
 
-	brewExe, err := safeexec.LookPath("brew")
+	val, err := _isUnderHomebrew.Get(func() (bool, error) {
+		flyBinary, err := os.Executable()
+		if err != nil {
+			return false, err
+		}
+
+		brewBinPrefix, err := brewBinDir()
+		if err != nil {
+			return false, err
+		}
+
+		return strings.HasPrefix(flyBinary, brewBinPrefix), nil
+	})
 	if err != nil {
 		return false
 	}
-
-	brewPrefixBytes, err := exec.Command(brewExe, "--prefix").Output()
-	if err != nil {
-		return false
-	}
-
-	brewBinPrefix := filepath.Join(strings.TrimSpace(string(brewPrefixBytes)), "bin") + string(filepath.Separator)
-
-	isUnderHomebrew = api.BoolPointer(strings.HasPrefix(flyBinary, brewBinPrefix))
-	return *isUnderHomebrew
+	return val
 }
 
 func upgradeCommand(prerelease bool) string {
@@ -239,6 +267,17 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
+		}
+	}
+
+	if IsUnderHomebrew() {
+
+		brewExe, err := safeexec.LookPath("brew")
+		if err == nil {
+			err = exec.Command(brewExe, "update").Run()
+		}
+		if err != nil {
+			terminal.Debugf("error updating homebrew cache: %s", err)
 		}
 	}
 
@@ -277,7 +316,68 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 		cmd.Stdin = io.In
 	}
 
-	return cmd.Run()
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	// Remove the line that says `Run 'flyctl --help' to get started`
+	if !IsUnderHomebrew() && io.IsInteractive() && !silent {
+		builder := aec.EmptyBuilder
+		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(io.ErrOut, str.String())
+	}
+	return nil
+}
+
+func GetCurrentBinaryPath() (string, error) {
+
+	if IsUnderHomebrew() {
+		brewBinPrefix, err := brewBinDir()
+		if err != nil {
+			return "", err
+		}
+
+		homebrewFlyctl := filepath.Join(brewBinPrefix, "flyctl")
+		if _, err := os.Stat(homebrewFlyctl); err == nil {
+			return homebrewFlyctl, nil
+		}
+		// Not linked (?), use fallback method
+	}
+
+	binPath, err := exec.LookPath(os.Args[0])
+	if err != nil {
+		return "", err
+	}
+
+	binPath, err = filepath.EvalSymlinks(binPath)
+	if err != nil {
+		return "", err
+	}
+	return binPath, nil
+}
+
+func CanUpdateThisInstallation() bool {
+	if IsUnderHomebrew() {
+		return true
+	}
+	binaryPath, err := GetCurrentBinaryPath()
+	if err != nil {
+		return false
+	}
+	installDir := os.Getenv("FLYCTL_INSTALL")
+	if installDir == "" {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return false
+		}
+		installDir = filepath.Join(homeDir, ".fly")
+	}
+	installDirRealpath, err := filepath.EvalSymlinks(installDir)
+	if err == nil {
+		installDir = installDirRealpath
+	}
+	return strings.HasPrefix(binaryPath, installDir+string(filepath.Separator))
 }
 
 // Relaunch only returns on error
@@ -292,23 +392,21 @@ func Relaunch(ctx context.Context, silent bool) error {
 
 	// Wait a bit for the update to take effect.
 	// Windows seemed to need this for whatever reason.
-	time.Sleep(250 * time.Millisecond)
+	time.Sleep(400 * time.Millisecond)
 
-	binPath, err := exec.LookPath(os.Args[0])
+	binPath, err := GetCurrentBinaryPath()
 	if err != nil {
 		return err
 	}
 
-	binPath, err = filepath.EvalSymlinks(binPath)
-	if err != nil {
-		return err
-	}
 	terminal.Debugf("relaunching %s, found at %s\n", os.Args[0], binPath)
 
 	cmd := exec.Command(binPath, os.Args[1:]...)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
 	cmd.Stdin = io.In
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "FLY_NO_UPDATE_CHECK=1")
 
 	if err := cmd.Start(); err != nil {
 		return err
@@ -319,13 +417,6 @@ func Relaunch(ctx context.Context, silent bool) error {
 			os.Exit(exitErr.ExitCode())
 		}
 		return err
-	}
-
-	// Remove the line that says `Run 'flyctl --help' to get started`
-	if io.IsInteractive() {
-		builder := aec.EmptyBuilder
-		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
-		fmt.Fprint(io.ErrOut, str.String())
 	}
 
 	os.Exit(0)

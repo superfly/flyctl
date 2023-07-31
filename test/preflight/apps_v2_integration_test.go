@@ -27,6 +27,7 @@ func TestAppsV2Example(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
+	t.Parallel()
 
 	var (
 		err    error
@@ -120,6 +121,8 @@ ENV BUILT_BY_DOCKERFILE=true
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
@@ -159,6 +162,8 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
@@ -208,6 +213,8 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err            error
 		f              = testlib.NewTestEnvFromEnv(t)
@@ -232,6 +239,8 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 }
 
 func TestAppsV2Config_ProcessGroups(t *testing.T) {
+	t.Parallel()
+
 	var (
 		f              = testlib.NewTestEnvFromEnv(t)
 		appName        = f.CreateRandomAppMachines()
@@ -423,6 +432,8 @@ web = "nginx -g 'daemon off;'"
 }
 
 func TestAppsV2MigrateToV2(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err     error
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -444,6 +455,8 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 
 // This test takes forever. I'm sorry.
 func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
+	t.Parallel()
+
 	if testing.Short() {
 		t.Skip()
 	}
@@ -510,6 +523,8 @@ primary_region = "%s"
 
 // this test is really slow :(
 func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
+	t.Parallel()
+
 	var (
 		err     error
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -517,7 +532,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	)
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(3 * time.Second)
-	f.Fly("autoscale set min=3 max=10")
+	f.Fly("autoscale set min=2 max=4")
 	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
 	result := f.Fly("status --json")
 
@@ -530,25 +545,27 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	require.Equal(f, "machines", platformVersion)
 
 	machines := f.MachinesList(appName)
-	require.Equal(f, 10, len(machines))
+	require.Equal(f, 4, len(machines))
 
 	for _, machine := range machines {
 		services := machine.Config.Services
 		require.Equal(f, 1, len(services))
 
 		service := services[0]
-		require.Equal(f, *service.MinMachinesRunning, 3)
+		require.Equal(f, *service.MinMachinesRunning, 2)
 	}
 
 	result = f.Fly("config show -a %s", appName)
 
-	require.Contains(f, result.StdOut().String(), `"min_machines_running": 3,`)
+	require.Contains(f, result.StdOut().String(), `"min_machines_running": 2,`)
 	require.Contains(f, result.StdOut().String(), `"auto_start_machines": true,`)
 	require.Contains(f, result.StdOut().String(), `"auto_stop_machines": true,`)
 
 }
 
 func TestNoPublicIPDeployMachines(t *testing.T) {
+	t.Parallel()
+
 	var (
 		result *testlib.FlyctlResult
 
@@ -563,6 +580,8 @@ func TestNoPublicIPDeployMachines(t *testing.T) {
 }
 
 func TestLaunchCpusMem(t *testing.T) {
+	t.Parallel()
+
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
 		appName = f.CreateRandomAppName()
