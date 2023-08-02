@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -14,16 +15,17 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/scanner"
 	"golang.org/x/exp/slices"
 )
 
-type ExtensionOptions struct {
+type ExtensionParams struct {
 	Provider       string
 	SelectName     bool
 	SelectRegion   bool
 	NameSuffix     string
 	DetectPlatform bool
-	Options        gql.AddOnOptions
+	Options        map[string]interface{}
 }
 
 type Extension struct {
@@ -31,25 +33,25 @@ type Extension struct {
 	App  gql.AppData
 }
 
-var DbExtensionDefaults = ExtensionOptions{
+var DbExtensionDefaults = ExtensionParams{
 	SelectName:   true,
 	SelectRegion: true,
 	NameSuffix:   "db",
 }
 
-var MonitoringExtensionDefaults = ExtensionOptions{
+var MonitoringExtensionDefaults = ExtensionParams{
 	Provider:       "sentry",
 	SelectName:     false,
 	SelectRegion:   false,
 	DetectPlatform: true,
 }
 
-func ProvisionExtension(ctx context.Context, appName string, options ExtensionOptions) (extension Extension, err error) {
+func ProvisionExtension(ctx context.Context, appName string, params ExtensionParams) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(options.Provider))
+	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(params.Provider))
 
 	if err != nil {
 		return
@@ -57,7 +59,7 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 
 	targetApp := appResponse.App.AppData
 	targetOrg := targetApp.Organization
-	resp, err := gql.GetAddOnProvider(ctx, client, options.Provider)
+	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
 
 	if err != nil {
 		return
@@ -65,7 +67,7 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 
 	addOnProvider := resp.AddOnProvider
 
-	tosResp, err := gql.AgreedToProviderTos(ctx, client, options.Provider, targetOrg.Id)
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, params.Provider, targetOrg.Id)
 
 	if err != nil {
 		return
@@ -85,7 +87,7 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 		if confirmTos {
 			_, err := gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
 				OrganizationId:    targetOrg.Id,
-				AddOnProviderName: options.Provider,
+				AddOnProviderName: params.Provider,
 			})
 
 			if err != nil {
@@ -103,12 +105,12 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 
 	var name string
 
-	if options.SelectName {
+	if params.SelectName {
 		name = flag.GetString(ctx, "name")
 
 		if name == "" {
-			if options.NameSuffix != "" {
-				name = targetApp.Name + "-" + options.NameSuffix
+			if params.NameSuffix != "" {
+				name = targetApp.Name + "-" + params.NameSuffix
 			}
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
@@ -124,15 +126,14 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 		OrganizationId: targetOrg.Id,
 		Name:           name,
 		AppId:          targetApp.Id,
-		Type:           gql.AddOnType(options.Provider),
-		Options:        options.Options,
+		Type:           gql.AddOnType(params.Provider),
 	}
 
-	if options.SelectRegion {
+	if params.SelectRegion {
 
 		var primaryRegion string
 
-		excludedRegions, err := GetExcludedRegions(ctx, options.Provider)
+		excludedRegions, err := GetExcludedRegions(ctx, params.Provider)
 
 		if err != nil {
 			return extension, err
@@ -169,6 +170,27 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 		input.PrimaryRegion = primaryRegion
 	}
 
+	if params.DetectPlatform {
+		absDir, err := filepath.Abs(".")
+
+		if err != nil {
+			return extension, err
+		}
+
+		srcInfo, err := scanner.Scan(absDir, &scanner.ScannerConfig{})
+
+		if err != nil {
+			return extension, err
+		}
+
+		if srcInfo != nil && PlatformMap[srcInfo.Family] != "" {
+			params.Options["platform"] = PlatformMap[srcInfo.Family]
+		}
+
+	}
+
+	input.Options = params.Options
+
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
@@ -186,7 +208,7 @@ func ProvisionExtension(ctx context.Context, appName string, options ExtensionOp
 		}
 	}
 
-	if options.SelectRegion {
+	if params.SelectRegion {
 		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(extension.Data.Name), colorize.Green(extension.Data.PrimaryRegion), colorize.Green(appName))
 	}
 
@@ -321,4 +343,119 @@ func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interf
 	_, err := gql.SetSecrets(ctx, client, input)
 
 	return err
+}
+
+// Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py
+// If other extensions require platform detection, this list can be abstracted further
+var Platforms = []string{
+	"android",
+	"apple-ios",
+	"apple-macos",
+	"capacitor",
+	"cocoa-objc",
+	"cocoa-swift",
+	"cordova",
+	"csharp",
+	"dart",
+	"dart-flutter",
+	"dotnet",
+	"dotnet-aspnet",
+	"dotnet-aspnetcore",
+	"dotnet-awslambda",
+	"dotnet-gcpfunctions",
+	"dotnet-maui",
+	"dotnet-winforms",
+	"dotnet-wpf",
+	"dotnet-xamarin",
+	"electron",
+	"elixir",
+	"flutter",
+	"go",
+	"go-http",
+	"ionic",
+	"java",
+	"java-android",
+	"java-appengine",
+	"java-log4j",
+	"java-log4j2",
+	"java-logback",
+	"java-logging",
+	"java-spring",
+	"java-spring-boot",
+	"javascript",
+	"javascript-angular",
+	"javascript-angularjs",
+	"javascript-backbone",
+	"javascript-capacitor",
+	"javascript-cordova",
+	"javascript-electron",
+	"javascript-ember",
+	"javascript-gatsby",
+	"javascript-nextjs",
+	"javascript-react",
+	"javascript-remix",
+	"javascript-svelte",
+	"javascript-vue",
+	"kotlin",
+	"minidump",
+	"native",
+	"native-breakpad",
+	"native-crashpad",
+	"native-minidump",
+	"native-qt",
+	"node",
+	"node-awslambda",
+	"node-azurefunctions",
+	"node-connect",
+	"node-express",
+	"node-gcpfunctions",
+	"node-koa",
+	"perl",
+	"php",
+	"php-laravel",
+	"php-monolog",
+	"php-symfony2",
+	"python",
+	"python-awslambda",
+	"python-azurefunctions",
+	"python-bottle",
+	"python-celery",
+	"python-django",
+	"python-fastapi",
+	"python-flask",
+	"python-gcpfunctions",
+	"python-pylons",
+	"python-pyramid",
+	"python-rq",
+	"python-sanic",
+	"python-starlette",
+	"python-tornado",
+	"react-native",
+	"ruby",
+	"ruby-rack",
+	"ruby-rails",
+	"rust",
+	"unity",
+	"unreal",
+}
+
+var PlatformMap = map[string]string{
+	"Bun":           "javascript",
+	"Django":        "python-django",
+	"Deno":          "node",
+	".NET":          "dotnet",
+	"Elixir":        "elixir",
+	"Go":            "go",
+	"NodeJS":        "node",
+	"NodeJS/Prisma": "node",
+	"Laravel":       "php-laravel",
+	"NextJS":        "javascript-nextjs",
+	"NuxtJS":        "javascript-vue",
+	"Phoenix":       "elixir",
+	"Python":        "python",
+	"Rails":         "ruby-rails",
+	"RedwoodJS":     "javascript-react",
+	"Remix":         "javscript-remix",
+	"Remix/Prisma":  "javscript-remix",
+	"Ruby":          "ruby",
 }
