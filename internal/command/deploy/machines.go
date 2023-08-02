@@ -51,6 +51,7 @@ type MachineDeploymentArgs struct {
 	AllocPublicIP         bool
 	UpdateOnly            bool
 	Files                 []*api.File
+	ProvisionExtensions   bool
 }
 
 type machineDeployment struct {
@@ -81,6 +82,7 @@ type machineDeployment struct {
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
 	updateOnly            bool
+	provisionExtensions   bool
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
