@@ -282,8 +282,10 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	if md.strategy == "bluegreen" {
 		bg := BlueGreenStrategy(md, updateEntries)
 		if err := bg.Deploy(ctx); err != nil {
-			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
-			return bg.Rollback(ctx, err)
+			if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
+				fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
+			}
+			return fmt.Errorf("Deployment failed after error: %s\n", err)
 		}
 		return nil
 	}
