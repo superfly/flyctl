@@ -282,6 +282,14 @@ func Region() String {
 	}
 }
 
+func ReplicaRegions() String {
+	return String{
+		Name:         "replica-regions",
+		Description:  "Comma-separated list of regions to deploy read replicas (see 'flyctl platform regions')",
+		CompletionFn: completion.CompleteRegions,
+	}
+}
+
 // Yes returns a yes bool flag.
 func Yes() Bool {
 	return Bool{

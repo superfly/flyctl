@@ -28,6 +28,7 @@ func newUpdate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.ReplicaRegions(),
 	)
 	cmd.Args = cobra.ExactArgs(1)
 	return cmd
@@ -55,7 +56,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
 
-	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", !addOn.Organization.PaidPlan, addOn.ReadRegions, excludedRegions)
+	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", !addOn.Organization.PaidPlan, addOn.ReadRegions, excludedRegions, "replica-regions")
 	if err != nil {
 		return
 	}
