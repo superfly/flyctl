@@ -488,10 +488,3 @@ func JSONOutput() Bool {
 		Default:     false,
 	}
 }
-
-func ProvisionExtensions() Bool {
-	return Bool{
-		Name:        "provision-extensions",
-		Description: "Provision any extensions assigned as a default to first deployments",
-	}
-}

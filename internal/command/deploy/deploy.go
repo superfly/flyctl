@@ -47,7 +47,10 @@ var CommonFlags = flag.Set{
 	flag.NoCache(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
-	flag.ProvisionExtensions(),
+	flag.Bool{
+		Name:        "provision-extensions",
+		Description: "Provision any extensions assigned as a default to first deployments",
+	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
