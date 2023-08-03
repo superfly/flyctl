@@ -571,6 +571,7 @@ type MachineInit struct {
 	Cmd        []string `json:"cmd,omitempty"`
 	Tty        bool     `json:"tty,omitempty"`
 	SwapSizeMB *int     `json:"swap_size_mb,omitempty"`
+	KernelArgs []string `json:"kernel_args,omitempty"`
 }
 
 type DNSConfig struct {

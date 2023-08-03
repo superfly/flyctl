@@ -9,6 +9,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/Khan/genqlient/graphql"
+	"github.com/avast/retry-go/v4"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -408,9 +409,15 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 	if len(m.createdVolumes) > 0 {
 		tb.Detailf("Removing migration-created volumes")
 		for _, vol := range m.createdVolumes {
-			_, err := m.apiClient.DeleteVolume(ctx, vol.vol.ID, m.appLock)
-			if err != nil {
-				return err
+			if err := retry.Do(
+				func() error {
+					_, err := m.apiClient.DeleteVolume(ctx, vol.vol.ID, m.appLock)
+					return err
+				},
+				retry.Context(ctx), retry.Attempts(10),
+				retry.Delay(time.Second), retry.MaxDelay(10*time.Second),
+			); err != nil {
+				tb.Detailf("Error removing volume %s: %s", vol.vol.ID, err)
 			}
 		}
 	}

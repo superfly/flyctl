@@ -210,9 +210,6 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
-			"proxy_proto_options": map[string]any{
-				"version": "v2",
-			},
 			"checks": []map[string]any{
 				{
 					"interval":        "1m21s",

@@ -19,3 +19,10 @@ app = "foo"
     fly-request-id = false
     fly-wasnt-here = "yes, it was"
     multi-valued = ["value1", "value2"]
+
+  [[services.ports]]
+    port = 82
+    handlers = ["proxy_proto"]
+
+    [services.ports.proxy_proto_options]
+    version = "v2"
