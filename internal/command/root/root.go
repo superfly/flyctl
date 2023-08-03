@@ -25,7 +25,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/docs"
 	"github.com/superfly/flyctl/internal/command/doctor"
 	"github.com/superfly/flyctl/internal/command/domains"
-	"github.com/superfly/flyctl/internal/command/errors"
 	"github.com/superfly/flyctl/internal/command/extensions"
 	"github.com/superfly/flyctl/internal/command/help"
 	"github.com/superfly/flyctl/internal/command/history"
@@ -161,7 +160,6 @@ To read more, use the docs command to view Fly's help on the web.
 		console.New(),
 		settings.New(),
 		mysql.New(),
-		errors.New(),
 	)
 
 	// if os.Getenv("DEV") != "" {
