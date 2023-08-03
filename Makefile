@@ -14,10 +14,12 @@ build: generate
 test: FORCE
 	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
 
-# to run one test, use: make preflight-test T=TestAppsV2ConfigSave
-preflight-test: build
+raw-preflight-test:
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
 	go test ./test/preflight --tags=integration -v -timeout 10m --run="$(T)"
+
+# to run one test, use: make preflight-test T=TestAppsV2ConfigSave
+preflight-test: build raw-preflight-test
 
 ci-preflight:
 	$(MAKE) preflight-test FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL=true
