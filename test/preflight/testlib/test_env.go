@@ -43,6 +43,10 @@ func (f *FlyctlTestEnv) WorkDir() string {
 	return f.workDir
 }
 
+func (f *FlyctlTestEnv) ID() string {
+	return f.id
+}
+
 func (f *FlyctlTestEnv) PrimaryRegion() string {
 	return f.primaryRegion
 }
