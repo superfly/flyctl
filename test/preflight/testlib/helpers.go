@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -105,4 +106,72 @@ func tryToStopAgentsInOriginalHomeDir(t testing.TB, flyctlBin string) {
 
 func tryToStopAgentsFromPastPreflightTests(t testing.TB, flyctlBin string) {
 	// FIXME: make something like ps au | grep flyctl | grep $TMPDIR | grep agent, then kill those procs?
+}
+
+func copyDir(src, dst string) error {
+	// Get the file info for the source directory
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	// Create the destination directory with the same permissions as the source directory
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	// Get the list of files and directories in the source directory
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	// Iterate through each entry in the source directory
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			// If the entry is a directory, recursively copy it to the destination directory
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// If the entry is a file, copy it to the destination directory
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func copyFile(src, dst string) error {
+	// Open the source file for reading
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// Create the destination file
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	// Copy the content from the source file to the destination file
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func getRootPath() string {
+	_, b, _, _ := runtime.Caller(0)
+	return filepath.Dir(b)
 }

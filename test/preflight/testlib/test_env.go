@@ -15,6 +15,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/google/shlex"
+	"github.com/oklog/ulid/v2"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -31,6 +32,7 @@ type FlyctlTestEnv struct {
 	env                 map[string]string
 	cmdHistory          []*FlyctlResult
 	noHistoryOnFail     bool
+	id                  string
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -87,6 +89,8 @@ func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 		noHistoryOnFail: noHistoryOnFail,
 		envVariables:    make(map[string]string),
 	})
+
+	fmt.Println("workdir", env.workDir)
 	return env
 }
 
@@ -127,6 +131,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		primaryReg = defaultRegion
 	}
 	testEnv := &FlyctlTestEnv{
+		id:                  ulid.Make().String(),
 		t:                   t,
 		flyctlBin:           flyctlBin,
 		primaryRegion:       primaryReg,
@@ -326,6 +331,11 @@ func (f *FlyctlTestEnv) UnmarshalFlyToml() (res map[string]any) {
 		f.Fatalf("error parsing fly.toml: %v", err)
 	}
 	return
+}
+
+func (f *FlyctlTestEnv) CopyFixtureIntoWorkDir(name string) error {
+	src := fmt.Sprintf("%s/../fixtures/%s", getRootPath(), name)
+	return copyDir(src, f.workDir)
 }
 
 // implement the testing.TB interface, so we can print history of flyctl command and output when failing

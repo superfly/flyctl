@@ -1,0 +1,28 @@
+app = "{{apps.0}}"
+
+[build]
+builder = "heroku/buildpacks:20"
+
+[deploy]
+release_command = "sleep 2"
+
+[env]
+TEST_ID = "{{test.id}}"
+
+[[services]]
+internal_port = 8080
+protocol = "tcp"
+
+[[services.ports]]
+handlers = ["http"]
+port = 80
+
+[[services.ports]]
+handlers = ["tls", "http"]
+port = 443
+
+[[services.tcp_checks]]
+grace_period = "1s"
+interval = "15s"
+restart_limit = 6
+timeout = "2s"
