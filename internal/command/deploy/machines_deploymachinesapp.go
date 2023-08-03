@@ -255,6 +255,10 @@ func errorIsTimeout(err error) bool {
 		return true
 	}
 
+	if errors.Is(err, ErrWaitTimeout) {
+		return true
+	}
+
 	// Look for an underlying context.DeadlineExceeded error
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
@@ -285,7 +289,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
 				fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
 			}
-			return fmt.Errorf("Deployment failed after error: %s\n", err)
+			return suggestChangeWaitTimeout(fmt.Errorf("Deployment failed: %w\n", err), "wait-timeout")
 		}
 		return nil
 	}
