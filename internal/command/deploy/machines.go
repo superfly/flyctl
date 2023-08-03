@@ -154,6 +154,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		listenAddressChecked:  make(map[string]struct{}),
 		updateOnly:            args.UpdateOnly,
 		machineGuest:          args.Guest,
+		provisionExtensions:   args.ProvisionExtensions,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err

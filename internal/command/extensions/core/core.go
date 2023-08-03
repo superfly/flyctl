@@ -184,6 +184,9 @@ func ProvisionExtension(ctx context.Context, appName string, params ExtensionPar
 		}
 
 		if srcInfo != nil && PlatformMap[srcInfo.Family] != "" {
+			if params.Options == nil {
+				params.Options = gql.AddOnOptions{}
+			}
 			params.Options["platform"] = PlatformMap[srcInfo.Family]
 		}
 
