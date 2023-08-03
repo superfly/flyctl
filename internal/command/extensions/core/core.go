@@ -316,13 +316,13 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 		}
 
 		if len(resp.App.AddOns.Nodes) == 0 {
-			return nil, nil, errors.New("Provision a Sentry project for this app with 'flyctl ext sentry create'.")
+			return nil, nil, errors.New(fmt.Sprintf("No project found. Provision one with 'flyctl ext %s create'.", provider))
 		}
 
 		addOn = &resp.App.AddOns.Nodes[0].AddOnData
 		app = &resp.App.AppData
 	} else {
-		return nil, nil, errors.New("Run this command in a Fly app directory or pass a database name as the first argument.")
+		return nil, nil, errors.New("Run this command in a Fly app directory or pass a name as the first argument.")
 	}
 
 	return
