@@ -312,6 +312,10 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 			return nil, nil, err
 		}
 
+		if len(resp.App.AddOns.Nodes) == 0 {
+			return nil, nil, errors.New("Provision a Sentry project for this app with 'flyctl ext sentry create'.")
+		}
+
 		addOn = &resp.App.AddOns.Nodes[0].AddOnData
 		app = &resp.App.AppData
 	} else {
