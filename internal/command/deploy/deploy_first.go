@@ -6,6 +6,8 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -14,12 +16,26 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 		return nil
 	}
 	if err := md.provisionIpsOnFirstDeploy(ctx, allocPublicIPs); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses, use `fly ips` commands to remmediate it. ERROR: %s", err)
+		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses. Use `fly ips` commands to remediate it. ERROR: %s", err)
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
+
+	// Provision Sentry on first deployment, unless we're using CI, where it's more likely to see ephemeral applications
+	if !env.IsCI() && md.provisionExtensions {
+		if err := md.provisionSentryOnFirstDeploy(ctx); err != nil {
+			fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again. ERROR: %s", err)
+			return nil
+		}
+	}
+
 	return nil
+}
+
+func (md *machineDeployment) provisionSentryOnFirstDeploy(ctx context.Context) error {
+	_, err := extensions_core.ProvisionExtension(ctx, md.app.Name, extensions_core.MonitoringExtensionDefaults)
+	return err
 }
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allocPublicIPs bool) error {

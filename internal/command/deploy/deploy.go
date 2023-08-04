@@ -47,6 +47,10 @@ var CommonFlags = flag.Set{
 	flag.NoCache(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
+	flag.Bool{
+		Name:        "provision-extensions",
+		Description: "Provision any extensions assigned as a default to first deployments",
+	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
@@ -334,6 +338,7 @@ func deployToMachines(
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
+		ProvisionExtensions:   flag.GetBool(ctx, "provision-extensions"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
