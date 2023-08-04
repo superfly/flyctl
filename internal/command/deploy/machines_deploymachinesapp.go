@@ -496,11 +496,6 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	// Otherwise wait for the machine to start
 	indexStr := formatIndex(i, total)
-	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-		err = suggestChangeWaitTimeout(err, "wait-timeout")
-		return nil, err
-	}
-
 	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
 		return nil, err
 	}
