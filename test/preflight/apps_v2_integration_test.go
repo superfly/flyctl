@@ -595,3 +595,17 @@ func TestLaunchCpusMem(t *testing.T) {
 	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
 	require.Equal(f, "performance", firstMachineGuest.CPUKind)
 }
+
+func TestDeployDetach(t *testing.T) {
+	t.Parallel()
+
+	var (
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	res := f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --detach", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.Equal(strings.Contains(res.StdOut().String(), "started"), false)
+	require.Equal(strings.Contains(res.StdOut().String(), "stopped"), false)
+	require.Equal(strings.Contains(res.StdOut().String(), "starting"), false)
+}
