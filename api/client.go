@@ -125,8 +125,19 @@ func (c *Client) Logger() Logger { return c.logger }
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	if instrumenter != nil {
 		start := time.Now()
+		finished := make(chan bool)
+
+		go func() {
+			time.Sleep(5 * time.Minute)
+			// Check if the api call finished within 5 minutes
+			if len(finished) == 0 {
+				fmt.Println("API call", req.Query(), "failed")
+			}
+
+		}()
 		defer func() {
 			instrumenter.ReportCallTiming(time.Since(start))
+			finished <- true
 		}()
 	}
 
