@@ -307,9 +307,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			return nil
 		}
 
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
+		if !md.skipHealthChecks {
+			if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+				err = suggestChangeWaitTimeout(err, "wait-timeout")
+				return err
+			}
 		}
 
 		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
