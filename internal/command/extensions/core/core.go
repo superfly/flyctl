@@ -316,7 +316,7 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 		}
 
 		if len(resp.App.AddOns.Nodes) == 0 {
-			return nil, nil, errors.New(fmt.Sprintf("No project found. Provision one with 'flyctl ext %s create'.", provider))
+			return nil, nil, fmt.Errorf("No project found. Provision one with 'flyctl ext %s create'.", provider)
 		}
 
 		addOn = &resp.App.AddOns.Nodes[0].AddOnData
