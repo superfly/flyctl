@@ -595,3 +595,55 @@ func TestLaunchCpusMem(t *testing.T) {
 	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
 	require.Equal(f, "performance", firstMachineGuest.CPUKind)
 }
+
+func TestLaunchDetach(t *testing.T) {
+	t.Parallel()
+
+	var (
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	res := f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --detach", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.NotContains(f, res.StdErr().String(), "success")
+
+	res = f.Fly("apps destroy --yes %s", appName)
+
+	res = f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.Contains(f, res.StdErr().String(), "success")
+}
+
+func TestDeployDetach(t *testing.T) {
+	t.Parallel()
+
+	var (
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	res := f.Fly("deploy --detach")
+	require.NotContains(f, res.StdErr().String(), "started")
+
+	res = f.Fly("deploy")
+	require.Contains(f, res.StdErr().String(), "started")
+}
+
+func TestDeployDetachBatching(t *testing.T) {
+	t.Parallel()
+
+	var (
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+	)
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("scale count 6 --yes")
+
+	res := f.Fly("deploy --detach")
+	require.NotContains(f, res.StdErr().String(), "started", false)
+
+	res = f.Fly("deploy")
+	require.Contains(f, res.StdErr().String(), "started", false)
+}
