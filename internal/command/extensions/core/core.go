@@ -447,16 +447,20 @@ var Platforms = []string{
 }
 
 var PlatformMap = map[string]string{
+	"AdonisJS":      "node",
 	"Bun":           "javascript",
 	"Django":        "python-django",
 	"Deno":          "node",
 	".NET":          "dotnet",
 	"Elixir":        "elixir",
+	"Gatsby":        "node",
 	"Go":            "go",
 	"NodeJS":        "node",
 	"NodeJS/Prisma": "node",
 	"Laravel":       "php-laravel",
+	"NestJS":        "node",
 	"NextJS":        "javascript-nextjs",
+	"Nuxt":          "javascript-vue",
 	"NuxtJS":        "javascript-vue",
 	"Phoenix":       "elixir",
 	"Python":        "python",

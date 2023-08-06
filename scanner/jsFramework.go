@@ -146,10 +146,33 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Bun"
 	}
 
-	// don't prompt for redis or postgres unless they are used
+	// extract deps
 	deps, ok := packageJson["dependencies"].(map[string]interface{})
-	if !ok || (deps["pg"] == nil && deps["redis"] == nil) {
+	if !ok || deps == nil {
+		deps = make(map[string]interface{})
+	}
+
+	// don't prompt for redis or postgres unless they are used
+	if deps["pg"] == nil && deps["redis"] == nil {
 		srcInfo.SkipDatabase = true
+	}
+
+	// While redundant and requires dual matenance, it has been a point of
+	// confusion for many when the framework detected is listed as "NodeJS"
+	// See flyapps/dockerfile-node for the actual framework detction.
+        // Also change PlatformMap in core.go if this list ever changes.
+	if deps["@adonisjs/core"] != nil {
+		srcInfo.Family = "AdonisJS"
+	} else if deps["gatsby"] != nil {
+		srcInfo.Family = "Gatsby"
+	} else if deps["@nestjs/core"] != nil {
+		srcInfo.Family = "NestJS"
+	} else if deps["next"] != nil {
+		srcInfo.Family = "Next.js"
+	} else if deps["nust"] != nil {
+		srcInfo.Family = "Nust"
+	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
+		srcInfo.Family = "Remix"
 	}
 
 	return srcInfo, nil
