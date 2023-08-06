@@ -160,7 +160,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	// While redundant and requires dual matenance, it has been a point of
 	// confusion for many when the framework detected is listed as "NodeJS"
 	// See flyapps/dockerfile-node for the actual framework detction.
-        // Also change PlatformMap in core.go if this list ever changes.
+	// Also change PlatformMap in core.go if this list ever changes.
 	if deps["@adonisjs/core"] != nil {
 		srcInfo.Family = "AdonisJS"
 	} else if deps["gatsby"] != nil {
