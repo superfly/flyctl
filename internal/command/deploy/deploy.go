@@ -120,15 +120,6 @@ var CommonFlags = flag.Set{
 		Description: "Memory (in megabytes) to attribute to the VM",
 		Aliases:     []string{"memory"},
 	},
-	flag.Bool{
-		Name: "strategy-batch",
-		Description: fmt.Sprintf(
-			"For \"rolling\" and \"canary\": batch Machine updates into %d groups when updating more than %d.",
-			batchingGroupCount,
-			batchingCutoff,
-		),
-		Default: true,
-	},
 	flag.StringArray{
 		Name:        "file-local",
 		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
@@ -209,7 +200,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 				warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), env)
 				fmt.Fprintln(io.ErrOut, warning)
 			}
-
 		}
 	}
 
@@ -325,7 +315,6 @@ func deployToMachines(
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
-		BatchMachineWaits:     flag.GetBool(ctx, "strategy-batch"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
 		PrimaryRegionFlag:     appConfig.PrimaryRegion,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
