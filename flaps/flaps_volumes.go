@@ -54,7 +54,7 @@ func (f *Client) GetVolumeSnapshots(ctx context.Context, volumeId string) ([]api
 
 	out := make([]api.VolumeSnapshot, 0)
 
-	err := f.sendRequestVolumes(ctx, http.MethodGet, getVolumeSnapshotsEndpoint, nil, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodGet, getVolumeSnapshotsEndpoint, nil, &out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get volume %s snapshots: %w", volumeId, err)
 	}
