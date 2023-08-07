@@ -121,23 +121,50 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 func (c *Client) Logger() Logger { return c.logger }
 
+type gqlRes struct {
+	resp Query
+	err  error
+}
+
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
+	resp := make(chan gqlRes)
+
 	if instrumenter != nil {
 		start := time.Now()
+
 		defer func() {
 			instrumenter.ReportCallTiming(time.Since(start))
 		}()
 	}
 
-	var resp Query
-	err := c.client.Run(ctx, req, &resp)
+	var localResp Query
 
-	if resp.Errors != nil && errorLog {
-		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)
+	go func() {
+		err := c.client.Run(ctx, req, &localResp)
+
+		resp <- gqlRes{
+			localResp,
+			err,
+		}
+	}()
+
+	select {
+	case res := <-resp:
+		resp := res.resp
+		err := res.err
+
+		if resp.Errors != nil && errorLog {
+			fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)
+		}
+
+		return resp, err
+
+	case <-time.After(1 * time.Minute):
+		return localResp, errors.New(fmt.Sprintf("api call %s timed out", req.Query()))
+
 	}
 
-	return resp, err
 }
 
 var compactPattern = regexp.MustCompile(`\s+`)
