@@ -28,6 +28,14 @@ func prepBatch(total, groupCount int, soloFirst bool) []int {
 func Test_batcher(t *testing.T) {
 	assert.Equal(t, []int{1}, prepBatch(1, 1, true))
 	assert.Equal(t, []int{1}, prepBatch(1, 1, false))
+
+	assert.Equal(t, []int{1, 1}, prepBatch(2, 3, true))
+	assert.Equal(t, []int{1, 1}, prepBatch(2, 3, false))
+	assert.Equal(t, []int{1, 1, 1}, prepBatch(3, 3, true))
+	assert.Equal(t, []int{1, 1, 1}, prepBatch(3, 3, false))
+	assert.Equal(t, []int{2, 2, 2}, prepBatch(6, 3, false))
+	assert.Equal(t, []int{1, 2, 2, 1}, prepBatch(6, 3, true))
+
 	assert.Equal(t, []int{1, 1}, prepBatch(2, 1, true))
 	assert.Equal(t, []int{2}, prepBatch(2, 1, false))
 	assert.Equal(t, []int{1, 1}, prepBatch(2, 2, true))
