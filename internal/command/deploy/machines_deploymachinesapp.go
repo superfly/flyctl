@@ -352,7 +352,6 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	}
 
 	for i, e := range updateEntries {
-		lm := e.leasableMachine
 		indexStr := formatIndex(i, len(updateEntries))
 
 		if err := md.updateMachine(ctx, e, indexStr); err != nil {
@@ -363,7 +362,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			return err
 		}
 
-		b.Add(batchJob{lm, indexStr})
+		b.Add(batchJob{e.leasableMachine, indexStr})
 		for _, job := range b.Batch() {
 			if err := md.waitForMachine(ctx, job.lm, true, job.indexStr); err != nil {
 				return err
@@ -417,6 +416,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
 	fmt.Fprintf(md.io.ErrOut, "  %s Created machine %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
 	defer lm.ReleaseLease(ctx)
+	e.leasableMachine = lm
 	return nil
 }
 
