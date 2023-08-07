@@ -284,6 +284,17 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.Leas
 		}
 	}
 
+	// Don't wait for Standby machines, they are updated but not started
+	if len(lm.Machine().Config.Standbys) > 0 {
+		md.logClearLinesAbove(1)
+		fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
+			indexStr,
+			md.colorize.Bold(lm.FormattedMachineId()),
+			md.colorize.Green("success"),
+		)
+		return nil
+	}
+
 	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
 		return err
 	}
@@ -345,22 +356,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		indexStr := formatIndex(i, len(updateEntries))
 
 		if err := md.updateMachine(ctx, e, indexStr); err != nil {
-			if md.strategy != "immediate" {
-				return err
+			if md.strategy == "immediate" {
+				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
+				continue
 			}
-			fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
-			continue
-		}
-
-		// Don't wait for Standby machines, they are updated but not started
-		if len(e.launchInput.Config.Standbys) > 0 {
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
-				indexStr,
-				md.colorize.Bold(lm.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
-			continue
+			return err
 		}
 
 		b.Add(batchJob{lm, indexStr})
