@@ -50,7 +50,6 @@ console_command = "/bin/bash"
     interval = "1m21s"
     timeout = "7s"
     grace_period = "2s"
-    restart_limit = 4
     method = "GET"
     path = "/"
     protocol = "https"
@@ -77,9 +76,6 @@ console_command = "/bin/bash"
     fly-request-id = false
     fly-wasnt-here = "yes, it was"
     multi-valued = ["value1", "value2"]
-
-  [http_service.proxy_proto_options]
-    version = "v2"
 
 [[statics]]
   guest_path = "/path/to/statics"
@@ -142,13 +138,11 @@ console_command = "/bin/bash"
     interval = "21s"
     timeout = "4s"
     grace_period = "1s"
-    restart_limit = 3
 
   [[services.http_checks]]
     interval = "1m21s"
     timeout = "7s"
     grace_period = "2s"
-    restart_limit = 4
     method = "GET"
     path = "/"
     protocol = "https"

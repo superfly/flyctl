@@ -11,7 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-func dashboard() (cmd *cobra.Command) {
+func Dashboard() (cmd *cobra.Command) {
 	const (
 		long = `View Sentry issues for this application`
 
@@ -19,17 +19,18 @@ func dashboard() (cmd *cobra.Command) {
 		usage = "dashboard"
 	)
 
-	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.RequireAppName)
+	cmd = command.New(usage, short, long, RunDashboard, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 	)
+	cmd.Aliases = []string{"errors"}
 	cmd.Args = cobra.NoArgs
 	return cmd
 }
 
-func runDashboard(ctx context.Context) (err error) {
+func RunDashboard(ctx context.Context) (err error) {
 
 	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSentry)
 

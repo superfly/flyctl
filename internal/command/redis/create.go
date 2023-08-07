@@ -30,6 +30,7 @@ func newCreate() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.ReplicaRegions(),
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -125,7 +126,7 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 	excludedRegions = append(excludedRegions, region.Code)
 
 	if !disallowReplicas {
-		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions)
+		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions, "replica-regions")
 
 		if err != nil {
 			return

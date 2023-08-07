@@ -1,4 +1,4 @@
-package launch
+package legacy
 
 import (
 	"context"
@@ -328,8 +328,13 @@ func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInf
 		if err == nil {
 			cfg, err := appconfig.LoadConfig(srcInfo.MergeConfig.Name)
 			if err == nil {
-				// In theory, any part of the configuration could be merged here, but for now
-				// we will only copy over the processes, release command, volume, and swap size
+				// In theory, any part of the configuration could be merged here
+				// currently supported configuration updates/overrides:
+				// * health checks
+				// * processes
+				// * release command
+				// * swap size
+				// * volume
 				if srcInfo.Processes == nil {
 					srcInfo.Processes = cfg.Processes
 				}
@@ -344,6 +349,10 @@ func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInf
 
 				if cfg.SwapSizeMB != nil {
 					srcInfo.SwapSizeMB = *cfg.SwapSizeMB
+				}
+
+				if cfg.HTTPService != nil && cfg.HTTPService.HTTPChecks != nil {
+					srcInfo.HttpCheckPath = *cfg.HTTPService.HTTPChecks[0].HTTPPath
 				}
 			}
 		}

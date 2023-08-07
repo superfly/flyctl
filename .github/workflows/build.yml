@@ -4,10 +4,8 @@ on:
     - cron: '21 */2 * * *'
   push:
 
-# We right now cannot use Go 1.20.6 due to
-# https://community.fly.io/t/git-hub-actions-deployment-error/14126
 env:
-  go_version: 1.20.5
+  go_version: 1.20.6
 
 jobs:
   test_build:

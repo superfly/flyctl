@@ -375,7 +375,8 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 			// It should be nil, but just in case.
 			con = nil
 		}
-		return progressui.DisplaySolveStatus(ctx, "", con, os.Stdout, ch)
+		_, err = progressui.DisplaySolveStatus(ctx, "", con, os.Stdout, ch)
+		return err
 	})
 	var res *client.SolveResponse
 	eg.Go(func() error {

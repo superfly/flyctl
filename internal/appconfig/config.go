@@ -306,7 +306,7 @@ func (cfg *Config) MergeFiles(files []*api.File) error {
 
 	// Merge the config files with the provided files.
 	mConfig := &api.MachineConfig{
-		Files: files,
+		Files: cfgFiles,
 	}
 	machine.MergeFiles(mConfig, files)
 

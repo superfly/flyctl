@@ -329,6 +329,21 @@ func (mg *MachineGuest) ToSize() string {
 	}
 }
 
+// String returns a string representation of the guest
+// Formatted as "[cpu_kind], XGB RAM"
+// Returns "" if nil
+func (mg *MachineGuest) String() string {
+	if mg == nil {
+		return ""
+	}
+	size := mg.ToSize()
+	gbRam := mg.MemoryMB / 1024
+	if gbRam == 0 {
+		return fmt.Sprintf("%s, %dMB RAM", size, mg.MemoryMB)
+	}
+	return fmt.Sprintf("%s, %dGB RAM", size, gbRam)
+}
+
 const (
 	MIN_MEMORY_MB_PER_SHARED_CPU = 256
 	MIN_MEMORY_MB_PER_CPU        = 2048
@@ -556,6 +571,7 @@ type MachineInit struct {
 	Cmd        []string `json:"cmd,omitempty"`
 	Tty        bool     `json:"tty,omitempty"`
 	SwapSizeMB *int     `json:"swap_size_mb,omitempty"`
+	KernelArgs []string `json:"kernel_args,omitempty"`
 }
 
 type DNSConfig struct {

@@ -100,10 +100,9 @@ func TestFromDefinition(t *testing.T) {
 				Processes: []string{"app"},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Timeout:      api.MustParseDuration("2s"),
-						RestartLimit: 0,
-						Interval:     api.MustParseDuration("15s"),
-						GracePeriod:  api.MustParseDuration("1s"),
+						Timeout:     api.MustParseDuration("2s"),
+						Interval:    api.MustParseDuration("15s"),
+						GracePeriod: api.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -211,15 +210,11 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
-			"proxy_proto_options": map[string]any{
-				"version": "v2",
-			},
 			"checks": []map[string]any{
 				{
 					"interval":        "1m21s",
 					"timeout":         "7s",
 					"grace_period":    "2s",
-					"restart_limit":   int64(4),
 					"method":          "GET",
 					"path":            "/",
 					"protocol":        "https",
@@ -326,10 +321,9 @@ func TestToDefinition(t *testing.T) {
 				},
 				"tcp_checks": []map[string]any{
 					{
-						"interval":      "21s",
-						"timeout":       "4s",
-						"grace_period":  "1s",
-						"restart_limit": int64(3),
+						"interval":     "21s",
+						"timeout":      "4s",
+						"grace_period": "1s",
 					},
 				},
 				"http_checks": []map[string]any{
@@ -337,7 +331,6 @@ func TestToDefinition(t *testing.T) {
 						"interval":        "1m21s",
 						"timeout":         "7s",
 						"grace_period":    "2s",
-						"restart_limit":   int64(4),
 						"method":          "GET",
 						"path":            "/",
 						"protocol":        "https",

@@ -303,7 +303,7 @@ func sortedRegions(ctx context.Context, excludedRegionCodes []string) ([]api.Reg
 
 // Region returns the region the user has passed in via flag or prompts the
 // user for one.
-func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions []string, excludedRegionCodes []string) (*[]api.Region, error) {
+func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions []string, excludedRegionCodes []string, flagName string) (*[]api.Region, error) {
 	regions, _, err := sortedRegions(ctx, excludedRegionCodes)
 	paidOnly := []api.Region{}
 	availableRegions := []api.Region{}
@@ -324,13 +324,28 @@ func MultiRegion(ctx context.Context, msg string, splitPaid bool, currentRegions
 		regions = sortAndCleanRegions(availableRegions, excludedRegionCodes)
 	}
 
-	switch regions, err := MultiSelectRegion(ctx, msg, paidOnly, regions, currentRegions); {
-	case err == nil:
+	regionsList := flag.GetString(ctx, flagName)
+	regionCodes := strings.Split(regionsList, ",")
+
+	switch {
+	case regionsList != "":
+
+		regions = lo.Filter(regions, func(region api.Region, _ int) bool {
+			return lo.ContainsBy(regionCodes, func(regionCode string) bool {
+				return regionCode == region.Code
+			})
+		})
 		return &regions, nil
-	case IsNonInteractive(err):
-		return nil, errRegionCodesRequired
 	default:
-		return nil, err
+
+		switch regions, err := MultiSelectRegion(ctx, msg, paidOnly, regions, currentRegions); {
+		case err == nil:
+			return &regions, nil
+		case IsNonInteractive(err):
+			return nil, errRegionCodesRequired
+		default:
+			return nil, err
+		}
 	}
 }
 

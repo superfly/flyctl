@@ -392,7 +392,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
-	if cfg.AutoUpdate && !env.IsCI() {
+	if cfg.AutoUpdate && !env.IsCI() && update.CanUpdateThisInstallation() {
 		if versionInvalidMsg != "" || current.SeverelyOutdated(latest) {
 			if !silent {
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))

@@ -53,7 +53,7 @@ func New() *cobra.Command {
 func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
 	switch app.PlatformVersion {
 	case appconfig.MachinesPlatform:
-		return v2deploySecrets(ctx, app, release, stage, detach)
+		return DeploySecrets(ctx, app, stage, detach)
 	default:
 		return v1deploySecrets(ctx, app, release, stage, detach)
 	}
@@ -78,8 +78,9 @@ func v1deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Rele
 	return watch.Deployment(ctx, app.Name, release.EvaluationID)
 }
 
-func v2deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
+func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
+
 	if stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
 		return nil
@@ -124,4 +125,5 @@ func v2deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Rele
 		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
 	}
 	return err
+
 }

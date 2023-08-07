@@ -1,4 +1,4 @@
-package launch
+package legacy
 
 import (
 	"bufio"
@@ -147,12 +147,11 @@ func createDockerignoreFromGitignores(root string, gitIgnores []string) (string,
 	return dockerIgnore, nil
 }
 
-// determineDockerIgnore attempts to create a .dockerignore from .gitignore
-func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
+func determineDockerIgnore(ctx context.Context, workingDir string) (err error) {
 	io := iostreams.FromContext(ctx)
 	dockerIgnore := ".dockerignore"
 	gitIgnore := ".gitignore"
-	allGitIgnores := scanner.FindGitignores(state.workingDir)
+	allGitIgnores := scanner.FindGitignores(workingDir)
 	createDockerignoreFromGitignore := false
 
 	// An existing .dockerignore should always be used instead of .gitignore
@@ -174,7 +173,7 @@ func (state *launchState) createDockerIgnore(ctx context.Context) (err error) {
 		}
 
 		if createDockerignoreFromGitignore {
-			createdDockerIgnore, err := createDockerignoreFromGitignores(state.workingDir, allGitIgnores)
+			createdDockerIgnore, err := createDockerignoreFromGitignores(workingDir, allGitIgnores)
 			if err != nil {
 				terminal.Warnf("Error creating %s from %d %s files: %v\n", dockerIgnore, len(allGitIgnores), gitIgnore, err)
 			} else {

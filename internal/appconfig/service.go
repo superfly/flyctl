@@ -27,16 +27,12 @@ type ServiceTCPCheck struct {
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
 	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
 
 	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
@@ -58,7 +54,6 @@ type HTTPService struct {
 	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
 	TLSOptions         *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
 	HTTPOptions        *api.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
-	ProxyProtoOptions  *api.ProxyProtoOptions         `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"checks,omitempty" toml:"checks,omitempty"`
 }
 
@@ -70,17 +65,15 @@ func (s *HTTPService) ToService() *Service {
 		Processes:    s.Processes,
 		HTTPChecks:   s.HTTPChecks,
 		Ports: []api.MachinePort{{
-			Port:              api.IntPointer(80),
-			Handlers:          []string{"http"},
-			ForceHTTPS:        s.ForceHTTPS,
-			HTTPOptions:       s.HTTPOptions,
-			ProxyProtoOptions: s.ProxyProtoOptions,
+			Port:        api.IntPointer(80),
+			Handlers:    []string{"http"},
+			ForceHTTPS:  s.ForceHTTPS,
+			HTTPOptions: s.HTTPOptions,
 		}, {
-			Port:              api.IntPointer(443),
-			Handlers:          []string{"http", "tls"},
-			HTTPOptions:       s.HTTPOptions,
-			TLSOptions:        s.TLSOptions,
-			ProxyProtoOptions: s.ProxyProtoOptions,
+			Port:        api.IntPointer(443),
+			Handlers:    []string{"http", "tls"},
+			HTTPOptions: s.HTTPOptions,
+			TLSOptions:  s.TLSOptions,
 		}},
 		AutoStopMachines:   s.AutoStopMachines,
 		AutoStartMachines:  s.AutoStartMachines,
@@ -182,10 +175,9 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 
 func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
 	return &ServiceTCPCheck{
-		Interval:     mc.Interval,
-		Timeout:      mc.Timeout,
-		GracePeriod:  nil,
-		RestartLimit: 0,
+		Interval:    mc.Interval,
+		Timeout:     mc.Timeout,
+		GracePeriod: nil,
 	}
 }
 
@@ -203,7 +195,6 @@ func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,
 		GracePeriod:       nil,
-		RestartLimit:      0,
 		HTTPMethod:        mc.HTTPMethod,
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,

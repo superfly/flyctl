@@ -2,14 +2,14 @@ package sentry_ext
 
 import (
 	"context"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/scanner"
 )
 
 func create() (cmd *cobra.Command) {
@@ -28,32 +28,11 @@ func create() (cmd *cobra.Command) {
 }
 
 func runSentryCreate(ctx context.Context) (err error) {
+	appName := appconfig.NameFromContext(ctx)
 
-	absDir, err := filepath.Abs(".")
+	sentryOptions := extensions_core.MonitoringExtensionDefaults
 
-	if err != nil {
-		return err
-	}
-
-	srcInfo, err := scanner.Scan(absDir, &scanner.ScannerConfig{})
-
-	if err != nil {
-		return err
-	}
-
-	options := gql.AddOnOptions{}
-
-	if srcInfo != nil && PlatformMap[srcInfo.Family] != "" {
-		options["platform"] = PlatformMap[srcInfo.Family]
-	}
-
-	_, err = extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionOptions{
-		Provider:       "sentry",
-		SelectName:     false,
-		SelectRegion:   false,
-		DetectPlatform: true,
-		Options:        options,
-	})
-
+	extension, err := extensions_core.ProvisionExtension(ctx, appName, sentryOptions)
+	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
 	return
 }

@@ -307,9 +307,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 			return nil
 		}
 
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
+		if !md.skipHealthChecks {
+			if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+				err = suggestChangeWaitTimeout(err, "wait-timeout")
+				return err
+			}
 		}
 
 		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
@@ -494,17 +496,18 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	// Otherwise wait for the machine to start
 	indexStr := formatIndex(i, total)
-	if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-		err = suggestChangeWaitTimeout(err, "wait-timeout")
-		return nil, err
-	}
-
 	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
 		return nil, err
 	}
 
 	// And wait (or not) for successful health checks
 	if !md.skipHealthChecks {
+		// Don't wait for state if the --detach flag isn't specified
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return nil, err
+		}
+
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
 			md.warnAboutIncorrectListenAddress(ctx, lm)
 			err = suggestChangeWaitTimeout(err, "wait-timeout")

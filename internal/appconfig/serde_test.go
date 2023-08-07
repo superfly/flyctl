@@ -65,23 +65,32 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 	want := []Service{{
 		Protocol:     "tcp",
 		InternalPort: 8080,
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80),
-			TLSOptions: &api.TLSOptions{
-				ALPN:     []string{"h2", "http/1.1"},
-				Versions: []string{"TLSv1.2", "TLSv1.3"},
-			},
-			HTTPOptions: &api.HTTPOptions{
-				Compress: api.Pointer(true),
-				Response: &api.HTTPResponseOptions{
-					Headers: map[string]any{
-						"fly-request-id": false,
-						"fly-wasnt-here": "yes, it was",
-						"multi-valued":   []any{"value1", "value2"},
+		Ports: []api.MachinePort{
+			{
+				Port: api.Pointer(80),
+				TLSOptions: &api.TLSOptions{
+					ALPN:     []string{"h2", "http/1.1"},
+					Versions: []string{"TLSv1.2", "TLSv1.3"},
+				},
+				HTTPOptions: &api.HTTPOptions{
+					Compress: api.Pointer(true),
+					Response: &api.HTTPResponseOptions{
+						Headers: map[string]any{
+							"fly-request-id": false,
+							"fly-wasnt-here": "yes, it was",
+							"multi-valued":   []any{"value1", "value2"},
+						},
 					},
 				},
 			},
-		}},
+			{
+				Port:     api.Pointer(82),
+				Handlers: []string{"proxy_proto"},
+				ProxyProtoOptions: &api.ProxyProtoOptions{
+					Version: "v2",
+				},
+			},
+		},
 	}}
 
 	assert.Equal(t, want, p.Services)
@@ -483,15 +492,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					},
 				},
 			},
-			ProxyProtoOptions: &api.ProxyProtoOptions{
-				Version: "v2",
-			},
 			HTTPChecks: []*ServiceHTTPCheck{
 				{
 					Interval:          api.MustParseDuration("81s"),
 					Timeout:           api.MustParseDuration("7s"),
 					GracePeriod:       api.MustParseDuration("2s"),
-					RestartLimit:      4,
 					HTTPMethod:        api.Pointer("GET"),
 					HTTPPath:          api.Pointer("/"),
 					HTTPProtocol:      api.Pointer("https"),
@@ -580,10 +585,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval:     api.MustParseDuration("21s"),
-						Timeout:      api.MustParseDuration("4s"),
-						GracePeriod:  api.MustParseDuration("1s"),
-						RestartLimit: 3,
+						Interval:    api.MustParseDuration("21s"),
+						Timeout:     api.MustParseDuration("4s"),
+						GracePeriod: api.MustParseDuration("1s"),
 					},
 				},
 
@@ -592,7 +596,6 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						Interval:          api.MustParseDuration("81s"),
 						Timeout:           api.MustParseDuration("7s"),
 						GracePeriod:       api.MustParseDuration("2s"),
-						RestartLimit:      4,
 						HTTPMethod:        api.Pointer("GET"),
 						HTTPPath:          api.Pointer("/"),
 						HTTPProtocol:      api.Pointer("https"),
