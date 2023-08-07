@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
@@ -12,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -20,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newImport() *cobra.Command {
@@ -78,7 +75,6 @@ func newImport() *cobra.Command {
 
 func runImport(ctx context.Context) error {
 	var (
-		io      = iostreams.FromContext(ctx)
 		client  = client.FromContext(ctx).API()
 		appName = appconfig.NameFromContext(ctx)
 
@@ -131,8 +127,6 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to build context: %s", err)
 	}
 
-	flapsClient := flaps.FromContext(ctx)
-
 	machineConfig := &api.MachineConfig{
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": "pass",
@@ -148,6 +142,7 @@ func runImport(ctx context.Context) error {
 		Restart: api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
 		},
+		AutoDestroy: true,
 	}
 
 	// If a custom migration image is not specified, resolve latest managed image.
@@ -159,22 +154,20 @@ func runImport(ctx context.Context) error {
 	}
 	machineConfig.Image = imageRef
 
-	launchInput := api.LaunchMachineInput{
-		Region: region.Code,
-		Config: machineConfig,
+	ephemeralInput := &mach.EphemeralInput{
+		LaunchInput: api.LaunchMachineInput{
+			Region: region.Code,
+			Config: machineConfig,
+		},
+		What: "to run the import process",
 	}
 
-	// Create emphemeral machine
-	machine, err := flapsClient.Launch(ctx, launchInput)
+	// Create ephemeral machine
+	machine, cleanup, err := mach.LaunchEphemeral(ctx, ephemeralInput)
 	if err != nil {
 		return err
 	}
-
-	fmt.Fprintf(io.Out, "Waiting for machine %s to start...\n", machine.ID)
-	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*1)
-	if err != nil {
-		return err
-	}
+	defer cleanup()
 
 	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
@@ -190,23 +183,6 @@ func runImport(ctx context.Context) error {
 	}, machine.PrivateIP)
 	if err != nil {
 		return fmt.Errorf("failed to run ssh: %s", err)
-	}
-
-	// Stop Machine
-	if err := flapsClient.Stop(ctx, api.StopMachineInput{ID: machine.ID}, machine.LeaseNonce); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(io.Out, "Waiting for machine %s to stop...\n", machine.ID)
-	err = mach.WaitForStartOrStop(ctx, machine, "stop", time.Minute*1)
-	if err != nil {
-		return fmt.Errorf("failed waiting for machine %s to stop: %s", machine.ID, err)
-	}
-
-	// Destroy machine
-	fmt.Fprintf(io.Out, "%s has been destroyed\n", machine.ID)
-	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID}, machine.LeaseNonce); err != nil {
-		return fmt.Errorf("failed to destroy machine %s: %s", machine.ID, err)
 	}
 
 	// Unset secret

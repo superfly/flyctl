@@ -122,7 +122,7 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	f.Fly("config validate")
 }
 
-func TestPostgres_Import(t *testing.T) {
+func TestPostgres_ImportSuccess(t *testing.T) {
 	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
@@ -161,5 +161,29 @@ func TestPostgres_Import(t *testing.T) {
 
 	// The importer machine should have been destroyed.
 	ml := f.MachinesList(secondAppName)
+	require.Equal(f, 1, len(ml))
+}
+
+func TestPostgres_ImportFailure(t *testing.T) {
+	t.Parallel()
+
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+
+	result := f.FlyAllowExitFailure(
+		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
+		appName, f.PrimaryRegion(), appName,
+	)
+	require.NotEqual(f, 0, result.ExitCode())
+	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
+
+	// Even with the error, the importer machine should have been
+	// destroyed.
+	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 }
