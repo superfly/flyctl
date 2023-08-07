@@ -22,8 +22,6 @@ import (
 
 const (
 	batchingGroupCount = 3
-	// batchingCutoff should be at least batchingGroupCount + 1
-	batchingCutoff = 4
 )
 
 type ProcessGroupsDiff struct {
@@ -272,6 +270,64 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 	return err
 }
 
+func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.LeasableMachine, inBatch bool, indexStr string) error {
+	if md.strategy == "immediate" {
+		return nil
+	}
+
+	if !md.skipHealthChecks {
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return err
+		}
+	}
+
+	// Don't wait for Standby machines, they are updated but not started
+	if len(lm.Machine().Config.Standbys) > 0 {
+		md.logClearLinesAbove(1)
+		fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
+			indexStr,
+			md.colorize.Bold(lm.FormattedMachineId()),
+			md.colorize.Green("success"),
+		)
+		return nil
+	}
+
+	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
+		return err
+	}
+
+	if !md.skipHealthChecks {
+		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
+			md.warnAboutIncorrectListenAddress(ctx, lm)
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return err
+		}
+		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
+		md.logClearLinesAbove(1)
+		fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
+			indexStr,
+			md.colorize.Bold(lm.FormattedMachineId()),
+			md.colorize.Green("success"),
+		)
+		if inBatch {
+			fmt.Fprint(md.io.ErrOut, "\n")
+		}
+	}
+
+	md.warnAboutIncorrectListenAddress(ctx, lm)
+	return nil
+}
+
+func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, updateEntries []*machineUpdateEntry) error {
+	bg := BlueGreenStrategy(md, updateEntries)
+	if err := bg.Deploy(ctx); err != nil {
+		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
+		return bg.Rollback(ctx, err)
+	}
+	return nil
+}
+
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	if len(updateEntries) == 0 {
 		return nil
@@ -280,17 +336,8 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
 	if md.strategy == "bluegreen" {
-		bg := BlueGreenStrategy(md, updateEntries)
-		if err := bg.Deploy(ctx); err != nil {
-			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
-			return bg.Rollback(ctx, err)
-		}
-		return nil
+		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	}
-
-	useBatches := md.batchMachineWaits &&
-		(md.strategy == "rolling" || md.strategy == "canary") &&
-		len(updateEntries) >= batchingCutoff
 
 	type batchJob struct {
 		lm       machine.LeasableMachine
@@ -302,115 +349,84 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		SoloFirst:  true,
 	}
 
-	waitForMachine := func(lm machine.LeasableMachine, inBatch bool, indexStr string) error {
-		if md.strategy == "immediate" {
-			return nil
-		}
-
-		if !md.skipHealthChecks {
-			if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-				err = suggestChangeWaitTimeout(err, "wait-timeout")
-				return err
-			}
-		}
-
-		if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
-			return err
-		}
-
-		if !md.skipHealthChecks {
-			if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout, indexStr); err != nil {
-				md.warnAboutIncorrectListenAddress(ctx, lm)
-				err = suggestChangeWaitTimeout(err, "wait-timeout")
-				return err
-			}
-			// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
-				indexStr,
-				md.colorize.Bold(lm.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
-			if inBatch {
-				fmt.Fprint(md.io.ErrOut, "\n")
-			}
-		}
-
-		md.warnAboutIncorrectListenAddress(ctx, lm)
-		return nil
-	}
-
 	for i, e := range updateEntries {
-		lm := e.leasableMachine
-		launchInput := e.launchInput
 		indexStr := formatIndex(i, len(updateEntries))
 
-		if launchInput.RequiresReplacement {
-			// If machine requires replacement, destroy old machine and launch a new one
-			// This can be the case for machines that changes its volumes.
-			fmt.Fprintf(md.io.ErrOut, "  %s Replacing %s by new machine\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
-			if err := lm.Destroy(ctx, true); err != nil {
-				if md.strategy != "immediate" {
-					return err
-				}
-				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
-			}
-
-			// Acquire a lease on the new machine to ensure external factors can't stop or update it
-			// while we wait for its state and/or health checks
-			launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
-
-			newMachineRaw, err := md.flapsClient.Launch(ctx, *launchInput)
-			if err != nil {
-				if md.strategy != "immediate" {
-					return err
-				}
+		if err := md.updateMachine(ctx, e, indexStr); err != nil {
+			if md.strategy == "immediate" {
 				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 				continue
 			}
-
-			lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
-			fmt.Fprintf(md.io.ErrOut, "  %s Created machine %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
-			defer lm.ReleaseLease(ctx)
-
-		} else {
-			fmt.Fprintf(md.io.ErrOut, "  %s Updating %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
-			if err := lm.Update(ctx, *launchInput); err != nil {
-				if md.strategy != "immediate" {
-					return err
-				}
-				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
-			}
+			return err
 		}
 
-		// Don't wait for Standby machines, they are updated but not started
-		if len(launchInput.Config.Standbys) > 0 {
-			md.logClearLinesAbove(1)
-			fmt.Fprintf(md.io.ErrOut, "  %s Machine %s update finished: %s\n",
-				indexStr,
-				md.colorize.Bold(lm.FormattedMachineId()),
-				md.colorize.Green("success"),
-			)
-			continue
-		}
-
-		if useBatches {
-			b.Add(batchJob{lm, indexStr})
-
-			for _, job := range b.Batch() {
-				if err := waitForMachine(job.lm, true, job.indexStr); err != nil {
-					return err
-				}
-			}
-			md.logClearLinesAbove(1)
-		} else {
-			if err := waitForMachine(lm, false, indexStr); err != nil {
+		b.Add(batchJob{e.leasableMachine, indexStr})
+		for _, job := range b.Batch() {
+			if err := md.waitForMachine(ctx, job.lm, true, job.indexStr); err != nil {
 				return err
 			}
 		}
+		md.logClearLinesAbove(1)
 	}
 
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
+	return nil
+}
+
+func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry, indexStr string) error {
+	if e.launchInput.RequiresReplacement {
+		return md.updateMachineByReplace(ctx, e, indexStr)
+	}
+
+	if err := md.updateMachineInPlace(ctx, e, indexStr); err != nil {
+		switch {
+		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
+			// Replacing a machine with a volume will cause the placement logic to pick wthe same host
+			// dismissing the value of replacing it in case of lack of host capacity
+			return err
+		case strings.Contains(err.Error(), "could not reserve resource for machine"):
+			return md.updateMachineByReplace(ctx, e, indexStr)
+		default:
+			return err
+		}
+	}
+	return nil
+}
+
+func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry, indexStr string) error {
+	lm := e.leasableMachine
+	// If machine requires replacement, destroy old machine and launch a new one
+	// This can be the case for machines that changes its volumes.
+	fmt.Fprintf(md.io.ErrOut, "  %s Replacing %s by new machine\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
+	if err := lm.Destroy(ctx, true); err != nil {
+		return err
+	}
+
+	// Acquire a lease on the new machine to ensure external factors can't stop or update it
+	// while we wait for its state and/or health checks
+	e.launchInput.LeaseTTL = int(md.waitTimeout.Seconds())
+
+	newMachineRaw, err := md.flapsClient.Launch(ctx, *e.launchInput)
+	if err != nil {
+		return err
+	}
+
+	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	fmt.Fprintf(md.io.ErrOut, "  %s Created machine %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
+	defer lm.ReleaseLease(ctx)
+	e.leasableMachine = lm
+	return nil
+}
+
+func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry, indexStr string) error {
+	lm := e.leasableMachine
+	fmt.Fprintf(md.io.ErrOut, "  %s Updating %s\n", indexStr, md.colorize.Bold(lm.FormattedMachineId()))
+	if err := lm.Update(ctx, *e.launchInput); err != nil {
+		if md.strategy != "immediate" {
+			return err
+		}
+		fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
+	}
 	return nil
 }
 
