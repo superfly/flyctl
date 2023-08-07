@@ -381,8 +381,19 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 		return md.updateMachineByReplace(ctx, e, indexStr)
 	}
 
-	err := md.updateMachineInPlace(ctx, e, indexStr)
-	return err
+	if err := md.updateMachineInPlace(ctx, e, indexStr); err != nil {
+		switch {
+		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
+			// Replacing a machine with a volume will cause the placement logic to pick wthe same host
+			// dismissing the value of replacing it in case of lack of host capacity
+			return err
+		case strings.Contains(err.Error(), "could not reserve resource for machine"):
+			return md.updateMachineByReplace(ctx, e, indexStr)
+		default:
+			return err
+		}
+	}
+	return nil
 }
 
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry, indexStr string) error {
