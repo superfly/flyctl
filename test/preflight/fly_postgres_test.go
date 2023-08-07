@@ -121,3 +121,45 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	require.Equal(f, "shared-cpu-1x", ml[0].Config.Guest.ToSize())
 	f.Fly("config validate")
 }
+
+func TestPostgres_Import(t *testing.T) {
+	t.Parallel()
+
+	f := testlib.NewTestEnvFromEnv(t)
+	firstAppName := f.CreateRandomAppName()
+	secondAppName := f.CreateRandomAppName()
+
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
+		f.OrgSlug(), firstAppName, f.PrimaryRegion(),
+	)
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
+	)
+
+	f.Fly(
+		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'CREATE TABLE app_name (app_name TEXT)'\"",
+		firstAppName,
+	)
+	f.Fly(
+		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c \\\"INSERT INTO app_name VALUES ('%s')\\\"\"",
+		firstAppName, firstAppName,
+	)
+
+	f.Fly(
+		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/postgres",
+		secondAppName, f.PrimaryRegion(), firstAppName,
+	)
+
+	result := f.Fly(
+		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT app_name FROM app_name'\"",
+		secondAppName,
+	)
+	output := result.StdOut().String()
+	require.Contains(f, output, firstAppName)
+
+	// The importer machine should have been destroyed.
+	ml := f.MachinesList(secondAppName)
+	require.Equal(f, 1, len(ml))
+}
