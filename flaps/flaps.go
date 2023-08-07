@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -549,6 +548,11 @@ func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
 	return nil
 }
 
+type httpResp struct {
+	resp *http.Response
+	err  error
+}
+
 func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	timing := instrument.Flaps.Begin()
 	defer timing.End()
@@ -559,35 +563,50 @@ func (f *Client) sendRequest(ctx context.Context, method, endpoint string, in, o
 	}
 	req.Header.Set("User-Agent", f.userAgent)
 
-	resp, err := f.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			terminal.Debugf("error closing response body: %v\n", err)
+	var res = make(chan httpResp)
+
+	go func() {
+		resp, err := f.httpClient.Do(req)
+		res <- httpResp{
+			resp,
+			err,
 		}
 	}()
-
-	if resp.StatusCode > 299 {
-		responseBody, err := ioutil.ReadAll(resp.Body)
+	select {
+	case httpResp := <-res:
+		resp := httpResp.resp
+		err := httpResp.err
 		if err != nil {
-			responseBody = make([]byte, 0)
-		}
-		return &FlapsError{
-			OriginalError:      handleAPIError(resp.StatusCode, responseBody),
-			ResponseStatusCode: resp.StatusCode,
-			ResponseBody:       responseBody,
-			FlyRequestId:       resp.Header.Get(headerFlyRequestId),
-		}
-	}
-	if out != nil {
-		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 			return err
 		}
+		defer func() {
+			err := resp.Body.Close()
+			if err != nil {
+				terminal.Debugf("error closing response body: %v\n", err)
+			}
+		}()
+
+		if resp.StatusCode > 299 {
+			responseBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				responseBody = make([]byte, 0)
+			}
+			return &FlapsError{
+				OriginalError:      handleAPIError(resp.StatusCode, responseBody),
+				ResponseStatusCode: resp.StatusCode,
+				ResponseBody:       responseBody,
+				FlyRequestId:       resp.Header.Get(headerFlyRequestId),
+			}
+		}
+		if out != nil {
+			if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+				return err
+			}
+		}
+		return nil
+	case <-time.After(1 * time.Minute):
+		return fmt.Errorf("flaps call %s timed out after a minute\n", endpoint)
 	}
-	return nil
 }
 
 func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
