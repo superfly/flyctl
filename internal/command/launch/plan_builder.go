@@ -93,6 +93,11 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
+	scannerFamily := ""
+	if srcInfo != nil {
+		scannerFamily = srcInfo.Family
+	}
+
 	lp := &launchPlan{
 		AppName:        appName,
 		appNameSource:  appNameExplanation,
@@ -105,7 +110,7 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		postgresSource: "not implemented",
 		Redis:          nil,
 		redisSource:    "not implemented",
-		ScannerFamily:  srcInfo.Family,
+		ScannerFamily:  scannerFamily,
 		cache:          map[string]interface{}{},
 	}
 
