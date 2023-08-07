@@ -115,7 +115,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		splitVolumeInfo := strings.Split(volumeInfo, ":")
 		volID := splitVolumeInfo[0]
 
-		vol, err = client.GetVolume(ctx, volID)
+		vol, err = flapsClient.GetVolume(ctx, volID)
 		if err != nil {
 			return fmt.Errorf("could not get existing volume: %w", err)
 		}
@@ -213,7 +213,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		var vol *api.Volume
 		if volID != "" {
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
-			vol, err = client.GetVolume(ctx, volID)
+			vol, err = flapsClient.GetVolume(ctx, volID)
 			if err != nil {
 				return fmt.Errorf("could not get existing volume: %w", err)
 			}
@@ -225,12 +225,12 @@ func runMachineClone(ctx context.Context) (err error) {
 			var snapshotID *string
 			switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
 			case "last":
-				snapshots, err := client.GetVolumeSnapshots(ctx, mnt.Volume)
+				snapshots, err := flapsClient.GetVolumeSnapshots(ctx, mnt.Volume)
 				if err != nil {
 					return err
 				}
 				if len(snapshots) > 0 {
-					snapshot := lo.MaxBy(snapshots, func(i, j api.Snapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
+					snapshot := lo.MaxBy(snapshots, func(i, j api.VolumeSnapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
 					snapshotID = &snapshot.ID
 					fmt.Fprintf(out, "Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mnt.Volume))
 				} else {
@@ -244,16 +244,15 @@ func runMachineClone(ctx context.Context) (err error) {
 				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 			}
 
-			volInput := api.CreateVolumeInput{
-				AppID:             app.ID,
+			volInput := api.CreateVolumeRequest{
 				Name:              mnt.Name,
 				Region:            region,
-				SizeGb:            mnt.SizeGb,
-				Encrypted:         mnt.Encrypted,
+				SizeGb:            &mnt.SizeGb,
+				Encrypted:         &mnt.Encrypted,
 				SnapshotID:        snapshotID,
-				RequireUniqueZone: flag.GetBool(ctx, "volume-requires-unique-zone"),
+				RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
 			}
-			vol, err = client.CreateVolume(ctx, volInput)
+			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {
 				return err
 			}

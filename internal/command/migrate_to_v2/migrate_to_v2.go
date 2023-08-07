@@ -411,7 +411,7 @@ func (m *v2PlatformMigrator) rollback(ctx context.Context, tb *render.TextBlock)
 		for _, vol := range m.createdVolumes {
 			if err := retry.Do(
 				func() error {
-					_, err := m.apiClient.DeleteVolume(ctx, vol.vol.ID, m.appLock)
+					_, err := m.flapsClient.DeleteVolume(ctx, vol.vol.ID)
 					return err
 				},
 				retry.Context(ctx), retry.Attempts(10),

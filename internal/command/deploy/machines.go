@@ -242,7 +242,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 		return nil
 	}
 
-	volumes, err := md.apiClient.GetVolumes(ctx, md.app.Name)
+	volumes, err := md.flapsClient.GetVolumes(ctx)
 	if err != nil {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	}

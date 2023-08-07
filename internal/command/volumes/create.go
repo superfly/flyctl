@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -77,6 +78,12 @@ func runCreate(ctx context.Context) error {
 		appName    = appconfig.NameFromContext(ctx)
 	)
 
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)
 
@@ -108,17 +115,16 @@ func runCreate(ctx context.Context) error {
 		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
-	input := api.CreateVolumeInput{
-		AppID:             app.ID,
+	input := api.CreateVolumeRequest{
 		Name:              volumeName,
 		Region:            region.Code,
-		SizeGb:            flag.GetInt(ctx, "size"),
-		Encrypted:         !flag.GetBool(ctx, "no-encryption"),
-		RequireUniqueZone: flag.GetBool(ctx, "require-unique-zone"),
+		SizeGb:            api.Pointer(flag.GetInt(ctx, "size")),
+		Encrypted:         api.Pointer(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:        snapshotID,
 	}
 
-	volume, err := client.CreateVolume(ctx, input)
+	volume, err := flapsClient.CreateVolume(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed creating volume: %w", err)
 	}
@@ -129,7 +135,7 @@ func runCreate(ctx context.Context) error {
 		return render.JSON(out, volume)
 	}
 
-	return printVolume(out, volume)
+	return printVolume(out, volume, appName)
 }
 
 func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
@@ -142,7 +148,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	}
 
 	// If we have more than 0 volues with this name already, return early
-	if matches, err := countVolumesMatchingName(ctx, appName, volumeName); err != nil {
+	if matches, err := countVolumesMatchingName(ctx, volumeName); err != nil {
 		return false, err
 	} else if matches > 0 {
 		return true, nil

@@ -124,15 +124,14 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 
 			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. Use 'fly vol extend' to increase its size\n", m.Source, groupName)
 
-			input := api.CreateVolumeInput{
-				AppID:     md.app.ID,
+			input := api.CreateVolumeRequest{
 				Name:      m.Source,
 				Region:    groupConfig.PrimaryRegion,
-				SizeGb:    1,
-				Encrypted: true,
+				SizeGb:    api.Pointer(1),
+				Encrypted: api.Pointer(true),
 			}
 
-			vol, err := md.apiClient.CreateVolume(ctx, input)
+			vol, err := md.flapsClient.CreateVolume(ctx, input)
 			if err != nil {
 				return fmt.Errorf("failed creating volume: %w", err)
 			}

@@ -6,9 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -38,7 +40,21 @@ func runShow(ctx context.Context) error {
 
 	volumeID := flag.FirstArg(ctx)
 
-	volume, err := client.GetVolume(ctx, volumeID)
+	appName := appconfig.NameFromContext(ctx)
+	if appName == "" {
+		n, err := client.GetAppNameFromVolume(ctx, volumeID)
+		if err != nil {
+			return err
+		}
+		appName = *n
+	}
+
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	volume, err := flapsClient.GetVolume(ctx, volumeID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving volume: %w", err)
 	}
@@ -49,5 +65,5 @@ func runShow(ctx context.Context) error {
 		return render.JSON(out, volume)
 	}
 
-	return printVolume(out, volume)
+	return printVolume(out, volume, appName)
 }
