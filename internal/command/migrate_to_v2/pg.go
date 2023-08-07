@@ -91,12 +91,12 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 	for region, vols := range regionsToVols {
 		fmt.Fprintf(m.io.Out, "Creatings %d new volume(s) in '%s'\n", len(vols), region)
 		for _, vol := range vols {
-			// TODO: make use of https://github.com/superfly/nomad-firecracker/pull/1013
 			input := api.CreateVolumeRequest{
-				Name:      fmt.Sprintf("%s_machines", vol.Name),
-				Region:    region,
-				SizeGb:    &vol.SizeGb,
-				Encrypted: api.Pointer(vol.Encrypted),
+				Name:         fmt.Sprintf("%s_machines", vol.Name),
+				Region:       region,
+				SizeGb:       &vol.SizeGb,
+				Encrypted:    api.Pointer(vol.Encrypted),
+				MachinesOnly: api.Pointer(true),
 			}
 			newVol, err := m.flapsClient.CreateVolume(ctx, input)
 			if err != nil {
