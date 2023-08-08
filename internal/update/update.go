@@ -32,8 +32,15 @@ type Release struct {
 	Timestamp   time.Time `yaml:"timestamp"`
 }
 
+// For disabling auto updates at build time
+var disableAutoUpdate = "false"
+
 // Check reports whether update checks should take place.
 func Check() bool {
+	if disableAutoUpdate == "true" {
+		return false
+	}
+
 	switch {
 	case env.IsTruthy("FLY_UPDATE_CHECK"):
 		return true
