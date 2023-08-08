@@ -42,12 +42,6 @@ but is currently restricted to same-host forks and may not be available for near
 			Description: "Name of the new volume",
 		},
 		flag.Bool{
-			Name:        "remote-fork",
-			Description: "Enables experimental cross-host volume forking",
-			Hidden:      true,
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "machines-only",
 			Description: "volume will be visible to machines platform only",
 			Hidden:      true,
