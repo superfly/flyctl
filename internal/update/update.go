@@ -37,11 +37,9 @@ var disableAutoUpdate = "false"
 
 // Check reports whether update checks should take place.
 func Check() bool {
-	if disableAutoUpdate == "true" {
-		return false
-	}
-
 	switch {
+	case disableAutoUpdate == "true":
+		return false
 	case env.IsTruthy("FLY_UPDATE_CHECK"):
 		return true
 	case env.IsTruthy("FLY_NO_UPDATE_CHECK"):
