@@ -93,11 +93,6 @@ func newMigrateToV2() *cobra.Command {
 			Hidden:      true,
 		},
 		flag.Bool{
-			Name:        "remote-fork",
-			Description: "PLACEHOLDER - this is the default now",
-			Hidden:      true,
-		},
-		flag.Bool{
 			Name:        "use-local-config",
 			Description: "Use local fly.toml. Do not attempt to remotely fetch the app configuration from the latest deployed release",
 			Default:     false,
