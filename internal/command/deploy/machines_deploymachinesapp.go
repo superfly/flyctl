@@ -408,11 +408,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 
 	newMachineRaw, err := md.flapsClient.Launch(ctx, *e.launchInput)
 	if err != nil {
-		if strings.Contains(err.Error(), "could not reserve resource for machine") {
-			return errors.New("The region you're trying to deploy is likely at capacity. Consider deploying to a new region with fly deploy --region <region> or trying again in a few hours\n")
-		} else {
-			return err
-		}
+		return err
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
