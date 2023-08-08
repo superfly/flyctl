@@ -97,6 +97,8 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 	firstRun := true
 
+	lastReportedState := map[string]string{}
+
 	return func() {
 		rows := []string{}
 		bg.stateLock.RLock()
@@ -105,6 +107,10 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 			if value == 1 {
 				status = "started"
 			}
+			if !bg.io.IsInteractive() && lastReportedState[id] == status {
+				continue
+			}
+			lastReportedState[id] = status
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
 		bg.stateLock.RUnlock()
@@ -114,6 +120,10 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 		}
 
 		sort.Strings(rows)
+
+		if len(rows) == 0 {
+			return
+		}
 
 		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
 		firstRun = false
@@ -186,6 +196,8 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheckStatus) func() {
 	firstRun := true
 
+	lastReportedHealth := map[string]string{}
+
 	return func() {
 		rows := []string{}
 		bg.healthLock.RLock()
@@ -194,6 +206,10 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 			if value.Total != 0 {
 				status = fmt.Sprintf("%d/%d passing", value.Passing, value.Total)
 			}
+			if !bg.io.IsInteractive() && lastReportedHealth[id] == status {
+				continue
+			}
+			lastReportedHealth[id] = status
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
 		bg.healthLock.RUnlock()
@@ -203,6 +219,10 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 		}
 
 		sort.Strings(rows)
+
+		if len(rows) == 0 {
+			return
+		}
 
 		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
 		firstRun = false
