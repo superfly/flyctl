@@ -77,7 +77,6 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 
 	state.plan.ScannerFamily = oldPlan.ScannerFamily
-	state.plan.cache = oldPlan.cache
 
 	return nil
 }
