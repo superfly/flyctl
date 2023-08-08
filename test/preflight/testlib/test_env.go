@@ -337,11 +337,6 @@ func (f *FlyctlTestEnv) UnmarshalFlyToml() (res map[string]any) {
 	return
 }
 
-func (f *FlyctlTestEnv) CopyFixtureIntoWorkDir(name string) error {
-	src := fmt.Sprintf("%s/../fixtures/%s", getRootPath(), name)
-	return copyDir(src, f.workDir)
-}
-
 // implement the testing.TB interface, so we can print history of flyctl command and output when failing
 func (f *FlyctlTestEnv) Cleanup(cleanupFunc func()) {
 	f.t.Cleanup(cleanupFunc)

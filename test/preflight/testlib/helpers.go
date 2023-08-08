@@ -108,7 +108,7 @@ func tryToStopAgentsFromPastPreflightTests(t testing.TB, flyctlBin string) {
 	// FIXME: make something like ps au | grep flyctl | grep $TMPDIR | grep agent, then kill those procs?
 }
 
-func copyDir(src, dst string) error {
+func CopyDir(src, dst string) error {
 	// Get the file info for the source directory
 	srcInfo, err := os.Stat(src)
 	if err != nil {
@@ -133,7 +133,7 @@ func copyDir(src, dst string) error {
 
 		if entry.IsDir() {
 			// If the entry is a directory, recursively copy it to the destination directory
-			if err := copyDir(srcPath, dstPath); err != nil {
+			if err := CopyDir(srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {
@@ -168,10 +168,7 @@ func copyFile(src, dst string) error {
 		return err
 	}
 
-	return nil
-}
+	fmt.Printf("[copy] %s -> %s\n", src, dst)
 
-func getRootPath() string {
-	_, b, _, _ := runtime.Caller(0)
-	return filepath.Dir(b)
+	return nil
 }

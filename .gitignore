@@ -33,7 +33,6 @@ out
 /.idea/modules.xml
 /.idea/vcs.xml
 .vscode/launch.json
-fly.toml
 .DS_Store
 
 .direnv/
