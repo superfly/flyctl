@@ -9,6 +9,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -123,6 +124,7 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 		const stopTimeout = 5 * time.Second
 
 		stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+		stopCtx, cancel = ctrlc.HookCancelableContext(stopCtx, cancel)
 		defer cancel()
 
 		stopInput := api.StopMachineInput{
