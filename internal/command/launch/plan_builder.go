@@ -99,19 +99,21 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 	}
 
 	lp := &launchPlan{
-		AppName:        appName,
+		AppName:       appName,
+		RegionCode:    region.Code,
+		OrgSlug:       org.Slug,
+		Postgres:      nil,
+		Redis:         nil,
+		ScannerFamily: scannerFamily,
+	}
+
+	planSource := &launchPlanSource{
 		appNameSource:  appNameExplanation,
-		RegionCode:     region.Code,
 		regionSource:   regionExplanation,
-		OrgSlug:        org.Slug,
 		orgSource:      orgExplanation,
 		guestSource:    guestExplanation,
-		Postgres:       nil,
 		postgresSource: "not implemented",
-		Redis:          nil,
 		redisSource:    "not implemented",
-		ScannerFamily:  scannerFamily,
-		cache:          map[string]interface{}{},
 	}
 
 	lp.SetGuestFields(guest)
@@ -120,9 +122,11 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		workingDir: workingDir,
 		configPath: configPath,
 		plan:       lp,
+		planSource: planSource,
 		env:        envVars,
 		appConfig:  appConfig,
 		sourceInfo: srcInfo,
+		cache:      map[string]interface{}{},
 	}, nil
 }
 

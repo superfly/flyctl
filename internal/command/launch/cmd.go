@@ -7,7 +7,6 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/launch/legacy"
@@ -97,7 +96,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	summary, err := state.plan.Summary(ctx)
+	summary, err := state.PlanSummary(ctx)
 	if err != nil {
 		return err
 	}
@@ -132,15 +131,6 @@ func run(ctx context.Context) (err error) {
 	}
 
 	return nil
-}
-
-type launchState struct {
-	workingDir string
-	configPath string
-	plan       *launchPlan
-	env        map[string]string
-	appConfig  *appconfig.Config
-	sourceInfo *scanner.SourceInfo
 }
 
 // familyToAppType returns a string that describes the app type based on the source info

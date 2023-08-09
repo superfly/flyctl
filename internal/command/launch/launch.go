@@ -76,7 +76,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 	apiClient := client.FromContext(ctx).API()
-	org, err := state.plan.Org(ctx)
+	org, err := state.Org(ctx)
 	if err != nil {
 		return nil, err
 	}

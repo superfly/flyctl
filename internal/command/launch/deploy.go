@@ -53,7 +53,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 				path := appConfig.ConfigFilePath()
 				newCfg, err := appconfig.LoadConfig(path)
 				if err != nil {
-					return fmt.Errorf("failed to reload configuration file %s: %w", path, err)
+					return fmt.Errorf("failed to reload configuration file %state: %w", path, err)
 				}
 
 				if appConfig.ForMachines() {
