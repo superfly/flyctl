@@ -102,6 +102,11 @@ var CommonFlags = flag.Set{
 		Description: "Perform smoke checks during deployment",
 		Default:     true,
 	},
+	flag.Float64{
+		Name:        "max-unavailable",
+		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
+		Default:     0.33,
+	},
 	flag.Bool{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
@@ -344,6 +349,7 @@ func deployToMachines(
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		MaxUnavailable:        flag.GetFloat64(ctx, "max-unavailable"),
 		ReleaseCmdTimeout:     releaseCmdTimeout,
 		Guest:                 guest,
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
