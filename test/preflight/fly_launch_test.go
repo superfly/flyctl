@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -385,15 +386,23 @@ func TestFlyLaunchBasicNodeApp(t *testing.T) {
 	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{
-		"fly.toml",
-	})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
-	appName := f.CreateRandomAppMachines()
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+	cfg, err := appconfig.LoadConfig(flyTomlPath)
+	require.NoError(t, err)
+
+	appName := f.CreateRandomAppName()
 	require.NotEmpty(t, appName)
 
-	f.Fly("launch --ha=false --name %s --region %s --org %s --now", appName, f.PrimaryRegion(), f.OrgSlug())
+	cfg.AppName = appName
+	require.NoError(t, cfg.SetMachinesPlatform())
+	cfg.Env["TEST_ID"] = f.ID()
+
+	cfg.WriteToFile(flyTomlPath)
+
+	f.Fly("launch --ha=false --copy-config --name %s --region %s --org %s --now", appName, f.PrimaryRegion(), f.OrgSlug())
 
 	var (
 		appUrl = fmt.Sprintf("https://%s.fly.dev", appName)
