@@ -51,6 +51,8 @@ type MachineDeploymentArgs struct {
 	UpdateOnly            bool
 	Files                 []*api.File
 	ProvisionExtensions   bool
+	ExcludeRegions        map[string]interface{}
+	OnlyRegions           map[string]interface{}
 }
 
 type machineDeployment struct {
@@ -81,6 +83,8 @@ type machineDeployment struct {
 	listenAddressChecked  map[string]struct{}
 	updateOnly            bool
 	provisionExtensions   bool
+	excludeRegions        map[string]interface{}
+	onlyRegions           map[string]interface{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -152,6 +156,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		updateOnly:            args.UpdateOnly,
 		machineGuest:          args.Guest,
 		provisionExtensions:   args.ProvisionExtensions,
+		excludeRegions:        args.ExcludeRegions,
+		onlyRegions:           args.OnlyRegions,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
@@ -199,7 +205,6 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		return err
 	}
 
-	// migrate non-platform machines into fly platform
 	if len(machines) == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		activeMachines, err := md.flapsClient.ListActive(ctx)
@@ -217,6 +222,27 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				appconfig.DefaultConfigFileName,
 			)
 		}
+	}
+
+	if len(md.onlyRegions) > 0 {
+		var onlyRegionMachines []*api.Machine
+		for _, m := range machines {
+			if _, present := md.onlyRegions[m.Region]; present {
+				onlyRegionMachines = append(onlyRegionMachines, m)
+			}
+		}
+		fmt.Fprintf(md.io.ErrOut, "--only-regions filter applied, deploying to %d/%d machines\n", len(onlyRegionMachines), len(machines))
+		machines = onlyRegionMachines
+	}
+	if len(md.excludeRegions) > 0 {
+		var excludeRegionMachines []*api.Machine
+		for _, m := range machines {
+			if _, present := md.excludeRegions[m.Region]; !present {
+				excludeRegionMachines = append(excludeRegionMachines, m)
+			}
+		}
+		fmt.Fprintf(md.io.ErrOut, "--exclude-regions filter applied, deploying to %d/%d machines\n", len(excludeRegionMachines), len(machines))
+		machines = excludeRegionMachines
 	}
 
 	for _, m := range machines {
