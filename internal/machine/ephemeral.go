@@ -121,7 +121,7 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 	)
 
 	return func() {
-		const stopTimeout = 5 * time.Second
+		const stopTimeout = 15 * time.Second
 
 		stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
 		stopCtx, cancel = ctrlc.HookCancelableContext(stopCtx, cancel)
