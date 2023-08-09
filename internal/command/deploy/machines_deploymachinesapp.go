@@ -275,13 +275,6 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.Leas
 		return nil
 	}
 
-	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
-		}
-	}
-
 	// Don't wait for Standby machines, they are updated but not started
 	if len(lm.Machine().Config.Standbys) > 0 {
 		md.logClearLinesAbove(1)
@@ -291,6 +284,13 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.Leas
 			md.colorize.Green("success"),
 		)
 		return nil
+	}
+
+	if !md.skipHealthChecks {
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return err
+		}
 	}
 
 	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
