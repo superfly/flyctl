@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -339,43 +340,55 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	}
 
-	var groupCount int
-	if mu := md.maxUnavailable; mu > 0 && mu < 1 {
-		groupCount = int(math.Floor(1.0 / mu))
-	} else if mu >= 1 {
-		groupCount = int(math.Ceil(float64(len(updateEntries)) / mu))
-	} else {
+	entriesByGroup := lo.GroupBy(updateEntries, func(e *machineUpdateEntry) string {
+		return e.launchInput.Config.ProcessGroup()
+	})
+
+	groupsPool := pool.New().WithErrors().WithMaxGoroutines(10).WithContext(ctx)
+	for _, entries := range entriesByGroup {
+		entries := entries
+		groupsPool.Go(func(ctx context.Context) error {
+			return md.updateMachineEntries(ctx, entries)
+		})
+	}
+	return groupsPool.Wait()
+}
+
+func (md *machineDeployment) updateMachineEntries(ctx context.Context, entries []*machineUpdateEntry) error {
+	var poolSize int
+	switch mu := md.maxUnavailable; {
+	case mu >= 1:
+		poolSize = int(mu)
+	case mu > 0:
+		poolSize = int(math.Ceil(float64(len(entries)) * mu))
+	default:
 		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
 	}
 
-	type batchJob struct {
-		lm       machine.LeasableMachine
-		indexStr string
-	}
-	b := batcher[batchJob]{
-		TotalJobs:  len(updateEntries),
-		GroupCount: groupCount,
-		SoloFirst:  true,
-	}
+	updatePool := pool.New().WithErrors().WithMaxGoroutines(poolSize).WithContext(ctx)
 
-	for i, e := range updateEntries {
-		indexStr := formatIndex(i, len(updateEntries))
-
-		if err := md.updateMachine(ctx, e, indexStr); err != nil {
-			if md.strategy == "immediate" {
-				fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
-				continue
-			}
-			return err
-		}
-
-		b.Add(batchJob{e.leasableMachine, indexStr})
-		for _, job := range b.Batch() {
-			if err := md.waitForMachine(ctx, job.lm, true, job.indexStr); err != nil {
+	for i, e := range entries {
+		e := e
+		indexStr := formatIndex(i, len(entries))
+		updatePool.Go(func(ctx context.Context) error {
+			if err := md.updateMachine(ctx, e, indexStr); err != nil {
+				if md.strategy == "immediate" {
+					fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
+					return nil
+				}
 				return err
 			}
-		}
-		md.logClearLinesAbove(1)
+
+			if err := md.waitForMachine(ctx, e.leasableMachine, true, indexStr); err != nil {
+				return err
+			}
+			md.logClearLinesAbove(1)
+			return nil
+		})
+	}
+
+	if err := updatePool.Wait(); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
