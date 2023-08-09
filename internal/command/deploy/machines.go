@@ -27,6 +27,7 @@ const (
 	DefaultReleaseCommandTimeout = 5 * time.Minute
 	DefaultLeaseTtl              = 13 * time.Second
 	DefaultVMSize                = "shared-cpu-1x"
+	DefaultMaxUnavailable        = 0.33
 )
 
 type MachineDeployment interface {
@@ -133,6 +134,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
+
+	maxUnavailable := DefaultMaxUnavailable
+	if mu := args.MaxUnavailable; mu > 0 {
+		maxUnavailable = mu
+	}
+
 	md := &machineDeployment{
 		apiClient:             apiClient,
 		gqlClient:             apiClient.GenqClient,
@@ -145,7 +152,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		skipSmokeChecks:       args.SkipSmokeChecks,
 		skipHealthChecks:      args.SkipHealthChecks,
 		restartOnly:           args.RestartOnly,
-		maxUnavailable:        args.MaxUnavailable,
+		maxUnavailable:        maxUnavailable,
 		waitTimeout:           waitTimeout,
 		leaseTimeout:          leaseTimeout,
 		leaseDelayBetween:     leaseDelayBetween,
