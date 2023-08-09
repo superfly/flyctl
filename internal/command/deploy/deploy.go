@@ -132,6 +132,14 @@ var CommonFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
+	flag.StringSlice{
+		Name:        "exclude-regions",
+		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --only-regions. V2 machines platform only.",
+	},
+	flag.StringSlice{
+		Name:        "only-regions",
+		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -311,6 +319,21 @@ func deployToMachines(
 		_ = ApplyFlagsToGuest(ctx, guest)
 	}
 
+	excludeRegions := make(map[string]interface{})
+	for _, r := range flag.GetStringSlice(ctx, "exclude-regions") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			excludeRegions[reg] = struct{}{}
+		}
+	}
+	onlyRegions := make(map[string]interface{})
+	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			onlyRegions[reg] = struct{}{}
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
@@ -328,6 +351,8 @@ func deployToMachines(
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
 		ProvisionExtensions:   flag.GetBool(ctx, "provision-extensions"),
+		ExcludeRegions:        excludeRegions,
+		OnlyRegions:           onlyRegions,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
@@ -429,6 +454,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
+	// FIXME: this is a confusing flag; I thought it meant only update machines in the provided region, which resulted in a minor disaster :-)
 	if v := flag.GetRegion(ctx); v != "" {
 		cfg.PrimaryRegion = v
 	}
