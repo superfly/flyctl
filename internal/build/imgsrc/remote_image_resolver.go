@@ -3,6 +3,7 @@ package imgsrc
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
@@ -31,10 +32,15 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 
 	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
 
+	size, err := strconv.ParseUint(img.CompressedSize, 10, 64)
+	if err != nil {
+		return nil, "", err
+	}
+
 	di := &DeploymentImage{
 		ID:   img.ID,
 		Tag:  img.Ref,
-		Size: int64(img.CompressedSize),
+		Size: int64(size),
 	}
 
 	return di, "", nil

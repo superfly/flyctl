@@ -574,7 +574,7 @@ func (client *Client) ResolveImageForApp(ctx context.Context, appName, imageRef 
 					id
 					digest
 					ref
-					compressedSize
+					compressedSize: compressedSizeFull
 				}
 			}
 		}
