@@ -21,10 +21,6 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-const (
-	batchingGroupCount = 3
-)
-
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
