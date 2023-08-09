@@ -9,6 +9,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -120,9 +121,10 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 	)
 
 	return func() {
-		const stopTimeout = 5 * time.Second
+		const stopTimeout = 15 * time.Second
 
 		stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+		stopCtx, cancel = ctrlc.HookCancelableContext(stopCtx, cancel)
 		defer cancel()
 
 		stopInput := api.StopMachineInput{
@@ -130,7 +132,7 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 			Timeout: api.Duration{Duration: stopTimeout},
 		}
 		if err := flapsClient.Stop(stopCtx, stopInput, ""); err != nil {
-			terminal.Warnf("Failed to stop ephemeral machine: %v\n", err)
+			terminal.Warnf("Failed to stop ephemeral machine: %v", err)
 			terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
 			return
 		}
@@ -138,7 +140,7 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 		fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
 		if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
 			fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
-			terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v\n", err)
+			terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
 			terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
 		} else {
 			fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
