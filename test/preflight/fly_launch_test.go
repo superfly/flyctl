@@ -4,6 +4,9 @@
 package preflight
 
 import (
+	"fmt"
+	"io/ioutil"
+	"net/http"
 	"testing"
 	"time"
 
@@ -376,4 +379,49 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
 	ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
 	assert.Equal(f, "SECRET1", ssh.StdOut().String())
+}
+
+func TestFlyLaunchBasicNodeApp(t *testing.T) {
+	t.Parallel()
+
+	f := testlib.NewTestEnvFromEnv(t)
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{
+		"fly.toml",
+	})
+	require.NoError(t, err)
+
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	f.Fly("launch --ha=false --name %s --region %s --org %s --now", appName, f.PrimaryRegion(), f.OrgSlug())
+
+	var (
+		appUrl = fmt.Sprintf("https://%s.fly.dev", appName)
+		resp   *http.Response
+	)
+
+	lastStatusCode := -1
+	attempts := 10
+	b := &backoff.Backoff{
+		Factor: 2,
+		Jitter: true,
+		Min:    100 * time.Millisecond,
+		Max:    5 * time.Second,
+	}
+	for i := 0; i < attempts; i++ {
+		resp, err = http.Get(appUrl)
+		if err == nil {
+			lastStatusCode = resp.StatusCode
+		}
+		if lastStatusCode == http.StatusOK {
+			break
+		}
+
+		time.Sleep(b.Duration())
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }

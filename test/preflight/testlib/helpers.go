@@ -20,6 +20,7 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"golang.org/x/exp/slices"
 )
 
 const defaultRegion = "iad"
@@ -108,7 +109,7 @@ func tryToStopAgentsFromPastPreflightTests(t testing.TB, flyctlBin string) {
 	// FIXME: make something like ps au | grep flyctl | grep $TMPDIR | grep agent, then kill those procs?
 }
 
-func CopyDir(src, dst string) error {
+func CopyDir(src, dst string, exclusion []string) error {
 	// Get the file info for the source directory
 	srcInfo, err := os.Stat(src)
 	if err != nil {
@@ -128,12 +129,16 @@ func CopyDir(src, dst string) error {
 
 	// Iterate through each entry in the source directory
 	for _, entry := range entries {
+		if slices.Contains(exclusion, entry.Name()) {
+			continue
+		}
+
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
 			// If the entry is a directory, recursively copy it to the destination directory
-			if err := CopyDir(srcPath, dstPath); err != nil {
+			if err := CopyDir(srcPath, dstPath, exclusion); err != nil {
 				return err
 			}
 		} else {

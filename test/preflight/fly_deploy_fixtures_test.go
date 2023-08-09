@@ -23,17 +23,16 @@ func getRootPath() string {
 	return filepath.Dir(b)
 }
 
-func copyFixtureIntoWorkDir(workDir, name string) error {
+func copyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
 	src := fmt.Sprintf("%s/fixtures/%s", getRootPath(), name)
-	fmt.Println("SRC path => ", src)
-	return testlib.CopyDir(src, workDir)
+	return testlib.CopyDir(src, workDir, exclusion)
 }
 
 func TestFlyDeployBuildpackNodeAppWithRemoteBuilder(t *testing.T) {
 	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
