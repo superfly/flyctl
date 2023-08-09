@@ -185,16 +185,26 @@ mutation DeleteAddOn($name: String) {
 	}
 }
 
+fragment ExtensionProviderData on AddOnProvider {
+	id
+	name
+	displayName
+	tosUrl
+	asyncProvisioning
+  autoProvision
+  selectName
+  selectRegion
+  selectReplicaRegions
+  detectPlatform
+  resourceName
+	nameSuffix
+	excludedRegions {
+		code
+	}
+}
 query GetAddOnProvider($name: String!) {
 	addOnProvider(name: $name) {
-		id
-		name
-		tosUrl
-		displayName
-		asyncProvisioning
-		excludedRegions {
-			code
-		}
+		...ExtensionProviderData
 	}
 }
 
