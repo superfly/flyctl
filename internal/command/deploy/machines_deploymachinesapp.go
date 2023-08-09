@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -339,13 +340,22 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	}
 
+	var groupCount int
+	if mu := md.maxUnavailable; mu > 0 && mu < 1 {
+		groupCount = int(math.Floor(1.0 / mu))
+	} else if mu >= 1 {
+		groupCount = int(math.Ceil(float64(len(updateEntries)) / mu))
+	} else {
+		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
+	}
+
 	type batchJob struct {
 		lm       machine.LeasableMachine
 		indexStr string
 	}
 	b := batcher[batchJob]{
 		TotalJobs:  len(updateEntries),
-		GroupCount: batchingGroupCount,
+		GroupCount: groupCount,
 		SoloFirst:  true,
 	}
 

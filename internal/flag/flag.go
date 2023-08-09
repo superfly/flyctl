@@ -12,7 +12,6 @@ import (
 )
 
 func makeAlias[T any](template T, name string) T {
-
 	var ret T
 	value := reflect.ValueOf(&ret).Elem()
 
@@ -145,6 +144,38 @@ func (i Int) addTo(cmd *cobra.Command) {
 		_ = flags.IntP(i.Name, i.Shorthand, i.Default, i.Description)
 	} else {
 		_ = flags.Int(i.Name, i.Default, i.Description)
+	}
+
+	f := flags.Lookup(i.Name)
+	f.Hidden = i.Hidden
+
+	// Aliases
+	for _, name := range i.Aliases {
+		makeAlias(i, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", i.Aliases)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// Int wraps the set of int flags.
+type Float64 struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     float64
+	Hidden      bool
+	Aliases     []string
+}
+
+func (i Float64) addTo(cmd *cobra.Command) {
+	flags := cmd.Flags()
+
+	if i.Shorthand != "" {
+		_ = flags.Float64P(i.Name, i.Shorthand, i.Default, i.Description)
+	} else {
+		_ = flags.Float64(i.Name, i.Default, i.Description)
 	}
 
 	f := flags.Lookup(i.Name)
