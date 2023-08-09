@@ -12,12 +12,16 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 )
 
+const (
+	rollingStrategyMaxConcurrentGroups = 10
+)
+
 func (md *machineDeployment) updateUsingRollingStrategy(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	entriesByGroup := lo.GroupBy(updateEntries, func(e *machineUpdateEntry) string {
 		return e.launchInput.Config.ProcessGroup()
 	})
 
-	groupsPool := pool.New().WithErrors().WithMaxGoroutines(10).WithContext(ctx)
+	groupsPool := pool.New().WithErrors().WithMaxGoroutines(rollingStrategyMaxConcurrentGroups).WithContext(ctx)
 	for _, entries := range entriesByGroup {
 		entries := entries
 		groupsPool.Go(func(ctx context.Context) error {
