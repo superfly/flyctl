@@ -320,12 +320,18 @@ func deployToMachines(
 	}
 
 	excludeRegions := make(map[string]interface{})
-	for _, reg := range flag.GetStringSlice(ctx, "exclude-regions") {
-		excludeRegions[reg] = struct{}{}
+	for _, r := range flag.GetStringSlice(ctx, "exclude-regions") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			excludeRegions[reg] = struct{}{}
+		}
 	}
 	onlyRegions := make(map[string]interface{})
-	for _, reg := range flag.GetStringSlice(ctx, "only-regions") {
-		onlyRegions[reg] = struct{}{}
+	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			onlyRegions[reg] = struct{}{}
+		}
 	}
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
