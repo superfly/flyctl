@@ -361,7 +361,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	}
 
 	// Build the image.
-	ch := make(chan *client.SolveStatus)
+	statusCh := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
 		var (
@@ -375,7 +375,10 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 			// It should be nil, but just in case.
 			con = nil
 		}
-		_, err = progressui.DisplaySolveStatus(ctx, "", con, os.Stdout, ch)
+		// Don't use `ctx` here.
+		// Cancelling the context kills the reader of statusCh which blocks bc.Solve below.
+		// bc.Solve closes statusCh at the end and DisplaySolveStatus returns by reading the closed channel.
+		_, err = progressui.DisplaySolveStatus(context.Background(), "", con, os.Stdout, statusCh)
 		return err
 	})
 	var res *client.SolveResponse
@@ -393,7 +396,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 			secretsprovider.FromMap(secrets),
 		)
 
-		res, err = bc.Solve(ctx, nil, options, ch)
+		res, err = bc.Solve(ctx, nil, options, statusCh)
 		if err != nil {
 			return err
 		}
