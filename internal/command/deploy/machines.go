@@ -51,6 +51,7 @@ type MachineDeploymentArgs struct {
 	UpdateOnly            bool
 	Files                 []*api.File
 	ProvisionExtensions   bool
+	AutoProvisionSentry   bool
 }
 
 type machineDeployment struct {

@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -22,8 +23,8 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
 
-	// Provision Sentry on first deployment
-	if md.provisionExtensions {
+	// Provision Sentry on first deployment, unless we're using CI, where it's more likely to see ephemeral applications
+	if !env.IsCI() && md.provisionExtensions {
 		if err := md.provisionSentryOnFirstDeploy(ctx); err != nil {
 			fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again. ERROR: %s", err)
 			return nil
@@ -95,6 +96,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allo
 		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: fly ips allocate-v4\n")
 	}
 
+	fmt.Fprintln(md.io.Out)
 	return nil
 }
 

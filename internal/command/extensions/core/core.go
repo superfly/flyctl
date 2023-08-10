@@ -50,17 +50,28 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		return extension, errors.New(errMsg)
 	}
 
-	// Ensure ToS has been viewed for extensions that aren't auto-provisioned
-	if !provider.AutoProvision {
-		tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName, targetOrg.Id)
+	// Ensure ToS warning has been viewed at least once per organization
 
-		if err != nil {
-			return extension, err
-		}
+	agreed, err := AgreedToProviderTos(ctx, providerName, targetOrg.Id)
 
-		if !tosResp.Organization.AgreedToProviderTos {
-			fmt.Fprintf(io.Out, "By provisioning this %s, you're agreeing on behalf of the %s organization to the %s Terms of Service linked here: https://fly.io/legal/terms-of-service/#supplementalterms", provider.ResourceName, colorize.Green(targetOrg.Slug), provider.DisplayName)
-		}
+	if err != nil {
+		return extension, err
+	}
+
+	tosMessage := "you agree to the %s Terms of Service: https://fly.io/legal/terms-of-service/#supplementalterms"
+
+	var tosMsgPrefix string
+
+	if provider.AutoProvision {
+		tosMsgPrefix = "By deploying this app"
+	} else {
+		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
+	}
+
+	tosMessage = tosMsgPrefix + ", " + tosMessage
+
+	if !agreed {
+		fmt.Fprintf(io.Out, tosMessage, provider.DisplayName)
 	}
 
 	var name string
@@ -89,9 +100,10 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		Type:           gql.AddOnType(providerName),
 	}
 
-	if provider.SelectRegion {
+	var inExcludedRegion bool
+	var primaryRegion string
 
-		var primaryRegion string
+	if provider.SelectRegion {
 
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
 
@@ -106,9 +118,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 			primaryRegion = cfg.PrimaryRegion
 
 			if slices.Contains(excludedRegions, primaryRegion) {
-				fmt.Fprintf(io.ErrOut,
-					"%s doesn't yet offer service in the %s region, where your app %s is deployed. You'll get the nearest region they support. Your app will experience some latency.\n",
-					provider.DisplayName, colorize.Green(appName), colorize.Green(primaryRegion))
+				inExcludedRegion = true
 			}
 
 		} else {
@@ -167,8 +177,22 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		}
 	}
 
+	provisioningMsg := fmt.Sprintf("Provisioned a %s %s", provider.DisplayName, provider.ResourceName)
+
+	if provider.SelectName {
+		provisioningMsg = provisioningMsg + fmt.Sprintf(" (%s)", colorize.Green(extension.Data.Name))
+	}
+
 	if provider.SelectRegion {
-		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(extension.Data.Name), colorize.Green(extension.Data.PrimaryRegion), colorize.Green(appName))
+		provisioningMsg = provisioningMsg + fmt.Sprintf(" in %s", colorize.Green(extension.Data.PrimaryRegion))
+	}
+
+	fmt.Fprintf(io.Out, provisioningMsg+". See details and next steps at:\n%s\n\n", extension.Data.SsoLink)
+
+	if inExcludedRegion {
+		fmt.Fprintf(io.ErrOut,
+			"Note: Your app is deployed in %s which isn't a supported %s region. Expect database request latency of 10ms or more.\n\n",
+			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
 	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
@@ -299,6 +323,18 @@ func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interf
 	_, err := gql.SetSecrets(ctx, client, input)
 
 	return err
+}
+
+func AgreedToProviderTos(ctx context.Context, providerName string, orgId string) (bool, error) {
+	client := client.FromContext(ctx).API().GenqClient
+
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName, orgId)
+
+	if err != nil {
+		return false, err
+	}
+
+	return tosResp.Organization.AgreedToProviderTos, nil
 }
 
 // Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py
