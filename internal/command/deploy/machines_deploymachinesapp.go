@@ -323,7 +323,10 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	bg := BlueGreenStrategy(md, updateEntries)
 	if err := bg.Deploy(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
-		return bg.Rollback(ctx, err)
+		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
+			return rollbackErr
+		}
+		return err
 	}
 	return nil
 }
