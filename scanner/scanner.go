@@ -65,6 +65,7 @@ type SourceInfo struct {
 	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
+	AutoInstrumentErrors         bool
 }
 
 type SourceFile struct {

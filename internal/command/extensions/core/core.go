@@ -24,7 +24,7 @@ type Extension struct {
 	App  gql.AppData
 }
 
-func ProvisionExtension(ctx context.Context, appName string, providerName string, options map[string]interface{}) (extension Extension, err error) {
+func ProvisionExtension(ctx context.Context, appName string, providerName string, auto bool, options map[string]interface{}) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
@@ -43,37 +43,34 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		return
 	}
 
-	provider := resp.AddOnProvider.ExtensionProviderData
-
-	if len(appResponse.App.AddOns.Nodes) > 0 {
-		errMsg := fmt.Sprintf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
-		return extension, errors.New(errMsg)
+	if !auto {
+		fmt.Fprintln(io.Out)
 	}
 
-	// Ensure ToS warning has been viewed at least once per organization
+	provider := resp.AddOnProvider.ExtensionProviderData
 
-	agreed, err := AgreedToProviderTos(ctx, providerName, targetOrg.Id)
+	// Stop provisioning if this app already has an extension of this type, but only display an error for
+	// extensions that weren't automatically provisioned
+
+	if len(appResponse.App.AddOns.Nodes) > 0 {
+		existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
+
+		if auto {
+			existsError = nil
+		}
+
+		return extension, existsError
+	}
+
+	// Display ToS implicit agreement only once per org. Viewing makes the agreement official.
+
+	err = DisplayTosAgreement(ctx, provider, targetOrg, auto)
 
 	if err != nil {
 		return extension, err
 	}
 
-	tosMessage := "you agree to the %s Terms of Service: https://fly.io/legal/terms-of-service/#supplementalterms"
-
-	var tosMsgPrefix string
-
-	if provider.AutoProvision {
-		tosMsgPrefix = "By deploying this app"
-	} else {
-		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
-	}
-
-	tosMessage = tosMsgPrefix + ", " + tosMessage
-
-	if !agreed {
-		fmt.Fprintf(io.Out, tosMessage, provider.DisplayName)
-	}
-
+	// Pick a name for the extension unless we want it to be the same as the app, like in Sentry's case
 	var name string
 
 	if provider.SelectName {
@@ -138,6 +135,10 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		input.PrimaryRegion = primaryRegion
 	}
 
+	var detectedPlatform *scanner.SourceInfo
+
+	// Pass the detected platform family to the API
+
 	if provider.DetectPlatform {
 		absDir, err := filepath.Abs(".")
 
@@ -145,17 +146,17 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 			return extension, err
 		}
 
-		srcInfo, err := scanner.Scan(absDir, &scanner.ScannerConfig{})
+		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
 
 		if err != nil {
 			return extension, err
 		}
 
-		if srcInfo != nil && PlatformMap[srcInfo.Family] != "" {
+		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
 			if options == nil {
 				options = gql.AddOnOptions{}
 			}
-			options["platform"] = PlatformMap[srcInfo.Family]
+			options["platform"] = PlatformMap[detectedPlatform.Family]
 		}
 
 	}
@@ -177,7 +178,9 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		}
 	}
 
-	provisioningMsg := fmt.Sprintf("Provisioned a %s %s", provider.DisplayName, provider.ResourceName)
+	// Display provisioning notification to user
+
+	provisioningMsg := fmt.Sprintf("Your %s %s", provider.DisplayName, provider.ResourceName)
 
 	if provider.SelectName {
 		provisioningMsg = provisioningMsg + fmt.Sprintf(" (%s)", colorize.Green(extension.Data.Name))
@@ -187,7 +190,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		provisioningMsg = provisioningMsg + fmt.Sprintf(" in %s", colorize.Green(extension.Data.PrimaryRegion))
 	}
 
-	fmt.Fprintf(io.Out, provisioningMsg+". See details and next steps at:\n%s\n\n", extension.Data.SsoLink)
+	fmt.Fprintf(io.Out, provisioningMsg+" is ready. See details and next steps with `flyctl ext %s dashboard`\n\n", provider.Name)
 
 	if inExcludedRegion {
 		fmt.Fprintf(io.ErrOut,
@@ -198,6 +201,41 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
 
 	return extension, nil
+}
+
+func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData, org gql.AppDataOrganization, auto bool) error {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	client := client.FromContext(ctx).API().GenqClient
+
+	agreed, err := AgreedToProviderTos(ctx, provider.Name, org.Id)
+
+	if err != nil {
+		return err
+	}
+
+	tosMessage := "you agree to the %s Terms of Service: https://fly.io/legal/terms-of-service/#supplementalterms"
+
+	var tosMsgPrefix string
+
+	// Display different ToS copy if an extension was automatically provisioned at deploy time
+	if auto {
+		tosMsgPrefix = "We'll setup free error tracking for your app on Sentry.io. By deploying this app"
+	} else {
+		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
+	}
+
+	tosMessage = colorize.Green("* ") + tosMsgPrefix + ", " + tosMessage
+
+	if !agreed {
+		fmt.Fprintf(io.Out, tosMessage+"\n\n", provider.DisplayName)
+		_, err = gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
+			AddOnProviderName: provider.Name,
+			OrganizationId:    org.Id,
+		})
+	}
+
+	return err
 }
 
 func WaitForProvision(ctx context.Context, name string) error {
