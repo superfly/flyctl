@@ -160,15 +160,13 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 					version
 				}
 				volumes {
-				    nodes {
-					    id
-					    sizeGb
-					    name
+					nodes {
+						id
+						sizeGb
+						name
 						region
-					    attachedAllocation {
-                           id
-					    }
-				    }
+						attached_alloc_id: attachedAllocationId
+					}
 				}
 				machines{
 					nodes {
@@ -198,11 +196,11 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 					name
 				}
 				limitedAccessTokens {
-				  nodes {
-					id
-					name
-					expiresAt
-				  }
+					nodes {
+						id
+						name
+						expiresAt
+					}
 				}
 			}
 		}
@@ -271,6 +269,7 @@ func (client *Client) AppToCompact(app *App) *AppCompact {
 		},
 	}
 }
+
 func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo, error) {
 	query := `
 		query ($appName: String!) {
