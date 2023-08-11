@@ -102,6 +102,11 @@ var CommonFlags = flag.Set{
 		Description: "Perform smoke checks during deployment",
 		Default:     true,
 	},
+	flag.Float64{
+		Name:        "max-unavailable",
+		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
+		Default:     0.33,
+	},
 	flag.Bool{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
@@ -131,6 +136,14 @@ var CommonFlags = flag.Set{
 	flag.StringArray{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "exclude-regions",
+		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --only-regions. V2 machines platform only.",
+	},
+	flag.StringSlice{
+		Name:        "only-regions",
+		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
 }
 
@@ -311,6 +324,21 @@ func deployToMachines(
 		_ = ApplyFlagsToGuest(ctx, guest)
 	}
 
+	excludeRegions := make(map[string]interface{})
+	for _, r := range flag.GetStringSlice(ctx, "exclude-regions") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			excludeRegions[reg] = struct{}{}
+		}
+	}
+	onlyRegions := make(map[string]interface{})
+	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			onlyRegions[reg] = struct{}{}
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            appCompact,
 		DeploymentImage:       img.Tag,
@@ -321,6 +349,7 @@ func deployToMachines(
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		MaxUnavailable:        flag.GetFloat64(ctx, "max-unavailable"),
 		ReleaseCmdTimeout:     releaseCmdTimeout,
 		Guest:                 guest,
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
@@ -328,6 +357,8 @@ func deployToMachines(
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
 		ProvisionExtensions:   flag.GetBool(ctx, "provision-extensions"),
+		ExcludeRegions:        excludeRegions,
+		OnlyRegions:           onlyRegions,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
@@ -429,6 +460,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
+	// FIXME: this is a confusing flag; I thought it meant only update machines in the provided region, which resulted in a minor disaster :-)
 	if v := flag.GetRegion(ctx); v != "" {
 		cfg.PrimaryRegion = v
 	}

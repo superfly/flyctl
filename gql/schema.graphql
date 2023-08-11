@@ -1663,6 +1663,11 @@ input BuildVolumeInput {
   clientMutationId: String
 
   """
+  id of host dedication
+  """
+  dedicationId: String
+
+  """
   Volume should be encrypted at rest
   """
   encrypted: Boolean = true
@@ -5572,7 +5577,8 @@ type Identity {
 
 type Image {
   absoluteRef: String!
-  compressedSize: Int!
+  compressedSize: Int! @deprecated(reason: "Int cannot handle sizes over 2GB. Use compressed_size_full instead")
+  compressedSizeFull: BigInt!
   config: JSON!
   configDigest: JSON!
   createdAt: ISO8601DateTime!

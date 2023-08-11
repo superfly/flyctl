@@ -60,6 +60,16 @@ func GetInt(ctx context.Context, name string) int {
 	}
 }
 
+// GetFloat64 returns the value of the named int flag ctx carries. It panics
+// in case ctx carries no flags or in case the named flag isn't an int one.
+func GetFloat64(ctx context.Context, name string) float64 {
+	if v, err := FromContext(ctx).GetFloat64(name); err != nil {
+		panic(err)
+	} else {
+		return v
+	}
+}
+
 // GetStringArray returns the values of the named string flag ctx carries.
 // Preserves commas (unlike the following `GetStringSlice`): in `--flag x,y` the value is string[]{`x,y`}.
 // This is useful to pass key-value pairs like environment variables or build arguments.

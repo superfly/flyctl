@@ -1210,7 +1210,7 @@ type Image struct {
 	ID             string
 	Digest         string
 	Ref            string
-	CompressedSize uint64
+	CompressedSize string
 }
 
 type ReleaseCommand struct {

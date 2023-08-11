@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"strconv"
 	"strings"
@@ -18,10 +19,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
-)
-
-const (
-	batchingGroupCount = 3
 )
 
 type ProcessGroupsDiff struct {
@@ -275,13 +272,6 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.Leas
 		return nil
 	}
 
-	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
-		}
-	}
-
 	// Don't wait for Standby machines, they are updated but not started
 	if len(lm.Machine().Config.Standbys) > 0 {
 		md.logClearLinesAbove(1)
@@ -291,6 +281,13 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.Leas
 			md.colorize.Green("success"),
 		)
 		return nil
+	}
+
+	if !md.skipHealthChecks {
+		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, indexStr, false); err != nil {
+			err = suggestChangeWaitTimeout(err, "wait-timeout")
+			return err
+		}
 	}
 
 	if err := md.doSmokeChecks(ctx, lm, indexStr); err != nil {
@@ -339,13 +336,22 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	}
 
+	var groupCount int
+	if mu := md.maxUnavailable; mu > 0 && mu < 1 {
+		groupCount = int(math.Floor(1.0 / mu))
+	} else if mu >= 1 {
+		groupCount = int(math.Ceil(float64(len(updateEntries)) / mu))
+	} else {
+		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
+	}
+
 	type batchJob struct {
 		lm       machine.LeasableMachine
 		indexStr string
 	}
 	b := batcher[batchJob]{
 		TotalJobs:  len(updateEntries),
-		GroupCount: batchingGroupCount,
+		GroupCount: groupCount,
 		SoloFirst:  true,
 	}
 

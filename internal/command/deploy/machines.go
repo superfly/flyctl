@@ -27,6 +27,7 @@ const (
 	DefaultReleaseCommandTimeout = 5 * time.Minute
 	DefaultLeaseTtl              = 13 * time.Second
 	DefaultVMSize                = "shared-cpu-1x"
+	DefaultMaxUnavailable        = 0.33
 )
 
 type MachineDeployment interface {
@@ -41,6 +42,7 @@ type MachineDeploymentArgs struct {
 	PrimaryRegionFlag     string
 	SkipSmokeChecks       bool
 	SkipHealthChecks      bool
+	MaxUnavailable        float64
 	RestartOnly           bool
 	WaitTimeout           time.Duration
 	LeaseTimeout          time.Duration
@@ -51,7 +53,8 @@ type MachineDeploymentArgs struct {
 	UpdateOnly            bool
 	Files                 []*api.File
 	ProvisionExtensions   bool
-	AutoProvisionSentry   bool
+	ExcludeRegions        map[string]interface{}
+	OnlyRegions           map[string]interface{}
 }
 
 type machineDeployment struct {
@@ -71,6 +74,7 @@ type machineDeployment struct {
 	releaseVersion        int
 	skipSmokeChecks       bool
 	skipHealthChecks      bool
+	maxUnavailable        float64
 	restartOnly           bool
 	waitTimeout           time.Duration
 	leaseTimeout          time.Duration
@@ -82,6 +86,8 @@ type machineDeployment struct {
 	listenAddressChecked  map[string]struct{}
 	updateOnly            bool
 	provisionExtensions   bool
+	excludeRegions        map[string]interface{}
+	onlyRegions           map[string]interface{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -132,6 +138,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
+
+	maxUnavailable := DefaultMaxUnavailable
+	if mu := args.MaxUnavailable; mu > 0 {
+		maxUnavailable = mu
+	}
+
 	md := &machineDeployment{
 		apiClient:             apiClient,
 		gqlClient:             apiClient.GenqClient,
@@ -144,6 +156,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		skipSmokeChecks:       args.SkipSmokeChecks,
 		skipHealthChecks:      args.SkipHealthChecks,
 		restartOnly:           args.RestartOnly,
+		maxUnavailable:        maxUnavailable,
 		waitTimeout:           waitTimeout,
 		leaseTimeout:          leaseTimeout,
 		leaseDelayBetween:     leaseDelayBetween,
@@ -153,6 +166,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		updateOnly:            args.UpdateOnly,
 		machineGuest:          args.Guest,
 		provisionExtensions:   args.ProvisionExtensions,
+		excludeRegions:        args.ExcludeRegions,
+		onlyRegions:           args.OnlyRegions,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
@@ -200,7 +215,6 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		return err
 	}
 
-	// migrate non-platform machines into fly platform
 	if len(machines) == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		activeMachines, err := md.flapsClient.ListActive(ctx)
@@ -218,6 +232,27 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				appconfig.DefaultConfigFileName,
 			)
 		}
+	}
+
+	if len(md.onlyRegions) > 0 {
+		var onlyRegionMachines []*api.Machine
+		for _, m := range machines {
+			if _, present := md.onlyRegions[m.Region]; present {
+				onlyRegionMachines = append(onlyRegionMachines, m)
+			}
+		}
+		fmt.Fprintf(md.io.ErrOut, "--only-regions filter applied, deploying to %d/%d machines\n", len(onlyRegionMachines), len(machines))
+		machines = onlyRegionMachines
+	}
+	if len(md.excludeRegions) > 0 {
+		var excludeRegionMachines []*api.Machine
+		for _, m := range machines {
+			if _, present := md.excludeRegions[m.Region]; !present {
+				excludeRegionMachines = append(excludeRegionMachines, m)
+			}
+		}
+		fmt.Fprintf(md.io.ErrOut, "--exclude-regions filter applied, deploying to %d/%d machines\n", len(excludeRegionMachines), len(machines))
+		machines = excludeRegionMachines
 	}
 
 	for _, m := range machines {

@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -12,127 +11,32 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-type launchPlan struct {
-	AppName       string `json:"name" url:"name"`
-	appNameSource string
-
-	RegionCode   string `json:"region" url:"region"`
-	regionSource string
-
-	OrgSlug   string `json:"org" url:"org"`
-	orgSource string
-
-	CPUKind     string `json:"vm_cpukind,omitempty" url:"vm_cpukind,omitempty"`
-	CPUs        int    `json:"vm_cpus,omitempty" url:"vm_cpus,omitempty"`
-	MemoryMB    int    `json:"vm_memory,omitempty" url:"vm_memory,omitempty"`
-	VmSize      string `json:"vm_size,omitempty" url:"vm_size,omitempty"`
-	guestSource string
-
-	Postgres       *postgresPlan `json:"-"` // `json:"postgres" url:"postgres"`
+type launchPlanSource struct {
+	appNameSource  string
+	regionSource   string
+	orgSource      string
+	guestSource    string
 	postgresSource string
+	redisSource    string
+}
 
-	Redis       *redisPlan `json:"-"` // `json:"redis" url:"redis"`
-	redisSource string
+type launchPlan struct {
+	AppName string `json:"name" url:"name"`
+
+	RegionCode string `json:"region" url:"region"`
+
+	OrgSlug string `json:"org" url:"org"`
+
+	CPUKind  string `json:"vm_cpukind,omitempty" url:"vm_cpukind,omitempty"`
+	CPUs     int    `json:"vm_cpus,omitempty" url:"vm_cpus,omitempty"`
+	MemoryMB int    `json:"vm_memory,omitempty" url:"vm_memory,omitempty"`
+	VmSize   string `json:"vm_size,omitempty" url:"vm_size,omitempty"`
+
+	Postgres *postgresPlan `json:"-"` // `json:"postgres" url:"postgres"`
+
+	Redis *redisPlan `json:"-"` // `json:"redis" url:"redis"`
 
 	ScannerFamily string `json:"scanner_family" url:"scanner_family"`
-
-	cache map[string]interface{}
-}
-
-func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
-	if val, ok := cache[key]; ok {
-		return val.(T), nil
-	}
-	val, err := cb()
-	if err != nil {
-		return val, err
-	}
-	cache[key] = val
-	return val, nil
-}
-
-func (p *launchPlan) Org(ctx context.Context) (*api.Organization, error) {
-	apiClient := client.FromContext(ctx).API()
-	return cacheGrab(p.cache, "org,"+p.OrgSlug, func() (*api.Organization, error) {
-		return apiClient.GetOrganizationBySlug(ctx, p.OrgSlug)
-	})
-}
-
-func (p *launchPlan) Region(ctx context.Context) (api.Region, error) {
-
-	apiClient := client.FromContext(ctx).API()
-	regions, err := cacheGrab(p.cache, "regions", func() ([]api.Region, error) {
-		regions, _, err := apiClient.PlatformRegions(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return regions, nil
-	})
-	if err != nil {
-		return api.Region{}, err
-	}
-
-	region, ok := lo.Find(regions, func(r api.Region) bool {
-		return r.Code == p.RegionCode
-	})
-	if !ok {
-		return region, fmt.Errorf("region %s not found", p.RegionCode)
-	}
-	return region, nil
-}
-
-// Summary returns a human-readable summary of the launch plan.
-// Used to confirm the plan before executing it.
-func (p *launchPlan) Summary(ctx context.Context) (string, error) {
-
-	guest := p.Guest()
-
-	org, err := p.Org(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	region, err := p.Region(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	redisStr, err := p.Redis.Describe(ctx)
-	if err != nil {
-		return "", err
-	}
-
-	rows := [][]string{
-		{"Organization", org.Name, p.orgSource},
-		{"Name", p.AppName, p.appNameSource},
-		{"Region", region.Name, p.regionSource},
-		{"App Machines", guest.String(), p.guestSource},
-		{"Postgres", p.Postgres.Describe(), p.postgresSource},
-		{"Redis", redisStr, p.redisSource},
-	}
-
-	colLengths := []int{0, 0, 0}
-	for _, row := range rows {
-		for i, col := range row {
-			if len(col) > colLengths[i] {
-				colLengths[i] = len(col)
-			}
-		}
-	}
-
-	ret := ""
-	for _, row := range rows {
-
-		label := row[0]
-		value := row[1]
-		source := row[2]
-
-		labelSpaces := strings.Repeat(" ", colLengths[0]-len(label))
-		valueSpaces := strings.Repeat(" ", colLengths[1]-len(value))
-
-		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, value, valueSpaces, source)
-	}
-	return ret, nil
 }
 
 func (p *launchPlan) Guest() *api.MachineGuest {
