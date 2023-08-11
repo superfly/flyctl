@@ -296,9 +296,8 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		}
 	}
 	b := &backoff.Backoff{
-		Min:    shortestInterval / 2,
-		Max:    2 * shortestInterval,
-		Factor: 2,
+		Min:    1 * time.Second,
+		Max:    2 * time.Second,
 		Jitter: true,
 	}
 
