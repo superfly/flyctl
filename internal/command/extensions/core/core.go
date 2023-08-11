@@ -19,39 +19,17 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type ExtensionParams struct {
-	Provider       string
-	SelectName     bool
-	SelectRegion   bool
-	NameSuffix     string
-	DetectPlatform bool
-	Options        map[string]interface{}
-}
-
 type Extension struct {
 	Data gql.ExtensionData
 	App  gql.AppData
 }
 
-var DbExtensionDefaults = ExtensionParams{
-	SelectName:   true,
-	SelectRegion: true,
-	NameSuffix:   "db",
-}
-
-var MonitoringExtensionDefaults = ExtensionParams{
-	Provider:       "sentry",
-	SelectName:     false,
-	SelectRegion:   false,
-	DetectPlatform: true,
-}
-
-func ProvisionExtension(ctx context.Context, appName string, params ExtensionParams) (extension Extension, err error) {
+func ProvisionExtension(ctx context.Context, appName string, providerName string, auto bool, options map[string]interface{}) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(params.Provider))
+	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(providerName))
 
 	if err != nil {
 		return
@@ -59,58 +37,48 @@ func ProvisionExtension(ctx context.Context, appName string, params ExtensionPar
 
 	targetApp := appResponse.App.AppData
 	targetOrg := targetApp.Organization
-	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
+	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
 
 	if err != nil {
 		return
 	}
 
-	addOnProvider := resp.AddOnProvider
-
-	tosResp, err := gql.AgreedToProviderTos(ctx, client, params.Provider, targetOrg.Id)
-
-	if err != nil {
-		return
+	if !auto {
+		fmt.Fprintln(io.Out)
 	}
 
-	if !tosResp.Organization.AgreedToProviderTos {
-		if err != nil {
-			return
-		}
+	provider := resp.AddOnProvider.ExtensionProviderData
 
-		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To continue, your organization must agree to the %s Terms Of Service (%s). Do you agree?", addOnProvider.DisplayName, resp.AddOnProvider.TosUrl))
-
-		if err != nil {
-			return extension, err
-		}
-
-		if confirmTos {
-			_, err := gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
-				OrganizationId:    targetOrg.Id,
-				AddOnProviderName: params.Provider,
-			})
-
-			if err != nil {
-				return extension, err
-			}
-		} else {
-			return extension, nil
-		}
-	}
+	// Stop provisioning if this app already has an extension of this type, but only display an error for
+	// extensions that weren't automatically provisioned
 
 	if len(appResponse.App.AddOns.Nodes) > 0 {
-		errMsg := fmt.Sprintf("A %s extension named %s already exists for this app", addOnProvider.DisplayName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
-		return extension, errors.New(errMsg)
+		existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
+
+		if auto {
+			existsError = nil
+		}
+
+		return extension, existsError
 	}
 
+	// Display ToS implicit agreement only once per org. Viewing makes the agreement official.
+
+	err = DisplayTosAgreement(ctx, provider, targetOrg, auto)
+
+	if err != nil {
+		return extension, err
+	}
+
+	// Pick a name for the extension unless we want it to be the same as the app, like in Sentry's case
 	var name string
 
-	if params.SelectName {
+	if provider.SelectName {
 		name = flag.GetString(ctx, "name")
 
 		if name == "" {
-			if params.NameSuffix != "" {
-				name = targetApp.Name + "-" + params.NameSuffix
+			if provider.NameSuffix != "" {
+				name = targetApp.Name + "-" + provider.NameSuffix
 			}
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
@@ -126,14 +94,15 @@ func ProvisionExtension(ctx context.Context, appName string, params ExtensionPar
 		OrganizationId: targetOrg.Id,
 		Name:           name,
 		AppId:          targetApp.Id,
-		Type:           gql.AddOnType(params.Provider),
+		Type:           gql.AddOnType(providerName),
 	}
 
-	if params.SelectRegion {
+	var inExcludedRegion bool
+	var primaryRegion string
 
-		var primaryRegion string
+	if provider.SelectRegion {
 
-		excludedRegions, err := GetExcludedRegions(ctx, params.Provider)
+		excludedRegions, err := GetExcludedRegions(ctx, provider)
 
 		if err != nil {
 			return extension, err
@@ -146,13 +115,9 @@ func ProvisionExtension(ctx context.Context, appName string, params ExtensionPar
 			primaryRegion = cfg.PrimaryRegion
 
 			if slices.Contains(excludedRegions, primaryRegion) {
-				fmt.Fprintf(io.ErrOut, "%s is only available in regions with low latency (<10ms) to Fly.io regions. That doesn't include '%s'.\n", addOnProvider.DisplayName, primaryRegion)
-
-				confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Would you like to provision anyway in the nearest region to '%s'?", primaryRegion))
-				if err != nil || !confirm {
-					return extension, err
-				}
+				inExcludedRegion = true
 			}
+
 		} else {
 
 			region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
@@ -170,30 +135,33 @@ func ProvisionExtension(ctx context.Context, appName string, params ExtensionPar
 		input.PrimaryRegion = primaryRegion
 	}
 
-	if params.DetectPlatform {
+	var detectedPlatform *scanner.SourceInfo
+
+	// Pass the detected platform family to the API
+
+	if provider.DetectPlatform {
 		absDir, err := filepath.Abs(".")
 
 		if err != nil {
 			return extension, err
 		}
 
-		srcInfo, err := scanner.Scan(absDir, &scanner.ScannerConfig{})
+		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
 
 		if err != nil {
 			return extension, err
 		}
 
-		if srcInfo != nil && PlatformMap[srcInfo.Family] != "" {
-			if params.Options == nil {
-				params.Options = gql.AddOnOptions{}
+		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
+			if options == nil {
+				options = gql.AddOnOptions{}
 			}
-			params.Options["platform"] = PlatformMap[srcInfo.Family]
+			options["platform"] = PlatformMap[detectedPlatform.Family]
 		}
 
 	}
 
-	input.Options = params.Options
-
+	input.Options = options
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
@@ -203,21 +171,71 @@ func ProvisionExtension(ctx context.Context, appName string, params ExtensionPar
 	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
 	extension.App = targetApp
 
-	if addOnProvider.AsyncProvisioning {
-		// wait for provision
+	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
 		if err != nil {
 			return
 		}
 	}
 
-	if params.SelectRegion {
-		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(extension.Data.Name), colorize.Green(extension.Data.PrimaryRegion), colorize.Green(appName))
+	// Display provisioning notification to user
+
+	provisioningMsg := fmt.Sprintf("Your %s %s", provider.DisplayName, provider.ResourceName)
+
+	if provider.SelectName {
+		provisioningMsg = provisioningMsg + fmt.Sprintf(" (%s)", colorize.Green(extension.Data.Name))
+	}
+
+	if provider.SelectRegion {
+		provisioningMsg = provisioningMsg + fmt.Sprintf(" in %s", colorize.Green(extension.Data.PrimaryRegion))
+	}
+
+	fmt.Fprintf(io.Out, provisioningMsg+" is ready. See details and next steps with `flyctl ext %s dashboard`\n\n", provider.Name)
+
+	if inExcludedRegion {
+		fmt.Fprintf(io.ErrOut,
+			"Note: Your app is deployed in %s which isn't a supported %s region. Expect database request latency of 10ms or more.\n\n",
+			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
 	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
 
 	return extension, nil
+}
+
+func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData, org gql.AppDataOrganization, auto bool) error {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	client := client.FromContext(ctx).API().GenqClient
+
+	agreed, err := AgreedToProviderTos(ctx, provider.Name, org.Id)
+
+	if err != nil {
+		return err
+	}
+
+	tosMessage := "you agree to the %s Terms of Service: https://fly.io/legal/terms-of-service/#supplementalterms"
+
+	var tosMsgPrefix string
+
+	// Display different ToS copy if an extension was automatically provisioned at deploy time
+	if auto {
+		tosMsgPrefix = "We'll setup free error tracking for your app on Sentry.io. By deploying this app"
+	} else {
+		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
+	}
+
+	tosMessage = colorize.Green("* ") + tosMsgPrefix + ", " + tosMessage
+
+	if !agreed {
+		fmt.Fprintf(io.Out, tosMessage+"\n\n", provider.DisplayName)
+		_, err = gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
+			AddOnProviderName: provider.Name,
+			OrganizationId:    org.Id,
+		})
+	}
+
+	return err
 }
 
 func WaitForProvision(ctx context.Context, name string) error {
@@ -257,16 +275,9 @@ func WaitForProvision(ctx context.Context, name string) error {
 	}
 }
 
-func GetExcludedRegions(ctx context.Context, provider string) (excludedRegions []string, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData) (excludedRegions []string, err error) {
 
-	response, err := gql.GetAddOnProvider(ctx, client, provider)
-
-	if err != nil {
-		return nil, err
-	}
-
-	for _, region := range response.AddOnProvider.ExcludedRegions {
+	for _, region := range provider.ExcludedRegions {
 		excludedRegions = append(excludedRegions, region.Code)
 	}
 
@@ -338,7 +349,7 @@ func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interf
 		AppId: app.Id,
 	}
 
-	fmt.Fprintf(io.Out, "\nSetting the following secrets on %s:\n", app.Name)
+	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
 
 	for key, value := range secrets {
 		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
@@ -350,6 +361,18 @@ func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interf
 	_, err := gql.SetSecrets(ctx, client, input)
 
 	return err
+}
+
+func AgreedToProviderTos(ctx context.Context, providerName string, orgId string) (bool, error) {
+	client := client.FromContext(ctx).API().GenqClient
+
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName, orgId)
+
+	if err != nil {
+		return false, err
+	}
+
+	return tosResp.Organization.AgreedToProviderTos, nil
 }
 
 // Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py

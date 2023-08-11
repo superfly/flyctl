@@ -70,9 +70,10 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	s := &SourceInfo{
-		Family:         "Rails",
-		Callback:       RailsCallback,
-		ConsoleCommand: "/rails/bin/rails console",
+		Family:               "Rails",
+		Callback:             RailsCallback,
+		ConsoleCommand:       "/rails/bin/rails console",
+		AutoInstrumentErrors: true,
 	}
 
 	// don't prompt for pg, redis if litestack is in the Gemfile

@@ -284,11 +284,19 @@ type AddOnPlanEdge {
 
 type AddOnProvider {
   asyncProvisioning: Boolean!
+  autoProvision: Boolean!
+  detectPlatform: Boolean!
   displayName: String
   excludedRegions: [Region!]
   id: ID!
   name: String
+  nameSuffix: String
+  provisioningInstructions: String
   regions: [Region!]
+  resourceName: String!
+  selectName: Boolean!
+  selectRegion: Boolean!
+  selectReplicaRegions: Boolean!
   tosUrl: String
 }
 
