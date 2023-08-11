@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -83,7 +84,7 @@ type machineDeployment struct {
 	isFirstDeploy         bool
 	machineGuest          *api.MachineGuest
 	increasedAvailability bool
-	listenAddressChecked  map[string]struct{}
+	listenAddressChecked  sync.Map
 	updateOnly            bool
 	provisionExtensions   bool
 	excludeRegions        map[string]interface{}
@@ -162,7 +163,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		leaseDelayBetween:     leaseDelayBetween,
 		releaseCmdTimeout:     args.ReleaseCmdTimeout,
 		increasedAvailability: args.IncreasedAvailability,
-		listenAddressChecked:  make(map[string]struct{}),
 		updateOnly:            args.UpdateOnly,
 		machineGuest:          args.Guest,
 		provisionExtensions:   args.ProvisionExtensions,
