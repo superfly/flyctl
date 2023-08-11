@@ -164,10 +164,8 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 					    id
 					    sizeGb
 					    name
-						region
-					    attachedAllocation {
-                           id
-					    }
+							region
+							attached_alloc_id: attachedAllocationId
 				    }
 				}
 				machines{
@@ -271,6 +269,7 @@ func (client *Client) AppToCompact(app *App) *AppCompact {
 		},
 	}
 }
+
 func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo, error) {
 	query := `
 		query ($appName: String!) {
