@@ -10,9 +10,10 @@ import (
 	"sync"
 
 	"github.com/AlecAivazis/survey/v2"
+	surveyCore "github.com/AlecAivazis/survey/v2/core"
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/mgutz/ansi"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -20,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type RegionParams struct {
@@ -184,6 +186,15 @@ func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	out, ok := io.Out.(terminal.FileWriter)
 	if !ok {
 		return nil, errNonInteractive
+	}
+
+	surveyCore.TemplateFuncsWithColor["color"] = func(style string) string {
+		switch style {
+		case "white":
+			return ansi.ColorCode("default")
+		default:
+			return ansi.ColorCode(style)
+		}
 	}
 
 	return survey.WithStdio(in, out, io.ErrOut), nil
