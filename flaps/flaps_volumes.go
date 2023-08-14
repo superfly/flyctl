@@ -5,15 +5,19 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"golang.org/x/exp/slices"
 )
+
+var destroyedVolumeStates = []string{"scheduling_destroy", "fork_cleanup", "waiting_for_detach", "pending_destroy", "destroying"}
 
 func (f *Client) sendRequestVolumes(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	endpoint = fmt.Sprintf("/apps/%s/volumes%s", f.appName, endpoint)
 	return f._sendRequest(ctx, method, endpoint, in, out, headers)
 }
 
-func (f *Client) GetVolumes(ctx context.Context) ([]api.Volume, error) {
+func (f *Client) GetAllVolumes(ctx context.Context) ([]api.Volume, error) {
 	listVolumesEndpoint := ""
 
 	out := make([]api.Volume, 0)
@@ -23,6 +27,16 @@ func (f *Client) GetVolumes(ctx context.Context) ([]api.Volume, error) {
 		return nil, fmt.Errorf("failed to list volumes: %w", err)
 	}
 	return out, nil
+}
+
+func (f *Client) GetVolumes(ctx context.Context) ([]api.Volume, error) {
+	volumes, err := f.GetAllVolumes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return lo.Filter(volumes, func(v api.Volume, _ int) bool {
+		return !slices.Contains(destroyedVolumeStates, v.State)
+	}), nil
 }
 
 func (f *Client) CreateVolume(ctx context.Context, req api.CreateVolumeRequest) (*api.Volume, error) {
