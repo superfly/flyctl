@@ -144,6 +144,11 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	for _, gm := range bg.greenMachines {
 		id := gm.FormattedMachineId()
 
+		if len(gm.Machine().Config.Standbys) > 0 {
+			machineIDToState[id] = 1
+			continue
+		}
+
 		go func(lm machine.LeasableMachine) {
 			err := machine.WaitForStartOrStop(ctx, lm.Machine(), "start", bg.timeout)
 			if err != nil {
