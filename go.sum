@@ -164,8 +164,8 @@ github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20230522190001-
 github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0 h1:0NmehRCgyk5rljDQLKUO+cRJCnduDyn11+zGZIc9Z48=
 github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0/go.mod h1:6L7zgvqo0idzI7IO8de6ZC051AfXb5ipkIJ7bIA2tGA=
 github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59/go.mod h1:q/89r3U2H7sSsE2t6Kca0lfwTK8JdoNGS/yzM/4iH5I=
-github.com/azazeal/pause v1.0.6 h1:azBiCE50Gt6TQy9hfw1ey93NB83MNjbOiIa4sdGHx6Y=
-github.com/azazeal/pause v1.0.6/go.mod h1:kLXh4F/4iaRI75opg9+3/00P3xFInZXc7TDed9cEDZE=
+github.com/azazeal/pause v1.3.0 h1:q901DXvCWqbG19lEUP6fwXbD6KGu96KEGmWmXmurOD8=
+github.com/azazeal/pause v1.3.0/go.mod h1:zjDZP5dxZndm0bO5zZDhlzqh4zpgSo6M59HNq6UetqI=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdnnjpJbkM4JQ=
