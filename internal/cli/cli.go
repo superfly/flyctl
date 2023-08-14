@@ -2,22 +2,20 @@
 package cli
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
 
-	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
 
@@ -73,15 +71,15 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
 	case errors.Is(err, context.DeadlineExceeded):
-		printError(io.ErrOut, cs, cmd, err)
+		printError(io, cs, cmd, err)
 		return 126
 	case isUnchangedError(err):
 		// This means the deployment was a noop, which is noteworthy but not something we should
 		// fail CI on. Print a warning and exit 0. Remove this once we're fully on Machines!
-		printError(io.ErrOut, cs, cmd, err)
+		printError(io, cs, cmd, err)
 		return 0
 	default:
-		printError(io.ErrOut, cs, cmd, err)
+		printError(io, cs, cmd, err)
 
 		_, _, e := cmd.Find(args)
 		if e != nil {
@@ -104,27 +102,25 @@ func isUnchangedError(err error) bool {
 	return false
 }
 
-func printError(w io.Writer, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
-	var b bytes.Buffer
+func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
+	fmt.Fprintf(io.ErrOut, cs.Red("Error: "))
+	fmt.Fprintln(io.Out, err.Error())
 
-	fmt.Fprintln(&b, cs.Red("Error:"), err)
-	fmt.Fprintln(&b)
-
-	description := flyerr.GetErrorDescription(err)
-	if description != "" {
-		fmt.Fprintf(&b, "\n%s", description)
+	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
+		fmt.Fprintln(io.ErrOut, description)
+		fmt.Fprintln(io.ErrOut)
 	}
 
-	suggestion := flyerr.GetErrorSuggestion(err)
-	if suggestion != "" {
-		if description != "" {
-			fmt.Fprintln(&b)
-		}
-
-		fmt.Fprintf(&b, "\n%s", suggestion)
+	if suggestion := flyerr.GetErrorSuggestion(err); suggestion != "" {
+		fmt.Fprintln(io.ErrOut, suggestion)
+		fmt.Fprintln(io.ErrOut)
 	}
 
-	_, _ = b.WriteTo(w)
+	if docURL := flyerr.GetErrorDocUrl(err); docURL != "" {
+		fmt.Fprintln(io.ErrOut, "View more information at ", docURL)
+		fmt.Fprintln(io.ErrOut)
+	}
+
 }
 
 // TODO: remove this once generation of the docs has been refactored.
