@@ -390,7 +390,7 @@ func resolveVMSize(ctx context.Context, targetSize string) (*api.VMSize, error) 
 			}
 		}
 
-		return nil, fmt.Errorf("vm size %q is not valid", targetSize)
+		return nil, fmt.Errorf("VM size %q is not valid. For a full list of supported sizes use the command 'flyctl platform vm-sizes'", targetSize)
 	}
 	// prompt user to select machine specific size.
 	return prompt.SelectVMSize(ctx, MachineVMSizes())
