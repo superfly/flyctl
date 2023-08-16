@@ -121,7 +121,6 @@ type InvalidConfigErr struct {
 	guest  *api.MachineGuest
 }
 
-// TODO: (billy) add tests for error output
 func (e InvalidConfigErr) Description() string {
 	switch e.Reason {
 	case invalidCpuKind:

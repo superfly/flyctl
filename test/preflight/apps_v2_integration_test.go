@@ -647,3 +647,31 @@ func TestDeployDetachBatching(t *testing.T) {
 	res = f.Fly("deploy")
 	require.Contains(f, res.StdErr().String(), "started", false)
 }
+
+func TestErrOutput(t *testing.T) {
+	t.Parallel()
+
+	var (
+		f       = testlib.NewTestEnvFromEnv(t)
+		appName = f.CreateRandomAppName()
+		res     *testlib.FlyctlResult
+	)
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	machList := f.MachinesList(appName)
+	firstMachine := machList[0]
+
+	res = f.FlyAllowExitFailure("machine update --vm-cpus 3 %s --yes", firstMachine.ID)
+	require.Equal(f, res.StdOut().String(), "invalid number of CPUs")
+
+	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
+	require.Equal(f, res.StdOut().String(), "invalid memory size")
+
+	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+
+	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+	require.Equal(f, res.StdOut().String(), "memory size for config is too low")
+
+	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+	require.Equal(f, res.StdOut().String(), "memory size for config is too high")
+}
