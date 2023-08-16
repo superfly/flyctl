@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -388,17 +387,17 @@ func TestFlyLaunchBasicNodeApp(t *testing.T) {
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
-	cfg, err := appconfig.LoadConfig(flyTomlPath)
-	require.NoError(t, err)
 
 	appName := f.CreateRandomAppName()
 	require.NotEmpty(t, appName)
 
-	cfg.AppName = appName
-	require.NoError(t, cfg.SetMachinesPlatform())
-	cfg.Env["TEST_ID"] = f.ID()
-
-	cfg.WriteToFile(flyTomlPath)
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app": appName,
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
 
 	f.Fly("launch --ha=false --copy-config --name %s --region %s --org %s --now", appName, f.PrimaryRegion(), f.OrgSlug())
 
