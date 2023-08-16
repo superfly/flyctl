@@ -1,4 +1,4 @@
-package launch
+package plan
 
 import (
 	"github.com/superfly/flyctl/api"
@@ -6,16 +6,7 @@ import (
 
 const descriptionNone = "<none>"
 
-type launchPlanSource struct {
-	appNameSource  string
-	regionSource   string
-	orgSource      string
-	guestSource    string
-	postgresSource string
-	redisSource    string
-}
-
-type launchPlan struct {
+type LaunchPlan struct {
 	AppName string `json:"name" url:"name"`
 
 	RegionCode string `json:"region" url:"region"`
@@ -34,7 +25,7 @@ type launchPlan struct {
 	ScannerFamily string `json:"scanner_family" url:"scanner_family"`
 }
 
-func (p *launchPlan) Guest() *api.MachineGuest {
+func (p *LaunchPlan) Guest() *api.MachineGuest {
 	// TODO(Allison): Determine whether we should use VmSize or CPUKind/CPUs
 	guest := api.MachineGuest{
 		CPUs:    p.CPUs,
@@ -47,7 +38,7 @@ func (p *launchPlan) Guest() *api.MachineGuest {
 	return &guest
 }
 
-func (p *launchPlan) SetGuestFields(guest *api.MachineGuest) {
+func (p *LaunchPlan) SetGuestFields(guest *api.MachineGuest) {
 	p.CPUs = guest.CPUs
 	p.CPUKind = guest.CPUKind
 	p.MemoryMB = guest.MemoryMB

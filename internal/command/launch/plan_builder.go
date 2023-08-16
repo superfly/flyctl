@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -97,7 +98,7 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		scannerFamily = srcInfo.Family
 	}
 
-	lp := &launchPlan{
+	lp := &plan.LaunchPlan{
 		AppName:       appName,
 		RegionCode:    region.Code,
 		OrgSlug:       org.Slug,

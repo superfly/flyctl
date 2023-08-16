@@ -9,13 +9,23 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/scanner"
 )
+
+type launchPlanSource struct {
+	appNameSource  string
+	regionSource   string
+	orgSource      string
+	guestSource    string
+	postgresSource string
+	redisSource    string
+}
 
 type launchState struct {
 	workingDir string
 	configPath string
-	plan       *launchPlan
+	plan       *plan.LaunchPlan
 	planSource *launchPlanSource
 	env        map[string]string
 	appConfig  *appconfig.Config
