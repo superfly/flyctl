@@ -9,6 +9,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -256,15 +257,15 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 // v2DetermineGuest returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
 func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
-	shared1x := api.MachinePresets["shared-cpu-1x"]
+	def := api.MachinePresets["shared-cpu-1x"]
 	reason := "most apps need about 1GB of RAM"
 
-	guest, err := flag.GetMachineGuest(ctx, nil)
+	guest, err := flag.GetMachineGuest(ctx, helpers.Clone(def))
 	if err != nil {
 		return nil, reason, err
 	}
 
-	if shared1x != guest {
+	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
 		reason = "specified on the command line"
 	}
 	return guest, reason, nil
