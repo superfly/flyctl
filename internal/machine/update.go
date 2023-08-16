@@ -7,7 +7,6 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/maps"
@@ -124,7 +123,6 @@ type InvalidConfigErr struct {
 
 // TODO: (billy) add tests for error output
 func (e InvalidConfigErr) Description() string {
-
 	switch e.Reason {
 	case invalidCpuKind:
 		return fmt.Sprintf("The CPU kind given: %s, is not valid", e.guest.CPUKind)
@@ -195,8 +193,4 @@ func (e InvalidConfigErr) DocURL() string {
 
 func (e InvalidConfigErr) Error() string {
 	return string(e.Reason)
-}
-
-func (e InvalidConfigErr) Fault() flyerr.Fault {
-	return flyerr.UserFault
 }

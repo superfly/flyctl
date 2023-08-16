@@ -8,26 +8,6 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
-type Fault int
-
-const (
-	FlyFault Fault = iota
-	UserFault
-	Unknown
-)
-
-type ErrFault interface {
-	Fault() Fault
-}
-
-func GetErrorFault(err error) Fault {
-	var ferr ErrFault
-	if errors.As(err, &ferr) {
-		return ferr.Fault()
-	}
-	return Unknown
-}
-
 type FlyDocUrl interface {
 	DocURL() string
 }
