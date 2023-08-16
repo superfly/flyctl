@@ -100,8 +100,6 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		AppName:       appName,
 		RegionCode:    region.Code,
 		OrgSlug:       org.Slug,
-		Postgres:      nil,
-		Redis:         nil,
 		ScannerFamily: scannerFamily,
 	}
 

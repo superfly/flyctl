@@ -81,6 +81,11 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	postgresStr, err := state.plan.Postgres.Describe(ctx)
+	if err != nil {
+		return "", err
+	}
+
 	redisStr, err := state.plan.Redis.Describe(ctx)
 	if err != nil {
 		return "", err
@@ -91,7 +96,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Name", state.plan.AppName, state.planSource.appNameSource},
 		{"Region", region.Name, state.planSource.regionSource},
 		{"App Machines", guest.String(), state.planSource.guestSource},
-		{"Postgres", state.plan.Postgres.Describe(), state.planSource.postgresSource},
+		{"Postgres", postgresStr, state.planSource.postgresSource},
 		{"Redis", redisStr, state.planSource.redisSource},
 	}
 
