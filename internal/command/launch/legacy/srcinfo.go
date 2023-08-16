@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/set"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -129,8 +130,8 @@ func createVolumes(ctx context.Context, srcInfo *scanner.SourceInfo, appName str
 	return nil
 }
 
-func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName string, region *api.Region, org *api.Organization) (map[string]bool, error) {
-	options := map[string]bool{}
+func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName string, region *api.Region, org *api.Organization) (set.Set[string], error) {
+	var options set.Set[string]
 
 	if srcInfo == nil || srcInfo.SkipDatabase || flag.GetBool(ctx, "no-deploy") || flag.GetBool(ctx, "now") {
 		return options, nil
@@ -159,7 +160,7 @@ func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName s
 			}
 		}
 
-		options["postgresql"] = true
+		options.Set("postgresql")
 
 		if should_attach_db {
 			// If we try to attach to a PG cluster with the usual username
@@ -199,7 +200,7 @@ func createDatabases(ctx context.Context, srcInfo *scanner.SourceInfo, appName s
 
 		}
 
-		options["redis"] = true
+		options.Set("redis")
 	}
 
 	// Run any initialization commands required for Postgres if it was installed
@@ -317,7 +318,7 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	return nil
 }
 
-func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInfo, options map[string]bool) error {
+func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInfo, options set.Set[string]) error {
 	if srcInfo == nil || srcInfo.Callback == nil {
 		return nil
 	}

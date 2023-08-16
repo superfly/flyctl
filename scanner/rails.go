@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/set"
 )
 
 var healthcheck_channel = make(chan string)
@@ -157,7 +158,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+func RailsCallback(appName string, srcInfo *SourceInfo, options set.Set[string]) error {
 	// install dockerfile-rails gem, if not already included
 	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {
@@ -216,11 +217,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		args := []string{"./bin/rails", "generate", "dockerfile",
 			"--sentry", "--label=fly_launch_runtime:rails"}
 
-		if options["postgresql"] {
+		if options.Has("postgresql") {
 			args = append(args, "--postgresql", "--no-prepare")
 		}
 
-		if options["redis"] {
+		if options.Has("redis") {
 			args = append(args, "--redis")
 		}
 
@@ -233,14 +234,14 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 			return errors.Wrap(err, "Failed to generate Dockerfile")
 		}
 	} else {
-		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
+		if options.Has("postgresql") && !strings.Contains(string(gemfile), "pg") {
 			cmd := exec.Command(bundle, "add", "pg")
 			if err := cmd.Run(); err != nil {
 				return errors.Wrap(err, "Failed to install pg gem")
 			}
 		}
 
-		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
+		if options.Has("redis") && !strings.Contains(string(gemfile), "redis") {
 			cmd := exec.Command(bundle, "add", "redis")
 			if err := cmd.Run(); err != nil {
 				return errors.Wrap(err, "Failed to install redis gem")
