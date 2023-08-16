@@ -19,7 +19,7 @@ require (
 	github.com/containerd/console v1.0.3
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/dustin/go-humanize v1.0.1
-	github.com/ejcx/sshcert v1.0.1
+	github.com/ejcx/sshcert v1.1.0
 	github.com/getsentry/sentry-go v0.22.0
 	github.com/gofrs/flock v0.8.1
 	github.com/google/go-cmp v0.5.9
