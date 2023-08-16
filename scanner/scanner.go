@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/set"
 )
 
 //go:embed templates templates/*/.dockerignore templates/**/.fly
@@ -60,7 +61,7 @@ type SourceInfo struct {
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
 	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, options map[string]bool) error
+	Callback                     func(appName string, srcInfo *SourceInfo, options set.Set[string]) error
 	HttpCheckPath                string
 	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string
