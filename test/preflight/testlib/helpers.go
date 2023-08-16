@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"crypto/rand"
 	"encoding/base32"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -219,4 +221,109 @@ func RunHealthCheck(url string) (string, error) {
 	}
 
 	return string(body), nil
+}
+
+func castEnv(raw any) (map[string]string, error) {
+	env := map[string]string{}
+
+	switch cast := raw.(type) {
+	case map[string]string:
+		env = cast
+	case []map[string]any:
+		for _, raw2 := range cast {
+			env2, err := castEnv(raw2)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range env2 {
+				env[k] = v
+			}
+		}
+	case []any:
+		for _, raw2 := range cast {
+			env2, err := castEnv(raw2)
+			if err != nil {
+				return nil, err
+			}
+			for k, v := range env2 {
+				env[k] = v
+			}
+		}
+	case map[string]any:
+		for k, v := range cast {
+			if stringVal, ok := v.(string); ok {
+				env[k] = stringVal
+			} else {
+				env[k] = fmt.Sprintf("%v", v)
+			}
+		}
+	default:
+		fmt.Println(cast)
+		return nil, errors.New("failed to cast 'env'")
+	}
+
+	return env, nil
+}
+
+// LoadConfig loads the app config at the given path.
+func readToml(path string) (map[string]any, error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	def := map[string]any{}
+	err = toml.Unmarshal(buf, &def)
+	if err != nil {
+		return nil, err
+	}
+
+	return def, err
+}
+
+func writeToml(path string, data map[string]any) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	err = toml.NewEncoder(file).Encode(data)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func OverwriteConfig(path string, data map[string]any) error {
+	cfg, err := readToml(path)
+	if err != nil {
+		return err
+	}
+
+	cfgEnv, err := castEnv(cfg["env"])
+	if err != nil {
+		return err
+	}
+
+	dataEnv, err := castEnv(data["env"])
+	if err != nil {
+		return err
+	}
+
+	// merge the 2 "envs"
+	for k, v := range dataEnv {
+		cfgEnv[k] = v
+	}
+
+	cfg["app"] = data["app"]
+	cfg["env"] = cfgEnv
+
+	err = writeToml(path, cfg)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
