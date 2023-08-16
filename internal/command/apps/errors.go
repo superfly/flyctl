@@ -1,4 +1,4 @@
-package sentry_ext
+package apps
 
 import (
 	"context"
@@ -11,12 +11,12 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 )
 
-func Dashboard() (cmd *cobra.Command) {
+func newErrors() (cmd *cobra.Command) {
 	const (
-		long = `View application errors in the Sentry dashboard`
+		long = `View application errors on Sentry.io`
 
 		short = long
-		usage = "dashboard"
+		usage = "errors"
 	)
 
 	cmd = command.New(usage, short, long, RunDashboard, command.RequireSession, command.RequireAppName)
@@ -25,7 +25,6 @@ func Dashboard() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 	)
-	cmd.Aliases = []string{"errors"}
 	cmd.Args = cobra.NoArgs
 	return cmd
 }

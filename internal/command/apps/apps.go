@@ -41,6 +41,7 @@ The LIST command will list all currently registered applications.
 		NewOpen(),
 		NewReleases(),
 		newSetPlatformVersion(),
+		newErrors(),
 	)
 
 	return apps
