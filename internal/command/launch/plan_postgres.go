@@ -23,6 +23,7 @@ func (p *postgresPlan) Describe(ctx context.Context) (string, error) {
 }
 
 type flyPostgresPlan struct {
+	AppName    string `json:"app_name" url:"app_name"`
 	VmSize     string `json:"vm_size" url:"vm_size"`
 	Nodes      int    `json:"nodes" url:"nodes"`
 	DiskSizeGB int    `json:"disk_size_gb" url:"disk_size_gb"`

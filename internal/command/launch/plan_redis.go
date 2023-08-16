@@ -25,6 +25,7 @@ func (p *redisPlan) Describe(ctx context.Context) (string, error) {
 }
 
 type upstashRedisPlan struct {
+	AppName      string   `json:"app_name" url:"app_name"`
 	PlanId       string   `json:"plan_id" url:"plan_id"`
 	Eviction     bool     `json:"eviction" url:"eviction"`
 	ReadReplicas []string `json:"read_replicas" url:"read_replicas"`

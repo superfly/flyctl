@@ -87,13 +87,3 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 		Machines:        true,
 	})
 }
-
-// createDatabases creates databases requested by the plan
-func (state *launchState) createDatabases(ctx context.Context) (map[string]bool, error) {
-	options := map[string]bool{}
-
-	// TODO: Create databases requested by the plan
-	// Base this on v1's createDatabases()
-
-	return options, nil
-}
