@@ -8,6 +8,18 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
+type FlyDocUrl interface {
+	DocURL() string
+}
+
+func GetErrorDocUrl(err error) string {
+	var ferr FlyDocUrl
+	if errors.As(err, &ferr) {
+		return ferr.DocURL()
+	}
+	return ""
+}
+
 // ErrAbort is an error for when the CLI aborts
 var ErrAbort = errors.New("abort")
 
