@@ -5,8 +5,6 @@ package preflight
 
 import (
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"testing"
 	"time"
 
@@ -404,32 +402,7 @@ func TestFlyLaunchBasicNodeApp(t *testing.T) {
 
 	f.Fly("launch --ha=false --copy-config --name %s --region %s --org %s --now", appName, f.PrimaryRegion(), f.OrgSlug())
 
-	var (
-		appUrl = fmt.Sprintf("https://%s.fly.dev", appName)
-		resp   *http.Response
-	)
-
-	lastStatusCode := -1
-	attempts := 10
-	b := &backoff.Backoff{
-		Factor: 2,
-		Jitter: true,
-		Min:    100 * time.Millisecond,
-		Max:    5 * time.Second,
-	}
-	for i := 0; i < attempts; i++ {
-		resp, err = http.Get(appUrl)
-		if err == nil {
-			lastStatusCode = resp.StatusCode
-		}
-		if lastStatusCode == http.StatusOK {
-			break
-		}
-
-		time.Sleep(b.Duration())
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
 
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))

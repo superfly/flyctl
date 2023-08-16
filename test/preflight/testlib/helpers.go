@@ -9,6 +9,8 @@ import (
 	"encoding/base32"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net/http"
 	"os"
 	"os/exec"
 	"path"
@@ -18,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/slices"
@@ -176,4 +179,44 @@ func copyFile(src, dst string) error {
 	fmt.Printf("[copy] %s -> %s\n", src, dst)
 
 	return nil
+}
+
+// RunHealthcheck verifies if an app was deployed successfully.
+// It runs the checks 10 times with some backoff.
+func RunHealthCheck(url string) (string, error) {
+	var (
+		resp *http.Response
+		err  error
+	)
+
+	lastStatusCode, attempts := -1, 10
+	b := &backoff.Backoff{
+		Factor: 2,
+		Jitter: true,
+		Min:    100 * time.Millisecond,
+		Max:    5 * time.Second,
+	}
+
+	for i := 0; i < attempts; i++ {
+		resp, err = http.Get(url)
+		if err == nil {
+			lastStatusCode = resp.StatusCode
+		}
+		if lastStatusCode == http.StatusOK {
+			break
+		}
+
+		time.Sleep(b.Duration())
+	}
+
+	if err != nil {
+		return "", err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(body), nil
 }
