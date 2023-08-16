@@ -53,6 +53,7 @@ type MachineDeploymentArgs struct {
 	UpdateOnly            bool
 	Files                 []*api.File
 	ProvisionExtensions   bool
+	NoExtensions          bool
 	ExcludeRegions        map[string]interface{}
 	OnlyRegions           map[string]interface{}
 }
