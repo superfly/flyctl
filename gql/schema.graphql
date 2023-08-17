@@ -285,6 +285,7 @@ type AddOnPlanEdge {
 type AddOnProvider {
   asyncProvisioning: Boolean!
   autoProvision: Boolean!
+  beta: Boolean!
   detectPlatform: Boolean!
   displayName: String
   excludedRegions: [Region!]
@@ -7577,6 +7578,11 @@ type Organization implements Node {
   paidSupportEmail: String
 
   """
+  Whether the organization can provision beta extensions
+  """
+  provisionsBetaExtensions: Boolean!
+
+  """
   Unmodified unique org slug
   """
   rawSlug: String!
@@ -10975,6 +10981,7 @@ type VerifyUserPasswordPayload {
 type Volume implements Node {
   app: App!
   attachedAllocation: Allocation
+  attachedAllocationId: String
   attachedMachine: Machine
   createdAt: ISO8601DateTime!
   encrypted: Boolean!

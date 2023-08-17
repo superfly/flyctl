@@ -360,7 +360,7 @@ func deployToMachines(
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
-		ProvisionExtensions:   flag.GetBool(ctx, "provision-extensions"),
+		ExcludeRegions:        excludeRegions,
 		NoExtensions:          flag.GetBool(ctx, "no-extensions"),
 		OnlyRegions:           onlyRegions,
 	})

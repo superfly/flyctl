@@ -22,8 +22,8 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
 
-	// Provision Sentry on first deployment
-	if md.provisionExtensions {
+	// Provision Sentry on first deployment unless explicitly prevented by the --no-extensions option
+	if !md.noExtensions {
 		_, err := extensions_core.ProvisionExtension(ctx, md.app.Name, "sentry", true, gql.AddOnOptions{})
 		if err != nil {
 			fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again. ERROR: %s", err)
