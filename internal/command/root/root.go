@@ -94,6 +94,7 @@ To read more, use the docs command to view Fly's help on the web.
 	fs := root.PersistentFlags()
 	_ = fs.StringP(flagnames.AccessToken, "t", "", "Fly API Access Token")
 	_ = fs.BoolP(flagnames.Verbose, "", false, "Verbose output")
+	_ = fs.BoolP(flagnames.Debug, "", false, "Print additional logs and traces")
 
 	flyctl.InitConfig()
 

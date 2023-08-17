@@ -5,10 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
@@ -121,6 +123,10 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 	if docURL := flyerr.GetErrorDocUrl(err); docURL != "" {
 		fmt.Fprintln(io.ErrOut, "View more information at ", docURL)
 		fmt.Fprintln(io.ErrOut)
+	}
+
+	if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
+		fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
 	}
 
 }
