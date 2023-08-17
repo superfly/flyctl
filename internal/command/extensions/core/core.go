@@ -45,13 +45,18 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
+	// Stop provisioning if being provisioned automatically, but the provider has auto-provisioning disabled
+
+	if auto && !provider.AutoProvision {
+		return extension, nil
+	}
+
 	// Stop provisioning if this app already has an extension of this type, but only display an error for
 	// extensions that weren't automatically provisioned
 
 	if len(appResponse.App.AddOns.Nodes) > 0 {
 		existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
 
-		// Don't display an error about an existing provisioned extension if auto-provisioning
 		if auto {
 			existsError = nil
 		}
