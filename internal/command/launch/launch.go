@@ -33,11 +33,13 @@ func (state *launchState) Launch(ctx context.Context) error {
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
 		return err
 	}
-	dbOptions, err := state.createDatabases(ctx)
+	// TODO: Return rich info about provisioned DBs, including things
+	//       like public URLs.
+	err = state.createDatabases(ctx)
 	if err != nil {
 		return err
 	}
-	if err = state.satisfyScannerAfterDb(ctx, dbOptions); err != nil {
+	if err = state.satisfyScannerAfterDb(ctx); err != nil {
 		return err
 	}
 	if err = state.createDockerIgnore(ctx); err != nil {

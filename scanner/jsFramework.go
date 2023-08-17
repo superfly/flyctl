@@ -14,7 +14,7 @@ import (
 	"strings"
 
 	"github.com/blang/semver"
-	"github.com/superfly/flyctl/internal/set"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 var packageJson map[string]interface{}
@@ -179,7 +179,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	return srcInfo, nil
 }
 
-func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options set.Set[string]) error {
+func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
 	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)

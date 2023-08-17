@@ -18,9 +18,9 @@ type LaunchPlan struct {
 	MemoryMB int    `json:"vm_memory,omitempty" url:"vm_memory,omitempty"`
 	VmSize   string `json:"vm_size,omitempty" url:"vm_size,omitempty"`
 
-	Postgres postgresPlan `json:"postgres" url:"postgres"`
+	Postgres PostgresPlan `json:"postgres" url:"postgres"`
 
-	Redis redisPlan `json:"redis" url:"redis"`
+	Redis RedisPlan `json:"redis" url:"redis"`
 
 	ScannerFamily string `json:"scanner_family" url:"scanner_family"`
 }

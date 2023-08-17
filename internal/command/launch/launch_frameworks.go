@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/set"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -38,8 +37,8 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 }
 
 // satisfyScannerBeforeDb performs operations that the scanner requests that must be done after databases are created
-func (state *launchState) satisfyScannerAfterDb(ctx context.Context, dbOptions set.Set[string]) error {
-	if err := state.scannerRunCallback(ctx, dbOptions); err != nil {
+func (state *launchState) satisfyScannerAfterDb(ctx context.Context) error {
+	if err := state.scannerRunCallback(ctx); err != nil {
 		return err
 	}
 	if err := state.scannerRunInitCommands(ctx); err != nil {
@@ -152,12 +151,12 @@ func (state *launchState) scannerCreateVolumes(ctx context.Context) error {
 	return nil
 }
 
-func (state *launchState) scannerRunCallback(ctx context.Context, dbOptions set.Set[string]) error {
+func (state *launchState) scannerRunCallback(ctx context.Context) error {
 	if state.sourceInfo == nil || state.sourceInfo.Callback == nil {
 		return nil
 	}
 
-	err := state.sourceInfo.Callback(state.plan.AppName, state.sourceInfo, dbOptions)
+	err := state.sourceInfo.Callback(state.plan.AppName, state.sourceInfo, state.plan)
 
 	if state.sourceInfo.MergeConfig != nil {
 		if err == nil {

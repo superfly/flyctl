@@ -8,7 +8,7 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/internal/set"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 //go:embed templates templates/*/.dockerignore templates/**/.fly
@@ -72,7 +72,7 @@ type SourceInfo struct {
 	DatabaseDesired              DatabaseKind
 	RedisDesired                 bool
 	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, options set.Set[string]) error
+	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error
 	HttpCheckPath                string
 	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string
