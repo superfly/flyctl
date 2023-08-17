@@ -33,6 +33,15 @@ type MergeConfigStruct struct {
 	Temporary bool
 }
 
+type DatabaseKind int
+
+const (
+	DatabaseKindNone DatabaseKind = iota
+	DatabaseKindPostgres
+	DatabaseKindMySQL
+	DatabaseKindLiteFS
+)
+
 type SourceInfo struct {
 	Family                       string
 	Version                      string
@@ -60,6 +69,8 @@ type SourceInfo struct {
 	InitCommands                 []InitCommand
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
+	DatabaseDesired              DatabaseKind
+	RedisDesired                 bool
 	Concurrency                  map[string]int
 	Callback                     func(appName string, srcInfo *SourceInfo, options set.Set[string]) error
 	HttpCheckPath                string
