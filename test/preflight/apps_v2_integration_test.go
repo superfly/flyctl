@@ -662,16 +662,16 @@ func TestErrOutput(t *testing.T) {
 	firstMachine := machList[0]
 
 	res = f.FlyAllowExitFailure("machine update --vm-cpus 3 %s --yes", firstMachine.ID)
-	require.Equal(f, res.StdOut().String(), "invalid number of CPUs")
+	require.Contains(f, res.StdErr().String(), "invalid number of CPUs")
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
-	require.Equal(f, res.StdOut().String(), "invalid memory size")
+	require.Contains(f, res.StdErr().String(), "invalid memory size")
 
 	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
-	require.Equal(f, res.StdOut().String(), "memory size for config is too low")
+	require.Contains(f, res.StdErr().String(), "memory size for config is too low")
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
-	require.Equal(f, res.StdOut().String(), "memory size for config is too high")
+	require.Contains(f, res.StdErr().String(), "memory size for config is too high")
 }
