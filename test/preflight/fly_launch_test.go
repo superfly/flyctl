@@ -29,7 +29,6 @@ import (
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 // - As we are reusing an existing app, the --org param is not needed after the first call
 func TestFlyLaunchV2(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -71,7 +70,6 @@ func TestFlyLaunchV2(t *testing.T) {
 
 // Same as case01 but for Nomad apps
 func TestFlyLaunchV1(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -128,7 +126,6 @@ func TestFlyLaunchV1(t *testing.T) {
 
 // Run fly launch from a template Fly App directory (fly.toml without app name)
 func TestFlyLaunchWithTOML(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -166,7 +163,6 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 
 // Trying to import an invalid fly.toml should fail before creating the app
 func TestFlyLaunchWithInvalidTOML(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -186,7 +182,6 @@ app = "foo"
 // Fail if the existing app doesn't match the forced platform version
 // V2 app forced as V1
 func TestFlyLaunchForceV1(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -198,7 +193,6 @@ func TestFlyLaunchForceV1(t *testing.T) {
 
 // test --generate-name, --name and reuse imported name
 func TestFlyLaunchReuseName(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -231,7 +225,6 @@ primary_region = "%s"
 
 // test volumes are created on first launch
 func TestFlyLaunchWithVolumes(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -261,7 +254,6 @@ func TestFlyLaunchWithVolumes(t *testing.T) {
 
 // test --vm-size sets the machine guest on first deploy
 func TestFlyLaunchWithSize(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -278,7 +270,6 @@ func TestFlyLaunchWithSize(t *testing.T) {
 
 // test default HA setup
 func TestFlyLaunchHA(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -337,7 +328,6 @@ func TestFlyLaunchHA(t *testing.T) {
 
 // test first deploy with single mount for multiple processes
 func TestFlyLaunchSigleMount(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()

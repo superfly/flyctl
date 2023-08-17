@@ -14,7 +14,6 @@ import (
 
 // test --port and --autostart --autostop flags
 func TestFlyMachineRun_autoStartStop(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
@@ -69,7 +68,6 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 
 // test --standby-for
 func TestFlyMachineRun_standbyFor(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
@@ -133,7 +131,6 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 
 // test --port (add, update, remove services and ports)
 func TestFlyMachineRun_port(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()

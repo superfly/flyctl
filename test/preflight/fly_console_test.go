@@ -11,7 +11,6 @@ import (
 )
 
 func TestFlyConsole(t *testing.T) {
-	t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
