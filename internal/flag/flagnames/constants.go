@@ -13,7 +13,7 @@ const (
 	// LocalOnly denotes the name of the local-only flag.
 	LocalOnly = "local-only"
 
-	// Deub denotes the name of the debug flag.
+	// Debug denotes the name of the debug flag.
 	Debug = "debug"
 
 	// Org denotes the name of the org flag.
