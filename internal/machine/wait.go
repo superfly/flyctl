@@ -11,6 +11,7 @@ import (
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string, timeout time.Duration) error {
@@ -26,7 +27,7 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 	case "stop":
 		waitOnAction = "stopped"
 	default:
-		return fmt.Errorf("action must be either start or stop")
+		return invalidAction
 	}
 
 	b := &backoff.Backoff{
@@ -45,7 +46,11 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to %s %w", waitOnAction, err)
+			return WaitTimeoutErr{
+				machineID: machine.ID,
+				timeout:   timeout,
+				action:    action,
+			}
 		default:
 			var flapsErr *flaps.FlapsError
 			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config.Restart.Policy == api.MachineRestartPolicyNo {
@@ -57,4 +62,25 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 			time.Sleep(b.Duration())
 		}
 	}
+}
+
+type WaitTimeoutErr struct {
+	machineID string
+	timeout   time.Duration
+	action    string
+}
+
+func (e WaitTimeoutErr) Error() string {
+	return "timeout reached waiting for machine's state to change"
+}
+
+func (e WaitTimeoutErr) Description() string {
+	return fmt.Sprintf("The machine %s took more than %s to %s", e.machineID, e.timeout, e.action)
+}
+
+var invalidAction flyerr.GenericErr = flyerr.GenericErr{
+	Err:      "action must be either start or stop",
+	Descript: "",
+	Suggest:  "This is a bug in wait function, please report this at https://community.fly.io",
+	DocUrl:   "",
 }

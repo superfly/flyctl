@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/flyerr"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -367,6 +370,15 @@ func deployToMachines(
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
+		var timeoutErr mach.WaitTimeoutErr
+		if errors.As(err, &timeoutErr) {
+			return flyerr.GenericErr{
+				Err:      timeoutErr.Error(),
+				Descript: timeoutErr.Description(),
+				Suggest:  "Try increasing the --wait-timeout when deployingg",
+			}
+
+		}
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
 	}
 	return err
