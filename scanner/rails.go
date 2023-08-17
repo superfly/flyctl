@@ -77,9 +77,32 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		AutoInstrumentErrors: true,
 	}
 
-	// don't prompt for pg, redis if litestack is in the Gemfile
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
+		// don't prompt for pg, redis if litestack is in the Gemfile
 		s.SkipDatabase = true
+	} else if checksPass(sourceDir, dirContains("Gemfile", "mysql")) {
+		// mysql
+		s.SkipDatabase = false
+	} else {
+		// postgresql
+		s.SkipDatabase = false
+	}
+
+	// enable redis if there are any action cable / anycable channels
+	redis := false
+	files, err := filepath.Glob("app/channels/*.rb")
+	if err == nil && len(files) > 0 {
+		redis = true
+	}
+
+	// enable redis if redis is used for caching
+	prodEnv, err := os.ReadFile("config/environments/production.rb")
+	if err == nil && strings.Contains(string(prodEnv), "redis") {
+		redis = true
+	}
+
+	if redis {
+		s.SkipDatabase = false
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
