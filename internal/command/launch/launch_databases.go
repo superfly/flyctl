@@ -9,16 +9,13 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
-	"github.com/superfly/flyctl/internal/set"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // createDatabases creates databases requested by the plan
-func (state *launchState) createDatabases(ctx context.Context) (set.Set[string], error) {
-	var options set.Set[string]
+func (state *launchState) createDatabases(ctx context.Context) error {
 
 	if state.plan.Postgres.FlyPostgres != nil {
-		options.Set("postgres")
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -27,7 +24,6 @@ func (state *launchState) createDatabases(ctx context.Context) (set.Set[string],
 	}
 
 	if state.plan.Redis.UpstashRedis != nil {
-		options.Set("redis")
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -36,17 +32,17 @@ func (state *launchState) createDatabases(ctx context.Context) (set.Set[string],
 	}
 
 	// Run any initialization commands required for Postgres if it was installed
-	if options.Has("postgres") && state.sourceInfo != nil {
+	if state.plan.Postgres.Provider() != nil && state.sourceInfo != nil {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {
-					return options, err
+					return err
 				}
 			}
 		}
 	}
 
-	return options, nil
+	return nil
 }
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {

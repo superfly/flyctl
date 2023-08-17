@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/set"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -106,7 +106,7 @@ a Postgresql database.
 	return s, nil
 }
 
-func PhoenixCallback(appName string, _ *SourceInfo, options set.Set[string]) error {
+func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan) error {
 	envEExPath := "rel/env.sh.eex"
 	envEExContents := `
 # configure node for distributed erlang with IPV6 support

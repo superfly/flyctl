@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -318,12 +319,12 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 	return nil
 }
 
-func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInfo, options set.Set[string]) error {
+func runCallback(ctx context.Context, appName string, srcInfo *scanner.SourceInfo, plan *plan.LaunchPlan) error {
 	if srcInfo == nil || srcInfo.Callback == nil {
 		return nil
 	}
 
-	err := srcInfo.Callback(appName, srcInfo, options)
+	err := srcInfo.Callback(appName, srcInfo, plan)
 
 	if srcInfo.MergeConfig != nil {
 		if err == nil {
