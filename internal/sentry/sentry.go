@@ -21,6 +21,11 @@ var initError error // set during init
 type Context = sentry.Context
 
 func init() {
+	fmt.Println("init sentry")
+	fmt.Println("a", buildinfo.ParsedVersion())
+	buildinfo.ParsedVersion().String()
+	fmt.Println("b")
+
 	opts := sentry.ClientOptions{
 		Dsn: "https://89fa584dc19b47a6952dd94bf72dbab4@sentry.io/4492967",
 		// TODO: maybe set Debug to buildinfo.IsDev?
@@ -121,12 +126,15 @@ func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.
 
 // Recover records the given panic to sentry.
 func Recover(v interface{}) {
+	fmt.Println("recover?")
 	if !isInitialized() {
+		fmt.Println("nope")
 		return
 	}
 
 	_ = sentry.CurrentHub().Recover(v)
 
+	fmt.Println("hi")
 	printError(v)
 }
 

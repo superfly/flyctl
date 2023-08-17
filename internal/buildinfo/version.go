@@ -2,6 +2,7 @@ package buildinfo
 
 import (
 	"errors"
+	"fmt"
 	"runtime/debug"
 	"strings"
 	"time"
@@ -188,23 +189,28 @@ func init() {
 
 func loadMeta() {
 	var err error
+	fmt.Println("Loading meta", version)
+	defer fmt.Println("Loading meta done")
 
 	parsedBuildDate, err = time.Parse(time.RFC3339, buildDate)
 	var parseErr *time.ParseError
 	if errors.As(err, &parseErr) && IsDev() {
 		parsedBuildDate = time.Now()
 	} else if err != nil {
+		fmt.Println("parse failed", err)
 		panic(err)
 	}
 
 	if IsDev() {
 		parsed, err := ParseVersion(version)
 		if err == nil {
+			fmt.Println("err", err)
 			parsedVersion = parsed
 		} else {
 			versionNum := int(parsedBuildDate.Unix())
 			version, err := calver.NewVersion(calverFormat, versionNum)
 			if err == nil {
+				fmt.Println("err", err)
 				parsedVersion = &CalverVersion{Version: *version}
 			}
 		}
@@ -212,6 +218,7 @@ func loadMeta() {
 		parsedBuildDate = parsedBuildDate.UTC()
 		parsed, err := ParseVersion(version)
 		if err == nil {
+			fmt.Println("err", err)
 			parsedVersion = parsed
 		}
 	}
