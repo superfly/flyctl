@@ -105,10 +105,7 @@ func isUnchangedError(err error) bool {
 }
 
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
-	fmt.Fprint(io.ErrOut, cs.Red("Error: "))
-	fmt.Fprint(io.Out, err.Error())
-
-	fmt.Fprintln(io.ErrOut)
+	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), "\n")
 
 	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
 		fmt.Fprintln(io.ErrOut, description)
