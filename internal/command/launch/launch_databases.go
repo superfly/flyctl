@@ -150,8 +150,8 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// TODO: Use values from plan correctly. This ignores them and picks defaults instead.
-	db, err := redis.Create(ctx, org, redisPlan.AppName, &region, redisPlan.PlanId, true, false)
+	// TODO: Use redisPlan.ReadReplicas
+	db, err := redis.Create(ctx, org, redisPlan.AppName, &region, redisPlan.PlanId, true, redisPlan.Eviction)
 	if err != nil {
 		return err
 	}
