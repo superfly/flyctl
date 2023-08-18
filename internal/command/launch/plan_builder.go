@@ -20,51 +20,40 @@ import (
 	"github.com/superfly/flyctl/scanner"
 )
 
-// v2BuildPlan creates a launchState from command line flags.
-// It shouldn't have any filesystem side effects.
-func v2BuildPlan(ctx context.Context) (*launchState, error) {
-	var (
-		io        = iostreams.FromContext(ctx)
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
-	)
+// Cache values between v2BuildManifest and v2FromManifest
+// It's important that we feed the result of v2BuildManifest into v2FromManifest,
+// because that prevents the launch-manifest -> edit/save -> launch-from-manifest
+// path from going out of sync with the standard launch path.
+// Doing this can lead to double-calculation, especially of scanners which could
+// have a lot of processing to do. Hence, a cache :)
+type planBuildCache struct {
+	appConfig *appconfig.Config
+	srcInfo   *scanner.SourceInfo
+}
+
+func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error) {
 
 	appConfig, copiedConfig, err := v2DetermineBaseAppConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
 	org, orgExplanation, err := v2DetermineOrg(ctx)
 	if err != nil {
-		return nil, err
-	}
-
-	// If we potentially are deploying, launch a remote builder to prepare for deployment.
-	if !flag.GetBool(ctx, "no-deploy") {
-		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, clientApi, org.Slug)
+		return nil, nil, err
 	}
 
 	region, regionExplanation, err := v2DetermineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		return nil, err
-	}
-
-	var envVars map[string]string = nil
-	envFlags := flag.GetStringArray(ctx, "env")
-	if len(envFlags) > 0 {
-		envVars, err = cmdutil.ParseKVStringsToMap(envFlags)
-		if err != nil {
-			return nil, fmt.Errorf("failed parsing --env flags: %w", err)
-		}
+		return nil, nil, err
 	}
 
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
-			return nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
+			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
 		}
 	}
 
@@ -73,22 +62,21 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		workingDir = absDir
 	}
 	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-	fmt.Fprintln(io.Out, "Creating app in", workingDir)
 
 	var srcInfo *scanner.SourceInfo
 	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	appName, appNameExplanation, err := v2DetermineAppName(ctx, configPath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	guest, guestExplanation, err := v2DetermineGuest(ctx, appConfig, srcInfo)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
@@ -102,6 +90,12 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		AppName:       appName,
 		RegionCode:    region.Code,
 		OrgSlug:       org.Slug,
+		CPUKind:       guest.CPUKind,
+		CPUs:          guest.CPUs,
+		MemoryMB:      guest.MemoryMB,
+		VmSize:        guest.ToSize(),
+		Postgres:      plan.PostgresPlan{}, // TODO
+		Redis:         plan.RedisPlan{},    // TODO
 		ScannerFamily: scannerFamily,
 	}
 
@@ -113,14 +107,99 @@ func v2BuildPlan(ctx context.Context) (*launchState, error) {
 		postgresSource: "not implemented",
 		redisSource:    "not implemented",
 	}
+	return &LaunchManifest{
+			Plan:       lp,
+			PlanSource: planSource,
+		}, &planBuildCache{
+			appConfig: appConfig,
+			srcInfo:   srcInfo,
+		}, nil
 
-	lp.SetGuestFields(guest)
+}
+
+func v2FromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
+
+	var (
+		io        = iostreams.FromContext(ctx)
+		client    = client.FromContext(ctx)
+		clientApi = client.API()
+	)
+
+	org, err := clientApi.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	if err != nil {
+		return nil, err
+	}
+
+	// If we potentially are deploying, launch a remote builder to prepare for deployment.
+	if !flag.GetBool(ctx, "no-deploy") {
+		// TODO: determine if eager remote builder is still required here
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, clientApi, org.Slug)
+	}
+
+	var (
+		appConfig    *appconfig.Config
+		copiedConfig bool
+	)
+	if optionalCache != nil {
+		appConfig = optionalCache.appConfig
+	} else {
+		appConfig, copiedConfig, err = v2DetermineBaseAppConfig(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		if copiedConfig {
+			// Check imported fly.toml is a valid V2 config before creating the app
+			if err := appConfig.SetMachinesPlatform(); err != nil {
+				return nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
+			}
+		}
+	}
+
+	var envVars map[string]string
+	envFlags := flag.GetStringArray(ctx, "env")
+	if len(envFlags) > 0 {
+		envVars, err = cmdutil.ParseKVStringsToMap(envFlags)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing --env flags: %w", err)
+		}
+	}
+
+	workingDir := flag.GetString(ctx, "path")
+	if absDir, err := filepath.Abs(workingDir); err == nil {
+		workingDir = absDir
+	}
+	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
+	fmt.Fprintln(io.Out, "Creating app in", workingDir)
+
+	var srcInfo *scanner.SourceInfo
+
+	if optionalCache != nil {
+		srcInfo = optionalCache.srcInfo
+	} else {
+		srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
+		if err != nil {
+			return nil, err
+		}
+
+		scannerFamily := ""
+		if srcInfo != nil {
+			scannerFamily = srcInfo.Family
+		}
+		if m.Plan.ScannerFamily != scannerFamily {
+			got := familyToAppType(scannerFamily)
+			expected := familyToAppType(m.Plan.ScannerFamily)
+			return nil, fmt.Errorf("launch manifest was created for a %s, but this is a %s", expected, got)
+		}
+	}
 
 	return &launchState{
 		workingDir: workingDir,
 		configPath: configPath,
-		plan:       lp,
-		planSource: planSource,
+		LaunchManifest: LaunchManifest{
+			m.Plan,
+			m.PlanSource,
+		},
 		env:        envVars,
 		appConfig:  appConfig,
 		sourceInfo: srcInfo,
@@ -177,6 +256,7 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 
 // v2DetermineAppName determines the app name from the config file or directory name
 func v2DetermineAppName(ctx context.Context, configPath string) (string, string, error) {
+
 	appName := flag.GetString(ctx, "name")
 	if appName == "" {
 		appName = filepath.Base(filepath.Dir(configPath))
@@ -218,6 +298,7 @@ func v2DetermineOrg(ctx context.Context) (*api.Organization, string, error) {
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func v2DetermineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
+
 	client := client.FromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"

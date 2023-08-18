@@ -17,7 +17,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 
-	ctx = appconfig.WithName(ctx, state.plan.AppName)
+	ctx = appconfig.WithName(ctx, state.Plan.AppName)
 	ctx = appconfig.WithConfig(ctx, state.appConfig)
 
 	// Notices from a launcher about its behavior that should always be displayed
@@ -75,7 +75,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"), state.plan.Guest())
+		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"), state.Plan.Guest())
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
