@@ -19,7 +19,8 @@ raw-preflight-test:
 	go test ./test/preflight --tags=integration -v -timeout 10m --run="$(T)"
 
 # to run one test, use: make preflight-test T=TestAppsV2ConfigSave
-preflight-test: build raw-preflight-test
+preflight-test: build
+	$(MAKE) raw-preflight-test
 
 ci-preflight:
 	$(MAKE) preflight-test FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL=true
