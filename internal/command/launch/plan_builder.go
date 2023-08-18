@@ -81,22 +81,16 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
-	scannerFamily := ""
-	if srcInfo != nil {
-		scannerFamily = srcInfo.Family
-	}
-
 	lp := &plan.LaunchPlan{
-		AppName:       appName,
-		RegionCode:    region.Code,
-		OrgSlug:       org.Slug,
-		CPUKind:       guest.CPUKind,
-		CPUs:          guest.CPUs,
-		MemoryMB:      guest.MemoryMB,
-		VmSize:        guest.ToSize(),
-		Postgres:      plan.PostgresPlan{}, // TODO
-		Redis:         plan.RedisPlan{},    // TODO
-		ScannerFamily: scannerFamily,
+		AppName:    appName,
+		RegionCode: region.Code,
+		OrgSlug:    org.Slug,
+		CPUKind:    guest.CPUKind,
+		CPUs:       guest.CPUs,
+		MemoryMB:   guest.MemoryMB,
+		VmSize:     guest.ToSize(),
+		Postgres:   plan.PostgresPlan{}, // TODO
+		Redis:      plan.RedisPlan{},    // TODO
 	}
 
 	planSource := &launchPlanSource{
@@ -107,6 +101,25 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 		postgresSource: "not implemented",
 		redisSource:    "not implemented",
 	}
+
+	if srcInfo != nil {
+		lp.ScannerFamily = srcInfo.Family
+		const scannerSource = "determined from app source"
+		switch srcInfo.DatabaseDesired {
+		case scanner.DatabaseKindPostgres:
+			lp.Postgres = plan.DefaultPostgres(lp)
+			planSource.postgresSource = scannerSource
+		case scanner.DatabaseKindMySQL:
+			// TODO
+		case scanner.DatabaseKindSqlite:
+			// TODO
+		}
+		if srcInfo.RedisDesired {
+			lp.Redis = plan.DefaultRedis(lp)
+			planSource.redisSource = scannerSource
+		}
+	}
+
 	return &LaunchManifest{
 			Plan:       lp,
 			PlanSource: planSource,
