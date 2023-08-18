@@ -99,9 +99,15 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		}
 		err = postgres.CreateCluster(ctx, org, &region, &postgres.ClusterParams{
 			PostgresConfiguration: postgres.PostgresConfiguration{
-				Name: pgPlan.AppName,
+				Name:               pgPlan.AppName,
+				DiskGb:             pgPlan.DiskSizeGB,
+				InitialClusterSize: pgPlan.Nodes,
+				VMSize:             pgPlan.VmSize,
+				MemoryMb:           pgPlan.VmRam,
 			},
-			Manager: flypg.ReplicationManager,
+			ScaleToZero: &pgPlan.AutoStop,
+			Autostart:   true, // TODO(Ali): Do we want this?
+			Manager:     flypg.ReplicationManager,
 		})
 		if err != nil {
 			fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s\n", pgPlan.AppName, err)
