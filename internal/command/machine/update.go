@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
@@ -12,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 )
@@ -48,6 +50,11 @@ func newUpdate() *cobra.Command {
 		flag.String{
 			Name:        "mount-point",
 			Description: "New volume mount point",
+		},
+		flag.Int{
+			Name:        "wait-timeout",
+			Description: "Seconds to wait for individual machines to transition states and become healthy. (default 300)",
+			Default:     300,
 		},
 	)
 
@@ -127,8 +134,18 @@ func runUpdate(ctx context.Context) (err error) {
 		Config:           machineConf,
 		SkipLaunch:       len(machineConf.Standbys) > 0,
 		SkipHealthChecks: skipHealthChecks,
+		Timeout:          flag.GetInt(ctx, "wait-timeout"),
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
+		var timeoutErr mach.WaitTimeoutErr
+		if errors.As(err, &timeoutErr) {
+			return flyerr.GenericErr{
+				Err:      timeoutErr.Error(),
+				Descript: timeoutErr.Description(),
+				Suggest:  "Try increasing the --wait-timeout",
+			}
+
+		}
 		return err
 	}
 

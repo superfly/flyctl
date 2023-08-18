@@ -89,7 +89,13 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 	if input.SkipLaunch || m.Config.Schedule != "" {
 		waitForAction = "stop"
 	}
-	if err := WaitForStartOrStop(ctx, updatedMachine, waitForAction, time.Minute*5); err != nil {
+
+	waitTimeout := time.Second * 300
+	if input.Timeout != 0 {
+		waitTimeout = time.Duration(input.Timeout) * time.Second
+	}
+
+	if err := WaitForStartOrStop(ctx, updatedMachine, waitForAction, waitTimeout); err != nil {
 		return err
 	}
 
