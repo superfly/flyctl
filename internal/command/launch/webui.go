@@ -24,7 +24,7 @@ import (
 // EditInWebUi launches a web-based editor for the app plan
 func (state *launchState) EditInWebUi(ctx context.Context) error {
 
-	session, err := api.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.plan.AppName), map[string]any{
+	session, err := api.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.Plan.AppName), map[string]any{
 		"target": "launch",
 	})
 	if err != nil {
@@ -33,7 +33,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 
 	sessionURL := session.URL
 
-	qsVals, err := query.Values(state.plan)
+	qsVals, err := query.Values(state.Plan)
 	if err != nil {
 		return fmt.Errorf("error making query string for launch plan: %w", err)
 	}
@@ -60,7 +60,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 		return err
 	}
 
-	oldPlan := helpers.Clone(state.plan)
+	oldPlan := helpers.Clone(state.Plan)
 
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
 	if err := patchNumbers(finalSession.Metadata, "vm_cpus", "vm_memory"); err != nil {
@@ -71,12 +71,12 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(metaJson, &state.plan)
+	err = json.Unmarshal(metaJson, &state.Plan)
 	if err != nil {
 		return err
 	}
 
-	state.plan.ScannerFamily = oldPlan.ScannerFamily
+	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	return nil
 }

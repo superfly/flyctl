@@ -68,8 +68,8 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
-	state.appConfig.AppName = state.plan.AppName
-	state.appConfig.PrimaryRegion = state.plan.RegionCode
+	state.appConfig.AppName = state.Plan.AppName
+	state.appConfig.PrimaryRegion = state.Plan.RegionCode
 	if state.env != nil {
 		state.appConfig.SetEnvVariables(state.env)
 	}
@@ -84,8 +84,8 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 	}
 	return apiClient.CreateApp(ctx, api.CreateAppInput{
 		OrganizationID:  org.ID,
-		Name:            state.plan.AppName,
-		PreferredRegion: &state.plan.RegionCode,
+		Name:            state.Plan.AppName,
+		PreferredRegion: &state.Plan.RegionCode,
 		Machines:        true,
 	})
 }

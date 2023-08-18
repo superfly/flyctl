@@ -15,7 +15,7 @@ import (
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
 
-	if state.plan.Postgres.FlyPostgres != nil {
+	if state.Plan.Postgres.FlyPostgres != nil {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -23,7 +23,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.plan.Redis.UpstashRedis != nil {
+	if state.Plan.Redis.UpstashRedis != nil {
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -32,7 +32,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 	}
 
 	// Run any initialization commands required for Postgres if it was installed
-	if state.plan.Postgres.Provider() != nil && state.sourceInfo != nil {
+	if state.Plan.Postgres.Provider() != nil && state.sourceInfo != nil {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {
@@ -47,7 +47,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
-		pgPlan    = state.plan.Postgres.FlyPostgres
+		pgPlan    = state.Plan.Postgres.FlyPostgres
 		apiClient = client.FromContext(ctx).API()
 		io        = iostreams.FromContext(ctx)
 	)
@@ -76,16 +76,16 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 		err := postgres.AttachCluster(ctx, postgres.AttachParams{
 			PgAppName: pgPlan.AppName,
-			AppName:   state.plan.AppName,
+			AppName:   state.Plan.AppName,
 			DbUser:    dbUser,
 		})
 
 		if err != nil {
 			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-			fmt.Fprintf(io.Out, msg, state.plan.AppName, pgPlan.AppName, err, state.plan.AppName, pgPlan.AppName)
+			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
 			return err
 		} else {
-			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.plan.AppName)
+			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 		}
 	} else {
 		// Create new PG cluster
@@ -114,15 +114,15 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		} else {
 			err = postgres.AttachCluster(ctx, postgres.AttachParams{
 				PgAppName: pgPlan.AppName,
-				AppName:   state.plan.AppName,
+				AppName:   state.Plan.AppName,
 				SuperUser: true,
 			})
 
 			if err != nil {
 				msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-				fmt.Fprintf(io.Out, msg, state.plan.AppName, pgPlan.AppName, err, state.plan.AppName, pgPlan.AppName)
+				fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
 			} else {
-				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.plan.AppName)
+				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
 			}
 		}
 
@@ -138,7 +138,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 }
 
 func (state *launchState) createUpstashRedis(ctx context.Context) error {
-	redisPlan := state.plan.Redis.UpstashRedis
+	redisPlan := state.Plan.Redis.UpstashRedis
 	if redisPlan.AppName == "" {
 		redisPlan.AppName = fmt.Sprintf("%s-redis", state.appConfig.AppName)
 	}
@@ -155,5 +155,5 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	return redis.AttachDatabase(ctx, db, state.plan.AppName)
+	return redis.AttachDatabase(ctx, db, state.Plan.AppName)
 }
