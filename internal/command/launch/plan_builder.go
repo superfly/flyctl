@@ -149,7 +149,7 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
-			case prompt.IsNonInteractive(err) && !flag.GetBool(ctx, "auto-confirm"):
+			case prompt.IsNonInteractive(err) && !flag.HasYes(ctx):
 				return nil, false, err
 			case err != nil:
 				return nil, false, err

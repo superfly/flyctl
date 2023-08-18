@@ -72,6 +72,7 @@ func New() (cmd *cobra.Command) {
 			Description: "Use the Launch V2 interface",
 			Hidden:      true,
 		},
+		//FIXME: Do i need a flag.Yes() here?
 	)
 
 	return

@@ -62,6 +62,11 @@ type Bool struct {
 	Aliases     []string
 }
 
+func (b Bool) SetDescription(description string) Bool {
+	b.Description = description
+	return b
+}
+
 func (b Bool) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 
@@ -327,7 +332,13 @@ func Yes() Bool {
 		Name:        flagnames.Yes,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
+		Aliases:     []string{"auto-confirm"},
 	}
+}
+
+// Checks whether the --yes flag or the --auto-confirm flag is present
+func HasYes(ctx context.Context) bool {
+	return GetBool(ctx, "yes") || GetBool(ctx, "auto-confirm")
 }
 
 // App returns an app string flag.

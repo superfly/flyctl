@@ -256,7 +256,7 @@ func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager stri
 		dialer = agent.DialerFromContext(ctx)
 
 		force       = flag.GetBool(ctx, "force")
-		autoConfirm = flag.GetBool(ctx, "yes")
+		autoConfirm = flag.HasYes(ctx)
 	)
 
 	// Identify requested configuration changes.
@@ -318,7 +318,7 @@ func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager stri
 					return false, nil, nil
 				}
 			case prompt.IsNonInteractive(err):
-				return false, nil, prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+				return false, nil, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 			default:
 				return false, nil, err
 			}

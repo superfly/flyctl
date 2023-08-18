@@ -30,10 +30,7 @@ func newAllocatev4() *cobra.Command {
 			Description: "Allocates a shared IPv4",
 			Default:     false,
 		},
-		flag.Bool{
-			Name:        "yes",
-			Description: "Auto-confirm IPv4 allocation",
-		},
+		flag.Yes().SetDescription("Auto-confirm IPv4 allocation"),
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
