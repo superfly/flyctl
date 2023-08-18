@@ -79,12 +79,15 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
 		// don't prompt for pg, redis if litestack is in the Gemfile
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
 	} else if checksPass(sourceDir, dirContains("Gemfile", "mysql")) {
 		// mysql
+		s.DatabaseDesired = DatabaseKindMySQL
 		s.SkipDatabase = false
 	} else {
 		// postgresql
+		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
 	}
 
@@ -102,6 +105,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	if redis {
+		s.RedisDesired = true
 		s.SkipDatabase = false
 	}
 

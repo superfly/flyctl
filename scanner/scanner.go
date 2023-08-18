@@ -39,7 +39,7 @@ const (
 	DatabaseKindNone DatabaseKind = iota
 	DatabaseKindPostgres
 	DatabaseKindMySQL
-	DatabaseKindLiteFS
+	DatabaseKindSqlite
 )
 
 type SourceInfo struct {
