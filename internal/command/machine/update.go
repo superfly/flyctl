@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/internal/watch"
 )
 
 func newUpdate() *cobra.Command {
@@ -58,8 +57,7 @@ func newUpdate() *cobra.Command {
 
 func runUpdate(ctx context.Context) (err error) {
 	var (
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		io = iostreams.FromContext(ctx)
 
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
@@ -126,19 +124,10 @@ func runUpdate(ctx context.Context) (err error) {
 		Region:           machine.Region,
 		Config:           machineConf,
 		SkipLaunch:       len(machineConf.Standbys) > 0,
-		SkipHealthChecks: skipHealthChecks,
+		SkipHealthChecks: skipHealthChecks || flag.GetDetach(ctx),
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
 		return err
-	}
-
-	if !(input.SkipLaunch || flag.GetDetach(ctx)) {
-		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
-
-		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
-			return err
-		}
-		fmt.Fprintln(io.Out)
 	}
 
 	fmt.Fprintf(io.Out, "\nMonitor machine status here:\nhttps://fly.io/apps/%s/machines/%s\n", appName, machine.ID)
