@@ -674,4 +674,7 @@ func TestErrOutput(t *testing.T) {
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErr().String(), "memory size for config is too high")
+
+	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+	require.Contains(f, res.StdErr().String(), "timeout reached waiting for machine's state to change")
 }
