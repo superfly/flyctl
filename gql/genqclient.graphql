@@ -132,6 +132,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 

@@ -292,6 +292,8 @@ type AppDataOrganization struct {
 	// Unmodified unique org slug
 	RawSlug  string `json:"rawSlug"`
 	PaidPlan bool   `json:"paidPlan"`
+	// Whether the organization can provision beta extensions
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 }
 
 // GetId returns AppDataOrganization.Id, and is useful for accessing the field via an interface.
@@ -305,6 +307,9 @@ func (v *AppDataOrganization) GetRawSlug() string { return v.RawSlug }
 
 // GetPaidPlan returns AppDataOrganization.PaidPlan, and is useful for accessing the field via an interface.
 func (v *AppDataOrganization) GetPaidPlan() bool { return v.PaidPlan }
+
+// GetProvisionsBetaExtensions returns AppDataOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
 
 type BuildFinalImageInput struct {
 	// Sha256 id of docker image
@@ -3548,6 +3553,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
@@ -3858,6 +3864,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
@@ -3958,6 +3965,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
@@ -4050,6 +4058,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 fragment AddOnData on AddOn {
@@ -4107,6 +4116,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `

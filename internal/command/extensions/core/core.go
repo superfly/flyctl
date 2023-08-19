@@ -51,6 +51,14 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		return extension, nil
 	}
 
+	// Stop auto-provisioning if this provider is in beta and the target org does is not allowed to provision beta extensions.\
+	// Standard provisioning will be stopped by the backend for the same reason, but there, we'll supply a better error message.
+
+	if auto && provider.Beta && !targetOrg.ProvisionsBetaExtensions {
+		fmt.Println("skipping provisioning")
+		return extension, nil
+	}
+
 	// Stop provisioning if this app already has an extension of this type, but only display an error for
 	// extensions that weren't automatically provisioned
 
