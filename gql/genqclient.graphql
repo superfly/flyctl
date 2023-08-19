@@ -200,6 +200,7 @@ fragment ExtensionProviderData on AddOnProvider {
   resourceName
 	nameSuffix
 	beta
+	provisioningInstructions
 	excludedRegions {
 		code
 	}

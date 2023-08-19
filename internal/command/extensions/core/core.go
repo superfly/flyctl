@@ -200,7 +200,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		provisioningMsg = provisioningMsg + fmt.Sprintf(" in %s", colorize.Green(extension.Data.PrimaryRegion))
 	}
 
-	fmt.Fprintf(io.Out, provisioningMsg+" is ready. See details and next steps with `flyctl ext %s dashboard`\n\n", provider.Name)
+	fmt.Fprintf(io.Out, provisioningMsg+" is ready. See details and next steps with: %s\n\n", colorize.Green(provider.ProvisioningInstructions))
 
 	if inExcludedRegion {
 		fmt.Fprintf(io.ErrOut,
