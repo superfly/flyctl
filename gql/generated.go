@@ -1094,20 +1094,21 @@ func (v *ExtensionData) GetPrimaryRegion() string { return v.PrimaryRegion }
 
 // ExtensionProviderData includes the GraphQL fields of AddOnProvider requested by the fragment ExtensionProviderData.
 type ExtensionProviderData struct {
-	Id                   string                                       `json:"id"`
-	Name                 string                                       `json:"name"`
-	DisplayName          string                                       `json:"displayName"`
-	TosUrl               string                                       `json:"tosUrl"`
-	AsyncProvisioning    bool                                         `json:"asyncProvisioning"`
-	AutoProvision        bool                                         `json:"autoProvision"`
-	SelectName           bool                                         `json:"selectName"`
-	SelectRegion         bool                                         `json:"selectRegion"`
-	SelectReplicaRegions bool                                         `json:"selectReplicaRegions"`
-	DetectPlatform       bool                                         `json:"detectPlatform"`
-	ResourceName         string                                       `json:"resourceName"`
-	NameSuffix           string                                       `json:"nameSuffix"`
-	Beta                 bool                                         `json:"beta"`
-	ExcludedRegions      []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
+	Id                       string                                       `json:"id"`
+	Name                     string                                       `json:"name"`
+	DisplayName              string                                       `json:"displayName"`
+	TosUrl                   string                                       `json:"tosUrl"`
+	AsyncProvisioning        bool                                         `json:"asyncProvisioning"`
+	AutoProvision            bool                                         `json:"autoProvision"`
+	SelectName               bool                                         `json:"selectName"`
+	SelectRegion             bool                                         `json:"selectRegion"`
+	SelectReplicaRegions     bool                                         `json:"selectReplicaRegions"`
+	DetectPlatform           bool                                         `json:"detectPlatform"`
+	ResourceName             string                                       `json:"resourceName"`
+	NameSuffix               string                                       `json:"nameSuffix"`
+	Beta                     bool                                         `json:"beta"`
+	ProvisioningInstructions string                                       `json:"provisioningInstructions"`
+	ExcludedRegions          []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
 }
 
 // GetId returns ExtensionProviderData.Id, and is useful for accessing the field via an interface.
@@ -1148,6 +1149,11 @@ func (v *ExtensionProviderData) GetNameSuffix() string { return v.NameSuffix }
 
 // GetBeta returns ExtensionProviderData.Beta, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetBeta() bool { return v.Beta }
+
+// GetProvisioningInstructions returns ExtensionProviderData.ProvisioningInstructions, and is useful for accessing the field via an interface.
+func (v *ExtensionProviderData) GetProvisioningInstructions() string {
+	return v.ProvisioningInstructions
+}
 
 // GetExcludedRegions returns ExtensionProviderData.ExcludedRegions, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetExcludedRegions() []ExtensionProviderDataExcludedRegionsRegion {
@@ -1611,6 +1617,11 @@ func (v *GetAddOnProviderAddOnProvider) GetNameSuffix() string {
 // GetBeta returns GetAddOnProviderAddOnProvider.Beta, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetBeta() bool { return v.ExtensionProviderData.Beta }
 
+// GetProvisioningInstructions returns GetAddOnProviderAddOnProvider.ProvisioningInstructions, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetProvisioningInstructions() string {
+	return v.ExtensionProviderData.ProvisioningInstructions
+}
+
 // GetExcludedRegions returns GetAddOnProviderAddOnProvider.ExcludedRegions, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetExcludedRegions() []ExtensionProviderDataExcludedRegionsRegion {
 	return v.ExtensionProviderData.ExcludedRegions
@@ -1668,6 +1679,8 @@ type __premarshalGetAddOnProviderAddOnProvider struct {
 
 	Beta bool `json:"beta"`
 
+	ProvisioningInstructions string `json:"provisioningInstructions"`
+
 	ExcludedRegions []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
 }
 
@@ -1695,6 +1708,7 @@ func (v *GetAddOnProviderAddOnProvider) __premarshalJSON() (*__premarshalGetAddO
 	retval.ResourceName = v.ExtensionProviderData.ResourceName
 	retval.NameSuffix = v.ExtensionProviderData.NameSuffix
 	retval.Beta = v.ExtensionProviderData.Beta
+	retval.ProvisioningInstructions = v.ExtensionProviderData.ProvisioningInstructions
 	retval.ExcludedRegions = v.ExtensionProviderData.ExcludedRegions
 	return &retval, nil
 }
@@ -3916,6 +3930,7 @@ fragment ExtensionProviderData on AddOnProvider {
 	resourceName
 	nameSuffix
 	beta
+	provisioningInstructions
 	excludedRegions {
 		code
 	}
