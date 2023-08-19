@@ -153,8 +153,33 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		deps = make(map[string]interface{})
 	}
 
-	// don't prompt for redis or postgres unless they are used
-	if deps["pg"] == nil && deps["redis"] == nil {
+	// infer db from dependencies
+	if deps["pg"] != nil {
+		srcInfo.DatabaseDesired = DatabaseKindPostgres
+	} else if deps["mysql"] != nil {
+		srcInfo.DatabaseDesired = DatabaseKindMySQL
+	} else if deps["sqlite"] != nil || deps["better-sqlite3"] != nil {
+		srcInfo.DatabaseDesired = DatabaseKindSqlite
+	}
+
+	// infer redis from dependencies
+	if deps["redis"] != nil {
+		srcInfo.RedisDesired = true
+	}
+
+	// if prisma is used, provider is definative
+	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
+		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
+			srcInfo.DatabaseDesired = DatabaseKindPostgres
+		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "mysql")) {
+			srcInfo.DatabaseDesired = DatabaseKindMySQL
+		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
+			srcInfo.DatabaseDesired = DatabaseKindSqlite
+		}
+	}
+
+	// don't prompt for redis or db unless they are used
+	if srcInfo.DatabaseDesired != DatabaseKindPostgres && srcInfo.DatabaseDesired != DatabaseKindMySQL && !srcInfo.RedisDesired {
 		srcInfo.SkipDatabase = true
 	}
 
