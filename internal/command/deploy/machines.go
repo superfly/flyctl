@@ -53,6 +53,7 @@ type MachineDeploymentArgs struct {
 	UpdateOnly            bool
 	Files                 []*api.File
 	ProvisionExtensions   bool
+	NoExtensions          bool
 	ExcludeRegions        map[string]interface{}
 	OnlyRegions           map[string]interface{}
 }
@@ -85,7 +86,7 @@ type machineDeployment struct {
 	increasedAvailability bool
 	listenAddressChecked  map[string]struct{}
 	updateOnly            bool
-	provisionExtensions   bool
+	noExtensions          bool
 	excludeRegions        map[string]interface{}
 	onlyRegions           map[string]interface{}
 }
@@ -165,7 +166,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		listenAddressChecked:  make(map[string]struct{}),
 		updateOnly:            args.UpdateOnly,
 		machineGuest:          args.Guest,
-		provisionExtensions:   args.ProvisionExtensions,
+		noExtensions:          args.NoExtensions,
 		excludeRegions:        args.ExcludeRegions,
 		onlyRegions:           args.OnlyRegions,
 	}

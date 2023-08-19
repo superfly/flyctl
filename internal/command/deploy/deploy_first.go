@@ -8,7 +8,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
-	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -23,20 +22,14 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
 	}
 
-	// Provision Sentry on first deployment, unless we're using CI, where we're more likely to see ephemeral applications
-	if !env.IsCI() && md.provisionExtensions {
-		if err := md.provisionSentryOnFirstDeploy(ctx); err != nil {
-			fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again. ERROR: %s", err)
-			return nil
+	// Provision Sentry on first deployment unless explicitly prevented by the --no-extensions option
+	if !md.noExtensions {
+		_, err := extensions_core.ProvisionExtension(ctx, md.app.Name, "sentry", true, gql.AddOnOptions{})
+		if err != nil {
+			fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again.\nERROR: %s", err)
 		}
 	}
-
 	return nil
-}
-
-func (md *machineDeployment) provisionSentryOnFirstDeploy(ctx context.Context) error {
-	_, err := extensions_core.ProvisionExtension(ctx, md.app.Name, "sentry", true, gql.AddOnOptions{})
-	return err
 }
 
 func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allocPublicIPs bool) error {

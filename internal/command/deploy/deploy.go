@@ -51,6 +51,10 @@ var CommonFlags = flag.Set{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
 	},
+	flag.Bool{
+		Name:        "no-extensions",
+		Description: "Do not provision Sentry nor other auto-provisioned extensions",
+	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
@@ -356,8 +360,8 @@ func deployToMachines(
 		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
-		ProvisionExtensions:   flag.GetBool(ctx, "provision-extensions"),
 		ExcludeRegions:        excludeRegions,
+		NoExtensions:          flag.GetBool(ctx, "no-extensions"),
 		OnlyRegions:           onlyRegions,
 	})
 	if err != nil {

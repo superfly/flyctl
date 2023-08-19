@@ -132,6 +132,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 
@@ -198,6 +199,7 @@ fragment ExtensionProviderData on AddOnProvider {
   detectPlatform
   resourceName
 	nameSuffix
+	beta
 	excludedRegions {
 		code
 	}

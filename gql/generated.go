@@ -292,6 +292,8 @@ type AppDataOrganization struct {
 	// Unmodified unique org slug
 	RawSlug  string `json:"rawSlug"`
 	PaidPlan bool   `json:"paidPlan"`
+	// Whether the organization can provision beta extensions
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 }
 
 // GetId returns AppDataOrganization.Id, and is useful for accessing the field via an interface.
@@ -305,6 +307,9 @@ func (v *AppDataOrganization) GetRawSlug() string { return v.RawSlug }
 
 // GetPaidPlan returns AppDataOrganization.PaidPlan, and is useful for accessing the field via an interface.
 func (v *AppDataOrganization) GetPaidPlan() bool { return v.PaidPlan }
+
+// GetProvisionsBetaExtensions returns AppDataOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
 
 type BuildFinalImageInput struct {
 	// Sha256 id of docker image
@@ -1101,6 +1106,7 @@ type ExtensionProviderData struct {
 	DetectPlatform       bool                                         `json:"detectPlatform"`
 	ResourceName         string                                       `json:"resourceName"`
 	NameSuffix           string                                       `json:"nameSuffix"`
+	Beta                 bool                                         `json:"beta"`
 	ExcludedRegions      []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
 }
 
@@ -1139,6 +1145,9 @@ func (v *ExtensionProviderData) GetResourceName() string { return v.ResourceName
 
 // GetNameSuffix returns ExtensionProviderData.NameSuffix, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetNameSuffix() string { return v.NameSuffix }
+
+// GetBeta returns ExtensionProviderData.Beta, and is useful for accessing the field via an interface.
+func (v *ExtensionProviderData) GetBeta() bool { return v.Beta }
 
 // GetExcludedRegions returns ExtensionProviderData.ExcludedRegions, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetExcludedRegions() []ExtensionProviderDataExcludedRegionsRegion {
@@ -1599,6 +1608,9 @@ func (v *GetAddOnProviderAddOnProvider) GetNameSuffix() string {
 	return v.ExtensionProviderData.NameSuffix
 }
 
+// GetBeta returns GetAddOnProviderAddOnProvider.Beta, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetBeta() bool { return v.ExtensionProviderData.Beta }
+
 // GetExcludedRegions returns GetAddOnProviderAddOnProvider.ExcludedRegions, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetExcludedRegions() []ExtensionProviderDataExcludedRegionsRegion {
 	return v.ExtensionProviderData.ExcludedRegions
@@ -1654,6 +1666,8 @@ type __premarshalGetAddOnProviderAddOnProvider struct {
 
 	NameSuffix string `json:"nameSuffix"`
 
+	Beta bool `json:"beta"`
+
 	ExcludedRegions []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
 }
 
@@ -1680,6 +1694,7 @@ func (v *GetAddOnProviderAddOnProvider) __premarshalJSON() (*__premarshalGetAddO
 	retval.DetectPlatform = v.ExtensionProviderData.DetectPlatform
 	retval.ResourceName = v.ExtensionProviderData.ResourceName
 	retval.NameSuffix = v.ExtensionProviderData.NameSuffix
+	retval.Beta = v.ExtensionProviderData.Beta
 	retval.ExcludedRegions = v.ExtensionProviderData.ExcludedRegions
 	return &retval, nil
 }
@@ -3538,6 +3553,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
@@ -3848,6 +3864,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
@@ -3898,6 +3915,7 @@ fragment ExtensionProviderData on AddOnProvider {
 	detectPlatform
 	resourceName
 	nameSuffix
+	beta
 	excludedRegions {
 		code
 	}
@@ -3947,6 +3965,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
@@ -4039,6 +4058,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 fragment AddOnData on AddOn {
@@ -4096,6 +4116,7 @@ fragment AppData on App {
 		slug
 		rawSlug
 		paidPlan
+		provisionsBetaExtensions
 	}
 }
 `
