@@ -82,15 +82,16 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	lp := &plan.LaunchPlan{
-		AppName:    appName,
-		RegionCode: region.Code,
-		OrgSlug:    org.Slug,
-		CPUKind:    guest.CPUKind,
-		CPUs:       guest.CPUs,
-		MemoryMB:   guest.MemoryMB,
-		VmSize:     guest.ToSize(),
-		Postgres:   plan.PostgresPlan{}, // TODO
-		Redis:      plan.RedisPlan{},    // TODO
+		AppName:         appName,
+		RegionCode:      region.Code,
+		OrgSlug:         org.Slug,
+		CPUKind:         guest.CPUKind,
+		CPUs:            guest.CPUs,
+		MemoryMB:        guest.MemoryMB,
+		VmSize:          guest.ToSize(),
+		HttpServicePort: 8080,
+		Postgres:        plan.PostgresPlan{}, // TODO
+		Redis:           plan.RedisPlan{},    // TODO
 	}
 
 	planSource := &launchPlanSource{
