@@ -257,8 +257,9 @@ func destroyMachine(ctx context.Context, machine *api.Machine) error {
 }
 
 type planItem struct {
-	GroupName     string
-	Region        string
+	GroupName string
+	Region    string
+	// The number of machines to add or remove
 	Delta         int
 	Machines      []*api.Machine
 	MachineConfig *api.MachineConfig
