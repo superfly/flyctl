@@ -5,6 +5,7 @@ package preflight
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
@@ -33,18 +34,22 @@ primary_region = "%s"
 	require.Equal(f, 1, len(ml))
 
 	f.Fly("scale count -y 2")
+	time.Sleep(2 * time.Second)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
 
 	f.Fly("scale count -y 1 --region %s", f.SecondaryRegion())
+	time.Sleep(2 * time.Second)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 3, len(ml))
 
 	f.Fly("scale count -y 0")
+	time.Sleep(2 * time.Second)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 0, len(ml))
 
 	f.Fly("scale count -y 2")
+	time.Sleep(2 * time.Second)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
 }
