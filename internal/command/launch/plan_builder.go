@@ -20,8 +20,8 @@ import (
 	"github.com/superfly/flyctl/scanner"
 )
 
-// Cache values between v2BuildManifest and v2FromManifest
-// It's important that we feed the result of v2BuildManifest into v2FromManifest,
+// Cache values between buildManifest and stateFromManifest
+// It's important that we feed the result of buildManifest into stateFromManifest,
 // because that prevents the launch-manifest -> edit/save -> launch-from-manifest
 // path from going out of sync with the standard launch path.
 // Doing this can lead to double-calculation, especially of scanners which could
@@ -31,21 +31,21 @@ type planBuildCache struct {
 	srcInfo   *scanner.SourceInfo
 }
 
-func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error) {
 
-	appConfig, copiedConfig, err := v2DetermineBaseAppConfig(ctx)
+	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
-	org, orgExplanation, err := v2DetermineOrg(ctx)
+	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	region, regionExplanation, err := v2DetermineRegion(ctx, appConfig, org.PaidPlan)
+	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -69,12 +69,12 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 		return nil, nil, err
 	}
 
-	appName, appNameExplanation, err := v2DetermineAppName(ctx, configPath)
+	appName, appNameExplanation, err := determineAppName(ctx, configPath)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	guest, guestExplanation, err := v2DetermineGuest(ctx, appConfig, srcInfo)
+	guest, guestExplanation, err := determineGuest(ctx, appConfig, srcInfo)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -131,7 +131,7 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 
 }
 
-func v2FromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
+func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
 
 	var (
 		io        = iostreams.FromContext(ctx)
@@ -157,7 +157,7 @@ func v2FromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBu
 	if optionalCache != nil {
 		appConfig = optionalCache.appConfig
 	} else {
-		appConfig, copiedConfig, err = v2DetermineBaseAppConfig(ctx)
+		appConfig, copiedConfig, err = determineBaseAppConfig(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -223,7 +223,7 @@ func v2FromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBu
 
 // determineBaseAppConfig looks for existing app config, ask to reuse or returns an empty config
 // TODO(allison): remove the prompt once we determine the proper default behavior
-func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error) {
+func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error) {
 	io := iostreams.FromContext(ctx)
 
 	existingConfig := appconfig.ConfigFromContext(ctx)
@@ -260,8 +260,8 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 	return newCfg, false, nil
 }
 
-// v2DetermineAppName determines the app name from the config file or directory name
-func v2DetermineAppName(ctx context.Context, configPath string) (string, string, error) {
+// determineAppName determines the app name from the config file or directory name
+func determineAppName(ctx context.Context, configPath string) (string, string, error) {
 
 	appName := flag.GetString(ctx, "name")
 	if appName == "" {
@@ -273,8 +273,8 @@ func v2DetermineAppName(ctx context.Context, configPath string) (string, string,
 	return appName, "derived from your directory name", nil
 }
 
-// v2DetermineOrg returns the org specified on the command line, or the personal org if left unspecified
-func v2DetermineOrg(ctx context.Context) (*api.Organization, string, error) {
+// determineOrg returns the org specified on the command line, or the personal org if left unspecified
+func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	var (
 		client    = client.FromContext(ctx)
 		clientApi = client.API()
@@ -299,11 +299,11 @@ func v2DetermineOrg(ctx context.Context) (*api.Organization, string, error) {
 	return &org, "specified on the command line", nil
 }
 
-// v2DetermineRegion returns the region to use for a new app. In order, it tries:
+// determineRegion returns the region to use for a new app. In order, it tries:
 //  1. the primary_region field of the config, if one exists
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
-func v2DetermineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
+func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
 
 	client := client.FromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
@@ -342,9 +342,9 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
 }
 
-// v2DetermineGuest returns the guest type to use for a new app.
+// determineGuest returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
-func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
+func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
 	def := api.MachinePresets["shared-cpu-1x"]
 	reason := "most apps need about 1GB of RAM"
 
