@@ -70,7 +70,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	})
 
-	defaults := newDefaults(appConfig, latestCompleteRelease, machines)
+	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes)
 
 	actions, err := computeActions(machines, expectedGroupCounts, availableVols, regions, maxPerRegion, defaults)
 	if err != nil {

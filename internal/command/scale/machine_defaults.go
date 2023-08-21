@@ -3,6 +3,7 @@ package scale
 import (
 	"strconv"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -12,35 +13,26 @@ type defaultValues struct {
 	image          string
 	guest          *api.MachineGuest
 	guestPerGroup  map[string]*api.MachineGuest
+	volsize        int
+	volsizeByName  map[string]int
 	releaseId      string
 	releaseVersion string
 	appConfig      *appconfig.Config
 }
 
-func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine) *defaultValues {
-	var (
-		defaultGroupName = appConfig.DefaultProcessName()
-		guest            *api.MachineGuest
-		releaseId        = latest.ID
-		releaseVersion   = strconv.Itoa(latest.Version)
-		image            = latest.ImageRef
-		guestPerGroup    = make(map[string]*api.MachineGuest)
+func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume) *defaultValues {
+	guestPerGroup := lo.Associate(
+		lo.Filter(machines, func(m *api.Machine, _ int) bool {
+			return m.Config.Guest != nil
+		}),
+		func(m *api.Machine) (string, *api.MachineGuest) {
+			return m.ProcessGroup(), m.Config.Guest
+		},
 	)
-
-	for _, m := range machines {
-		groupName := m.ProcessGroup()
-		if _, ok := guestPerGroup[groupName]; ok {
-			continue
-		} else if m.Config.Guest != nil {
-			guestPerGroup[groupName] = m.Config.Guest
-			if groupName == defaultGroupName {
-				guest = m.Config.Guest
-			}
-		}
-	}
 
 	// In case we haven't found a guest for the default,
 	// scan all the existing groups and pick the first
+	guest := guestPerGroup[appConfig.DefaultProcessName()]
 	if guest == nil {
 		for _, name := range appConfig.ProcessNames() {
 			if v, ok := guestPerGroup[name]; ok {
@@ -50,12 +42,18 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 		}
 	}
 
+	volsizeByName := lo.Associate(volumes, func(v api.Volume) (string, int) {
+		return v.Name, v.SizeGb
+	})
+
 	return &defaultValues{
-		image:          image,
+		image:          latest.ImageRef,
 		guest:          guest,
 		guestPerGroup:  guestPerGroup,
-		releaseId:      releaseId,
-		releaseVersion: releaseVersion,
+		volsize:        1,
+		volsizeByName:  volsizeByName,
+		releaseId:      latest.ID,
+		releaseVersion: strconv.Itoa(latest.Version),
 		appConfig:      appConfig,
 	}
 }
@@ -70,6 +68,16 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 		mc.Guest = guest
 	} else {
 		mc.Guest = d.guest
+	}
+
+	for idx := range mc.Mounts {
+		mount := &mc.Mounts[idx]
+		size := d.volsizeByName[mount.Name]
+		if size == 0 {
+			size = 1
+		}
+		mount.SizeGb = size
+		mount.Encrypted = true
 	}
 
 	mc.Image = d.image
