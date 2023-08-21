@@ -6,6 +6,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -72,6 +73,18 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	state.appConfig.PrimaryRegion = state.Plan.RegionCode
 	if state.env != nil {
 		state.appConfig.SetEnvVariables(state.env)
+	}
+	if state.Plan.HttpServicePort != 0 {
+		state.appConfig.HTTPService = &appconfig.HTTPService{
+			InternalPort:       state.Plan.HttpServicePort,
+			ForceHTTPS:         true,
+			AutoStartMachines:  api.Pointer(true),
+			AutoStopMachines:   api.Pointer(true),
+			MinMachinesRunning: api.Pointer(1),
+			Processes:          []string{"app"},
+		}
+	} else {
+		state.appConfig.HTTPService = nil
 	}
 }
 
