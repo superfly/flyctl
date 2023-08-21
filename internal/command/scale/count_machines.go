@@ -70,11 +70,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	})
 
-	appCompact, err := apiClient.GetAppCompact(ctx, appConfig.AppName)
-	if err != nil {
-		return err
-	}
-
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines)
 
 	actions, err := computeActions(machines, expectedGroupCounts, availableVols, regions, maxPerRegion, defaults)
@@ -126,24 +121,19 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				var volume *api.Volume
-				if i < len(action.Volumes) {
-					if av := action.Volumes[i]; av.Available {
-						av.Available = false
-						volume = av.Volume
-					}
-				}
-
-				m, v, err := launchMachine(ctx, action, volume, appCompact)
+				m, v, err := launchMachine(ctx, action)
 				if err != nil {
 					return err
 				}
-				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+
+				fmt.Fprintf(io.Out,
+					"  Created %s group:%s region:%s size:%s",
+					m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize(),
+				)
 				if v != nil {
-					fmt.Fprintf(io.Out, " volume:%s\n", v.ID)
-				} else {
-					fmt.Fprintln(io.Out)
+					fmt.Fprintf(io.Out, " volume:%s", v.ID)
 				}
+				fmt.Fprintln(io.Out)
 			}
 		case action.Delta < 0:
 			for i := 0; i > action.Delta; i-- {
@@ -160,22 +150,22 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return nil
 }
 
-func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, appCompact *api.AppCompact) (*api.Machine, *api.Volume, error) {
+func launchMachine(ctx context.Context, action *planItem) (*api.Machine, *api.Volume, error) {
 	flapsClient := flaps.FromContext(ctx)
 	mConfig := helpers.Clone(*action.MachineConfig)
-	var err error
+
+	var volume *api.Volume
 
 	for _, mnt := range action.MachineConfig.Mounts {
-		volume, err = createVolume(ctx, mnt, volume, appCompact.ID, action.Region)
+		var err error
+		volume, err = pickOrCreateVolume(ctx, mnt, action.Volumes, action.Region)
 		if err != nil {
 			return nil, nil, err
 		}
-		mConfig.Mounts = []api.MachineMount{
-			{
-				Volume: volume.ID,
-				Path:   mnt.Path,
-			},
-		}
+		mConfig.Mounts = []api.MachineMount{{
+			Volume: volume.ID,
+			Path:   mnt.Path,
+		}}
 	}
 
 	input := api.LaunchMachineInput{
@@ -191,17 +181,19 @@ func launchMachine(ctx context.Context, action *planItem, volume *api.Volume, ap
 	return m, volume, nil
 }
 
-func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volume, appID string, region string) (*api.Volume, error) {
+func pickOrCreateVolume(ctx context.Context, mount api.MachineMount, volumes []*availableVolume, region string) (*api.Volume, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	flapsClient := flaps.FromContext(ctx)
 
-	var err error
-
-	withNewVolumes := flag.GetBool(ctx, "with-new-volumes")
-	if volume != nil && !withNewVolumes {
-		fmt.Fprintf(io.Out, "  Using unattached volume %s\n", colorize.Bold(volume.ID))
-		return volume, nil
+	if !flag.GetBool(ctx, "with-new-volumes") {
+		for _, av := range volumes {
+			if av.Available {
+				av.Available = false
+				fmt.Fprintf(io.Out, "  Using unattached volume %s\n", colorize.Bold(av.Volume.ID))
+				return av.Volume, nil
+			}
+		}
 	}
 
 	var snapshotID *string
@@ -226,21 +218,33 @@ func createVolume(ctx context.Context, mount api.MachineMount, volume *api.Volum
 		fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 	}
 
+	sizeGb := mount.SizeGb
+	encrypted := mount.Encrypted
+	if sizeGb == 0 {
+		if len(volumes) > 0 {
+			sizeGb = volumes[0].Volume.SizeGb
+			encrypted = volumes[0].Volume.Encrypted
+		} else {
+			fmt.Fprintf(
+				io.Out,
+				"  Using 1GB encrypted volume for '%s'. Run `fly vol extend` to increase the size\n",
+				colorize.Bold(mount.Name),
+			)
+			sizeGb = 1
+			encrypted = true
+		}
+	}
+
 	volInput := api.CreateVolumeRequest{
 		Name:              mount.Name,
 		Region:            region,
-		SizeGb:            &mount.SizeGb,
-		Encrypted:         api.Pointer(mount.Encrypted),
+		SizeGb:            &sizeGb,
+		Encrypted:         api.Pointer(encrypted),
 		SnapshotID:        snapshotID,
 		RequireUniqueZone: api.Pointer(false),
 	}
 
-	volume, err = flapsClient.CreateVolume(ctx, volInput)
-	if err != nil {
-		return nil, err
-	}
-
-	return volume, nil
+	return flapsClient.CreateVolume(ctx, volInput)
 }
 
 func destroyMachine(ctx context.Context, machine *api.Machine) error {
