@@ -65,23 +65,13 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 		return nil, err
 	}
 
-	if guest, ok := d.guestPerGroup[groupName]; ok {
-		mc.Guest = guest
-	} else {
-		mc.Guest = d.guest
-	}
-
-	for idx := range mc.Mounts {
-		mount := &mc.Mounts[idx]
-		size := d.volsizeByName[mount.Name]
-		if size == 0 {
-			size = 1
-		}
-		mount.SizeGb = size
-		mount.Encrypted = true
-	}
-
 	mc.Image = d.image
+	mc.Guest = lo.ValueOr(d.guestPerGroup, groupName, d.guest)
+	mc.Mounts = lo.Map(mc.Mounts, func(mount api.MachineMount, _ int) api.MachineMount {
+		mount.SizeGb = lo.ValueOr(d.volsizeByName, mount.Name, d.volsize)
+		mount.Encrypted = true
+		return mount
+	})
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = d.releaseVersion
 	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
