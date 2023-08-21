@@ -224,18 +224,17 @@ func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData
 		return err
 	}
 
-	tosMessage := "you agree to the %s Terms of Service: https://fly.io/legal/terms-of-service/#supplementalterms"
-
 	var tosMsgPrefix string
 
 	// Display different ToS copy if an extension was automatically provisioned at deploy time
 	if auto {
-		tosMsgPrefix = "We'll setup free error tracking for your app on Sentry.io. By deploying this app"
+		tosMsgPrefix = "By deploying this app"
 	} else {
 		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
 	}
 
-	tosMessage = colorize.Green("* ") + tosMsgPrefix + ", " + tosMessage
+	tosSuffix := "you agree to the %s Terms of Service: https://fly.io/legal/supplemental-terms"
+	tosMessage := colorize.Green("* ") + provider.TosAgreement + " " + tosMsgPrefix + ", " + tosSuffix
 
 	if !agreed {
 		fmt.Fprintf(io.Out, tosMessage+"\n\n", provider.DisplayName)
