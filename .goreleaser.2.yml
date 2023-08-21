@@ -41,6 +41,15 @@ builds:
   #     - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
   #     - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
 
+archives:
+  - id: macos
+    name_template: "{{ .ProjectName }}_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    builds: [macos]
+    format: tar.gz
+    wrap_in_directory: false
+    files:
+      - only-the-binary*
+
 # archives:
 #   - id: windows
 #     name_template: >-
