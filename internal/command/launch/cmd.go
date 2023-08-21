@@ -143,7 +143,7 @@ func run(ctx context.Context) (err error) {
 
 	if launchManifest == nil {
 
-		launchManifest, cache, err = v2BuildManifest(ctx)
+		launchManifest, cache, err = buildManifest(ctx)
 		if err != nil {
 			return err
 		}
@@ -155,7 +155,7 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	state, err := v2FromManifest(ctx, *launchManifest, cache)
+	state, err := stateFromManifest(ctx, *launchManifest, cache)
 	if err != nil {
 		return err
 	}
