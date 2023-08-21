@@ -42,7 +42,7 @@ require (
 	github.com/moby/patternmatcher v0.5.0
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.15.2
-	github.com/nats-io/nats.go v1.13.1-0.20220308171302-2f2f6968e98d
+	github.com/nats-io/nats.go v1.28.0
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -188,7 +188,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/nats-io/nats-server/v2 v2.7.4 // indirect
-	github.com/nats-io/nkeys v0.3.0 // indirect
+	github.com/nats-io/nkeys v0.4.4 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0-rc4 // indirect
