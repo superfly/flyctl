@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/samber/lo"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
@@ -150,8 +152,24 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	// TODO: Use redisPlan.ReadReplicas
-	db, err := redis.Create(ctx, org, redisPlan.AppName, &region, redisPlan.PlanId, true, redisPlan.Eviction)
+
+	var readReplicaRegions []api.Region
+	{
+		client := client.FromContext(ctx).API()
+		regions, _, err := client.PlatformRegions(ctx)
+		if err != nil {
+			return err
+		}
+		for _, code := range redisPlan.ReadReplicas {
+			if region, ok := lo.Find(regions, func(r api.Region) bool { return r.Code == code }); ok {
+				readReplicaRegions = append(readReplicaRegions, region)
+			} else {
+				return fmt.Errorf("region %s not found", code)
+			}
+		}
+	}
+
+	db, err := redis.Create(ctx, org, redisPlan.AppName, &region, redisPlan.PlanId, len(readReplicaRegions) == 0, redisPlan.Eviction, &readReplicaRegions)
 	if err != nil {
 		return err
 	}
