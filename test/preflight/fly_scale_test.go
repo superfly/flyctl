@@ -33,6 +33,9 @@ primary_region = "%s"
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 
+	// Extend the volume because if not found, scaling will default to 1GB.
+	f.Fly("vol extend -s 2 %s", ml[0].Config.Mounts[0].Volume)
+
 	f.Fly("scale count -y 2")
 	time.Sleep(2 * time.Second)
 	ml = f.MachinesList(appName)
@@ -52,4 +55,9 @@ primary_region = "%s"
 	time.Sleep(2 * time.Second)
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
+
+	vl := f.VolumeList(appName)
+	for _, v := range vl {
+		require.Equal(f, v.SizeGb, 2)
+	}
 }

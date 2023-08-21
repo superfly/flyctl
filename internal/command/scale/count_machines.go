@@ -218,28 +218,11 @@ func pickOrCreateVolume(ctx context.Context, mount api.MachineMount, volumes []*
 		fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 	}
 
-	sizeGb := mount.SizeGb
-	encrypted := mount.Encrypted
-	if sizeGb == 0 {
-		if len(volumes) > 0 {
-			sizeGb = volumes[0].Volume.SizeGb
-			encrypted = volumes[0].Volume.Encrypted
-		} else {
-			fmt.Fprintf(
-				io.Out,
-				"  Using 1GB encrypted volume for '%s'. Run `fly vol extend` to increase the size\n",
-				colorize.Bold(mount.Name),
-			)
-			sizeGb = 1
-			encrypted = true
-		}
-	}
-
 	volInput := api.CreateVolumeRequest{
 		Name:              mount.Name,
 		Region:            region,
-		SizeGb:            &sizeGb,
-		Encrypted:         api.Pointer(encrypted),
+		SizeGb:            &mount.SizeGb,
+		Encrypted:         api.Pointer(mount.Encrypted),
 		SnapshotID:        snapshotID,
 		RequireUniqueZone: api.Pointer(false),
 	}
