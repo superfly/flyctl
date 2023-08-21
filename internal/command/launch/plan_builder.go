@@ -90,8 +90,8 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 		MemoryMB:        guest.MemoryMB,
 		VmSize:          guest.ToSize(),
 		HttpServicePort: 8080,
-		Postgres:        plan.PostgresPlan{}, // TODO
-		Redis:           plan.RedisPlan{},    // TODO
+		Postgres:        plan.PostgresPlan{},
+		Redis:           plan.RedisPlan{},
 	}
 
 	planSource := &launchPlanSource{
@@ -99,8 +99,8 @@ func v2BuildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, err
 		regionSource:   regionExplanation,
 		orgSource:      orgExplanation,
 		guestSource:    guestExplanation,
-		postgresSource: "not implemented",
-		redisSource:    "not implemented",
+		postgresSource: "not requested",
+		redisSource:    "not requested",
 	}
 
 	if srcInfo != nil {
