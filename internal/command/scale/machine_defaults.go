@@ -42,9 +42,10 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 		}
 	}
 
-	volsizeByName := lo.Associate(volumes, func(v api.Volume) (string, int) {
-		return v.Name, v.SizeGb
-	})
+	volsizeByName := lo.Reduce(volumes, func(agg map[string]int, v api.Volume, _ int) map[string]int {
+		agg[v.Name] = lo.Max([]int{agg[v.Name], v.SizeGb})
+		return agg
+	}, make(map[string]int))
 
 	return &defaultValues{
 		image:          latest.ImageRef,
