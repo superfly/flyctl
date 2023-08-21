@@ -64,15 +64,15 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, machines)
+	}
+
 	if len(machines) == 0 {
 		if !silence {
 			fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
 		}
 		return nil
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(io.Out, machines)
 	}
 
 	rows := [][]string{}
@@ -81,7 +81,6 @@ func runMachineList(ctx context.Context) (err error) {
 
 	if !silence {
 		fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
-
 	}
 	if silence {
 		for _, machine := range machines {
@@ -102,12 +101,10 @@ func runMachineList(ctx context.Context) (err error) {
 			if machine.Config != nil {
 				if platformVersion, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
 					appPlatform = platformVersion
-
 				}
 
 				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
-
 				}
 
 				if machine.Config.Guest != nil {
