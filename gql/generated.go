@@ -1107,6 +1107,7 @@ type ExtensionProviderData struct {
 	ResourceName             string                                       `json:"resourceName"`
 	NameSuffix               string                                       `json:"nameSuffix"`
 	Beta                     bool                                         `json:"beta"`
+	TosAgreement             string                                       `json:"tosAgreement"`
 	ProvisioningInstructions string                                       `json:"provisioningInstructions"`
 	ExcludedRegions          []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
 }
@@ -1149,6 +1150,9 @@ func (v *ExtensionProviderData) GetNameSuffix() string { return v.NameSuffix }
 
 // GetBeta returns ExtensionProviderData.Beta, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetBeta() bool { return v.Beta }
+
+// GetTosAgreement returns ExtensionProviderData.TosAgreement, and is useful for accessing the field via an interface.
+func (v *ExtensionProviderData) GetTosAgreement() string { return v.TosAgreement }
 
 // GetProvisioningInstructions returns ExtensionProviderData.ProvisioningInstructions, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetProvisioningInstructions() string {
@@ -1617,6 +1621,11 @@ func (v *GetAddOnProviderAddOnProvider) GetNameSuffix() string {
 // GetBeta returns GetAddOnProviderAddOnProvider.Beta, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetBeta() bool { return v.ExtensionProviderData.Beta }
 
+// GetTosAgreement returns GetAddOnProviderAddOnProvider.TosAgreement, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetTosAgreement() string {
+	return v.ExtensionProviderData.TosAgreement
+}
+
 // GetProvisioningInstructions returns GetAddOnProviderAddOnProvider.ProvisioningInstructions, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetProvisioningInstructions() string {
 	return v.ExtensionProviderData.ProvisioningInstructions
@@ -1679,6 +1688,8 @@ type __premarshalGetAddOnProviderAddOnProvider struct {
 
 	Beta bool `json:"beta"`
 
+	TosAgreement string `json:"tosAgreement"`
+
 	ProvisioningInstructions string `json:"provisioningInstructions"`
 
 	ExcludedRegions []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
@@ -1708,6 +1719,7 @@ func (v *GetAddOnProviderAddOnProvider) __premarshalJSON() (*__premarshalGetAddO
 	retval.ResourceName = v.ExtensionProviderData.ResourceName
 	retval.NameSuffix = v.ExtensionProviderData.NameSuffix
 	retval.Beta = v.ExtensionProviderData.Beta
+	retval.TosAgreement = v.ExtensionProviderData.TosAgreement
 	retval.ProvisioningInstructions = v.ExtensionProviderData.ProvisioningInstructions
 	retval.ExcludedRegions = v.ExtensionProviderData.ExcludedRegions
 	return &retval, nil
@@ -3930,6 +3942,7 @@ fragment ExtensionProviderData on AddOnProvider {
 	resourceName
 	nameSuffix
 	beta
+	tosAgreement
 	provisioningInstructions
 	excludedRegions {
 		code
