@@ -19,9 +19,10 @@ type defaultValues struct {
 	releaseVersion  string
 	appConfig       *appconfig.Config
 	existingVolumes map[string]map[string][]*api.Volume
+	snapshotID      *string
 }
 
-func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, withNewVolumes bool) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, snapshotID string, withNewVolumes bool) *defaultValues {
 	guestPerGroup := lo.Associate(
 		lo.Filter(machines, func(m *api.Machine, _ int) bool {
 			return m.Config.Guest != nil
@@ -51,6 +52,10 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 		releaseId:      latest.ID,
 		releaseVersion: strconv.Itoa(latest.Version),
 		appConfig:      appConfig,
+	}
+
+	if snapshotID != "" {
+		defaults.snapshotID = &snapshotID
 	}
 
 	defaults.volsizeByName = lo.Reduce(volumes, func(agg map[string]int, v api.Volume, _ int) map[string]int {
@@ -120,5 +125,6 @@ func (d *defaultValues) CreateVolumeRequest(mConfig *api.MachineConfig, region s
 		SizeGb:            &mount.SizeGb,
 		Encrypted:         api.Pointer(mount.Encrypted),
 		RequireUniqueZone: api.Pointer(false),
+		SnapshotID:        d.snapshotID,
 	}
 }

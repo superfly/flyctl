@@ -50,17 +50,19 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
+	volumes, err := flapsClient.GetVolumes(ctx)
+	if err != nil {
+		return err
+	}
+
 	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
 	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return err
-	}
-	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes, flag.GetBool(ctx, "with-new-volumes"))
+	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
+		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"))
 
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
@@ -138,14 +140,22 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine, error) {
 	flapsClient := flaps.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	input := helpers.Clone(*action.LaunchMachineInput)
 
 	if len(input.Config.Mounts) > 0 {
 		var volume *api.Volume
 		if idx < len(action.Volumes) {
 			volume = action.Volumes[idx]
-		} else if action.CreateVolumeRequest != nil {
+		} else if cvr := action.CreateVolumeRequest; cvr != nil {
 			var err error
+			if cvr.SnapshotID == nil {
+				fmt.Fprintf(io.Out, "  Creating new volume %s \n", colorize.Bold(cvr.Name))
+			} else {
+				fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*cvr.SnapshotID))
+			}
 			volume, err = flapsClient.CreateVolume(ctx, *action.CreateVolumeRequest)
 			if err != nil {
 				return nil, err
@@ -155,52 +165,6 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine
 	}
 
 	return flapsClient.Launch(ctx, input)
-}
-
-func pickOrCreateVolume(ctx context.Context, mount api.MachineMount, volumes []*api.Volume, region string) (*api.Volume, error) {
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-	flapsClient := flaps.FromContext(ctx)
-
-	if !flag.GetBool(ctx, "with-new-volumes") {
-		for _, av := range volumes {
-			fmt.Fprintf(io.Out, "  Using unattached volume %s\n", colorize.Bold(av.ID))
-			return av, nil
-		}
-	}
-
-	var snapshotID *string
-	switch snapID := flag.GetString(ctx, "from-snapshot"); snapID {
-	case "last":
-		snapshots, err := flapsClient.GetVolumeSnapshots(ctx, mount.Volume)
-		if err != nil {
-			return nil, err
-		}
-		if len(snapshots) > 0 {
-			snapshot := lo.MaxBy(snapshots, func(i, j api.VolumeSnapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
-			snapshotID = &snapshot.ID
-			fmt.Fprintf(io.Out, "  Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mount.Volume))
-		} else {
-			fmt.Fprintf(io.Out, "  No snapshot for source volume %s, the new volume will start empty\n", colorize.Bold(mount.Volume))
-			snapshotID = nil
-		}
-	case "":
-		fmt.Fprintf(io.Out, "  Volume %s will start empty\n", colorize.Bold(mount.Name))
-	default:
-		snapshotID = &snapID
-		fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
-	}
-
-	volInput := api.CreateVolumeRequest{
-		Name:              mount.Name,
-		Region:            region,
-		SizeGb:            &mount.SizeGb,
-		Encrypted:         api.Pointer(mount.Encrypted),
-		SnapshotID:        snapshotID,
-		RequireUniqueZone: api.Pointer(false),
-	}
-
-	return flapsClient.CreateVolume(ctx, volInput)
 }
 
 func destroyMachine(ctx context.Context, machine *api.Machine) error {
