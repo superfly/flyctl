@@ -30,16 +30,13 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	var latestCompleteRelease api.Release
-
-	releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1)
-	if err != nil {
+	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
+	case err != nil:
 		return err
-	}
-
-	if len(releases) > 0 {
-		latestCompleteRelease = releases[0]
-	} else {
+	case len(releases) == 0:
 		return fmt.Errorf("this app has no complete releases. Run `fly deploy` to create one and rerun this command")
+	default:
+		latestCompleteRelease = releases[0]
 	}
 
 	var regions []string
