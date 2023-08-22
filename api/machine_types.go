@@ -628,6 +628,7 @@ type LaunchMachineInput struct {
 	ID                  string `json:"-"`
 	SkipHealthChecks    bool   `json:"-"`
 	RequiresReplacement bool   `json:"-"`
+	Timeout             int    `json:"-"`
 }
 
 type MachineProcess struct {

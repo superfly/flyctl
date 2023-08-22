@@ -8,6 +8,29 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
+type GenericErr struct {
+	Err      string
+	Descript string
+	Suggest  string
+	DocUrl   string
+}
+
+func (e GenericErr) Error() string {
+	return e.Err
+}
+
+func (e GenericErr) FlyDocURL() string {
+	return e.DocUrl
+}
+
+func (e GenericErr) Suggestion() string {
+	return e.Suggest
+}
+
+func (e GenericErr) Description() string {
+	return e.Descript
+}
+
 type FlyDocUrl interface {
 	DocURL() string
 }
