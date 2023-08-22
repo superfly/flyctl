@@ -49,12 +49,12 @@ func runDeploy(ctx context.Context) (err error) {
 		return err
 	}
 
-	if !app.Deployed && len(machines) == 0 {
-		return errors.New("before using 'fly secrets deploy', you must first deploy your app at least once using 'fly deploy'")
-	}
-
 	if app.PlatformVersion != appconfig.MachinesPlatform {
 		return errors.New("secrets deploy is only supported for machine apps")
+	}
+
+	if !app.Deployed && len(machines) == 0 {
+		return errors.New("before using 'fly secrets deploy', you must first deploy your app at least once using 'fly deploy'")
 	}
 
 	return DeploySecrets(ctx, app, false, flag.GetBool(ctx, "detach"))
