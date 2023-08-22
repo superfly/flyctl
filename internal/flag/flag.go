@@ -338,7 +338,7 @@ func Yes() Bool {
 
 // Checks whether the --yes flag or the --auto-confirm flag is present
 func HasYes(ctx context.Context) bool {
-	return GetBool(ctx, "yes") || GetBool(ctx, "auto-confirm")
+	return GetBool(ctx, "yes")
 }
 
 // App returns an app string flag.
