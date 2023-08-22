@@ -65,14 +65,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes)
 
-	var availableVols []*api.Volume
-	if !flag.GetBool(ctx, "with-new-volumes") {
-		availableVols = lo.FilterMap(volumes, func(v api.Volume, _ int) (*api.Volume, bool) {
-			return &v, !v.IsAttached()
-		})
-	}
-
-	actions, err := computeActions(machines, expectedGroupCounts, availableVols, regions, maxPerRegion, defaults)
+	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -250,7 +243,7 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, volumes []*api.Volume, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
