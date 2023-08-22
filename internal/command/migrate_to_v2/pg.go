@@ -77,10 +77,9 @@ func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error
 }
 
 func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
-	app := m.appFull
 	regionsToVols := map[string][]api.Volume{}
 	// Find all volumes
-	for _, vol := range app.Volumes.Nodes {
+	for _, vol := range m.oldAttachedVolumes {
 		if strings.Contains(vol.Name, "machines") || vol.AttachedAllocation == nil {
 			continue
 		}
