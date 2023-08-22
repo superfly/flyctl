@@ -63,7 +63,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	if err != nil {
 		return err
 	}
-	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes)
+	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes, flag.GetBool(ctx, "with-new-volumes"))
 
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
@@ -85,9 +85,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		volumesToCreate := action.VolumesDelta()
 		switch {
 		case volumesToReuse > 0 && volumesToCreate > 0:
-			fmt.Fprintf(io.Out, "%+4d volumes and using %d existing volumes for group '%s' in region '%s'\n", volumesToCreate, volumesToReuse, action.GroupName, action.Region)
+			fmt.Fprintf(io.Out, "%+4d volumes and %d unattached volumes assigned to group '%s' in region '%s'\n", volumesToCreate, volumesToReuse, action.GroupName, action.Region)
 		case volumesToReuse > 0:
-			fmt.Fprintf(io.Out, "  Using %d existing volumes for group '%s' in region '%s'\n", volumesToReuse, action.GroupName, action.Region)
+			fmt.Fprintf(io.Out, "% 4d unattached volumes to be assigned to group '%s' in region '%s'\n", volumesToReuse, action.GroupName, action.Region)
 		case volumesToCreate > 0:
 			fmt.Fprintf(io.Out, "%+4d volumes for group '%s' in region '%s'\n", volumesToCreate, action.GroupName, action.Region)
 		}

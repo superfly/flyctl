@@ -21,7 +21,7 @@ type defaultValues struct {
 	existingVolumes map[string]map[string][]*api.Volume
 }
 
-func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, withNewVolumes bool) *defaultValues {
 	guestPerGroup := lo.Associate(
 		lo.Filter(machines, func(m *api.Machine, _ int) bool {
 			return m.Config.Guest != nil
@@ -43,33 +43,37 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 		}
 	}
 
-	volsizeByName := lo.Reduce(volumes, func(agg map[string]int, v api.Volume, _ int) map[string]int {
+	defaults := defaultValues{
+		image:          latest.ImageRef,
+		guest:          guest,
+		guestPerGroup:  guestPerGroup,
+		volsize:        1,
+		releaseId:      latest.ID,
+		releaseVersion: strconv.Itoa(latest.Version),
+		appConfig:      appConfig,
+	}
+
+	defaults.volsizeByName = lo.Reduce(volumes, func(agg map[string]int, v api.Volume, _ int) map[string]int {
 		agg[v.Name] = lo.Max([]int{agg[v.Name], v.SizeGb})
 		return agg
 	}, make(map[string]int))
 
-	availableVolumes := lo.FilterMap(volumes, func(v api.Volume, _ int) (*api.Volume, bool) {
-		return &v, !v.IsAttached()
-	})
-	existingVolumes := lo.MapValues(
-		lo.GroupBy(availableVolumes, func(v *api.Volume) string { return v.Name }),
-		func(vl []*api.Volume, _ string) map[string][]*api.Volume {
-			return lo.GroupBy(vl, func(v *api.Volume) string {
-				return v.Region
-			})
-		})
-
-	return &defaultValues{
-		image:           latest.ImageRef,
-		guest:           guest,
-		guestPerGroup:   guestPerGroup,
-		volsize:         1,
-		volsizeByName:   volsizeByName,
-		releaseId:       latest.ID,
-		releaseVersion:  strconv.Itoa(latest.Version),
-		appConfig:       appConfig,
-		existingVolumes: existingVolumes,
+	if !withNewVolumes {
+		defaults.existingVolumes = lo.MapValues(
+			lo.GroupBy(
+				lo.FilterMap(volumes, func(v api.Volume, _ int) (*api.Volume, bool) {
+					return &v, !v.IsAttached()
+				}),
+				func(v *api.Volume) string { return v.Name },
+			),
+			func(vl []*api.Volume, _ string) map[string][]*api.Volume {
+				return lo.GroupBy(vl, func(v *api.Volume) string {
+					return v.Region
+				})
+			},
+		)
 	}
+	return &defaults
 }
 
 func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, error) {
