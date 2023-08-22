@@ -88,7 +88,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		case volumesToReuse > 0:
 			fmt.Fprintf(io.Out, "% 4d unattached volumes to be assigned to group '%s' in region '%s'\n", volumesToReuse, action.GroupName, action.Region)
 		case volumesToCreate > 0:
-			fmt.Fprintf(io.Out, "%+4d volumes for group '%s' in region '%s'\n", volumesToCreate, action.GroupName, action.Region)
+			fmt.Fprintf(io.Out, "%+4d volumes  for group '%s' in region '%s'\n", volumesToCreate, action.GroupName, action.Region)
 		}
 	}
 
@@ -147,19 +147,28 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine
 
 	if len(input.Config.Mounts) > 0 {
 		var volume *api.Volume
-		if idx < len(action.Volumes) {
+
+		switch {
+		case idx < len(action.Volumes):
 			volume = action.Volumes[idx]
-		} else if cvr := action.CreateVolumeRequest; cvr != nil {
-			var err error
-			if cvr.SnapshotID == nil {
-				fmt.Fprintf(io.Out, "  Creating new volume %s \n", colorize.Bold(cvr.Name))
-			} else {
-				fmt.Fprintf(io.Out, "  Creating new volume from snapshot: %s\n", colorize.Bold(*cvr.SnapshotID))
+		case action.CreateVolumeRequest != nil:
+			cvr := action.CreateVolumeRequest
+			fmt.Fprintf(io.Out, "  Creating volume %s region:%s", colorize.Bold(cvr.Name), cvr.Region)
+			if cvr.SizeGb != nil {
+				fmt.Fprintf(io.Out, " size:%dGiB", *cvr.SizeGb)
 			}
-			volume, err = flapsClient.CreateVolume(ctx, *action.CreateVolumeRequest)
+			if cvr.SnapshotID != nil {
+				fmt.Fprintf(io.Out, " from-snapshot:%s", colorize.Bold(*cvr.SnapshotID))
+			}
+			fmt.Fprintln(io.Out)
+
+			var err error
+			volume, err = flapsClient.CreateVolume(ctx, *cvr)
 			if err != nil {
 				return nil, err
 			}
+		default:
+			return nil, fmt.Errorf("Launching the machine requires a volume but there is no volume to attach or create")
 		}
 		input.Config.Mounts[0].Volume = volume.ID
 	}
