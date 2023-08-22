@@ -233,6 +233,10 @@ func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string)
 
 	// Sync configuration settings for each node. This should be safe to apply out-of-order.
 	for _, machine := range machines {
+		if machine.Config.Env["IS_BARMAN"] != "" {
+			continue
+		}
+
 		client := flypg.NewFromInstance(machine.PrivateIP, dialer)
 
 		// Pull configuration settings down from Consul for each node and reload the config.
