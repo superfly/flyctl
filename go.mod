@@ -155,7 +155,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20230803162519-f966b187b2e5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230803162519-f966b187b2e5 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gvisor.dev/gvisor v0.0.0-20221203005347-703fd9b7fbc0 // indirect
+	gvisor.dev/gvisor v0.0.0-20230504175454-7b0a1988a28f // indirect
 )
 
 require (
@@ -163,7 +163,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/PuerkitoBio/rehttp v1.2.0
 	github.com/buildpacks/lifecycle v0.17.0 // indirect
-	github.com/cenkalti/backoff v2.1.1+incompatible // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/containerd/containerd v1.7.2 // indirect
 	github.com/containerd/continuity v0.4.1 // indirect
 	github.com/containerd/typeurl v1.0.2 // indirect
