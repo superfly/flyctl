@@ -112,8 +112,12 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 }
 
 // Must run *after* allocs are filtered
-func (m *v2PlatformMigrator) resolveOldVolumes() {
-	m.oldAttachedVolumes = lo.Filter(m.appFull.Volumes.Nodes, func(v api.Volume, _ int) bool {
+func (m *v2PlatformMigrator) resolveOldVolumes(ctx context.Context) error {
+	vols, err := m.flapsClient.GetAllVolumes(ctx)
+	if err != nil {
+		return err
+	}
+	m.oldAttachedVolumes = lo.Filter(vols, func(v api.Volume, _ int) bool {
 		if v.AttachedAllocation != nil {
 			for _, a := range m.oldAllocs {
 				if a.ID == *v.AttachedAllocation {
@@ -123,6 +127,7 @@ func (m *v2PlatformMigrator) resolveOldVolumes() {
 		}
 		return false
 	})
+	return nil
 }
 
 func (m *v2PlatformMigrator) printReplacedVolumes() {

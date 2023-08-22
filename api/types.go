@@ -323,12 +323,9 @@ type App struct {
 	VMSize           VMSize
 	Regions          *[]Region
 	BackupRegions    *[]Region
-	Volumes          struct {
-		Nodes []Volume
-	}
-	TaskGroupCounts []TaskGroupCount
-	ProcessGroups   []ProcessGroup
-	HealthChecks    *struct {
+	TaskGroupCounts  []TaskGroupCount
+	ProcessGroups    []ProcessGroup
+	HealthChecks     *struct {
 		Nodes []CheckState
 	}
 	PostgresAppRole *struct {
