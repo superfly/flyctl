@@ -23,7 +23,9 @@ func newDeploy() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runDeploy, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
-		sharedFlags,
+		flag.App(),
+		flag.AppConfig(),
+		flag.Detach(),
 	)
 
 	return cmd
@@ -55,5 +57,5 @@ func runDeploy(ctx context.Context) (err error) {
 		return errors.New("secrets deploy is only supported for machine apps")
 	}
 
-	return DeploySecrets(ctx, app, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
+	return DeploySecrets(ctx, app, false, flag.GetBool(ctx, "detach"))
 }
