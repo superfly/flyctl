@@ -6,6 +6,7 @@ require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/BurntSushi/toml v1.3.2
 	github.com/Khan/genqlient v0.6.0
+	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.2.0
 	github.com/azazeal/pause v1.3.0
