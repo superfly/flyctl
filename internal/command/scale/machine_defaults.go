@@ -10,14 +10,15 @@ import (
 )
 
 type defaultValues struct {
-	image          string
-	guest          *api.MachineGuest
-	guestPerGroup  map[string]*api.MachineGuest
-	volsize        int
-	volsizeByName  map[string]int
-	releaseId      string
-	releaseVersion string
-	appConfig      *appconfig.Config
+	image           string
+	guest           *api.MachineGuest
+	guestPerGroup   map[string]*api.MachineGuest
+	volsize         int
+	volsizeByName   map[string]int
+	releaseId       string
+	releaseVersion  string
+	appConfig       *appconfig.Config
+	existingVolumes map[string]map[string][]*api.Volume
 }
 
 func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume) *defaultValues {
@@ -47,15 +48,27 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 		return agg
 	}, make(map[string]int))
 
+	availableVolumes := lo.FilterMap(volumes, func(v api.Volume, _ int) (*api.Volume, bool) {
+		return &v, !v.IsAttached()
+	})
+	existingVolumes := lo.MapValues(
+		lo.GroupBy(availableVolumes, func(v *api.Volume) string { return v.Name }),
+		func(vl []*api.Volume, _ string) map[string][]*api.Volume {
+			return lo.GroupBy(vl, func(v *api.Volume) string {
+				return v.Region
+			})
+		})
+
 	return &defaultValues{
-		image:          latest.ImageRef,
-		guest:          guest,
-		guestPerGroup:  guestPerGroup,
-		volsize:        1,
-		volsizeByName:  volsizeByName,
-		releaseId:      latest.ID,
-		releaseVersion: strconv.Itoa(latest.Version),
-		appConfig:      appConfig,
+		image:           latest.ImageRef,
+		guest:           guest,
+		guestPerGroup:   guestPerGroup,
+		volsize:         1,
+		volsizeByName:   volsizeByName,
+		releaseId:       latest.ID,
+		releaseVersion:  strconv.Itoa(latest.Version),
+		appConfig:       appConfig,
+		existingVolumes: existingVolumes,
 	}
 }
 
@@ -77,4 +90,31 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
 
 	return mc, nil
+}
+
+func (d *defaultValues) PopAvailableVolumes(mConfig *api.MachineConfig, region string, delta int) []*api.Volume {
+	if delta <= 0 || len(mConfig.Mounts) == 0 {
+		return nil
+	}
+	name := mConfig.Mounts[0].Name
+	regionVolumes := d.existingVolumes[name][region]
+	availableVolumes := regionVolumes[0:lo.Min([]int{len(regionVolumes), delta})]
+	if len(availableVolumes) > 0 {
+		d.existingVolumes[name][region] = lo.Drop(regionVolumes, len(availableVolumes))
+	}
+	return availableVolumes
+}
+
+func (d *defaultValues) CreateVolumeRequest(mConfig *api.MachineConfig, region string, delta int) *api.CreateVolumeRequest {
+	if len(mConfig.Mounts) == 0 || delta <= 0 {
+		return nil
+	}
+	mount := mConfig.Mounts[0]
+	return &api.CreateVolumeRequest{
+		Name:              mount.Name,
+		Region:            region,
+		SizeGb:            &mount.SizeGb,
+		Encrypted:         api.Pointer(mount.Encrypted),
+		RequireUniqueZone: api.Pointer(false),
+	}
 }
