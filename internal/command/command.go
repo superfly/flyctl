@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -38,7 +39,7 @@ func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.C
 	return &cobra.Command{
 		Use:   usage,
 		Short: short,
-		Long:  long,
+		Long:  heredoc.Doc(long),
 		RunE:  newRunE(fn, p...),
 	}
 }
