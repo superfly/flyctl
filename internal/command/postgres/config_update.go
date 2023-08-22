@@ -256,7 +256,7 @@ func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager stri
 		dialer = agent.DialerFromContext(ctx)
 
 		force       = flag.GetBool(ctx, "force")
-		autoConfirm = flag.HasYes(ctx)
+		autoConfirm = flag.GetYes(ctx)
 	)
 
 	// Identify requested configuration changes.

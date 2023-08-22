@@ -78,7 +78,7 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if app.PlatformVersion == "nomad" {
-		if !flag.HasYes(ctx) {
+		if !flag.GetYes(ctx) {
 			switch confirmed, err := prompt.Confirm(ctx, "Extending this volume will result in a VM restart. Continue?"); {
 			case err == nil:
 				if !confirmed {
