@@ -159,15 +159,6 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 					digest
 					version
 				}
-				volumes {
-					nodes {
-						id
-						sizeGb
-						name
-						region
-						attached_alloc_id: attachedAllocationId
-					}
-				}
 				machines{
 					nodes {
 						id
