@@ -62,11 +62,6 @@ type Bool struct {
 	Aliases     []string
 }
 
-func (b Bool) SetDescription(description string) Bool {
-	b.Description = description
-	return b
-}
-
 func (b Bool) addTo(cmd *cobra.Command) {
 	flags := cmd.Flags()
 

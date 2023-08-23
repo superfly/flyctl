@@ -60,7 +60,7 @@ var CommonFlags = flag.Set{
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
-	flag.Yes().SetDescription("Will automatically confirm changes when running non-interactively."),
+	flag.Yes(),
 	flag.Int{
 		Name:        "wait-timeout",
 		Description: "Seconds to wait for individual machines to transition states and become healthy.",
