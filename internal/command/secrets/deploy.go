@@ -41,7 +41,9 @@ func runDeploy(ctx context.Context) (err error) {
 
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
+		return flyerr.GenericErr{
+			Err:      fmt.Sprintf("could not create flaps client: %w", err),
+		}
 	}
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
