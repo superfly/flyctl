@@ -194,6 +194,11 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name: "host-dedication-id",
 		},
+		flag.Bool{
+			Name:        "lsvd",
+			Description: "Enable LSVD for this machine",
+			Hidden:      true,
+		},
 		sharedFlags,
 	)
 
@@ -252,6 +257,7 @@ func runMachineRun(ctx context.Context) error {
 		Name:             flag.GetString(ctx, "name"),
 		Region:           flag.GetString(ctx, "region"),
 		HostDedicationID: flag.GetString(ctx, "host-dedication-id"),
+		LSVD:   flag.GetBool(ctx, "lsvd"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
