@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -11,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 func newDeploy() (cmd *cobra.Command) {
@@ -50,12 +50,19 @@ func runDeploy(ctx context.Context) (err error) {
 	}
 
 	if app.PlatformVersion != appconfig.MachinesPlatform {
-		return errors.New("secrets deploy is only supported for machine apps")
+		return flyerr.GenericErr{
+				Err:      "secrets deploy is only supported for machine apps",
+		}
 	}
 
-	if !app.Deployed && len(machines) == 0 {
-		return errors.New("before using 'fly secrets deploy', you must first deploy your app at least once using 'fly deploy'")
+	if !(app.Deployed && len(machines) > 0) {
+		return flyerr.GenericErr{
+			Err:      "no machines available to deploy",
+			Descript: "'fly secrets deploy' will only work if the app has been deployed and there are machines available",
+			Suggest:  "Try 'fly deploy' first",
+		}
 	}
 
 	return DeploySecrets(ctx, app, false, flag.GetBool(ctx, "detach"))
 }
+
