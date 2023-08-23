@@ -85,8 +85,9 @@ type ExtendVolumeResponse struct {
 }
 
 type ExtendVolumeErr struct {
-	volumeId  string
-	volumeErr error
+	volumeId   string
+	volumeSize int
+	volumeErr  error
 }
 
 func (e ExtendVolumeErr) Error() string {
@@ -94,7 +95,7 @@ func (e ExtendVolumeErr) Error() string {
 }
 
 func (e ExtendVolumeErr) Description() string {
-	return fmt.Sprintf("received error '%v' while trying to extend volume %s", e.volumeErr, e.volumeId)
+	return fmt.Sprintf("received error '%v' while trying to extend volume %s to %d GB", e.volumeErr, e.volumeId, e.volumeSize)
 }
 
 func (f *Client) ExtendVolume(ctx context.Context, volumeId string, size_gb int) (*api.Volume, bool, error) {
@@ -109,8 +110,9 @@ func (f *Client) ExtendVolume(ctx context.Context, volumeId string, size_gb int)
 	err := f.sendRequestVolumes(ctx, http.MethodPut, extendVolumeEndpoint, req, out, nil)
 	if err != nil {
 		return nil, false, ExtendVolumeErr{
-			volumeId:  volumeId,
-			volumeErr: err,
+			volumeId:   volumeId,
+			volumeErr:  err,
+			volumeSize: size_gb,
 		}
 	}
 	return out.Volume, out.NeedsRestart, nil
