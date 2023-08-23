@@ -55,7 +55,6 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	// Standard provisioning will be stopped by the backend for the same reason, but there, we'll supply a better error message.
 
 	if auto && provider.Beta && !targetOrg.ProvisionsBetaExtensions {
-		fmt.Println("skipping provisioning")
 		return extension, nil
 	}
 
