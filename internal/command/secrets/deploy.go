@@ -42,7 +42,7 @@ func runDeploy(ctx context.Context) (err error) {
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return flyerr.GenericErr{
-			Err:      fmt.Sprintf("could not create flaps client: %v", err),
+			Err: fmt.Sprintf("could not create flaps client: %v", err),
 		}
 	}
 
@@ -53,7 +53,7 @@ func runDeploy(ctx context.Context) (err error) {
 
 	if app.PlatformVersion != appconfig.MachinesPlatform {
 		return flyerr.GenericErr{
-				Err:      "secrets deploy is only supported for machine apps",
+			Err: "secrets deploy is only supported for machine apps",
 		}
 	}
 
