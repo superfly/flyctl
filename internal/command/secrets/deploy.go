@@ -65,4 +65,3 @@ func runDeploy(ctx context.Context) (err error) {
 
 	return DeploySecrets(ctx, app, false, flag.GetBool(ctx, "detach"))
 }
-
