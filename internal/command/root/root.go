@@ -38,6 +38,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/jobs"
 	"github.com/superfly/flyctl/internal/command/launch"
 	"github.com/superfly/flyctl/internal/command/logs"
+	"github.com/superfly/flyctl/internal/command/lsvd"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
 	"github.com/superfly/flyctl/internal/command/monitor"
@@ -146,6 +147,7 @@ func New() *cobra.Command {
 		suspend.New(),    // TODO: deprecate
 		resume.New(),     // TODO: deprecate
 		dnsrecords.New(), // TODO: deprecate
+		lsvd.New(),
 	)
 
 	// if os.Getenv("DEV") != "" {
