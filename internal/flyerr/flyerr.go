@@ -90,8 +90,7 @@ func PrintCLIOutput(err error) {
 	suggestion := GetErrorSuggestion(err)
 
 	if description != "" {
-		fmt.Println()
-		fmt.Printf("\n%s", description)
+		fmt.Printf("\n\n%s", description)
 	}
 
 	if suggestion != "" {
