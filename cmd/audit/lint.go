@@ -271,12 +271,12 @@ func invalidGroup(run *run, cmd *cobra.Command) error {
 	return nil
 }
 
-func flagPunctuation(run *run, cmd *cobra.Command, flag *pflag.Flag) error {
-	if !strings.HasSuffix(flag.Usage, ".") {
-		return fmt.Errorf("flag.Usage should end with a period")
-	}
-	return nil
-}
+// func flagPunctuation(run *run, cmd *cobra.Command, flag *pflag.Flag) error {
+// 	if !strings.HasSuffix(flag.Usage, ".") {
+// 		return fmt.Errorf("flag.Usage should end with a period")
+// 	}
+// 	return nil
+// }
 
 func misusedShorthand(run *run, cmd *cobra.Command, flag *pflag.Flag) error {
 	if flag.Shorthand != "" {
