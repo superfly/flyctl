@@ -144,8 +144,8 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name: "restart",
-		Description: `Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'.
-	Default is set to always for ordinary machines and on-fail for machines with a schedule`,
+		Description: `Set the restart policy for a Machine. Options include 'no', 'always', and 'on-fail'.
+	Default is 'on-fail' for Machines created by 'fly deploy' and Machines with a schedule. Default is 'always' for Machines created by 'fly m run'.`,
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
