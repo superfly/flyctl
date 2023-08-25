@@ -202,19 +202,8 @@ func resolveImportCommand(ctx context.Context) string {
 		dataOnly = flag.GetBool(ctx, "data-only")
 	)
 
-	importCmd := "migrate "
-	if noOwner {
-		importCmd = importCmd + " -no-owner"
-	}
-	if clean {
-		importCmd = importCmd + " -clean"
-	}
-	if create {
-		importCmd = importCmd + " -create"
-	}
-	if dataOnly {
-		importCmd = importCmd + " -data-only"
-	}
-
-	return importCmd
+	return fmt.Sprintf(
+		"migrate -no-owner=%v -create=%v -clean=%v -data-only=%v",
+		noOwner, create, clean, dataOnly,
+	)
 }
