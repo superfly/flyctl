@@ -185,5 +185,9 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	// Even with the error, the importer machine should have been
 	// destroyed.
 	ml := f.MachinesList(appName)
+
+	for _, m := range ml {
+		fmt.Println("found machine", m.ID, m.Name, m.State)
+	}
 	require.Equal(f, 1, len(ml))
 }
