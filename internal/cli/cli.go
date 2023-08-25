@@ -5,15 +5,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"html/template"
+	"os"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
+	"github.com/MakeNowJust/heredoc/v2"
+	"github.com/kr/text"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
+	"golang.org/x/term"
 
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
@@ -55,6 +62,14 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd.SetErr(io.ErrOut)
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true
+
+	// configure help templates and helpers
+	cobra.AddTemplateFuncs(template.FuncMap{
+		"wrapFlagUsages": wrapFlagUsages,
+		"wrapText":       wrapText,
+	})
+	cmd.SetUsageTemplate(usageTemplate)
+	cmd.SetHelpTemplate(helpTemplate)
 
 	cs := io.ColorScheme()
 
@@ -132,3 +147,66 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 func NewRootCommand() *cobra.Command {
 	return root.New()
 }
+
+func wrapFlagUsages(cmd *pflag.FlagSet) string {
+	width := helpWidth()
+
+	return cmd.FlagUsagesWrapped(width - 1)
+}
+
+func wrapText(s string) string {
+	width := helpWidth()
+
+	return strings.TrimSpace(text.Wrap(heredoc.Doc(s), width-1))
+}
+
+func helpWidth() int {
+	fd := int(os.Stdout.Fd())
+	width := 80
+
+	// Get the terminal width and dynamically set
+	termWidth, _, err := term.GetSize(fd)
+	if err == nil {
+		width = termWidth
+	}
+
+	return min(120, width)
+}
+
+// identical to the default cobra help template, but utilizes wrapText
+// https://github.com/spf13/cobra/blob/fd865a44e3c48afeb6a6dbddadb8a5519173e029/command.go#L580-L582
+const helpTemplate = `{{with (or .Long .Short)}}{{. | trimTrailingWhitespaces | wrapText}}
+
+{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
+
+// identical to the default cobra usage template, but utilizes wrapFlagUsages
+// https://github.com/spf13/cobra/blob/fd865a44e3c48afeb6a6dbddadb8a5519173e029/command.go#L539-L568
+const usageTemplate = `Usage:{{if .Runnable}}
+  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+Aliases:
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+Examples:
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+Available Commands:{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+Additional Commands:{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+Flags:
+{{wrapFlagUsages .LocalFlags | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{wrapFlagUsages .InheritedFlags | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+Additional help topics:{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}`
