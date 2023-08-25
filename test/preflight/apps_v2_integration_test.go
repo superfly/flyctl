@@ -27,7 +27,7 @@ func TestAppsV2Example(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		err    error
@@ -121,7 +121,7 @@ ENV BUILT_BY_DOCKERFILE=true
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		err            error
@@ -162,7 +162,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		err            error
@@ -213,7 +213,7 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		err            error
@@ -239,7 +239,7 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 }
 
 func TestAppsV2Config_ProcessGroups(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		f              = testlib.NewTestEnvFromEnv(t)
@@ -432,7 +432,7 @@ web = "nginx -g 'daemon off;'"
 }
 
 func TestAppsV2MigrateToV2(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		err     error
@@ -455,7 +455,7 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 
 // This test takes forever. I'm sorry.
 func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	if testing.Short() {
 		t.Skip()
@@ -523,7 +523,7 @@ primary_region = "%s"
 
 // this test is really slow :(
 func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		err     error
@@ -564,7 +564,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 }
 
 func TestNoPublicIPDeployMachines(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		result *testlib.FlyctlResult
@@ -580,7 +580,7 @@ func TestNoPublicIPDeployMachines(t *testing.T) {
 }
 
 func TestLaunchCpusMem(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -597,7 +597,7 @@ func TestLaunchCpusMem(t *testing.T) {
 }
 
 func TestLaunchDetach(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -614,7 +614,7 @@ func TestLaunchDetach(t *testing.T) {
 }
 
 func TestDeployDetach(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -631,7 +631,7 @@ func TestDeployDetach(t *testing.T) {
 }
 
 func TestDeployDetachBatching(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -649,7 +649,7 @@ func TestDeployDetachBatching(t *testing.T) {
 }
 
 func TestErrOutput(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)

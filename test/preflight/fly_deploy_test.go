@@ -14,7 +14,7 @@ import (
 )
 
 func TestFlyDeployHA(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -41,7 +41,7 @@ func TestFlyDeployHA(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -51,7 +51,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -70,7 +70,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -89,7 +89,7 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 }
 
 func TestFlyDeploy_Dockerfile(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -102,7 +102,7 @@ ENV PREFLIGHT_TEST=true`)
 
 // If this test passes at all, that means that a slow metrics server isn't affecting flyctl
 func TestFlyDeploySlowMetrics(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	env := make(map[string]string)
 	env["FLY_METRICS_BASE_URL"] = "https://flyctl-metrics-slow.fly.dev"

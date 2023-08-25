@@ -12,7 +12,7 @@ import (
 )
 
 func TestFlyScaleCount(t *testing.T) {
-	t.Parallel()
+	// t.Parallel()
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
