@@ -10,7 +10,7 @@ env:
 jobs:
   test_build:
     runs-on:
-      group: ubuntu-latest-m
+      labels: ubuntu-latest-m
     steps:
       - uses: actions/checkout@v3
         with:
