@@ -17,8 +17,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        parallelism: [10]
-        index: [0,1,2,3,4,5,6,7,8,9]
+        parallelism: [20]
+        index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
@@ -28,7 +28,7 @@ jobs:
       - name: Get go version
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
-      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX and build flyctl
+      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
           curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
