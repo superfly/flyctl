@@ -10,6 +10,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/jpillora/backoff"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flypg"
@@ -97,13 +98,24 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 				Encrypted:    api.Pointer(vol.Encrypted),
 				MachinesOnly: api.Pointer(true),
 			}
+			// We have to search for the full alloc ID, because the volume only has the short-form alloc ID
+			var allocId string
+			if shortAllocId := vol.AttachedAllocation; shortAllocId != nil {
+				alloc, ok := lo.Find(m.oldAllocs, func(a *api.AllocationStatus) bool {
+					return a.IDShort == *shortAllocId
+				})
+				if !ok {
+					return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *shortAllocId)
+				}
+				allocId = alloc.ID
+			}
 			newVol, err := m.flapsClient.CreateVolume(ctx, input)
 			if err != nil {
 				return err
 			}
 			newVols = append(newVols, &NewVolume{
 				vol:             newVol,
-				previousAllocId: *vol.AttachedAllocation,
+				previousAllocId: allocId,
 				mountPoint:      "/data",
 			})
 		}
