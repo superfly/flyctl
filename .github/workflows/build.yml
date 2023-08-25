@@ -9,8 +9,7 @@ env:
 
 jobs:
   test_build:
-    runs-on:
-      labels: ubuntu-latest-m
+    runs-on: ubuntu-latest-m
     steps:
       - uses: actions/checkout@v3
         with:
