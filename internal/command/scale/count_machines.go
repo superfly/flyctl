@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -79,6 +80,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	for _, action := range actions {
 		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' of size '%s'\n",
 			action.Delta, action.GroupName, action.Region, action.MachineSize())
+		if action.MachineSize() != deploy.DefaultVMSize && len(action.Machines)+action.Delta == 0 {
+			fmt.Fprintf(io.Out, "  Scaling to zero resets the size of the machines to '%s'\n", deploy.DefaultVMSize)
+		}
 
 		volumesToReuse := len(action.Volumes)
 		volumesToCreate := action.VolumesDelta()
