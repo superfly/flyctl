@@ -6,6 +6,7 @@ package preflight
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
@@ -182,6 +183,9 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	)
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
+
+	// Wait for the importer machine to be destroyed.
+	time.Sleep(5 * time.Second)
 
 	// Even with the error, the importer machine should have been
 	// destroyed.
