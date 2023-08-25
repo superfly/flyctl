@@ -3,7 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
+	"io"
 	"math"
 	"net/http"
 	"sync"
@@ -79,7 +79,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 
 	defer func() { _ = req.Body.Close() }()
 
-	data, err := ioutil.ReadAll(req.Body)
+	data, err := io.ReadAll(req.Body)
 
 	if err != nil {
 		t.Logger.Debug("error reading request body:", err)
@@ -91,7 +91,7 @@ func (t *LoggingTransport) logRequest(req *http.Request) {
 		t.Logger.Debug(req.Body)
 	}
 
-	req.Body = ioutil.NopCloser(bytes.NewReader(data))
+	req.Body = io.NopCloser(bytes.NewReader(data))
 }
 
 func (t *LoggingTransport) logResponse(resp *http.Response) {
@@ -107,7 +107,7 @@ func (t *LoggingTransport) logResponse(resp *http.Response) {
 		t.Logger.Debugf("<-- %d %s %s\n", resp.StatusCode, resp.Request.URL)
 	}
 
-	data, err := ioutil.ReadAll(resp.Body)
+	data, err := io.ReadAll(resp.Body)
 
 	if err != nil {
 		t.Logger.Debug("error reading response body:", err)
@@ -115,7 +115,7 @@ func (t *LoggingTransport) logResponse(resp *http.Response) {
 		t.Logger.Debug(string(data))
 	}
 
-	resp.Body = ioutil.NopCloser(bytes.NewReader(data))
+	resp.Body = io.NopCloser(bytes.NewReader(data))
 }
 
 func shiftedDuration(d time.Duration, dicimal int) time.Duration {
