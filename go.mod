@@ -60,7 +60,7 @@ require (
 	github.com/superfly/flyctl/api v0.0.0-20230714194642-3abf5055f01a
 	github.com/superfly/graphql v0.2.4
 	github.com/vektah/gqlparser v1.3.1
-	github.com/vektah/gqlparser/v2 v2.5.6
+	github.com/vektah/gqlparser/v2 v2.5.8
 	golang.org/x/crypto v0.12.0
 	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	golang.org/x/net v0.14.0
