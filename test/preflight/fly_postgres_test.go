@@ -14,8 +14,6 @@ import (
 )
 
 func TestPostgres_singleNode(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -29,8 +27,6 @@ func TestPostgres_singleNode(t *testing.T) {
 }
 
 func TestPostgres_autostart(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -58,8 +54,6 @@ func TestPostgres_autostart(t *testing.T) {
 }
 
 func TestPostgres_FlexFailover(t *testing.T) {
-	// t.Parallel()
-
 	if testing.Short() {
 		t.Skip()
 	}
@@ -91,8 +85,6 @@ func TestPostgres_FlexFailover(t *testing.T) {
 }
 
 func TestPostgres_NoMachines(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -107,8 +99,6 @@ func TestPostgres_NoMachines(t *testing.T) {
 }
 
 func TestPostgres_haConfigSave(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -125,8 +115,6 @@ func TestPostgres_haConfigSave(t *testing.T) {
 }
 
 func TestPostgres_ImportSuccess(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
@@ -167,8 +155,6 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 

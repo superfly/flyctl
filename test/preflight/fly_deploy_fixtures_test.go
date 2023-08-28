@@ -25,8 +25,6 @@ func copyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
 }
 
 func TestFlyDeployBuildpackNodeAppWithRemoteBuilder(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
@@ -77,8 +75,6 @@ func TestFlyDeployBuildpackNodeAppWithRemoteBuilder(t *testing.T) {
 }
 
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
-	// t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
