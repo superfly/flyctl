@@ -356,6 +356,7 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
 	ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
+	time.Sleep(5 * time.Second)
 	assert.Equal(f, "SECRET1", ssh.StdOut().String())
 }
 
