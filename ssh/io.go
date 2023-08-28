@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"runtime"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -46,22 +47,47 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 	return fd, term.IsTerminal(fd)
 }
 
+func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int, int, error) {
+	var (
+		fd int
+		ok bool
+	)
+	if runtime.GOOS == "windows" {
+		// TODO(Ali): Hardcoded stdout instead of pulling it from the SessionIO because it's
+		//            wrapped in multiple wrapper types.
+		fd = 1
+		ok = true
+	} else {
+		fd, ok = getFd(s.Stdin)
+	}
+	if !ok {
+		return 0, 0, errors.New("could not get console handle")
+	}
+
+	width, height, err := term.GetSize(fd)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	go watchWindowSize(ctx, fd, sess)
+
+	return width, height, nil
+}
+
 func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
 	if s.AllocPTY {
 		width, height := DefaultWidth, DefaultHeight
+
 		if fd, ok := getFd(s.Stdin); ok {
 			state, err := term.MakeRaw(fd)
 			if err != nil {
 				return err
 			}
 			defer term.Restore(fd, state)
+		}
 
-			width, height, err = term.GetSize(fd)
-			if err != nil {
-				return err
-			}
-
-			go watchWindowSize(ctx, fd, sess)
+		if w, h, err := s.getAndWatchSize(ctx, sess); err == nil {
+			width, height = w, h
 		}
 
 		if err := sess.RequestPty(s.TermEnv, height, width, modes); err != nil {
