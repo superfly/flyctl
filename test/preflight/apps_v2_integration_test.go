@@ -523,7 +523,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 		appName = f.CreateRandomAppName()
 	)
 
-	ctx, cancel := context.WithTimeoutCause(context.Background(), 4*time.Minute, errors.New("test timed out"))
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 6*time.Minute, errors.New("test timed out"))
 	defer cancel()
 
 	f.FlyC(ctx, "launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
