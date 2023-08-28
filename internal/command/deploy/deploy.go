@@ -60,10 +60,7 @@ var CommonFlags = flag.Set{
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
-	flag.Bool{
-		Name:        "auto-confirm",
-		Description: "Will automatically confirm changes when running non-interactively.",
-	},
+	flag.Yes(),
 	flag.Int{
 		Name:        "wait-timeout",
 		Description: "Seconds to wait for individual machines to transition states and become healthy.",
@@ -199,7 +196,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "auto-confirm"), nil)
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {

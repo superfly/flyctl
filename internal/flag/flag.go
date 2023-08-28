@@ -327,6 +327,7 @@ func Yes() Bool {
 		Name:        flagnames.Yes,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
+		Aliases:     []string{"auto-confirm"},
 	}
 }
 
