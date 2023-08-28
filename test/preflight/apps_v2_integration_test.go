@@ -4,6 +4,7 @@
 package preflight
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -521,11 +522,15 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 		f       = testlib.NewTestEnvFromEnv(t)
 		appName = f.CreateRandomAppName()
 	)
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	f.FlyC(ctx, "launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(3 * time.Second)
-	f.Fly("autoscale set min=2 max=4")
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
+	f.FlyC(ctx, "autoscale set min=2 max=4")
+	f.FlyC(ctx, "migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
+	result := f.FlyC(ctx, "status --json")
 
 	var statusMap map[string]any
 	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)

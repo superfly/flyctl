@@ -183,6 +183,14 @@ func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
 
+func (f *FlyctlTestEnv) FlyC(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
+}
+
+// func (f *FlyctlTestEnv) FlyAllowExitFailure(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+// 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
+// }
+
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
 }
