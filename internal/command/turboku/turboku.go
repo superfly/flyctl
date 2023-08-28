@@ -3,7 +3,6 @@ package turboku
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -203,7 +202,7 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	if err := ioutil.WriteFile("Procfile", []byte(procfile), 0o644); err != nil {
+	if err := os.WriteFile("Procfile", []byte(procfile), 0o644); err != nil {
 		return err
 	}
 
@@ -264,7 +263,7 @@ func createDockerfile(appName, baseImage, slugURL string) error {
 for f in /app/.profile.d/*.sh; do . $f; done
 eval "exec $@"
 `
-	ioutil.WriteFile("entrypoint.sh", []byte(entrypoint), 0o6750)
+	os.WriteFile("entrypoint.sh", []byte(entrypoint), 0o6750)
 
 	dockerfileTemplate := `FROM %s
 RUN useradd -m heroku
@@ -282,7 +281,7 @@ RUN curl "%s" | tar xzf - --strip 2 -C /app`
 	dockerfile += "\nRUN chown -R heroku:heroku /app\n"
 	dockerfile += "\nUSER heroku\n"
 
-	return ioutil.WriteFile("Dockerfile", []byte(dockerfile), 0o640)
+	return os.WriteFile("Dockerfile", []byte(dockerfile), 0o640)
 }
 
 func isTakenError(err error) error {

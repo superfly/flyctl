@@ -5,7 +5,7 @@ on:
   push:
 
 env:
-  go_version: 1.20.6
+  go_version: 1.21
 
 jobs:
   test_build:
