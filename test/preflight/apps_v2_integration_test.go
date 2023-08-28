@@ -528,7 +528,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 
 	f.FlyC(ctx, "launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(3 * time.Second)
-	f.FlyC(ctx, "autoscale set min=2 max=4")
+	f.FlyC(ctx, "autoscale set min=2 max=3")
 	f.FlyC(ctx, "migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
 	result := f.FlyC(ctx, "status --json")
 
@@ -544,7 +544,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	time.Sleep(5 * time.Second)
 
 	machines := f.MachinesList(appName)
-	require.Equal(f, 4, len(machines))
+	require.Equal(f, 3, len(machines))
 
 	for _, machine := range machines {
 		services := machine.Config.Services
@@ -559,7 +559,6 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), `"min_machines_running": 2,`)
 	require.Contains(f, result.StdOut().String(), `"auto_start_machines": true,`)
 	require.Contains(f, result.StdOut().String(), `"auto_stop_machines": true,`)
-
 }
 
 func TestNoPublicIPDeployMachines(t *testing.T) {
