@@ -148,7 +148,9 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	output := result.StdOut().String()
 	require.Contains(f, output, firstAppName)
 
-	// The importer machine should have been destroyed.
+	// Wait for the importer machine to be destroyed.
+	time.Sleep(5 * time.Second)
+
 	ml := f.MachinesList(secondAppName)
 	require.Equal(f, 1, len(ml))
 }
