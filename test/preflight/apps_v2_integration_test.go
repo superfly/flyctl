@@ -516,7 +516,6 @@ primary_region = "%s"
 
 // this test is really slow :(
 func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
-
 	var (
 		err     error
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -535,6 +534,9 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	}
 	platformVersion, _ := statusMap["PlatformVersion"].(string)
 	require.Equal(f, "machines", platformVersion)
+
+	// give time for the request to process
+	time.Sleep(5 * time.Second)
 
 	machines := f.MachinesList(appName)
 	require.Equal(f, 4, len(machines))
