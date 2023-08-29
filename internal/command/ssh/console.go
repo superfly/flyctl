@@ -66,6 +66,7 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Description: "Unix username to connect as",
 			Default:     DefaultSshUsername,
 		},
+		flag.ProcessGroup(),
 	)
 }
 
@@ -229,8 +230,22 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		return "", fmt.Errorf("app %s has no started VMs", app.Name)
 	}
 
-	if err != nil {
-		return "", err
+	if region := flag.GetRegion(ctx); region != "" {
+		machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+			return m.Region == region
+		})
+		if len(machines) < 1 {
+			return "", fmt.Errorf("app %s has no VMs in region %s", app.Name, region)
+		}
+	}
+
+	if group := flag.GetProcessGroup(ctx); group != "" {
+		machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+			return m.ProcessGroup() == group
+		})
+		if len(machines) < 1 {
+			return "", fmt.Errorf("app %s has no VMs in process group %s", app.Name, group)
+		}
 	}
 
 	var namesWithRegion []string

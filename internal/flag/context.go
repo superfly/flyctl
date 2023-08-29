@@ -166,3 +166,7 @@ func GetFlagsName(ctx context.Context, ignoreFlags []string) []string {
 
 	return flagsName
 }
+
+func GetProcessGroup(ctx context.Context) string {
+	return GetString(ctx, flagnames.ProcessGroup)
+}
