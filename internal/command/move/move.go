@@ -20,6 +20,8 @@ organization the current user belongs to.
 
 	move := command.New(usage, short, long, apps.RunMove,
 		command.RequireSession)
+	move.Hidden = true
+	move.Deprecated = "use `fly apps move` instead"
 
 	move.Args = cobra.ExactArgs(1)
 
