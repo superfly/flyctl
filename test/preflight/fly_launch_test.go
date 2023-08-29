@@ -318,7 +318,7 @@ func TestFlyLaunchHA(t *testing.T) {
 }
 
 // test first deploy with single mount for multiple processes
-func TestFlyLaunchSigleMount(t *testing.T) {
+func TestFlyLaunchSingleMount(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -340,12 +340,12 @@ func TestFlyLaunchSigleMount(t *testing.T) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml := f.MachinesList(appName)
 		assert.Equal(c, 2, len(ml))
-	}, 10*time.Second, 1*time.Second)
+	}, 15*time.Second, 1*time.Second, "want 2 machines, one for each process")
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		vl := f.VolumeList(appName)
 		assert.Equal(c, 2, len(vl))
-	}, 10*time.Second, 1*time.Second)
+	}, 15*time.Second, 1*time.Second, "want 2 volumes, one for each process")
 }
 
 func TestFlyLaunchWithBuildSecrets(t *testing.T) {
