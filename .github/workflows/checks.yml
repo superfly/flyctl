@@ -6,31 +6,30 @@ on:
     branches: [master]
 
 jobs:
-  lint:
+  precommit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
       - uses: pre-commit/action@v3.0.0
         with:
           extra_args: --all-files --hook-stage=manual
-      - uses: golangci/golangci-lint-action@v3
-        with:
-          version: v1.52
-          # https://github.com/golangci/golangci-lint-action/issues/244
-          # precommit step already run go get and conflicts with golangci cache
-          skip-cache: true
 
-  lint-api:
-    runs-on: ubuntu-latest
+  lint:
+    strategy:
+      matrix:
+        go: ['1.21']
+        os: [macos-latest, windows-latest]
+        module: [".", "api"]
+    name: lint
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-go@v4
         with:
-          go-version-file: "api/go.mod"
+          go-version-file: "${{ matrix.module }}/go.mod"
       - uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52
-          working-directory: "api"
+          version: v1.54
+          working-directory: ${{ matrix.module }}
+
