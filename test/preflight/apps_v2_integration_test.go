@@ -4,6 +4,7 @@
 package preflight
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,7 +28,6 @@ func TestAppsV2Example(t *testing.T) {
 	if testing.Short() {
 		t.Skip()
 	}
-	t.Parallel()
 
 	var (
 		err    error
@@ -121,7 +121,6 @@ ENV BUILT_BY_DOCKERFILE=true
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
-	t.Parallel()
 
 	var (
 		err            error
@@ -162,7 +161,6 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
-	t.Parallel()
 
 	var (
 		err            error
@@ -213,7 +211,6 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
-	t.Parallel()
 
 	var (
 		err            error
@@ -239,7 +236,6 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 }
 
 func TestAppsV2Config_ProcessGroups(t *testing.T) {
-	t.Parallel()
 
 	var (
 		f              = testlib.NewTestEnvFromEnv(t)
@@ -432,7 +428,6 @@ web = "nginx -g 'daemon off;'"
 }
 
 func TestAppsV2MigrateToV2(t *testing.T) {
-	t.Parallel()
 
 	var (
 		err     error
@@ -455,7 +450,6 @@ func TestAppsV2MigrateToV2(t *testing.T) {
 
 // This test takes forever. I'm sorry.
 func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
-	t.Parallel()
 
 	if testing.Short() {
 		t.Skip()
@@ -523,18 +517,20 @@ primary_region = "%s"
 
 // this test is really slow :(
 func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
-	t.Parallel()
-
 	var (
 		err     error
 		f       = testlib.NewTestEnvFromEnv(t)
 		appName = f.CreateRandomAppName()
 	)
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	ctx, cancel := context.WithTimeoutCause(context.Background(), 6*time.Minute, errors.New("test timed out"))
+	defer cancel()
+
+	f.FlyC(ctx, "launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	time.Sleep(3 * time.Second)
-	f.Fly("autoscale set min=2 max=4")
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
+	f.FlyC(ctx, "autoscale set min=2 max=3")
+	f.FlyC(ctx, "migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
+	result := f.FlyC(ctx, "status --json")
 
 	var statusMap map[string]any
 	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
@@ -544,8 +540,11 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	platformVersion, _ := statusMap["PlatformVersion"].(string)
 	require.Equal(f, "machines", platformVersion)
 
+	// give time for the request to process
+	time.Sleep(5 * time.Second)
+
 	machines := f.MachinesList(appName)
-	require.Equal(f, 4, len(machines))
+	require.Equal(f, 3, len(machines))
 
 	for _, machine := range machines {
 		services := machine.Config.Services
@@ -560,11 +559,9 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), `"min_machines_running": 2,`)
 	require.Contains(f, result.StdOut().String(), `"auto_start_machines": true,`)
 	require.Contains(f, result.StdOut().String(), `"auto_stop_machines": true,`)
-
 }
 
 func TestNoPublicIPDeployMachines(t *testing.T) {
-	t.Parallel()
 
 	var (
 		result *testlib.FlyctlResult
@@ -580,7 +577,6 @@ func TestNoPublicIPDeployMachines(t *testing.T) {
 }
 
 func TestLaunchCpusMem(t *testing.T) {
-	t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -597,7 +593,6 @@ func TestLaunchCpusMem(t *testing.T) {
 }
 
 func TestLaunchDetach(t *testing.T) {
-	t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -614,7 +609,6 @@ func TestLaunchDetach(t *testing.T) {
 }
 
 func TestDeployDetach(t *testing.T) {
-	t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -631,7 +625,6 @@ func TestDeployDetach(t *testing.T) {
 }
 
 func TestDeployDetachBatching(t *testing.T) {
-	t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)
@@ -649,7 +642,6 @@ func TestDeployDetachBatching(t *testing.T) {
 }
 
 func TestErrOutput(t *testing.T) {
-	t.Parallel()
 
 	var (
 		f       = testlib.NewTestEnvFromEnv(t)

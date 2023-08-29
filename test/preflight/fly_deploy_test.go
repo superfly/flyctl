@@ -6,6 +6,7 @@ package preflight
 import (
 	"strings"
 	"testing"
+	"time"
 
 	//"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -14,8 +15,6 @@ import (
 )
 
 func TestFlyDeployHA(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -41,8 +40,6 @@ func TestFlyDeployHA(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -51,8 +48,6 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -70,8 +65,6 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 }
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -89,21 +82,20 @@ func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 }
 
 func TestFlyDeploy_Dockerfile(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	f.WriteFile("Dockerfile", `FROM nginx
 ENV PREFLIGHT_TEST=true`)
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	time.Sleep(3 * time.Second)
+
 	sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
 	require.Equal(f, "true", strings.TrimSpace(sshResult.StdOut().String()), "expected PREFLIGHT_TEST env var to be set in machine")
 }
 
 // If this test passes at all, that means that a slow metrics server isn't affecting flyctl
 func TestFlyDeploySlowMetrics(t *testing.T) {
-	t.Parallel()
-
 	env := make(map[string]string)
 	env["FLY_METRICS_BASE_URL"] = "https://flyctl-metrics-slow.fly.dev"
 	env["FLY_SEND_METRICS"] = "1"
