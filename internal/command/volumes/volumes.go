@@ -1,19 +1,25 @@
 package volumes
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 	"time"
 
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
+	"github.com/superfly/flyctl/internal/render"
 )
 
 func New() *cobra.Command {
@@ -79,4 +85,83 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	}
 
 	return matches, nil
+}
+
+func renderTable(ctx context.Context, volumes []api.Volume, app *api.App, out io.Writer) error {
+	apiClient := client.FromContext(ctx).API()
+	rows := make([][]string, 0, len(volumes))
+	for _, volume := range volumes {
+		var attachedVMID string
+
+		if app.PlatformVersion == "machines" {
+			if volume.AttachedMachine != nil {
+				attachedVMID = *volume.AttachedMachine
+			}
+		} else {
+			names, err := apiClient.GetAllocationTaskNames(ctx, app.Name)
+			if err != nil {
+				return err
+			}
+
+			if volume.AttachedAllocation != nil {
+				attachedVMID = *volume.AttachedAllocation
+
+				taskName, ok := names[*volume.AttachedAllocation]
+
+				if ok && taskName != "app" {
+					attachedVMID = fmt.Sprintf("%s (%s)", *volume.AttachedAllocation, taskName)
+				}
+			}
+		}
+
+		rows = append(rows, []string{
+			volume.ID,
+			volume.State,
+			volume.Name,
+			strconv.Itoa(volume.SizeGb) + "GB",
+			volume.Region,
+			volume.Zone,
+			fmt.Sprint(volume.Encrypted),
+			attachedVMID,
+			humanize.Time(volume.CreatedAt),
+		})
+	}
+
+	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
+}
+
+func selectVolume(ctx context.Context, volumes []api.Volume, app *api.App) (*api.Volume, error) {
+	if len(volumes) == 0 {
+		return nil, fmt.Errorf("no volumes found in app '%s'", app.Name)
+	}
+	out := new(bytes.Buffer)
+	err := renderTable(ctx, volumes, app, out)
+	if err != nil {
+		return nil, err
+	}
+	volumeLines := make([]string, 0)
+	scanner := bufio.NewScanner(out)
+	title := ""
+	for scanner.Scan() {
+		text := scanner.Text()
+		if text == "" {
+			continue
+		}
+		if title == "" {
+			title = text
+			continue
+		}
+		volumeLines = append(volumeLines, text)
+	}
+	selected := 0
+	fmt.Println(title)
+	prompt := &survey.Select{
+		Message:  "Select volume:",
+		Options:  volumeLines,
+		PageSize: 15,
+	}
+	if err := survey.AskOne(prompt, &selected); err != nil {
+		return nil, fmt.Errorf("selecting volume: %w", err)
+	}
+	return &volumes[selected], nil
 }
