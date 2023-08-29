@@ -9,8 +9,11 @@ import (
 	"time"
 
 	//"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
 	//"github.com/superfly/flyctl/api"
+
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -88,10 +91,10 @@ func TestFlyDeploy_Dockerfile(t *testing.T) {
 ENV PREFLIGHT_TEST=true`)
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
 
-	time.Sleep(3 * time.Second)
-
-	sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
-	require.Equal(f, "true", strings.TrimSpace(sshResult.StdOut().String()), "expected PREFLIGHT_TEST env var to be set in machine")
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
+		assert.Equal(c, "true", strings.TrimSpace(sshResult.StdOut().String()), "expected PREFLIGHT_TEST env var to be set in machine")
+	}, 30*time.Second, 2*time.Second)
 }
 
 // If this test passes at all, that means that a slow metrics server isn't affecting flyctl

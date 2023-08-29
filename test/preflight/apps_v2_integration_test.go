@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -47,29 +48,11 @@ func TestAppsV2Example(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOut().String(), "Wrote config file fly.toml")
 
-	time.Sleep(10 * time.Second)
-	f.Fly("status")
-
-	lastStatusCode := -1
-	attempts := 10
-	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 5 * time.Second}
-	for i := 0; i < attempts; i++ {
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		resp, err = http.Get(appUrl)
-		if err == nil {
-			lastStatusCode = resp.StatusCode
-		}
-		if lastStatusCode == http.StatusOK {
-			break
-		} else {
-			time.Sleep(b.Duration())
-		}
-	}
-	if lastStatusCode == -1 {
-		f.Fatalf("error calling GET %s: %v", appUrl, err)
-	}
-	if lastStatusCode != http.StatusOK {
-		f.Fatalf("GET %s never returned 200 OK response after %d tries; last status code was: %d", appUrl, attempts, lastStatusCode)
-	}
+		assert.NoError(c, err)
+		assert.Equal(c, http.StatusOK, resp.StatusCode)
+	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", appUrl)
 
 	machList := f.MachinesList(appName)
 	require.Equal(t, len(machList), 1, "There should be exactly one machine")

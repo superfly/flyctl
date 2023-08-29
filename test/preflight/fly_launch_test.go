@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -288,14 +287,14 @@ func TestFlyLaunchHA(t *testing.T) {
 `)
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(500 * time.Millisecond)
-	ml := f.MachinesList(appName)
-	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 3 * time.Second}
-	for i := 0; len(ml) < 5 || i < 5; i++ {
-		time.Sleep(b.Duration())
+
+	var ml []*api.Machine
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml = f.MachinesList(appName)
-	}
-	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
+		assert.Equal(c, 5, len(ml), "want 5 machines, which includes two standbys")
+	}, 10*time.Second, 1*time.Second)
+
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
 		return m.ProcessGroup()
 	})
@@ -355,9 +354,11 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 `)
 
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(3 * time.Second)
-	ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
-	assert.Equal(f, "SECRET1", ssh.StdOut().String())
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
+		assert.Equal(c, "SECRET1", ssh.StdOut().String())
+	}, 10*time.Second, 1*time.Second)
 }
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {
