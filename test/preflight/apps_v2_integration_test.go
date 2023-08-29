@@ -41,8 +41,8 @@ func TestAppsV2Example(t *testing.T) {
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		resp, err := http.Get(appUrl)
-		require.NoError(c, err)
-		require.Equal(c, http.StatusOK, resp.StatusCode)
+		assert.NoError(c, err)
+		assert.Equal(c, http.StatusOK, resp.StatusCode)
 	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", appUrl)
 
 	machList := f.MachinesList(appName)
