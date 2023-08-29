@@ -172,7 +172,7 @@ app = "foo"
 	`)
 
 	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `Can not use configuration for Apps V2, check fly.toml`)
+	require.Contains(f, x.StdErrString(), `Can not use configuration for Apps V2, check fly.toml`)
 }
 
 // Fail if the existing app doesn't match the forced platform version
@@ -183,7 +183,7 @@ func TestFlyLaunchForceV1(t *testing.T) {
 	appName := f.CreateRandomAppName()
 	f.Fly("apps create %s --machines -o %s", appName, f.OrgSlug())
 	x := f.FlyAllowExitFailure("launch --no-deploy --reuse-app --name %s --region %s --force-nomad", appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `--force-nomad won't work for existing app in machines platform`)
+	require.Contains(f, x.StdErrString(), `--force-nomad won't work for existing app in machines platform`)
 }
 
 // test --generate-name, --name and reuse imported name
@@ -337,10 +337,15 @@ func TestFlyLaunchSigleMount(t *testing.T) {
 `)
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
-	ml := f.MachinesList(appName)
-	require.Equal(f, 2, len(ml))
-	vl := f.VolumeList(appName)
-	require.Equal(f, 2, len(vl))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 2, len(ml))
+	}, 10*time.Second, 1*time.Second)
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		vl := f.VolumeList(appName)
+		assert.Equal(c, 2, len(vl))
+	}, 10*time.Second, 1*time.Second)
 }
 
 func TestFlyLaunchWithBuildSecrets(t *testing.T) {
@@ -383,6 +388,5 @@ func TestFlyLaunchBasicNodeApp(t *testing.T) {
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
-
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }

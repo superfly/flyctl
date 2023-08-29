@@ -5,7 +5,6 @@ package testlib
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -267,10 +266,7 @@ func (f *FlyctlTestEnv) verifyTestOrgExists() {
 	result := f.Fly("orgs list --json")
 	result.AssertSuccessfulExit()
 	var orgMap map[string]string
-	err := json.Unmarshal(result.stdOut.Bytes(), &orgMap)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
-	}
+	result.StdOutJSON(&orgMap)
 	if _, present := orgMap[f.orgSlug]; !present {
 		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
@@ -300,19 +296,14 @@ func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
 	cmdResult := f.Fly("machines list --app %s --json", appName)
 	cmdResult.AssertSuccessfulExit()
 	var machList []*api.Machine
-	err := json.Unmarshal(cmdResult.stdOut.Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
-	}
+	cmdResult.StdOutJSON(&machList)
 	return machList
 }
 
 func (f *FlyctlTestEnv) VolumeList(appName string) []*api.Volume {
 	cmdResult := f.Fly("volume list --app %s --json", appName)
 	var list []*api.Volume
-	if err := json.Unmarshal(cmdResult.stdOut.Bytes(), &list); err != nil {
-		f.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
-	}
+	cmdResult.StdOutJSON(&list)
 	return list
 }
 
