@@ -235,6 +235,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 
 	var namesWithRegion []string
 	var selectedMachine *api.Machine
+	multipleGroups := len(lo.UniqBy(machines, func(m *api.Machine) string { return m.ProcessGroup() })) > 1
 
 	for _, machine := range machines {
 		nameWithRegion := fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name)
@@ -254,6 +255,9 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 			nameWithRegion += fmt.Sprintf(" (%s)", role)
 		}
 
+		if multipleGroups {
+			nameWithRegion += fmt.Sprintf(" (%s)", machine.ProcessGroup())
+		}
 		namesWithRegion = append(namesWithRegion, nameWithRegion)
 	}
 
