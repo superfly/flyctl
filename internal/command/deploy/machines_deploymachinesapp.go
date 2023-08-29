@@ -760,9 +760,8 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		return nil
 	}
 
-	// TODO(Ali): This will draw over the status and get messy.
-	//            The easiest solution is probably to have the status logger also in the context,
-	//            and provide Clear and Redraw methods.
+	resumeLogFn := statuslogger.Pause(ctx)
+	defer resumeLogFn()
 
 	fmt.Fprintf(md.io.ErrOut, "Smoke checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
 	fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", lm.Machine().ID)
