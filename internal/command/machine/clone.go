@@ -290,6 +290,15 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
+		if errors.As(err, &flaps.LaunchCapacityErr{}) {
+			return flyerr.GenericErr{
+				Err:      err.Error(),
+				Descript: flyerr.GetErrorDescription(err),
+				Suggest:  "Try cloning to a different nearby region, or try again in a few hours",
+				DocUrl:   flyerr.GetErrorDocUrl(err),
+			}
+
+		}
 		return err
 	}
 
