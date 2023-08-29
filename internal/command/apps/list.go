@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/format"
@@ -88,7 +89,14 @@ func runList(ctx context.Context) (err error) {
 
 func getOrg(ctx context.Context) (*api.Organization, error) {
 	client := client.FromContext(ctx).API()
-	orgName := flag.GetString(ctx, flagnames.Org)
+
+	// Try to use FLY_ORG env var
+	orgName := env.First("FLY_ORG")
+
+	// If not set, try `--org` flag
+	if orgName == "" {
+		orgName = flag.GetString(ctx, flagnames.Org)
+	}
 
 	if orgName == "" {
 		return nil, nil
