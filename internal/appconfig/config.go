@@ -50,13 +50,13 @@ type Config struct {
 	Env          map[string]string `toml:"env,omitempty" json:"env,omitempty"`
 
 	// Fields that are process group aware must come after Processes
-	Processes   map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
-	Mounts      []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
-	HTTPService *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Services    []Service                 `toml:"services,omitempty" json:"services,omitempty"`
-	Checks      map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
-	Files       []File                    `toml:"files,omitempty" json:"files,omitempty"`
-
+	Processes        map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
+	Mounts           []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	HTTPService      *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	Services         []Service                 `toml:"services,omitempty" json:"services,omitempty"`
+	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
+	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
+	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 	// MergedFiles is a list of files that have been merged from the app config and flags.
 	MergedFiles []*api.File `toml:"-" json:"-"`
 
