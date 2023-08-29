@@ -105,5 +105,7 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 // Useful for one-off operations.
 func SingleLine(ctx context.Context, showStatusChar bool) (context.Context, func(clear bool)) {
 	logger := Create(ctx, 1, showStatusChar)
-	return NewContext(ctx, logger.Line(0)), logger.Destroy
+	line := logger.Line(0)
+	line.setStatus(StatusRunning)
+	return NewContext(ctx, line), logger.Destroy
 }

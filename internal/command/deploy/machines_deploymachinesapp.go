@@ -111,7 +111,11 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	}()
 	for idx, name := range groupsInConfig {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
-		statuslogger.Logf(ctx, "Creating canary machine for group %s", md.colorize.Bold(name))
+		statuslogger.LogfStatus(ctx,
+			statuslogger.StatusRunning,
+			"Creating canary machine for group %s",
+			md.colorize.Bold(name),
+		)
 		machine, err := md.spawnMachineInGroup(ctx, name, nil,
 			withMeta(metadata{key: "fly_canary", value: "true"}),
 			withGuest(md.inferCanaryGuest(name)),
@@ -148,6 +152,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 	}()
 	for idx, name := range groups {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
+		statuslogger.LogStatus(ctx, statuslogger.StatusRunning, "Launching new machine")
 		fmt.Fprintf(md.io.Out, "No machines in group %s, launching a new machine\n", md.colorize.Bold(name))
 		leasableMachine, err := md.spawnMachineInGroup(ctx, name, nil)
 		if err != nil {
@@ -391,6 +396,8 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 
 	for i, e := range updateEntries {
 		ctx := statuslogger.NewContext(parentCtx, sl.Line(i))
+
+		statuslogger.LogStatus(ctx, statuslogger.StatusRunning, "Updating")
 
 		if err := md.updateMachine(ctx, e); err != nil {
 			if md.strategy == "immediate" {

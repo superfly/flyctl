@@ -12,7 +12,7 @@ const (
 )
 
 const (
-	glyphNone    = "…"
+	glyphNone    = " "
 	glyphRunning = ">"
 	glyphSuccess = "✔"
 	glyphFailure = "✖"
