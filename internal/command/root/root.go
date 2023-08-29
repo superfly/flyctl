@@ -193,6 +193,7 @@ func run(ctx context.Context) error {
 	cmd.Println()
 	cmd.Println("Usage:")
 	cmd.Printf("  %s\n", cmd.UseLine())
+	cmd.Printf("  %s\n", "flyctl [command]")
 	cmd.Println()
 
 	if !client.FromContext(ctx).Authenticated() {
