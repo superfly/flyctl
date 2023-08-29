@@ -2,6 +2,7 @@ package statuslogger
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -49,6 +50,11 @@ func (sl *noninteractiveLine) LogStatus(s Status, str string) {
 
 func (sl *noninteractiveLine) LogfStatus(s Status, format string, args ...interface{}) {
 	sl.LogStatus(s, fmt.Sprintf(format, args...))
+}
+
+func (sl *noninteractiveLine) Failed(e error) {
+	firstLine, _, _ := strings.Cut(e.Error(), "\n")
+	sl.LogfStatus(StatusFailure, "Failed: %s", firstLine)
 }
 
 func (sl *noninteractiveLine) setStatus(s Status) {

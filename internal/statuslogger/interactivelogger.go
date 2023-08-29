@@ -36,6 +36,10 @@ func (sl *interactiveLogger) Destroy(clear bool) {
 	sl.lock.Lock()
 	defer sl.lock.Unlock()
 
+	if !sl.running {
+		return
+	}
+
 	sl.running = false
 
 	// The +2 is to account for the divider before jobs

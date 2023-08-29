@@ -100,3 +100,10 @@ func AsyncIterateWithErr[T any](ctx context.Context, clearAfter bool, doneText s
 	})
 	return nil
 }
+
+// SingleLine returns a single StatusLine and a function to destroy it.
+// Useful for one-off operations.
+func SingleLine(ctx context.Context, showStatusChar bool) (context.Context, func(clear bool)) {
+	logger := Create(ctx, 1, showStatusChar)
+	return NewContext(ctx, logger.Line(0)), logger.Destroy
+}

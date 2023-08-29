@@ -1,6 +1,9 @@
 package statuslogger
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 type interactiveLine struct {
 	logger  *interactiveLogger
@@ -30,6 +33,11 @@ func (sl *interactiveLine) LogStatus(s Status, str string) {
 
 func (sl *interactiveLine) LogfStatus(s Status, format string, args ...interface{}) {
 	sl.LogStatus(s, fmt.Sprintf(format, args...))
+}
+
+func (sl *interactiveLine) Failed(e error) {
+	firstLine, _, _ := strings.Cut(e.Error(), "\n")
+	sl.LogfStatus(StatusFailure, "Failed: %s", firstLine)
 }
 
 func (sl *interactiveLine) setStatus(s Status) {
