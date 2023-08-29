@@ -1,6 +1,6 @@
 module github.com/superfly/flyctl/api
 
-go 1.18
+go 1.21
 
 require (
 	github.com/Khan/genqlient v0.6.0

@@ -47,7 +47,7 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 			return false, nil
 		}
 	case prompt.IsNonInteractive(err):
-		return false, prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+		return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 	default:
 		return false, err
 	}

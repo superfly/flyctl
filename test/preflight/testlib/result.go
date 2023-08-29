@@ -5,6 +5,7 @@ package testlib
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -32,8 +33,23 @@ func (r *FlyctlResult) StdOut() *bytes.Buffer {
 	return r.stdOut
 }
 
+func (r *FlyctlResult) StdOutString() string {
+	return r.stdOut.String()
+}
+
+func (r *FlyctlResult) StdOutJSON(v any) {
+	err := json.Unmarshal(r.stdOut.Bytes(), v)
+	if err != nil {
+		r.t.Fatalf("failed to parse json: %v [output]: %s\n", err, r.stdOut.String())
+	}
+}
+
 func (r *FlyctlResult) StdErr() *bytes.Buffer {
 	return r.stdErr
+}
+
+func (r *FlyctlResult) StdErrString() string {
+	return r.stdErr.String()
 }
 
 func (r *FlyctlResult) AssertSuccessfulExit() {

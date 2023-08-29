@@ -5,15 +5,15 @@ package preflight
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 func TestPostgres_singleNode(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -27,8 +27,6 @@ func TestPostgres_singleNode(t *testing.T) {
 }
 
 func TestPostgres_autostart(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -56,8 +54,6 @@ func TestPostgres_autostart(t *testing.T) {
 }
 
 func TestPostgres_FlexFailover(t *testing.T) {
-	t.Parallel()
-
 	if testing.Short() {
 		t.Skip()
 	}
@@ -89,8 +85,6 @@ func TestPostgres_FlexFailover(t *testing.T) {
 }
 
 func TestPostgres_NoMachines(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -105,8 +99,6 @@ func TestPostgres_NoMachines(t *testing.T) {
 }
 
 func TestPostgres_haConfigSave(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -123,8 +115,6 @@ func TestPostgres_haConfigSave(t *testing.T) {
 }
 
 func TestPostgres_ImportSuccess(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
@@ -159,14 +149,14 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	output := result.StdOut().String()
 	require.Contains(f, output, firstAppName)
 
-	// The importer machine should have been destroyed.
-	ml := f.MachinesList(secondAppName)
-	require.Equal(f, 1, len(ml))
+	// Wait for the importer machine to be destroyed.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(secondAppName)
+		require.Equal(c, 1, len(ml))
+	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -182,8 +172,9 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
 
-	// Even with the error, the importer machine should have been
-	// destroyed.
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	// Wait for the importer machine to be destroyed.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 1, len(ml))
+	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
 }
