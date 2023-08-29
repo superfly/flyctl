@@ -9,7 +9,6 @@ repos:
     -   id: check-yaml
     -   id: check-added-large-files
 
-# NOTE[md]: had to comment this out because the plugin doesn't support go 1.21+. This was moved to the checks workflow instead.
 -   repo: https://github.com/tekwizely/pre-commit-golang
     rev: v1.0.0-rc.1
     hooks:

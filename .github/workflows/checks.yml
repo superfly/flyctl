@@ -27,24 +27,6 @@ jobs:
         with:
           extra_args: --all-files --hook-stage=manual
 
-  # # TODO[md]: move this to the test workflow when test is no longer publishing releases
-  # go_mod_tidy:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: checkout
-  #     uses: actions/checkout@v3
-  #   - uses: actions/setup-go@v4
-  #     with:
-  #       go-version-file: "go.mod"
-  #       check-latest: true
-  #   - name: check that 'go mod tidy' is clean
-  #     run: |
-  #       echo $(go version)
-  #       go mod tidy
-  #       echo
-  #       echo
-  #       git diff --name-only --exit-code || (echo "Please run 'go mod tidy'."; exit 1)
-
   lint:
     strategy:
       fail-fast: false
@@ -55,10 +37,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
-      # - uses: actions/setup-go@v4
-      #   with:
-      #     go-version-file: "${{ matrix.module }}/go.mod"
-      #     check-latest: true
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "${{ matrix.module }}/go.mod"
+          # check-latest: true
       - uses: golangci/golangci-lint-action@v3
         with:
           version: v1.54
