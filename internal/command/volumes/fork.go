@@ -70,15 +70,11 @@ func runFork(ctx context.Context) error {
 
 	var vol *api.Volume
 	if volID == "" {
-		volumes, err := flapsClient.GetVolumes(ctx)
-		if err != nil {
-			return err
-		}
 		app, err := client.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
-		vol, err = selectVolume(ctx, volumes, app)
+		vol, err = selectVolume(ctx, flapsClient, app)
 		if err != nil {
 			return err
 		}

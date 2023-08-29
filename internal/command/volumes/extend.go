@@ -93,11 +93,7 @@ func runExtend(ctx context.Context) error {
 	}
 
 	if volID == "" {
-		volumes, err := flapsClient.GetVolumes(ctx)
-		if err != nil {
-			return err
-		}
-		volume, err := selectVolume(ctx, volumes, app)
+		volume, err := selectVolume(ctx, flapsClient, app)
 		if err != nil {
 			return err
 		}

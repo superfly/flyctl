@@ -9,16 +9,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -130,12 +131,19 @@ func renderTable(ctx context.Context, volumes []api.Volume, app *api.App, out io
 	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
 }
 
-func selectVolume(ctx context.Context, volumes []api.Volume, app *api.App) (*api.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *api.App) (*api.Volume, error) {
+	if !iostreams.FromContext(ctx).IsInteractive() {
+		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
+	}
+	volumes, err := flapsClient.GetVolumes(ctx)
+	if err != nil {
+		return nil, err
+	}
 	if len(volumes) == 0 {
 		return nil, fmt.Errorf("no volumes found in app '%s'", app.Name)
 	}
 	out := new(bytes.Buffer)
-	err := renderTable(ctx, volumes, app, out)
+	err = renderTable(ctx, volumes, app, out)
 	if err != nil {
 		return nil, err
 	}
@@ -154,13 +162,8 @@ func selectVolume(ctx context.Context, volumes []api.Volume, app *api.App) (*api
 		volumeLines = append(volumeLines, text)
 	}
 	selected := 0
-	fmt.Println(title)
-	prompt := &survey.Select{
-		Message:  "Select volume:",
-		Options:  volumeLines,
-		PageSize: 15,
-	}
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	err = prompt.Select(ctx, &selected, title+"\nSelect volume:", "", volumeLines...)
+	if err != nil {
 		return nil, fmt.Errorf("selecting volume: %w", err)
 	}
 	return &volumes[selected], nil

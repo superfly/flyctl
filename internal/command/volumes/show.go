@@ -67,15 +67,11 @@ func runShow(ctx context.Context) error {
 
 	var volume *api.Volume
 	if volumeID == "" {
-		volumes, err := flapsClient.GetVolumes(ctx)
-		if err != nil {
-			return err
-		}
 		app, err := client.GetApp(ctx, appName)
 		if err != nil {
 			return err
 		}
-		volume, err = selectVolume(ctx, volumes, app)
+		volume, err = selectVolume(ctx, flapsClient, app)
 		if err != nil {
 			return err
 		}
