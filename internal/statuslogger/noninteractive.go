@@ -60,3 +60,5 @@ func (sl *noninteractiveLine) Failed(e error) {
 func (sl *noninteractiveLine) setStatus(s Status) {
 	sl.status = s
 }
+
+func (sl *noninteractiveLogger) Pause() ResumeFn { return func() {} }

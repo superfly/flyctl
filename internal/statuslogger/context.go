@@ -95,3 +95,19 @@ func Failed(ctx context.Context, e error) {
 	}
 	FromContext(ctx).Failed(e)
 }
+
+// Pause clears the status lines and prevents redraw until the returned resume function is called.
+// This allows you to write multiple lines to the terminal without overlapping the status area.
+func Pause(ctx context.Context) (ret ResumeFn) {
+	ret = func() {}
+
+	line := FromContextOptional(ctx)
+	if line == nil {
+		return
+	}
+
+	if il, ok := line.(*interactiveLine); ok {
+		return il.logger.Pause()
+	}
+	return
+}

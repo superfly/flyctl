@@ -18,7 +18,8 @@ func Create(ctx context.Context, numLines int, showStatusChar bool) StatusLogger
 			io:         io,
 			logNumbers: logNumbers,
 			showStatus: showStatusChar,
-			running:    true,
+			active:     true,
+			done:       false,
 		}
 
 		for i := 0; i < numLines; i++ {

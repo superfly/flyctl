@@ -16,7 +16,8 @@ type interactiveLogger struct {
 	statusFrame int
 	showStatus  bool
 
-	running bool
+	active bool
+	done   bool
 
 	lines []*interactiveLine
 
@@ -36,22 +37,34 @@ func (sl *interactiveLogger) Destroy(clear bool) {
 	sl.lock.Lock()
 	defer sl.lock.Unlock()
 
-	if !sl.running {
+	if sl.done {
 		return
 	}
 
-	sl.running = false
-
-	// The +2 is to account for the divider before jobs
-	numLines := 2 + len(sl.lines)
+	sl.active = false
+	sl.done = false
 
 	if clear {
-		buf := strings.Repeat(aec.EraseLine(aec.EraseModes.All).String()+"\n", numLines)
-		buf += aec.Up(uint(numLines)).String()
-		fmt.Fprint(sl.io.Out, buf)
+		sl.clear()
 	} else {
-		fmt.Fprintf(sl.io.Out, "%s%s\n", aec.Down(uint(numLines)), divider)
+		fmt.Fprintf(sl.io.Out, "%s%s\n", aec.Down(uint(sl.height())), divider)
 	}
+}
+
+func (sl *interactiveLogger) height() int {
+
+	// The +2 is to account for the divider before jobs
+	return 2 + len(sl.lines)
+}
+
+func (sl *interactiveLogger) clear() {
+
+	numLines := sl.height()
+
+	fmt.Fprint(sl.io.Out,
+		strings.Repeat(aec.EraseLine(aec.EraseModes.All).String()+"\n", numLines)+
+			aec.Up(uint(numLines)).String(),
+	)
 }
 
 func (sl *interactiveLogger) animateThread() {
@@ -65,18 +78,20 @@ func (sl *interactiveLogger) animateThread() {
 	incrementAnim := 0
 	for {
 		sl.lock.Lock()
-		if !sl.running {
+		if sl.done {
 			sl.lock.Unlock()
 			return
 		}
-		if sl.showStatus {
-			incrementAnim += 1
-			if incrementAnim == 2 {
-				sl.statusFrame = (sl.statusFrame + 1) % len(glyphsRunning)
-				incrementAnim = 0
+		if sl.active {
+			if sl.showStatus {
+				incrementAnim += 1
+				if incrementAnim == 2 {
+					sl.statusFrame = (sl.statusFrame + 1) % len(glyphsRunning)
+					incrementAnim = 0
+				}
 			}
+			sl.lockedDraw()
 		}
-		sl.lockedDraw()
 		sl.lock.Unlock()
 		time.Sleep(50 * time.Millisecond)
 	}
@@ -84,8 +99,7 @@ func (sl *interactiveLogger) animateThread() {
 
 func (sl *interactiveLogger) lockedDraw() {
 
-	// Abort if done
-	if !sl.running {
+	if !sl.active || sl.done {
 		return
 	}
 
@@ -107,4 +121,20 @@ func (sl *interactiveLogger) lockedDraw() {
 	newlines := strings.Count(buf, "\n")
 	buf += aec.Up(uint(newlines)).String()
 	fmt.Fprint(sl.io.Out, buf)
+}
+
+func (sl *interactiveLogger) Pause() ResumeFn {
+	sl.lock.Lock()
+	defer sl.lock.Unlock()
+
+	sl.clear()
+	sl.active = false
+
+	return func() {
+		sl.lock.Lock()
+		defer sl.lock.Unlock()
+
+		sl.active = true
+		sl.lockedDraw()
+	}
 }
