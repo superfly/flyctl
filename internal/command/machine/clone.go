@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"

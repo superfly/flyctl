@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -22,6 +23,38 @@ func (f *Client) sendRequestMachines(ctx context.Context, method, endpoint strin
 	return f._sendRequest(ctx, method, endpoint, in, out, headers)
 }
 
+const (
+	LaunchCapacityErrStr = "no capacity available in"
+)
+
+type LaunchCapacityErr struct {
+	region string
+}
+
+var launchCapacityErrRe *regexp.Regexp = regexp.MustCompile(fmt.Sprintf(`%s (?P<region>[a-zA-Z0-9]*)`, LaunchCapacityErrStr))
+
+func launchCapacityErrFromString(e string) *LaunchCapacityErr {
+	matches := launchCapacityErrRe.FindSubmatch([]byte(e))
+	regionIndex := launchCapacityErrRe.SubexpIndex("region")
+
+	if regionIndex > len(matches) {
+		return nil
+	}
+
+	regionStr := string(matches[regionIndex])
+	return &LaunchCapacityErr{
+		region: regionStr,
+	}
+}
+
+func (e LaunchCapacityErr) Error() string {
+	return fmt.Sprintf("%s %s", LaunchCapacityErrStr, e.region)
+}
+
+func (e LaunchCapacityErr) Description() string {
+	return "The region you're trying to use is likely at capacity."
+}
+
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {
 	metrics.Started(ctx, "machine_launch")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
@@ -34,6 +67,10 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 
 	out = new(api.Machine)
 	if err := f.sendRequestMachines(ctx, http.MethodPost, "", builder, out, nil); err != nil {
+		if launchErr := launchCapacityErrFromString(err.Error()); launchErr != nil {
+			err = *launchErr
+		}
+
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 
