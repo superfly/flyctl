@@ -33,7 +33,7 @@ jobs:
     - uses: actions/setup-go@v4
     - name: check that 'go mod tidy' is clean
       run: |
-        echo ${go version}
+        echo $(go version)
         go mod tidy
         echo
         echo
