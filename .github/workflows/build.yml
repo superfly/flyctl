@@ -4,9 +4,6 @@ on:
     - cron: '21 */2 * * *'
   push:
 
-env:
-  go_version: 1.21
-
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
@@ -20,7 +17,8 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
-          go-version: ${{ env.go_version }}
+          go-version-file: "go.mod"
+          check-latest: true
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: build
