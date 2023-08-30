@@ -191,7 +191,6 @@ type planItem struct {
 	// The number of machines to add or remove
 	Delta              int
 	Machines           []*api.Machine
-	MachineConfig      *api.MachineConfig
 	LaunchMachineInput *api.LaunchMachineInput
 	// Volumes to reuse
 	Volumes []*api.Volume
