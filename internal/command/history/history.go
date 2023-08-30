@@ -30,6 +30,8 @@ events and their results.
 		command.RequireSession,
 		command.RequireAppName,
 	)
+	cmd.Deprecated = "Use `flyctl apps releases` instead"
+	cmd.Hidden = true
 
 	cmd.Args = cobra.NoArgs
 
