@@ -200,6 +200,9 @@ type planItem struct {
 }
 
 func (pi *planItem) VolumesDelta() int {
+	if pi.CreateVolumeRequest == nil {
+		return 0
+	}
 	return pi.Delta - len(pi.Volumes)
 }
 
