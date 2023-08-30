@@ -58,7 +58,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 
 func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
-	machineShouldBeReplaced := false
+	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)

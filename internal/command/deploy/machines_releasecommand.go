@@ -68,8 +68,10 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
-func dedicatedHostIdMismatch(m machine.LeasableMachine, ac *appconfig.Config) bool {
-	return strings.TrimSpace(ac.HostDedicationID) != "" && m.Machine().HostDedicationID != ac.HostDedicationID
+// dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
+// a mismatch will result in a delete+recreate op
+func dedicatedHostIdMismatch(m *api.Machine, ac *appconfig.Config) bool {
+	return strings.TrimSpace(ac.HostDedicationID) != "" && m.HostDedicationID != ac.HostDedicationID
 }
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
@@ -79,7 +81,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
-	if dedicatedHostIdMismatch(releaseCmdMachine, md.appConfig) {
+	if dedicatedHostIdMismatch(releaseCmdMachine.Machine(), md.appConfig) {
 		if err := releaseCmdMachine.Destroy(ctx, true); err != nil {
 			return fmt.Errorf("error destroying release_command machine: %w", err)
 		}
