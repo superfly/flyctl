@@ -38,7 +38,7 @@ associated member. Details full list of members and roles.
 
 func runShow(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
-	selectedOrg, err := OrgFromFirstArgOrSelect(ctx)
+	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}
