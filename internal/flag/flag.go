@@ -528,3 +528,10 @@ func JSONOutput() Bool {
 		Default:     false,
 	}
 }
+
+func ProcessGroup() String {
+	return String{
+		Name:        flagnames.ProcessGroup,
+		Description: "The target process group",
+	}
+}
