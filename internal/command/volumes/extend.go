@@ -3,6 +3,8 @@ package volumes
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -39,7 +41,7 @@ func newExtend() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Int{
+		flag.String{
 			Name:        "size",
 			Shorthand:   "s",
 			Description: "Target volume size in gigabytes",
@@ -72,7 +74,7 @@ func runExtend(ctx context.Context) error {
 		return err
 	}
 
-	sizeGB := flag.GetInt(ctx, "size")
+	sizeGB := parseSize(flag.GetString(ctx, "size"))
 	if sizeGB == 0 {
 		return fmt.Errorf("Volume size must be specified")
 	}
@@ -92,7 +94,7 @@ func runExtend(ctx context.Context) error {
 		}
 	}
 
-	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, flag.GetInt(ctx, "size"))
+	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, sizeGB)
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}
@@ -116,4 +118,16 @@ func runExtend(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func parseSize(size string) int {
+	size = strings.TrimLeft(size, "+-")
+
+	// Find the index where the numeric part ends and the unit part begins
+	i := strings.IndexFunc(size, func(r rune) bool { return r < '0' || r > '9' })
+
+	// Parse the numeric part to an integer
+	number, _ := strconv.Atoi(size[:i])
+
+	return number
 }

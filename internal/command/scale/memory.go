@@ -3,6 +3,7 @@ package scale
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -30,10 +31,25 @@ func newScaleMemory() *cobra.Command {
 func runScaleMemory(ctx context.Context) error {
 	group := flag.GetString(ctx, "group")
 
-	memoryMB, err := strconv.ParseInt(flag.FirstArg(ctx), 10, 64)
-	if err != nil {
-		return err
-	}
+	memoryMB := parseMemory(flag.FirstArg(ctx))
 
 	return scaleVertically(ctx, group, "", int(memoryMB))
+}
+
+func parseMemory(memory string) int {
+	// Find the index where the numeric part ends and the unit part begins
+	i := strings.IndexFunc(memory, func(r rune) bool { return r < '0' || r > '9' })
+
+	// Parse the numeric part to an integer
+	number, _ := strconv.Atoi(memory[:i])
+
+	// The rest of the string is the unit
+	unit := memory[i:]
+
+	switch unit {
+	case "GB", "gb":
+		number *= 1024
+	}
+
+	return number
 }
