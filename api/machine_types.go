@@ -36,13 +36,14 @@ type Machine struct {
 	InstanceID string `json:"instance_id,omitempty"`
 	Version    string `json:"version,omitempty"`
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP  string                `json:"private_ip,omitempty"`
-	CreatedAt  string                `json:"created_at,omitempty"`
-	UpdatedAt  string                `json:"updated_at,omitempty"`
-	Config     *MachineConfig        `json:"config,omitempty"`
-	Events     []*MachineEvent       `json:"events,omitempty"`
-	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
-	LeaseNonce string                `json:"nonce,omitempty"`
+	PrivateIP        string                `json:"private_ip,omitempty"`
+	CreatedAt        string                `json:"created_at,omitempty"`
+	UpdatedAt        string                `json:"updated_at,omitempty"`
+	Config           *MachineConfig        `json:"config,omitempty"`
+	Events           []*MachineEvent       `json:"events,omitempty"`
+	Checks           []*MachineCheckStatus `json:"checks,omitempty"`
+	LeaseNonce       string                `json:"nonce,omitempty"`
+	HostDedicationID string                `json:"host_dedication_id,omitempty"`
 }
 
 func (m *Machine) FullImageRef() string {
@@ -621,6 +622,7 @@ type LaunchMachineInput struct {
 	Name                    string         `json:"name,omitempty"`
 	SkipLaunch              bool           `json:"skip_launch,omitempty"`
 	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
+	HostDedicationID        string         `json:"host_dedication_id,omitempty"`
 
 	LeaseTTL int `json:"lease_ttl,omitempty"`
 

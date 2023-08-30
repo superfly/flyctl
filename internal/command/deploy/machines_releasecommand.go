@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -66,10 +68,25 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
+func dedicatedHostIdMismatch(m machine.LeasableMachine, ac *appconfig.Config) bool {
+	return strings.TrimSpace(ac.HostDedicationID) != "" && m.Machine().HostDedicationID != ac.HostDedicationID
+}
+
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
 	if md.releaseCommandMachine.IsEmpty() {
 		return md.createReleaseCommandMachine(ctx)
 	}
+
+	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
+
+	if dedicatedHostIdMismatch(releaseCmdMachine, md.appConfig) {
+		if err := releaseCmdMachine.Destroy(ctx, true); err != nil {
+			return fmt.Errorf("error destroying release_command machine: %w", err)
+		}
+
+		return md.createReleaseCommandMachine(ctx)
+	}
+
 	return md.updateReleaseCommandMachine(ctx)
 }
 
@@ -122,8 +139,9 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 	md.setMachineReleaseData(mConfig)
 
 	return &api.LaunchMachineInput{
-		Config: mConfig,
-		Region: origMachineRaw.Region,
+		Config:           mConfig,
+		Region:           origMachineRaw.Region,
+		HostDedicationID: md.appConfig.HostDedicationID,
 	}
 }
 
