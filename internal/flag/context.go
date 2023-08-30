@@ -2,12 +2,12 @@ package flag
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"golang.org/x/exp/slices"
 )
 
 // NewContext derives a context that carries fs from ctx.

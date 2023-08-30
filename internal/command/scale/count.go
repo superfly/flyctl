@@ -3,6 +3,7 @@ package scale
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/slices"
 )
 
 func newScaleCount() *cobra.Command {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -13,7 +14,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/slices"
 )
 
 func runMachinesScaleShow(ctx context.Context) error {

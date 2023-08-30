@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/superfly/flyctl/api"
@@ -10,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 var cpusPerKind = map[string][]int{
