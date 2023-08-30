@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -89,7 +90,10 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	private := flag.GetBool(ctx, "private")
 	if private {
-		orgSlug := flag.GetOrg(ctx)
+		orgSlug := env.First("FLY_ORG")
+		if orgSlug == "" {
+			orgSlug = flag.GetOrg(ctx)
+		}
 		var org *api.Organization
 
 		if orgSlug != "" {

@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs/appsv2"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sort"
@@ -91,6 +92,19 @@ func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.Org
 	}
 
 	return
+}
+
+func OrgFromEnvVarOrFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
+	slug := env.First("FLY_ORG")
+	if slug == "" {
+		var err error
+		slug, err = slugFromArgOrSelect(ctx, flag.FirstArg(ctx), filters...)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return OrgFromSlug(ctx, slug)
 }
 
 func OrgFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {

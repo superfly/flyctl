@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 )
 
@@ -69,7 +70,10 @@ func run(ctx context.Context) error {
 		err error
 	)
 
-	orgSlug := flag.GetOrg(ctx)
+	orgSlug := env.First("FLY_ORG")
+	if orgSlug == "" {
+		orgSlug = flag.GetOrg(ctx)
+	}
 
 	if orgSlug == "" {
 		appName := appconfig.NameFromContext(ctx)

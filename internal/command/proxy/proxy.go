@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -57,7 +58,12 @@ func New() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
-	orgSlug := flag.GetString(ctx, "org")
+
+	orgSlug := env.First("FLY_ORG")
+	if orgSlug == "" {
+		orgSlug = flag.GetString(ctx, "org")
+	}
+
 	args := flag.Args(ctx)
 	promptInstance := flag.GetBool(ctx, "select")
 
