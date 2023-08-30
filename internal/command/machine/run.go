@@ -206,6 +206,9 @@ func newRun() *cobra.Command {
 			Shorthand:   "v",
 			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 		},
+		flag.String{
+			Name: "dedication-id",
+		},
 		sharedFlags,
 	)
 
@@ -267,8 +270,9 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
+		Name:             flag.GetString(ctx, "name"),
+		Region:           flag.GetString(ctx, "region"),
+		HostDedicationID: flag.GetString(ctx, "dedication-id"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
