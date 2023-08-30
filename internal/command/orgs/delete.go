@@ -35,7 +35,7 @@ func newDelete() *cobra.Command {
 }
 
 func runDelete(ctx context.Context) error {
-	org, err := OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
+	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
 		return err
 	}

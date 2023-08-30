@@ -57,7 +57,9 @@ func New() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
-	orgSlug := flag.GetString(ctx, "org")
+
+	orgSlug := flag.GetOrg(ctx)
+
 	args := flag.Args(ctx)
 	promptInstance := flag.GetBool(ctx, "select")
 

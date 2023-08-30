@@ -80,7 +80,7 @@ func runSSHIssue(ctx context.Context) (err error) {
 	client := client.FromContext(ctx).API()
 	out := iostreams.FromContext(ctx).Out
 
-	org, err := orgs.OrgFromFirstArgOrSelect(ctx)
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}
