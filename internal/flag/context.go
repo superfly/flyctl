@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"golang.org/x/exp/slices"
@@ -118,6 +119,10 @@ func IsSpecified(ctx context.Context, name string) bool {
 
 // GetOrg is shorthand for GetString(ctx, Org).
 func GetOrg(ctx context.Context) string {
+	org := env.First("FLY_ORG")
+	if org != "" {
+		return org
+	}
 	return GetString(ctx, flagnames.Org)
 }
 
