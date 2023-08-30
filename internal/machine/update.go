@@ -165,7 +165,7 @@ func (e InvalidConfigErr) Suggestion() string {
 			suggestedSize = incrementSize
 		}
 
-		return fmt.Sprintf("Memory size must be in %d a MiB increment (%dMiB would work)", incrementSize, suggestedSize)
+		return fmt.Sprintf("Memory size must be in a %d MiB increment (%dMiB would work)", incrementSize, suggestedSize)
 	case memoryTooLow:
 		var min_memory_size int
 
