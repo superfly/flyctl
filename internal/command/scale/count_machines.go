@@ -65,7 +65,9 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"))
 
-	actions, err := computeActions(ctx, machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	deploy.ApplyFlagsToGuest(ctx, defaults.guest)
+
+	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -216,7 +218,7 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(ctx context.Context, machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
@@ -247,7 +249,6 @@ func computeActions(ctx context.Context, machines []*api.Machine, expectedGroupC
 		mConfig := groupMachines[0].Config
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
-		deploy.ApplyFlagsToGuest(ctx, mConfig.Guest)
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
@@ -272,7 +273,6 @@ func computeActions(ctx context.Context, machines []*api.Machine, expectedGroupC
 		if err != nil {
 			return nil, err
 		}
-		deploy.ApplyFlagsToGuest(ctx, mConfig.Guest)
 
 		regionDiffs, err := convergeGroupCounts(expected, nil, regions, maxPerRegion)
 		if err != nil {
