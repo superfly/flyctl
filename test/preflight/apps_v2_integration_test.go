@@ -39,10 +39,9 @@ func TestAppsV2Example(t *testing.T) {
 	require.Contains(f, result.StdOutString(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.Eventually(t, func() bool {
 		resp, err := http.Get(appUrl)
-		require.NoError(c, err)
-		require.Equal(c, http.StatusOK, resp.StatusCode)
+		return err == nil && resp.StatusCode == http.StatusOK
 	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", appUrl)
 
 	machList := f.MachinesList(appName)
