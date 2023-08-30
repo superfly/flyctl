@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -127,7 +128,7 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	hadError := false
 	for err := range results {
 		contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-		if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
+		if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled || !strings.Contains(err.Error(), "lease not found")) {
 			hadError = true
 			terminal.Warnf("failed to release lease: %v\n", err)
 		}
