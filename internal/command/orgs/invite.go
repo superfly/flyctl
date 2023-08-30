@@ -38,7 +38,7 @@ sent, and the user will be pending until they respond.
 func runInvite(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
-	org, err := OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
+	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
 		return nil
 	}
