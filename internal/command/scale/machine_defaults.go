@@ -7,7 +7,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/command/deploy"
 )
 
 type defaultValues struct {
@@ -23,7 +22,7 @@ type defaultValues struct {
 	snapshotID      *string
 }
 
-func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, snapshotID string, withNewVolumes bool) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *api.MachineGuest) *defaultValues {
 	guestPerGroup := lo.Associate(
 		lo.Filter(machines, func(m *api.Machine, _ int) bool {
 			return m.Config.Guest != nil
@@ -44,9 +43,7 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 			}
 		}
 
-		// If we still don't have a guest size, just set it to the default one
-		guest = new(api.MachineGuest)
-		guest.SetSize(deploy.DefaultVMSize)
+		guest = fallbackGuest
 	}
 
 	defaults := defaultValues{
