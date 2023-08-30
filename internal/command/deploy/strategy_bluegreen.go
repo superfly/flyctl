@@ -20,7 +20,7 @@ import (
 
 var (
 	ErrAborted             = errors.New("deployment aborted by user")
-	ErrWaitTimeout         = errors.New("wait for goroutine timeout")
+	ErrWaitTimeout         = errors.New("wait timeout")
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")

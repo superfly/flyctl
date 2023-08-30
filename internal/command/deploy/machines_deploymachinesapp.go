@@ -256,6 +256,11 @@ func errorIsTimeout(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
+
+	if errors.Is(err, ErrWaitTimeout) {
+		return true
+	}
+
 	return false
 }
 
@@ -323,9 +328,10 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
+			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
 			return rollbackErr
 		}
-		return err
+		return suggestChangeWaitTimeout(fmt.Errorf("deployment failed: %w", err), "wait-timeout")
 	}
 	return nil
 }
