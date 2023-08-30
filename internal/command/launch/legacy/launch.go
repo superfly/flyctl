@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/logrusorgru/aurora"
@@ -21,7 +22,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
-	"golang.org/x/exp/slices"
 )
 
 func Run(ctx context.Context) (err error) {

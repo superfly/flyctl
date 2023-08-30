@@ -3,12 +3,12 @@ package migrate_to_v2
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"golang.org/x/exp/slices"
 )
 
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {

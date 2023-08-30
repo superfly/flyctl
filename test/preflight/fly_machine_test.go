@@ -4,12 +4,12 @@
 package preflight
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/test/preflight/testlib"
-	"golang.org/x/exp/slices"
 )
 
 // test --port and --autostart --autostop flags

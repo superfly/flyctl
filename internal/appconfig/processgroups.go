@@ -2,13 +2,13 @@ package appconfig
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
-	"golang.org/x/exp/slices"
 )
 
 // ProcessNames lists each key of c.Processes, sorted lexicographically
