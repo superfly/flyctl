@@ -119,11 +119,11 @@ func IsSpecified(ctx context.Context, name string) bool {
 
 // GetOrg is shorthand for GetString(ctx, Org).
 func GetOrg(ctx context.Context) string {
-	org := env.First("FLY_ORG")
-	if org != "" {
-		return org
+	org := GetString(ctx, flagnames.Org)
+	if org == "" {
+		org = env.First("FLY_ORG")
 	}
-	return GetString(ctx, flagnames.Org)
+	return org
 }
 
 // GetRegion is shorthand for GetString(ctx, Region).
