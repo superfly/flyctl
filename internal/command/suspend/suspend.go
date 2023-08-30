@@ -21,6 +21,8 @@ for details on restarting it.
 
 	suspend := command.New(usage, short, long, apps.RunSuspend,
 		command.RequireSession)
+	suspend.Hidden = true
+	suspend.Deprecated = "use `fly scale count` instead"
 
 	return suspend
 }

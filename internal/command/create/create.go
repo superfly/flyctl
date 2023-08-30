@@ -10,7 +10,7 @@ func New() (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:        "create",
 		Hidden:     true,
-		Deprecated: "replaced by 'apps create'",
+		Deprecated: "use `fly apps create` instead",
 	}
 
 	flag.Add(cmd,
