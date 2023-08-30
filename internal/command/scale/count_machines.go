@@ -247,10 +247,6 @@ func computeActions(ctx context.Context, machines []*api.Machine, expectedGroupC
 		mConfig := groupMachines[0].Config
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
-		if mConfig.Guest == nil {
-			mConfig.Guest = new(api.MachineGuest)
-			mConfig.Guest.SetSize(deploy.DefaultVMSize)
-		}
 		deploy.ApplyFlagsToGuest(ctx, mConfig.Guest)
 
 		for region, delta := range regionDiffs {
@@ -275,10 +271,6 @@ func computeActions(ctx context.Context, machines []*api.Machine, expectedGroupC
 		mConfig, err := defaults.ToMachineConfig(groupName)
 		if err != nil {
 			return nil, err
-		}
-		if mConfig.Guest == nil {
-			mConfig.Guest = new(api.MachineGuest)
-			mConfig.Guest.SetSize(deploy.DefaultVMSize)
 		}
 		deploy.ApplyFlagsToGuest(ctx, mConfig.Guest)
 

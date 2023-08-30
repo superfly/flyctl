@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/command/deploy"
 )
 
 type defaultValues struct {
@@ -42,6 +43,10 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 				break
 			}
 		}
+
+		// If we still don't have a guest size, just set it to the default one
+		guest = new(api.MachineGuest)
+		guest.SetSize(deploy.DefaultVMSize)
 	}
 
 	defaults := defaultValues{
