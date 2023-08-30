@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -64,7 +65,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"))
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(ctx, machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
@@ -209,10 +210,13 @@ func (pi *planItem) MachineSize() string {
 	if len(pi.Machines) > 0 {
 		return pi.Machines[0].Config.Guest.ToSize()
 	}
+	if guest := pi.LaunchMachineInput.Config.Guest; guest != nil {
+		return guest.ToSize()
+	}
 	return ""
 }
 
-func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(ctx context.Context, machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
@@ -243,6 +247,11 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		mConfig := groupMachines[0].Config
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
+		if mConfig.Guest == nil {
+			mConfig.Guest = new(api.MachineGuest)
+			mConfig.Guest.SetSize(deploy.DefaultVMSize)
+		}
+		deploy.ApplyFlagsToGuest(ctx, mConfig.Guest)
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
@@ -267,6 +276,11 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		if err != nil {
 			return nil, err
 		}
+		if mConfig.Guest == nil {
+			mConfig.Guest = new(api.MachineGuest)
+			mConfig.Guest.SetSize(deploy.DefaultVMSize)
+		}
+		deploy.ApplyFlagsToGuest(ctx, mConfig.Guest)
 
 		regionDiffs, err := convergeGroupCounts(expected, nil, regions, maxPerRegion)
 		if err != nil {
