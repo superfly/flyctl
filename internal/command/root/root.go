@@ -4,6 +4,7 @@ package root
 import (
 	"context"
 
+	"github.com/kr/text"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
@@ -197,8 +198,9 @@ func run(ctx context.Context) error {
 	cmd.Println()
 
 	if !client.FromContext(ctx).Authenticated() {
-		cmd.Println(`It doesn't look like you're logged in. Try "flyctl auth signup" to create an account,
-or "flyctl auth login" to log in to an existing account.`)
+		msg := `It doesn't look like you're logged in. Try "fly auth signup" to create an account, or "fly auth login" to log in to an existing account.`
+		cmd.Println(text.Wrap(msg, 80))
+		cmd.Println()
 	}
 
 	cmd.Println("Here's a few commands to get you started:")
