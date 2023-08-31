@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command/machine"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -88,11 +89,6 @@ var CommonFlags = flag.Set{
 		Default:     false,
 		Hidden:      true,
 	},
-	flag.String{
-		Name:        "vm-size",
-		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
-		Aliases:     []string{"size"},
-	},
 	flag.Bool{
 		Name:        "ha",
 		Description: "Create spare machines that increases app availability",
@@ -111,20 +107,6 @@ var CommonFlags = flag.Set{
 	flag.Bool{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
-	},
-	flag.Int{
-		Name:        "vm-cpus",
-		Description: "Number of CPUs",
-		Aliases:     []string{"cpus"},
-	},
-	flag.String{
-		Name:        "vm-cpukind",
-		Description: "The kind of CPU to use ('shared' or 'performance')",
-	},
-	flag.Int{
-		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the VM",
-		Aliases:     []string{"memory"},
 	},
 	flag.StringArray{
 		Name:        "file-local",
@@ -146,6 +128,7 @@ var CommonFlags = flag.Set{
 		Name:        "only-regions",
 		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
+	mach.VMSizeFlags,
 }
 
 func New() (cmd *cobra.Command) {
@@ -299,7 +282,7 @@ func deployToMachines(
 	if guest == nil {
 		guest = &api.MachineGuest{}
 		guest.SetSize(DefaultVMSize)
-		_ = machine.ApplyFlagsToGuest(ctx, guest)
+		_ = mach.ApplyFlagsToGuest(ctx, guest)
 	}
 
 	excludeRegions := make(map[string]interface{})

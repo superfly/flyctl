@@ -40,23 +40,9 @@ func New() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
-		flag.Int{
-			Name:        "vm-cpus",
-			Description: "How many CPUs to give the new machine",
-			Aliases:     []string{"cpus"},
-		},
 		flag.String{
 			Name:        "machine",
 			Description: "Run the console in the existing machine with the specified ID",
-		},
-		flag.Int{
-			Name:        "vm-memory",
-			Description: "How much memory (in MB) to give the new machine",
-			Aliases:     []string{"memory"},
-		},
-		flag.String{
-			Name:        "vm-size",
-			Description: "Use a preset size for the new machine",
 		},
 		flag.Bool{
 			Name:        "select",
@@ -70,6 +56,7 @@ func New() *cobra.Command {
 			Description: "Unix username to connect as",
 			Default:     ssh.DefaultSshUsername,
 		},
+		machine.VMSizeFlags,
 	)
 
 	return cmd
@@ -250,6 +237,10 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGue
 		if err := desiredGuest.SetSize(flag.GetString(ctx, "vm-size")); err != nil {
 			return nil, err
 		}
+	}
+
+	if cpuKind := flag.GetString(ctx, "vm-cpukind"); cpuKind != "" {
+		desiredGuest.CPUKind = cpuKind
 	}
 
 	if flag.IsSpecified(ctx, "vm-cpus") {
