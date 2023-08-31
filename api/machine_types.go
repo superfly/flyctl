@@ -407,6 +407,12 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
 }
 
+func DefaultMachineGuest() *MachineGuest {
+	// This assumes that MachineGuest does not contain any pointers.
+	g := *MachinePresets[DefaultVMSize]
+	return &g
+}
+
 type MachineMetrics struct {
 	Port int    `toml:"port" json:"port,omitempty"`
 	Path string `toml:"path" json:"path,omitempty"`

@@ -55,6 +55,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 
 	oldPlan := helpers.Clone(state.Plan)
 
+	// TODO(Ali): Remove me.
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
 	if err := patchNumbers(finalSession.Metadata, "vm_cpus", "vm_memory"); err != nil {
 		return err
