@@ -2,9 +2,8 @@ package scale
 
 import (
 	"context"
-	"strconv"
-	"strings"
 
+	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -31,31 +30,12 @@ func newScaleMemory() *cobra.Command {
 func runScaleMemory(ctx context.Context) error {
 	group := flag.GetString(ctx, "group")
 
-	memoryMB := parseMemory(flag.FirstArg(ctx))
-
-	return scaleVertically(ctx, group, "", int(memoryMB))
-}
-
-func parseMemory(memory string) int {
-	// Find the index where the numeric part ends and the unit part begins
-	i := strings.IndexFunc(memory, func(r rune) bool { return (r < '0' || r > '9') && r != '.' })
-
-	// If there is no unit part, assume it's in MB
-	if i == -1 {
-		number, _ := strconv.Atoi(memory)
-		return number
+	memoryBytes, err := units.RAMInBytes(flag.FirstArg(ctx))
+	if err != nil {
+		return err
 	}
 
-	// Parse the numeric part to a float
-	number, _ := strconv.ParseFloat(memory[:i], 64)
+	memoryMB := int(memoryBytes) / units.MiB
 
-	// The rest of the string is the unit
-	unit := memory[i:]
-
-	switch unit {
-	case "GB", "gb":
-		number *= 1024
-	}
-
-	return int(number)
+	return scaleVertically(ctx, group, "", memoryMB)
 }
