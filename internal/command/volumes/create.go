@@ -102,11 +102,11 @@ func runCreate(ctx context.Context) error {
 		return client.GetAppBasic(ctx, appName)
 	})
 
-	// if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
-	// 	return err
-	// } else if !confirm {
-	// 	return nil
-	// }
+	if confirm, err := confirmVolumeCreate(ctx, appName); err != nil {
+		return err
+	} else if !confirm {
+		return nil
+	}
 
 	app, err := appFuture.Get()
 	if err != nil {
