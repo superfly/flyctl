@@ -37,7 +37,7 @@ validity.`
 
 	cmd := command.New(usage, short, long, runSSHIssue, command.RequireSession)
 
-	cmd.Args = cobra.MaximumNArgs(3)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
 		flag.Org(),
