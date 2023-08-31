@@ -74,12 +74,18 @@ func runExtend(ctx context.Context) error {
 		return err
 	}
 
-	volume, err := flapsClient.GetVolume(ctx, volID)
-	if err != nil {
-		return err
+	sizeFlag := flag.GetString(ctx, "size")
+	sizeGB := 0
+	if sizeFlag[0] == '+' {
+		volume, err := flapsClient.GetVolume(ctx, volID)
+		if err != nil {
+			return err
+		}
+		sizeGB = parseSize(flag.GetString(ctx, "size"), volume.SizeGb)
+	} else {
+		sizeGB = parseSize(flag.GetString(ctx, "size"), 0)
 	}
 
-	sizeGB := parseSize(flag.GetString(ctx, "size"), volume.SizeGb)
 	if sizeGB == 0 {
 		return fmt.Errorf("Volume size must be specified")
 	}
