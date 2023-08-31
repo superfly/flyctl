@@ -8,7 +8,7 @@ import (
 
 // Returns a MachineGuest based on the flags provided overwriting a default VM
 func GetMachineGuest(ctx context.Context) *api.MachineGuest {
-	var guest *api.MachineGuest
+	var guest api.MachineGuest
 	guest.SetSize(api.DefaultVMSize)
 
 	if IsSpecified(ctx, "vm-size") {
@@ -23,7 +23,7 @@ func GetMachineGuest(ctx context.Context) *api.MachineGuest {
 	if IsSpecified(ctx, "vm-cpukind") {
 		guest.CPUKind = GetString(ctx, "vm-cpukind")
 	}
-	return guest
+	return &guest
 }
 
 var VMSizeFlags = Set{

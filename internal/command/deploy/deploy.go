@@ -279,9 +279,7 @@ func deployToMachines(
 	}
 
 	if guest == nil {
-		guest = &api.MachineGuest{}
-		guest.SetSize(api.DefaultVMSize)
-		_ = flag.GetMachineGuest(ctx)
+		guest = flag.GetMachineGuest(ctx)
 	}
 
 	excludeRegions := make(map[string]interface{})
