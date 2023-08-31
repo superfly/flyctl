@@ -3,9 +3,8 @@ package volumes
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"strings"
 
+	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flaps"
@@ -75,15 +74,19 @@ func runExtend(ctx context.Context) error {
 	}
 
 	sizeFlag := flag.GetString(ctx, "size")
-	sizeGB := 0
+	sizeBytes, err := units.FromHumanSize(sizeFlag)
+	if err != nil {
+		return fmt.Errorf("invalid size: %w", err)
+	}
+
+	sizeGB := int(sizeBytes) / units.GB
+
 	if sizeFlag[0] == '+' {
 		volume, err := flapsClient.GetVolume(ctx, volID)
 		if err != nil {
 			return err
 		}
-		sizeGB = parseSize(flag.GetString(ctx, "size"), volume.SizeGb)
-	} else {
-		sizeGB = parseSize(flag.GetString(ctx, "size"), 0)
+		sizeGB += volume.SizeGb
 	}
 
 	if sizeGB == 0 {
@@ -129,30 +132,4 @@ func runExtend(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func parseSize(size string, currentSize int) int {
-	sign := size[0]
-	// If the first character is a sign, remove it
-	if sign == '+' || sign < '0' || sign > '9' {
-		size = size[1:]
-	}
-
-	// Find the index where the numeric part ends and the unit part begins
-	i := strings.IndexFunc(size, func(r rune) bool { return r < '0' || r > '9' })
-
-	// Parse the numeric part to an integer
-	number := 0
-	// If there is no unit part, assume it's in GB
-	if i == -1 {
-		number, _ = strconv.Atoi(size)
-	} else {
-		number, _ = strconv.Atoi(size[:i])
-	}
-
-	if sign == '+' {
-		return currentSize + number
-	}
-
-	return number
 }
