@@ -231,7 +231,7 @@ type MachineEvent struct {
 }
 
 func (e *MachineEvent) Time() time.Time {
-	return time.Unix(e.Timestamp/1000, e.Timestamp%1000)
+	return time.Unix(e.Timestamp/1000, e.Timestamp%1000*1000000)
 }
 
 type MachineRequest struct {

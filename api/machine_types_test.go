@@ -230,7 +230,7 @@ func TestMachineMostRecentStartTimeAfterLaunch(t *testing.T) {
 				t.Error(testCase.name, "unexpected error:", err)
 			} else {
 				delta := testCase.expected.Sub(actual)
-				if delta < -1*time.Second || delta > 1*time.Second {
+				if delta < -1*time.Millisecond || delta > 1*time.Millisecond {
 					t.Error(testCase.name, "expected", testCase.expected, "got", actual)
 				}
 			}
