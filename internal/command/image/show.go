@@ -21,7 +21,7 @@ import (
 
 func newShow() *cobra.Command {
 	const (
-		short  = "Show image details."
+		short = "Show image details."
 		long = short + "\n"
 
 		usage = "show"
