@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/shlex"
@@ -189,6 +190,10 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 
 	// Files
 	machine.MergeFiles(mConfig, c.MergedFiles)
+
+	if c.RootfsSize != src.RootfsSize {
+		return nil, errors.New("Changing rootfs_size is currently not supported.")
+	}
 
 	return mConfig, nil
 }
