@@ -538,6 +538,8 @@ type MachineConfig struct {
 	VMSize string `json:"size,omitempty"`
 	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
+
+	HostDedicationId string `json:"host_dedication_id"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {

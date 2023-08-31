@@ -13,6 +13,7 @@ type Volume struct {
 	AttachedMachine    *string   `json:"attached_machine_id"`
 	AttachedAllocation *string   `json:"attached_alloc_id"`
 	CreatedAt          time.Time `json:"created_at"`
+	HostDedicationID   string    `json:"host_dedication_id"`
 }
 
 func (v Volume) IsAttached() bool {

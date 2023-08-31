@@ -63,7 +63,7 @@ sets the size as the number of gigabytes the volume will consume.`
 			Description: "Create volume from a specified snapshot",
 		},
 		flag.String{
-			Name: "dedication-id",
+			Name: "host-dedication-id",
 		},
 		flag.Yes(),
 	)
@@ -125,7 +125,7 @@ func runCreate(ctx context.Context) error {
 		Encrypted:         api.Pointer(!flag.GetBool(ctx, "no-encryption")),
 		RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:        snapshotID,
-		HostDedicationId:  flag.GetString(ctx, "dedication-id"),
+		HostDedicationId:  flag.GetString(ctx, "host-dedication-id"),
 	}
 
 	volume, err := flapsClient.CreateVolume(ctx, input)
