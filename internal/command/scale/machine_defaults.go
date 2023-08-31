@@ -36,14 +36,13 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 	// scan all the existing groups and pick the first
 	guest := guestPerGroup[appConfig.DefaultProcessName()]
 	if guest == nil {
+		guest = fallbackGuest
 		for _, name := range appConfig.ProcessNames() {
 			if v, ok := guestPerGroup[name]; ok {
 				guest = v
 				break
 			}
 		}
-
-		guest = fallbackGuest
 	}
 
 	defaults := defaultValues{
