@@ -2,6 +2,9 @@ package api
 
 import (
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsReleaseCommandMachine(t *testing.T) {
@@ -155,5 +158,76 @@ func TestMachineGuest_ToSize(t *testing.T) {
 	got := (&MachineGuest{}).ToSize()
 	if got != "unknown" {
 		t.Errorf("want 'unknown', got '%s'", got)
+	}
+}
+
+func TestMachineMostRecentStartTimeAfterLaunch(t *testing.T) {
+	type testcase struct {
+		name        string
+		machine     *Machine
+		expected    time.Time
+		expectedErr bool
+	}
+	var (
+		time01 = time.Now()
+		time05 = time01.Add(5 * time.Second)
+		time17 = time01.Add(17 * time.Second)
+		time99 = time01.Add(99 * time.Second)
+	)
+	cases := []testcase{
+		{name: "nil machine", machine: nil, expectedErr: true},
+		{name: "no events", machine: &Machine{}, expectedErr: true},
+		{name: "launch only event", expectedErr: true,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "launch", Timestamp: time01.UnixMilli()},
+			}},
+		},
+		{name: "start only event", expectedErr: true,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "start", Timestamp: time01.UnixMilli()},
+			}},
+		},
+		{name: "launch after start", expectedErr: true,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "launch", Timestamp: time05.UnixMilli()},
+				{Type: "start", Timestamp: time01.UnixMilli()},
+			}},
+		},
+		{name: "exit after start", expectedErr: true,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "exit", Timestamp: time05.UnixMilli()},
+				{Type: "start", Timestamp: time01.UnixMilli()},
+			}},
+		},
+		{name: "launch, start", expected: time17,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "start", Timestamp: time17.UnixMilli()},
+				{Type: "launch", Timestamp: time05.UnixMilli()},
+			}},
+		},
+		{name: "exit, launch, start", expected: time17,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "start", Timestamp: time17.UnixMilli()},
+				{Type: "launch", Timestamp: time05.UnixMilli()},
+				{Type: "exit", Timestamp: time01.UnixMilli()},
+			}},
+		},
+		{name: "exit, launch, start, exit", expectedErr: true,
+			machine: &Machine{Events: []*MachineEvent{
+				{Type: "exit", Timestamp: time99.UnixMilli()},
+				{Type: "start", Timestamp: time17.UnixMilli()},
+				{Type: "launch", Timestamp: time05.UnixMilli()},
+				{Type: "exit", Timestamp: time01.UnixMilli()},
+			}},
+		},
+	}
+	for _, testCase := range cases {
+		actual, err := testCase.machine.MostRecentStartTimeAfterLaunch()
+		if testCase.expectedErr {
+			require.Error(t, err, testCase.name)
+		} else {
+			require.NoError(t, err, testCase.name)
+			require.WithinDuration(t, testCase.expected, actual, 1*time.Second, testCase.name)
+		}
 	}
 }
