@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/pem"
-	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -33,7 +32,7 @@ func newIssue() *cobra.Command {
 into SSH agent. With -hour, set the number of hours (1-72) for credential
 validity.`
 		short = `Issue a new SSH credential`
-		usage = "issue [org] [path]"
+		usage = "issue"
 	)
 
 	cmd := command.New(usage, short, long, runSSHIssue, command.RequireSession)
@@ -42,6 +41,11 @@ validity.`
 
 	flag.Add(cmd,
 		flag.Org(),
+		flag.String{
+			Name:        "path",
+			Shorthand:   "p",
+			Description: "Path to store private key",
+		},
 		flag.StringSlice{
 			Name:        "username",
 			Shorthand:   "u",
@@ -97,24 +101,21 @@ func runSSHIssue(ctx context.Context) (err error) {
 		emails   string
 		rootname string
 	)
-	switch args := flag.Args(ctx); len(args) {
-	case 0:
-		// neither
-	case 1:
-		// org only
-	case 2:
-		// org+email or org+path
-		if _, err = mail.ParseAddress(args[1]); err == nil {
-			emails = args[1]
-		} else {
-			rootname = args[1]
-		}
-	case 3:
+
+	orgFlag := flag.GetOrg(ctx)
+	path := flag.GetString(ctx, "path")
+
+	if orgFlag != "" && path != "" {
 		// org+email+path
-		emails = args[1]
-		rootname = args[2]
-	default:
-		return errors.New("Too many positional arguments\n")
+		emails = orgFlag
+		rootname = path
+	} else if orgFlag != "" {
+		// org+email or org+path
+		if _, err = mail.ParseAddress(orgFlag); err == nil {
+			emails = orgFlag
+		} else {
+			rootname = orgFlag
+		}
 	}
 
 	if len(emails) > 0 {
