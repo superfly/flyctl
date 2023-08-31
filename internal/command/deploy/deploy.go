@@ -270,29 +270,6 @@ func determineRelCmdTimeout(timeout string) (time.Duration, error) {
 	return time.Duration(asInt) * time.Second, nil
 }
 
-// ApplyFlagsToGuest applies CLI flags to a Guest
-// Returns true if any flags were applied
-func ApplyFlagsToGuest(ctx context.Context, guest *api.MachineGuest) bool {
-	modified := false
-	if flag.IsSpecified(ctx, "vm-size") {
-		guest.SetSize(flag.GetString(ctx, "vm-size"))
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-cpus") {
-		guest.CPUs = flag.GetInt(ctx, "vm-cpus")
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-memory") {
-		guest.MemoryMB = flag.GetInt(ctx, "vm-memory")
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-cpukind") {
-		guest.CPUKind = flag.GetString(ctx, "vm-cpukind")
-		modified = true
-	}
-	return modified
-}
-
 // in a rare twist, the guest param takes precedence over CLI flags!
 func deployToMachines(
 	ctx context.Context,
@@ -322,7 +299,7 @@ func deployToMachines(
 	if guest == nil {
 		guest = &api.MachineGuest{}
 		guest.SetSize(DefaultVMSize)
-		_ = ApplyFlagsToGuest(ctx, guest)
+		_ = machine.ApplyFlagsToGuest(ctx, guest)
 	}
 
 	excludeRegions := make(map[string]interface{})
