@@ -95,33 +95,30 @@ type machineState struct {
 	complete  bool
 }
 
-func (bg *blueGreen) renderMachineStates(state map[string]machineState) func(lastChangedMachine *string) {
-	firstRun := true
+func (bg *blueGreen) renderMachineStates(state map[string]machineState, lastChangedMachine *string) {
+	firstRun := lastChangedMachine == nil
 
 	renderRow := func(id, status string) string {
 		return fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status))
 	}
 
-	return func(lastChangedMachine *string) {
-		var rows []string
-		// In interactive mode, and first run, print all machines, clearing previous output
-		if bg.io.IsInteractive() || firstRun || lastChangedMachine == nil {
-			for id, status := range state {
-				rows = append(rows, renderRow(id, status.status))
-			}
-			sort.Strings(rows)
-			if !firstRun {
-				// no-op in non-interactive mode
-				bg.clearLinesAbove(len(rows))
-			}
-		} else {
-			// in non-interactive mode, just print the status of the machine that actually changed
-			rows = append(rows, renderRow(*lastChangedMachine, state[*lastChangedMachine].status))
+	var rows []string
+	// In interactive mode, and first run, print all machines, clearing previous output
+	if bg.io.IsInteractive() || firstRun {
+		for id, status := range state {
+			rows = append(rows, renderRow(id, status.status))
 		}
-
-		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
-		firstRun = false
+		sort.Strings(rows)
+		if !firstRun {
+			// no-op in non-interactive mode
+			bg.clearLinesAbove(len(rows))
+		}
+	} else {
+		// in non-interactive mode, just print the status of the machine that actually changed
+		rows = append(rows, renderRow(*lastChangedMachine, state[*lastChangedMachine].status))
 	}
+
+	fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
 }
 
 func (bg *blueGreen) WaitForMachines(
@@ -132,9 +129,8 @@ func (bg *blueGreen) WaitForMachines(
 	errChan := make(chan error)
 	statusChan := make(chan machineState, len(machineIDToStatus))
 
-	render := bg.renderMachineStates(machineIDToStatus)
 	// render initial state
-	render(nil)
+	bg.renderMachineStates(machineIDToStatus, nil)
 
 	for _, gm := range bg.greenMachines {
 		if _, ok := machineIDToStatus[gm.FormattedMachineId()]; ok {
@@ -158,7 +154,7 @@ func (bg *blueGreen) WaitForMachines(
 			// only render if a status has changed
 			if status.status != previousStatus.status {
 				machineIDToStatus[status.machineId] = status
-				render(&status.machineId)
+				bg.renderMachineStates(machineIDToStatus, &status.machineId)
 			}
 		}
 
