@@ -74,7 +74,12 @@ func runExtend(ctx context.Context) error {
 		return err
 	}
 
-	sizeGB := parseSize(flag.GetString(ctx, "size"))
+	volume, err := flapsClient.GetVolume(ctx, volID)
+	if err != nil {
+		return err
+	}
+
+	sizeGB := parseSize(flag.GetString(ctx, "size"), volume.SizeGb)
 	if sizeGB == 0 {
 		return fmt.Errorf("Volume size must be specified")
 	}
@@ -120,8 +125,12 @@ func runExtend(ctx context.Context) error {
 	return nil
 }
 
-func parseSize(size string) int {
-	size = strings.TrimLeft(size, "+-")
+func parseSize(size string, currentSize int) int {
+	sign := size[0]
+	// If the first character is a sign, remove it
+	if sign == '+' || sign < '0' || sign > '9' {
+		size = size[1:]
+	}
 
 	// Find the index where the numeric part ends and the unit part begins
 	i := strings.IndexFunc(size, func(r rune) bool { return r < '0' || r > '9' })
@@ -133,6 +142,10 @@ func parseSize(size string) int {
 		number, _ = strconv.Atoi(size)
 	} else {
 		number, _ = strconv.Atoi(size[:i])
+	}
+
+	if sign == '+' {
+		return currentSize + number
 	}
 
 	return number
