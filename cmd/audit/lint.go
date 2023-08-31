@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/command/root"
-	"golang.org/x/exp/slices"
 )
 
 func newLintCmd() *cobra.Command {

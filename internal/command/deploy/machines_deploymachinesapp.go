@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 type ProcessGroupsDiff struct {

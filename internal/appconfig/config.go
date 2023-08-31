@@ -8,11 +8,11 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/scanner"
-	"golang.org/x/exp/slices"
 )
 
 const (

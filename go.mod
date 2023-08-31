@@ -28,17 +28,18 @@ require (
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
-	github.com/heroku/heroku-go/v5 v5.4.0
+	github.com/heroku/heroku-go/v5 v5.5.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jinzhu/copier v0.3.5
 	github.com/jpillora/backoff v1.0.0
+	github.com/kr/text v0.2.0
 	github.com/loadsmart/calver-go v0.0.0-20230323142215-56cf73a68e8a
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.19
-	github.com/mattn/go-zglob v0.0.1
+	github.com/mattn/go-zglob v0.0.4
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/miekg/dns v1.1.43
+	github.com/miekg/dns v1.1.55
 	github.com/moby/buildkit v0.11.6
 	github.com/moby/patternmatcher v0.5.0
 	github.com/morikuni/aec v1.0.0
@@ -61,7 +62,7 @@ require (
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.6
 	golang.org/x/crypto v0.12.0
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
+	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	golang.org/x/net v0.14.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.11.0
@@ -150,7 +151,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/otel/metric v0.37.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/tools v0.9.3 // indirect
+	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230803162519-f966b187b2e5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230803162519-f966b187b2e5 // indirect

@@ -3,6 +3,7 @@ package regions
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -10,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/api"
 )

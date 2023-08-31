@@ -2,13 +2,13 @@ package main
 
 import (
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/internal/command/root"
-	"golang.org/x/exp/slices"
 )
 
 func formatRawText(desc string) string {
