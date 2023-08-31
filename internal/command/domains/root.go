@@ -28,6 +28,8 @@ Notice: this feature is deprecated and no longer supported.
 You can still view existing domains, but registration is no longer possible.`
 	)
 	cmd := command.New("domains", short, long, nil)
+	cmd.Deprecated = "`fly domains` will be removed in a future release"
+	cmd.Hidden = true
 	cmd.AddCommand(
 		newDomainsList(),
 		newDomainsShow(),

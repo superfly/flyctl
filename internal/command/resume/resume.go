@@ -21,6 +21,8 @@ the number of configured instances.
 
 	resume := command.New(usage, short, long, apps.RunResume,
 		command.RequireSession)
+	resume.Hidden = true
+	resume.Deprecated = "use `fly scale count` instead"
 
 	resume.Args = cobra.ExactArgs(1)
 

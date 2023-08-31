@@ -24,6 +24,7 @@ const (
 	MachineStateStarted                        = "started"
 	MachineStateStopped                        = "stopped"
 	MachineStateCreated                        = "created"
+	DefaultVMSize                              = "shared-cpu-1x"
 )
 
 type Machine struct {

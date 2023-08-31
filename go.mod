@@ -32,13 +32,14 @@ require (
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jinzhu/copier v0.3.5
 	github.com/jpillora/backoff v1.0.0
+	github.com/kr/text v0.2.0
 	github.com/loadsmart/calver-go v0.0.0-20230323142215-56cf73a68e8a
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.19
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/miekg/dns v1.1.43
+	github.com/miekg/dns v1.1.55
 	github.com/moby/buildkit v0.11.6
 	github.com/moby/patternmatcher v0.5.0
 	github.com/morikuni/aec v1.0.0

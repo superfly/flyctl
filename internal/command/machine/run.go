@@ -47,22 +47,6 @@ var sharedFlags = flag.Set{
 	i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
 	To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
 	},
-	flag.String{
-		Name:        "vm-size",
-		Shorthand:   "s",
-		Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
-		Aliases:     []string{"size"},
-	},
-	flag.Int{
-		Name:        "vm-cpus",
-		Description: "Number of CPUs",
-		Aliases:     []string{"cpus"},
-	},
-	flag.Int{
-		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the machine",
-		Aliases:     []string{"memory"},
-	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
@@ -163,6 +147,7 @@ var sharedFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
+	flag.VMSizeFlags,
 }
 
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -743,6 +728,12 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Guest.MemoryMB = memory
 	} else if flag.IsSpecified(ctx, "vm-memory") {
 		return nil, fmt.Errorf("memory cannot be zero")
+	}
+
+	if cpuKind := flag.GetString(ctx, "vm-cpukind"); cpuKind == "shared" || cpuKind == "performance" {
+		machineConf.Guest.CPUKind = cpuKind
+	} else if flag.IsSpecified(ctx, "vm-cpukind") {
+		return nil, fmt.Errorf("cpukind must be set to 'shared' or 'performance'")
 	}
 
 	if len(flag.GetStringArray(ctx, "kernel-arg")) != 0 {
