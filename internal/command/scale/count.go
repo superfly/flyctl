@@ -40,7 +40,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
 		flag.String{
 			Name:        "vm-size",
-			Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
+			Description: `The VM size to set machines to. See "fly platform vm-sizes" for valid values`,
 			Aliases:     []string{"size"},
 		},
 		flag.Int{
