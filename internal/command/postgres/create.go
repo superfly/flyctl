@@ -47,7 +47,6 @@ func newCreate() *cobra.Command {
 			Name:        "vm-size",
 			Description: "the size of the VM",
 		},
-
 		flag.Int{
 			Name:        "initial-cluster-size",
 			Description: "Initial cluster size",

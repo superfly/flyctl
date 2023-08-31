@@ -128,7 +128,7 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 }
 
 func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
-	defaultGuest := api.MachinePresets[DefaultVMSize]
+	defaultGuest := api.MachinePresets[api.DefaultVMSize]
 	desiredGuest := api.MachinePresets["shared-cpu-2x"]
 	if mg := md.machineGuest; mg != nil && (mg.CPUKind != defaultGuest.CPUKind || mg.CPUs != defaultGuest.CPUs || mg.MemoryMB != defaultGuest.MemoryMB) {
 		desiredGuest = mg

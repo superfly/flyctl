@@ -38,6 +38,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.String{Name: "process-group", Description: "The process group to scale"},
 		flag.Bool{Name: "with-new-volumes", Description: "New machines each get a new volumes even if there are unattached volumes available"},
 		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
+		flag.VMSizeFlags,
 	)
 	return cmd
 }
