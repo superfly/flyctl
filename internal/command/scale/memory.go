@@ -38,10 +38,16 @@ func runScaleMemory(ctx context.Context) error {
 
 func parseMemory(memory string) int {
 	// Find the index where the numeric part ends and the unit part begins
-	i := strings.IndexFunc(memory, func(r rune) bool { return r < '0' || r > '9' })
+	i := strings.IndexFunc(memory, func(r rune) bool { return (r < '0' || r > '9') && r != '.' })
 
-	// Parse the numeric part to an integer
-	number, _ := strconv.Atoi(memory[:i])
+	// If there is no unit part, assume it's in MB
+	if i == -1 {
+		number, _ := strconv.Atoi(memory)
+		return number
+	}
+
+	// Parse the numeric part to a float
+	number, _ := strconv.ParseFloat(memory[:i], 64)
 
 	// The rest of the string is the unit
 	unit := memory[i:]
@@ -51,5 +57,5 @@ func parseMemory(memory string) int {
 		number *= 1024
 	}
 
-	return number
+	return int(number)
 }

@@ -127,7 +127,13 @@ func parseSize(size string) int {
 	i := strings.IndexFunc(size, func(r rune) bool { return r < '0' || r > '9' })
 
 	// Parse the numeric part to an integer
-	number, _ := strconv.Atoi(size[:i])
+	number := 0
+	// If there is no unit part, assume it's in GB
+	if i == -1 {
+		number, _ = strconv.Atoi(size)
+	} else {
+		number, _ = strconv.Atoi(size[:i])
+	}
 
 	return number
 }
