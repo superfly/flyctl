@@ -3,8 +3,6 @@ package api
 import (
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/require"
 )
 
 func TestIsReleaseCommandMachine(t *testing.T) {
@@ -224,10 +222,18 @@ func TestMachineMostRecentStartTimeAfterLaunch(t *testing.T) {
 	for _, testCase := range cases {
 		actual, err := testCase.machine.MostRecentStartTimeAfterLaunch()
 		if testCase.expectedErr {
-			require.Error(t, err, testCase.name)
+			if err == nil {
+				t.Error(testCase.name, "expected error, got nil")
+			}
 		} else {
-			require.NoError(t, err, testCase.name)
-			require.WithinDuration(t, testCase.expected, actual, 1*time.Second, testCase.name)
+			if err != nil {
+				t.Error(testCase.name, "unexpected error:", err)
+			} else {
+				delta := testCase.expected.Sub(actual)
+				if delta < -1*time.Second || delta > 1*time.Second {
+					t.Error(testCase.name, "expected", testCase.expected, "got", actual)
+				}
+			}
 		}
 	}
 }
