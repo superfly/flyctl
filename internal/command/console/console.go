@@ -56,7 +56,7 @@ func New() *cobra.Command {
 			Description: "Unix username to connect as",
 			Default:     ssh.DefaultSshUsername,
 		},
-		machine.VMSizeFlags,
+		flag.VMSizeFlags,
 	)
 
 	return cmd

@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
 )
@@ -39,7 +38,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.String{Name: "process-group", Description: "The process group to scale"},
 		flag.Bool{Name: "with-new-volumes", Description: "New machines each get a new volumes even if there are unattached volumes available"},
 		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
-		machine.VMSizeFlags,
+		flag.VMSizeFlags,
 	)
 	return cmd
 }

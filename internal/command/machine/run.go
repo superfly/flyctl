@@ -147,7 +147,7 @@ var sharedFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
-	mach.VMSizeFlags,
+	flag.VMSizeFlags,
 }
 
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)

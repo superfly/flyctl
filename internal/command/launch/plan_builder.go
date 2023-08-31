@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -264,8 +263,10 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
 	shared1x := api.MachinePresets["shared-cpu-1x"]
 	reason := "most apps need about 1GB of RAM"
-	if machine.ApplyFlagsToGuest(ctx, shared1x) {
+
+	guest := flag.GetMachineGuest(ctx)
+	if shared1x != guest {
 		reason = "specified on the command line"
 	}
-	return shared1x, reason, nil
+	return guest, reason, nil
 }
