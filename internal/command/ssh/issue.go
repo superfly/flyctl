@@ -42,6 +42,11 @@ validity.`
 	flag.Add(cmd,
 		flag.Org(),
 		flag.String{
+			Name:        "email",
+			Shorthand:   "e",
+			Description: "Email address for user to issue cert",
+		},
+		flag.String{
 			Name:        "path",
 			Shorthand:   "p",
 			Description: "Path to store private key",
@@ -103,16 +108,17 @@ func runSSHIssue(ctx context.Context) (err error) {
 	)
 
 	orgFlag := flag.GetOrg(ctx)
+	email := flag.GetString(ctx, "email")
 	path := flag.GetString(ctx, "path")
 
-	if orgFlag != "" && path != "" {
+	if orgFlag != "" && path != "" && email != "" {
 		// org+email+path
-		emails = orgFlag
+		emails = email
 		rootname = path
-	} else if orgFlag != "" {
+	} else if orgFlag != "" || email != "" {
 		// org+email or org+path
-		if _, err = mail.ParseAddress(orgFlag); err == nil {
-			emails = orgFlag
+		if _, err = mail.ParseAddress(email); err == nil {
+			emails = email
 		} else {
 			rootname = orgFlag
 		}
