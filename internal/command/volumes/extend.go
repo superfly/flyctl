@@ -3,12 +3,12 @@ package volumes
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -75,14 +75,9 @@ func runExtend(ctx context.Context) error {
 	}
 
 	sizeFlag := flag.GetString(ctx, "size")
-	sizeGB, err := strconv.Atoi(sizeFlag)
+	sizeGB, err := helpers.ParseSize(sizeFlag, units.FromHumanSize, units.GB)
 	if err != nil {
-		sizeBytes, err := units.FromHumanSize(sizeFlag)
-		if err != nil {
-			return fmt.Errorf("invalid size: %w", err)
-		}
-
-		sizeGB = int(sizeBytes) / units.GB
+		return err
 	}
 
 	if sizeGB == 0 {

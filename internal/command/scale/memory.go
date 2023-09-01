@@ -5,6 +5,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -30,12 +31,10 @@ func newScaleMemory() *cobra.Command {
 func runScaleMemory(ctx context.Context) error {
 	group := flag.GetString(ctx, "group")
 
-	memoryBytes, err := units.RAMInBytes(flag.FirstArg(ctx))
+	memoryMB, err := helpers.ParseSize(flag.FirstArg(ctx), units.RAMInBytes, units.MiB)
 	if err != nil {
 		return err
 	}
-
-	memoryMB := int(memoryBytes) / units.MiB
 
 	return scaleVertically(ctx, group, "", memoryMB)
 }
