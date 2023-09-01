@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
@@ -269,7 +270,10 @@ func errorIsTimeout(err error) bool {
 // If the err is not a timeout, it's returned unchanged.
 func suggestChangeWaitTimeout(err error, flagName string) error {
 	if errorIsTimeout(err) {
-		err = fmt.Errorf("%w\nnote: you can change this timeout with the --%s flag", err, flagName)
+		err = flyerr.GenericErr{
+			Err:     err.Error(),
+			Suggest: fmt.Sprintf("You can increase the timeout with the --%s flag", flagName),
+		}
 	}
 	return err
 }
@@ -331,7 +335,7 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
 			return rollbackErr
 		}
-		return suggestChangeWaitTimeout(fmt.Errorf("deployment failed: %w", err), "wait-timeout")
+		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
 }
