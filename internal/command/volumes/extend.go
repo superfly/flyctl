@@ -81,16 +81,16 @@ func runExtend(ctx context.Context) error {
 
 	sizeGB := int(sizeBytes) / units.GB
 
+	if sizeGB == 0 {
+		return fmt.Errorf("Volume size must be specified")
+	}
+
 	if sizeFlag[0] == '+' {
 		volume, err := flapsClient.GetVolume(ctx, volID)
 		if err != nil {
 			return err
 		}
 		sizeGB += volume.SizeGb
-	}
-
-	if sizeGB == 0 {
-		return fmt.Errorf("Volume size must be specified")
 	}
 
 	if app.PlatformVersion == "nomad" {
