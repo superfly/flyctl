@@ -3,6 +3,7 @@ package volumes
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
@@ -74,12 +75,15 @@ func runExtend(ctx context.Context) error {
 	}
 
 	sizeFlag := flag.GetString(ctx, "size")
-	sizeBytes, err := units.FromHumanSize(sizeFlag)
+	sizeGB, err := strconv.Atoi(sizeFlag)
 	if err != nil {
-		return fmt.Errorf("invalid size: %w", err)
-	}
+		sizeBytes, err := units.FromHumanSize(sizeFlag)
+		if err != nil {
+			return fmt.Errorf("invalid size: %w", err)
+		}
 
-	sizeGB := int(sizeBytes) / units.GB
+		sizeGB = int(sizeBytes) / units.GB
+	}
 
 	if sizeGB == 0 {
 		return fmt.Errorf("Volume size must be specified")
