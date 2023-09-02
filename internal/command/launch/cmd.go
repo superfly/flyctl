@@ -66,6 +66,11 @@ func New() (cmd *cobra.Command) {
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
 		},
+		flag.String{
+			Name:        "config",
+			Shorthand:   "c",
+			Description: "Create a new app from a fly.toml file.",
+		},
 		// Launch V2
 		flag.Bool{
 			Name:        "ui",
