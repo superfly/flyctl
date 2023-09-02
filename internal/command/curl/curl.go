@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"sort"
@@ -38,6 +37,8 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("curl <URL>", short, long, run,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly curl` will be removed in a future release"
+	cmd.Hidden = true
 
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -196,7 +197,7 @@ func (rw *requestWrapper) time(c chan<- *timing) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		if body, err := ioutil.ReadAll(res.Body); err == nil {
+		if body, err := io.ReadAll(res.Body); err == nil {
 			t.error = errors.New(string(body))
 		} else {
 			t.error = err

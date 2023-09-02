@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/logrusorgru/aurora"
@@ -21,7 +22,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
-	"golang.org/x/exp/slices"
 )
 
 func Run(ctx context.Context) (err error) {
@@ -386,7 +386,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
-			case prompt.IsNonInteractive(err) && !flag.GetBool(ctx, "auto-confirm"):
+			case prompt.IsNonInteractive(err) && !flag.GetYes(ctx):
 				return nil, false, err
 			case err != nil:
 				return nil, false, err

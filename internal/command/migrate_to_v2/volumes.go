@@ -3,12 +3,12 @@ package migrate_to_v2
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"golang.org/x/exp/slices"
 )
 
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
@@ -72,18 +72,20 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			return err
 		}
 
+		// We have to search for the full alloc ID, because the volume only has the short-form alloc ID
 		allocId := ""
 		path := ""
-		if allocId := vol.AttachedAllocation; allocId != nil {
+		if shortAllocId := vol.AttachedAllocation; shortAllocId != nil {
 			alloc, ok := lo.Find(m.oldAllocs, func(a *api.AllocationStatus) bool {
-				return a.ID == *allocId
+				return a.IDShort == *shortAllocId
 			})
 			if !ok {
-				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *allocId)
+				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *shortAllocId)
 			}
+			allocId = alloc.ID
 			path = m.nomadVolPath(&vol, alloc.TaskName)
 			if path == "" {
-				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, *allocId)
+				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
 			}
 		}
 		if m.verbose {
@@ -113,14 +115,14 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 
 // Must run *after* allocs are filtered
 func (m *v2PlatformMigrator) resolveOldVolumes(ctx context.Context) error {
-	vols, err := m.flapsClient.GetAllVolumes(ctx)
+	vols, err := m.flapsClient.GetVolumes(ctx)
 	if err != nil {
 		return err
 	}
 	m.oldAttachedVolumes = lo.Filter(vols, func(v api.Volume, _ int) bool {
 		if v.AttachedAllocation != nil {
 			for _, a := range m.oldAllocs {
-				if a.ID == *v.AttachedAllocation {
+				if a.IDShort == *v.AttachedAllocation {
 					return true
 				}
 			}

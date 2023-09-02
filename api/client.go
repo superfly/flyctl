@@ -9,12 +9,12 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
-	"golang.org/x/exp/slices"
 )
 
 var (

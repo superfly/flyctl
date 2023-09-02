@@ -26,7 +26,6 @@ const (
 	DefaultWaitTimeout           = 2 * time.Minute
 	DefaultReleaseCommandTimeout = 5 * time.Minute
 	DefaultLeaseTtl              = 13 * time.Second
-	DefaultVMSize                = "shared-cpu-1x"
 	DefaultMaxUnavailable        = 0.33
 )
 

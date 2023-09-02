@@ -7,13 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 func TestFlyScaleCount(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
@@ -37,24 +36,28 @@ primary_region = "%s"
 	f.Fly("vol extend -s 2 %s", ml[0].Config.Mounts[0].Volume)
 
 	f.Fly("scale count -y 2")
-	time.Sleep(2 * time.Second)
-	ml = f.MachinesList(appName)
-	require.Equal(f, 2, len(ml))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml = f.MachinesList(appName)
+		assert.Equal(c, 2, len(ml))
+	}, 10*time.Second, 2*time.Second)
 
 	f.Fly("scale count -y 1 --region %s", f.SecondaryRegion())
-	time.Sleep(2 * time.Second)
-	ml = f.MachinesList(appName)
-	require.Equal(f, 3, len(ml))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml = f.MachinesList(appName)
+		assert.Equal(c, 3, len(ml))
+	}, 10*time.Second, 2*time.Second)
 
 	f.Fly("scale count -y 0")
-	time.Sleep(2 * time.Second)
-	ml = f.MachinesList(appName)
-	require.Equal(f, 0, len(ml))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml = f.MachinesList(appName)
+		assert.Equal(c, 0, len(ml))
+	}, 10*time.Second, 1*time.Second)
 
 	f.Fly("scale count -y 2")
-	time.Sleep(2 * time.Second)
-	ml = f.MachinesList(appName)
-	require.Equal(f, 2, len(ml))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml = f.MachinesList(appName)
+		assert.Equal(c, 2, len(ml))
+	}, 10*time.Second, 1*time.Second)
 
 	vl := f.VolumeList(appName)
 	for _, v := range vl {

@@ -53,7 +53,6 @@ to all instances running in a specific region using the --region/-r flag.
 			Description: "Filter by instance ID",
 		},
 	)
-	cmd.AddCommand(newShip(), newUnship(), newDashboard())
 	return
 }
 

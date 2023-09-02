@@ -16,9 +16,10 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	md.setMachineReleaseData(Config)
 
 	return &api.LaunchMachineInput{
-		ID:     origMachineRaw.ID,
-		Config: Config,
-		Region: origMachineRaw.Region,
+		ID:               origMachineRaw.ID,
+		Config:           Config,
+		Region:           origMachineRaw.Region,
+		HostDedicationID: md.appConfig.HostDedicationID,
 	}
 }
 
@@ -48,15 +49,16 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	}
 
 	return &api.LaunchMachineInput{
-		Region:     region,
-		Config:     mConfig,
-		SkipLaunch: len(standbyFor) > 0,
+		Region:           region,
+		Config:           mConfig,
+		SkipLaunch:       len(standbyFor) > 0,
+		HostDedicationID: md.appConfig.HostDedicationID,
 	}, nil
 }
 
 func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
-	machineShouldBeReplaced := false
+	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
@@ -134,6 +136,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		Config:              mConfig,
 		SkipLaunch:          len(mConfig.Standbys) > 0,
 		RequiresReplacement: machineShouldBeReplaced,
+		HostDedicationID:    md.appConfig.HostDedicationID,
 	}, nil
 }
 

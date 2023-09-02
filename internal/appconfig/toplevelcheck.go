@@ -2,12 +2,12 @@ package appconfig
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/sentry"
-	"golang.org/x/exp/slices"
 )
 
 type ToplevelCheck struct {
