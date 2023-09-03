@@ -9,6 +9,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/pkg/errors"
+	"github.com/spf13/afero"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -45,7 +46,17 @@ func Run(ctx context.Context) (err error) {
 	if absDir, err := filepath.Abs(workingDir); err == nil {
 		workingDir = absDir
 	}
-	configFilePath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
+
+	configFlag := flag.GetString(ctx, "config")
+	configFilePath := ""
+
+	if configFlag != "" {
+		if exists, _ := afero.Exists(afero.NewOsFs(), configFlag); exists {
+			configFilePath = configFlag
+		}
+	} else {
+		configFilePath = filepath.Join(workingDir, appconfig.DefaultConfigFileName)
+	}
 	fmt.Fprintln(io.Out, "Creating app in", workingDir)
 
 	appConfig, copyConfig, err := determineBaseAppConfig(ctx)
@@ -59,9 +70,11 @@ func Run(ctx context.Context) (err error) {
 		return err
 	}
 
-	appConfig.AppName, err = determineAppName(ctx, appConfig)
-	if err != nil {
-		return err
+	if !flag.IsSpecified(ctx, "config") {
+		appConfig.AppName, err = determineAppName(ctx, appConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	var org *api.Organization
@@ -382,7 +395,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 		}
 
 		copyConfig := flag.GetBool(ctx, "copy-config")
-		if !flag.IsSpecified(ctx, "copy-config") {
+		if !flag.IsSpecified(ctx, "copy-config") && !flag.IsSpecified(ctx, "config") {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
