@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/httptracing"
@@ -68,24 +68,15 @@ func InitClient(ctx context.Context) (context.Context, error) {
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {
-	dir := filepath.Join(state.UserHomeDirectory(ctx), ".fly")
+	dir, err := helpers.GetConfigDirectory()
+	if err != nil {
+		return ctx, err
+	}
 
 	logger.FromContext(ctx).
 		Debugf("determined config directory: %q", dir)
 
 	return state.WithConfigDirectory(ctx, dir), nil
-}
-
-func DetermineUserHomeDir(ctx context.Context) (context.Context, error) {
-	wd, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed determining user home directory: %w", err)
-	}
-
-	logger.FromContext(ctx).
-		Debugf("determined user home directory: %q", wd)
-
-	return state.WithUserHomeDirectory(ctx, wd), nil
 }
 
 // ApplyAliases consolidates flags with aliases into a single source-of-truth flag.

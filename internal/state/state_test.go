@@ -15,7 +15,6 @@ func TestStrings(t *testing.T) {
 	}{
 		"Hostname":          {Hostname, WithHostname},
 		"WorkingDirectory":  {WorkingDirectory, WithWorkingDirectory},
-		"UserHomeDirectory": {UserHomeDirectory, WithUserHomeDirectory},
 		"ConfigDirectory":   {ConfigDirectory, WithConfigDirectory},
 	}
 
