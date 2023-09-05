@@ -371,7 +371,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 
 	versionInvalidMsg := cache.IsCurrentVersionInvalid()
 	if versionInvalidMsg != "" && !silent {
-		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s", versionInvalidMsg)
+		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s\n", versionInvalidMsg)
 	}
 
 	latest, err := buildinfo.ParseVersion(latestRel.Version)
