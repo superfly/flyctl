@@ -15,7 +15,7 @@ type RedisProvider interface {
 }
 
 type RedisPlan struct {
-	UpstashRedis *UpstashRedisPlan `json:"upstash_redis" url:"upstash_redis"`
+	UpstashRedis *UpstashRedisPlan `json:"upstash_redis"`
 }
 
 func (p *RedisPlan) Provider() RedisProvider {
@@ -46,10 +46,10 @@ func DefaultRedis(plan *LaunchPlan) RedisPlan {
 }
 
 type UpstashRedisPlan struct {
-	AppName      string   `json:"app_name" url:"app_name"`
-	PlanId       string   `json:"plan_id" url:"plan_id"`
-	Eviction     bool     `json:"eviction" url:"eviction"`
-	ReadReplicas []string `json:"read_replicas" url:"read_replicas"`
+	AppName      string   `json:"app_name"`
+	PlanId       string   `json:"plan_id"`
+	Eviction     bool     `json:"eviction"`
+	ReadReplicas []string `json:"read_replicas"`
 }
 
 func (p *UpstashRedisPlan) Describe(ctx context.Context) (string, error) {

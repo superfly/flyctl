@@ -7,24 +7,24 @@ import (
 const descriptionNone = "<none>"
 
 type LaunchPlan struct {
-	AppName string `json:"name" url:"name"`
+	AppName string `json:"name"`
 
-	RegionCode string `json:"region" url:"region"`
+	RegionCode string `json:"region"`
 
-	OrgSlug string `json:"org" url:"org"`
+	OrgSlug string `json:"org"`
 
-	CPUKind  string `json:"vm_cpukind,omitempty" url:"vm_cpukind,omitempty"`
-	CPUs     int    `json:"vm_cpus,omitempty" url:"vm_cpus,omitempty"`
-	MemoryMB int    `json:"vm_memory,omitempty" url:"vm_memory,omitempty"`
-	VmSize   string `json:"vm_size,omitempty" url:"vm_size,omitempty"`
+	CPUKind  string `json:"vm_cpukind,omitempty"`
+	CPUs     int    `json:"vm_cpus,omitempty"`
+	MemoryMB int    `json:"vm_memory,omitempty"`
+	VmSize   string `json:"vm_size,omitempty"`
 
-	HttpServicePort int `json:"http_service_port,omitempty" url:"http_service_port,omitempty"`
+	HttpServicePort int `json:"http_service_port,omitempty"`
 
-	Postgres PostgresPlan `json:"postgres" url:"postgres"`
+	Postgres PostgresPlan `json:"postgres"`
 
-	Redis RedisPlan `json:"redis" url:"redis"`
+	Redis RedisPlan `json:"redis"`
 
-	ScannerFamily string `json:"scanner_family" url:"scanner_family"`
+	ScannerFamily string `json:"scanner_family"`
 }
 
 func (p *LaunchPlan) Guest() *api.MachineGuest {
