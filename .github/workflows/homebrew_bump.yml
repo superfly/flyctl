@@ -22,7 +22,7 @@ jobs:
           excludes: prerelease, draft
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
       - run: 'echo "Latest release: ${{ steps.latest_release.outputs.release }}"'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: version_compare
         run: |
           set -exo pipefail
