@@ -16,7 +16,7 @@ func newStart() *cobra.Command {
 		short = "Start one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "start <id> [<id>...]"
+		usage = "start [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStart,
