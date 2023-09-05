@@ -282,7 +282,7 @@ func deployToMachines(
 		guest = flag.GetMachineGuest(ctx)
 	}
 
-	if appConfig.PrimaryRegion == "" {
+	if appConfig.Mounts != nil && appConfig.PrimaryRegion == "" {
 		return fmt.Errorf("no primary_region set on fly.toml")
 	}
 
