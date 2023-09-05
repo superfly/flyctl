@@ -23,9 +23,17 @@ type Version struct {
 }
 
 func (v Version) String() string {
+	// old v0.1.xxx format always bumps version on every release, so no track or build on stable
+	if isOldStringFormat(v) {
+		if (v.Track == "stable" || v.Track == "") && v.Build <= 1 {
+			return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+		}
+		return fmt.Sprintf("%d.%d.%d-%s-%d", v.Major, v.Minor, v.Patch, v.Track, v.Build)
+	}
+
 	if isCalVer(v) {
 		if v.Track != "" && v.Build != 0 {
-			return fmt.Sprintf("%04d.%02d.%02d-%s.%d", v.Major, v.Minor, v.Patch, v.Track, v.Build)
+			return fmt.Sprintf("%d.%d.%d-%s.%d", v.Major, v.Minor, v.Patch, v.Track, v.Build)
 		}
 
 		if v.Track != "" && v.Build == 0 {
@@ -51,21 +59,24 @@ func isCalVer(v Version) bool {
 	return v.Major > 2022
 }
 
+func isOldStringFormat(v Version) bool {
+	return v.Major == 0 && v.Minor == 1
+}
+
 func (v Version) Eq(other Version) bool {
-	return eq(v, other) == 0
+	return Compare(v, other) == 0
 }
 
 func (v Version) Newer(other Version) bool {
-	return eq(v, other) == 1
+	return Compare(v, other) == 1
 }
 
 func (v Version) Older(other Version) bool {
-	return eq(v, other) == -1
+	return Compare(v, other) == -1
 }
 
-func eq(a Version, b Version) int {
+func Compare(a Version, b Version) int {
 	if a.Major != b.Major {
-		fmt.Println()
 		if a.Major > b.Major {
 			return 1
 		} else {
@@ -153,6 +164,11 @@ func Parse(version string) (Version, error) {
 
 	if suffixStr != "" {
 		parts = strings.SplitN(suffixStr, ".", 2)
+		// special case for old v0.1.xxx format where pre was dash separated (eg pre-123) not dot separated
+		if len(parts) == 1 && strings.HasPrefix(suffixStr, "pre-") {
+			parts = strings.SplitN(suffixStr, "-", 2)
+		}
+
 		out.Track = parts[0]
 
 		if len(parts) == 2 {
@@ -161,12 +177,12 @@ func Parse(version string) (Version, error) {
 			} else {
 				out.Build = x
 			}
-			// } else {
-			// 	out.Build = 1
+		} else {
+			out.Build = 1
 		}
-		// } else {
-		// 	out.Build = 1
-		// 	out.Track = "stable"
+	} else {
+		out.Build = 1
+		out.Track = "stable"
 	}
 
 	return out, nil
