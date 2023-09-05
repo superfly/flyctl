@@ -14,7 +14,7 @@ type PostgresProvider interface {
 }
 
 type PostgresPlan struct {
-	FlyPostgres *FlyPostgresPlan `json:"fly_postgres" url:"fly_postgres"`
+	FlyPostgres *FlyPostgresPlan `json:"fly_postgres"`
 }
 
 func (p *PostgresPlan) Provider() PostgresProvider {
@@ -51,12 +51,12 @@ func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 }
 
 type FlyPostgresPlan struct {
-	AppName    string `json:"app_name" url:"app_name"`
-	VmSize     string `json:"vm_size" url:"vm_size"`
-	VmRam      int    `json:"vm_ram" url:"vm_ram"`
-	Nodes      int    `json:"nodes" url:"nodes"`
-	DiskSizeGB int    `json:"disk_size_gb" url:"disk_size_gb"`
-	AutoStop   bool   `json:"auto_stop" url:"auto_stop"`
+	AppName    string `json:"app_name"`
+	VmSize     string `json:"vm_size"`
+	VmRam      int    `json:"vm_ram"`
+	Nodes      int    `json:"nodes"`
+	DiskSizeGB int    `json:"disk_size_gb"`
+	AutoStop   bool   `json:"auto_stop"`
 }
 
 func (p *FlyPostgresPlan) Guest() *api.MachineGuest {
