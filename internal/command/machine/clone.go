@@ -244,11 +244,6 @@ func runMachineClone(ctx context.Context) (err error) {
 				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 			}
 
-			var hostDedicationID string
-			if vol != nil {
-				hostDedicationID = vol.HostDedicationID
-			}
-
 			volInput := api.CreateVolumeRequest{
 				Name:              mnt.Name,
 				Region:            region,
@@ -256,7 +251,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				Encrypted:         &mnt.Encrypted,
 				SnapshotID:        snapshotID,
 				RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
-				HostDedicationId:  hostDedicationID,
+				HostDedicationId:  source.HostDedicationID,
 			}
 			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {
