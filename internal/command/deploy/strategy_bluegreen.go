@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -38,8 +37,6 @@ type blueGreen struct {
 	clearLinesAbove func(count int)
 	timeout         time.Duration
 	aborted         atomic.Bool
-	healthLock      sync.RWMutex
-	stateLock       sync.RWMutex
 	ctrlcHook       ctrlc.Handle
 
 	hangingBlueMachines []string
@@ -55,8 +52,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		colorize:            md.colorize,
 		clearLinesAbove:     md.logClearLinesAbove,
 		aborted:             atomic.Bool{},
-		healthLock:          sync.RWMutex{},
-		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
 	}
 
@@ -94,251 +89,154 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	return nil
 }
 
-func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
-	firstRun := true
-
-	previousView := map[string]string{}
-
-	return func() {
-		currentView := map[string]string{}
-		rows := []string{}
-		bg.stateLock.RLock()
-		for id, value := range state {
-			status := "created"
-			if value == 1 {
-				status = "started"
-			}
-
-			currentView[id] = status
-			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
-		}
-		bg.stateLock.RUnlock()
-
-		if !firstRun && bg.changeDetected(currentView, previousView) {
-			bg.clearLinesAbove(len(rows))
-		}
-
-		sort.Strings(rows)
-
-		if bg.changeDetected(currentView, previousView) {
-			fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
-			previousView = currentView
-		}
-
-		firstRun = false
-	}
+type machineState struct {
+	machineId string
+	status    string
+	complete  bool
 }
 
-func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
-	started := 0
-	bg.stateLock.RLock()
-	for _, v := range stateMap {
-		started += v
-	}
-	bg.stateLock.RUnlock()
+func (bg *blueGreen) renderMachineStates(state map[string]machineState, lastChangedMachine *string) {
+	firstRun := lastChangedMachine == nil
 
-	return started == len(stateMap)
+	renderRow := func(id, status string) string {
+		return fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status))
+	}
+
+	var rows []string
+	// In interactive mode, and first run, print all machines, clearing previous output
+	if bg.io.IsInteractive() || firstRun {
+		for id, status := range state {
+			rows = append(rows, renderRow(id, status.status))
+		}
+		sort.Strings(rows)
+		if !firstRun {
+			// no-op in non-interactive mode
+			bg.clearLinesAbove(len(rows))
+		}
+	} else {
+		// in non-interactive mode, just print the status of the machine that actually changed
+		rows = append(rows, renderRow(*lastChangedMachine, state[*lastChangedMachine].status))
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+}
+
+func (bg *blueGreen) WaitForMachines(
+	machineIDToStatus map[string]machineState,
+	getStatus func(machine.LeasableMachine, chan error, chan machineState)) error {
+
+	wait := time.NewTicker(bg.timeout)
+	errChan := make(chan error)
+	statusChan := make(chan machineState, len(machineIDToStatus))
+
+	// render initial state
+	bg.renderMachineStates(machineIDToStatus, nil)
+
+	for _, gm := range bg.greenMachines {
+		if _, ok := machineIDToStatus[gm.FormattedMachineId()]; ok {
+			go getStatus(gm, errChan, statusChan)
+		}
+	}
+
+	for {
+
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
+
+		select {
+		case err := <-errChan:
+			return err
+		case <-wait.C:
+			return ErrWaitTimeout
+		case status := <-statusChan:
+			previousStatus := machineIDToStatus[status.machineId]
+			// only render if a status has changed
+			if status.status != previousStatus.status {
+				machineIDToStatus[status.machineId] = status
+				bg.renderMachineStates(machineIDToStatus, &status.machineId)
+			}
+		}
+
+		completed := 0
+		for _, v := range machineIDToStatus {
+			if v.complete {
+				completed += 1
+			}
+		}
+		if len(machineIDToStatus) == completed {
+			return nil
+		}
+	}
 }
 
 func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error {
-	wait := time.NewTicker(bg.timeout)
-	machineIDToState := map[string]int{}
-	render := bg.renderMachineStates(machineIDToState)
-	errChan := make(chan error)
-
+	machineIDToState := map[string]machineState{}
 	for _, gm := range bg.greenMachines {
-		machineIDToState[gm.FormattedMachineId()] = 0
+		machineIDToState[gm.FormattedMachineId()] = machineState{
+			gm.FormattedMachineId(),
+			"created",
+			false,
+		}
 	}
+	getStatus := func(m machine.LeasableMachine, errChan chan error, statusChan chan machineState) {
+		err := machine.WaitForStartOrStop(ctx, m.Machine(), "start", bg.timeout)
+		if err != nil {
+			errChan <- err
+			return
+		}
+		statusChan <- machineState{m.FormattedMachineId(), "started", true}
+	}
+	return bg.WaitForMachines(machineIDToState, getStatus)
+}
 
+func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error {
+	machineIDToHealthStatus := map[string]machineState{}
 	for _, gm := range bg.greenMachines {
-		id := gm.FormattedMachineId()
 
-		if len(gm.Machine().Config.Standbys) > 0 {
-			machineIDToState[id] = 1
+		// in some cases, not all processes have healthchecks setup
+		// eg. processes that run background workers, etc.
+		// there's no point checking for health, a started state is enough
+		if len(gm.Machine().Checks) == 0 {
 			continue
 		}
 
-		go func(lm machine.LeasableMachine) {
-			err := machine.WaitForStartOrStop(ctx, lm.Machine(), "start", bg.timeout)
-			if err != nil {
+		machineIDToHealthStatus[gm.FormattedMachineId()] = machineState{gm.FormattedMachineId(), "unchecked", false}
+	}
+
+	getStatus := func(m machine.LeasableMachine, errChan chan error, statusChan chan machineState) {
+		waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
+		defer cancel()
+
+		interval, gracePeriod := m.GetMinIntervalAndMinGracePeriod()
+
+		time.Sleep(gracePeriod)
+
+		for {
+			updateMachine, err := bg.flaps.Get(waitCtx, m.Machine().ID)
+
+			switch {
+			case waitCtx.Err() != nil:
+				errChan <- waitCtx.Err()
+				return
+			case err != nil:
 				errChan <- err
 				return
 			}
 
-			bg.stateLock.Lock()
-			machineIDToState[id] = 1
-			bg.stateLock.Unlock()
-		}(gm)
-	}
+			status := updateMachine.TopLevelChecks()
+			allHealthy := (status.Total == status.Passing) && (status.Total != 0)
+			statusChan <- machineState{m.FormattedMachineId(), fmt.Sprintf("%d/%d passing", status.Passing, status.Total), allHealthy}
 
-	for {
-		if bg.allMachinesStarted(machineIDToState) {
-			return nil
-		}
-
-		if bg.aborted.Load() {
-			return ErrAborted
-		}
-
-		select {
-		case <-wait.C:
-			return ErrWaitTimeout
-		case err := <-errChan:
-			return err
-		default:
-			time.Sleep(90 * time.Millisecond)
-			render()
-		}
-	}
-}
-
-func (bg *blueGreen) changeDetected(a, b map[string]string) bool {
-	for key := range a {
-		if a[key] != b[key] {
-			return true
-		}
-	}
-	return false
-}
-
-func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheckStatus) func() {
-	firstRun := true
-
-	previousView := map[string]string{}
-
-	return func() {
-		currentView := map[string]string{}
-		rows := []string{}
-		bg.healthLock.RLock()
-		for id, value := range state {
-			status := "unchecked"
-			if value.Total != 0 {
-				status = fmt.Sprintf("%d/%d passing", value.Passing, value.Total)
+			if allHealthy {
+				return
 			}
 
-			currentView[id] = status
-			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
-		}
-		bg.healthLock.RUnlock()
-
-		if !firstRun && bg.changeDetected(currentView, previousView) {
-			bg.clearLinesAbove(len(rows))
-		}
-
-		sort.Strings(rows)
-
-		if bg.changeDetected(currentView, previousView) {
-			fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
-			previousView = currentView
-		}
-
-		firstRun = false
-	}
-}
-
-func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*api.HealthCheckStatus) bool {
-	passed := 0
-
-	bg.healthLock.RLock()
-	for _, v := range stateMap {
-		// we initialize all machine ids with an empty struct, so all fields are zero'd on init.
-		// without v.hcs.Total != 0, the first call to this function will pass since 0 == 0
-		if v.Total == 0 {
-			continue
-		}
-
-		if v.Passing == v.Total {
-			passed += 1
-		}
-	}
-	bg.healthLock.RUnlock()
-
-	return passed == len(stateMap)
-}
-
-func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error {
-	wait := time.NewTicker(bg.timeout)
-	machineIDToHealthStatus := map[string]*api.HealthCheckStatus{}
-	errChan := make(chan error)
-	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
-
-	for _, gm := range bg.greenMachines {
-		// in some cases, not all processes have healthchecks setup
-		// eg. processes that run background workers, etc.
-		// there's no point checking for health, a started state is enough
-		if len(gm.Machine().Checks) == 0 {
-			continue
-		}
-
-		machineIDToHealthStatus[gm.FormattedMachineId()] = &api.HealthCheckStatus{}
-	}
-
-	for _, gm := range bg.greenMachines {
-
-		// in some cases, not all processes have healthchecks setup
-		// eg. processes that run background workers, etc.
-		// there's no point checking for health, a started state is enough
-		if len(gm.Machine().Checks) == 0 {
-			continue
-		}
-
-		go func(m machine.LeasableMachine) {
-			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
-			defer cancel()
-
-			interval, gracePeriod := m.GetMinIntervalAndMinGracePeriod()
-
-			time.Sleep(gracePeriod)
-
-			for {
-				updateMachine, err := bg.flaps.Get(waitCtx, m.Machine().ID)
-
-				switch {
-				case waitCtx.Err() != nil:
-					errChan <- waitCtx.Err()
-					return
-				case err != nil:
-					errChan <- err
-					return
-				}
-
-				status := updateMachine.TopLevelChecks()
-				bg.healthLock.Lock()
-				machineIDToHealthStatus[m.FormattedMachineId()] = status
-				bg.healthLock.Unlock()
-
-				if (status.Total == status.Passing) && (status.Total != 0) {
-					return
-				}
-
-				time.Sleep(interval)
-			}
-
-		}(gm)
-	}
-
-	for {
-
-		if bg.allMachinesHealthy(machineIDToHealthStatus) {
-			break
-		}
-
-		if bg.aborted.Load() {
-			return ErrAborted
-		}
-
-		select {
-		case err := <-errChan:
-			return err
-		case <-wait.C:
-			return ErrWaitTimeout
-		default:
-			time.Sleep(90 * time.Millisecond)
-			render()
+			time.Sleep(interval)
 		}
 	}
 
-	return nil
+	return bg.WaitForMachines(machineIDToHealthStatus, getStatus)
 }
 
 func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) error {
