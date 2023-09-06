@@ -61,7 +61,11 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
-	defaultGuest := flag.GetMachineGuest(ctx)
+	defaultGuest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
+	}
+
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
