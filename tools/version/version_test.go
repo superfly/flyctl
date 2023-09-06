@@ -120,6 +120,9 @@ func TestTrackFromRef_Dev(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test, func(t *testing.T) {
+			t.Setenv("CI", "")
+			t.Setenv("GITHUB_ACTIONS", "")
+
 			track, err := trackFromRef(test)
 			assert.NoError(t, err)
 			assert.Equal(t, "dev", track)
