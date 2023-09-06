@@ -64,7 +64,7 @@ func runOpen(ctx context.Context) error {
 
 	appURL := appConfig.URL()
 	if appURL == nil {
-		return errors.New("The app doesn't exspose a public http service")
+		return errors.New("The app doesn't expose a public http service")
 	}
 
 	if relURI := flag.FirstArg(ctx); relURI != "" {

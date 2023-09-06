@@ -20,7 +20,7 @@ import (
 
 var (
 	ErrAborted             = errors.New("deployment aborted by user")
-	ErrWaitTimeout         = errors.New("wait for goroutine timeout")
+	ErrWaitTimeout         = errors.New("wait timeout")
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
@@ -67,7 +67,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 	})
 
 	return bg
-
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
@@ -313,7 +312,6 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				time.Sleep(interval)
 			}
-
 		}(gm)
 	}
 
@@ -346,7 +344,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
-		err := bg.flaps.UnCordon(ctx, gm.Machine().ID)
+		err := bg.flaps.Uncordon(ctx, gm.Machine().ID)
 		if err != nil {
 			return err
 		}
@@ -411,7 +409,6 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 }
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
-
 	defer bg.ctrlcHook.Done()
 
 	if bg.aborted.Load() {
@@ -484,7 +481,6 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
-
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
