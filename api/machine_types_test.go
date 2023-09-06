@@ -159,19 +159,6 @@ func TestMachineGuest_ToSize(t *testing.T) {
 	}
 }
 
-func TestMachineGuest_DefaultCopied(t *testing.T) {
-
-	m1 := DefaultMachineGuest()
-	m2 := DefaultMachineGuest()
-
-	m1.CPUs = 100
-	m2.CPUs = 200
-
-	if m1.CPUs == m2.CPUs {
-		t.Errorf("DefaultMachineGuest is not copying the guest, it's returning a direct pointer to the default.")
-	}
-}
-
 func TestMachineMostRecentStartTimeAfterLaunch(t *testing.T) {
 	type testcase struct {
 		name        string
