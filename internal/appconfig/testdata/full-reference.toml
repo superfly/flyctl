@@ -4,7 +4,7 @@ kill_timeout = "3s"
 swap_size_mb = 512
 primary_region = "sea"
 console_command = "/bin/bash"
-rootfs_size = 10
+persistent_rootfs_size = 10
 
 [experimental]
   cmd = ["cmd"]

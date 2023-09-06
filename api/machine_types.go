@@ -539,7 +539,7 @@ type MachineConfig struct {
 	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
 
-	RootfsSize *int `json:"rootfs_size,omitempty"`
+	PersistentRootfsSize uint32 `json:"persistent_rootfs_size,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {
