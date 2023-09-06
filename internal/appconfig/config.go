@@ -42,7 +42,7 @@ type Config struct {
 	KillTimeout    *api.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
 	SwapSizeMB     *int          `toml:"swap_size_mb,omitempty" json:"swap_size_mb,omitempty"`
 	ConsoleCommand string        `toml:"console_command,omitempty" json:"console_command,omitempty"`
-	PersistentRootfsSize     *int          `toml:"persistent_rootfs_size,omitempty" json:"persistent_rootfs_size,omitempty"`
+	PersistentRootfsSize     uint32          `toml:"persistent_rootfs_size,omitempty" json:"persistent_rootfs_size,omitempty"`
 
 	// Sections that are typically short and benefit from being on top
 	Experimental *Experimental     `toml:"experimental,omitempty" json:"experimental,omitempty"`
