@@ -321,6 +321,7 @@ type MachineGuest struct {
 	CPUKind  string `json:"cpu_kind,omitempty"`
 	CPUs     int    `json:"cpus,omitempty"`
 	MemoryMB int    `json:"memory_mb,omitempty"`
+	GPUs     int    `json:"gpus,omitempty"`
 
 	KernelArgs []string `json:"kernel_args,omitempty"`
 }
@@ -578,7 +579,7 @@ type MachineConfig struct {
 	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
 
-	HostDedicationId string `json:"host_dedication_id"`
+	HostDedicationId string `json:"host_dedication_id,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {
