@@ -579,7 +579,7 @@ type MachineConfig struct {
 	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
 
-	HostDedicationId string `json:"host_dedication_id"`
+	HostDedicationId string `json:"host_dedication_id,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {
