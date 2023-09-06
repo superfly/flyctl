@@ -38,7 +38,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 			SkipRegistration: true,
 		},
 		Metadata: map[string]string{
-			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppReleaseCommand,
 		},
@@ -79,7 +79,7 @@ func (c *Config) ToConsoleMachineConfig() (*api.MachineConfig, error) {
 			SkipRegistration: true,
 		},
 		Metadata: map[string]string{
-			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppConsole,
 		},
@@ -124,7 +124,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 
 	// Metadata
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
-		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
 	})

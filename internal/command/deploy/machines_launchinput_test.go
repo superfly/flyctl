@@ -39,7 +39,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}
@@ -271,7 +271,7 @@ func Test_launchInputForLaunch_Files(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Files: []*api.File{
 				{

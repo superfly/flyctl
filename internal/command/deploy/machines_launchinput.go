@@ -141,7 +141,7 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
 		api.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
 		api.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
-		api.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.Version().String(),
 	})
 
 	// These defaults should come from appConfig.ToMachineConfig() and set on launch;

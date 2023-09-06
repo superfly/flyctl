@@ -1,7 +1,5 @@
 package buildinfo
 
-import "strings"
-
 var environment = "development"
 
 func Environment() string {
@@ -9,7 +7,9 @@ func Environment() string {
 }
 
 func IsDev() bool {
-	return strings.Contains(version, "-snapshot.") || environment == "development"
+	// TODO[md]: handle -snapshot in new version number. is this only for testflight?
+	// return strings.Contains(version, "-snapshot.") || environment == "development"
+	return environment == "development"
 }
 
 func IsRelease() bool {

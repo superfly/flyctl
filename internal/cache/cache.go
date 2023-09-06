@@ -157,7 +157,7 @@ func (c *cache) SetCurrentVersionInvalid(err error) {
 
 	c.dirty = true
 
-	c.invalidVer = &invalidVer{Ver: buildinfo.ParsedVersion().String(), Reason: err.Error()}
+	c.invalidVer = &invalidVer{Ver: buildinfo.Version().String(), Reason: err.Error()}
 }
 
 func (c *cache) IsCurrentVersionInvalid() string {
@@ -168,7 +168,7 @@ func (c *cache) IsCurrentVersionInvalid() string {
 		return ""
 	}
 
-	if c.invalidVer.Ver != buildinfo.ParsedVersion().String() {
+	if c.invalidVer.Ver != buildinfo.Version().String() {
 		return ""
 	}
 
