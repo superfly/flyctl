@@ -9,17 +9,12 @@ import (
 // stored, either respecting `FLY_CONFIG_DIR` or defaulting to the user's home
 // directory at `~/.fly`.
 func GetConfigDirectory() (string, error) {
-	var dir string
-
 	if value, isSet := os.LookupEnv("FLY_CONFIG_DIR"); isSet {
-		dir = value
-	} else {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		dir = filepath.Join(homeDir, ".fly")
+		return value, nil
 	}
-
-	return dir, nil
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(homeDir, ".fly"), nil
 }
