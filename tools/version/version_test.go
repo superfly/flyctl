@@ -172,12 +172,14 @@ func TestTaggedVersionsForTrack(t *testing.T) {
 		track          string
 		expectedResult []version.Version
 	}{
+		{"", []version.Version{
+			{Major: 0, Minor: 1, Patch: 87, Build: 0, Track: ""},
+			{Major: 0, Minor: 1, Patch: 85, Build: 0, Track: ""},
+		}},
 		{"stable", []version.Version{
 			{Major: 2023, Minor: 9, Patch: 5, Build: 1, Track: "stable"},
 			{Major: 2023, Minor: 9, Patch: 2, Build: 2, Track: "stable"},
 			{Major: 2023, Minor: 9, Patch: 2, Build: 1, Track: "stable"},
-			{Major: 0, Minor: 1, Patch: 87, Build: 1, Track: "stable"},
-			{Major: 0, Minor: 1, Patch: 85, Build: 1, Track: "stable"},
 		}},
 		{"pr123", []version.Version{
 			{Major: 2023, Minor: 9, Patch: 5, Build: 3, Track: "pr123"},
