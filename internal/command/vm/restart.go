@@ -14,8 +14,8 @@ import (
 
 func newRestart() *cobra.Command {
 	const (
-		short = "Restart a VM"
-		long  = "Request for a VM to be asynchronously restarted."
+		short = "V1 APPS ONLY: Restart a VM"
+		long  = "V1 APPS ONLY: Request for a VM to be asynchronously restarted."
 		usage = "restart <vm-id>"
 	)
 
