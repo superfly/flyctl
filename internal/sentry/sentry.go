@@ -21,11 +21,6 @@ var initError error // set during init
 type Context = sentry.Context
 
 func init() {
-	fmt.Println("init sentry")
-	fmt.Println("a", buildinfo.ParsedVersion())
-	buildinfo.ParsedVersion().String()
-	fmt.Println("b")
-
 	opts := sentry.ClientOptions{
 		Dsn: "https://89fa584dc19b47a6952dd94bf72dbab4@sentry.io/4492967",
 		// TODO: maybe set Debug to buildinfo.IsDev?
