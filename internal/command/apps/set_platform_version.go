@@ -34,6 +34,7 @@ Please use caution when using this command.`
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 
 	cmd.ValidArgs = []string{"nomad", "detached", "machines"}

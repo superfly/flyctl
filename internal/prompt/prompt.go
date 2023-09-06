@@ -132,6 +132,10 @@ func Confirmf(ctx context.Context, format string, a ...interface{}) (bool, error
 }
 
 func Confirm(ctx context.Context, message string) (confirm bool, err error) {
+	if flag.GetYes(ctx) {
+		return true, nil
+	}
+
 	var opt survey.AskOpt
 	if opt, err = newSurveyIO(ctx); err != nil {
 		return
@@ -147,6 +151,10 @@ func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 }
 
 func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
+	if flag.GetYes(ctx) {
+		return true, nil
+	}
+
 	prompt := &survey.Confirm{
 		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
 	}

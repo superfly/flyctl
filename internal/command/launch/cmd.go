@@ -109,13 +109,17 @@ func run(ctx context.Context) (err error) {
 	)
 
 	confirm := false
-	prompt := &survey.Confirm{
-		Message: "Do you want to tweak these settings before proceeding?",
-	}
-	err = survey.AskOne(prompt, &confirm)
-	if err != nil {
-		// TODO(allison): This should probably not just return the error
-		return err
+	if !flag.GetYes(ctx) {
+		prompt := &survey.Confirm{
+			Message: "Do you want to tweak these settings before proceeding?",
+		}
+		err = survey.AskOne(prompt, &confirm)
+		if err != nil {
+			// TODO(allison): This should probably not just return the error
+			return err
+		}
+	} else {
+		confirm = true
 	}
 
 	if confirm {

@@ -33,6 +33,7 @@ func newAddFlycast() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 
 	cmd.Hidden = true
@@ -92,12 +93,16 @@ func doAddFlycast(ctx context.Context) error {
 		}
 
 		confirm := false
-		prompt := &survey.Confirm{
-			Message: "This will overwrite existing services you have manually added. Continue?",
-			Default: true,
-		}
-		if err := survey.AskOne(prompt, &confirm); err != nil {
-			return err
+		if !flag.GetYes(ctx) {
+			prompt := &survey.Confirm{
+				Message: "This will overwrite existing services you have manually added. Continue?",
+				Default: true,
+			}
+			if err := survey.AskOne(prompt, &confirm); err != nil {
+				return err
+			}
+		} else {
+			confirm = true
 		}
 
 		if !confirm {

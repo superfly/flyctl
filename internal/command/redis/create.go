@@ -52,6 +52,7 @@ func newCreate() (cmd *cobra.Command) {
 			Name:        "plan",
 			Description: "Upstash Redis plan",
 		},
+		flag.Yes(),
 	)
 
 	return cmd

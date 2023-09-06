@@ -73,6 +73,7 @@ func newTroubleshoot() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 	return cmd
 }
@@ -167,17 +168,19 @@ func (t *troubleshooter) unlockApp(ctx context.Context) error {
 	}
 
 	if io.IsInteractive() {
-		removeLock := true
-		fmt.Fprintf(io.Out, "The app is currently locked - this lock expires at %s\n", format.Time(lock.Expiration))
-		askErr := survey.AskOne(&survey.Confirm{
-			Message: "Remove this lock?",
-			Default: true,
-		}, &removeLock)
-		if askErr != nil {
-			removeLock = true
-		}
-		if !removeLock {
-			return fmt.Errorf("cannot troubleshoot app while it is locked")
+		if !flag.GetYes(ctx) {
+			removeLock := true
+			fmt.Fprintf(io.Out, "The app is currently locked - this lock expires at %s\n", format.Time(lock.Expiration))
+			askErr := survey.AskOne(&survey.Confirm{
+				Message: "Remove this lock?",
+				Default: true,
+			}, &removeLock)
+			if askErr != nil {
+				removeLock = true
+			}
+			if !removeLock {
+				return fmt.Errorf("cannot troubleshoot app while it is locked")
+			}
 		}
 	}
 
@@ -504,11 +507,16 @@ func (t *troubleshooter) detachedInteractiveTroubleshoot(ctx context.Context) er
 			}
 		case DestroyNomadUseMachines:
 			confirm := false
-			if err := survey.AskOne(&survey.Confirm{
-				Message: "Are you sure you want to remove existing Nomad VMs and switch to V2?",
-			}, &confirm); err != nil {
-				return err
+			if !flag.GetYes(ctx) {
+				if err := survey.AskOne(&survey.Confirm{
+					Message: "Are you sure you want to remove existing Nomad VMs and switch to V2?",
+				}, &confirm); err != nil {
+					return err
+				}
+			} else {
+				confirm = true
 			}
+
 			if !confirm {
 				continue
 			}
@@ -516,11 +524,16 @@ func (t *troubleshooter) detachedInteractiveTroubleshoot(ctx context.Context) er
 			return t.cleanupNomadSwitchToMachines(ctx)
 		case DestroyMachinesUseNomad:
 			confirm := false
-			if err := survey.AskOne(&survey.Confirm{
-				Message: "Are you sure you want to remove all Machines and switch back to Nomad?",
-			}, &confirm); err != nil {
-				return err
+			if !flag.GetYes(ctx) {
+				if err := survey.AskOne(&survey.Confirm{
+					Message: "Are you sure you want to remove all Machines and switch back to Nomad?",
+				}, &confirm); err != nil {
+					return err
+				}
+			} else {
+				confirm = true
 			}
+
 			if !confirm {
 				continue
 			}
