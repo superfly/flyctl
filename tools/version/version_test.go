@@ -49,7 +49,7 @@ func TestCommitTimeFromGit(t *testing.T) {
 	t.Setenv("GITHUB_SHA", "")
 
 	// use first commit for stable commit https://github.com/superfly/flyctl/commit/aa1d55f7
-	commitTime, err := gitCommitTime("aa1d55f7")
+	commitTime, err := gitCommitTime("aa1d55f733eae5b567ab00510349522533bc6fe8")
 	assert.NoError(t, err)
 	assert.Equal(t, commitTime, time.Date(2019, 7, 26, 18, 3, 32, 0, time.UTC))
 }
