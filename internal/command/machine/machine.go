@@ -32,6 +32,8 @@ func New() *cobra.Command {
 		newRestart(),
 		newLeases(),
 		newMachineExec(),
+		newMachineCordon(),
+		newMachineUncordon(),
 	)
 
 	return cmd
