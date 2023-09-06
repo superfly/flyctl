@@ -39,7 +39,11 @@ For pricing, see https://fly.io/docs/about/pricing/`
 			Default:     0,
 			Aliases:     []string{"memory"},
 		},
-		flag.String{Name: "process-group", Description: "The process group to apply the VM size to"},
+		flag.String{
+			Name:        "process-group",
+			Description: "The process group to apply the VM size to",
+			Aliases:     []string{"group"},
+		},
 	)
 	return cmd
 }
