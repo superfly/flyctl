@@ -8,10 +8,10 @@ const descriptionNone = "<none>"
 
 type LaunchPlan struct {
 	AppName string `json:"name"`
-
-	RegionCode string `json:"region"`
-
 	OrgSlug string `json:"org"`
+
+	RegionCode       string `json:"region"`
+	HighAvailability bool   `json:"ha"`
 
 	CPUKind  string `json:"vm_cpukind,omitempty"`
 	CPUs     int    `json:"vm_cpus,omitempty"`

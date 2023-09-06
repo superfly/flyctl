@@ -82,16 +82,17 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	lp := &plan.LaunchPlan{
-		AppName:         appName,
-		RegionCode:      region.Code,
-		OrgSlug:         org.Slug,
-		CPUKind:         guest.CPUKind,
-		CPUs:            guest.CPUs,
-		MemoryMB:        guest.MemoryMB,
-		VmSize:          guest.ToSize(),
-		HttpServicePort: 8080,
-		Postgres:        plan.PostgresPlan{},
-		Redis:           plan.RedisPlan{},
+		AppName:          appName,
+		OrgSlug:          org.Slug,
+		RegionCode:       region.Code,
+		HighAvailability: flag.GetBool(ctx, "ha"),
+		CPUKind:          guest.CPUKind,
+		CPUs:             guest.CPUs,
+		MemoryMB:         guest.MemoryMB,
+		VmSize:           guest.ToSize(),
+		HttpServicePort:  8080,
+		Postgres:         plan.PostgresPlan{},
+		Redis:            plan.RedisPlan{},
 	}
 
 	planSource := &launchPlanSource{
