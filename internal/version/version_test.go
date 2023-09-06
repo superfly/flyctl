@@ -1,78 +1,70 @@
 package version
 
 import (
-	"fmt"
+	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/slices"
 )
 
-func TestToString(t *testing.T) {
-	tests := []struct {
-		v        Version
-		expected string
-	}{
-		// v0.1.87
-		{Version{0, 1, 87, 1, "stable"}, "0.1.87"},
-		{Version{0, 1, 87, 0, ""}, "0.1.87"},
-		// v0.1.85-pre-1
-		{Version{0, 1, 85, 1, "pre"}, "0.1.85-pre-1"},
-		{Version{2023, 9, 5, 0, ""}, "2023.9.5"}, // this one is dubious
-		{Version{2023, 9, 5, 1, "stable"}, "2023.9.5-stable.1"},
-		{Version{2023, 9, 5, 2, "stable"}, "2023.9.5-stable.2"},
-		{Version{2023, 9, 5, 1, "pr123"}, "2023.9.5-pr123.1"},
-		{Version{2023, 9, 5, 1, "my/feature/branch"}, "2023.9.5-my-feature-branch.1"},
+func TestEncode(t *testing.T) {
+	cases := map[string]Version{
+		"0.0.1":                              {0, 0, 1, 0, ""},
+		"0.0.10":                             {0, 0, 10, 0, ""},
+		"0.0.138":                            {0, 0, 138, 0, ""},
+		"0.0.138-beta-1":                     {0, 0, 138, 1, "beta"},
+		"0.0.138-beta-10":                    {0, 0, 138, 10, "beta"},
+		"0.0.218-pre-1":                      {0, 0, 218, 1, "pre"},
+		"0.0.218-pre-10":                     {0, 0, 218, 10, "pre"},
+		"0.1.0":                              {0, 1, 0, 0, ""},
+		"0.1.1":                              {0, 1, 1, 0, ""},
+		"0.1.10":                             {0, 1, 10, 0, ""},
+		"0.1.44":                             {0, 1, 44, 0, ""},
+		"0.1.44-pre-2":                       {0, 1, 44, 2, "pre"},
+		"0.0.269-dev-tqbf-tcp-proxy-48b8696": {0, 0, 269, 0, "dev-tqbf-tcp-proxy-48b8696"},
+
+		"2023.1.1":                     {2023, 1, 1, 0, ""},
+		"2023.1.12":                    {2023, 1, 12, 0, ""},
+		"2023.12.1":                    {2023, 12, 1, 0, ""},
+		"2023.12.12":                   {2023, 12, 12, 0, ""},
+		"2023.8.16":                    {2023, 8, 16, 0, ""},
+		"2023.8.16-stable":             {2023, 8, 16, 0, "stable"},
+		"2023.8.16-stable.1":           {2023, 8, 16, 1, "stable"},
+		"2023.8.16-stable.12":          {2023, 8, 16, 12, "stable"},
+		"2023.8.16-stable.123":         {2023, 8, 16, 123, "stable"},
+		"2023.8.16-pr1234.1":           {2023, 8, 16, 1, "pr1234"},
+		"2023.8.16-pr1234.12":          {2023, 8, 16, 12, "pr1234"},
+		"2023.8.16-pr1234.123":         {2023, 8, 16, 123, "pr1234"},
+		"2023.9.5-my-feature-branch.1": {2023, 9, 5, 1, "my-feature-branch"},
+
+		"0.0.0-dev":            {0, 0, 0, 0, "dev"},
+		"0.0.0-dev.1694038019": {0, 0, 0, 1694038019, "dev"},
 	}
 
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%v", test.v), func(t *testing.T) {
-			assert.Equal(t, test.expected, test.v.String())
-		})
-	}
-}
-
-func TestParse(t *testing.T) {
-	cases := []struct {
-		in   string
-		want Version
-		err  error
-	}{
-		{"1.2.3", Version{1, 2, 3, 1, "stable"}, nil},
-		{"1.2.3", Version{1, 2, 3, 1, "stable"}, nil},
-		{"1.2.3-pre.1", Version{1, 2, 3, 1, "pre"}, nil},
-		{"0.1.123-stable.1", Version{0, 1, 123, 1, "stable"}, nil},
-		{"0.1.123-stable.123", Version{0, 1, 123, 123, "stable"}, nil},
-		{"0.1.123-pre", Version{0, 1, 123, 1, "pre"}, nil},
-		{"0.1.123-pre-1", Version{0, 1, 123, 1, "pre"}, nil},
-		{"0.1.123-pre-2", Version{0, 1, 123, 2, "pre"}, nil},
-		// {"2023.08.16", Version{2023, 8, 16, 0, ""}, nil},
-		{"2023.8.16", Version{2023, 8, 16, 1, "stable"}, nil},
-		{"2023.8.16-stable", Version{2023, 8, 16, 1, "stable"}, nil},
-		// {"2023.8.16-1", Version{2023, 8, 16, 1, ""}, nil},
-		{"2023.8.16-stable.2", Version{2023, 8, 16, 2, "stable"}, nil},
-	}
-
-	for _, c := range cases {
-		t.Run(c.in, func(t *testing.T) {
-			actual, err := Parse(c.in)
-			if c.err != nil {
-				assert.EqualError(t, err, c.err.Error())
-			} else {
+	for vString, vStruct := range cases {
+		t.Run(vString, func(t *testing.T) {
+			t.Run("Parse", func(t *testing.T) {
+				actual, err := Parse(vString)
 				assert.NoError(t, err)
-			}
-			assert.Equal(t, c.want, actual)
+				assert.Equal(t, vStruct, actual)
+			})
+
+			t.Run("ToString", func(t *testing.T) {
+				assert.Equal(t, vString, vStruct.String())
+			})
 		})
-		// assert.EqualError(t, err, c.err.Error())
 	}
 }
 
 func TestParseVPrefix(t *testing.T) {
 	v1, err1 := Parse("0.1.2")
 	v2, err2 := Parse("v0.1.2")
+	expected := Version{0, 1, 2, 0, ""}
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
-	assert.Equal(t, Version{0, 1, 2, 0, ""}, v1)
-	assert.Equal(t, v1, v2)
+	assert.Equal(t, expected, v1)
+	assert.Equal(t, expected, v2)
 }
 
 func TestEquality(t *testing.T) {
@@ -81,13 +73,21 @@ func TestEquality(t *testing.T) {
 		want int
 	}{
 		{"1.2.3", "1.2.3", 0},
-		{"1.2.3-pre.1", "1.2.3-pre.1", 0},
+		{"1.2.3-pre-1", "1.2.3-pre-1", 0},
 		{"0.1.79", "0.1.78", 1},
 		{"0.1.78", "0.1.79", -1},
 
-		{"0.1.78-pre.1", "0.1.79", -1},
-		{"0.1.78-stable.1", "0.1.79", -1},
-		{"0.1.78-pre.1", "0.1.78", -1},
+		{"0.1.78-pre-1", "0.1.79", -1},
+		{"0.1.78-stable-1", "0.1.79", -1},
+		{"0.1.78-pre-1", "0.1.78", -1},
+
+		{"2023.9.6", "2022.9.6", 1},
+		{"2023.9.6", "2023.8.6", 1},
+		{"2023.9.6", "2023.9.5", 1},
+
+		{"2023.9.6-stable.2", "2023.9.6-stable.1", 1},
+		{"2023.9.6-stable.123", "2023.9.6-stable.12", 1},
+		{"2023.9.6", "2023.9.6-stable.1", 1},
 	}
 
 	for _, test := range tests {
@@ -96,9 +96,101 @@ func TestEquality(t *testing.T) {
 		b, err := Parse(test.b)
 		assert.NoError(t, err)
 		assert.Equal(t, test.want, Compare(a, b), "eq(%q, %q) should be %d", test.a, test.b, test.want)
+		assert.Equal(t, test.want*-1, Compare(b, a), "eq(%q, %q) should be %d", test.b, test.a, test.want*-1)
 	}
 }
 
 func TestSort(t *testing.T) {
-	t.Fail()
+	expectedVersions := []string{
+		"0.0.1",
+		"0.0.10",
+		"0.0.138-beta-1",
+		"0.0.138-beta-10",
+		"0.0.138",
+		"0.0.218-pre-1",
+		"0.0.218-pre-10",
+		"0.0.218",
+		"0.0.269-dev-tqbf-tcp-proxy-48b8696",
+		"0.1.0",
+		"0.1.1",
+		"0.1.10",
+		"0.1.44-pre-2",
+		"0.1.44",
+		"2023.1.1",
+		"2023.1.12",
+		"2023.8.16-pr1234.1",
+		"2023.8.16-pr1234.12",
+		"2023.8.16-pr1234.123",
+		"2023.8.16-stable",
+		"2023.8.16-stable.1",
+		"2023.8.16-stable.12",
+		"2023.8.16-stable.123",
+		"2023.8.16",
+		"2023.9.5-my-feature-branch.1",
+		"2023.12.1",
+		"2023.12.12",
+	}
+
+	versions := make([]Version, len(expectedVersions))
+	for idx, vStr := range expectedVersions {
+		v, err := Parse(vStr)
+		assert.NoError(t, err)
+		versions[idx] = v
+	}
+	rand.Shuffle(len(versions), func(i, j int) {
+		versions[i], versions[j] = versions[j], versions[i]
+	})
+
+	slices.SortFunc(versions, Compare)
+
+	sortedVersions := []string{}
+	for _, v := range versions {
+		sortedVersions = append(sortedVersions, v.String())
+	}
+
+	assert.Equal(t, expectedVersions, sortedVersions)
+}
+
+func TestSignificantlyBehind(t *testing.T) {
+	tests := []struct {
+		current, latest string
+		want            bool
+	}{
+		{"0.0.123", "0.1.123", true},
+		{"0.1.123", "0.1.123", false},
+		{"0.1.123", "0.1.128", false},
+		{"0.1.123", "0.1.129", true},
+
+		{"2023.8.1", "2023.8.2", false},
+		{"2023.8.1", "2023.8.29", true},
+		{"2023.8.1", "2023.9.1", true},
+	}
+
+	for _, test := range tests {
+		currentVer, err := Parse(test.current)
+		assert.NoError(t, err)
+		latestVer, err := Parse(test.latest)
+		assert.NoError(t, err)
+		assert.Equal(t, test.want, currentVer.SignificantlyBehind(latestVer), "%q<>%q", test.current, test.latest)
+	}
+}
+
+func TestIsCalver(t *testing.T) {
+	tests := map[string]bool{
+		"1.2.3":         false,
+		"0.0.0":         false,
+		"2023.8.16":     true,
+		"2023.8.16-pre": true,
+		"0.1.87":        false,
+		"0.0.503":       false,
+		"0.0.503-pre-3": false,
+	}
+
+	for input, expected := range tests {
+		t.Run(input, func(t *testing.T) {
+			v, err := Parse(input)
+			assert.NoError(t, err)
+			assert.Equal(t, expected, isCalVer(v))
+		})
+	}
 }
