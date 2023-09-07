@@ -13,9 +13,9 @@ func TestStrings(t *testing.T) {
 		getter func(context.Context) string
 		setter func(context.Context, string) context.Context
 	}{
-		"Hostname":          {Hostname, WithHostname},
-		"WorkingDirectory":  {WorkingDirectory, WithWorkingDirectory},
-		"ConfigDirectory":   {ConfigDirectory, WithConfigDirectory},
+		"Hostname":         {Hostname, WithHostname},
+		"WorkingDirectory": {WorkingDirectory, WithWorkingDirectory},
+		"ConfigDirectory":  {ConfigDirectory, WithConfigDirectory},
 	}
 
 	for name := range cases {
