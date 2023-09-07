@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"
@@ -32,6 +34,7 @@ jobs:
           extra_args: --all-files --hook-stage=manual
 
   lint:
+    name: lint
     strategy:
       fail-fast: false
       matrix:
@@ -39,7 +42,6 @@ jobs:
         # TODO[md]: run this on these once the horrendous performance on macos & windows is fixed
         # os: [ubuntu-latest, macos-latest, windows-latest]
         module: [".", "api"]
-    name: lint
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
