@@ -9,11 +9,22 @@ import (
 )
 
 type InvalidVersionError struct {
-	val string
+	val     string
+	message string
 }
 
 func (e *InvalidVersionError) Error() string {
-	return fmt.Sprintf("invalid version: %s", e.val)
+	return fmt.Sprintf("invalid version %q: %s", e.val, e.message)
+}
+
+func New(t time.Time, track string, buildNum int) Version {
+	return Version{
+		Major: t.Year(),
+		Minor: int(t.Month()),
+		Patch: t.Day(),
+		Track: track,
+		Build: buildNum,
+	}
 }
 
 type Version struct {
@@ -119,7 +130,6 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 	if isCalVer(latest) && isCalVer(v) {
 		latestDate := latest.dateFromVersion()
 		currentDate := v.dateFromVersion()
-		fmt.Println("date diff", latestDate, currentDate, latestDate.Sub(currentDate))
 		return latestDate.Sub(currentDate) >= 28*24*time.Hour
 	}
 
@@ -130,7 +140,6 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 	}
 
 	// both are old format, consider 5 patches old
-	fmt.Println("a", latest.Patch, "b", v.Patch, latest.Patch-v.Patch)
 	if latest.Major > v.Major {
 		return true
 	}
@@ -141,6 +150,15 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 		return true
 	}
 	return false
+}
+
+func (v Version) Increment(t time.Time) Version {
+	buildNum := 0
+	if v.dateFromVersion().Equal(t) {
+		buildNum = v.Build
+	}
+	buildNum++
+	return New(t, v.Track, buildNum)
 }
 
 func Parse(version string) (Version, error) {
@@ -162,22 +180,28 @@ func Parse(version string) (Version, error) {
 
 	// version must have 3 parts
 	if len(parts) != 3 {
-		return Version{}, &InvalidVersionError{version}
+		return Version{}, &InvalidVersionError{version, "must begin with YEAR.MONTH.DAY or MAJOR.MINOR.PATCH"}
+	}
+
+	for _, part := range parts {
+		if part[0] == '0' {
+			return Version{}, &InvalidVersionError{version, "date parts cannot be zero padded"}
+		}
 	}
 
 	// if any part is not an integer, return an error
 	if x, err := strconv.Atoi(parts[0]); err != nil {
-		return Version{}, &InvalidVersionError{version}
+		return Version{}, &InvalidVersionError{version, err.Error()}
 	} else {
 		out.Major = x
 	}
 	if x, err := strconv.Atoi(parts[1]); err != nil {
-		return Version{}, &InvalidVersionError{version}
+		return Version{}, &InvalidVersionError{version, err.Error()}
 	} else {
 		out.Minor = x
 	}
 	if x, err := strconv.Atoi(parts[2]); err != nil {
-		return Version{}, &InvalidVersionError{version}
+		return Version{}, &InvalidVersionError{version, err.Error()}
 	} else {
 		out.Patch = x
 	}
@@ -194,16 +218,20 @@ func Parse(version string) (Version, error) {
 
 		out.Track = parts[0]
 
+		// handle `-track.build` suffix
 		if len(parts) == 2 {
 			if x, err := strconv.Atoi(parts[1]); err != nil {
-				return Version{}, &InvalidVersionError{version}
+				// if build is not an integer, return an error
+				return Version{}, &InvalidVersionError{version, err.Error()}
 			} else {
 				out.Build = x
 			}
 		} else {
+			// if no build was given, default to zero
 			out.Build = 0
 		}
 	} else {
+		// if no suffix was given, default to no track and zero build
 		out.Build = 0
 		out.Track = ""
 	}

@@ -3,6 +3,7 @@ package version
 import (
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/exp/slices"
@@ -193,4 +194,27 @@ func TestIsCalver(t *testing.T) {
 			assert.Equal(t, expected, isCalVer(v))
 		})
 	}
+}
+
+func TestIncrement(t *testing.T) {
+	tests := []struct {
+		current, next, commitDate string
+	}{
+		{"2023.8.25-stable.1", "2023.8.25-stable.2", "2023-08-25"},
+		{"2023.8.25-stable.2", "2023.8.25-stable.3", "2023-08-25"},
+		{"2023.8.25-pr1234.3", "2023.8.25-pr1234.4", "2023-08-25"},
+		{"2023.8.25-stable.3", "2023.8.26-stable.1", "2023-08-26"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.current+"<>"+test.commitDate, func(t *testing.T) {
+			currentVer, err := Parse(test.current)
+			assert.NoError(t, err)
+			commitDate, err := time.Parse(time.DateOnly, test.commitDate)
+			assert.NoError(t, err)
+			nextVer := currentVer.Increment(commitDate)
+			assert.Equal(t, test.next, nextVer.String())
+		})
+	}
+
 }
