@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -16,3 +16,38 @@ jobs:
           check-latest: true
       - name: Run tests
         run: go test ./...
+      - name: Run API tests
+        run: go test ./api/...
+
+
+  precommit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - uses: pre-commit/action@v3.0.0
+        with:
+          extra_args: --all-files --hook-stage=manual
+
+  lint:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        # TODO[md]: run this on these once the horrendous performance on macos & windows is fixed
+        # os: [ubuntu-latest, macos-latest, windows-latest]
+        module: [".", "api"]
+    name: lint
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "${{ matrix.module }}/go.mod"
+          # check-latest: true
+      - uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.54
+          working-directory: ${{ matrix.module }}
