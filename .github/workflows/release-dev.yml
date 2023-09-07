@@ -25,11 +25,10 @@ jobs:
           echo "Version JSON: ${{ steps.version.outputs.json }}"
       - name: Print steps
         uses: actions/github-script@v6
+        env:
+          TAG_NAME: v${{ fromJSON(steps.version.outputs.json).nextVersion }}
         with:
-          script: console.log(steps)
-      - name: Print console
-        uses: actions/github-script@v6
-        with:
-          script: console.log(context)
-          # echo "Version JSON: ${{ fromJSON(steps.version.outputs.json).nextVersion }}"
+          script: |
+            const { TAG_NAME } = process.env
+            console.log(TAG_NAME)
 
