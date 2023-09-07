@@ -154,7 +154,7 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 
 func (v Version) Increment(t time.Time) Version {
 	buildNum := 0
-	if v.dateFromVersion().Equal(t) {
+	if v.Major == t.Year() && v.Minor == int(t.Month()) && v.Patch == t.Day() {
 		buildNum = v.Build
 	}
 	buildNum++

@@ -200,17 +200,19 @@ func TestIncrement(t *testing.T) {
 	tests := []struct {
 		current, next, commitDate string
 	}{
-		{"2023.8.25-stable.1", "2023.8.25-stable.2", "2023-08-25"},
-		{"2023.8.25-stable.2", "2023.8.25-stable.3", "2023-08-25"},
-		{"2023.8.25-pr1234.3", "2023.8.25-pr1234.4", "2023-08-25"},
-		{"2023.8.25-stable.3", "2023.8.26-stable.1", "2023-08-26"},
+		{"2023.8.25-stable.1", "2023.8.25-stable.2", "2023-08-25T00:00:00Z"},
+		{"2023.8.25-stable.2", "2023.8.25-stable.3", "2023-08-25T00:00:00Z"},
+		{"2023.8.25-pr1234.3", "2023.8.25-pr1234.4", "2023-08-25T00:00:00Z"},
+		{"2023.8.25-stable.3", "2023.8.26-stable.1", "2023-08-26T00:00:00Z"},
+		{"2023.9.7-flypkgs.1", "2023.9.7-flypkgs.2", "2023-09-07T00:00:00Z"},
+		{"2023.9.7-flypkgs.1", "2023.9.7-flypkgs.2", "2023-09-07T13:31:01Z"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.current+"<>"+test.commitDate, func(t *testing.T) {
 			currentVer, err := Parse(test.current)
 			assert.NoError(t, err)
-			commitDate, err := time.Parse(time.DateOnly, test.commitDate)
+			commitDate, err := time.Parse(time.RFC3339, test.commitDate)
 			assert.NoError(t, err)
 			nextVer := currentVer.Increment(commitDate)
 			assert.Equal(t, test.next, nextVer.String())
