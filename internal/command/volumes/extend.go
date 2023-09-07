@@ -26,7 +26,7 @@ func newExtend() *cobra.Command {
 
 		short = "Extend a target volume"
 
-		usage = "extend <id>"
+		usage = "extend [id]"
 	)
 
 	cmd := command.New(usage, short, long, runExtend,

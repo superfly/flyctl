@@ -19,13 +19,12 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `Destroy a volume Requires the volume's ID
-number to operate. This can be found through the volumes list command`
+		long = `Destroy a volume`
 
 		short = "Destroy a volume"
 	)
 
-	cmd := command.New("destroy <id>", short, long, runDestroy,
+	cmd := command.New("destroy [id]", short, long, runDestroy,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)

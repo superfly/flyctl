@@ -22,7 +22,7 @@ func newFork() *cobra.Command {
 	const (
 		long  = `Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
 		short = "Forks the specified volume"
-		usage = "fork <id>"
+		usage = "fork [id]"
 	)
 
 	cmd := command.New(usage, short, long, runFork,

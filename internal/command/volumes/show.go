@@ -20,13 +20,12 @@ import (
 
 func newShow() (cmd *cobra.Command) {
 	const (
-		long = `Show details of an app's volume. Requires the volume's ID
-number to operate. This can be found through the volumes list command`
+		long = `Show details of an app's volume`
 
 		short = "Show details of an app's volume"
 	)
 
-	cmd = command.New("show <id>", short, long, runShow,
+	cmd = command.New("show [id]", short, long, runShow,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
