@@ -20,6 +20,9 @@ jobs:
         id: version
         run: |
           echo "json=$(go run ./tools/version)" >> "$GITHUB_OUTPUT"
+      - name: "debug git"
+        run:
+          git tag
       - name: Print version numbers
         run: |
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
