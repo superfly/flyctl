@@ -7,6 +7,8 @@ jobs:
   debug:
     runs-on: ubuntu-latest
     steps:
+      - name: Create annotation for build error
+        run: echo "::error file=go.mod,line=1::Missing semicolon"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
