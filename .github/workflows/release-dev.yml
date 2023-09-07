@@ -19,13 +19,7 @@ jobs:
       - name: Get version numbers
         id: version
         run: |
-          CURRENT_VERSION=$(go run ./tools/version latest)
-          NEXT_VERSION=$(go run ./tools/version next)
-          echo "current_version=$CURRENT_VERSION"
-          echo "next_version=$NEXT_VERSION"
-          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
-          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "json=$(go run ./tools/version)" >> "$GITHUB_OUTPUT"
       - name: Print version numbers
         run: |
-          echo "Current version number: ${{ steps.version.outputs.current_version }}"
-          echo "Next version number: ${{ steps.version.outputs.next_version }}"
+          echo "Version JSON: ${{ steps.version.outputs.json }}"
