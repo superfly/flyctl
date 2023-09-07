@@ -243,12 +243,6 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	machineConf := &api.MachineConfig{
-		Guest: &api.MachineGuest{
-			CPUKind:    "shared",
-			CPUs:       1,
-			MemoryMB:   256,
-			KernelArgs: flag.GetStringArray(ctx, "kernel-arg"),
-		},
 		AutoDestroy: flag.GetBool(ctx, "rm"),
 		DNS: &api.DNSConfig{
 			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
@@ -715,30 +709,10 @@ type determineMachineConfigInput struct {
 func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if guestSize := flag.GetString(ctx, "vm-size"); guestSize != "" {
-		err := machineConf.Guest.SetSize(guestSize)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Potential overrides for Guest
-	if cpus := flag.GetInt(ctx, "vm-cpus"); cpus != 0 {
-		machineConf.Guest.CPUs = cpus
-	} else if flag.IsSpecified(ctx, "vm-cpus") {
-		return nil, fmt.Errorf("cannot have zero cpus")
-	}
-
-	if memory := flag.GetInt(ctx, "vm-memory"); memory != 0 {
-		machineConf.Guest.MemoryMB = memory
-	} else if flag.IsSpecified(ctx, "vm-memory") {
-		return nil, fmt.Errorf("memory cannot be zero")
-	}
-
-	if cpuKind := flag.GetString(ctx, "vm-cpukind"); cpuKind == "shared" || cpuKind == "performance" {
-		machineConf.Guest.CPUKind = cpuKind
-	} else if flag.IsSpecified(ctx, "vm-cpukind") {
-		return nil, fmt.Errorf("cpukind must be set to 'shared' or 'performance'")
+	var err error
+	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(flag.GetStringArray(ctx, "kernel-arg")) != 0 {
