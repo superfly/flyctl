@@ -123,14 +123,13 @@ func listTags(fn func(tag string) bool) error {
 func latestVersion(track string) (*version.Version, error) {
 	var latest *version.Version
 	err := listTags(func(tag string) bool {
-		v, err := version.Parse(tag)
-		if err != nil {
-			return false
-		}
-
-		if v.Track == track {
-			latest = &v
-			return false
+		if v, err := version.Parse(tag); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		} else {
+			if v.Track == track {
+				latest = &v
+				return false
+			}
 		}
 
 		return true

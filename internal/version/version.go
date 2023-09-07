@@ -183,9 +183,13 @@ func Parse(version string) (Version, error) {
 		return Version{}, &InvalidVersionError{version, "must begin with YEAR.MONTH.DAY or MAJOR.MINOR.PATCH"}
 	}
 
-	for _, part := range parts {
-		if part[0] == '0' {
-			return Version{}, &InvalidVersionError{version, "date parts cannot be zero padded"}
+	// only reject zero padding on calver strings
+	if parts[0] != "0" {
+		// if any part is zero padded, return an error
+		for _, part := range parts {
+			if part[0] == '0' {
+				return Version{}, &InvalidVersionError{version, "date parts cannot be zero padded"}
+			}
 		}
 	}
 

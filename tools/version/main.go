@@ -50,12 +50,12 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
 	if previousVersion != nil {
 		str := previousVersion.String()
 		output.PreviousVersion = &str
-	}
-
-	if previousVersion == nil {
+		output.NextVersion = previousVersion.Increment(commitTime).String()
+	} else {
 		output.NextVersion = version.New(commitTime, track, 1).String()
 	}
 
