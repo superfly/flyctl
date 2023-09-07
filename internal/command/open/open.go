@@ -8,5 +8,8 @@ import (
 
 // TODO: deprecate
 func New() *cobra.Command {
-	return apps.NewOpen()
+	cmd := apps.NewOpen()
+	cmd.Deprecated = "use `fly apps open` instead"
+	cmd.Hidden = true
+	return cmd
 }

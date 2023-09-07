@@ -172,6 +172,19 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 		}
 	}
 
+	// Update any barman nodes
+	for _, member := range members["barman"] {
+		machine := member.Machine
+		input := &api.LaunchMachineInput{
+			Region:           machine.Region,
+			Config:           &member.TargetConfig,
+			SkipHealthChecks: true,
+		}
+		if err := mach.Update(ctx, machine, input); err != nil {
+			return err
+		}
+	}
+
 	if flex {
 		if len(members["primary"]) > 0 {
 			primary := members["primary"][0]

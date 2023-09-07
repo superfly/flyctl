@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"net"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -15,10 +16,10 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 type ProcessGroupsDiff struct {
@@ -256,6 +257,11 @@ func errorIsTimeout(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
+
+	if errors.Is(err, ErrWaitTimeout) {
+		return true
+	}
+
 	return false
 }
 
@@ -264,7 +270,10 @@ func errorIsTimeout(err error) bool {
 // If the err is not a timeout, it's returned unchanged.
 func suggestChangeWaitTimeout(err error, flagName string) error {
 	if errorIsTimeout(err) {
-		err = fmt.Errorf("%w\nnote: you can change this timeout with the --%s flag", err, flagName)
+		err = flyerr.GenericErr{
+			Err:     err.Error(),
+			Suggest: fmt.Sprintf("You can increase the timeout with the --%s flag", flagName),
+		}
 	}
 	return err
 }
@@ -323,9 +332,10 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
+			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
 			return rollbackErr
 		}
-		return err
+		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
 }

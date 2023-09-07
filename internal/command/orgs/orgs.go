@@ -93,10 +93,14 @@ func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.Org
 	return
 }
 
-func OrgFromFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
-	slug, err := slugFromArgOrSelect(ctx, flag.FirstArg(ctx), filters...)
-	if err != nil {
-		return nil, err
+func OrgFromEnvVarOrFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
+	slug := flag.GetOrg(ctx)
+	if slug == "" {
+		var err error
+		slug, err = slugFromArgOrSelect(ctx, slug, filters...)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return OrgFromSlug(ctx, slug)

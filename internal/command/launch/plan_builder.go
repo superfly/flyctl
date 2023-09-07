@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -22,7 +21,6 @@ import (
 // v2BuildPlan creates a launchState from command line flags.
 // It shouldn't have any filesystem side effects.
 func v2BuildPlan(ctx context.Context) (*launchState, error) {
-
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = client.FromContext(ctx)
@@ -179,7 +177,6 @@ func v2DetermineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, err
 
 // v2DetermineAppName determines the app name from the config file or directory name
 func v2DetermineAppName(ctx context.Context, configPath string) (string, string, error) {
-
 	appName := flag.GetString(ctx, "name")
 	if appName == "" {
 		appName = filepath.Base(filepath.Dir(configPath))
@@ -221,7 +218,6 @@ func v2DetermineOrg(ctx context.Context) (*api.Organization, string, error) {
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func v2DetermineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
-
 	client := client.FromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
@@ -264,8 +260,14 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 func v2DetermineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
 	shared1x := api.MachinePresets["shared-cpu-1x"]
 	reason := "most apps need about 1GB of RAM"
-	if deploy.ApplyFlagsToGuest(ctx, shared1x) {
+
+	guest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return nil, reason, err
+	}
+
+	if shared1x != guest {
 		reason = "specified on the command line"
 	}
-	return shared1x, reason, nil
+	return guest, reason, nil
 }

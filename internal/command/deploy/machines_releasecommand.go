@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -66,10 +68,27 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	return nil
 }
 
+// dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
+// a mismatch will result in a delete+recreate op
+func dedicatedHostIdMismatch(m *api.Machine, ac *appconfig.Config) bool {
+	return strings.TrimSpace(ac.HostDedicationID) != "" && m.HostDedicationID != ac.HostDedicationID
+}
+
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
 	if md.releaseCommandMachine.IsEmpty() {
 		return md.createReleaseCommandMachine(ctx)
 	}
+
+	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
+
+	if dedicatedHostIdMismatch(releaseCmdMachine.Machine(), md.appConfig) {
+		if err := releaseCmdMachine.Destroy(ctx, true); err != nil {
+			return fmt.Errorf("error destroying release_command machine: %w", err)
+		}
+
+		return md.createReleaseCommandMachine(ctx)
+	}
+
 	return md.updateReleaseCommandMachine(ctx)
 }
 
@@ -122,13 +141,14 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 	md.setMachineReleaseData(mConfig)
 
 	return &api.LaunchMachineInput{
-		Config: mConfig,
-		Region: origMachineRaw.Region,
+		Config:           mConfig,
+		Region:           origMachineRaw.Region,
+		HostDedicationID: md.appConfig.HostDedicationID,
 	}
 }
 
 func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
-	defaultGuest := api.MachinePresets[DefaultVMSize]
+	defaultGuest := api.MachinePresets[api.DefaultVMSize]
 	desiredGuest := api.MachinePresets["shared-cpu-2x"]
 	if mg := md.machineGuest; mg != nil && (mg.CPUKind != defaultGuest.CPUKind || mg.CPUs != defaultGuest.CPUs || mg.MemoryMB != defaultGuest.MemoryMB) {
 		desiredGuest = mg

@@ -16,7 +16,7 @@ import (
 
 func newStatus() *cobra.Command {
 	const (
-		short = "Show a VM's status"
+		short = "V1 APPS ONLY: Show a VM's status"
 		long  = short + "\t" + "including logs, checks, and events." + "\n"
 		usage = "status <vm-id>"
 	)

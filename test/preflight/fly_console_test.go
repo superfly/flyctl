@@ -5,7 +5,9 @@ package preflight
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
@@ -31,10 +33,12 @@ console_command = "/bin/echo '%s'"
 	f.Fly("deploy --ha=false")
 
 	result := f.Fly("console")
-	output := result.StdOut().String()
+	output := result.StdOutString()
 	require.Contains(f, output, targetOutput)
 
-	// The console machine should have been destroyed.
-	ml := f.MachinesList(appName)
-	require.Equal(f, 1, len(ml))
+	// Give time for the machine to be destroyed.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 1, len(ml))
+	}, 10*time.Second, 1*time.Second)
 }
