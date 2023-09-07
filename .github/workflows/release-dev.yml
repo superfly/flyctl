@@ -23,3 +23,6 @@ jobs:
       - name: Print version numbers
         run: |
           echo "Version JSON: ${{ steps.version.outputs.json }}"
+      - name: Create tag for version
+        run: |
+          echo "Version JSON: ${{ fromJSON(steps.version.outputs.json).nextVersion }}"
