@@ -73,6 +73,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
+		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
 	}

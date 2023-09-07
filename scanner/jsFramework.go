@@ -183,6 +183,9 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.SkipDatabase = true
 	}
 
+	// default to port 3000
+	srcInfo.Port = 3000
+
 	// While redundant and requires dual matenance, it has been a point of
 	// confusion for many when the framework detected is listed as "NodeJS"
 	// See flyapps/dockerfile-node for the actual framework detction.
@@ -191,6 +194,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "AdonisJS"
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
+		srcInfo.Port = 8080
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
