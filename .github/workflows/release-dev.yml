@@ -11,7 +11,7 @@ jobs:
       #   run: echo "::error file=go.mod,line=1::Missing semicolon"
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-tags: true
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"
