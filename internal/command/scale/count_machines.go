@@ -97,17 +97,15 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
-	if !flag.GetYes(ctx) {
-		switch confirmed, err := prompt.Confirmf(ctx, "Scale app %s?", appName); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
-		default:
-			return err
+	switch confirmed, err := prompt.Confirmf(ctx, "Scale app %s?", appName); {
+	case err == nil:
+		if !confirmed {
+			return nil
 		}
+	case prompt.IsNonInteractive(err):
+		return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
+	default:
+		return err
 	}
 
 	fmt.Fprintf(io.Out, "Executing scale plan\n")

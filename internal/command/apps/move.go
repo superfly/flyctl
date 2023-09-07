@@ -73,22 +73,20 @@ func RunMove(ctx context.Context) error {
 		return nil
 	}
 
-	if !flag.GetYes(ctx) {
-		const msg = `Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
+	const msg = `Moving an app between organizations requires a complete shutdown and restart. This will result in some app downtime.
 If the app relies on other services within the current organization, it may not come back up in a healthy manner.
 Please confirm whether you wish to restart this app now.`
-		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Move app %s?", appName); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return err
+	switch confirmed, err := prompt.Confirmf(ctx, "Move app %s?", appName); {
+	case err == nil:
+		if !confirmed {
+			return nil
 		}
+	case prompt.IsNonInteractive(err):
+		return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+	default:
+		return err
 	}
 
 	// Run machine specific migration process.

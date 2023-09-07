@@ -63,17 +63,15 @@ func runNomadToMachinesMigration(ctx context.Context) error {
 		return fmt.Errorf("the specified app is already running on Machines")
 	}
 
-	if !flag.GetBool(ctx, "yes") {
-		switch confirmed, err := prompt.Confirmf(ctx, "This process will require about two minutes of downtime. Continue?"); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return err
+	switch confirmed, err := prompt.Confirmf(ctx, "This process will require about two minutes of downtime. Continue?"); {
+	case err == nil:
+		if !confirmed {
+			return nil
 		}
+	case prompt.IsNonInteractive(err):
+		return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+	default:
+		return err
 	}
 
 	fmt.Fprintln(io.Out, "Preparing migration by scaling to zero. This may take a minute...")

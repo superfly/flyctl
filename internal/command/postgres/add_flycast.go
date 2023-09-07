@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -13,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -92,20 +92,10 @@ func doAddFlycast(ctx context.Context) error {
 			}
 		}
 
-		confirm := false
-		if !flag.GetYes(ctx) {
-			prompt := &survey.Confirm{
-				Message: "This will overwrite existing services you have manually added. Continue?",
-				Default: true,
-			}
-			if err := survey.AskOne(prompt, &confirm); err != nil {
-				return err
-			}
-		} else {
-			confirm = true
-		}
-
-		if !confirm {
+		switch confirm, err := prompt.Confirm(ctx, "This will overwrite existing services you have manually added. Continue?"); {
+		case err != nil:
+			return err
+		case !confirm:
 			return nil
 		}
 

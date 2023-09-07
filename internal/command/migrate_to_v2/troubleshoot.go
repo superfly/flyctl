@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -506,52 +507,32 @@ func (t *troubleshooter) detachedInteractiveTroubleshoot(ctx context.Context) er
 				return err
 			}
 		case DestroyNomadUseMachines:
-			confirm := false
-			if !flag.GetYes(ctx) {
-				if err := survey.AskOne(&survey.Confirm{
-					Message: "Are you sure you want to remove existing Nomad VMs and switch to V2?",
-				}, &confirm); err != nil {
-					return err
-				}
-			} else {
-				confirm = true
-			}
-
-			if !confirm {
-				continue
-			}
-
-			return t.cleanupNomadSwitchToMachines(ctx)
-		case DestroyMachinesUseNomad:
-			confirm := false
-			if !flag.GetYes(ctx) {
-				if err := survey.AskOne(&survey.Confirm{
-					Message: "Are you sure you want to remove all Machines and switch back to Nomad?",
-				}, &confirm); err != nil {
-					return err
-				}
-			} else {
-				confirm = true
-			}
-
-			if !confirm {
-				continue
-			}
-
-			fmt.Fprint(io.Out, "Destroying machines and setting platform version to nomad.\n")
-
-			for _, mach := range t.machines {
-				err := machine.Destroy(ctx, t.app, mach, true)
-				if err != nil {
-					return fmt.Errorf("could not destroy machine: %w", err)
-				}
-			}
-			err = t.setPlatformVersion(ctx, appconfig.NomadPlatform)
-			if err != nil {
+			switch confirm, err := prompt.Confirm(ctx, "Are you sure you want to remove existing Nomad VMs and switch to V2?"); {
+			case err != nil:
 				return err
+			case confirm:
+				return t.cleanupNomadSwitchToMachines(ctx)
 			}
-			fmt.Fprint(io.Out, "Done!\n")
-			return nil
+		case DestroyMachinesUseNomad:
+			switch confirm, err := prompt.Confirm(ctx, "Are you sure you want to remove all Machines and switch back to Nomad?"); {
+			case err != nil:
+				return err
+			case confirm:
+				fmt.Fprint(io.Out, "Destroying machines and setting platform version to nomad.\n")
+
+				for _, mach := range t.machines {
+					err := machine.Destroy(ctx, t.app, mach, true)
+					if err != nil {
+						return fmt.Errorf("could not destroy machine: %w", err)
+					}
+				}
+				err = t.setPlatformVersion(ctx, appconfig.NomadPlatform)
+				if err != nil {
+					return err
+				}
+				fmt.Fprint(io.Out, "Done!\n")
+				return nil
+			}
 		case Exit:
 			return nil
 		}

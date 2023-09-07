@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/launch/legacy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -108,21 +108,11 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
-	confirm := false
-	if !flag.GetYes(ctx) {
-		prompt := &survey.Confirm{
-			Message: "Do you want to tweak these settings before proceeding?",
-		}
-		err = survey.AskOne(prompt, &confirm)
-		if err != nil {
-			// TODO(allison): This should probably not just return the error
-			return err
-		}
-	} else {
-		confirm = true
-	}
-
-	if confirm {
+	switch confirm, err := prompt.Confirm(ctx, "Do you want to tweak these settings before proceeding?"); {
+	case err != nil:
+		// TODO(allison): This should probably not just return the error
+		return err
+	case confirm:
 		err = state.EditInWebUi(ctx)
 		if err != nil {
 			return err
