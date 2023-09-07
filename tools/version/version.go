@@ -73,17 +73,6 @@ func gitCommitSHA() (string, error) {
 	return strings.TrimSpace(output), nil
 }
 
-func shortGitCommitSHA() (string, error) {
-	sha, err := gitCommitSHA()
-	if err != nil {
-		return "", err
-	}
-	if len(sha) >= 8 {
-		return sha[:8], nil
-	}
-	return sha, nil
-}
-
 func refreshTags() error {
 	originName := "origin"
 	_, err := runGit("fetch", "--tags", originName)
@@ -230,29 +219,4 @@ func taggedVersionsForTrack(track string) ([]version.Version, error) {
 	slices.Reverse(versions)
 
 	return versions, nil
-}
-
-func nextBuildNumber(track string, commitTime time.Time) (int, error) {
-	latestVersion, err := latestVersion(track)
-	if err != nil {
-		return -1, err
-	}
-
-	if latestVersion == nil {
-		return 1, nil
-	}
-
-	if latestVersion.Major != commitTime.Year() {
-		return 1, nil
-	}
-
-	if latestVersion.Minor != int(commitTime.Month()) {
-		return 1, nil
-	}
-
-	if latestVersion.Patch != commitTime.Day() {
-		return 1, nil
-	}
-
-	return latestVersion.Build + 1, nil
 }

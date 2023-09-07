@@ -216,5 +216,4 @@ func TestIncrement(t *testing.T) {
 			assert.Equal(t, test.next, nextVer.String())
 		})
 	}
-
 }

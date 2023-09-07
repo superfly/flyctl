@@ -227,33 +227,3 @@ func parseCommitDate(commitDate string) time.Time {
 	}
 	return t
 }
-
-func TestBuildNumber_IncrementsBuildsOnSameDate(t *testing.T) {
-	mockTags = []string{
-		"v2023.9.5-stable.3",
-		"v2023.9.5-stable.2",
-		"v2023.9.5-stable.1",
-		"v2023.9.3-stable.2",
-		"v2023.9.3-stable.1",
-		"v2023.9.1-stable.1",
-	}
-
-	buildNum, err := nextBuildNumber("stable", parseCommitDate("2023-09-05"))
-	assert.NoError(t, err)
-	assert.Equal(t, 4, buildNum)
-}
-
-func TestBuildNumber_ResetsOnNewDate(t *testing.T) {
-	mockTags = []string{
-		"v2023.9.5-stable.3",
-		"v2023.9.5-stable.2",
-		"v2023.9.5-stable.1",
-		"v2023.9.3-stable.2",
-		"v2023.9.3-stable.1",
-		"v2023.9.1-stable.1",
-	}
-
-	buildNum, err := nextBuildNumber("stable", parseCommitDate("2023-09-06"))
-	assert.NoError(t, err)
-	assert.Equal(t, 1, buildNum)
-}
