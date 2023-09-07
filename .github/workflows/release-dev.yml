@@ -25,8 +25,9 @@ jobs:
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}" >> $GITHUB_STEP_SUMMARY
           echo "Track: ${{ fromJSON(steps.version.outputs.json).track }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit SHA": ${{ github.sha }}
           echo "Commit Time: ${{ fromJSON(steps.version.outputs.json).commitTime }}" >> $GITHUB_STEP_SUMMARY
-          echo "git Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "GitHub Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
           echo "Previous version: ${{ fromJSON(steps.version.outputs.json).previousVersion }}" >> $GITHUB_STEP_SUMMARY
       - name: Create tag
         uses: actions/github-script@v6
@@ -35,4 +36,10 @@ jobs:
         with:
           script: |
             const { TAG_NAME } = process.env
-            console.log(TAG_NAME)
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: 'refs/tags/${TAG_NAME}',
+              sha: context.sha
+            })
+
