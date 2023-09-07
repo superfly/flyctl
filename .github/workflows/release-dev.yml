@@ -21,6 +21,8 @@ jobs:
         run: |
           CURRENT_VERSION=$(go run ./tools/version latest)
           NEXT_VERSION=$(go run ./tools/version next)
+          echo "current_version=$CURRENT_VERSION"
+          echo "next_version=$NEXT_VERSION"
           echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
       - name: Print version numbers
