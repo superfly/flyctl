@@ -23,7 +23,8 @@ jobs:
       - name: Run tests
         run: go test ./...
       - name: Run API tests
-        run: cd api && go test ./...
+        working-directory: ./api
+        run: go test ./...
 
   precommit:
     runs-on: ubuntu-latest

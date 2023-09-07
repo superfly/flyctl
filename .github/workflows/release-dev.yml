@@ -7,8 +7,8 @@ jobs:
   debug:
     runs-on: ubuntu-latest
     steps:
-      - name: Create annotation for build error
-        run: echo "::error file=go.mod,line=1::Missing semicolon"
+      # - name: Create annotation for build error
+      #   run: echo "::error file=go.mod,line=1::Missing semicolon"
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -16,7 +16,14 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
-      - name: Print latest version number
-        run: go run ./tools/version latest
-      - name: Print next version number
-        run: go run ./tools/version next
+      - name: Get version numbers
+        id: version
+        run: |
+          CURRENT_VERSION=$(go run ./tools/version latest)
+          NEXT_VERSION=$(go run ./tools/version next)
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "next_version=$NEXT_VERSION" >> "$GITHUB_OUTPUT"
+      - name: Print version numbers
+        run: |
+          echo "Current version number: ${{ steps.version.outputs.current_version }}"
+          echo "Next version number: ${{ steps.version.outputs.next_version }}"
