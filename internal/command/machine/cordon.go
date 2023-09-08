@@ -13,7 +13,7 @@ import (
 
 func newMachineCordon() *cobra.Command {
 	const (
-		short = "Reactive all services on a machine"
+		short = "Deactivate all services on a machine"
 		long  = short + "\n"
 		usage = "cordon <id> [<id>...]"
 	)
