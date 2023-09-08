@@ -4,23 +4,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-          check-latest: true
-      - name: go mod download
-        run: go mod download
-      - name: go mod verify
-        run: go mod verify
-      - name: Print latest version number
-        run: go run ./tools/version latest
-      - name: Print next version number
-        run: go run ./tools/version next
-        
   test:
     strategy:
       fail-fast: false

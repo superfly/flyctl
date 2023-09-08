@@ -1,10 +1,10 @@
+# This config targets the new flypkgs distribution system. Once all releases are 
+# being served by flypkgs, this file will replace .goreleaser.yml and .goreleaser.dev.yml
+
 before:
   hooks:
     - go mod download
     - go generate ./...
-
-# snapshot:
-#   name_template: '{{ .Env.SNAPSHOT_NAME  }}'
 
 builds:
   - id: linux
@@ -74,45 +74,7 @@ archives:
     wrap_in_directory: false
     format: zip
 
-# uploads:
-#   - name: production
-#     target: http://localhost:4000/api/releases
-#     # {{ .ProjectName }}/{{ .Version }}/
-#     method: POST
-
-# blobs:
-#   - provider: s3
-#     endpoint: http://localhost:9000
-#     disableSSL: true
-#     bucket: assets
-#     # ids:
-#     #   - macos
-    
-
 release:
   disable: true
-#   prerelease: auto
 
-# dockers:
-#   - goos: linux
-#     goarch: amd64
-#     image_templates:
-#       - "flyio/flyctl:latest"
-#       - "flyio/flyctl:v{{ .Version }}"
-#       - "ghcr.io/superfly/flyctl:latest"
-#       - "ghcr.io/superfly/flyctl:v{{ .Version }}"
-#     skip_push: auto
-
-# checksum:
-#   name_template: "checksums.txt"
-
-# snapshot:
-#   name_template: "{{incpatch .Version}}-snapshot.{{.Branch}}+{{.ShortCommit}}"
-
-# changelog:
-#   sort: asc
-#   filters:
-#     exclude:
-#       - "^docs:"
-#       - "^test:"
 
