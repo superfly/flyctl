@@ -1,7 +1,9 @@
 package haikunator
 
 import (
-	"math/rand"
+	"crypto/rand"
+	"math/big"
+	rand2 "math/rand"
 	"strconv"
 	"strings"
 
@@ -41,8 +43,18 @@ type Builder interface {
 	String() string
 }
 
+func randN(max int) int {
+	ret, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		// Fallback to "insecure" random
+		// it doesn't really matter, this is not security critical
+		return rand2.Intn(max) // skipcq: GSC-G404
+	}
+	return int(ret.Int64())
+}
+
 func choose(list []string) string {
-	return list[rand.Intn(len(list))]
+	return list[randN(len(list))]
 }
 
 func Haikunator() Builder {
@@ -68,7 +80,7 @@ func (b *builder) Build() string {
 		choose(nouns),
 	}
 	if b.tokRange > 0 {
-		sections = append(sections, strconv.Itoa(rand.Intn(b.tokRange)))
+		sections = append(sections, strconv.Itoa(randN(b.tokRange)))
 	}
 	return strings.Join(sections, b.delimiter)
 }
