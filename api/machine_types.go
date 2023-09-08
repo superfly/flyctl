@@ -25,6 +25,7 @@ const (
 	MachineStateStopped                        = "stopped"
 	MachineStateCreated                        = "created"
 	DefaultVMSize                              = "shared-cpu-1x"
+	DefaultGPUVMSize                           = "performance-8x"
 )
 
 type Machine struct {
@@ -321,7 +322,7 @@ type MachineGuest struct {
 	CPUKind  string `json:"cpu_kind,omitempty"`
 	CPUs     int    `json:"cpus,omitempty"`
 	MemoryMB int    `json:"memory_mb,omitempty"`
-	GPUs     int    `json:"gpus,omitempty"`
+	GPUModel string `json:"gpu_model,omitempty"`
 
 	KernelArgs []string `json:"kernel_args,omitempty"`
 }
