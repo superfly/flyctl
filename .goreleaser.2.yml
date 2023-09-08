@@ -3,8 +3,8 @@ before:
     - go mod download
     - go generate ./...
 
-snapshot:
-  name_template: '{{ .Env.SNAPSHOT_NAME  }}'
+# snapshot:
+#   name_template: '{{ .Env.SNAPSHOT_NAME  }}'
 
 builds:
   - id: linux
