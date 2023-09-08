@@ -55,6 +55,8 @@ jobs:
         with:
           go-version-file: "go.mod"
           cache: true
+      - name: Place wintun.dll
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
