@@ -2,11 +2,14 @@ name: Build 2
 
 on:
   push:
-    tags:        
-      - v20*
+    # this only works when the action file is on the default branch... until this gets merged respond to
+    # all pushes and filter out to v20* tags in conditions
+    # tags:        
+    #   - v20*
 
 jobs:
   build:
+    if: startsWith(github.ref, 'refs/tags/v20')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
