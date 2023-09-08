@@ -120,6 +120,9 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
 		}
+		if srcInfo.Port != 0 {
+			lp.HttpServicePort = srcInfo.Port
+		}
 	}
 
 	return &LaunchManifest{
