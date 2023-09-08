@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -31,6 +32,14 @@ import (
 type planBuildCache struct {
 	appConfig *appconfig.Config
 	srcInfo   *scanner.SourceInfo
+}
+
+func appNameTakenErr(appName string) error {
+	return flyerr.GenericErr{
+		Err:      fmt.Sprintf("app name %s is already taken", appName),
+		Descript: "each Fly.io app must have a unique name",
+		Suggest:  "Please specify a different app name with --name",
+	}
 }
 
 func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error) {
@@ -186,7 +195,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	}
 
 	if taken, _ := appNameTaken(ctx, appConfig.AppName); taken {
-		return nil, fmt.Errorf("app name %s is already taken", appConfig.AppName)
+		return nil, appNameTakenErr(appConfig.AppName)
 	}
 
 	workingDir := flag.GetString(ctx, "path")
@@ -293,8 +302,7 @@ func determineAppName(ctx context.Context, configPath string) (string, string, e
 			}
 		}
 		if !found {
-			// TODO: Use FlyErr
-			return "", "", fmt.Errorf("unable to find an available app name for %s", appName)
+			return "", "", appNameTakenErr(appName)
 		}
 		appName = newName
 	}
