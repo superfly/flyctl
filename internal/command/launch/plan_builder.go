@@ -15,9 +15,11 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
+	"github.com/superfly/graphql"
 )
 
 // Cache values between buildManifest and stateFromManifest
@@ -183,6 +185,10 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
+	if taken, _ := appNameTaken(ctx, appConfig.AppName); taken {
+		return nil, fmt.Errorf("app name %s is already taken", appConfig.AppName)
+	}
+
 	workingDir := flag.GetString(ctx, "path")
 	if absDir, err := filepath.Abs(workingDir); err == nil {
 		workingDir = absDir
@@ -274,7 +280,38 @@ func determineAppName(ctx context.Context, configPath string) (string, string, e
 	if appName == "" {
 		return "", "", errors.New("enable to determine app name, please specify one with --name")
 	}
+	// If the app name is already taken, try to generate a unique suffix.
+	if taken, _ := appNameTaken(ctx, appName); taken {
+		delimiter := "-"
+		var newName string
+		found := false
+		for i := 1; i < 10; i++ {
+			newName = fmt.Sprintf("%s%s%s", appName, delimiter, haikunator.Haikunator().Delimiter(delimiter))
+			if taken, _ := appNameTaken(ctx, newName); !taken {
+				found = true
+				break
+			}
+		}
+		if !found {
+			// TODO: Use FlyErr
+			return "", "", fmt.Errorf("unable to find an available app name for %s", appName)
+		}
+		appName = newName
+	}
 	return appName, "derived from your directory name", nil
+}
+
+func appNameTaken(ctx context.Context, name string) (bool, error) {
+	client := client.FromContext(ctx).API()
+	_, err := client.GetAppBasic(ctx, name)
+	if err != nil {
+		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	return true, nil
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
