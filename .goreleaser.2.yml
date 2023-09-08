@@ -7,77 +7,72 @@ snapshot:
   name_template: '{{ .Env.SNAPSHOT_NAME  }}'
 
 builds:
+  - id: linux
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+
   - id: macos
     env:
       - CGO_ENABLED=0
     goos:
       - darwin
-      # - linux
     goarch:
       - arm64
-      # - amd64
-    # ignore:
-    #   - goos: darwin
-    #     goarch: 386
-    #   - goos: linux
-    #     goarch: 386
+      - amd64
     ldflags:
       - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
 
-  # - id: windows
-  #   env:
-  #     - CGO_ENABLED=0
-  #   goos:
-  #     - windows
-  #   ignore:
-  #     - goos: windows
-  #       goarch: 386
-  #   ldflags:
-  #     - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
-  #     - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
-  #     - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
-  #     - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+  - id: windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.version={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
 
 archives:
-  - id: macos
-    name_template: "{{ .ProjectName }}_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
-    builds: [macos]
-    format: tar.gz
+  - id: linux
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_Linux_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    builds: [linux]
+    files: [only-the-binary*]
     wrap_in_directory: false
-    files:
-      - only-the-binary*
+    format: tar.gz
 
-# archives:
-#   - id: windows
-#     name_template: >-
-#       {{ .ProjectName }}_{{ .Version}}_
-#       {{- if eq .Os "windows" }}Windows
-#       {{- else }}{{ .Os }}{{- end }}_
-#       {{- if eq .Arch "amd64" }}x86_64
-#       {{- else }}{{ .Arch }}{{- end }}
-#     builds:
-#       - windows
-#     files:
-#       - wintun.dll
-#     wrap_in_directory: false
-#     format: zip
+  - id: macos
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    builds: [macos]
+    files: [only-the-binary*]
+    wrap_in_directory: false
+    format: tar.gz
 
-#   - id: default
-#     name_template: >-
-#       {{ .ProjectName }}_{{ .Version}}_
-#       {{- if eq .Os "darwin" }}macOS
-#       {{- else if eq .Os "linux" }}Linux
-#       {{- else }}{{ .Os }}{{- end }}_
-#       {{- if eq .Arch "amd64" }}x86_64
-#       {{- else }}{{ .Arch }}{{- end }}
-#     builds:
-#       - default
-#     files: [only-the-binary*]
-#     wrap_in_directory: false
-#     format: tar.gz
+  - id: windows
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_Windows_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    builds: [windows]
+    files: [wintun.dll]
+    wrap_in_directory: false
+    format: zip
 
 # uploads:
 #   - name: production
@@ -121,22 +116,3 @@ release:
 #       - "^docs:"
 #       - "^test:"
 
-# brews:
-#   - tap:
-#       owner: superfly
-#       name: homebrew-tap
-#     folder: Formula
-#     homepage: https://fly.io
-#     skip_upload: auto
-#     test: |
-#       system "#{bin}/flyctl version"
-#     install: |
-#       bin.install "flyctl"
-#       bin.install_symlink "flyctl" => "fly"
-
-#       bash_output = Utils.safe_popen_read("#{bin}/flyctl", "completion", "bash")
-#       (bash_completion/"flyctl").write bash_output
-#       zsh_output = Utils.safe_popen_read("#{bin}/flyctl", "completion", "zsh")
-#       (zsh_completion/"_flyctl").write zsh_output
-#       fish_output = Utils.safe_popen_read("#{bin}/flyctl", "completion", "fish")
-#       (fish_completion/"flyctl.fish").write fish_output

@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  debug:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}
     steps:
-      # - name: Create annotation for build error
-      #   run: echo "::error file=go.mod,line=1::Missing semicolon"
       - uses: actions/checkout@v4
         with:
           fetch-tags: true
@@ -46,3 +46,29 @@ jobs:
               sha: context.sha
             })
 
+  build:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          version: latest
+          # args: release --clean --release-notes=./tmp/changelog.txt
+          args: release --clean -f .goreleaser.2.yml --fail-fast --skip-validate -p 1 --snapshot --debug 
+        env:
+          SNAPSHOT_NAME: ${{ needs.version.outputs.version }}
+
+      # - name: Build
+      #   run: make build_macos_arm64
+      #   env:
+      #     VERSION: ${{ github.ref_name }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/*
