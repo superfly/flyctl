@@ -283,24 +283,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		return errors.Wrap(err, "Dockerfile not found")
 	}
 
-	// extract port
-	port := 3000
-	re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
-	m := re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "port" {
-			port, err = strconv.Atoi(m[i])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	srcInfo.Port = port
-
 	// extract volume - handle both plain string and JSON format, but only allow one path
-	re = regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
-	m = re.FindStringSubmatch(string(dockerfile))
+	re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+	m := re.FindStringSubmatch(string(dockerfile))
 
 	if len(m) > 0 {
 		srcInfo.Volumes = []Volume{

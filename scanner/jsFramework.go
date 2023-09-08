@@ -349,21 +349,6 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 	}
 	srcInfo.Family = family
 
-	// extract port
-	port := 3000
-	re = regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
-	m = re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "port" {
-			port, err = strconv.Atoi(m[i])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	srcInfo.Port = port
-
 	// provide some advice
 	srcInfo.DeployDocs += fmt.Sprintf(`
 If you need custom packages installed, or have problems with your deployment
