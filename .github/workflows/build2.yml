@@ -1,0 +1,24 @@
+name: Build 2
+
+on:
+  push:
+    tags:        
+      - v20*
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - name: Build
+        run: make build_macos_arm64
+        env:
+          VERSION: ${{ github.ref_name }}
+      - uses: actions/upload-artifact@v3
+        with:
+          name: flyctl-macos
+          path: bin/flyctl

@@ -1,18 +1,32 @@
 NOW_RFC3339 = $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 GIT_BRANCH = $(shell git symbolic-ref --short HEAD 2>/dev/null ||:)
 
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
+
+LDFLAGS = -X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'\
+ -X 'github.com/superfly/flyctl/internal/buildinfo.branchName=$(GIT_BRANCH)'\
+ -X 'github.com/superfly/flyctl/internal/buildinfo.buildVersion=${VERSION}'
+
 all: build cmddocs
 
 generate:
-	@echo Running Generate for Help and GraphQL client
 	go generate ./...
 
 build: generate
-	@echo Running Build
-	CGO_ENABLED=0 go build -o bin/flyctl -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)' -X 'github.com/superfly/flyctl/internal/buildinfo.branchName=$(GIT_BRANCH)'" .
+	CGO_ENABLED=0 go build -o bin/flyctl -ldflags="$(LDFLAGS)" .
+
+build_linux_amd64:
+	build GOOS=linux GOARCH=amd64
+
+build_macos_arm64:
+	build GOOS=macos GOARCH=arm64
 
 test: FORCE
-	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
+	go test ./... -ldflags="$(LDFLAGS)" --run=$(T)
+
+test-api: FORCE
+	cd api && go test ./... --run=$(T)
 
 raw-preflight-test:
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
