@@ -2,6 +2,7 @@ name: Build 2
 
 on:
   push:
+  create:
     # this only works when the action file is on the default branch... until this gets merged respond to
     # all pushes and filter out to v20* tags in conditions
     # tags:        
