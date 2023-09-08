@@ -13,7 +13,7 @@ import (
 
 func newMachineUncordon() *cobra.Command {
 	const (
-		short = "Reactive all services on a machine"
+		short = "Reactivate all services on a machine"
 		long  = short + "\n"
 		usage = "uncordon <id> [<id>...]"
 	)
