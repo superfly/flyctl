@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"strconv"
 	"strings"
+
+	"github.com/superfly/flyctl/helpers"
 )
 
 var adjectives = strings.Fields(`
@@ -32,26 +34,35 @@ type builder struct {
 	delimiter string
 }
 
+type Builder interface {
+	TokenRange(r int) Builder
+	Delimiter(d string) Builder
+	Build() string
+	String() string
+}
+
 func choose(list []string) string {
 	return list[rand.Intn(len(list))]
 }
 
-func Haikunator() builder {
-	return builder{
+func Haikunator() Builder {
+	return &builder{
 		tokRange:  9999,
 		delimiter: "-",
 	}
 }
 
-func (b builder) TokenRange(r int) builder {
-	b.tokRange = r
-	return b
+func (b *builder) TokenRange(r int) Builder {
+	newB := helpers.Clone(b)
+	newB.tokRange = r
+	return newB
 }
-func (b builder) Delimiter(d string) builder {
-	b.delimiter = d
-	return b
+func (b *builder) Delimiter(d string) Builder {
+	newB := helpers.Clone(b)
+	newB.delimiter = d
+	return newB
 }
-func (b builder) Build() string {
+func (b *builder) Build() string {
 	sections := []string{
 		choose(adjectives),
 		choose(nouns),
@@ -61,6 +72,6 @@ func (b builder) Build() string {
 	}
 	return strings.Join(sections, b.delimiter)
 }
-func (b builder) String() string {
+func (b *builder) String() string {
 	return b.Build()
 }
