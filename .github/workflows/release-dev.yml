@@ -60,7 +60,7 @@ jobs:
         with:
           version: latest
           # args: release --clean --release-notes=./tmp/changelog.txt
-          args: release --clean -f .goreleaser.2.yml --fail-fast --skip-validate -p 1 --snapshot --debug 
+          args: release --clean -f .goreleaser.2.yml --fail-fast --snapshot --debug 
         env:
           SNAPSHOT_NAME: ${{ needs.version.outputs.version }}
 
