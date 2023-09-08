@@ -16,7 +16,7 @@ func newKill() *cobra.Command {
 		short = "Kill (SIGKILL) a Fly machine"
 		long  = short + "\n"
 
-		usage = "kill <id>"
+		usage = "kill [id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineKill,
