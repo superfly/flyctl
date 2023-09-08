@@ -1,11 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"slices"
 	"strconv"
 	"strings"
@@ -81,62 +78,34 @@ func refreshTags() error {
 
 var mockTags []string
 
-func listTags(fn func(tag string) bool) error {
+func listVersionTags() ([]string, error) {
 	if mockTags != nil {
-		for _, tag := range mockTags {
-			if !fn(tag) {
-				break
-			}
-		}
-		return nil
+		return mockTags, nil
 	}
 
-	cmd := exec.Command("git", "tag", "-l", "--sort=version:refname", "v*")
-	outPipe, err := cmd.StdoutPipe()
+	out, err := runGit("tag", "-l", "--sort=-version:refname", "v*")
 	if err != nil {
-		return err
+		return nil, err
 	}
-	errPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return err
-	}
-	go io.Copy(os.Stderr, errPipe)
-
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	scanner := bufio.NewScanner(outPipe)
-
-	for scanner.Scan() {
-		if !fn(scanner.Text()) {
-			break
-		}
-	}
-
-	if err := cmd.Wait(); err != nil {
-		return err
-	}
-
-	return nil
+	return strings.Split(string(out), "\n"), nil
 }
 
 func latestVersion(track string) (*version.Version, error) {
+	tags, err := listVersionTags()
+	if err != nil {
+		return nil, err
+	}
+
 	var latest *version.Version
-	err := listTags(func(tag string) bool {
+	for _, tag := range tags {
 		if v, err := version.Parse(tag); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
 			if v.Track == track {
 				latest = &v
-				return false
+				break
 			}
 		}
-
-		return true
-	})
-
-	if err != nil {
-		return nil, err
 	}
 
 	return latest, nil
@@ -198,20 +167,18 @@ func prNumber(ref string) (int, error) {
 func taggedVersionsForTrack(track string) ([]version.Version, error) {
 	versions := []version.Version{}
 
-	err := listTags(func(tag string) bool {
-		v, err := version.Parse(tag)
-		if err != nil {
-			return false
-		}
-
-		if v.Track == track {
-			versions = append(versions, v)
-		}
-		return true
-	})
-
+	tags, err := listVersionTags()
 	if err != nil {
 		return nil, err
+	}
+	for _, tag := range tags {
+		if v, err := version.Parse(tag); err == nil {
+			if v.Track == track {
+				versions = append(versions, v)
+			}
+		} else {
+			fmt.Fprintln(os.Stderr, err)
+		}
 	}
 
 	slices.SortFunc(versions, version.Compare)
