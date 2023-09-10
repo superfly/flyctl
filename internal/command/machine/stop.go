@@ -19,7 +19,7 @@ func newStop() *cobra.Command {
 		short = "Stop one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "stop <id> [<id>...]"
+		usage = "stop [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStop,

@@ -1,9 +1,12 @@
 package launch
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -12,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/legacy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/scanner"
 )
 
 func New() (cmd *cobra.Command) {
@@ -72,9 +74,47 @@ func New() (cmd *cobra.Command) {
 			Description: "Use the Launch V2 interface",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "manifest",
+			Description: "Output the generated manifest to stdout",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "from-manifest",
+			Description: "Path to a manifest file for Launch ('-' reads from stdin)",
+			Hidden:      true,
+		},
 	)
 
 	return
+}
+
+func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
+	path := flag.GetString(ctx, "from-manifest")
+	if path == "" {
+		return nil, nil
+	}
+
+	var jsonDecoder *json.Decoder
+	if path != "-" {
+		manifestJson, err := os.ReadFile(path)
+		if err != nil {
+			return nil, err
+		}
+		reader := bytes.NewReader(manifestJson)
+		jsonDecoder = json.NewDecoder(reader)
+	} else {
+		// Read from stdin
+		stdin := iostreams.FromContext(ctx).In
+		jsonDecoder = json.NewDecoder(stdin)
+	}
+
+	var manifest LaunchManifest
+	err := jsonDecoder.Decode(&manifest)
+	if err != nil {
+		return nil, err
+	}
+	return &manifest, nil
 }
 
 func run(ctx context.Context) (err error) {
@@ -91,7 +131,31 @@ func run(ctx context.Context) (err error) {
 
 	// TODO: Metrics
 
-	state, err := v2BuildPlan(ctx)
+	var (
+		launchManifest *LaunchManifest
+		cache          *planBuildCache
+	)
+
+	launchManifest, err = getManifestArgument(ctx)
+	if err != nil {
+		return err
+	}
+
+	if launchManifest == nil {
+
+		launchManifest, cache, err = buildManifest(ctx)
+		if err != nil {
+			return err
+		}
+
+		if flag.GetBool(ctx, "manifest") {
+			jsonEncoder := json.NewEncoder(io.Out)
+			jsonEncoder.SetIndent("", "  ")
+			return jsonEncoder.Encode(launchManifest)
+		}
+	}
+
+	state, err := stateFromManifest(ctx, *launchManifest, cache)
 	if err != nil {
 		return err
 	}
@@ -101,10 +165,15 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	family := ""
+	if state.sourceInfo != nil {
+		family = state.sourceInfo.Family
+	}
+
 	fmt.Fprintf(
 		io.Out,
 		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-		familyToAppType(state.sourceInfo),
+		familyToAppType(family),
 		summary,
 	)
 
@@ -135,17 +204,14 @@ func run(ctx context.Context) (err error) {
 
 // familyToAppType returns a string that describes the app type based on the source info
 // For example, "Dockerfile" apps would return "app" but a rails app would return "Rails app"
-func familyToAppType(si *scanner.SourceInfo) string {
-	if si == nil {
-		return "app"
-	}
-	switch si.Family {
+func familyToAppType(family string) string {
+	switch family {
 	case "Dockerfile":
 		return "app"
 	case "":
 		return "app"
 	}
-	return fmt.Sprintf("%s app", si.Family)
+	return fmt.Sprintf("%s app", family)
 }
 
 // warnLegacyBehavior warns the user if they are using a legacy flag

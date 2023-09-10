@@ -2,9 +2,10 @@ package scale
 
 import (
 	"context"
-	"strconv"
 
+	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -22,18 +23,22 @@ func newScaleMemory() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{Name: "group", Description: "The process group to apply the VM size to"},
+		flag.String{
+			Name:        "process-group",
+			Description: "The process group to apply the VM size to",
+			Aliases:     []string{"group"},
+		},
 	)
 	return cmd
 }
 
 func runScaleMemory(ctx context.Context) error {
-	group := flag.GetString(ctx, "group")
+	group := flag.GetString(ctx, "process-group")
 
-	memoryMB, err := strconv.ParseInt(flag.FirstArg(ctx), 10, 64)
+	memoryMB, err := helpers.ParseSize(flag.FirstArg(ctx), units.RAMInBytes, units.MiB)
 	if err != nil {
 		return err
 	}
 
-	return scaleVertically(ctx, group, "", int(memoryMB))
+	return scaleVertically(ctx, group, "", memoryMB)
 }

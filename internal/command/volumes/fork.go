@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -21,7 +22,7 @@ func newFork() *cobra.Command {
 	const (
 		long  = `Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
 		short = "Forks the specified volume"
-		usage = "fork <id>"
+		usage = "fork [id]"
 	)
 
 	cmd := command.New(usage, short, long, runFork,
@@ -29,7 +30,7 @@ func newFork() *cobra.Command {
 		command.RequireAppName,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -59,6 +60,7 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
+		client  = client.FromContext(ctx).API()
 	)
 
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
@@ -66,9 +68,21 @@ func runFork(ctx context.Context) error {
 		return err
 	}
 
-	vol, err := flapsClient.GetVolume(ctx, volID)
-	if err != nil {
-		return fmt.Errorf("failed to get volume: %w", err)
+	var vol *api.Volume
+	if volID == "" {
+		app, err := client.GetApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+		vol, err = selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+	} else {
+		vol, err = flapsClient.GetVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("failed to get volume: %w", err)
+		}
 	}
 
 	name := vol.Name

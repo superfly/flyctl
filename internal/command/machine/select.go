@@ -13,15 +13,19 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
+// We now prompt for a machine automatically when no machine IDs are
+// provided. This flag is retained for backward compatability.
 var selectFlag = flag.Bool{
 	Name:        "select",
 	Description: "Select from a list of machines",
+	Hidden:      true,
 }
 
 func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string, haveMachineID bool) (*api.Machine, context.Context, error) {
-	if err := checkSelectCmdline(ctx, haveMachineID); err != nil {
+	if err := checkSelectConditions(ctx, haveMachineID); err != nil {
 		return nil, nil, err
 	}
 
@@ -36,7 +40,7 @@ func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string
 	}
 
 	var machine *api.Machine
-	if flag.GetBool(ctx, "select") {
+	if shouldPrompt(ctx, haveMachineID) {
 		machine, err = promptForOneMachine(ctx)
 		if err != nil {
 			return nil, nil, err
@@ -55,7 +59,7 @@ func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string
 
 func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machine, context.Context, error) {
 	haveMachineIDs := len(machineIDs) > 0
-	if err := checkSelectCmdline(ctx, haveMachineIDs); err != nil {
+	if err := checkSelectConditions(ctx, haveMachineIDs); err != nil {
 		return nil, nil, err
 	}
 
@@ -65,7 +69,7 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machin
 	}
 
 	var machines []*api.Machine
-	if flag.GetBool(ctx, "select") {
+	if shouldPrompt(ctx, haveMachineIDs) {
 		machines, err = promptForManyMachines(ctx)
 		if err != nil {
 			return nil, nil, err
@@ -88,7 +92,7 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machin
 
 func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, context.Context, error) {
 	haveMachineIDs := len(machineIDs) > 0
-	if err := checkSelectCmdline(ctx, haveMachineIDs); err != nil {
+	if err := checkSelectConditions(ctx, haveMachineIDs); err != nil {
 		return nil, nil, err
 	}
 
@@ -97,7 +101,7 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 		return nil, nil, err
 	}
 
-	if flag.GetBool(ctx, "select") {
+	if shouldPrompt(ctx, haveMachineIDs) {
 		// NOTE: machineIDs must be empty in this case.
 		machines, err := promptForManyMachines(ctx)
 		if err != nil {
@@ -235,17 +239,23 @@ func rewriteMachineNotFoundErrors(ctx context.Context, err error, machineID stri
 	}
 }
 
-func checkSelectCmdline(ctx context.Context, haveMachineIDs bool) error {
+func checkSelectConditions(ctx context.Context, haveMachineIDs bool) error {
 	haveSelectFlag := flag.GetBool(ctx, "select")
 	appName := appconfig.NameFromContext(ctx)
 	switch {
 	case haveSelectFlag && haveMachineIDs:
 		return errors.New("machine IDs can't be used with --select")
-	case !haveSelectFlag && !haveMachineIDs:
-		return errors.New("a machine ID must be provided unless --select is used")
 	case haveSelectFlag && appName == "":
 		return errors.New("an app name must be specified to use --select")
+	case !haveMachineIDs && appName == "":
+		return errors.New("a machine ID or an app name is required")
+	case shouldPrompt(ctx, haveMachineIDs) && !iostreams.FromContext(ctx).IsInteractive():
+		return errors.New("a machine ID must be specified when not running interactively")
 	default:
 		return nil
 	}
+}
+
+func shouldPrompt(ctx context.Context, haveMachineIDs bool) bool {
+	return flag.GetBool(ctx, "select") || !haveMachineIDs
 }
