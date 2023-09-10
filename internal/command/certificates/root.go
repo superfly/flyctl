@@ -161,7 +161,9 @@ func runCertificatesShow(ctx context.Context) error {
 	}
 
 	if cert.ClientStatus == "Ready" {
-		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
+		if !flag.GetBool(ctx, "json") {
+			fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
+		}
 		printCertificate(ctx, cert)
 		return nil
 	}
