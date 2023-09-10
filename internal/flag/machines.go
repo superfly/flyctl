@@ -3,9 +3,13 @@ package flag
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/superfly/flyctl/api"
 )
+
+var validGPUModels = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
 
 // Returns a MachineGuest based on the flags provided overwriting a default VM
 func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.MachineGuest, error) {
@@ -48,8 +52,8 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 
 	if IsSpecified(ctx, "vm-gpu-model") {
 		m := GetString(ctx, "vm-gpu-model")
-		if m != "a100-40gb-pci" && m != "a100-80gb-sxm" {
-			return nil, fmt.Errorf("--vm-gpu-model must be set to 'a100-40gb-pci' or 'a100-80gb-sxm'")
+		if !slices.Contains(validGPUModels, m) {
+			return nil, fmt.Errorf("--vm-gpu-model must be set to one of: %v", strings.Join(validGPUModels, ", "))
 		}
 		guest.GPUModel = m
 	}
@@ -79,6 +83,6 @@ var VMSizeFlags = Set{
 	},
 	String{
 		Name:        "vm-gpu-model",
-		Description: "If set, the GPU model to attach ('a100-40gb-pci' or 'a100-80gb-sxm')",
+		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUModels, ", ")),
 	},
 }
