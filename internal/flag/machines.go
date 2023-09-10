@@ -9,12 +9,12 @@ import (
 	"github.com/superfly/flyctl/api"
 )
 
-var validGPUModels = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
+var validGPUKinds = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
 
 // Returns a MachineGuest based on the flags provided overwriting a default VM
 func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.MachineGuest, error) {
 	defaultVMSize := api.DefaultVMSize
-	if IsSpecified(ctx, "vm-gpu-model") {
+	if IsSpecified(ctx, "vm-gpu-kind") {
 		defaultVMSize = api.DefaultGPUVMSize
 	}
 
@@ -43,19 +43,19 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 		}
 	}
 
-	if IsSpecified(ctx, "vm-cpukind") {
-		guest.CPUKind = GetString(ctx, "vm-cpukind")
+	if IsSpecified(ctx, "vm-cpu-kind") {
+		guest.CPUKind = GetString(ctx, "vm-cpu-kind")
 		if k := guest.CPUKind; k != "shared" && k != "performance" {
-			return nil, fmt.Errorf("--vm-cpukind must be set to 'shared' or 'performance'")
+			return nil, fmt.Errorf("--vm-cpu-kind must be set to 'shared' or 'performance'")
 		}
 	}
 
-	if IsSpecified(ctx, "vm-gpu-model") {
-		m := GetString(ctx, "vm-gpu-model")
-		if !slices.Contains(validGPUModels, m) {
-			return nil, fmt.Errorf("--vm-gpu-model must be set to one of: %v", strings.Join(validGPUModels, ", "))
+	if IsSpecified(ctx, "vm-gpu-kind") {
+		m := GetString(ctx, "vm-gpu-kind")
+		if !slices.Contains(validGPUKinds, m) {
+			return nil, fmt.Errorf("--vm-gpu-kind must be set to one of: %v", strings.Join(validGPUKinds, ", "))
 		}
-		guest.GPUModel = m
+		guest.GPUKind = m
 	}
 
 	return guest, nil
@@ -73,8 +73,9 @@ var VMSizeFlags = Set{
 		Aliases:     []string{"cpus"},
 	},
 	String{
-		Name:        "vm-cpukind",
+		Name:        "vm-cpu-kind",
 		Description: "The kind of CPU to use ('shared' or 'performance')",
+		Aliases:     []string{"vm-cpukind"},
 	},
 	Int{
 		Name:        "vm-memory",
@@ -82,7 +83,8 @@ var VMSizeFlags = Set{
 		Aliases:     []string{"memory"},
 	},
 	String{
-		Name:        "vm-gpu-model",
-		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUModels, ", ")),
+		Name:        "vm-gpu-kind",
+		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUKinds, ", ")),
+		Aliases:     []string{"vm-gpukind"},
 	},
 }
