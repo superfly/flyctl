@@ -186,12 +186,20 @@ func (cfg *Config) validateChecksSection() (extraInfo string, err error) {
 }
 
 func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
+	allServices := cfg.AllServices()
+	if info := getDuplicateServiceInfo(allServices); info != "" {
+		extraInfo += fmt.Sprintf("Duplicate service found with: %s\n", info)
+		err = ValidationError
+
+		return extraInfo, err
+	}
+
 	validGroupNames := cfg.ProcessNames()
 	// The following is different than len(validGroupNames) because
 	// it can be zero when there is no [processes] section
 	processCount := len(cfg.Processes)
 
-	for _, service := range cfg.AllServices() {
+	for _, service := range allServices {
 		switch {
 		case len(service.Processes) == 0 && processCount > 0:
 			extraInfo += fmt.Sprintf(
@@ -221,6 +229,22 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 		}
 	}
 	return extraInfo, err
+}
+
+func getDuplicateServiceInfo(services []Service) string {
+	serviceMap := make(map[string]bool)
+
+	for _, service := range services {
+		processesStr := strings.Join(service.Processes, ",")
+		serviceKey := fmt.Sprintf("%d-%s-%s", service.InternalPort, service.Protocol, processesStr)
+
+		if _, exists := serviceMap[serviceKey]; exists {
+			return fmt.Sprintf("internal_port: %d, protocol: %s and processes: %v", service.InternalPort, service.Protocol, service.Processes)
+		}
+		serviceMap[serviceKey] = true
+	}
+
+	return ""
 }
 
 func validateServiceCheckDurations(interval, timeout, gracePeriod *api.Duration, proto string) (extraInfo string) {
