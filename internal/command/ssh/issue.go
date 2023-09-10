@@ -107,20 +107,10 @@ func runSSHIssue(ctx context.Context) (err error) {
 		rootname string
 	)
 
-	orgFlag := flag.GetOrg(ctx)
 	email := flag.GetString(ctx, "email")
-	path := flag.GetString(ctx, "path")
-
-	if orgFlag != "" && path != "" && email != "" {
-		// org+email+path
-		emails = email
-		rootname = path
-	} else if orgFlag != "" || email != "" {
-		// org+email or org+path
+	if email != "" {
 		if _, err = mail.ParseAddress(email); err == nil {
 			emails = email
-		} else {
-			rootname = orgFlag
 		}
 	}
 
@@ -136,6 +126,11 @@ func runSSHIssue(ctx context.Context) (err error) {
 		}
 
 		principals = append(principals, name)
+	}
+
+	path := flag.GetString(ctx, "path")
+	if path != "" {
+		rootname = path
 	}
 
 	hours := flag.GetInt(ctx, "hours")
