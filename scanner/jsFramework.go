@@ -10,10 +10,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/blang/semver"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 var packageJson map[string]interface{}
@@ -152,10 +152,38 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		deps = make(map[string]interface{})
 	}
 
-	// don't prompt for redis or postgres unless they are used
-	if deps["pg"] == nil && deps["redis"] == nil {
+	// infer db from dependencies
+	if deps["pg"] != nil {
+		srcInfo.DatabaseDesired = DatabaseKindPostgres
+	} else if deps["mysql"] != nil {
+		srcInfo.DatabaseDesired = DatabaseKindMySQL
+	} else if deps["sqlite"] != nil || deps["better-sqlite3"] != nil {
+		srcInfo.DatabaseDesired = DatabaseKindSqlite
+	}
+
+	// infer redis from dependencies
+	if deps["redis"] != nil {
+		srcInfo.RedisDesired = true
+	}
+
+	// if prisma is used, provider is definative
+	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
+		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
+			srcInfo.DatabaseDesired = DatabaseKindPostgres
+		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "mysql")) {
+			srcInfo.DatabaseDesired = DatabaseKindMySQL
+		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
+			srcInfo.DatabaseDesired = DatabaseKindSqlite
+		}
+	}
+
+	// don't prompt for redis or db unless they are used
+	if srcInfo.DatabaseDesired != DatabaseKindPostgres && srcInfo.DatabaseDesired != DatabaseKindMySQL && !srcInfo.RedisDesired {
 		srcInfo.SkipDatabase = true
 	}
+
+	// default to port 3000
+	srcInfo.Port = 3000
 
 	// While redundant and requires dual matenance, it has been a point of
 	// confusion for many when the framework detected is listed as "NodeJS"
@@ -165,6 +193,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "AdonisJS"
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
+		srcInfo.Port = 8080
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
@@ -178,7 +207,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	return srcInfo, nil
 }
 
-func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
 	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)
@@ -318,21 +347,6 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, options map[string
 		}
 	}
 	srcInfo.Family = family
-
-	// extract port
-	port := 3000
-	re = regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
-	m = re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "port" {
-			port, err = strconv.Atoi(m[i])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	srcInfo.Port = port
 
 	// provide some advice
 	srcInfo.DeployDocs += fmt.Sprintf(`

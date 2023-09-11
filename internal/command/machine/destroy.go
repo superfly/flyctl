@@ -20,7 +20,7 @@ func newDestroy() *cobra.Command {
 		long  = `Destroy a Fly machine.
 This command requires a machine to be in a stopped state unless the force flag is used.
 `
-		usage = "destroy <id>"
+		usage = "destroy [id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineDestroy,

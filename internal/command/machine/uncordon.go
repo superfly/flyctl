@@ -13,9 +13,9 @@ import (
 
 func newMachineUncordon() *cobra.Command {
 	const (
-		short = "Deactivate all services on a machine"
+		short = "Reactivate all services on a machine"
 		long  = short + "\n"
-		usage = "uncordon <id> [<id>...]"
+		usage = "uncordon [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineUncordon,

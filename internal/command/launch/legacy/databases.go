@@ -45,7 +45,7 @@ func LaunchPostgres(ctx context.Context, appName string, org *api.Organization, 
 
 func LaunchRedis(ctx context.Context, appName string, org *api.Organization, region *api.Region) error {
 	name := appName + "-redis"
-	db, err := redis.Create(ctx, org, name, region, "", true, false)
+	db, err := redis.Create(ctx, org, name, region, "", true, false, nil)
 
 	if err != nil {
 		fmt.Println(fmt.Errorf("%w", err))

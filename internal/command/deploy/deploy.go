@@ -279,7 +279,10 @@ func deployToMachines(
 	}
 
 	if guest == nil {
-		guest = flag.GetMachineGuest(ctx)
+		guest, err = flag.GetMachineGuest(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	excludeRegions := make(map[string]interface{})

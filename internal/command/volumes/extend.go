@@ -28,7 +28,7 @@ func newExtend() *cobra.Command {
 
 		short = "Extend a target volume"
 
-		usage = "extend <id>"
+		usage = "extend [id]"
 	)
 
 	cmd := command.New(usage, short, long, runExtend,
@@ -36,7 +36,7 @@ func newExtend() *cobra.Command {
 		command.RequireAppName,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -105,6 +105,14 @@ func runExtend(ctx context.Context) error {
 				return err
 			}
 		}
+	}
+
+	if volID == "" {
+		volume, err := selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+		volID = volume.ID
 	}
 
 	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, sizeGB)
