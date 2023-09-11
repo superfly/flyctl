@@ -6,6 +6,39 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestValidateChecksSection(t *testing.T) {
+	testCases := []struct {
+		name           string
+		configFilePath string
+		expectError    bool
+	}{
+		{
+			name:           "Test valid checks section",
+			configFilePath: "testdata/validation-checks.toml",
+			expectError:    false,
+		},
+		{
+			name:           "Test invalid checks section",
+			configFilePath: "testdata/validation-checks-invalid.toml",
+			expectError:    true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadConfig(tc.configFilePath)
+			assert.NoError(t, err)
+
+			_, err = cfg.validateChecksSection()
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestValidateServicesSection(t *testing.T) {
 	testCases := []struct {
 		name           string

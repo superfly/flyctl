@@ -1,0 +1,11 @@
+app = "validation"
+
+[checks]
+[checks.test_http_check]
+grace_period = "30s"
+interval = "1s"
+method = "get"
+path = "/path/to/status"
+port = 5500
+timeout = "10s"
+type = "http"

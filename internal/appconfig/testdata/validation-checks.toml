@@ -1,0 +1,21 @@
+app = "validation"
+
+[checks]
+[checks.test_http_check]
+grace_period = "30s"
+interval = "15s"
+method = "get"
+path = "/path/to/status"
+port = 5500
+timeout = "10s"
+type = "http"
+[checks.test_http_check.headers]
+Content-Type = "application/json"
+Authorization = "super-secret"
+
+[checks.test_tcp_check]
+grace_period = "30s"
+interval = "15s"
+port = 1234
+timeout = "10s"
+type = "tcp"
