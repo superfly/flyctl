@@ -108,6 +108,15 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		opts.BuildSecrets = cliBuildSecrets
 	}
 
+	labels, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "label"))
+	if err != nil {
+		return
+	}
+	if labels != nil {
+		opts.Label = labels
+	}
+	fmt.Println(opts.Label)
+
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		return
