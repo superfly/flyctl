@@ -78,9 +78,20 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
-		// don't prompt for pg, redis if litestack is in the Gemfile
+		// Don't prompt for pg, redis if litestack is in the Gemfile
 		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
+		// Create a persistent volume where sqlite databases will be stored.
+		s.Volumes = []Volume{
+		  {
+		    Source:      "data",
+		    Destination: "/data",
+		  },
+		}
+		// Configure Litestack ENV vars to point to the persisten volume.
+		s.Env = map[string]string{
+			"LITESTACK_DATA_PATH":   "/data",
+		}
 	} else if checksPass(sourceDir, dirContains("Gemfile", "mysql")) {
 		// mysql
 		s.DatabaseDesired = DatabaseKindMySQL
