@@ -7,41 +7,56 @@ import (
 )
 
 func TestValidateServicesSection(t *testing.T) {
-	cfg1, err := LoadConfig("testdata/validation-services-1.toml")
-	assert.NoError(t, err)
+	testCases := []struct {
+		name           string
+		configFilePath string
+		expectError    bool
+	}{
+		{
+			name:           "Test valid services section with 1 service",
+			configFilePath: "testdata/validation-services-1.toml",
+			expectError:    false,
+		},
+		{
+			name:           "Test valid services section with 2 services",
+			configFilePath: "testdata/validation-services-2.toml",
+			expectError:    false,
+		},
+		{
+			name:           "Test valid services section with 3 services",
+			configFilePath: "testdata/validation-services-3.toml",
+			expectError:    false,
+		},
+		{
+			name:           "Test valid services section with 2 services and multi processes",
+			configFilePath: "testdata/validation-services-2-multi-processes.toml",
+			expectError:    false,
+		},
+		{
+			name:           "Test valid services section with no services",
+			configFilePath: "testdata/validation-services-0.toml",
+			expectError:    false,
+		},
+		{
+			name:           "Test invalid services section with 2 duplicate services",
+			configFilePath: "testdata/validation-services-2-duplicate.toml",
+			expectError:    true,
+		},
+	}
 
-	_, err = cfg1.validateServicesSection()
-	assert.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg, err := LoadConfig(tc.configFilePath)
+			assert.NoError(t, err)
 
-	cfg2, err := LoadConfig("testdata/validation-services-2.toml")
-	assert.NoError(t, err)
-
-	_, err = cfg2.validateServicesSection()
-	assert.NoError(t, err)
-
-	cfg3, err := LoadConfig("testdata/validation-services-3.toml")
-	assert.NoError(t, err)
-
-	_, err = cfg3.validateServicesSection()
-	assert.NoError(t, err)
-
-	cfg2MultiProcesses, err := LoadConfig("testdata/validation-services-2-multi-processes.toml")
-	assert.NoError(t, err)
-
-	_, err = cfg2MultiProcesses.validateServicesSection()
-	assert.NoError(t, err)
-
-	cfg2Duplicate, err := LoadConfig("testdata/validation-services-2-duplicate.toml")
-	assert.NoError(t, err)
-
-	_, err = cfg2Duplicate.validateServicesSection()
-	assert.Error(t, err)
-
-	cfgNoServices, err := LoadConfig("testdata/validation-services-0.toml")
-	assert.NoError(t, err)
-
-	_, err = cfgNoServices.validateServicesSection()
-	assert.NoError(t, err)
+			_, err = cfg.validateServicesSection()
+			if tc.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
 }
 
 func TestValidateProcessesSection(t *testing.T) {
