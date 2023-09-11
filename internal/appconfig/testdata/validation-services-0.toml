@@ -1,0 +1,4 @@
+app = "validation"
+
+[processes]
+bash = "bash"

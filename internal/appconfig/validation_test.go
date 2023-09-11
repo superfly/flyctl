@@ -36,6 +36,12 @@ func TestValidateServicesSection(t *testing.T) {
 
 	_, err = cfg2Duplicate.validateServicesSection()
 	assert.Error(t, err)
+
+	cfgNoServices, err := LoadConfig("testdata/validation-services-0.toml")
+	assert.NoError(t, err)
+
+	_, err = cfgNoServices.validateServicesSection()
+	assert.NoError(t, err)
 }
 
 func TestValidateProcessesSection(t *testing.T) {
