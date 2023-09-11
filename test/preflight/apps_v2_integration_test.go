@@ -487,7 +487,7 @@ func TestLaunchCpusMem(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpukind performance", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
 	firstMachineGuest := machines[0].Config.Guest
 
