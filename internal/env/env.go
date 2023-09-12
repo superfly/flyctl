@@ -54,6 +54,20 @@ func IsSet(keys ...string) bool {
 	return false
 }
 
+func IS_GH_ACTION() bool {
+	return IsTruthy("GH_ACTIONS")
+}
+
+func GitCommitSHA() string {
+	sha := os.Getenv("GITHUB_SHA")
+	return sha
+}
+
+func GitActionEventName() string {
+	eventName := os.Getenv("GITHUB_EVENT_NAME")
+	return eventName
+}
+
 // IsCI reports whether the environment is a CI one.
 //
 // Based on https://github.com/watson/ci-info/blob/c4f1553f254c78babef5c200c48569ede313b718/index.js
