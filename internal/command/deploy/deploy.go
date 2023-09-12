@@ -129,7 +129,7 @@ var CommonFlags = flag.Set{
 	},
 	flag.StringArray{
 		Name:        "label",
-		Description: "label things",
+		Description: "Add custom metadata to an image via docker labels",
 	},
 	flag.VMSizeFlags,
 }
