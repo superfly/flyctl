@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
@@ -108,7 +109,16 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		opts.BuildSecrets = cliBuildSecrets
 	}
 
-	labels, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "label"))
+	arrLabels := flag.GetStringArray(ctx, "label")
+
+	ghsha := os.Getenv("GITHUB_SHA")
+
+	if ghsha != "" {
+		label := fmt.Sprintf("GHSHA=%s", ghsha)
+		arrLabels = append(arrLabels, label)
+	}
+
+	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
 	if err != nil {
 		return
 	}
