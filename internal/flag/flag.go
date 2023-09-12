@@ -327,6 +327,7 @@ func Yes() Bool {
 		Name:        flagnames.Yes,
 		Shorthand:   "y",
 		Description: "Accept all confirmations",
+		Aliases:     []string{"auto-confirm"},
 	}
 }
 
@@ -486,7 +487,7 @@ func NoCache() Bool {
 func BuildSecret() StringArray {
 	return StringArray{
 		Name:        "build-secret",
-		Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
+		Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/engine/reference/commandline/buildx_build/#secret",
 	}
 }
 
@@ -525,5 +526,12 @@ func JSONOutput() Bool {
 		Shorthand:   "j",
 		Description: "JSON output",
 		Default:     false,
+	}
+}
+
+func ProcessGroup() String {
+	return String{
+		Name:        flagnames.ProcessGroup,
+		Description: "The target process group",
 	}
 }

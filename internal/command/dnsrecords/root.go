@@ -24,6 +24,8 @@ func New() *cobra.Command {
 		long  = "Manage DNS records within a domain"
 	)
 	cmd := command.New("dns-records", short, long, nil)
+	cmd.Deprecated = "`fly dns-records` will be removed in a future release"
+	cmd.Hidden = true
 	cmd.AddCommand(
 		newDNSRecordsList(),
 		newDNSRecordsExport(),
@@ -40,6 +42,7 @@ func newDNSRecordsList() *cobra.Command {
 	cmd := command.New("list <domain>", short, long, runDNSRecordsList,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly dns-records list` will be removed in a future release"
 	flag.Add(cmd,
 		flag.JSONOutput(),
 	)
@@ -55,6 +58,7 @@ func newDNSRecordsExport() *cobra.Command {
 	cmd := command.New("export <domain> [filename]", short, long, runDNSRecordsExport,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly dns-records export` will be removed in a future release"
 	cmd.Args = cobra.RangeArgs(1, 2)
 	return cmd
 }
@@ -67,6 +71,7 @@ func newDNSRecordsImport() *cobra.Command {
 	cmd := command.New("import <domain> [filename]", short, long, runDNSRecordsImport,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly dns-records import` will be removed in a future release"
 	cmd.Args = cobra.RangeArgs(1, 2)
 	return cmd
 }

@@ -20,7 +20,7 @@ import (
 
 var (
 	ErrAborted             = errors.New("deployment aborted by user")
-	ErrWaitTimeout         = errors.New("wait for goroutine timeout")
+	ErrWaitTimeout         = errors.New("wait timeout")
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
@@ -67,7 +67,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 	})
 
 	return bg
-
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
@@ -97,7 +96,10 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 	firstRun := true
 
+	previousView := map[string]string{}
+
 	return func() {
+		currentView := map[string]string{}
 		rows := []string{}
 		bg.stateLock.RLock()
 		for id, value := range state {
@@ -105,17 +107,23 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 			if value == 1 {
 				status = "started"
 			}
+
+			currentView[id] = status
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
 		bg.stateLock.RUnlock()
 
-		if !firstRun {
+		if !firstRun && bg.changeDetected(currentView, previousView) {
 			bg.clearLinesAbove(len(rows))
 		}
 
 		sort.Strings(rows)
 
-		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+		if bg.changeDetected(currentView, previousView) {
+			fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+			previousView = currentView
+		}
+
 		firstRun = false
 	}
 }
@@ -183,10 +191,22 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	}
 }
 
+func (bg *blueGreen) changeDetected(a, b map[string]string) bool {
+	for key := range a {
+		if a[key] != b[key] {
+			return true
+		}
+	}
+	return false
+}
+
 func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheckStatus) func() {
 	firstRun := true
 
+	previousView := map[string]string{}
+
 	return func() {
+		currentView := map[string]string{}
 		rows := []string{}
 		bg.healthLock.RLock()
 		for id, value := range state {
@@ -194,17 +214,23 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 			if value.Total != 0 {
 				status = fmt.Sprintf("%d/%d passing", value.Passing, value.Total)
 			}
+
+			currentView[id] = status
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
 		bg.healthLock.RUnlock()
 
-		if !firstRun {
+		if !firstRun && bg.changeDetected(currentView, previousView) {
 			bg.clearLinesAbove(len(rows))
 		}
 
 		sort.Strings(rows)
 
-		fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+		if bg.changeDetected(currentView, previousView) {
+			fmt.Fprintf(bg.io.ErrOut, "%s\n", strings.Join(rows, "\n"))
+			previousView = currentView
+		}
+
 		firstRun = false
 	}
 }
@@ -286,7 +312,6 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				time.Sleep(interval)
 			}
-
 		}(gm)
 	}
 
@@ -319,7 +344,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
-		err := bg.flaps.UnCordon(ctx, gm.Machine().ID)
+		err := bg.flaps.Uncordon(ctx, gm.Machine().ID)
 		if err != nil {
 			return err
 		}
@@ -384,7 +409,6 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 }
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
-
 	defer bg.ctrlcHook.Done()
 
 	if bg.aborted.Load() {
@@ -457,7 +481,6 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
-
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")

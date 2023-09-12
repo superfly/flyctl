@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/superfly/flyctl/api"
@@ -10,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 var cpusPerKind = map[string][]int{
@@ -165,7 +165,7 @@ func (e InvalidConfigErr) Suggestion() string {
 			suggestedSize = incrementSize
 		}
 
-		return fmt.Sprintf("Memory size must be in %d a MiB increment (%dMiB would work)", incrementSize, suggestedSize)
+		return fmt.Sprintf("Memory size must be in a %d MiB increment (%dMiB would work)", incrementSize, suggestedSize)
 	case memoryTooLow:
 		var min_memory_size int
 

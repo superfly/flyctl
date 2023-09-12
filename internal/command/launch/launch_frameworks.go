@@ -37,8 +37,8 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 }
 
 // satisfyScannerBeforeDb performs operations that the scanner requests that must be done after databases are created
-func (state *launchState) satisfyScannerAfterDb(ctx context.Context, dbOptions map[string]bool) error {
-	if err := state.scannerRunCallback(ctx, dbOptions); err != nil {
+func (state *launchState) satisfyScannerAfterDb(ctx context.Context) error {
+	if err := state.scannerRunCallback(ctx); err != nil {
 		return err
 	}
 	if err := state.scannerRunInitCommands(ctx); err != nil {
@@ -118,11 +118,11 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 
 	if len(secrets) > 0 {
 		apiClient := client.FromContext(ctx).API()
-		_, err := apiClient.SetSecrets(ctx, state.plan.AppName, secrets)
+		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
 		if err != nil {
 			return err
 		}
-		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.plan.AppName, strings.Join(lo.Keys(secrets), ", "))
+		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.Plan.AppName, strings.Join(lo.Keys(secrets), ", "))
 	}
 	return nil
 }
@@ -136,26 +136,27 @@ func (state *launchState) scannerCreateVolumes(ctx context.Context) error {
 
 	for _, vol := range state.sourceInfo.Volumes {
 		volume, err := flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
-			Name:      vol.Source,
-			Region:    state.plan.RegionCode,
-			SizeGb:    api.Pointer(1),
-			Encrypted: api.Pointer(true),
+			Name:             vol.Source,
+			Region:           state.Plan.RegionCode,
+			SizeGb:           api.Pointer(1),
+			Encrypted:        api.Pointer(true),
+			HostDedicationId: state.appConfig.HostDedicationID,
 		})
 		if err != nil {
 			return err
 		} else {
-			fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.plan.RegionCode)
+			fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.Plan.RegionCode)
 		}
 	}
 	return nil
 }
 
-func (state *launchState) scannerRunCallback(ctx context.Context, dbOptions map[string]bool) error {
+func (state *launchState) scannerRunCallback(ctx context.Context) error {
 	if state.sourceInfo == nil || state.sourceInfo.Callback == nil {
 		return nil
 	}
 
-	err := state.sourceInfo.Callback(state.plan.AppName, state.sourceInfo, dbOptions)
+	err := state.sourceInfo.Callback(state.Plan.AppName, state.sourceInfo, state.Plan)
 
 	if state.sourceInfo.MergeConfig != nil {
 		if err == nil {

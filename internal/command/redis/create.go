@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/gql"
@@ -105,11 +106,11 @@ func runCreate(ctx context.Context) (err error) {
 			return
 		}
 	}
-	_, err = Create(ctx, org, name, primaryRegion, flag.GetString(ctx, "plan"), flag.GetBool(ctx, "no-replicas"), enableEviction)
+	_, err = Create(ctx, org, name, primaryRegion, flag.GetString(ctx, "plan"), flag.GetBool(ctx, "no-replicas"), enableEviction, nil)
 	return err
 }
 
-func Create(ctx context.Context, org *api.Organization, name string, region *api.Region, planFlag string, disallowReplicas bool, enableEviction bool) (addOn *gql.AddOn, err error) {
+func Create(ctx context.Context, org *api.Organization, name string, region *api.Region, planFlag string, disallowReplicas bool, enableEviction bool, readRegions *[]api.Region) (addOn *gql.AddOn, err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		client   = client.FromContext(ctx).API().GenqClient
@@ -122,14 +123,28 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		return nil, err
 	}
 
-	readRegions := &[]api.Region{}
 	excludedRegions = append(excludedRegions, region.Code)
 
-	if !disallowReplicas {
-		readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions, "replica-regions")
+	if readRegions == nil {
+		readRegions = &[]api.Region{}
 
-		if err != nil {
-			return
+		if !disallowReplicas {
+			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions, "replica-regions")
+
+			if err != nil {
+				return
+			}
+		}
+	} else {
+		// Validate that the read regions are not in the excluded regions
+		var invalidRegions []string
+		for _, readRegion := range *readRegions {
+			if slices.Contains(excludedRegions, readRegion.Code) {
+				invalidRegions = append(invalidRegions, readRegion.Code)
+			}
+		}
+		if len(invalidRegions) > 0 {
+			return nil, fmt.Errorf("invalid replica regions: %v", invalidRegions)
 		}
 	}
 

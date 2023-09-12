@@ -7,6 +7,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +18,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -46,22 +46,6 @@ var sharedFlags = flag.Set{
 		Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
 	i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
 	To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
-	},
-	flag.String{
-		Name:        "vm-size",
-		Shorthand:   "s",
-		Description: "Preset guest cpu and memory for a machine, defaults to shared-cpu-1x",
-		Aliases:     []string{"size"},
-	},
-	flag.Int{
-		Name:        "vm-cpus",
-		Description: "Number of CPUs",
-		Aliases:     []string{"cpus"},
-	},
-	flag.Int{
-		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the machine",
-		Aliases:     []string{"memory"},
 	},
 	flag.StringArray{
 		Name:        "env",
@@ -144,8 +128,8 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name: "restart",
-		Description: `Configure restart policy, for a machine. Options include 'no', 'always' and 'on-fail'.
-	Default is set to always for ordinary machines and on-fail for machines with a schedule`,
+		Description: `Set the restart policy for a Machine. Options include 'no', 'always', and 'on-fail'.
+	Default is 'on-fail' for Machines created by 'fly deploy' and Machines with a schedule. Default is 'always' for Machines created by 'fly m run'.`,
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
@@ -163,6 +147,7 @@ var sharedFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
+	flag.VMSizeFlags,
 }
 
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -205,6 +190,9 @@ func newRun() *cobra.Command {
 			Name:        "volume",
 			Shorthand:   "v",
 			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+		},
+		flag.String{
+			Name: "host-dedication-id",
 		},
 		sharedFlags,
 	)
@@ -254,12 +242,6 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	machineConf := &api.MachineConfig{
-		Guest: &api.MachineGuest{
-			CPUKind:    "shared",
-			CPUs:       1,
-			MemoryMB:   256,
-			KernelArgs: flag.GetStringArray(ctx, "kernel-arg"),
-		},
 		AutoDestroy: flag.GetBool(ctx, "rm"),
 		DNS: &api.DNSConfig{
 			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
@@ -267,8 +249,9 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	input := api.LaunchMachineInput{
-		Name:   flag.GetString(ctx, "name"),
-		Region: flag.GetString(ctx, "region"),
+		Name:             flag.GetString(ctx, "name"),
+		Region:           flag.GetString(ctx, "region"),
+		HostDedicationID: flag.GetString(ctx, "host-dedication-id"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -725,24 +708,10 @@ type determineMachineConfigInput struct {
 func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if guestSize := flag.GetString(ctx, "vm-size"); guestSize != "" {
-		err := machineConf.Guest.SetSize(guestSize)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// Potential overrides for Guest
-	if cpus := flag.GetInt(ctx, "vm-cpus"); cpus != 0 {
-		machineConf.Guest.CPUs = cpus
-	} else if flag.IsSpecified(ctx, "vm-cpus") {
-		return nil, fmt.Errorf("cannot have zero cpus")
-	}
-
-	if memory := flag.GetInt(ctx, "vm-memory"); memory != 0 {
-		machineConf.Guest.MemoryMB = memory
-	} else if flag.IsSpecified(ctx, "vm-memory") {
-		return nil, fmt.Errorf("memory cannot be zero")
+	var err error
+	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
+	if err != nil {
+		return nil, err
 	}
 
 	if len(flag.GetStringArray(ctx, "kernel-arg")) != 0 {

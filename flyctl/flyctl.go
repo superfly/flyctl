@@ -2,7 +2,6 @@ package flyctl
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -129,7 +128,7 @@ func SaveConfig() error {
 		return err
 	}
 
-	return ioutil.WriteFile(ConfigFilePath(), data, 0o600)
+	return os.WriteFile(ConfigFilePath(), data, 0o600)
 }
 
 func persistConfigKey(key string) bool {

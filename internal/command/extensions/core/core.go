@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -16,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
-	"golang.org/x/exp/slices"
 )
 
 type Extension struct {
@@ -55,7 +55,6 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	// Standard provisioning will be stopped by the backend for the same reason, but there, we'll supply a better error message.
 
 	if auto && provider.Beta && !targetOrg.ProvisionsBetaExtensions {
-		fmt.Println("skipping provisioning")
 		return extension, nil
 	}
 

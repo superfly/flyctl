@@ -10,13 +10,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -25,7 +25,6 @@ import (
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 const defaultRegion = "iad"
@@ -215,7 +214,7 @@ func RunHealthCheck(url string) (string, error) {
 		return "", err
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}

@@ -41,7 +41,7 @@ func newLeaseView() *cobra.Command {
 	const (
 		short = "View machine leases"
 		long  = short + "\n"
-		usage = "view <machine-id>"
+		usage = "view [machine-id]"
 	)
 
 	cmd := command.New(usage, short, long, runLeaseView,
@@ -66,7 +66,7 @@ func newLeaseClear() *cobra.Command {
 	const (
 		short = "Clear machine leases"
 		long  = short + "\n"
-		usage = "clear <machine-id>"
+		usage = "clear [machine-id]"
 	)
 
 	cmd := command.New(usage, short, long, runLeaseClear,

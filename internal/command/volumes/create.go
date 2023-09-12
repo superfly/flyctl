@@ -62,7 +62,16 @@ sets the size as the number of gigabytes the volume will consume.`
 			Name:        "snapshot-id",
 			Description: "Create volume from a specified snapshot",
 		},
+		flag.String{
+			Name: "host-dedication-id",
+		},
 		flag.Yes(),
+		flag.Int{
+			Name:        "count",
+			Shorthand:   "n",
+			Default:     1,
+			Description: "Number of volumes to create",
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -76,6 +85,7 @@ func runCreate(ctx context.Context) error {
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
+		count      = flag.GetInt(ctx, "count")
 	)
 
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
@@ -122,20 +132,25 @@ func runCreate(ctx context.Context) error {
 		Encrypted:         api.Pointer(!flag.GetBool(ctx, "no-encryption")),
 		RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:        snapshotID,
+		HostDedicationId:  flag.GetString(ctx, "host-dedication-id"),
 	}
-
-	volume, err := flapsClient.CreateVolume(ctx, input)
-	if err != nil {
-		return fmt.Errorf("failed creating volume: %w", err)
-	}
-
 	out := iostreams.FromContext(ctx).Out
+	for i := 0; i < count; i++ {
+		volume, err := flapsClient.CreateVolume(ctx, input)
+		if err != nil {
+			return fmt.Errorf("failed creating volume: %w", err)
+		}
 
-	if cfg.JSONOutput {
-		return render.JSON(out, volume)
+		if cfg.JSONOutput {
+			err = render.JSON(out, volume)
+		} else {
+			err = printVolume(out, volume, appName)
+		}
+		if err != nil {
+			return err
+		}
 	}
-
-	return printVolume(out, volume, appName)
+	return nil
 }
 
 func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
@@ -147,7 +162,11 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 		return true, nil
 	}
 
-	// If we have more than 0 volues with this name already, return early
+	if flag.GetInt(ctx, "count") > 1 {
+		return true, nil
+	}
+
+	// If we have more than 0 volumes with this name already, return early
 	if matches, err := countVolumesMatchingName(ctx, volumeName); err != nil {
 		return false, err
 	} else if matches > 0 {

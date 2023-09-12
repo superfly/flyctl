@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -26,7 +28,7 @@ func newExtend() *cobra.Command {
 
 		short = "Extend a target volume"
 
-		usage = "extend <id>"
+		usage = "extend [id]"
 	)
 
 	cmd := command.New(usage, short, long, runExtend,
@@ -34,20 +36,17 @@ func newExtend() *cobra.Command {
 		command.RequireAppName,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Int{
+		flag.String{
 			Name:        "size",
 			Shorthand:   "s",
 			Description: "Target volume size in gigabytes",
 		},
-		flag.Bool{
-			Name:        "auto-confirm",
-			Description: "Will automatically confirm changes without an interactive prompt.",
-		},
+		flag.Yes(),
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -75,27 +74,48 @@ func runExtend(ctx context.Context) error {
 		return err
 	}
 
-	sizeGB := flag.GetInt(ctx, "size")
+	sizeFlag := flag.GetString(ctx, "size")
+	sizeGB, err := helpers.ParseSize(sizeFlag, units.FromHumanSize, units.GB)
+	if err != nil {
+		return err
+	}
+
 	if sizeGB == 0 {
 		return fmt.Errorf("Volume size must be specified")
 	}
 
+	if sizeFlag[0] == '+' {
+		volume, err := flapsClient.GetVolume(ctx, volID)
+		if err != nil {
+			return err
+		}
+		sizeGB += volume.SizeGb
+	}
+
 	if app.PlatformVersion == "nomad" {
-		if !flag.GetBool(ctx, "auto-confirm") {
+		if !flag.GetYes(ctx) {
 			switch confirmed, err := prompt.Confirm(ctx, "Extending this volume will result in a VM restart. Continue?"); {
 			case err == nil:
 				if !confirmed {
 					return nil
 				}
 			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 			default:
 				return err
 			}
 		}
 	}
 
-	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, flag.GetInt(ctx, "size"))
+	if volID == "" {
+		volume, err := selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+		volID = volume.ID
+	}
+
+	volume, needsRestart, err := flapsClient.ExtendVolume(ctx, volID, sizeGB)
 	if err != nil {
 		return fmt.Errorf("failed to extend volume: %w", err)
 	}

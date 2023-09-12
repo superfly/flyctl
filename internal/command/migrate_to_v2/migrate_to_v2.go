@@ -1,9 +1,11 @@
 package migrate_to_v2
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +34,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 const defaultWaitTimeout = 5 * time.Minute
@@ -283,9 +284,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	}
 
 	// sort allocs by version descending
-	slices.SortFunc(allocs, func(i, j *api.AllocationStatus) bool {
-		return i.Version > j.Version
+	slices.SortFunc(allocs, func(i, j *api.AllocationStatus) int {
+		return cmp.Compare(i.Version, j.Version)
 	})
+	slices.Reverse(allocs)
 
 	var highestVersion int
 	allocs = lo.Filter(allocs, func(alloc *api.AllocationStatus, _ int) bool {

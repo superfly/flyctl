@@ -1,6 +1,6 @@
 module github.com/superfly/flyctl
 
-go 1.20
+go 1.21
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -16,29 +16,30 @@ require (
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/cenkalti/backoff/v4 v4.2.0
 	github.com/chzyer/readline v1.5.1
-	github.com/cli/safeexec v1.0.0
+	github.com/cli/safeexec v1.0.1
 	github.com/containerd/console v1.0.3
 	github.com/docker/docker v24.0.5+incompatible
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ejcx/sshcert v1.1.0
-	github.com/getsentry/sentry-go v0.22.0
+	github.com/getsentry/sentry-go v0.23.0
 	github.com/gofrs/flock v0.8.1
 	github.com/google/go-cmp v0.5.9
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
-	github.com/heroku/heroku-go/v5 v5.4.0
+	github.com/heroku/heroku-go/v5 v5.5.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/jinzhu/copier v0.3.5
 	github.com/jpillora/backoff v1.0.0
+	github.com/kr/text v0.2.0
 	github.com/loadsmart/calver-go v0.0.0-20230323142215-56cf73a68e8a
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.19
-	github.com/mattn/go-zglob v0.0.1
+	github.com/mattn/go-zglob v0.0.4
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/miekg/dns v1.1.43
+	github.com/miekg/dns v1.1.55
 	github.com/moby/buildkit v0.11.6
 	github.com/moby/patternmatcher v0.5.0
 	github.com/morikuni/aec v1.0.0
@@ -49,7 +50,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
-	github.com/pkg/sftp v1.13.5
+	github.com/pkg/sftp v1.13.6
 	github.com/samber/lo v1.38.1
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/spf13/cobra v1.7.0
@@ -61,7 +62,7 @@ require (
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.6
 	golang.org/x/crypto v0.12.0
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
+	golang.org/x/exp v0.0.0-20230817173708-d852ddb80c63
 	golang.org/x/net v0.14.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.11.0
@@ -150,7 +151,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/otel/metric v0.37.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/tools v0.9.3 // indirect
+	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230803162519-f966b187b2e5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230803162519-f966b187b2e5 // indirect
@@ -170,7 +171,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/docker/go-connections v0.4.0
-	github.com/docker/go-units v0.5.0 // indirect
+	github.com/docker/go-units v0.5.0
 	github.com/fatih/color v1.13.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gogo/googleapis v1.4.1 // indirect

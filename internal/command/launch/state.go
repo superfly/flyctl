@@ -9,14 +9,29 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/scanner"
 )
+
+// Let's *try* to keep this struct backwards-compatible as we change it
+type launchPlanSource struct {
+	appNameSource  string
+	regionSource   string
+	orgSource      string
+	guestSource    string
+	postgresSource string
+	redisSource    string
+}
+
+type LaunchManifest struct {
+	Plan       *plan.LaunchPlan
+	PlanSource *launchPlanSource
+}
 
 type launchState struct {
 	workingDir string
 	configPath string
-	plan       *launchPlan
-	planSource *launchPlanSource
+	LaunchManifest
 	env        map[string]string
 	appConfig  *appconfig.Config
 	sourceInfo *scanner.SourceInfo
@@ -37,8 +52,8 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 
 func (state *launchState) Org(ctx context.Context) (*api.Organization, error) {
 	apiClient := client.FromContext(ctx).API()
-	return cacheGrab(state.cache, "org,"+state.plan.OrgSlug, func() (*api.Organization, error) {
-		return apiClient.GetOrganizationBySlug(ctx, state.plan.OrgSlug)
+	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*api.Organization, error) {
+		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
 	})
 }
 
@@ -57,10 +72,10 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 	}
 
 	region, ok := lo.Find(regions, func(r api.Region) bool {
-		return r.Code == state.plan.RegionCode
+		return r.Code == state.Plan.RegionCode
 	})
 	if !ok {
-		return region, fmt.Errorf("region %state not found", state.plan.RegionCode)
+		return region, fmt.Errorf("region %state not found", state.Plan.RegionCode)
 	}
 	return region, nil
 }
@@ -69,7 +84,7 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 // Used to confirm the plan before executing it.
 func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 
-	guest := state.plan.Guest()
+	guest := state.Plan.Guest()
 
 	org, err := state.Org(ctx)
 	if err != nil {
@@ -81,18 +96,23 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	redisStr, err := state.plan.Redis.Describe(ctx)
+	postgresStr, err := state.Plan.Postgres.Describe(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	redisStr, err := state.Plan.Redis.Describe(ctx)
 	if err != nil {
 		return "", err
 	}
 
 	rows := [][]string{
-		{"Organization", org.Name, state.planSource.orgSource},
-		{"Name", state.plan.AppName, state.planSource.appNameSource},
-		{"Region", region.Name, state.planSource.regionSource},
-		{"App Machines", guest.String(), state.planSource.guestSource},
-		{"Postgres", state.plan.Postgres.Describe(), state.planSource.postgresSource},
-		{"Redis", redisStr, state.planSource.redisSource},
+		{"Organization", org.Name, state.PlanSource.orgSource},
+		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
+		{"Region", region.Name, state.PlanSource.regionSource},
+		{"App Machines", guest.String(), state.PlanSource.guestSource},
+		{"Postgres", postgresStr, state.PlanSource.postgresSource},
+		{"Redis", redisStr, state.PlanSource.redisSource},
 	}
 
 	colLengths := []int{0, 0, 0}

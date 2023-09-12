@@ -19,20 +19,22 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `Destroy a volume Requires the volume's ID
-number to operate. This can be found through the volumes list command`
+		long = `Destroy a volume`
 
 		short = "Destroy a volume"
 	)
 
-	cmd := command.New("destroy <id>", short, long, runDestroy,
+	cmd := command.New("destroy [id]", short, long, runDestroy,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Aliases = []string{"delete", "rm"}
 
 	flag.Add(cmd,
 		flag.Yes(),
+		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -46,6 +48,10 @@ func runDestroy(ctx context.Context) error {
 	)
 
 	appName := appconfig.NameFromContext(ctx)
+	if volID == "" && appName == "" {
+		return fmt.Errorf("volume ID or app required")
+	}
+
 	if appName == "" {
 		n, err := client.GetAppNameFromVolume(ctx, volID)
 		if err != nil {
@@ -59,6 +65,18 @@ func runDestroy(ctx context.Context) error {
 		return err
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
+
+	if volID == "" {
+		app, err := client.GetApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+		volume, err := selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+		volID = volume.ID
+	}
 
 	if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
 		return err

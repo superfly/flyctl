@@ -419,7 +419,7 @@ func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
 	return nil
 }
 
-func (f *Client) UnCordon(ctx context.Context, machineID string) (err error) {
+func (f *Client) Uncordon(ctx context.Context, machineID string) (err error) {
 	metrics.Started(ctx, "machine_uncordon")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_uncordon/duration")
 	defer func() {

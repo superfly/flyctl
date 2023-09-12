@@ -427,6 +427,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		SwapSizeMB:       api.Pointer(512),
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
+		HostDedicationID: "06031957",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},

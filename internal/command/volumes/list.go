@@ -3,9 +3,6 @@ package volumes
 import (
 	"context"
 	"fmt"
-	"strconv"
-
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/client"
@@ -69,43 +66,5 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, volumes)
 	}
 
-	rows := make([][]string, 0, len(volumes))
-	for _, volume := range volumes {
-		var attachedVMID string
-
-		if app.PlatformVersion == "machines" {
-			if volume.AttachedMachine != nil {
-				attachedVMID = *volume.AttachedMachine
-			}
-		} else {
-			names, err := apiClient.GetAllocationTaskNames(ctx, appName)
-			if err != nil {
-				return err
-			}
-
-			if volume.AttachedAllocation != nil {
-				attachedVMID = *volume.AttachedAllocation
-
-				taskName, ok := names[*volume.AttachedAllocation]
-
-				if ok && taskName != "app" {
-					attachedVMID = fmt.Sprintf("%s (%s)", *volume.AttachedAllocation, taskName)
-				}
-			}
-		}
-
-		rows = append(rows, []string{
-			volume.ID,
-			volume.State,
-			volume.Name,
-			strconv.Itoa(volume.SizeGb) + "GB",
-			volume.Region,
-			volume.Zone,
-			fmt.Sprint(volume.Encrypted),
-			attachedVMID,
-			humanize.Time(volume.CreatedAt),
-		})
-	}
-
-	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
+	return renderTable(ctx, volumes, app, out)
 }

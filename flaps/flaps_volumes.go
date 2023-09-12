@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"golang.org/x/exp/slices"
 )
 
 var destroyedVolumeStates = []string{"scheduling_destroy", "fork_cleanup", "waiting_for_detach", "pending_destroy", "destroying"}
