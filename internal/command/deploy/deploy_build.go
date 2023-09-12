@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/flyctl/client"
@@ -111,21 +112,24 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	arrLabels := flag.GetStringArray(ctx, "label")
 
-	ghsha := os.Getenv("GITHUB_SHA")
-
-	if ghsha != "" {
-		label := fmt.Sprintf("GHSHA=%s", ghsha)
-		arrLabels = append(arrLabels, label)
-	}
+	// SET github related info if any
+	ghSHA := os.Getenv("GITHUB_SHA")
+	ghEventName := os.Getenv("GITHUB_EVENT_NAME")
+	isActionVal := os.Getenv("GITHUB_ACTIONS")
+	isAction, err := strconv.ParseBool(isActionVal)
 
 	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
 	if err != nil {
 		return
 	}
+	if isAction {
+		labels["GH_SHA"] = ghSHA
+		labels["GH_ACTION"] = isActionVal
+		labels["GH_EVENT_NAME"] = ghEventName
+	}
 	if labels != nil {
 		opts.Label = labels
 	}
-	fmt.Println(opts.Label)
 
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
