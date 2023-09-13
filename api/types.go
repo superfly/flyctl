@@ -215,6 +215,8 @@ type Query struct {
 	UpdateRemoteBuilder struct {
 		Organization Organization
 	}
+
+	CanPerformBluegreenDeployment bool
 }
 
 type CreatedWireGuardPeer struct {
