@@ -497,7 +497,7 @@ var PlatformMap = map[string]string{
 	"Python":        "python",
 	"Rails":         "ruby-rails",
 	"RedwoodJS":     "javascript-react",
-	"Remix":         "javscript-remix",
-	"Remix/Prisma":  "javscript-remix",
+	"Remix":         "javascript-remix",
+	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
 }
