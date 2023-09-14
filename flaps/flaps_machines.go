@@ -31,26 +31,17 @@ type LaunchCapacityErr struct {
 	DedicatedHosts bool
 }
 
-func (e LaunchCapacityErr) Error() string {
-	return fmt.Sprintf("%s %s", LaunchCapacityErrStr, e.Region)
-}
-
-func (e LaunchCapacityErr) Description() string {
-	return "The region you're trying to use is likely at capacity."
-}
-
-type launchCapacityErr struct {
-	Region         string
-	DedicatedHosts bool
-}
-
-func (e *launchCapacityErr) Error() string {
+func (e *LaunchCapacityErr) Error() string {
 	err := fmt.Sprintf("no capacity available in %s", e.Region)
 	if e.DedicatedHosts {
 		err += " on hosts dedicated to your account; if this is unexpected please contact us at billing@fly.io"
 	}
 
 	return err
+}
+
+func (e *LaunchCapacityErr) Description() string {
+	return "The region you're trying to use is likely at capacity."
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {

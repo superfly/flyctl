@@ -308,7 +308,7 @@ func errorFromDetails(originalErr error) error {
 	case unknown:
 		return originalErr
 	case capacityErr:
-		if err, ok := errResp.Details.(launchCapacityErr); ok {
+		if err, ok := errResp.Details.(LaunchCapacityErr); ok {
 			return &err
 		}
 	}
