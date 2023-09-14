@@ -274,3 +274,44 @@ func resolvePeerIP(ip string) string {
 
 	return net.IP(natsIPBytes[:]).String()
 }
+
+// TODO(billy): this shold eventually be a shared error library between flaps and flyctl
+type statusCode string
+
+const (
+	unknown     statusCode = "unknown"
+	capacityErr            = "insufficient_capacity"
+)
+
+type errorResponse struct {
+	Error      string     `json:"error"`
+	Details    any        `json:"details"`
+	StatusCode statusCode `json:"status"`
+}
+
+// FIXME: This name is bad
+//
+// / Returns a specific error struct from the Details of the errResponse, if possible
+func errorFromDetails(originalErr error) error {
+	err, ok := originalErr.(*FlapsError)
+	if !ok {
+		return originalErr
+	}
+
+	var errResp errorResponse
+	unmarshalErr := json.Unmarshal(err.ResponseBody, &errResp)
+	if unmarshalErr != nil {
+		return originalErr
+	}
+
+	switch errResp.StatusCode {
+	case unknown:
+		return originalErr
+	case capacityErr:
+		if err, ok := errResp.Details.(launchCapacityErr); ok {
+			return &err
+		}
+	}
+
+	return originalErr
+}

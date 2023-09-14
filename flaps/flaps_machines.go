@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"regexp"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -20,7 +19,7 @@ var NonceHeader = "fly-machine-lease-nonce"
 
 func (f *Client) sendRequestMachines(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	endpoint = fmt.Sprintf("/apps/%s/machines%s", f.appName, endpoint)
-	return f._sendRequest(ctx, method, endpoint, in, out, headers)
+	return errorFromDetails(f._sendRequest(ctx, method, endpoint, in, out, headers))
 }
 
 const (
@@ -28,31 +27,30 @@ const (
 )
 
 type LaunchCapacityErr struct {
-	region string
-}
-
-var launchCapacityErrRe *regexp.Regexp = regexp.MustCompile(fmt.Sprintf(`%s (?P<region>[a-zA-Z0-9]*)`, LaunchCapacityErrStr))
-
-func launchCapacityErrFromString(e string) *LaunchCapacityErr {
-	matches := launchCapacityErrRe.FindSubmatch([]byte(e))
-	regionIndex := launchCapacityErrRe.SubexpIndex("region")
-
-	if regionIndex > len(matches) {
-		return nil
-	}
-
-	regionStr := string(matches[regionIndex])
-	return &LaunchCapacityErr{
-		region: regionStr,
-	}
+	Region         string
+	DedicatedHosts bool
 }
 
 func (e LaunchCapacityErr) Error() string {
-	return fmt.Sprintf("%s %s", LaunchCapacityErrStr, e.region)
+	return fmt.Sprintf("%s %s", LaunchCapacityErrStr, e.Region)
 }
 
 func (e LaunchCapacityErr) Description() string {
 	return "The region you're trying to use is likely at capacity."
+}
+
+type launchCapacityErr struct {
+	Region         string
+	DedicatedHosts bool
+}
+
+func (e *launchCapacityErr) Error() string {
+	err := fmt.Sprintf("no capacity available in %s", e.Region)
+	if e.DedicatedHosts {
+		err += " on hosts dedicated to your account; if this is unexpected please contact us at billing@fly.io"
+	}
+
+	return err
 }
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {
@@ -67,10 +65,6 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 
 	out = new(api.Machine)
 	if err := f.sendRequestMachines(ctx, http.MethodPost, "", builder, out, nil); err != nil {
-		if launchErr := launchCapacityErrFromString(err.Error()); launchErr != nil {
-			err = *launchErr
-		}
-
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 
