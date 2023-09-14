@@ -243,9 +243,16 @@ func TestToDefinition(t *testing.T) {
 		"env": map[string]any{
 			"FOO": "BAR",
 		},
-		"metrics": map[string]any{
-			"port": int64(9999),
-			"path": "/metrics",
+		"metrics": []map[string]any{
+			{
+				"port": int64(9999),
+				"path": "/metrics",
+			},
+			{
+				"port":      int64(9998),
+				"path":      "/metrics",
+				"processes": []any{"web"},
+			},
 		},
 		"statics": []map[string]any{
 			{

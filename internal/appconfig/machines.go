@@ -105,7 +105,10 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	}
 
 	// Metrics
-	mConfig.Metrics = c.Metrics
+	mConfig.Metrics = nil
+	if c.Metrics[0] != nil {
+		mConfig.Metrics = c.Metrics[0].MachineMetrics
+	}
 
 	// Init
 	cmd, err := c.InitCmd(processGroup)
