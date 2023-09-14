@@ -13,6 +13,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -27,21 +28,23 @@ var (
 	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready")
 	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
 	ErrValidationError     = errors.New("app not in valid state for bluegreen deployments")
+	ErrOrgLimit            = errors.New("app can't undergo bluegreen deployment due to org limits")
 )
 
 type blueGreen struct {
-	greenMachines   []machine.LeasableMachine
-	blueMachines    []*machineUpdateEntry
-	flaps           *flaps.Client
-	io              *iostreams.IOStreams
-	colorize        *iostreams.ColorScheme
-	clearLinesAbove func(count int)
-	timeout         time.Duration
-	aborted         atomic.Bool
-	healthLock      sync.RWMutex
-	stateLock       sync.RWMutex
-	ctrlcHook       ctrlc.Handle
-
+	greenMachines       []machine.LeasableMachine
+	blueMachines        []*machineUpdateEntry
+	flaps               *flaps.Client
+	apiClient           *api.Client
+	io                  *iostreams.IOStreams
+	colorize            *iostreams.ColorScheme
+	clearLinesAbove     func(count int)
+	timeout             time.Duration
+	aborted             atomic.Bool
+	healthLock          sync.RWMutex
+	stateLock           sync.RWMutex
+	ctrlcHook           ctrlc.Handle
+	appConfig           *appconfig.Config
 	hangingBlueMachines []string
 }
 
@@ -50,6 +53,8 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		greenMachines:       []machine.LeasableMachine{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
+		apiClient:           md.apiClient,
+		appConfig:           md.appConfig,
 		timeout:             md.waitTimeout,
 		io:                  md.io,
 		colorize:            md.colorize,
@@ -413,6 +418,15 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	if bg.aborted.Load() {
 		return ErrAborted
+	}
+
+	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
+	if err != nil {
+		return err
+	}
+
+	if !canPerform {
+		return ErrOrgLimit
 	}
 
 	bg.attachCustomTopLevelChecks()
