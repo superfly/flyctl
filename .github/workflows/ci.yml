@@ -47,12 +47,12 @@ jobs:
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -64,7 +64,7 @@ jobs:
           mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: release --clean --release-notes=./tmp/changelog.txt
@@ -126,7 +126,7 @@ jobs:
           mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: release --config .goreleaser.dev.yml --rm-dist --release-notes=./tmp/changelog.txt
