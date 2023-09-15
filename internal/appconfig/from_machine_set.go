@@ -132,7 +132,9 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	cfg.AppName = appCompact.Name
 	cfg.PrimaryRegion = primaryRegion
 	cfg.Env = m.Machine().Config.Env
-	cfg.Metrics = m.Machine().Config.Metrics
+	cfg.Metrics = []*Metrics{
+		{MachineMetrics: m.Machine().Config.Metrics},
+	}
 	cfg.Statics = statics
 	cfg.Mounts = mounts
 	cfg.Processes = processGroups.processes
