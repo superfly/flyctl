@@ -111,6 +111,9 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 
 	if provider.SelectRegion {
 
+		// Fetch and cache platform regions for later use
+		prompt.PlatformRegions(ctx)
+
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
 
 		if err != nil {
