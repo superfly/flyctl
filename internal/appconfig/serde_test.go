@@ -268,6 +268,12 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			Source:      "data",
 			Destination: "/data",
 		}},
+		Metrics: []*Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Port: 9999,
+				Path: "/metrics",
+			},
+		}},
 		Services: []Service{
 			{
 				InternalPort: 8080,
@@ -325,6 +331,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			"mount": map[string]any{
 				"source":      "data",
 				"destination": "/data",
+			},
+			"metrics": map[string]any{
+				"port": int64(9999),
+				"path": "/metrics",
 			},
 			"processes": []map[string]any{{}},
 			"services": []map[string]any{{
