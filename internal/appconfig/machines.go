@@ -106,7 +106,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 
 	// Metrics
 	mConfig.Metrics = nil
-	if c.Metrics != nil && len(c.Metrics) >= 1 {
+	if len(c.Metrics) > 0 {
 		mConfig.Metrics = c.Metrics[0].MachineMetrics
 	}
 
