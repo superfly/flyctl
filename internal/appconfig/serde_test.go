@@ -467,12 +467,21 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			"FOO": "BAR",
 		},
 
-		Metrics: []*Metrics{{
-			MachineMetrics: &api.MachineMetrics{
-				Port: 9999,
-				Path: "/metrics",
+		Metrics: []*Metrics{
+			{
+				MachineMetrics: &api.MachineMetrics{
+					Port: 9999,
+					Path: "/metrics",
+				},
 			},
-		}},
+			{
+				MachineMetrics: &api.MachineMetrics{
+					Port: 9998,
+					Path: "/metrics",
+				},
+				Processes: []string{"web"},
+			},
+		},
 
 		HTTPService: &HTTPService{
 			InternalPort: 8080,
