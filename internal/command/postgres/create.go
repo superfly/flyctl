@@ -381,7 +381,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		input.SnapshotID = &params.SnapshotID
 	}
 
-	fmt.Fprintf(io.Out, "Creating postgres cluster in organization %s\n", org.Slug)
+	fmt.Fprintf(io.Out, "Creating Postgres cluster in organization %s\n", org.Slug)
 
 	launcher := flypg.NewLauncher(client)
 
