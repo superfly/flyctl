@@ -39,9 +39,14 @@ host_dedication_id = "06031957"
 [env]
   FOO = "BAR"
 
-[metrics]
+[[metrics]]
   port = 9999
   path = "/metrics"
+
+[[metrics]]
+  port = 9998
+  path = "/metrics"
+  processes = ["web"]
 
 [http_service]
   internal_port = 8080
