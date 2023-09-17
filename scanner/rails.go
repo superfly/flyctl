@@ -221,59 +221,52 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		}
 	}
 
-	// generate Dockerfile if it doesn't already exist
+	// ensure fly.toml exists
+	flyToml := "fly.toml"
+	_, err = os.Stat(flyToml)
+	if os.IsNotExist(err) {
+		// "touch" fly.toml
+		file, err := os.Create(flyToml)
+		if err != nil {
+			log.Fatal(err)
+		}
+		file.Close()
+
+		// inform caller of the presence of this file
+		srcInfo.MergeConfig = &MergeConfigStruct{
+			Name:      flyToml,
+			Temporary: true,
+		}
+	}
+
+	// base generate command
+	args := []string{"./bin/rails", "generate", "dockerfile",
+		"--sentry", "--label=fly_launch_runtime:rails"}
+
+	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
-		flyToml := "fly.toml"
-		_, err := os.Stat(flyToml)
-		if os.IsNotExist(err) {
-			// "touch" fly.toml
-			file, err := os.Create(flyToml)
-			if err != nil {
-				log.Fatal(err)
-			}
-			file.Close()
+		args = append(args, "--skip")
+	}
 
-			// inform caller of the presence of this file
-			srcInfo.MergeConfig = &MergeConfigStruct{
-				Name:      flyToml,
-				Temporary: true,
-			}
-		}
+	// add postgres
+	if postgres := plan.Postgres.Provider(); postgres != nil {
+		args = append(args, "--postgresql", "--no-prepare")
+	}
 
-		args := []string{"./bin/rails", "generate", "dockerfile",
-			"--sentry", "--label=fly_launch_runtime:rails"}
+	// add redis
+	if redis := plan.Redis.Provider(); redis != nil {
+		args = append(args, "--redis")
+	}
 
-		if postgres := plan.Postgres.Provider(); postgres != nil {
-			args = append(args, "--postgresql", "--no-prepare")
-		}
+	// run command
+	cmd := exec.Command(ruby, args...)
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-		if redis := plan.Redis.Provider(); redis != nil {
-			args = append(args, "--redis")
-		}
-
-		cmd := exec.Command(ruby, args...)
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to generate Dockerfile")
-		}
-	} else {
-		if postgres := plan.Postgres.Provider(); postgres != nil && !strings.Contains(string(gemfile), "pg") {
-			cmd := exec.Command(bundle, "add", "pg")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install pg gem")
-			}
-		}
-
-		if redis := plan.Redis.Provider(); redis != nil && !strings.Contains(string(gemfile), "redis") {
-			cmd := exec.Command(bundle, "add", "redis")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install redis gem")
-			}
-		}
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "Failed to generate Dockerfile")
 	}
 
 	// read dockerfile
