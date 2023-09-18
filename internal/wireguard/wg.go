@@ -144,7 +144,7 @@ func GetWireGuardState() (WireGuardStates, error) {
 	states := WireGuardStates{}
 
 	if err := viper.UnmarshalKey(flyctl.ConfigWireGuardState, &states); err != nil {
-		return nil, errors.Wrap(err, "invalid wireguard state")
+		return nil, errors.Wrap(err, "invalid WireGuard state")
 	}
 
 	return states, nil

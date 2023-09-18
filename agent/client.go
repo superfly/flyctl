@@ -68,7 +68,7 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return c, nil
 	}
 
-	const stopMessage = "The out-of-date agent will be shut down along with existing wireguard connections. The new agent will start automatically as needed."
+	const stopMessage = "The out-of-date agent will be shut down along with existing WireGuard connections. The new agent will start automatically as needed."
 	if logger != nil {
 		logger.Warn(stopMessage)
 	} else {
@@ -581,7 +581,7 @@ func (c *Client) ConnectToTunnel(ctx context.Context, slug string) (d Dialer, er
 	if err != nil {
 		return nil, err
 	}
-	io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
+	io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a WireGuard tunnel to %s", slug))
 	if err := c.WaitForTunnel(ctx, slug); err != nil {
 		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}

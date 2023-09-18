@@ -22,11 +22,11 @@ import (
 
 func newDocker() *cobra.Command {
 	const (
-		long = `Adds registry.fly.io to the docker daemon's authenticated
-registries. This allows you to push images directly to fly from
-the docker cli.
+		long = `Adds registry.fly.io to the Docker daemon's authenticated
+registries. This allows you to push images directly to Fly from
+the Docker CLI.
 `
-		short = "Authenticate docker"
+		short = "Authenticate Docker"
 	)
 
 	return command.New("docker", short, long, runDocker,

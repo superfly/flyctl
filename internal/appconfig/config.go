@@ -226,16 +226,16 @@ func (cfg *Config) BuildStrategies() []string {
 	}
 
 	if cfg.Build.Image != "" {
-		strategies = append(strategies, fmt.Sprintf("the \"%s\" docker image", cfg.Build.Image))
+		strategies = append(strategies, fmt.Sprintf("the \"%s\" Docker image", cfg.Build.Image))
 	}
 	if cfg.Build.Builder != "" || len(cfg.Build.Buildpacks) > 0 {
 		strategies = append(strategies, "a buildpack")
 	}
 	if cfg.Build.Dockerfile != "" || cfg.Build.DockerBuildTarget != "" {
 		if cfg.Build.Dockerfile != "" {
-			strategies = append(strategies, fmt.Sprintf("the \"%s\" dockerfile", cfg.Build.Dockerfile))
+			strategies = append(strategies, fmt.Sprintf("the \"%s\" Dockerfile", cfg.Build.Dockerfile))
 		} else {
-			strategies = append(strategies, "a dockerfile")
+			strategies = append(strategies, "a Dockerfile")
 		}
 	}
 	if cfg.Build.Builtin != "" {

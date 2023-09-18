@@ -77,7 +77,7 @@ func run(ctx context.Context) error {
 		}
 	}
 
-	fmt.Fprintf(io.Out, "Selected fly region: %s\n", regionCode)
+	fmt.Fprintf(io.Out, "Selected Fly region: %s\n", regionCode)
 
 	var flyAppName string
 

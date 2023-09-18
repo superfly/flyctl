@@ -206,7 +206,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 		}
 	}
 
-	terminal.Debugf("calling nixpacks at %s with args: %v and docker host: %s", nixpacksPath, nixpacksArgs, dockerHost)
+	terminal.Debugf("calling nixpacks at %s with args: %v and Docker host: %s", nixpacksPath, nixpacksArgs, dockerHost)
 
 	cmd := exec.CommandContext(ctx, nixpacksPath, nixpacksArgs...)
 	cmd.Env = append(cmd.Env, fmt.Sprintf("DOCKER_HOST=%s", dockerHost), fmt.Sprintf("PATH=%s", os.Getenv("PATH")))

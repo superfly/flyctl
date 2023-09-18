@@ -141,7 +141,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuildFinish()
 		build.BuilderInitFinish()
-		return nil, "", errors.Wrap(err, "error connecting to docker")
+		return nil, "", errors.Wrap(err, "error connecting to Docker")
 	}
 	defer docker.Close() // skipcq: GO-S2307
 
@@ -193,7 +193,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	var imageID string
 
 	build.ImageBuildStart()
-	terminal.Debug("fetching docker server info")
+	terminal.Debug("fetching Docker server info")
 	serverInfo, err := func() (types.Info, error) {
 		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -205,7 +205,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
-		return nil, "", errors.Wrap(err, "error fetching docker server info")
+		return nil, "", errors.Wrap(err, "error fetching Docker server info")
 	}
 
 	docker_tb := render.NewTextBlock(ctx, "Building image with Docker")
@@ -294,7 +294,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 
 	resp, err := docker.ImageBuild(ctx, r, options)
 	if err != nil {
-		return "", errors.Wrap(err, "error building with docker")
+		return "", errors.Wrap(err, "error building with Docker")
 	}
 	defer resp.Body.Close() // skipcq: GO-S2307
 

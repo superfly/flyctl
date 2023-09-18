@@ -107,7 +107,7 @@ func nats(ctx context.Context, eg *errgroup.Group, client *api.Client, opts *log
 		if err != nil {
 			logger := logger.FromContext(ctx)
 
-			logger.Debugf("could not connect to wireguard tunnel: %v\n", err)
+			logger.Debugf("could not connect to WireGuard tunnel: %v\n", err)
 			logger.Debug("falling back to log polling...")
 
 			return nil

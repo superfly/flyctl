@@ -39,7 +39,7 @@ type dockerClientFactory struct {
 
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
-		terminal.Debug("trying remote docker daemon")
+		terminal.Debug("trying remote Docker daemon")
 		var cachedDocker *dockerclient.Client
 
 		return &dockerClientFactory{
@@ -62,7 +62,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 	}
 
 	localFactory := func() *dockerClientFactory {
-		terminal.Debug("trying local docker daemon")
+		terminal.Debug("trying local Docker daemon")
 		c, err := NewLocalDockerClient()
 		if c != nil && err == nil {
 			return &dockerClientFactory{
@@ -74,9 +74,9 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 				appName: appName,
 			}
 		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
-			terminal.Warn("Error connecting to local docker daemon:", err)
+			terminal.Warn("Error connecting to local Docker daemon:", err)
 		} else {
-			terminal.Debug("Local docker daemon unavailable")
+			terminal.Debug("Local Docker daemon unavailable")
 		}
 		return nil
 	}
@@ -96,7 +96,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 	return &dockerClientFactory{
 		mode: DockerDaemonTypeNone,
 		buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-			return nil, errors.New("no docker daemon available")
+			return nil, errors.New("no Docker daemon available")
 		},
 	}
 }
@@ -259,7 +259,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	if err != nil {
 		streams.StopProgressIndicator()
 
-		err = fmt.Errorf("failed creating docker client: %w", err)
+		err = fmt.Errorf("failed creating Docker client: %w", err)
 		captureError(err)
 
 		return nil, err
@@ -269,7 +269,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	case err != nil:
 		streams.StopProgressIndicator()
 
-		err = fmt.Errorf("failed waiting for docker daemon: %w", err)
+		err = fmt.Errorf("failed waiting for Docker daemon: %w", err)
 		captureError(err)
 
 		return nil, err
@@ -297,7 +297,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 	}
 
 	if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") != "" {
-		terminal.Debug("connecting to remote docker daemon over host wireguard tunnel")
+		terminal.Debug("connecting to remote Docker daemon over host WireGuard tunnel")
 
 		return
 	}
@@ -445,7 +445,7 @@ func flyRegistryAuth(token string) string {
 	authConfig := registryAuth(token)
 	encodedJSON, err := json.Marshal(authConfig)
 	if err != nil {
-		terminal.Warn("Error encoding fly registry credentials", err)
+		terminal.Warn("Error encoding Fly registry credentials", err)
 		return ""
 	}
 	return base64.URLEncoding.EncodeToString(encodedJSON)

@@ -52,7 +52,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		return nil, "", errors.Wrap(err, "error connecting to docker")
+		return nil, "", errors.Wrap(err, "error connecting to Docker")
 	}
 	defer docker.Close() // skipcq: GO-S2307
 
@@ -92,7 +92,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
-		terminal.Debug("error fetching docker server info:", err)
+		terminal.Debug("error fetching Docker server info:", err)
 	} else {
 		build.SetBuilderMetaPart2(false, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	}

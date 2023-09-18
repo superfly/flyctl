@@ -39,14 +39,14 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 
 	if dockerfile := flag.GetString(ctx, "dockerfile"); dockerfile != "" {
 		if strings.HasPrefix(dockerfile, "http://") || strings.HasPrefix(dockerfile, "https://") {
-			fmt.Fprintln(io.Out, "Downloading dockerfile", dockerfile)
+			fmt.Fprintln(io.Out, "Downloading Dockerfile", dockerfile)
 			resp, err := grab.Get("Dockerfile", dockerfile)
 			if err != nil {
 				return nil, nil, err
 			}
 			dockerfile = resp.Filename
 		}
-		fmt.Fprintln(io.Out, "Using dockerfile", dockerfile)
+		fmt.Fprintln(io.Out, "Using Dockerfile", dockerfile)
 		build.Dockerfile = dockerfile
 
 		srcInfo, err = scanner.ScanDockerfile(dockerfile, scannerConfig)

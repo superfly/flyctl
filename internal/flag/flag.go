@@ -390,7 +390,7 @@ const remoteOnlyName = "remote-only"
 func RemoteOnly(defaultValue bool) Bool {
 	return Bool{
 		Name:        remoteOnlyName,
-		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
+		Description: "Perform builds on a remote builder instance instead of using the local Docker daemon",
 		Default:     defaultValue,
 	}
 }
@@ -405,7 +405,7 @@ const localOnlyName = "local-only"
 func LocalOnly() Bool {
 	return Bool{
 		Name:        localOnlyName,
-		Description: "Only perform builds locally using the local docker daemon",
+		Description: "Only perform builds locally using the local Docker daemon",
 	}
 }
 
@@ -473,7 +473,7 @@ func Ignorefile() String {
 func ImageLabel() String {
 	return String{
 		Name:        "image-label",
-		Description: `Image label to use when tagging and pushing to the fly registry. Defaults to "deployment-{timestamp}".`,
+		Description: `Image label to use when tagging and pushing to the Fly registry. Defaults to "deployment-{timestamp}".`,
 	}
 }
 

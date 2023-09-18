@@ -89,7 +89,7 @@ func newMigrateToV2() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Migrate without requiring health checks to pass (ignored for fly postgres)",
+			Description: "Migrate without requiring health checks to pass (ignored for Fly Postgres)",
 			Default:     false,
 			Hidden:      true,
 		},

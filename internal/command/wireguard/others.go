@@ -125,7 +125,7 @@ func selectWireGuardPeer(ctx context.Context, client *api.Client, slug string) (
 	}
 
 	if len(peers) < 1 {
-		return "", fmt.Errorf(`Organization "%s" does not have any wireguard peers`, slug)
+		return "", fmt.Errorf(`Organization "%s" does not have any WireGuard peers`, slug)
 	}
 
 	var options []string
