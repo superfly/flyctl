@@ -33,6 +33,11 @@ func NewConfig() *Config {
 	}
 }
 
+type Metrics struct {
+	*api.MachineMetrics
+	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+
 // Config wraps the properties of app configuration.
 // NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
 type Config struct {
@@ -61,8 +66,8 @@ type Config struct {
 	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Others, less important.
-	Statics []Static            `toml:"statics,omitempty" json:"statics,omitempty"`
-	Metrics *api.MachineMetrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
+	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`
+	Metrics []*Metrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	// RawDefinition contains fly.toml parsed as-is
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()

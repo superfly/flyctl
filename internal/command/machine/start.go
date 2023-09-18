@@ -3,6 +3,8 @@ package machine
 import (
 	"context"
 	"fmt"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/flaps"
@@ -16,7 +18,7 @@ func newStart() *cobra.Command {
 		short = "Start one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "start <id> [<id>...]"
+		usage = "start [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStart,
@@ -59,10 +61,16 @@ func runMachineStart(ctx context.Context) (err error) {
 func Start(ctx context.Context, machineID string) (err error) {
 	machine, err := flaps.FromContext(ctx).Start(ctx, machineID, "")
 	if err != nil {
-		if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
-			return err
+		//TODO(dov): just do the clone
+		switch {
+		case strings.Contains(err.Error(), " for machine"):
+			return fmt.Errorf("could not start machine due to lack of capacity. Try 'flyctl machine clone %s -a %s'", machineID, appconfig.NameFromContext(ctx))
+		default:
+			if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
+				return err
+			}
+			return fmt.Errorf("could not start machine %s: %w", machineID, err)
 		}
-		return fmt.Errorf("could not start machine %s: %w", machineID, err)
 	}
 
 	if machine.Status == "error" {

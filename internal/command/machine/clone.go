@@ -28,7 +28,7 @@ func newClone() *cobra.Command {
 		short = "Clone a Fly machine"
 		long  = short + "\n"
 
-		usage = "clone <machine_id>"
+		usage = "clone [machine_id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineClone,

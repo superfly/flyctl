@@ -15,7 +15,7 @@ func newMachineCordon() *cobra.Command {
 	const (
 		short = "Deactivate all services on a machine"
 		long  = short + "\n"
-		usage = "cordon <id> [<id>...]"
+		usage = "cordon [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineCordon,

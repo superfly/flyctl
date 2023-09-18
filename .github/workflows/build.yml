@@ -22,7 +22,7 @@ jobs:
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: build
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: build --clean --snapshot

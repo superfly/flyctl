@@ -19,7 +19,7 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Create and configure a new app from source code or a Docker image.`
+		long  = `Create and configure a new app from source code or a Docker image`
 		short = long
 	)
 
