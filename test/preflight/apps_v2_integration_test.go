@@ -566,5 +566,24 @@ func TestImageLabel(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --label Z=ZZZ", f.OrgSlug(), appName, f.PrimaryRegion())
+	dockerfileContent := `FROM nginx:1.23.3
+
+ENV BUILT_BY_DOCKERFILE=true
+`
+	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	if err != nil {
+		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
+	}
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("deploy --label Z=ZZZ -a %s", appName)
+	res := f.Fly("image show -a %s --json", appName)
+
+	var machineImages []map[string]string
+	res.StdOutJSON(&machineImages)
+
+	for _, image := range machineImages {
+		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
+	}
 }
