@@ -63,7 +63,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 	}
 
 	if !appCompact.Deployed && appCompact.PlatformVersion != "machines" {
-		ac.lprint(color.Yellow, "%s app has not been deployed yet. Skipping app checks. Deploy using `flyctl deploy`.\n", appName)
+		ac.lprint(color.Yellow, "%s app has not been deployed yet. Skipping app checks. Deploy using `fly deploy`.\n", appName)
 		return nil, nil
 	}
 

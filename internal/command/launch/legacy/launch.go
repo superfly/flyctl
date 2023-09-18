@@ -304,7 +304,7 @@ func Run(ctx context.Context) (err error) {
 	if srcInfo.DeployDocs != "" {
 		fmt.Fprintln(io.Out, srcInfo.DeployDocs)
 	} else {
-		fmt.Fprintln(io.Out, "Your app is ready! Deploy with `flyctl deploy`")
+		fmt.Fprintln(io.Out, "Your app is ready! Deploy with `fly deploy`")
 	}
 
 	return nil
