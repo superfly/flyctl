@@ -69,7 +69,7 @@ func runRestart(ctx context.Context) error {
 	}
 
 	if app.IsPostgresApp() {
-		return fmt.Errorf("postgres apps should use `fly pg restart` instead")
+		return fmt.Errorf("Postgres apps should use `fly pg restart` instead")
 	}
 
 	ctx, err = BuildContext(ctx, app)

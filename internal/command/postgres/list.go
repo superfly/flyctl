@@ -17,7 +17,7 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List postgres clusters"
+		short = "List Postgres clusters"
 		long  = short + "\n"
 
 		usage = "list"
@@ -39,11 +39,11 @@ func runList(ctx context.Context) (err error) {
 
 	apps, err := client.GetApps(ctx, api.StringPointer("postgres_cluster"))
 	if err != nil {
-		return fmt.Errorf("failed to list postgres clusters: %w", err)
+		return fmt.Errorf("failed to list Postgres clusters: %w", err)
 	}
 
 	if len(apps) == 0 {
-		fmt.Fprintln(io.Out, "No postgres clusters found")
+		fmt.Fprintln(io.Out, "No Postgres clusters found")
 		return
 	}
 

@@ -17,10 +17,10 @@ func runOnDeletionHook(ctx context.Context, app *api.AppCompact, machine *api.Ma
 	)
 
 	if labels["fly.pg-manager"] == flypg.ReplicationManager {
-		fmt.Fprintf(io.Out, "unregistering postgres member '%s' from the cluster... ", machine.PrivateIP)
+		fmt.Fprintf(io.Out, "unregistering Postgres member '%s' from the cluster... ", machine.PrivateIP)
 		if err := postgres.UnregisterMember(ctx, app, machine); err != nil {
 			fmt.Fprintln(io.Out, "(failed)")
-			fmt.Fprintf(io.Out, "failed to unregister postgres member: %v\n", err)
+			fmt.Fprintf(io.Out, "failed to unregister Postgres member: %v\n", err)
 		}
 		fmt.Fprintln(io.Out, "(success)")
 	}
