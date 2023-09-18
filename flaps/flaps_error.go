@@ -1,6 +1,9 @@
 package flaps
 
-import "net/http"
+import (
+	"encoding/json"
+	"net/http"
+)
 
 var (
 	FlapsErrorNotFound = &FlapsError{ResponseStatusCode: http.StatusNotFound}
@@ -14,8 +17,20 @@ type FlapsError struct {
 }
 
 func (fe *FlapsError) Error() string {
-	if fe.OriginalError == nil {
-		return ""
+	var errResp errorResponse
+	unmarshalErr := json.Unmarshal(fe.ResponseBody, &errResp)
+
+	if unmarshalErr != nil {
+		return fe.OriginalError.Error()
+	}
+
+	switch errResp.StatusCode {
+	case unknown:
+		return errResp.Error
+	case capacityErr:
+		if err, ok := errResp.Details.(LaunchCapacityErr); ok {
+			return err.Error()
+		}
 	}
 	return fe.OriginalError.Error()
 }
@@ -29,6 +44,10 @@ func (fe *FlapsError) Is(target error) bool {
 
 func (fe *FlapsError) Unwrap() error {
 	return fe.OriginalError
+}
+
+func (fe *FlapsError) ErrRequestID() string {
+	return fe.FlyRequestId
 }
 
 func (fe *FlapsError) ResponseBodyString() string {

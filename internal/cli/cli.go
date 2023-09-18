@@ -137,6 +137,11 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 		fmt.Fprintln(io.ErrOut)
 	}
 
+	if requestId := flyerr.GetErrorRequestID(err); requestId != "" {
+		fmt.Fprintln(io.ErrOut, "Fly-Request-Id:", requestId)
+		fmt.Fprintln(io.ErrOut)
+	}
+
 	if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
 		fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
 	}

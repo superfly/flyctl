@@ -74,6 +74,18 @@ func GetErrorSuggestion(err error) string {
 	return ""
 }
 
+type ErrorRequestID interface {
+	ErrRequestID() string
+}
+
+func GetErrorRequestID(err error) string {
+	var ferr ErrorRequestID
+	if errors.As(err, &ferr) {
+		return ferr.ErrRequestID()
+	}
+	return ""
+}
+
 func PrintCLIOutput(err error) {
 	if err == nil {
 		return

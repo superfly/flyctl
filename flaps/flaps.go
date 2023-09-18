@@ -288,30 +288,3 @@ type errorResponse struct {
 	Details    any        `json:"details"`
 	StatusCode statusCode `json:"status"`
 }
-
-// FIXME: This name is bad
-//
-// / Returns a specific error struct from the Details of the errResponse, if possible
-func errorFromDetails(originalErr error) error {
-	err, ok := originalErr.(*FlapsError)
-	if !ok {
-		return originalErr
-	}
-
-	var errResp errorResponse
-	unmarshalErr := json.Unmarshal(err.ResponseBody, &errResp)
-	if unmarshalErr != nil {
-		return originalErr
-	}
-
-	switch errResp.StatusCode {
-	case unknown:
-		return originalErr
-	case capacityErr:
-		if err, ok := errResp.Details.(LaunchCapacityErr); ok {
-			return &err
-		}
-	}
-
-	return originalErr
-}

@@ -19,7 +19,7 @@ var NonceHeader = "fly-machine-lease-nonce"
 
 func (f *Client) sendRequestMachines(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	endpoint = fmt.Sprintf("/apps/%s/machines%s", f.appName, endpoint)
-	return errorFromDetails(f._sendRequest(ctx, method, endpoint, in, out, headers))
+	return f._sendRequest(ctx, method, endpoint, in, out, headers)
 }
 
 const (
