@@ -175,7 +175,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			if err != nil {
 				return err
 			}
-			if json != nil {
+			if string(json) != "null" {
 				labelsString = string(json)
 			}
 		} else {
@@ -292,7 +292,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			if err != nil {
 				return err
 			}
-			if json != nil {
+			if string(json) != "null" {
 				labelsString = string(json)
 			}
 		} else {
