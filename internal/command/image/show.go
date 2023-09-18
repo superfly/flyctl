@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -167,6 +168,22 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version = machine.ImageVersion()
 		}
 
+		var labelsString string
+
+		if cfg.JSONOutput {
+			json, err := json.Marshal(machine.ImageRef.Labels)
+			if err != nil {
+				return err
+			}
+			if json != nil {
+				labelsString = string(json)
+			}
+		} else {
+			for key, val := range machine.ImageRef.Labels {
+				labelsString += fmt.Sprintf("%s=%s", key, val)
+			}
+		}
+
 		obj := map[string]string{
 			"MachineID":  machine.ID,
 			"Registry":   machine.ImageRef.Registry,
@@ -174,6 +191,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			"Tag":        machine.ImageRef.Tag,
 			"Version":    version,
 			"Digest":     machine.ImageRef.Digest,
+			"Labels":     labelsString,
 		}
 
 		rows := [][]string{
@@ -183,6 +201,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 				machine.ImageRef.Tag,
 				version,
 				machine.ImageRef.Digest,
+				labelsString,
 			},
 		}
 
@@ -196,6 +215,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			"Tag",
 			"Version",
 			"Digest",
+			"Labels",
 		)
 
 	}
@@ -265,6 +285,22 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version = machine.ImageVersion()
 		}
 
+		var labelsString string
+
+		if cfg.JSONOutput {
+			json, err := json.Marshal(image.Labels)
+			if err != nil {
+				return err
+			}
+			if json != nil {
+				labelsString = string(json)
+			}
+		} else {
+			for key, val := range image.Labels {
+				labelsString += fmt.Sprintf("%s=%s", key, val)
+			}
+		}
+
 		objs = append(objs, map[string]string{
 			"MachineID":  machine.ID,
 			"Registry":   image.Registry,
@@ -272,6 +308,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			"Tag":        image.Tag,
 			"Version":    version,
 			"Digest":     image.Digest,
+			"Labels":     labelsString,
 		})
 
 		rows = append(rows, []string{
@@ -281,6 +318,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			image.Tag,
 			version,
 			image.Digest,
+			labelsString,
 		})
 	}
 
@@ -298,5 +336,6 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 		"Tag",
 		"Version",
 		"Digest",
+		"Labels",
 	)
 }
