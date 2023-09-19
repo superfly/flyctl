@@ -3,15 +3,23 @@ package flypkgs
 import (
 	"fmt"
 	"net/http"
+	"strings"
 )
 
 type ErrorResponse struct {
-	Code    int
-	Message string `json:"error"`
+	Code     int
+	Message  string   `json:"error"`
+	Messages []string `json:"errors"`
 }
 
 func (e ErrorResponse) Error() string {
-	return fmt.Sprintf("%d: %s", e.Code, e.Message)
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("API error: %d\n", e.Code))
+	for _, msg := range e.Messages {
+		sb.WriteString(fmt.Sprintf("  - %s\n", msg))
+	}
+
+	return sb.String()
 }
 
 func IsNotFoundErr(err error) bool {

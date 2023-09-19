@@ -1,21 +1,21 @@
 package flypkgs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/pkg/errors"
 )
 
-const (
-	BaseURL = "http://localhost:4000/api"
-)
-
-func NewClient(apiKey string) *Client {
+func NewClient(endpoint, apiKey string) *Client {
 	return &Client{
-		BaseURL: BaseURL,
+		BaseURL: endpoint,
 		apiKey:  apiKey,
 		HTTPClient: &http.Client{
 			Timeout: time.Minute,
@@ -27,8 +27,6 @@ type successResponse struct {
 	Code int         `json:"code"`
 	Data interface{} `json:"data"`
 }
-
-// var ErrNotFound = errors.New("not found")
 
 type Client struct {
 	BaseURL    string
@@ -60,15 +58,20 @@ func (c *Client) sendRequest(ctx context.Context, req *http.Request, v interface
 
 	defer res.Body.Close()
 
+	var buf bytes.Buffer
+	io.Copy(&buf, res.Body)
+	fmt.Println(buf.String())
+	res.Body = io.NopCloser(&buf)
+
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusBadRequest {
 		errRes := ErrorResponse{
 			Code: res.StatusCode,
 		}
-		if err = json.NewDecoder(res.Body).Decode(&errRes); err == nil {
-			return errRes
+
+		if err = json.NewDecoder(res.Body).Decode(&errRes); err != nil {
+			return errors.Wrap(err, "decoding error response")
 		}
 
-		errRes.Message = "unknown error"
 		return errRes
 	}
 
