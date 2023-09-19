@@ -365,6 +365,45 @@ func (f *Client) GetProcesses(ctx context.Context, machineID string) (api.Machin
 	return out, nil
 }
 
+func (f *Client) SetMetadata(ctx context.Context, machineID, key, value string) error {
+	endpoint := fmt.Sprintf("/%s/metadata/%s", machineID, key)
+
+	in := map[string]interface{}{
+		"value": value,
+	}
+
+	err := f.sendRequestMachines(ctx, http.MethodPost, endpoint, in, nil, nil)
+	if err != nil {
+		return fmt.Errorf("failed to set metadata for %s: %w", machineID, err)
+	}
+
+	return nil
+}
+
+func (f *Client) GetMetadata(ctx context.Context, machineID string) error {
+	endpoint := fmt.Sprintf("/%s/metadata", machineID)
+
+	out := map[string]string{}
+
+	err := f.sendRequestMachines(ctx, http.MethodGet, endpoint, nil, &out, nil)
+	if err != nil {
+		return fmt.Errorf("failed to get metadata for %s: %w", machineID, err)
+	}
+
+	return nil
+}
+
+func (f *Client) DeleteMetadata(ctx context.Context, machineID, key string) error {
+	endpoint := fmt.Sprintf("/%s/metadata/%s", machineID, key)
+
+	err := f.sendRequestMachines(ctx, http.MethodDelete, endpoint, nil, nil, nil)
+	if err != nil {
+		return fmt.Errorf("failed to delete metadata for %s: %w", machineID, err)
+	}
+
+	return nil
+}
+
 func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
 	metrics.Started(ctx, "machine_cordon")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_cordon/duration")
