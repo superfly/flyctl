@@ -72,6 +72,7 @@ sets the size as the number of gigabytes the volume will consume.`
 			Default:     1,
 			Description: "Number of volumes to create",
 		},
+		flag.VMSizeFlags,
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -125,14 +126,20 @@ func runCreate(ctx context.Context) error {
 		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
+	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
+	}
+
 	input := api.CreateVolumeRequest{
-		Name:              volumeName,
-		Region:            region.Code,
-		SizeGb:            api.Pointer(flag.GetInt(ctx, "size")),
-		Encrypted:         api.Pointer(!flag.GetBool(ctx, "no-encryption")),
-		RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
-		SnapshotID:        snapshotID,
-		HostDedicationId:  flag.GetString(ctx, "host-dedication-id"),
+		Name:                volumeName,
+		Region:              region.Code,
+		SizeGb:              api.Pointer(flag.GetInt(ctx, "size")),
+		Encrypted:           api.Pointer(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		SnapshotID:          snapshotID,
+		HostDedicationId:    flag.GetString(ctx, "host-dedication-id"),
+		ComputeRequirements: computeRequirements,
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
@@ -154,7 +161,7 @@ func runCreate(ctx context.Context) error {
 }
 
 func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
-	var volumeName = flag.FirstArg(ctx)
+	volumeName := flag.FirstArg(ctx)
 
 	// If the Yes flag has been supplied we skip the warning entirely, so no
 	// need to query for the set of volumes
