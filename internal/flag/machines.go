@@ -86,5 +86,6 @@ var VMSizeFlags = Set{
 		Name:        "vm-gpu-kind",
 		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUKinds, ", ")),
 		Aliases:     []string{"vm-gpukind"},
+		Hidden:      true,
 	},
 }
