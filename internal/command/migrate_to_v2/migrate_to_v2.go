@@ -341,6 +341,9 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		}
 		migrator.pgConsulUrl = consul.ConsulURL
 	}
+
+	migrator.applyHacks(ctx)
+
 	err = migrator.validate(ctx)
 	if err != nil {
 		return nil, err
