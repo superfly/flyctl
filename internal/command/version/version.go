@@ -42,6 +42,7 @@ number and build date.`
 	version.AddCommand(
 		newInitState(),
 		newUpgrade(),
+		newChannel(),
 	)
 
 	flag.Add(version, flag.JSONOutput())

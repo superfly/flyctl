@@ -32,6 +32,22 @@ type Release struct {
 	Timestamp   time.Time `yaml:"timestamp"`
 }
 
+func UpdateAPIEndpoint() (endpoint string) {
+	endpoint = os.Getenv("FLY_UPDATE_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "https://api.fly.io"
+	}
+	return
+}
+
+func InstallScriptEndpoint() (endpoint string) {
+	endpoint = os.Getenv("FLY_INSTALL_ENDPOINT")
+	if endpoint == "" {
+		endpoint = "https://fly.io"
+	}
+	return
+}
+
 // Check reports whether update checks should take place.
 func Check() bool {
 	switch {
@@ -86,7 +102,7 @@ func ValidateRelease(ctx context.Context, version string) (err error) {
 		_validatedReleases[version] = err
 	}()
 
-	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_validate/v%s", version)
+	updateUrl := fmt.Sprintf("%s/app/flyctl_validate/v%s", UpdateAPIEndpoint(), version)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", updateUrl, nil)
 	if err != nil {
@@ -127,7 +143,7 @@ func LatestRelease(ctx context.Context, channel string) (*Release, error) {
 		return latestHomebrewRelease(ctx, channel)
 	}
 
-	updateUrl := fmt.Sprintf("https://api.fly.io/app/flyctl_releases/%s/%s/%s", runtime.GOOS, runtime.GOARCH, channel)
+	updateUrl := fmt.Sprintf("%s/app/flyctl_releases/%s/%s/%s", UpdateAPIEndpoint(), runtime.GOOS, runtime.GOARCH, channel)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", updateUrl, nil)
 	if err != nil {
@@ -261,6 +277,92 @@ func upgradeCommand(prerelease bool) string {
 		}
 		return cmd
 	}
+}
+
+func installCommand(version string, channel string) string {
+	if IsUnderHomebrew() {
+		return "brew upgrade flyctl"
+	}
+
+	// if runtime.GOOS == "windows" {
+	// 	cmd := fmt.Sprintf("iwr %s/install.ps1 -useb | iex", InstallScriptEndpoint())
+	// 	if versionOrChannel != "" {
+	// 		cmd = fmt.Sprintf("$v=\"%s\"; %s", versionOrChannel, cmd)
+	// 	}
+	// 	return cmd
+	// } else {
+	cmd := fmt.Sprintf("curl -L \"%s/install.sh\" | sh", InstallScriptEndpoint())
+	// if version != "" && channel != "" {
+	cmd = fmt.Sprintf("%s -s %s %s", cmd, version, channel)
+	// }
+	return cmd
+	// }
+}
+
+func InstallInPlace(ctx context.Context, io *iostreams.IOStreams, version string, channel string, silent bool) error {
+	if runtime.GOOS == "windows" {
+		if err := renameCurrentBinaries(); err != nil {
+			return err
+		}
+	}
+
+	if IsUnderHomebrew() {
+		brewExe, err := safeexec.LookPath("brew")
+		if err == nil {
+			err = exec.Command(brewExe, "update").Run()
+		}
+		if err != nil {
+			terminal.Debugf("error updating homebrew cache: %s", err)
+		}
+	}
+
+	var shellToUse string
+	switchToUse := "-c"
+	ok := false
+
+	if runtime.GOOS != "windows" {
+		shellToUse, ok = os.LookupEnv("SHELL")
+	}
+
+	if !ok {
+		if runtime.GOOS == "windows" {
+			// pwsh.exe is the name of the PowerShell executable from 6.0+
+			// powershell.exe is locked to 5.1 forever
+			if commandInPath("pwsh.exe") {
+				shellToUse = "pwsh.exe"
+				switchToUse = "-Command"
+			} else {
+				shellToUse = "powershell.exe"
+				switchToUse = "-Command"
+			}
+		} else {
+			shellToUse = "/bin/bash"
+		}
+	}
+
+	command := installCommand(version, channel)
+	cmd := exec.Command(shellToUse, switchToUse, command)
+
+	if !silent {
+		fmt.Fprintf(io.ErrOut, "Installing flyctl [%s]\n", command)
+
+		cmd.Stdout = io.Out
+		cmd.Stderr = io.ErrOut
+		cmd.Stdin = io.In
+	}
+
+	err := cmd.Run()
+	if err != nil {
+		return err
+	}
+
+	// Remove the line that says `Run 'flyctl --help' to get started`
+	if !IsUnderHomebrew() && io.IsInteractive() && !silent {
+		builder := aec.EmptyBuilder
+		str := builder.Up(1).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(io.ErrOut, str.String())
+	}
+	return nil
 }
 
 func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, silent bool) error {
@@ -485,4 +587,18 @@ func BackgroundUpdate() error {
 		return err
 	}
 	return nil
+}
+
+func NormalizeChannel(channel string) string {
+	channel = strings.ToLower(channel)
+
+	return channel
+
+	// if channel == "stable" {
+	// 	return channel
+	// }
+
+	// if strings.HasPrefix(channel, "pr") {
+	// 	return channel
+	// }
 }

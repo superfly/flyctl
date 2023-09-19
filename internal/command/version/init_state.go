@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -35,7 +36,7 @@ func runInitState(ctx context.Context) error {
 }
 
 func executeInitState(io *iostreams.IOStreams, cache cache.Cache, channel string) error {
-	cache.SetChannel(channel)
+	cache.SetChannel(update.NormalizeChannel(channel))
 
 	fmt.Fprintf(io.ErrOut, "set channel to %s\n", channel)
 
