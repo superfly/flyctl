@@ -189,10 +189,12 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		defaultGroupName: "app",
 		AppName:          "foo",
 		KillTimeout:      api.MustParseDuration("3s"),
-		Metrics: &api.MachineMetrics{
-			Path: "/foo",
-			Port: 9000,
-		},
+		Metrics: []*Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Path: "/foo",
+				Port: 9000,
+			},
+		}},
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -266,6 +268,12 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			Source:      "data",
 			Destination: "/data",
 		}},
+		Metrics: []*Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Port: 9999,
+				Path: "/metrics",
+			},
+		}},
 		Services: []Service{
 			{
 				InternalPort: 8080,
@@ -323,6 +331,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			"mount": map[string]any{
 				"source":      "data",
 				"destination": "/data",
+			},
+			"metrics": map[string]any{
+				"port": int64(9999),
+				"path": "/metrics",
 			},
 			"processes": []map[string]any{{}},
 			"services": []map[string]any{{
@@ -465,9 +477,20 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			"FOO": "BAR",
 		},
 
-		Metrics: &api.MachineMetrics{
-			Port: 9999,
-			Path: "/metrics",
+		Metrics: []*Metrics{
+			{
+				MachineMetrics: &api.MachineMetrics{
+					Port: 9999,
+					Path: "/metrics",
+				},
+			},
+			{
+				MachineMetrics: &api.MachineMetrics{
+					Port: 9998,
+					Path: "/metrics",
+				},
+				Processes: []string{"web"},
+			},
 		},
 
 		HTTPService: &HTTPService{

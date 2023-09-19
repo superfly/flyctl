@@ -17,6 +17,7 @@ var configPatches = []patchFuncType{
 	patchExperimental,
 	patchTopLevelChecks,
 	patchMounts,
+	patchMetrics,
 	patchTopFields,
 	patchBuild,
 }
@@ -232,6 +233,21 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 		}
 	}
 	cfg["mounts"] = mounts
+	return cfg, nil
+}
+
+func patchMetrics(cfg map[string]any) (map[string]any, error) {
+	var metrics []map[string]any
+	for _, k := range []string{"metric", "metrics"} {
+		if raw, ok := cfg[k]; ok {
+			cast, err := ensureArrayOfMap(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing mounts: %w", err)
+			}
+			metrics = append(metrics, cast...)
+		}
+	}
+	cfg["metrics"] = metrics
 	return cfg, nil
 }
 
