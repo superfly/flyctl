@@ -90,7 +90,7 @@ func createReleaseArchive(srcDir string, w io.WriteCloser) (*ReleaseMeta, error)
 				Path:   relPath,
 				OS:     artifact.Goos,
 				Arch:   artifact.Goarch,
-				SHA256: artifact.Extra.Checksum,
+				SHA256: strings.TrimPrefix(artifact.Extra.Checksum, "sha256:"),
 			}
 
 			if artifact.Extra.Format == "tar.gz" {
