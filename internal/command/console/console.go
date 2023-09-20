@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -253,7 +254,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
-		machConfig.Env = parsedEnv
+		maps.Copy(machConfig.Env, parsedEnv)
 	}
 
 	machConfig.Guest = guest
