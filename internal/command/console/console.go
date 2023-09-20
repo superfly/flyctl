@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/config"
@@ -55,6 +56,22 @@ func New() *cobra.Command {
 			Shorthand:   "u",
 			Description: "Unix username to connect as",
 			Default:     ssh.DefaultSshUsername,
+		},
+		flag.String{
+			Name:        "image",
+			Shorthand:   "i",
+			Description: "image to use (default: current release)",
+		},
+		flag.StringArray{
+			Name:        "env",
+			Shorthand:   "e",
+			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Default:     "",
+			Description: "command to run on SSH session",
 		},
 		flag.VMSizeFlags,
 	)
@@ -123,7 +140,13 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	return ssh.Console(ctx, sshClient, appConfig.ConsoleCommand, true)
+	consoleCommand := appConfig.ConsoleCommand
+
+	if flag.IsSpecified(ctx, "command") {
+		consoleCommand = flag.GetString(ctx, "command")
+	}
+
+	return ssh.Console(ctx, sshClient, consoleCommand, true)
 }
 
 func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
@@ -210,7 +233,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, err
 	}
-	if currentRelease == nil {
+	if currentRelease == nil && !flag.IsSpecified(ctx, "image") {
 		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
@@ -218,7 +241,21 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
-	machConfig.Image = currentRelease.ImageRef
+
+	if flag.IsSpecified(ctx, "image") {
+		machConfig.Image = flag.GetString(ctx, "image")
+	} else {
+		machConfig.Image = currentRelease.ImageRef
+	}
+
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed parsing environment: %w", err)
+		}
+		machConfig.Env = parsedEnv
+	}
+
 	machConfig.Guest = guest
 
 	input := &machine.EphemeralInput{
