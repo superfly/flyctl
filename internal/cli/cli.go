@@ -123,7 +123,12 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), "\n")
 
 	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
-		fmt.Fprintln(io.ErrOut, description)
+		requestId := flyerr.GetErrorRequestID(err)
+		if requestId != "" {
+			requestId = fmt.Sprintf("(Request ID: %s)", requestId)
+		}
+
+		fmt.Fprintln(io.ErrOut, description, requestId)
 		fmt.Fprintln(io.ErrOut)
 	}
 
@@ -134,11 +139,6 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 
 	if docURL := flyerr.GetErrorDocUrl(err); docURL != "" {
 		fmt.Fprintln(io.ErrOut, "View more information at ", docURL)
-		fmt.Fprintln(io.ErrOut)
-	}
-
-	if requestId := flyerr.GetErrorRequestID(err); requestId != "" {
-		fmt.Fprintln(io.ErrOut, "Fly-Request-Id:", requestId)
 		fmt.Fprintln(io.ErrOut)
 	}
 
