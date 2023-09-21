@@ -74,7 +74,7 @@ jobs:
         sh ./installers/install.sh
       if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu')
     - name: Install (Windows)
-      shell: pwsh
+      shell: powershell
       run: |
         ./installers/install.ps1
         Write-Debug "printing env"
@@ -83,6 +83,6 @@ jobs:
         Get-ChildItem Env:\Path | Select-Object *
       if: contains(matrix.os, 'windows')
     - run: env
-      shell: pwsh
+      shell: powershell
     - name: Check that `fly` is in PATH and is executable
       run: flyctl version
