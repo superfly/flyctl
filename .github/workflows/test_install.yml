@@ -1,4 +1,4 @@
-name: Test Installer
+name: Test Installation
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  install-docker:
+  test-docker:
     strategy:
       fail-fast: false
       max-parallel: 4
@@ -39,6 +39,11 @@ jobs:
         contains(matrix.image, 'alpine')
       run: |
         apk --no-cache add curl
+    - name: Install Dependencies (yum)
+      if: |
+        contains(matrix.image, 'amazonlinux')
+      # actions/checkout needs tar & gzip, so install them too
+      run: yum install -y --allowerasing tar gzip curl
     - name: checkout
       uses: actions/checkout@v4
     - name: run installer
@@ -50,24 +55,27 @@ jobs:
       run: |
         fly version
 
-  install-native:
+  test-native:
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
         os:
           - "ubuntu-latest"
-          - "windows-latest"
           - "macos-latest"
+          - "windows-latest"
     runs-on: ${{ matrix.os }}}
     steps:
     - name: checkout
       uses: actions/checkout@v4
-    - name: run installer
-      run: sh ./installers/install.sh
-    - run: |
-        echo "$HOME/.fly/bin" >> $GITHUB_PATH
-    - run: env
-    - name: check that binary is installed
+    - name: Install (macOS/Linux)
       run: |
-        fly version
+        echo "$HOME/.fly/bin" >> $GITHUB_PATH
+        sh ./installers/install.sh
+      if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu')
+    - name: Install (Windows)
+      shell: pwsh
+      run: ./installers/install.ps1
+      if: contains(matrix.os, 'windows')
+    - name: Check that `fly` is in PATH and is executable
+      run: fly version
