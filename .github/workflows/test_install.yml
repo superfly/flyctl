@@ -77,7 +77,10 @@ jobs:
       shell: pwsh
       run: |
         ./installers/install.ps1
+        Write-Debug "printing env"
         env
+        Write-Debug "grabbing last part of path"
+        Get-ChildItem Env:\Path | Select-Object *
       if: contains(matrix.os, 'windows')
     - run: env
       shell: pwsh
