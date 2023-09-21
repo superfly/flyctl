@@ -18,20 +18,8 @@ jobs:
           - "debian:oldstable-slim"
           - "debian:stable-slim"
           - "alpine:latest"
-
-        # include:
-        #   - image: "ubuntu:20.04"
-        #     # setup:  apt-get update && apt-get install -y curl
-        #   - image: "alpine:latest"
-            # setup: apk --no-cache add curl
-        # image:
-          # - "debian:testing-slim"
-          # - "debian:sid-slim"
-          # - "amazonlinux:latest"
-          # - "archlinux:latest"
-          # - "alpine:3.14"
-          # - "alpine:latest"
-          # - "alpine:edge"
+          - "archlinux:latest"
+          - "amazonlinux:latest"
     runs-on: ubuntu-latest
     env:
       SHELL: /bin/bash
