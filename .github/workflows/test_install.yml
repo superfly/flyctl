@@ -12,12 +12,12 @@ jobs:
       max-parallel: 4
       matrix:
         image:
-          - "ubuntu:18.04"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
-          - "ubuntu:22.10"
           - "ubuntu:23.04"
-
+          - "debian:oldstable-slim"
+          - "debian:stable-slim"
+          - "alpine:latest"
 
         # include:
         #   - image: "ubuntu:20.04"
@@ -25,17 +25,8 @@ jobs:
         #   - image: "alpine:latest"
             # setup: apk --no-cache add curl
         # image:
-          # - "debian:oldstable-slim"
-          # - "debian:stable-slim"
           # - "debian:testing-slim"
           # - "debian:sid-slim"
-          # - "ubuntu:18.04"
-          # - "ubuntu:20.04"
-          # - "ubuntu:22.04"
-          # - "ubuntu:22.10"
-          # - "ubuntu:23.04"
-          # - "elementary/docker:stable"
-          # - "elementary/docker:unstable"
           # - "amazonlinux:latest"
           # - "archlinux:latest"
           # - "alpine:3.14"
@@ -49,8 +40,10 @@ jobs:
       image: ${{ matrix.image }}
       options: --user root
     steps:
-    - name: Install Dependencies (ubuntu)
-      if: contains(matrix.image, 'ubuntu')
+    - name: Install Dependencies (apt-get)
+      if: |
+        contains(matrix.image, 'ubuntu') ||
+        contains(matrix.image, 'debian')
       run: |
         apt-get update && apt-get install -y curl
     - name: checkout
