@@ -77,10 +77,7 @@ jobs:
       shell: powershell
       run: |
         ./installers/install.ps1
-        Write-Debug "printing env"
-        env
-        Write-Debug "grabbing last part of path"
-        Get-ChildItem Env:\Path | Select-Object *
+        $env:PATH -split ':' | Select-Object -Last 1 | Out-File -FilePath $env:GITHUB_PATH -Append
       if: contains(matrix.os, 'windows')
     - run: env
       shell: powershell
