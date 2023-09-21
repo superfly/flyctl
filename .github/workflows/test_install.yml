@@ -63,7 +63,7 @@ jobs:
         os:
           - "ubuntu-latest"
           - "macos-latest"
-          - "windows-latest"
+          # - "windows-latest"
     runs-on: ${{ matrix.os }}
     steps:
     - name: checkout
@@ -77,6 +77,45 @@ jobs:
       shell: powershell
       run: |
         ./installers/install.ps1
+        $env:PATH -split ':' | Select-Object -Last 1 | Out-File -FilePath $env:GITHUB_PATH -Append
+        env
+      if: contains(matrix.os, 'windows')
+    - run: env
+      shell: powershell
+      if: contains(matrix.os, 'windows')
+    - run: ls C:\Users\runneradmin\.fly\bin
+      shell: powershell
+      if: contains(matrix.os, 'windows')
+    - run: env
+      shell: powershell
+      if: contains(matrix.os, 'windows')
+    - name: Check that `fly` is in PATH and is executable
+      run: flyctl version
+      if: ${{ !contains(matrix.os, 'windows') }}
+    - name: Check that `fly` is in PATH and is executable
+      shell: powershell
+      run: flyctl.exe version
+      if: contains(matrix.os, 'windows')
+
+
+  test-windows:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        os:
+          - "windows-latest"
+    runs-on: ${{ matrix.os }}
+    env:
+      FLYCTL_INSTALL: "$HOME\\flyctl"
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: Install
+      shell: powershell
+      run: |
+        ./installers/install.ps1
+        env
         $env:PATH -split ':' | Select-Object -Last 1 | Out-File -FilePath $env:GITHUB_PATH -Append
         env
       if: contains(matrix.os, 'windows')
