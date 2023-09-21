@@ -6,14 +6,24 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  install-docker:
     strategy:
       fail-fast: false
       max-parallel: 4
       matrix:
-        include:
-          - image: "ubuntu:20.04"
-            setup:  apt-get update && apt-get install -y curl
+        image:
+          - "ubuntu:18.04"
+          - "ubuntu:20.04"
+          - "ubuntu:22.04"
+          - "ubuntu:22.10"
+          - "ubuntu:23.04"
+
+
+        # include:
+        #   - image: "ubuntu:20.04"
+        #     # setup:  apt-get update && apt-get install -y curl
+        #   - image: "alpine:latest"
+            # setup: apk --no-cache add curl
         # image:
           # - "debian:oldstable-slim"
           # - "debian:stable-slim"
@@ -31,8 +41,6 @@ jobs:
           # - "alpine:3.14"
           # - "alpine:latest"
           # - "alpine:edge"
-        # deps:
-        #   - curl
     runs-on: ubuntu-latest
     env:
       SHELL: /bin/bash
@@ -41,10 +49,12 @@ jobs:
       image: ${{ matrix.image }}
       options: --user root
     steps:
+    - name: Install Dependencies (ubuntu)
+      if: contains(matrix.image, 'ubuntu')
+      run: |
+        apt-get update && apt-get install -y curl
     - name: checkout
       uses: actions/checkout@v4
-    - name: setup
-      run: ${{ matrix.setup }}
     - name: run installer
       run: sh ./installers/install.sh
     - run: |
