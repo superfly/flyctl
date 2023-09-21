@@ -11,7 +11,10 @@ jobs:
       fail-fast: false
       max-parallel: 4
       matrix:
-        image:
+        include:
+          - image: "ubuntu:18.04"
+            setup:  apt-get update && apt-get install -y curl
+        # image:
           # - "debian:oldstable-slim"
           # - "debian:stable-slim"
           # - "debian:testing-slim"
@@ -27,9 +30,9 @@ jobs:
           # - "archlinux:latest"
           # - "alpine:3.14"
           # - "alpine:latest"
-          - "alpine:edge"
-        deps:
-          - curl
+          # - "alpine:edge"
+        # deps:
+        #   - curl
     runs-on: ubuntu-latest
     container:
       image: ${{ matrix.image }}
@@ -37,6 +40,8 @@ jobs:
     steps:
     - name: checkout
       uses: actions/checkout@v4
+    - name: setup
+      run: ${{ matrix.setup }}
     - name: run installer
       run: sh ./installers/install.sh
     - name: check that binary is installed
