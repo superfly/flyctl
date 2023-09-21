@@ -77,5 +77,7 @@ jobs:
       shell: pwsh
       run: ./installers/install.ps1
       if: contains(matrix.os, 'windows')
+    - run: env
+      shell: pwsh
     - name: Check that `fly` is in PATH and is executable
       run: flyctl version
