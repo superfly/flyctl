@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SHELL: /bin/bash
+      # FLYCTL_INSTALL: /usr/local/bin
     container:
       image: ${{ matrix.image }}
       options: --user root
@@ -46,6 +47,9 @@ jobs:
       run: ${{ matrix.setup }}
     - name: run installer
       run: sh ./installers/install.sh
+    - run: |
+        echo "$HOME/.fly/bin" >> $GITHUB_PATH
     - run: env
     - name: check that binary is installed
-      run: fly version
+      run: |
+        fly version
