@@ -49,3 +49,25 @@ jobs:
     - name: check that binary is installed
       run: |
         fly version
+
+  install-native:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        os:
+          - "ubuntu-latest"
+          - "windows-latest"
+          - "macos-latest"
+    runs-on: ${{ matrix.os }}}
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: run installer
+      run: sh ./installers/install.sh
+    - run: |
+        echo "$HOME/.fly/bin" >> $GITHUB_PATH
+    - run: env
+    - name: check that binary is installed
+      run: |
+        fly version
