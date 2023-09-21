@@ -46,6 +46,11 @@ jobs:
         contains(matrix.image, 'debian')
       run: |
         apt-get update && apt-get install -y curl
+    - name: Install Dependencies (apk)
+      if: |
+        contains(matrix.image, 'alpine')
+      run: |
+        apk --no-cache add curl
     - name: checkout
       uses: actions/checkout@v4
     - name: run installer
