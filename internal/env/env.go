@@ -55,7 +55,7 @@ func IsSet(keys ...string) bool {
 }
 
 func IS_GH_ACTION() bool {
-	return IsTruthy("GH_ACTIONS")
+	return IsTruthy("GITHUB_ACTIONS")
 }
 
 func GitCommitSHA() string {
