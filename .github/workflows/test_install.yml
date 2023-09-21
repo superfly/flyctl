@@ -44,6 +44,6 @@ jobs:
       run: ${{ matrix.setup }}
     - name: run installer
       run: sh ./installers/install.sh
-    - run: echo env
+    - run: env
     - name: check that binary is installed
       run: fly version
