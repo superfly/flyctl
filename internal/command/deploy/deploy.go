@@ -132,6 +132,11 @@ var CommonFlags = flag.Set{
 		Name:        "label",
 		Description: "Add custom metadata to an image via docker labels",
 	},
+	flag.Int{
+		Name:        "immediate-max-concurrent",
+		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
+		Default:     16,
+	},
 	flag.VMSizeFlags,
 }
 
@@ -306,25 +311,26 @@ func deployToMachines(
 	}
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:            appCompact,
-		DeploymentImage:       img.Tag,
-		Strategy:              flag.GetString(ctx, "strategy"),
-		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     appConfig.PrimaryRegion,
-		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
-		SkipHealthChecks:      flag.GetDetach(ctx),
-		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:        flag.GetFloat64(ctx, "max-unavailable"),
-		ReleaseCmdTimeout:     releaseCmdTimeout,
-		Guest:                 guest,
-		IncreasedAvailability: flag.GetBool(ctx, "ha"),
-		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
-		UpdateOnly:            flag.GetBool(ctx, "update-only"),
-		Files:                 files,
-		ExcludeRegions:        excludeRegions,
-		NoExtensions:          flag.GetBool(ctx, "no-extensions"),
-		OnlyRegions:           onlyRegions,
+		AppCompact:             appCompact,
+		DeploymentImage:        img.Tag,
+		Strategy:               flag.GetString(ctx, "strategy"),
+		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
+		PrimaryRegionFlag:      appConfig.PrimaryRegion,
+		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:       flag.GetDetach(ctx),
+		WaitTimeout:            time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+		LeaseTimeout:           time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		MaxUnavailable:         flag.GetFloat64(ctx, "max-unavailable"),
+		ReleaseCmdTimeout:      releaseCmdTimeout,
+		Guest:                  guest,
+		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
+		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
+		UpdateOnly:             flag.GetBool(ctx, "update-only"),
+		Files:                  files,
+		ExcludeRegions:         excludeRegions,
+		NoExtensions:           flag.GetBool(ctx, "no-extensions"),
+		OnlyRegions:            onlyRegions,
+		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
