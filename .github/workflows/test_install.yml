@@ -1,4 +1,4 @@
-name: Test Install
+name: Test Installer
 
 on:
   push:
@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: ${{ matrix.image }}
+      options: --user root
     steps:
     - name: checkout
       uses: actions/checkout@v4
