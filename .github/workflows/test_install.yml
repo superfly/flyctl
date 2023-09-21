@@ -82,5 +82,8 @@ jobs:
     - run: env
       shell: powershell
       if: contains(matrix.os, 'windows')
+    - run: ls /d/Users/runneradmin/.fly/bin
+      shell: powershell
+      if: contains(matrix.os, 'windows')
     - name: Check that `fly` is in PATH and is executable
       run: /d/Users/runneradmin/.fly/bin/flyctl.exe version
