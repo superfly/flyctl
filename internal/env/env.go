@@ -68,6 +68,16 @@ func GitActionEventName() string {
 	return eventName
 }
 
+func GitActionName() string {
+	eventName := os.Getenv("GITHUB_ACTION")
+	return eventName
+}
+
+func GitRepoAndOwner() string {
+	repoAndOwner := os.Getenv("GITHUB_REPOSITORY")
+	return repoAndOwner
+}
+
 // IsCI reports whether the environment is a CI one.
 //
 // Based on https://github.com/watson/ci-info/blob/c4f1553f254c78babef5c200c48569ede313b718/index.js
