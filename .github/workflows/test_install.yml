@@ -1,0 +1,42 @@
+name: Test Install
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        image:
+          - "debian:oldstable-slim"
+          - "debian:stable-slim"
+          - "debian:testing-slim"
+          - "debian:sid-slim"
+          - "ubuntu:18.04"
+          - "ubuntu:20.04"
+          - "ubuntu:22.04"
+          - "ubuntu:22.10"
+          - "ubuntu:23.04"
+          - "elementary/docker:stable"
+          - "elementary/docker:unstable"
+          - "amazonlinux:latest"
+          - "archlinux:latest"
+          - "alpine:3.14"
+          - "alpine:latest"
+          - "alpine:edge"
+        deps:
+          - curl
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.image }}
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: run installer
+      run: installers/install.sh
+    - name: check that binary is installed
+      run: fly version
