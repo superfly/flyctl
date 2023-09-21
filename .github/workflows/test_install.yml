@@ -75,7 +75,9 @@ jobs:
       if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu')
     - name: Install (Windows)
       shell: pwsh
-      run: ./installers/install.ps1
+      run: |
+        ./installers/install.ps1
+        env
       if: contains(matrix.os, 'windows')
     - run: env
       shell: pwsh
