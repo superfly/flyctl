@@ -82,4 +82,4 @@ jobs:
     - run: env
       shell: powershell
     - name: Check that `fly` is in PATH and is executable
-      run: flyctl version
+      run: flyctl.exe version
