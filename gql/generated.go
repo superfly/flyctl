@@ -507,8 +507,6 @@ type CreateAddOnCreateAddOnCreateAddOnPayloadAddOn struct {
 	PublicUrl string `json:"publicUrl"`
 	// Single sign-on link to the add-on dashboard
 	SsoLink string `json:"ssoLink"`
-	// Token for the add-on
-	Token string `json:"token"`
 	// Environment variables for the add-on
 	Environment interface{} `json:"environment"`
 	// Region where the primary instance is deployed
@@ -523,9 +521,6 @@ func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetPublicUrl() string { 
 
 // GetSsoLink returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.SsoLink, and is useful for accessing the field via an interface.
 func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetSsoLink() string { return v.SsoLink }
-
-// GetToken returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.Token, and is useful for accessing the field via an interface.
-func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetToken() string { return v.Token }
 
 // GetEnvironment returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.Environment, and is useful for accessing the field via an interface.
 func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetEnvironment() interface{} {
@@ -1309,8 +1304,6 @@ type GetAddOnAddOn struct {
 	PrivateIp string `json:"privateIp"`
 	// Password for the add-on
 	Password string `json:"password"`
-	// Token for the add-on
-	Token string `json:"token"`
 	// Status of the add-on
 	Status string `json:"status"`
 	// Region where the primary instance is deployed
@@ -1337,9 +1330,6 @@ func (v *GetAddOnAddOn) GetPrivateIp() string { return v.PrivateIp }
 
 // GetPassword returns GetAddOnAddOn.Password, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPassword() string { return v.Password }
-
-// GetToken returns GetAddOnAddOn.Token, and is useful for accessing the field via an interface.
-func (v *GetAddOnAddOn) GetToken() string { return v.Token }
 
 // GetStatus returns GetAddOnAddOn.Status, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetStatus() string { return v.Status }
@@ -1403,8 +1393,6 @@ type __premarshalGetAddOnAddOn struct {
 
 	Password string `json:"password"`
 
-	Token string `json:"token"`
-
 	Status string `json:"status"`
 
 	PrimaryRegion string `json:"primaryRegion"`
@@ -1440,7 +1428,6 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.PublicUrl = v.PublicUrl
 	retval.PrivateIp = v.PrivateIp
 	retval.Password = v.Password
-	retval.Token = v.Token
 	retval.Status = v.Status
 	retval.PrimaryRegion = v.PrimaryRegion
 	retval.ReadRegions = v.ReadRegions
@@ -3519,7 +3506,6 @@ mutation CreateAddOn ($input: CreateAddOnInput!) {
 			name
 			publicUrl
 			ssoLink
-			token
 			environment
 			primaryRegion
 		}
@@ -3854,7 +3840,6 @@ query GetAddOn ($name: String) {
 		publicUrl
 		privateIp
 		password
-		token
 		status
 		primaryRegion
 		readRegions
