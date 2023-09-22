@@ -72,30 +72,8 @@ jobs:
       run: |
         echo "$HOME/.fly/bin" >> $GITHUB_PATH
         sh ./installers/install.sh
-      if: contains(matrix.os, 'macos') || contains(matrix.os, 'ubuntu')
-    - name: Install (Windows)
-      shell: powershell
-      run: |
-        ./installers/install.ps1
-        $env:PATH -split ':' | Select-Object -Last 1 | Out-File -FilePath $env:GITHUB_PATH -Append
-        env
-      if: contains(matrix.os, 'windows')
-    - run: env
-      shell: powershell
-      if: contains(matrix.os, 'windows')
-    - run: ls C:\Users\runneradmin\.fly\bin
-      shell: powershell
-      if: contains(matrix.os, 'windows')
-    - run: env
-      shell: powershell
-      if: contains(matrix.os, 'windows')
     - name: Check that `fly` is in PATH and is executable
       run: flyctl version
-      if: ${{ !contains(matrix.os, 'windows') }}
-    - name: Check that `fly` is in PATH and is executable
-      shell: powershell
-      run: flyctl.exe version
-      if: contains(matrix.os, 'windows')
 
 
   test-windows:
@@ -122,8 +100,6 @@ jobs:
       shell: powershell
     - run: ls $env:FLYCTL_INSTALL\bin
       shell: powershell
-    # # - run: env
-    # #   shell: powershell
     - name: Check that `fly` is in PATH and is executable
       shell: powershell
-      run: flyctl.exe version
+      run: flyctl version
