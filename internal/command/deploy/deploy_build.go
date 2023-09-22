@@ -115,6 +115,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	}
 	if env.IS_GH_ACTION() {
 		labels["GH_SHA"] = env.GitCommitSHA()
+		labels["GH_ACTION_NAME"] = env.GitActionName()
+		labels["GH_REPO"] = env.GitRepoAndOwner()
 		labels["GH_EVENT_NAME"] = env.GitActionEventName()
 	}
 	if labels != nil {

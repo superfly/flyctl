@@ -55,7 +55,7 @@ func IsSet(keys ...string) bool {
 }
 
 func IS_GH_ACTION() bool {
-	return IsTruthy("GH_ACTIONS")
+	return IsTruthy("GITHUB_ACTIONS")
 }
 
 func GitCommitSHA() string {
@@ -66,6 +66,16 @@ func GitCommitSHA() string {
 func GitActionEventName() string {
 	eventName := os.Getenv("GITHUB_EVENT_NAME")
 	return eventName
+}
+
+func GitActionName() string {
+	eventName := os.Getenv("GITHUB_ACTION")
+	return eventName
+}
+
+func GitRepoAndOwner() string {
+	repoAndOwner := os.Getenv("GITHUB_REPOSITORY")
+	return repoAndOwner
 }
 
 // IsCI reports whether the environment is a CI one.

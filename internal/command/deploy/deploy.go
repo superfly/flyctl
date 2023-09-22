@@ -54,6 +54,7 @@ var CommonFlags = flag.Set{
 	flag.Bool{
 		Name:        "no-extensions",
 		Description: "Do not provision Sentry nor other auto-provisioned extensions",
+		Default:     true,
 	},
 	flag.StringArray{
 		Name:        "env",
