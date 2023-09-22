@@ -52,10 +52,9 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: run installer
-      run: sh ./installers/install.sh
-    - run: |
+      run: |
         echo "$HOME/.fly/bin" >> $GITHUB_PATH
-        - run: env
+        sh ./installers/install.sh
     - name: check that `flyctl` binary is installed
       run: flyctl version
     - name: check that `fly` symlink is installed
