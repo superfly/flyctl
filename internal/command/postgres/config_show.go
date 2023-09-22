@@ -136,7 +136,13 @@ func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
 		return err
 	}
 
-	return showSettings(ctx, app, flypg.StolonManager, leaderIP)
+	manager := flypg.StolonManager
+	repo := app.ImageDetails.Repository
+	if strings.Contains(repo, "postgres-flex") {
+		manager = flypg.ReplicationManager
+	}
+
+	return showSettings(ctx, app, manager, leaderIP)
 }
 
 func showSettings(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) error {
@@ -155,7 +161,7 @@ func showSettings(ctx context.Context, app *api.AppCompact, manager string, lead
 
 	res, err := pgclient.ViewSettings(ctx, settings, manager)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to view settings: %w", err)
 	}
 
 	pendingRestart := false
