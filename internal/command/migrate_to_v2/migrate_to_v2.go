@@ -1013,17 +1013,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 		}
 	}
 
-	if flag.GetYes(ctx) {
-		return true, nil
-	}
-
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: "Would you like to continue?",
-	}
-	err := survey.AskOne(prompt, &confirm)
-
-	return confirm, err
+	return prompt.Confirm(ctx, "Would you like to continue?")
 }
 
 func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {

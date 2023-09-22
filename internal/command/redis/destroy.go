@@ -40,20 +40,18 @@ func runDestroy(ctx context.Context) (err error) {
 	colorize := io.ColorScheme()
 	appName := flag.FirstArg(ctx)
 
-	if !flag.GetYes(ctx) {
-		const msg = "Destroying a Redis instance is not reversible."
-		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+	const msg = "Destroying a Redis instance is not reversible."
+	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Destroy Redis instance %s?", appName); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return err
+	switch confirmed, err := prompt.Confirmf(ctx, "Destroy Redis instance %s?", appName); {
+	case err == nil:
+		if !confirmed {
+			return nil
 		}
+	case prompt.IsNonInteractive(err):
+		return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+	default:
+		return err
 	}
 
 	var (

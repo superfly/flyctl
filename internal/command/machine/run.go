@@ -195,6 +195,7 @@ func newRun() *cobra.Command {
 			Name: "host-dedication-id",
 		},
 		sharedFlags,
+		flag.Yes(),
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)

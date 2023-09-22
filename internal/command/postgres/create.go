@@ -87,6 +87,7 @@ func newCreate() *cobra.Command {
 			Description: "Automatically start a stopped Postgres app when a network request is received",
 			Default:     false,
 		},
+		flag.Yes(),
 	)
 
 	return cmd

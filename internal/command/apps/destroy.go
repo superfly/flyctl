@@ -46,20 +46,18 @@ func RunDestroy(ctx context.Context) error {
 	appName := flag.FirstArg(ctx)
 	client := client.FromContext(ctx).API()
 
-	if !flag.GetYes(ctx) {
-		const msg = "Destroying an app is not reversible."
-		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+	const msg = "Destroying an app is not reversible."
+	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", appName); {
-		case err == nil:
-			if !confirmed {
-				return nil
-			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
-			return err
+	switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", appName); {
+	case err == nil:
+		if !confirmed {
+			return nil
 		}
+	case prompt.IsNonInteractive(err):
+		return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+	default:
+		return err
 	}
 
 	if err := client.DeleteApp(ctx, appName); err != nil {

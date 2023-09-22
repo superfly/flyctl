@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -73,6 +74,7 @@ func newTroubleshoot() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 	return cmd
 }
@@ -167,17 +169,19 @@ func (t *troubleshooter) unlockApp(ctx context.Context) error {
 	}
 
 	if io.IsInteractive() {
-		removeLock := true
-		fmt.Fprintf(io.Out, "The app is currently locked - this lock expires at %s\n", format.Time(lock.Expiration))
-		askErr := survey.AskOne(&survey.Confirm{
-			Message: "Remove this lock?",
-			Default: true,
-		}, &removeLock)
-		if askErr != nil {
-			removeLock = true
-		}
-		if !removeLock {
-			return fmt.Errorf("cannot troubleshoot app while it is locked")
+		if !flag.GetYes(ctx) {
+			removeLock := true
+			fmt.Fprintf(io.Out, "The app is currently locked - this lock expires at %s\n", format.Time(lock.Expiration))
+			askErr := survey.AskOne(&survey.Confirm{
+				Message: "Remove this lock?",
+				Default: true,
+			}, &removeLock)
+			if askErr != nil {
+				removeLock = true
+			}
+			if !removeLock {
+				return fmt.Errorf("cannot troubleshoot app while it is locked")
+			}
 		}
 	}
 
@@ -503,42 +507,32 @@ func (t *troubleshooter) detachedInteractiveTroubleshoot(ctx context.Context) er
 				return err
 			}
 		case DestroyNomadUseMachines:
-			confirm := false
-			if err := survey.AskOne(&survey.Confirm{
-				Message: "Are you sure you want to remove existing Nomad VMs and switch to V2?",
-			}, &confirm); err != nil {
+			switch confirm, err := prompt.Confirm(ctx, "Are you sure you want to remove existing Nomad VMs and switch to V2?"); {
+			case err != nil:
 				return err
+			case confirm:
+				return t.cleanupNomadSwitchToMachines(ctx)
 			}
-			if !confirm {
-				continue
-			}
-
-			return t.cleanupNomadSwitchToMachines(ctx)
 		case DestroyMachinesUseNomad:
-			confirm := false
-			if err := survey.AskOne(&survey.Confirm{
-				Message: "Are you sure you want to remove all Machines and switch back to Nomad?",
-			}, &confirm); err != nil {
+			switch confirm, err := prompt.Confirm(ctx, "Are you sure you want to remove all Machines and switch back to Nomad?"); {
+			case err != nil:
 				return err
-			}
-			if !confirm {
-				continue
-			}
+			case confirm:
+				fmt.Fprint(io.Out, "Destroying machines and setting platform version to nomad.\n")
 
-			fmt.Fprint(io.Out, "Destroying machines and setting platform version to nomad.\n")
-
-			for _, mach := range t.machines {
-				err := machine.Destroy(ctx, t.app, mach, true)
-				if err != nil {
-					return fmt.Errorf("could not destroy machine: %w", err)
+				for _, mach := range t.machines {
+					err := machine.Destroy(ctx, t.app, mach, true)
+					if err != nil {
+						return fmt.Errorf("could not destroy machine: %w", err)
+					}
 				}
+				err = t.setPlatformVersion(ctx, appconfig.NomadPlatform)
+				if err != nil {
+					return err
+				}
+				fmt.Fprint(io.Out, "Done!\n")
+				return nil
 			}
-			err = t.setPlatformVersion(ctx, appconfig.NomadPlatform)
-			if err != nil {
-				return err
-			}
-			fmt.Fprint(io.Out, "Done!\n")
-			return nil
 		case Exit:
 			return nil
 		}
