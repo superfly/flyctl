@@ -27,7 +27,7 @@ jobs:
         run: |
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}" >> $GITHUB_STEP_SUMMARY
-          echo "Track: ${{ fromJSON(steps.version.outputs.json).track }}" >> $GITHUB_STEP_SUMMARY
+          echo "Channel: ${{ fromJSON(steps.version.outputs.json).channel }}" >> $GITHUB_STEP_SUMMARY
           echo "Commit SHA": ${{ github.sha }}
           echo "Commit Time: ${{ fromJSON(steps.version.outputs.json).commitTime }}" >> $GITHUB_STEP_SUMMARY
           echo "GitHub Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
@@ -91,6 +91,6 @@ jobs:
       - uses: actions/download-artifact@v3
         with:
           name: build-artifacts
-          path: /build-archive
+          path: ~/build-archive
       - name: Publish to flypkgs
-        run: go run ./tools/publish /build-archive
+        run: go run ./tools/publish ~/build-archive
