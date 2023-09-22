@@ -35,7 +35,7 @@ func runSetChannel(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 
-	update.InstallInPlace(ctx, io, "latest", channel, false)
+	update.InstallInPlace(ctx, io, channel, false)
 
 	return nil
 }

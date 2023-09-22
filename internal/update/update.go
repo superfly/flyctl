@@ -82,6 +82,28 @@ func (i InvalidReleaseError) StatusCode() int {
 var _validatedReleases = map[string]error{}
 var _validatedReleaseLock sync.Mutex
 
+func UpgradeCheck(ctx context.Context, version string) error {
+	return nil
+	// updateUrl := fmt.Sprintf("%s//v%s", UpdateAPIEndpoint(), version)
+
+	// req, err := http.NewRequestWithContext(ctx, "GET", updateUrl, nil)
+	// if err != nil {
+	// 	return err
+	// }
+	// req.Header.Add("Accept", "text/plain")
+
+	// resp, err := http.DefaultClient.Do(req)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer func() {
+	// 	err := resp.Body.Close()
+	// 	if err != nil {
+	// 		terminal.Debugf("error closing response body: %s", err)
+	// 	}
+	// }()
+}
+
 // ValidateRelease reports whether the given release is valid via an API call.
 // If the version is invalid, the error will be an InvalidReleaseError.
 // Note that other errors may be returned if the API call fails.
@@ -279,7 +301,7 @@ func upgradeCommand(prerelease bool) string {
 	}
 }
 
-func installCommand(version string, channel string) string {
+func installCommand(target string) string {
 	if IsUnderHomebrew() {
 		return "brew upgrade flyctl"
 	}
@@ -293,13 +315,13 @@ func installCommand(version string, channel string) string {
 	// } else {
 	cmd := fmt.Sprintf("curl -L \"%s/install.sh\" | sh", InstallScriptEndpoint())
 	// if version != "" && channel != "" {
-	cmd = fmt.Sprintf("%s -s %s %s", cmd, version, channel)
+	cmd = fmt.Sprintf("%s -s %s %s", cmd, target)
 	// }
 	return cmd
 	// }
 }
 
-func InstallInPlace(ctx context.Context, io *iostreams.IOStreams, version string, channel string, silent bool) error {
+func InstallInPlace(ctx context.Context, io *iostreams.IOStreams, installTarget string, silent bool) error {
 	if runtime.GOOS == "windows" {
 		if err := renameCurrentBinaries(); err != nil {
 			return err
@@ -340,7 +362,8 @@ func InstallInPlace(ctx context.Context, io *iostreams.IOStreams, version string
 		}
 	}
 
-	command := installCommand(version, channel)
+	command := installCommand(installTarget)
+	fmt.Printf("command: %q\n", command)
 	cmd := exec.Command(shellToUse, switchToUse, command)
 
 	if !silent {

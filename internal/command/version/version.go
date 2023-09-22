@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/cache"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -40,7 +39,7 @@ number and build date.`
 	)
 
 	version.AddCommand(
-		newInitState(),
+		newSaveInstall(),
 		newUpgrade(),
 		newChannel(),
 	)
@@ -51,13 +50,8 @@ number and build date.`
 
 func run(ctx context.Context) (err error) {
 	if saveInstall := flag.GetString(ctx, saveInstallName); saveInstall != "" {
-		err = executeInitState(
-			iostreams.FromContext(ctx),
-			cache.FromContext(ctx),
-			saveInstall,
-		)
 
-		return
+		return initState(ctx, saveInstall, true)
 	}
 
 	var (
