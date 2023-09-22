@@ -21,7 +21,7 @@ import (
 
 func newUsers() *cobra.Command {
 	const (
-		short = "Manage users in a postgres cluster"
+		short = "Manage users in a Postgres cluster"
 		long  = short + "\n"
 
 		usage = "users"
@@ -73,7 +73,7 @@ func runListUsers(ctx context.Context) error {
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", appName)
+		return fmt.Errorf("app %s is not a Postgres app", appName)
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)

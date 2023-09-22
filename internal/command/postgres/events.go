@@ -53,7 +53,7 @@ func newListEvents() *cobra.Command {
 		flag.String{
 			Name:        "event",
 			Shorthand:   "e",
-			Description: "Event type in a postgres cluster",
+			Description: "Event type in a Postgres cluster",
 		},
 		flag.String{
 			Name:        "limit",
@@ -98,7 +98,7 @@ func runListEvents(ctx context.Context) error {
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", appName)
+		return fmt.Errorf("app %s is not a Postgres app", appName)
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)
@@ -117,7 +117,7 @@ func runListEvents(ctx context.Context) error {
 	}
 
 	if !IsFlex(leader) {
-		return fmt.Errorf("this feature is not compatible with this postgres service ")
+		return fmt.Errorf("this feature is not compatible with this Postgres service ")
 	}
 
 	ignoreFlags := []string{flagnames.AccessToken, flagnames.App, flagnames.AppConfigFilePath,

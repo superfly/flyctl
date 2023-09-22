@@ -24,7 +24,7 @@ func (*localImageResolver) Name() string {
 func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
 	build.BuildStart()
 	if !dockerFactory.IsLocal() {
-		note := "local docker daemon not available, skipping"
+		note := "local Docker daemon not available, skipping"
 		terminal.Debug(note)
 		build.BuildFinish()
 		return nil, note, nil
@@ -45,7 +45,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
-		terminal.Debug("error fetching docker server info:", err)
+		terminal.Debug("error fetching Docker server info:", err)
 	} else {
 		buildkitEnabled, err := buildkitEnabled(docker)
 		terminal.Debugf("buildkitEnabled %v", buildkitEnabled)

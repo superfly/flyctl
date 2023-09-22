@@ -63,12 +63,12 @@ var sharedFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "build-remote-only",
-		Description: "Perform builds remotely without using the local docker daemon",
+		Description: "Perform builds remotely without using the local Docker daemon",
 		Hidden:      true,
 	},
 	flag.Bool{
 		Name:        "build-local-only",
-		Description: "Only perform builds locally using the local docker daemon",
+		Description: "Only perform builds locally using the local Docker daemon",
 		Hidden:      true,
 	},
 	flag.Bool{
@@ -86,7 +86,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "image-label",
-		Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+		Description: "Image label to use when tagging and pushing to the Fly registry. Defaults to \"deployment-{timestamp}\".",
 		Hidden:      true,
 	},
 	flag.String{

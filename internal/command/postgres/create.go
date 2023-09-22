@@ -74,12 +74,12 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "stolon",
-			Description: "Create a postgres cluster that's managed by Stolon",
+			Description: "Create a Postgres cluster that's managed by Stolon",
 			Default:     false,
 		},
 		flag.Bool{
 			Name:        "flex",
-			Description: "Create a postgres cluster that's managed by Repmgr",
+			Description: "Create a Postgres cluster that's managed by Repmgr",
 			Default:     true,
 		},
 		flag.Bool{
@@ -166,7 +166,7 @@ func run(ctx context.Context) (err error) {
 
 		// Confirm fork-app is a postgres app
 		if !forkApp.IsPostgresApp() {
-			return fmt.Errorf("The fork-from app %q must be a postgres app", forkApp.Name)
+			return fmt.Errorf("The fork-from app %q must be a Postgres app", forkApp.Name)
 		}
 
 		ctx, err := apps.BuildContext(ctx, forkApp)
@@ -381,7 +381,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		input.SnapshotID = &params.SnapshotID
 	}
 
-	fmt.Fprintf(io.Out, "Creating postgres cluster in organization %s\n", org.Slug)
+	fmt.Fprintf(io.Out, "Creating Postgres cluster in organization %s\n", org.Slug)
 
 	launcher := flypg.NewLauncher(client)
 

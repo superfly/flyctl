@@ -262,7 +262,7 @@ func runLocalDocker(ctx context.Context) (err error) {
 			return
 		}
 
-		err = fmt.Errorf("failed pinging docker instance: %w", err)
+		err = fmt.Errorf("failed pinging Docker instance: %w", err)
 	}()
 
 	var client *dockerclient.Client

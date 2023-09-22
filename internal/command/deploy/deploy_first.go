@@ -74,19 +74,19 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allo
 		}
 
 	case false:
-		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
+		fmt.Fprintf(md.io.Out, "Provisioning IPs for %s\n", md.colorize.Bold(md.app.Name))
 		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
 		if err != nil {
-			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
+			return fmt.Errorf("error allocating IPv6 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Dedicated ipv6: %s\n", v6Addr.Address)
+		fmt.Fprintf(md.io.Out, "  Dedicated IPv6: %s\n", v6Addr.Address)
 
 		v4Shared, err := md.apiClient.AllocateSharedIPAddress(ctx, md.app.Name)
 		if err != nil {
-			return fmt.Errorf("error allocating shared ipv4 after detecting first deploy and presence of services: %w", err)
+			return fmt.Errorf("error allocating shared IPv4 after detecting first deploy and presence of services: %w", err)
 		}
-		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", v4Shared)
-		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: fly ips allocate-v4\n")
+		fmt.Fprintf(md.io.Out, "  Shared IPv4: %s\n", v4Shared)
+		fmt.Fprintf(md.io.Out, "  Add a dedicated IPv4 with: fly ips allocate-v4\n")
 	}
 
 	fmt.Fprintln(md.io.Out)

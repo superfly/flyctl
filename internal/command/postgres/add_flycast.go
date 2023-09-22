@@ -53,7 +53,7 @@ func runAddFlycast(ctx context.Context) error {
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", appName)
+		return fmt.Errorf("app %s is not a Postgres app", appName)
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)
@@ -87,7 +87,7 @@ func doAddFlycast(ctx context.Context) error {
 	for _, machine := range machines {
 		for _, service := range machine.Config.Services {
 			if service.InternalPort == 5432 || service.InternalPort == 5433 {
-				return fmt.Errorf("failed to enable flycast for pg machine %s because a service already exists on the postgres port(s)", machine.ID)
+				return fmt.Errorf("failed to enable flycast for pg machine %s because a service already exists on the Postgres port(s)", machine.ID)
 			}
 		}
 

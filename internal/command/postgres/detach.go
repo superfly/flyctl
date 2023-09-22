@@ -20,7 +20,7 @@ import (
 
 func newDetach() *cobra.Command {
 	const (
-		short = "Detach a postgres cluster from an app"
+		short = "Detach a Postgres cluster from an app"
 		long  = short + "\n"
 		usage = "detach <POSTGRES APP>"
 	)
@@ -50,7 +50,7 @@ func runDetach(ctx context.Context) error {
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("get postgres app: %w", err)
+		return fmt.Errorf("get Postgres app: %w", err)
 	}
 
 	app, err := client.GetAppCompact(ctx, appName)

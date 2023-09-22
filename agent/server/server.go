@@ -359,7 +359,7 @@ func (s *server) clean(ctx context.Context) {
 			s.printf("failed validating tunnels: %v", err)
 		}
 
-		s.print("validated wireguard peers")
+		s.print("validated WireGuard peers")
 	}
 }
 

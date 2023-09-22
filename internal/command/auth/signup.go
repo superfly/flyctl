@@ -10,10 +10,10 @@ import (
 
 func newSignup() *cobra.Command {
 	const (
-		long = `Creates a new fly account. The command opens the browser
+		long = `Creates a new Fly account. The command opens the browser
 and sends the user to a form to provide appropriate credentials.
 `
-		short = "Create a new fly account"
+		short = "Create a new Fly account"
 	)
 
 	return command.New("signup", short, long, runSignup)

@@ -54,7 +54,7 @@ func runSetPlatformVersion(ctx context.Context) error {
 	}
 
 	if app.IsPostgresApp() {
-		return fmt.Errorf("postgres apps should use `fly migrate-to-v2` instead")
+		return fmt.Errorf("Postgres apps should use `fly migrate-to-v2` instead")
 	}
 
 	currentVersion := app.PlatformVersion

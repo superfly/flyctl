@@ -55,7 +55,7 @@ func runConfigShow(ctx context.Context) error {
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", appName)
+		return fmt.Errorf("app %s is not a Postgres app", appName)
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)

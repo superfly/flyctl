@@ -89,7 +89,7 @@ func newMigrateToV2() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Migrate without requiring health checks to pass (ignored for fly postgres)",
+			Description: "Migrate without requiring health checks to pass (ignored for Fly Postgres)",
 			Default:     false,
 			Hidden:      true,
 		},
@@ -526,19 +526,19 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	defer setAborted()
 
 	if m.isPostgres {
-		tb.Detail("Upgrading postgres image")
+		tb.Detail("Upgrading Postgres image")
 		err := m.updateNomadPostgresImage(ctx)
 		if err != nil {
 			return err
 		}
 
-		tb.Detail("Setting postgres primary to readonly")
+		tb.Detail("Setting Postgres primary to readonly")
 		err = m.setNomadPgReadonly(ctx, true)
 		if err != nil {
 			return err
 		}
 
-		tb.Detail("Creating new postgres volumes")
+		tb.Detail("Creating new Postgres volumes")
 		err = m.migratePgVolumes(ctx)
 		if err != nil {
 			return err
@@ -941,7 +941,7 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 
 	fmt.Fprintf(m.io.Out, "This migration process will do the following, in order:\n")
 	if m.isPostgres {
-		fmt.Fprintf(m.io.Out, " * Update your postgres app to the latest supported image version\n")
+		fmt.Fprintf(m.io.Out, " * Update your Postgres app to the latest supported image version\n")
 		fmt.Fprintf(m.io.Out, " * Create volumes for new PG replicas to use\n")
 	}
 	fmt.Fprintf(m.io.Out, " * Lock your application, preventing changes during the migration\n")

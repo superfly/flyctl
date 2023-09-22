@@ -59,7 +59,7 @@ Download the appropriate version from the [Releases](https://github.com/superfly
 
 ## Getting Started
 
-1. Sign into your fly account
+1. Sign into your Fly account
 
 ```bash
 fly auth login

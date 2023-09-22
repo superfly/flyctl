@@ -44,13 +44,13 @@ func newConnect() *cobra.Command {
 		flag.String{
 			Name:        "user",
 			Shorthand:   "u",
-			Description: "The postgres user to connect with",
+			Description: "The Postgres user to connect with",
 			Default:     "postgres",
 		},
 		flag.String{
 			Name:        "password",
 			Shorthand:   "p",
-			Description: "The postgres user password",
+			Description: "The Postgres user password",
 		},
 	)
 
@@ -69,7 +69,7 @@ func runConnect(ctx context.Context) error {
 	}
 
 	if !app.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", appName)
+		return fmt.Errorf("app %s is not a Postgres app", appName)
 	}
 
 	ctx, err = apps.BuildContext(ctx, app)

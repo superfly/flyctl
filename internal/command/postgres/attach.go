@@ -33,7 +33,7 @@ type AttachParams struct {
 
 func newAttach() *cobra.Command {
 	const (
-		short = "Attach a postgres cluster to an app"
+		short = "Attach a Postgres cluster to an app"
 		long  = short + "\n"
 		usage = "attach <POSTGRES APP>"
 	)
@@ -80,11 +80,11 @@ func runAttach(ctx context.Context) error {
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving Postgres app %s: %w", pgAppName, err)
 	}
 
 	if !pgApp.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", pgAppName)
+		return fmt.Errorf("app %s is not a Postgres app", pgAppName)
 	}
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -110,7 +110,7 @@ func runAttach(ctx context.Context) error {
 
 	pgAppFull, err := client.GetApp(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving Postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
@@ -142,11 +142,11 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving Postgres app %s: %w", pgAppName, err)
 	}
 
 	if !pgApp.IsPostgresApp() {
-		return fmt.Errorf("app %s is not a postgres app", pgAppName)
+		return fmt.Errorf("app %s is not a Postgres app", pgAppName)
 	}
 
 	ctx, err = apps.BuildContext(ctx, pgApp)
@@ -162,7 +162,7 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 
 	pgAppFull, err := client.GetApp(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving Postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string

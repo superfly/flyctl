@@ -66,7 +66,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ImageBuildStart()
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
-		terminal.Debug("error fetching docker server info:", err)
+		terminal.Debug("error fetching Docker server info:", err)
 	} else {
 		build.SetBuilderMetaPart2(false, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	}

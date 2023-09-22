@@ -275,7 +275,7 @@ func checkDnsRecords(dnsClient *dns.Client, nsAddr string, appName string, appFq
 }
 
 func (ac *AppChecker) checkDockerContext() int {
-	ac.lprint(nil, "Checking docker context size (this may take little bit)... ")
+	ac.lprint(nil, "Checking Docker context size (this may take little bit)... ")
 	checkKey := "appDockerContextSizeBytes"
 	var dockerfile string
 	var err error
@@ -322,8 +322,8 @@ func (ac *AppChecker) checkDockerIgnore(printDetailedMsg bool) {
 		ac.checks[checkKey] = "no .dockerignore file found"
 		ac.lprint(nil, "Nope\n")
 		if printDetailedMsg {
-			ac.lprint(nil, `			Found no .dockerignore to limit docker context size. Large docker contexts can slow down builds.
-			Create a .dockerignore file to indicate which files and directories may be ignored when building the docker image for this app.
+			ac.lprint(nil, `			Found no .dockerignore to limit Docker context size. Large Docker contexts can slow down builds.
+			Create a .dockerignore file to indicate which files and directories may be ignored when building the Docker image for this app.
 			More info at: https://docs.docker.com/engine/reference/builder/#dockerignore-file`)
 			ac.lprint(nil, "\n")
 		}
