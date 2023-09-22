@@ -107,7 +107,7 @@ jobs:
           - "windows-latest"
     runs-on: ${{ matrix.os }}
     env:
-      FLYCTL_INSTALL: "$HOME\\flyctl"
+      FLYCTL_INSTALL: "${{ github.env.HOME }}\\flyctl"
     steps:
     - name: checkout
       uses: actions/checkout@v4
@@ -115,23 +115,12 @@ jobs:
       shell: powershell
       run: |
         ./installers/install.ps1
-        env
-        $env:PATH -split ':' | Select-Object -Last 1 | Out-File -FilePath $env:GITHUB_PATH -Append
-        env
-      if: contains(matrix.os, 'windows')
     - run: env
       shell: powershell
-      if: contains(matrix.os, 'windows')
-    - run: ls C:\Users\runneradmin\.fly\bin
-      shell: powershell
-      if: contains(matrix.os, 'windows')
-    - run: env
-      shell: powershell
-      if: contains(matrix.os, 'windows')
-    - name: Check that `fly` is in PATH and is executable
-      run: flyctl version
-      if: ${{ !contains(matrix.os, 'windows') }}
+    # - run: ls C:\Users\runneradmin\.fly\bin
+    #   shell: powershell
+    # # - run: env
+    # #   shell: powershell
     - name: Check that `fly` is in PATH and is executable
       shell: powershell
       run: flyctl.exe version
-      if: contains(matrix.os, 'windows')
