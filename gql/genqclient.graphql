@@ -4,7 +4,6 @@ query GetAddOn($name: String) {
 		publicUrl
 		privateIp
 		password
-		token
 		status
 		primaryRegion
 		readRegions
@@ -38,7 +37,6 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			name
 			publicUrl
 			ssoLink
-			token
 			environment
 			primaryRegion
 		}
