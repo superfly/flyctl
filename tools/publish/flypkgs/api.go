@@ -1,11 +1,9 @@
 package flypkgs
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -58,10 +56,10 @@ func (c *Client) sendRequest(ctx context.Context, req *http.Request, v interface
 
 	defer res.Body.Close()
 
-	var buf bytes.Buffer
-	io.Copy(&buf, res.Body)
-	fmt.Println(buf.String())
-	res.Body = io.NopCloser(&buf)
+	// var buf bytes.Buffer
+	// io.Copy(&buf, res.Body)
+	// fmt.Println(buf.String())
+	// res.Body = io.NopCloser(&buf)
 
 	if res.StatusCode < http.StatusOK || res.StatusCode >= http.StatusBadRequest {
 		errRes := ErrorResponse{

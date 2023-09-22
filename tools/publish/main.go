@@ -118,9 +118,13 @@ func run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("created release", release)
-
-	fmt.Println("Release Done")
+	fmt.Println("Created release:")
+	fmt.Printf("\tVersion: %s\n", release.Version)
+	fmt.Printf("\tChannel: %s (status:%s, stable:%t)\n", release.Channel.Name, release.Channel.Status, release.Channel.Stable)
+	fmt.Printf("\tStatus: %s\n", release.Status)
+	fmt.Printf("\tGit Commit: %s\n", release.GitCommit)
+	fmt.Printf("\tGit Branch: %s\n", release.GitBranch)
+	fmt.Printf("\tGit Tag: %s\n", release.GitTag)
 
 	return nil
 }
