@@ -308,6 +308,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	}
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
+	isPostgres := appCompact.IsPostgresApp() && appFull.ImageDetails.Repository == "flyio/postgres"
 	migrator := &v2PlatformMigrator{
 		apiClient:               apiClient,
 		flapsClient:             flapsClient,
@@ -324,7 +325,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		img:                     img,
 		oldAllocs:               allocs,
 		machineGuests:           machineGuests,
-		isPostgres:              appCompact.IsPostgresApp(),
+		isPostgres:              isPostgres,
 		replacedVolumes:         map[string][]string{},
 		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
