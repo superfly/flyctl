@@ -17,7 +17,7 @@ func newChannel() *cobra.Command {
 	const (
 		short = "Set the update channel for flyctl"
 
-		long = `Set the update channel for flyctl and installs the latest version on that channel. Valid channels are "stable", 
+		long = `Set the update channel for flyctl and installs the latest version on that channel. Valid channels are "stable",
 		"nightly", and "prNNNN" for unstable pull request builds.`
 	)
 

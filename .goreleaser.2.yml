@@ -1,4 +1,4 @@
-# This config targets the new flypkgs distribution system. Once all releases are 
+# This config targets the new flypkgs distribution system. Once all releases are
 # being served by flypkgs, this file will replace .goreleaser.yml and .goreleaser.dev.yml
 
 before:
@@ -76,5 +76,3 @@ archives:
 
 release:
   disable: true
-
-
