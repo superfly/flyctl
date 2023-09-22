@@ -6,7 +6,7 @@ on:
       - '.github/workflows/test_install.yml'
       - 'installers/**'
   push:
-    branches: 
+    branches:
       - master
   workflow_dispatch:
 
