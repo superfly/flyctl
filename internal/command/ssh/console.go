@@ -227,7 +227,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	})
 
 	if len(machines) < 1 {
-		return "", fmt.Errorf("app %s has no started VMs", app.Name)
+		return "", fmt.Errorf("app %s has no started VMs.\nIt may be unhealthy or not have been deployed yet.\nTry the following command to verify:\n\nfly status", app.Name)
 	}
 
 	if region := flag.GetRegion(ctx); region != "" {

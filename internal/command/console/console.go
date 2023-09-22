@@ -223,8 +223,9 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 
 	input := &machine.EphemeralInput{
 		LaunchInput: api.LaunchMachineInput{
-			Config: machConfig,
-			Region: config.FromContext(ctx).Region,
+			Config:           machConfig,
+			Region:           config.FromContext(ctx).Region,
+			HostDedicationID: appConfig.HostDedicationID,
 		},
 		What: "to run the console",
 	}
@@ -239,7 +240,7 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGue
 		}
 	}
 
-	if cpuKind := flag.GetString(ctx, "vm-cpukind"); cpuKind != "" {
+	if cpuKind := flag.GetString(ctx, "vm-cpu-kind"); cpuKind != "" {
 		desiredGuest.CPUKind = cpuKind
 	}
 

@@ -66,9 +66,11 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			"PRIMARY_REGION": "scl",
 			"OTHER":          "value",
 		},
-		Metrics: &api.MachineMetrics{
-			Port: 9000,
-			Path: "/prometheus",
+		Metrics: []*appconfig.Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Port: 9000,
+				Path: "/prometheus",
+			}},
 		},
 		Deploy: &appconfig.Deploy{
 			ReleaseCommand: "touch sky",

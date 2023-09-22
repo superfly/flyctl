@@ -33,6 +33,11 @@ func NewConfig() *Config {
 	}
 }
 
+type Metrics struct {
+	*api.MachineMetrics
+	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+
 // Config wraps the properties of app configuration.
 // NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
 type Config struct {
@@ -50,19 +55,19 @@ type Config struct {
 	Env          map[string]string `toml:"env,omitempty" json:"env,omitempty"`
 
 	// Fields that are process group aware must come after Processes
-	Processes   map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
-	Mounts      []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
-	HTTPService *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Services    []Service                 `toml:"services,omitempty" json:"services,omitempty"`
-	Checks      map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
-	Files       []File                    `toml:"files,omitempty" json:"files,omitempty"`
-
+	Processes        map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
+	Mounts           []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	HTTPService      *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	Services         []Service                 `toml:"services,omitempty" json:"services,omitempty"`
+	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
+	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
+	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 	// MergedFiles is a list of files that have been merged from the app config and flags.
 	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Others, less important.
-	Statics []Static            `toml:"statics,omitempty" json:"statics,omitempty"`
-	Metrics *api.MachineMetrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
+	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`
+	Metrics []*Metrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	// RawDefinition contains fly.toml parsed as-is
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()

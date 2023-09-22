@@ -14,8 +14,8 @@ import (
 
 func newStop() *cobra.Command {
 	const (
-		short = "Stop a VM"
-		long  = "Request for a VM to be asynchronously stopped"
+		short = "V1 APPS ONLY: Stop a VM"
+		long  = "V1 APPS ONLY: Request for a VM to be asynchronously stopped"
 		usage = "stop <vm-id>"
 	)
 

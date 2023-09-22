@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -16,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
@@ -256,6 +258,11 @@ func errorIsTimeout(err error) bool {
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
+
+	if errors.Is(err, ErrWaitTimeout) {
+		return true
+	}
+
 	return false
 }
 
@@ -264,7 +271,10 @@ func errorIsTimeout(err error) bool {
 // If the err is not a timeout, it's returned unchanged.
 func suggestChangeWaitTimeout(err error, flagName string) error {
 	if errorIsTimeout(err) {
-		err = fmt.Errorf("%w\nnote: you can change this timeout with the --%s flag", err, flagName)
+		err = flyerr.GenericErr{
+			Err:     err.Error(),
+			Suggest: fmt.Sprintf("You can increase the timeout with the --%s flag", flagName),
+		}
 	}
 	return err
 }
@@ -323,9 +333,10 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
+			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
 			return rollbackErr
 		}
-		return err
+		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
 }
@@ -339,6 +350,28 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	if md.strategy == "bluegreen" {
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
+	}
+
+	if md.strategy == "immediate" {
+		var wg sync.WaitGroup
+		pool := make(chan struct{}, md.immediateMaxConcurrent)
+		for i, updateEntry := range updateEntries {
+			e := updateEntry
+			indexStr := formatIndex(i, len(updateEntries))
+			wg.Add(1)
+			pool <- struct{}{}
+			go func() {
+				defer wg.Done()
+				if err := md.updateMachine(ctx, e, indexStr); err != nil {
+					if md.strategy == "immediate" {
+						fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
+					}
+				}
+				<-pool
+			}()
+		}
+		wg.Wait()
+		return nil
 	}
 
 	var groupCount int

@@ -290,6 +290,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
 		NoCache:     opts.NoCache,
+		Labels:      opts.Label,
 	}
 
 	resp, err := docker.ImageBuild(ctx, r, options)
@@ -324,6 +325,10 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 	attrs["target"] = opts.Target
 	if opts.NoCache {
 		attrs["no-cache"] = ""
+	}
+
+	for k, v := range opts.Label {
+		attrs["label:"+k] = v
 	}
 
 	for k, v := range buildArgs {

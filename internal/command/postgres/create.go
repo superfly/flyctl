@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -279,7 +280,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		ForkFrom:     params.ForkFrom,
 	}
 
-	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0
+	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
 
 	var config *PostgresConfiguration
 
@@ -342,6 +343,13 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		}
 
 		input.VMSize = vmSize
+
+		if params.ScaleToZero != nil {
+			input.ScaleToZero = *params.ScaleToZero
+			if input.ScaleToZero && input.InitialClusterSize != 1 {
+				return errors.New("scale to zero is only supported for single node clusters")
+			}
+		}
 
 		// Resolve volume size
 		if params.DiskGb == 0 {
@@ -407,12 +415,13 @@ type PostgresConfiguration struct {
 
 type ClusterParams struct {
 	PostgresConfiguration
-	Password   string
-	SnapshotID string
-	Detach     bool
-	Manager    string
-	ForkFrom   string
-	Autostart  bool
+	Password    string
+	SnapshotID  string
+	Detach      bool
+	Manager     string
+	ForkFrom    string
+	Autostart   bool
+	ScaleToZero *bool
 }
 
 func postgresConfigurations(manager string) []PostgresConfiguration {

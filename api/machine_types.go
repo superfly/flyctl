@@ -25,6 +25,7 @@ const (
 	MachineStateStopped                        = "stopped"
 	MachineStateCreated                        = "created"
 	DefaultVMSize                              = "shared-cpu-1x"
+	DefaultGPUVMSize                           = "performance-8x"
 )
 
 type Machine struct {
@@ -37,13 +38,14 @@ type Machine struct {
 	InstanceID string `json:"instance_id,omitempty"`
 	Version    string `json:"version,omitempty"`
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP  string                `json:"private_ip,omitempty"`
-	CreatedAt  string                `json:"created_at,omitempty"`
-	UpdatedAt  string                `json:"updated_at,omitempty"`
-	Config     *MachineConfig        `json:"config,omitempty"`
-	Events     []*MachineEvent       `json:"events,omitempty"`
-	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
-	LeaseNonce string                `json:"nonce,omitempty"`
+	PrivateIP        string                `json:"private_ip,omitempty"`
+	CreatedAt        string                `json:"created_at,omitempty"`
+	UpdatedAt        string                `json:"updated_at,omitempty"`
+	Config           *MachineConfig        `json:"config,omitempty"`
+	Events           []*MachineEvent       `json:"events,omitempty"`
+	Checks           []*MachineCheckStatus `json:"checks,omitempty"`
+	LeaseNonce       string                `json:"nonce,omitempty"`
+	HostDedicationID string                `json:"host_dedication_id,omitempty"`
 }
 
 func (m *Machine) FullImageRef() string {
@@ -177,6 +179,40 @@ func (m *Machine) GetLatestEventOfTypeAfterType(latestEventType, firstEventType 
 	return nil
 }
 
+func (m *Machine) MostRecentStartTimeAfterLaunch() (time.Time, error) {
+	if m == nil {
+		return time.Time{}, fmt.Errorf("machine is nil")
+	}
+	var (
+		firstStart  = -1
+		firstLaunch = -1
+		firstExit   = -1
+	)
+	for i, e := range m.Events {
+		switch e.Type {
+		case "start":
+			firstStart = i
+		case "launch":
+			firstLaunch = i
+		case "exit":
+			firstExit = i
+		}
+		if firstStart != -1 && firstLaunch != -1 {
+			break
+		}
+	}
+	switch {
+	case firstStart == -1:
+		return time.Time{}, fmt.Errorf("no start event found")
+	case firstStart >= firstLaunch:
+		return time.Time{}, fmt.Errorf("no start event found after launch")
+	case firstExit != -1 && firstExit <= firstStart:
+		return time.Time{}, fmt.Errorf("no start event found after most recent exit")
+	default:
+		return m.Events[firstStart].Time(), nil
+	}
+}
+
 func (m *Machine) IsReleaseCommandMachine() bool {
 	return m.HasProcessGroup(MachineProcessGroupFlyAppReleaseCommand) || m.Config.Metadata["process_group"] == "release_command"
 }
@@ -195,6 +231,10 @@ type MachineEvent struct {
 	Request   *MachineRequest `json:"request,omitempty"`
 	Source    string          `json:"source,omitempty"`
 	Timestamp int64           `json:"timestamp,omitempty"`
+}
+
+func (e *MachineEvent) Time() time.Time {
+	return time.Unix(e.Timestamp/1000, e.Timestamp%1000*1000000)
 }
 
 type MachineRequest struct {
@@ -282,6 +322,7 @@ type MachineGuest struct {
 	CPUKind  string `json:"cpu_kind,omitempty"`
 	CPUs     int    `json:"cpus,omitempty"`
 	MemoryMB int    `json:"memory_mb,omitempty"`
+	GPUKind  string `json:"gpu_kind,omitempty"`
 
 	KernelArgs []string `json:"kernel_args,omitempty"`
 }
@@ -538,6 +579,8 @@ type MachineConfig struct {
 	VMSize string `json:"size,omitempty"`
 	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
+
+	HostDedicationId string `json:"host_dedication_id,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {
@@ -622,6 +665,7 @@ type LaunchMachineInput struct {
 	Name                    string         `json:"name,omitempty"`
 	SkipLaunch              bool           `json:"skip_launch,omitempty"`
 	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
+	HostDedicationID        string         `json:"host_dedication_id,omitempty"`
 
 	LeaseTTL int `json:"lease_ttl,omitempty"`
 

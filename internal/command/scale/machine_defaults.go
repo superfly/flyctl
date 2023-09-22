@@ -121,11 +121,13 @@ func (d *defaultValues) CreateVolumeRequest(mConfig *api.MachineConfig, region s
 	}
 	mount := mConfig.Mounts[0]
 	return &api.CreateVolumeRequest{
-		Name:              mount.Name,
-		Region:            region,
-		SizeGb:            &mount.SizeGb,
-		Encrypted:         api.Pointer(mount.Encrypted),
-		RequireUniqueZone: api.Pointer(false),
-		SnapshotID:        d.snapshotID,
+		Name:                mount.Name,
+		Region:              region,
+		SizeGb:              &mount.SizeGb,
+		Encrypted:           api.Pointer(mount.Encrypted),
+		RequireUniqueZone:   api.Pointer(false),
+		SnapshotID:          d.snapshotID,
+		HostDedicationId:    mConfig.HostDedicationId,
+		ComputeRequirements: mConfig.Guest,
 	}
 }

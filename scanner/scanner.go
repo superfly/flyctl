@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 //go:embed templates templates/*/.dockerignore templates/**/.fly
@@ -31,6 +32,15 @@ type MergeConfigStruct struct {
 	Name      string
 	Temporary bool
 }
+
+type DatabaseKind int
+
+const (
+	DatabaseKindNone DatabaseKind = iota
+	DatabaseKindPostgres
+	DatabaseKindMySQL
+	DatabaseKindSqlite
+)
 
 type SourceInfo struct {
 	Family                       string
@@ -59,8 +69,10 @@ type SourceInfo struct {
 	InitCommands                 []InitCommand
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
+	DatabaseDesired              DatabaseKind
+	RedisDesired                 bool
 	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, options map[string]bool) error
+	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error
 	HttpCheckPath                string
 	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string

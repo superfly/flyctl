@@ -43,6 +43,7 @@ type ImageOptions struct {
 	BuiltInSettings map[string]interface{}
 	Builder         string
 	Buildpacks      []string
+	Label           map[string]string
 }
 
 type RefOptions struct {
@@ -55,9 +56,10 @@ type RefOptions struct {
 }
 
 type DeploymentImage struct {
-	ID   string
-	Tag  string
-	Size int64
+	ID     string
+	Tag    string
+	Size   int64
+	Labels map[string]string
 }
 
 type Resolver struct {

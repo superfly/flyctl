@@ -13,6 +13,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
@@ -20,28 +21,30 @@ import (
 
 var (
 	ErrAborted             = errors.New("deployment aborted by user")
-	ErrWaitTimeout         = errors.New("wait for goroutine timeout")
+	ErrWaitTimeout         = errors.New("wait timeout")
 	ErrCreateGreenMachine  = errors.New("failed to create green machines")
 	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
 	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
 	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready")
 	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
 	ErrValidationError     = errors.New("app not in valid state for bluegreen deployments")
+	ErrOrgLimit            = errors.New("app can't undergo bluegreen deployment due to org limits")
 )
 
 type blueGreen struct {
-	greenMachines   []machine.LeasableMachine
-	blueMachines    []*machineUpdateEntry
-	flaps           *flaps.Client
-	io              *iostreams.IOStreams
-	colorize        *iostreams.ColorScheme
-	clearLinesAbove func(count int)
-	timeout         time.Duration
-	aborted         atomic.Bool
-	healthLock      sync.RWMutex
-	stateLock       sync.RWMutex
-	ctrlcHook       ctrlc.Handle
-
+	greenMachines       []machine.LeasableMachine
+	blueMachines        []*machineUpdateEntry
+	flaps               *flaps.Client
+	apiClient           *api.Client
+	io                  *iostreams.IOStreams
+	colorize            *iostreams.ColorScheme
+	clearLinesAbove     func(count int)
+	timeout             time.Duration
+	aborted             atomic.Bool
+	healthLock          sync.RWMutex
+	stateLock           sync.RWMutex
+	ctrlcHook           ctrlc.Handle
+	appConfig           *appconfig.Config
 	hangingBlueMachines []string
 }
 
@@ -50,6 +53,8 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		greenMachines:       []machine.LeasableMachine{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
+		apiClient:           md.apiClient,
+		appConfig:           md.appConfig,
 		timeout:             md.waitTimeout,
 		io:                  md.io,
 		colorize:            md.colorize,
@@ -67,7 +72,6 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 	})
 
 	return bg
-
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
@@ -313,7 +317,6 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				time.Sleep(interval)
 			}
-
 		}(gm)
 	}
 
@@ -346,7 +349,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
-		err := bg.flaps.UnCordon(ctx, gm.Machine().ID)
+		err := bg.flaps.Uncordon(ctx, gm.Machine().ID)
 		if err != nil {
 			return err
 		}
@@ -411,11 +414,19 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 }
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
-
 	defer bg.ctrlcHook.Done()
 
 	if bg.aborted.Load() {
 		return ErrAborted
+	}
+
+	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
+	if err != nil {
+		return err
+	}
+
+	if !canPerform {
+		return ErrOrgLimit
 	}
 
 	bg.attachCustomTopLevelChecks()
@@ -484,7 +495,6 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
-
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
