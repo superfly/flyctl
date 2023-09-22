@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/samber/lo"
@@ -353,24 +352,20 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	}
 
 	if md.strategy == "immediate" {
-		var wg sync.WaitGroup
+		pool := make(chan struct{}, md.immediateMaxConcurrent)
 		for i, updateEntry := range updateEntries {
 			e := updateEntry
 			indexStr := formatIndex(i, len(updateEntries))
-			wg.Add(1)
+			pool <- struct{}{}
 			go func() {
-				defer wg.Done()
 				if err := md.updateMachine(ctx, e, indexStr); err != nil {
 					if md.strategy == "immediate" {
 						fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 					}
 				}
+				<-pool
 			}()
-			if i != 0 && i%md.immediateMaxConcurrent == 0 {
-				wg.Wait()
-			}
 		}
-		wg.Wait()
 		return nil
 	}
 
