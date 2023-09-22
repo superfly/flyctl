@@ -117,10 +117,10 @@ jobs:
         ./installers/install.ps1
     - name: Set Path
       run: |
-        echo "${FLYCTL_INSTALL}\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        echo "$env:FLYCTL_INSTALL\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
     - run: env
       shell: powershell
-    - run: ls $FLYCTL_INSTALL\bin
+    - run: ls $env:FLYCTL_INSTALL\bin
       shell: powershell
     # # - run: env
     # #   shell: powershell
