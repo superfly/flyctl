@@ -107,7 +107,7 @@ jobs:
           - "windows-latest"
     runs-on: ${{ matrix.os }}
     env:
-      FLYCTL_INSTALL: "${{ github.env.HOME }}\\flyctl"
+      FLYCTL_INSTALL: "C:\\flyctl"
     steps:
     - name: checkout
       uses: actions/checkout@v4
