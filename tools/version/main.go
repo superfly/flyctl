@@ -40,13 +40,13 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	output.CommitTime = commitTime.Format(time.RFC3339)
 
-	track, err := trackFromRef(ref)
+	channel, err := channelFromRef(ref)
 	if err != nil {
 		return err
 	}
-	output.Track = track
+	output.Channel = channel
 
-	previousVersion, err := latestVersion(track)
+	previousVersion, err := latestVersion(channel)
 	if err != nil {
 		return err
 	}
@@ -56,7 +56,7 @@ func run(cmd *cobra.Command, args []string) error {
 		output.PreviousVersion = &str
 		output.NextVersion = previousVersion.Increment(commitTime).String()
 	} else {
-		output.NextVersion = version.New(commitTime, track, 1).String()
+		output.NextVersion = version.New(commitTime, channel, 1).String()
 	}
 
 	enc := json.NewEncoder(cmd.OutOrStdout())
@@ -66,7 +66,7 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 type output struct {
-	Track           string  `json:"track"`
+	Channel         string  `json:"channel"`
 	PreviousVersion *string `json:"previousVersion"`
 	NextVersion     string  `json:"nextVersion"`
 	Ref             string  `json:"ref"`

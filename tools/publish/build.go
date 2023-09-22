@@ -56,7 +56,7 @@ func createReleaseArchive(srcDir string, w io.WriteCloser) (*ReleaseMeta, error)
 
 	releaseMeta := &ReleaseMeta{
 		Version:   version.String(),
-		Track:     version.Track,
+		Track:     version.Channel,
 		GitCommit: buildInfo.Commit,
 		GitTag:    buildInfo.Tag,
 		GitBranch: "wat",

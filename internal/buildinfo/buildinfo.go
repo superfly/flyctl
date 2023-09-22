@@ -148,11 +148,11 @@ func loadBuildTime() error {
 func loadVersion() error {
 	if IsDev() && buildVersion == "<version>" {
 		cachedVersion = version.Version{
-			Major: 0,
-			Minor: 0,
-			Patch: 0,
-			Track: "dev",
-			Build: int(cachedBuildTime.Unix()),
+			Major:   0,
+			Minor:   0,
+			Patch:   0,
+			Channel: "dev",
+			Build:   int(cachedBuildTime.Unix()),
 		}
 		return nil
 	}

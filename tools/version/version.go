@@ -101,7 +101,7 @@ func latestVersion(track string) (*version.Version, error) {
 		if v, err := version.Parse(tag); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
-			if v.Track == track {
+			if v.Channel == track {
 				latest = &v
 				break
 			}
@@ -111,7 +111,7 @@ func latestVersion(track string) (*version.Version, error) {
 	return latest, nil
 }
 
-func trackFromRef(ref string) (string, error) {
+func channelFromRef(ref string) (string, error) {
 	// track is always "dev" unless built on CI
 	if !isCI() {
 		return "dev", nil
@@ -164,7 +164,7 @@ func prNumber(ref string) (int, error) {
 	return num, nil
 }
 
-func taggedVersionsForTrack(track string) ([]version.Version, error) {
+func taggedVersionsForChannel(channel string) ([]version.Version, error) {
 	versions := []version.Version{}
 
 	tags, err := listVersionTags()
@@ -173,7 +173,7 @@ func taggedVersionsForTrack(track string) ([]version.Version, error) {
 	}
 	for _, tag := range tags {
 		if v, err := version.Parse(tag); err == nil {
-			if v.Track == track {
+			if v.Channel == channel {
 				versions = append(versions, v)
 			}
 		} else {

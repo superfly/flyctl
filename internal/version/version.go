@@ -17,44 +17,44 @@ func (e *InvalidVersionError) Error() string {
 	return fmt.Sprintf("invalid version %q: %s", e.val, e.message)
 }
 
-func New(t time.Time, track string, buildNum int) Version {
+func New(t time.Time, channel string, buildNum int) Version {
 	return Version{
-		Major: t.Year(),
-		Minor: int(t.Month()),
-		Patch: t.Day(),
-		Track: track,
-		Build: buildNum,
+		Major:   t.Year(),
+		Minor:   int(t.Month()),
+		Patch:   t.Day(),
+		Channel: channel,
+		Build:   buildNum,
 	}
 }
 
 type Version struct {
-	Major int
-	Minor int
-	Patch int
-	Build int
-	Track string
+	Major   int
+	Minor   int
+	Patch   int
+	Build   int
+	Channel string
 }
 
 func (v Version) String() string {
 	// TODO[md]: remove this when we're done with the semver to calver migration
 	// handle old v0.[1-2].XXX[-pre-X] format first
 	if !isCalVer(v) && !isDev(v) {
-		// version is bumped on every release -- no track or build on stable
-		if v.Track == "stable" || v.Track == "" {
+		// version is bumped on every release -- no channel or build on stable
+		if v.Channel == "stable" || v.Channel == "" {
 			return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
 		}
-		if v.Track == "pre" || v.Track == "beta" {
-			return fmt.Sprintf("%d.%d.%d-%s-%d", v.Major, v.Minor, v.Patch, v.Track, v.Build)
+		if v.Channel == "pre" || v.Channel == "beta" {
+			return fmt.Sprintf("%d.%d.%d-%s-%d", v.Major, v.Minor, v.Patch, v.Channel, v.Build)
 		}
-		return fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Track)
+		return fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Channel)
 	}
 
-	if v.Track != "" && v.Build != 0 {
-		return fmt.Sprintf("%d.%d.%d-%s.%d", v.Major, v.Minor, v.Patch, v.Track, v.Build)
+	if v.Channel != "" && v.Build != 0 {
+		return fmt.Sprintf("%d.%d.%d-%s.%d", v.Major, v.Minor, v.Patch, v.Channel, v.Build)
 	}
 
-	if v.Track != "" && v.Build == 0 {
-		return fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Track)
+	if v.Channel != "" && v.Build == 0 {
+		return fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Channel)
 	}
 
 	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
@@ -66,7 +66,7 @@ func isCalVer(v Version) bool {
 }
 
 func isDev(v Version) bool {
-	return v.Major == 0 && v.Minor == 0 && v.Patch == 0 && v.Track == "dev"
+	return v.Major == 0 && v.Minor == 0 && v.Patch == 0 && v.Channel == "dev"
 }
 
 func (v Version) Equal(other Version) bool {
@@ -87,9 +87,9 @@ func (v Version) Older(other Version) bool {
 //	 0 if x equals y,
 //	+1 if x is greater than y.
 //
-// Versions with tracks are considered less than versions without tracks, as
-// per semver spec. If both versions have tracks, they are compared as strings.
-// A track of "stable" is greater than any other track.
+// Versions with channels are considered less than versions without channels, as
+// per semver spec. If both versions have channels, they are compared as strings.
+// A channel of "stable" is greater than any other channel.
 func Compare(x Version, y Version) int {
 	if ret := cmp.Compare(x.Major, y.Major); ret != 0 {
 		return ret
@@ -104,12 +104,12 @@ func Compare(x Version, y Version) int {
 	}
 
 	// in semver, if one version has a prerel and the other doesn't, the one without is newer
-	if x.Track == "" && y.Track != "" {
+	if x.Channel == "" && y.Channel != "" {
 		return 1
-	} else if y.Track == "" && x.Track != "" {
+	} else if y.Channel == "" && x.Channel != "" {
 		return -1
 	} else {
-		if ret := strings.Compare(x.Track, y.Track); ret != 0 {
+		if ret := strings.Compare(x.Channel, y.Channel); ret != 0 {
 			return ret
 		}
 	}
@@ -158,7 +158,7 @@ func (v Version) Increment(t time.Time) Version {
 		buildNum = v.Build
 	}
 	buildNum++
-	return New(t, v.Track, buildNum)
+	return New(t, v.Channel, buildNum)
 }
 
 func Parse(version string) (Version, error) {
@@ -170,7 +170,7 @@ func Parse(version string) (Version, error) {
 	// versionStr contains "MAJOR.MINOR.PATCH"
 	versionStr := parts[0]
 	suffixStr := ""
-	// if parts has a length of 2, suffixStr contains "TRACK.BUILD" or "TRACK-BUILD" (latter is old format)
+	// if parts has a length of 2, suffixStr contains "CHANNEL.BUILD" or "CHANNEL-BUILD" (latter is old format)
 	if len(parts) == 2 {
 		suffixStr = parts[1]
 	}
@@ -211,18 +211,18 @@ func Parse(version string) (Version, error) {
 	}
 
 	if suffixStr != "" {
-		// handle old v0.1.xxx format first, which separated track and build with a dash
-		// old tracks began with either "pre-", or "beta-"
+		// handle old v0.1.xxx format first, which separated channel and build with a dash
+		// old channels began with either "pre-", or "beta-"
 		if !isCalVer(out) && (strings.HasPrefix(suffixStr, "pre-") || strings.HasPrefix(suffixStr, "beta-")) {
 			parts = strings.SplitN(suffixStr, "-", 2)
 		} else {
-			// handle new calver format, which separates track and build with a dot
+			// handle new calver format, which separates channel and build with a dot
 			parts = strings.SplitN(suffixStr, ".", 2)
 		}
 
-		out.Track = parts[0]
+		out.Channel = parts[0]
 
-		// handle `-track.build` suffix
+		// handle `-channel.build` suffix
 		if len(parts) == 2 {
 			if x, err := strconv.Atoi(parts[1]); err != nil {
 				// if build is not an integer, return an error
@@ -235,9 +235,9 @@ func Parse(version string) (Version, error) {
 			out.Build = 0
 		}
 	} else {
-		// if no suffix was given, default to no track and zero build
+		// if no suffix was given, default to no channel and zero build
 		out.Build = 0
-		out.Track = ""
+		out.Channel = ""
 	}
 
 	return out, nil

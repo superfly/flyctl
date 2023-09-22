@@ -92,7 +92,7 @@ func TestTrackFromRef_CI(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.ref, func(t *testing.T) {
 			t.Setenv("CI", "true")
-			track, err := trackFromRef(test.ref)
+			track, err := channelFromRef(test.ref)
 			if test.expectedErr != nil {
 				assert.EqualError(t, err, test.expectedErr.Error())
 			} else {
@@ -123,7 +123,7 @@ func TestTrackFromRef_Dev(t *testing.T) {
 			t.Setenv("CI", "")
 			t.Setenv("GITHUB_ACTIONS", "")
 
-			track, err := trackFromRef(test)
+			track, err := channelFromRef(test)
 			assert.NoError(t, err)
 			assert.Equal(t, "dev", track)
 		})
@@ -144,8 +144,8 @@ func TestLatestVersionForTrack(t *testing.T) {
 	}
 
 	tests := map[string]*version.Version{
-		"stable":        {Major: 2023, Minor: 9, Patch: 5, Build: 1, Track: "stable"},
-		"pr123":         {Major: 2023, Minor: 9, Patch: 5, Build: 3, Track: "pr123"},
+		"stable":        {Major: 2023, Minor: 9, Patch: 5, Build: 1, Channel: "stable"},
+		"pr123":         {Major: 2023, Minor: 9, Patch: 5, Build: 3, Channel: "pr123"},
 		"missing-track": nil,
 	}
 
@@ -176,27 +176,27 @@ func TestTaggedVersionsForTrack(t *testing.T) {
 		expectedResult []version.Version
 	}{
 		{"", []version.Version{
-			{Major: 0, Minor: 1, Patch: 87, Build: 0, Track: ""},
-			{Major: 0, Minor: 1, Patch: 85, Build: 0, Track: ""},
+			{Major: 0, Minor: 1, Patch: 87, Build: 0, Channel: ""},
+			{Major: 0, Minor: 1, Patch: 85, Build: 0, Channel: ""},
 		}},
 		{"stable", []version.Version{
-			{Major: 2023, Minor: 9, Patch: 5, Build: 1, Track: "stable"},
-			{Major: 2023, Minor: 9, Patch: 2, Build: 2, Track: "stable"},
-			{Major: 2023, Minor: 9, Patch: 2, Build: 1, Track: "stable"},
+			{Major: 2023, Minor: 9, Patch: 5, Build: 1, Channel: "stable"},
+			{Major: 2023, Minor: 9, Patch: 2, Build: 2, Channel: "stable"},
+			{Major: 2023, Minor: 9, Patch: 2, Build: 1, Channel: "stable"},
 		}},
 		{"pr123", []version.Version{
-			{Major: 2023, Minor: 9, Patch: 5, Build: 3, Track: "pr123"},
-			{Major: 2023, Minor: 9, Patch: 1, Build: 2, Track: "pr123"},
-			{Major: 2023, Minor: 8, Patch: 1, Build: 1, Track: "pr123"},
+			{Major: 2023, Minor: 9, Patch: 5, Build: 3, Channel: "pr123"},
+			{Major: 2023, Minor: 9, Patch: 1, Build: 2, Channel: "pr123"},
+			{Major: 2023, Minor: 8, Patch: 1, Build: 1, Channel: "pr123"},
 		}},
 		{"pre", []version.Version{
-			{Major: 0, Minor: 1, Patch: 85, Build: 1, Track: "pre"},
+			{Major: 0, Minor: 1, Patch: 85, Build: 1, Channel: "pre"},
 		}},
 	}
 
 	for _, test := range tests {
 		t.Run(test.track, func(t *testing.T) {
-			versions, err := taggedVersionsForTrack(test.track)
+			versions, err := taggedVersionsForChannel(test.track)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expectedResult, versions)
 		})

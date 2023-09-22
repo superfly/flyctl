@@ -315,7 +315,7 @@ func installCommand(target string) string {
 	// } else {
 	cmd := fmt.Sprintf("curl -L \"%s/install.sh\" | sh", InstallScriptEndpoint())
 	// if version != "" && channel != "" {
-	cmd = fmt.Sprintf("%s -s %s %s", cmd, target)
+	cmd = fmt.Sprintf("%s -s %s", cmd, target)
 	// }
 	return cmd
 	// }
