@@ -19,7 +19,8 @@ import (
 )
 
 func newSetup() *cobra.Command {
-	cmd := command.New("setup", "", "", runSetup, command.RequireAppName)
+	const help = "Configure an app for log-structured virtual disks (LSVD)"
+	cmd := command.New("setup", help, help, runSetup, command.RequireAppName)
 	cmd.Args = cobra.NoArgs
 	flag.Add(
 		cmd,

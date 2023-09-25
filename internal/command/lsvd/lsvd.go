@@ -6,7 +6,8 @@ import (
 )
 
 func New() *cobra.Command {
-	cmd := command.New("lsvd", "", "", nil)
+	const help = "Manage log-structured virtual disks (LSVD) on an app"
+	cmd := command.New("lsvd", help, help, nil)
 	cmd.Hidden = true
 	cmd.AddCommand(newSetup())
 	return cmd
