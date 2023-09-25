@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/watch"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error {
@@ -154,7 +155,7 @@ func leaderIpFromInstances(ctx context.Context, addrs []string) (string, error) 
 		if err != nil {
 			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
 		}
-
+		terminal.Debugf("role for %s: %s\n", addr, role)
 		if role == "leader" || role == "primary" {
 			return addr, nil
 		}
