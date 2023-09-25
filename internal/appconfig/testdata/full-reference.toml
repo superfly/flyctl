@@ -6,6 +6,10 @@ primary_region = "sea"
 console_command = "/bin/bash"
 host_dedication_id = "06031957"
 
+[restart]
+  policy = "always"
+  retries = 3
+
 [experimental]
   cmd = ["cmd"]
   entrypoint = ["entrypoint"]

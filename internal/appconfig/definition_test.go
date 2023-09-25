@@ -17,6 +17,10 @@ var GetConfigJSON = []byte(`
     "auto_rollback": true
   },
   "kill_signal": "SIGINT",
+  "restart" : {
+	"policy": "always",
+	"retries": 3
+  },
   "kill_timeout": 5,
   "processes": [],
   "services": [
@@ -73,6 +77,10 @@ func TestFromDefinition(t *testing.T) {
 	assert.Equal(t, &Config{
 		KillSignal:  fly.Pointer("SIGINT"),
 		KillTimeout: fly.MustParseDuration("5s"),
+		Restart: &Restart{
+			Policy:     RestartPolicyAlways,
+			MaxRetries: 3,
+		},
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},
@@ -120,10 +128,14 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &fly.Definition{
-		"app":                "foo",
-		"primary_region":     "sea",
-		"kill_signal":        "SIGTERM",
-		"kill_timeout":       "3s",
+		"app":            "foo",
+		"primary_region": "sea",
+		"kill_signal":    "SIGTERM",
+		"kill_timeout":   "3s",
+		"restart": map[string]any{
+			"policy":  "always",
+			"retries": int64(3),
+		},
 		"swap_size_mb":       int64(512),
 		"console_command":    "/bin/bash",
 		"host_dedication_id": "06031957",
