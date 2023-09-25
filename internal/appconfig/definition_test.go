@@ -17,6 +17,10 @@ var GetConfigJSON = []byte(`
     "auto_rollback": true
   },
   "kill_signal": "SIGINT",
+  "restart" : {
+	"policy": "always",
+	"retries": 3
+  },
   "kill_timeout": 5,
   "processes": [],
   "services": [
@@ -73,6 +77,10 @@ func TestFromDefinition(t *testing.T) {
 	assert.Equal(t, &Config{
 		KillSignal:  api.Pointer("SIGINT"),
 		KillTimeout: api.MustParseDuration("5s"),
+		Restart: &Restart{
+			Policy:     RestartPolicyAlways,
+			MaxRetries: 3,
+		},
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},
@@ -116,7 +124,11 @@ func TestFromDefinition(t *testing.T) {
 			},
 			"kill_signal":  "SIGINT",
 			"kill_timeout": float64(5),
-			"processes":    []any{},
+			"restart": map[string]any{
+				"policy":  "always",
+				"retries": float64(3),
+			},
+			"processes": []any{},
 			"services": []any{
 				map[string]any{
 					"concurrency": map[string]any{
@@ -162,10 +174,14 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &api.Definition{
-		"app":                "foo",
-		"primary_region":     "sea",
-		"kill_signal":        "SIGTERM",
-		"kill_timeout":       "3s",
+		"app":            "foo",
+		"primary_region": "sea",
+		"kill_signal":    "SIGTERM",
+		"kill_timeout":   "3s",
+		"restart": map[string]any{
+			"policy":  "always",
+			"retries": int64(3),
+		},
 		"swap_size_mb":       int64(512),
 		"console_command":    "/bin/bash",
 		"host_dedication_id": "06031957",

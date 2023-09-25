@@ -218,6 +218,12 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 		mConfig.Guest = guest
 	}
 
+	// Restart Policy
+	mConfig.Restart = api.MachineRestart{
+		Policy:     api.MachineRestartPolicy(c.Restart.Policy),
+		MaxRetries: c.Restart.MaxRetries,
+	}
+
 	return mConfig, nil
 }
 
