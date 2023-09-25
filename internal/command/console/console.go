@@ -133,6 +133,8 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "skip-dns-registration",
 			Description: "Do not register the machine's 6PN IP with the internal DNS system",
+			Default:     true,
+			Hidden:      true,
 		},
 		flag.VMSizeFlags,
 	)
