@@ -118,7 +118,7 @@ func configCompare(ctx context.Context, original api.MachineConfig, new api.Mach
 // MergeFiles merges the files parsed from the command line or fly.toml into the machine configuration.
 func MergeFiles(machineConf *api.MachineConfig, files []*api.File) {
 	if len(files) == 0 {
-		machineConf.Files = []*api.File{}
+		machineConf.Files = nil
 		return
 	}
 
