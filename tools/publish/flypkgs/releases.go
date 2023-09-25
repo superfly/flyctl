@@ -10,17 +10,19 @@ import (
 )
 
 type Release struct {
-	ID          uint64    `json:"id"`
-	Channel     Channel   `json:"channel"`
-	Version     string    `json:"version"`
-	GitCommit   string    `json:"git_commit"`
-	GitBranch   string    `json:"git_branch"`
-	GitTag      string    `json:"git_tag"`
-	Status      string    `json:"status"`
-	InsertedAt  time.Time `json:"inserted_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	PublishedAt time.Time `json:"published_at"`
-	Assets      []Asset   `json:"assets"`
+	ID             uint64    `json:"id"`
+	Channel        Channel   `json:"channel"`
+	Version        string    `json:"version"`
+	GitCommit      string    `json:"git_commit"`
+	GitBranch      string    `json:"git_branch"`
+	GitTag         string    `json:"git_tag"`
+	GitPreviousTag string    `json:"git_previous_tag"`
+	GitDirty       bool      `json:"git_dirty"`
+	Status         string    `json:"status"`
+	InsertedAt     time.Time `json:"inserted_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
+	PublishedAt    time.Time `json:"published_at"`
+	Assets         []Asset   `json:"assets"`
 }
 
 type Channel struct {

@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,48 +29,6 @@ func main() {
 }
 
 const FlyPkgsEndpoint = "https://flyio-pkgs.fly.dev/api"
-
-type buildInfo struct {
-	ProjectName string `json:"project_name"`
-	Tag         string `json:"tag"`
-	PreviousTag string `json:"previous_tag"`
-	Version     string `json:"version"`
-	Commit      string `json:"commit"`
-	Date        string `json:"date"`
-}
-
-type buildArtifact struct {
-	Name         string `json:"name"`
-	Path         string `json:"path"`
-	Goos         string `json:"goos"`
-	Goarch       string `json:"goarch"`
-	InternalType int    `json:"internal_type"`
-	Type         string `json:"type"`
-	Extra        struct {
-		Binaries  []string `json:"Binaries"`
-		Checksum  string   `json:"Checksum"`
-		Format    string   `json:"Format"`
-		ID        string   `json:"ID"`
-		Replaces  string   `json:"Replaces"`
-		WrappedIn string   `json:"WrappedIn"`
-	} `json:"extra"`
-}
-
-func loadJSONFile[T any](path string) (T, error) {
-	var data T
-
-	file, err := os.Open(path)
-	if err != nil {
-		return data, err
-	}
-	defer file.Close()
-
-	err = json.NewDecoder(file).Decode(&data)
-	if err != nil {
-		return data, err
-	}
-	return data, nil
-}
 
 func run(cmd *cobra.Command, args []string) error {
 	distDir := args[0]

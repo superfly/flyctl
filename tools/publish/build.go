@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bufio"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -16,14 +17,88 @@ import (
 	"github.com/superfly/flyctl/internal/version"
 )
 
+type buildInfo struct {
+	ProjectName string `json:"project_name"`
+	Tag         string `json:"tag"`
+	PreviousTag string `json:"previous_tag"`
+	Version     string `json:"version"`
+	Commit      string `json:"commit"`
+	Date        string `json:"date"`
+}
+
+type buildArtifact struct {
+	Name         string `json:"name"`
+	Path         string `json:"path"`
+	Goos         string `json:"goos"`
+	Goarch       string `json:"goarch"`
+	InternalType int    `json:"internal_type"`
+	Type         string `json:"type"`
+	Extra        struct {
+		Binaries  []string `json:"Binaries"`
+		Checksum  string   `json:"Checksum"`
+		Format    string   `json:"Format"`
+		ID        string   `json:"ID"`
+		Replaces  string   `json:"Replaces"`
+		WrappedIn string   `json:"WrappedIn"`
+	} `json:"extra"`
+}
+
+func loadJSONFile[T any](path string) (T, error) {
+	var data T
+
+	file, err := os.Open(path)
+	if err != nil {
+		return data, err
+	}
+	defer file.Close()
+
+	err = json.NewDecoder(file).Decode(&data)
+	if err != nil {
+		return data, err
+	}
+	return data, nil
+}
+
+type gitStatus struct {
+	Branch  string
+	Changes []string
+}
+
+func readGitStatus(path string) (gitStatus, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return gitStatus{}, err
+	}
+	defer file.Close()
+
+	gs := gitStatus{}
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "# branch.head ") {
+			gs.Branch = strings.TrimPrefix(line, "# branch.head ")
+		} else if !strings.HasPrefix(line, "# ") {
+			gs.Changes = append(gs.Changes, line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return gitStatus{}, err
+	}
+
+	return gs, nil
+}
+
 type ReleaseMeta struct {
-	Version   string    `json:"version"`
-	Track     string    `json:"track"`
-	GitCommit string    `json:"git_commit"`
-	GitTag    string    `json:"git_tag"`
-	GitBranch string    `json:"git_branch"`
-	BuildTime time.Time `json:"build_time"`
-	Assets    []Asset   `json:"assets"`
+	Version        string    `json:"version"`
+	GitCommit      string    `json:"git_commit"`
+	GitTag         string    `json:"git_tag"`
+	GitPreviousTag string    `json:"git_previous_tag"`
+	GitBranch      string    `json:"git_branch"`
+	GitDirty       bool      `json:"git_dirty"`
+	BuildTime      time.Time `json:"build_time"`
+	Assets         []Asset   `json:"assets"`
 }
 
 type Asset struct {
@@ -54,13 +129,19 @@ func createReleaseArchive(srcDir string, w io.WriteCloser) (*ReleaseMeta, error)
 		return nil, err
 	}
 
+	gitStatus, err := readGitStatus(filepath.Join(srcDir, "git-status.txt"))
+	if err != nil {
+		return nil, err
+	}
+
 	releaseMeta := &ReleaseMeta{
-		Version:   version.String(),
-		Track:     version.Channel,
-		GitCommit: buildInfo.Commit,
-		GitTag:    buildInfo.Tag,
-		GitBranch: "wat",
-		BuildTime: buildTime,
+		Version:        version.String(),
+		GitCommit:      buildInfo.Commit,
+		GitTag:         buildInfo.Tag,
+		GitPreviousTag: buildInfo.PreviousTag,
+		BuildTime:      buildTime,
+		GitBranch:      gitStatus.Branch,
+		GitDirty:       len(gitStatus.Changes) > 0,
 	}
 
 	artifacts, err := loadJSONFile[[]buildArtifact]((filepath.Join(srcDir, "artifacts.json")))
@@ -108,6 +189,8 @@ func createReleaseArchive(srcDir string, w io.WriteCloser) (*ReleaseMeta, error)
 			}
 		}
 	}
+
+	json.NewEncoder(os.Stdout).Encode(releaseMeta)
 
 	if err := archive.WriteJSON(releaseMeta, "meta.json"); err != nil {
 		return nil, errors.Wrap(err, "writing meta.json")
