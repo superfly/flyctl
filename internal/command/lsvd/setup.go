@@ -92,8 +92,8 @@ func runSetup(ctx context.Context) error {
 		io.Out,
 		"This will configure S3-backed log-structured virtual disks for your app\n"+
 			"by setting several secrets on it.\n\n"+
-			"THIS IS AN EXPERIMENTAL FEATURE. It's not ready for production use, and\n" +
-			"it's not officially supported. If you run into problems, please get in\n" +
+			"THIS IS AN EXPERIMENTAL FEATURE. It's not ready for production use, and\n"+
+			"it's not officially supported. If you run into problems, please get in\n"+
 			"touch with us at https://community.fly.io.",
 	)
 	cont, err := prompt.Confirm(ctx, "Do you wish to continue?")

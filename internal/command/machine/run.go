@@ -257,7 +257,7 @@ func runMachineRun(ctx context.Context) error {
 		Name:             flag.GetString(ctx, "name"),
 		Region:           flag.GetString(ctx, "region"),
 		HostDedicationID: flag.GetString(ctx, "host-dedication-id"),
-		LSVD:   flag.GetBool(ctx, "lsvd"),
+		LSVD:             flag.GetBool(ctx, "lsvd"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
