@@ -61,7 +61,7 @@ func TestToMachineConfig(t *testing.T) {
 		Guest:       &api.MachineGuest{CPUs: 3},
 		Schedule:    "24/7",
 		AutoDestroy: true,
-		Restart:     api.MachineRestart{Policy: "poke"},
+		Restart:     api.MachineRestart{Policy: "always"},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
 		Env:         map[string]string{"removed": "by-update"},
 		Mounts:      []api.MachineMount{{Name: "removed", Path: "/by/update"}},
