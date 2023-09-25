@@ -73,6 +73,50 @@ func New() *cobra.Command {
 			Name:        "entrypoint",
 			Description: "ENTRYPOINT replacement",
 		},
+		flag.Bool{
+			Name:        "build-only",
+			Description: "Only build the image without running the machine",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-remote-only",
+			Description: "Perform builds remotely without using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-local-only",
+			Description: "Only perform builds locally using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-nixpacks",
+			Description: "Build your image with nixpacks",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "dockerfile",
+			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		},
+		flag.StringArray{
+			Name:        "build-arg",
+			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "image-label",
+			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "build-target",
+			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "no-build-cache",
+			Description: "Do not use the cache when building the image",
+			Hidden:      true,
+		},
 		flag.String{
 			Name:        "command",
 			Shorthand:   "C",
@@ -260,7 +304,11 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	}
 
 	if flag.IsSpecified(ctx, "image") {
-		machConfig.Image = flag.GetString(ctx, "image")
+		img, err := command.DetermineImage(ctx, app.Name, flag.GetString(ctx, "image"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get image: %w", err)
+		}
+		machConfig.Image = img.Tag
 	} else {
 		machConfig.Image = currentRelease.ImageRef
 	}

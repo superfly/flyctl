@@ -5,13 +5,11 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -23,14 +21,11 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
@@ -388,80 +383,6 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 	return parsed, nil
 }
 
-func determineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
-	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
-		cfg    = appconfig.ConfigFromContext(ctx)
-	)
-
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
-
-	// build if relative or absolute path
-	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
-		opts := imgsrc.ImageOptions{
-			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
-			Publish:    !flag.GetBuildOnly(ctx),
-			ImageLabel: flag.GetString(ctx, "image-label"),
-			Target:     flag.GetString(ctx, "build-target"),
-			NoCache:    flag.GetBool(ctx, "no-build-cache"),
-		}
-
-		dockerfilePath := cfg.Dockerfile()
-
-		// dockerfile passed through flags takes precedence over the one set in config
-		if flag.GetString(ctx, "dockerfile") != "" {
-			dockerfilePath = flag.GetString(ctx, "dockerfile")
-		}
-
-		if dockerfilePath != "" {
-			dockerfilePath, err := filepath.Abs(dockerfilePath)
-			if err != nil {
-				return nil, err
-			}
-			opts.DockerfilePath = dockerfilePath
-		}
-
-		extraArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid build-arg")
-		}
-		opts.BuildArgs = extraArgs
-
-		img, err = resolver.BuildImage(ctx, io, opts)
-		if err != nil {
-			return nil, err
-		}
-		if img == nil {
-			return nil, errors.New("could not find an image to deploy")
-		}
-	} else {
-		opts := imgsrc.RefOptions{
-			AppName:    appName,
-			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBool(ctx, "build-only"),
-			ImageRef:   imageOrPath,
-			ImageLabel: flag.GetString(ctx, "image-label"),
-		}
-
-		img, err = resolver.ResolveReference(ctx, io, opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if img == nil {
-		return nil, errors.New("could not find an image to deploy")
-	}
-
-	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
-
-	return img, nil
-}
-
 func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
 	unattachedVolumes := make(map[string][]api.Volume)
 
@@ -664,7 +585,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	}
 
 	if input.imageOrPath != "" {
-		img, err := determineImage(ctx, input.appName, input.imageOrPath)
+		img, err := command.DetermineImage(ctx, input.appName, input.imageOrPath)
 		if err != nil {
 			return machineConf, err
 		}
