@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
@@ -69,10 +70,25 @@ func New() *cobra.Command {
 			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 		},
 		flag.String{
+			Name:        "entrypoint",
+			Description: "ENTRYPOINT replacement",
+		},
+		flag.String{
 			Name:        "command",
 			Shorthand:   "C",
 			Default:     "",
 			Description: "command to run on SSH session",
+		},
+		flag.StringSlice{
+			Name:      "port",
+			Shorthand: "p",
+			Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
+		i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
+		To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
+		},
+		flag.Bool{
+			Name:        "skip-dns-registration",
+			Description: "Do not register the machine's 6PN IP with the internal DNS system",
 		},
 		flag.VMSizeFlags,
 	)
@@ -257,7 +273,26 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 		maps.Copy(machConfig.Env, parsedEnv)
 	}
 
+	if machConfig.DNS == nil {
+		machConfig.DNS = &api.DNSConfig{}
+	}
+	machConfig.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
+
 	machConfig.Guest = guest
+
+	services, err := command.DetermineServices(ctx, machConfig.Services)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing port: %w", err)
+	}
+	machConfig.Services = services
+
+	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
+		splitted, err := shlex.Split(entrypoint)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid entrypoint: %w", err)
+		}
+		machConfig.Init.Entrypoint = splitted
+	}
 
 	input := &machine.EphemeralInput{
 		LaunchInput: api.LaunchMachineInput{
