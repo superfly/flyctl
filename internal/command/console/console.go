@@ -294,6 +294,11 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, err
 	}
+
+	if !flag.IsSpecified(ctx, "image") && flag.IsSpecified(ctx, "dockerfile") {
+		flag.SetString(ctx, "image", ".")
+	}
+
 	if currentRelease == nil && !flag.IsSpecified(ctx, "image") {
 		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
