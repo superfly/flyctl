@@ -303,6 +303,11 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 		return nil, nil, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
 
+	machConfig.Mounts, err = command.DetermineMounts(ctx, machConfig.Mounts, config.FromContext(ctx).Region)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to process mounts: %w", err)
+	}
+
 	if flag.IsSpecified(ctx, "image") {
 		img, err := command.DetermineImage(ctx, app.Name, flag.GetString(ctx, "image"))
 		if err != nil {

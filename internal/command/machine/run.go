@@ -380,81 +380,6 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 	return parsed, nil
 }
 
-func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
-	unattachedVolumes := make(map[string][]api.Volume)
-
-	pathIndex := make(map[string]int)
-	for idx, m := range mounts {
-		pathIndex[m.Path] = idx
-	}
-
-	for _, v := range flag.GetStringSlice(ctx, "volume") {
-		splittedIDDestOpts := strings.Split(v, ":")
-		if len(splittedIDDestOpts) < 2 {
-			return nil, fmt.Errorf("Can't infer volume and mount path from '%s'", v)
-		}
-		volID := splittedIDDestOpts[0]
-		mountPath := splittedIDDestOpts[1]
-
-		if !strings.HasPrefix(volID, "vol_") {
-			volName := volID
-
-			// Load app volumes the first time
-			if len(unattachedVolumes) == 0 {
-				var err error
-				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if len(unattachedVolumes[volName]) == 0 {
-				return nil, fmt.Errorf("not enough unattached volumes for '%s'", volName)
-			}
-			volID = unattachedVolumes[volName][0].ID
-			unattachedVolumes[volName] = unattachedVolumes[volName][1:]
-		}
-
-		if idx, found := pathIndex[mountPath]; found {
-			mounts[idx].Volume = volID
-		} else {
-			mounts = append(mounts, api.MachineMount{
-				Volume: volID,
-				Path:   mountPath,
-			})
-		}
-	}
-	return mounts, nil
-}
-
-func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	apiclient := client.FromContext(ctx).API()
-	flapsClient := flaps.FromContext(ctx)
-
-	if regionCode == "" {
-		region, err := apiclient.GetNearestRegion(ctx)
-		if err != nil {
-			return nil, err
-		}
-		regionCode = region.Code
-	}
-
-	volumes, err := flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
-	}
-
-	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return !v.IsAttached() && (regionCode == v.Region)
-	})
-	if len(unattached) == 0 {
-		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
-	}
-
-	unattachedMap := lo.GroupBy(unattached, func(v api.Volume) string { return v.Name })
-	return unattachedMap, nil
-}
-
 func selectAppName(ctx context.Context) (name string, err error) {
 	const msg = "App Name:"
 
@@ -576,7 +501,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return machineConf, errors.New("invalid restart provided")
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, input.region)
+	machineConf.Mounts, err = command.DetermineMounts(ctx, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}
