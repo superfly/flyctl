@@ -10,7 +10,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -278,7 +277,7 @@ func deployToMachines(
 		return err
 	}
 
-	files, err := machine.FilesFromCommand(ctx)
+	files, err := command.FilesFromCommand(ctx)
 	if err != nil {
 		return err
 	}

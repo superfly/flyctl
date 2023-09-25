@@ -326,6 +326,12 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	}
 	machConfig.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
 
+	machineFiles, err := command.FilesFromCommand(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing filest: %w", err)
+	}
+	machine.MergeFiles(machConfig, machineFiles)
+
 	machConfig.Guest = guest
 
 	services, err := command.DetermineServices(ctx, machConfig.Services)

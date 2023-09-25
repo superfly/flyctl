@@ -4,7 +4,9 @@ package command
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
+	"os"
 	"path"
 	"path/filepath"
 	"strconv"
@@ -246,4 +248,73 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 	}
 
 	return
+}
+
+// FilesFromCommand checks the specified flags for files and returns a list of api.File to be used
+// in the machine configuration.
+func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
+	machineFiles := []*api.File{}
+
+	localFiles, err := parseFiles(ctx, "file-local", func(value string, file *api.File) error {
+		content, err := os.ReadFile(value)
+		if err != nil {
+			return fmt.Errorf("could not read file %s: %w", value, err)
+		}
+		rawValue := base64.StdEncoding.EncodeToString(content)
+		file.RawValue = &rawValue
+		return nil
+	})
+	if err != nil {
+		return machineFiles, fmt.Errorf("failed to read file-local: %w", err)
+	}
+	machineFiles = append(machineFiles, localFiles...)
+
+	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *api.File) error {
+		encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
+		file.RawValue = &encodedValue
+		return nil
+	})
+	if err != nil {
+		return machineFiles, fmt.Errorf("failed to read file-literal: %w", err)
+	}
+	machineFiles = append(machineFiles, literalFiles...)
+
+	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *api.File) error {
+		file.SecretName = &value
+		return nil
+	})
+	if err != nil {
+		return machineFiles, fmt.Errorf("failed to read file-secret: %w", err)
+	}
+	machineFiles = append(machineFiles, secretFiles...)
+
+	return machineFiles, nil
+}
+
+func parseFiles(ctx context.Context, flagName string, cb func(value string, file *api.File) error) ([]*api.File, error) {
+	flagFiles := flag.GetStringArray(ctx, flagName)
+	machineFiles := make([]*api.File, 0, len(flagFiles))
+
+	for _, f := range flagFiles {
+		guestPath, fileRef, ok := strings.Cut(f, "=")
+		file := api.File{
+			GuestPath: guestPath,
+		}
+		switch {
+		case !ok:
+			return nil, fmt.Errorf("invalid %s argument %s", flagName, f)
+		case !filepath.IsAbs(guestPath):
+			return nil, fmt.Errorf("guest path, %s, must be absolute", guestPath)
+		case fileRef == "":
+			// empty value is allowed to remove file from machine
+		default:
+			if err := cb(fileRef, &file); err != nil {
+				return nil, err
+			}
+		}
+
+		machineFiles = append(machineFiles, &file)
+	}
+
+	return machineFiles, nil
 }
