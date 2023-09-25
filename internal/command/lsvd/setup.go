@@ -91,10 +91,9 @@ func runSetup(ctx context.Context) error {
 		io.Out,
 		"This will configure S3-backed log-structured virtual disks for your app\n"+
 			"by setting several secrets on it.\n\n"+
-			"THIS IS AN EXPERIMENTAL FEATURE. Using it may lead to data loss or\n"+
-			"corruption. There is no official support for this feature, nor can we\n"+
-			"guarantee that it will continue to be available. Do not use this for\n"+
-			"production workloads.",
+			"THIS IS AN EXPERIMENTAL FEATURE. It's not ready for production use, and\n" +
+			"it's not officially supported. If you run into problems, please get in\n" +
+			"touch with us at https://community.fly.io.",
 	)
 	cont, err := prompt.Confirm(ctx, "Do you wish to continue?")
 	if err != nil {
@@ -107,7 +106,7 @@ func runSetup(ctx context.Context) error {
 		io.Out,
 		"\nTo begin, you'll need to have a bucket on an S3-compatible object\n"+
 			"storage service and an access key ID/secret access key pair that can\n"+
-			"access it. One these are ready, enter the required information here.\n\n",
+			"access it. Once these are ready, enter the required information here.\n\n",
 	)
 
 	reuseCreds := false
@@ -161,27 +160,27 @@ func runSetup(ctx context.Context) error {
 
 	fmt.Fprintln(
 		io.Out,
-		"\nNext you'll need to specify the size of your device. (Be aware that the\n"+
-			"LSVD process currently requires 2 MiB of RAM per gigabyte for in-memory\n"+
-			"sector mappings, so larger devices will require larger machines to run.)",
+		"\nNext, you'll need to specify the size of your volume. (Be aware that the\n"+
+			"LSVD background daemon currently requires 2 MiB of RAM per gigabyte of\n"+
+			"volume, so larger volumes will require larger Machines to run.)",
 	)
 	for {
-		if err := prompt.Int(ctx, &deviceSize, "Enter the device's size (GiB):", 1, true); err != nil {
+		if err := prompt.Int(ctx, &deviceSize, "Enter the volume's size (GiB):", 1, true); err != nil {
 			return err
 		} else if deviceSize > 0 {
 			break
 		}
-		fmt.Fprintln(io.Out, "The device size must be positive.")
+		fmt.Fprintln(io.Out, "The volume size must be positive.")
 	}
 	newSecrets["FLY_LSVD_DEVICE_SIZE"] = strconv.Itoa(deviceSize * 1024 * 1024 * 1024)
 
 	fmt.Fprintln(
 		io.Out,
-		"\nOptionally, we can automatically create an ext4 filesystem on the device\n"+
+		"\nOptionally, we can automatically create an ext4 filesystem on the volume\n"+
 			"and mount it at a specified path. To make use of this, your image must\n"+
 			"contain the `mkfs.ext4` binary, which will be executed on the first run.",
 	)
-	if err := prompt.String(ctx, &mountPoint, "Enter a mount point for the device (or leave empty to disable):", "", false); err != nil {
+	if err := prompt.String(ctx, &mountPoint, "Enter a mount point for the volume (or leave empty to disable):", "", false); err != nil {
 		return err
 	}
 	if mountPoint != "" {
