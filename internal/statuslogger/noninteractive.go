@@ -14,12 +14,12 @@ type noninteractiveLogger struct {
 	showStatus bool
 }
 
-func (sl *noninteractiveLogger) Line(i int) StatusLine {
-	return sl.lines[i]
+func (nl *noninteractiveLogger) Line(i int) StatusLine {
+	return nl.lines[i]
 }
 
 // Destroy is a no-op for non-interactive loggers.
-func (sl *noninteractiveLogger) Destroy(_ bool) {}
+func (nl *noninteractiveLogger) Destroy(_ bool) {}
 
 type noninteractiveLine struct {
 	logger  *noninteractiveLogger
@@ -27,38 +27,38 @@ type noninteractiveLine struct {
 	status  Status
 }
 
-func (sl *noninteractiveLine) Log(s string) {
+func (line *noninteractiveLine) Log(s string) {
 	buf := ""
-	if sl.logger.showStatus {
-		buf += sl.status.charFor(-1) + " "
+	if line.logger.showStatus {
+		buf += line.status.charFor(-1) + " "
 	}
-	if sl.logger.logNumbers {
-		buf += formatIndex(sl.lineNum, len(sl.logger.lines)) + " "
+	if line.logger.logNumbers {
+		buf += formatIndex(line.lineNum, len(line.logger.lines)) + " "
 	}
 	buf += s
-	fmt.Fprintln(sl.logger.io.Out, buf)
+	fmt.Fprintln(line.logger.io.Out, buf)
 }
 
-func (sl *noninteractiveLine) Logf(format string, args ...interface{}) {
-	sl.Log(fmt.Sprintf(format, args...))
+func (line *noninteractiveLine) Logf(format string, args ...interface{}) {
+	line.Log(fmt.Sprintf(format, args...))
 }
 
-func (sl *noninteractiveLine) LogStatus(s Status, str string) {
-	sl.status = s
-	sl.Log(str)
+func (line *noninteractiveLine) LogStatus(s Status, str string) {
+	line.status = s
+	line.Log(str)
 }
 
-func (sl *noninteractiveLine) LogfStatus(s Status, format string, args ...interface{}) {
-	sl.LogStatus(s, fmt.Sprintf(format, args...))
+func (line *noninteractiveLine) LogfStatus(s Status, format string, args ...interface{}) {
+	line.LogStatus(s, fmt.Sprintf(format, args...))
 }
 
-func (sl *noninteractiveLine) Failed(e error) {
+func (line *noninteractiveLine) Failed(e error) {
 	firstLine, _, _ := strings.Cut(e.Error(), "\n")
-	sl.LogfStatus(StatusFailure, "Failed: %s", firstLine)
+	line.LogfStatus(StatusFailure, "Failed: %s", firstLine)
 }
 
-func (sl *noninteractiveLine) setStatus(s Status) {
-	sl.status = s
+func (line *noninteractiveLine) setStatus(s Status) {
+	line.status = s
 }
 
-func (sl *noninteractiveLogger) Pause() ResumeFn { return func() {} }
+func (nl *noninteractiveLogger) Pause() ResumeFn { return func() {} }

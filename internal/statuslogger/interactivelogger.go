@@ -2,12 +2,14 @@ package statuslogger
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 type interactiveLogger struct {
@@ -19,55 +21,124 @@ type interactiveLogger struct {
 	active bool
 	done   bool
 
-	lines []*interactiveLine
+	lines     []*interactiveLine
+	prevLines int
 
 	// Should we include an item prefix, such as [01/10]?
 	logNumbers bool
 }
 
-func (sl *interactiveLogger) Line(i int) StatusLine {
-	return sl.lines[i]
+func (il *interactiveLogger) Line(i int) StatusLine {
+	return il.lines[i]
 }
 
 const (
-	divider = "-------"
+	divider           = "-------"
+	paddingBeforeJobs = 2
 )
 
-func (sl *interactiveLogger) Destroy(clear bool) {
-	sl.lock.Lock()
-	defer sl.lock.Unlock()
+func (il *interactiveLogger) Destroy(clear bool) {
+	il.lock.Lock()
+	defer il.lock.Unlock()
 
-	if sl.done {
+	if il.done {
 		return
 	}
 
-	sl.active = false
-	sl.done = false
+	il.active = false
+	il.done = false
 
 	if clear {
-		sl.clear()
+		fmt.Fprintf(il.io.Out, il.clearStr())
 	} else {
-		fmt.Fprintf(sl.io.Out, "%s%s\n", aec.Down(uint(sl.height())), divider)
+		fmt.Fprintf(il.io.Out, "%s%s\n", aec.Down(uint(il.height(il.prevLines))), divider)
 	}
 }
 
-func (sl *interactiveLogger) height() int {
+func (il *interactiveLogger) consoleHeight() int {
+	_, height, err := terminal.GetSize(int(il.io.StdoutFd()))
+	if err != nil {
+		height = 24
+	}
+	return height
+}
+
+// The current sorting algorithm prioritizes failures, in-progress jobs, and then completed jobs.
+// It will pick the most recently modified jobs, sequentially in these categories, then finally sort them all by job ID
+func (il *interactiveLogger) currentLines() (finalLines []interactiveLine) {
+
+	maxHeight := il.consoleHeight() - paddingBeforeJobs - 1
+	if maxHeight < 0 {
+		return nil
+	}
+
+	var errorLines []interactiveLine
+	var inProgressLines []interactiveLine
+	var doneLines []interactiveLine
+
+	// TODO: There's probably a more efficient way to insert these *and* have them sorted at the same time.
+
+	for _, line := range il.lines {
+		if line.status == StatusFailure {
+			errorLines = append(errorLines, *line)
+		} else if line.status == StatusSuccess {
+			doneLines = append(doneLines, *line)
+		} else {
+			inProgressLines = append(inProgressLines, *line)
+		}
+	}
+
+	// Intentionally reversed, so that we sort in descending order
+	sortByTime := func(a, b interactiveLine) int {
+		return b.lastChanged.Compare(a.lastChanged)
+	}
+	sortById := func(a, b interactiveLine) int {
+		return a.lineNum - b.lineNum
+	}
+
+	slices.SortFunc(errorLines, sortByTime)
+	slices.SortFunc(inProgressLines, sortByTime)
+	slices.SortFunc(doneLines, sortByTime)
+
+	defer func() {
+		slices.SortFunc(finalLines, sortById)
+	}()
+
+	for _, line := range errorLines {
+		finalLines = append(finalLines, line)
+		if len(finalLines) >= maxHeight {
+			return finalLines
+		}
+	}
+	for _, line := range inProgressLines {
+		finalLines = append(finalLines, line)
+		if len(finalLines) >= maxHeight {
+			return finalLines
+		}
+	}
+	for _, line := range doneLines {
+		finalLines = append(finalLines, line)
+		if len(finalLines) >= maxHeight {
+			return finalLines
+		}
+	}
+	return finalLines
+}
+
+func (il *interactiveLogger) height(numEntries int) int {
 
 	// The +2 is to account for the divider before jobs
-	return 2 + len(sl.lines)
+	return paddingBeforeJobs + numEntries
 }
 
-func (sl *interactiveLogger) clear() {
+func (il *interactiveLogger) clearStr() string {
 
-	numLines := sl.height()
+	total := il.height(il.prevLines)
 
-	fmt.Fprint(sl.io.Out,
-		strings.Repeat(aec.EraseLine(aec.EraseModes.All).String()+"\n", numLines)+
-			aec.Up(uint(numLines)).String(),
-	)
+	return strings.Repeat(aec.EraseLine(aec.EraseModes.All).String()+"\n", total) + aec.Up(uint(total)).String()
 }
 
-func (sl *interactiveLogger) animateThread() {
+func (il *interactiveLogger) animateThread() {
 	// Increment the animation frame every 2 iterations
 	// Each iteration is 50ms, so this is 100ms per frame
 
@@ -77,64 +148,70 @@ func (sl *interactiveLogger) animateThread() {
 	// are generally enough to prevent this.
 	incrementAnim := 0
 	for {
-		sl.lock.Lock()
-		if sl.done {
-			sl.lock.Unlock()
+		il.lock.Lock()
+		if il.done {
+			il.lock.Unlock()
 			return
 		}
-		if sl.active {
-			if sl.showStatus {
+		if il.active {
+			if il.showStatus {
 				incrementAnim += 1
 				if incrementAnim == 2 {
-					sl.statusFrame = (sl.statusFrame + 1) % len(glyphsRunning)
+					il.statusFrame = (il.statusFrame + 1) % len(glyphsRunning)
 					incrementAnim = 0
 				}
 			}
-			sl.lockedDraw()
+			il.lockedDraw()
 		}
-		sl.lock.Unlock()
+		il.lock.Unlock()
 		time.Sleep(50 * time.Millisecond)
 	}
 }
 
-func (sl *interactiveLogger) lockedDraw() {
+func (il *interactiveLogger) lockedDraw() {
 
-	if !sl.active || sl.done {
+	if !il.active || il.done {
 		return
 	}
 
+	currentLines := il.currentLines()
+	if len(currentLines) == 0 {
+		return
+	}
+	defer func() {
+		il.prevLines = len(currentLines)
+	}()
+
 	// Draw the entire status block, clearing each row to prevent overwriting
-	erase := aec.EraseLine(aec.EraseModes.All).String()
-	buf := fmt.Sprintf("%s\n%s%s\n", erase, erase, divider)
-	for i, line := range sl.lines {
-		buf += erase
+	buf := fmt.Sprintf("%s\n%s\n", il.clearStr(), divider)
+	for _, line := range currentLines {
 		buf += " "
-		if sl.showStatus {
-			buf += line.status.charFor(sl.statusFrame) + " "
+		if il.showStatus {
+			buf += line.status.charFor(il.statusFrame) + " "
 		}
-		if sl.logNumbers {
-			buf += formatIndex(i, len(sl.lines)) + " "
+		if il.logNumbers {
+			buf += formatIndex(line.lineNum, len(il.lines)) + " "
 		}
 		buf += line.buf + "\n"
 	}
 	// Send the cursor back up above the status block
 	newlines := strings.Count(buf, "\n")
 	buf += aec.Up(uint(newlines)).String()
-	fmt.Fprint(sl.io.Out, buf)
+	fmt.Fprint(il.io.Out, buf)
 }
 
-func (sl *interactiveLogger) Pause() ResumeFn {
-	sl.lock.Lock()
-	defer sl.lock.Unlock()
+func (il *interactiveLogger) Pause() ResumeFn {
+	il.lock.Lock()
+	defer il.lock.Unlock()
 
-	sl.clear()
-	sl.active = false
+	fmt.Fprint(il.io.Out, il.clearStr())
+	il.active = false
 
 	return func() {
-		sl.lock.Lock()
-		defer sl.lock.Unlock()
+		il.lock.Lock()
+		defer il.lock.Unlock()
 
-		sl.active = true
-		sl.lockedDraw()
+		il.active = true
+		il.lockedDraw()
 	}
 }

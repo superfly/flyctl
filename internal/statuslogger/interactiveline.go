@@ -3,46 +3,55 @@ package statuslogger
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 type interactiveLine struct {
-	logger  *interactiveLogger
-	lineNum int
-	buf     string
-	status  Status
+	logger      *interactiveLogger
+	lineNum     int
+	buf         string
+	status      Status
+	lastChanged time.Time
 }
 
-func (sl *interactiveLine) Log(s string) {
-	sl.logger.lock.Lock()
-	defer sl.logger.lock.Unlock()
-	sl.buf = s
-	sl.logger.lockedDraw()
+func (line *interactiveLine) updateTimestamp() {
+	line.lastChanged = time.Now()
 }
 
-func (sl *interactiveLine) Logf(format string, args ...interface{}) {
-	sl.Log(fmt.Sprintf(format, args...))
+func (line *interactiveLine) Log(s string) {
+	line.logger.lock.Lock()
+	defer line.logger.lock.Unlock()
+	line.buf = s
+	line.logger.lockedDraw()
+	line.updateTimestamp()
 }
 
-func (sl *interactiveLine) LogStatus(s Status, str string) {
-	sl.logger.lock.Lock()
-	defer sl.logger.lock.Unlock()
-	sl.status = s
-	sl.buf = str
-	sl.logger.lockedDraw()
+func (line *interactiveLine) Logf(format string, args ...interface{}) {
+	line.Log(fmt.Sprintf(format, args...))
 }
 
-func (sl *interactiveLine) LogfStatus(s Status, format string, args ...interface{}) {
-	sl.LogStatus(s, fmt.Sprintf(format, args...))
+func (line *interactiveLine) LogStatus(s Status, str string) {
+	line.logger.lock.Lock()
+	defer line.logger.lock.Unlock()
+	line.status = s
+	line.buf = str
+	line.logger.lockedDraw()
+	line.updateTimestamp()
 }
 
-func (sl *interactiveLine) Failed(e error) {
+func (line *interactiveLine) LogfStatus(s Status, format string, args ...interface{}) {
+	line.LogStatus(s, fmt.Sprintf(format, args...))
+}
+
+func (line *interactiveLine) Failed(e error) {
 	firstLine, _, _ := strings.Cut(e.Error(), "\n")
-	sl.LogfStatus(StatusFailure, "Failed: %s", firstLine)
+	line.LogfStatus(StatusFailure, "Failed: %s", firstLine)
 }
 
-func (sl *interactiveLine) setStatus(s Status) {
-	sl.logger.lock.Lock()
-	defer sl.logger.lock.Unlock()
-	sl.status = s
-	sl.logger.lockedDraw()
+func (line *interactiveLine) setStatus(s Status) {
+	line.logger.lock.Lock()
+	defer line.logger.lock.Unlock()
+	line.status = s
+	line.logger.lockedDraw()
+	line.updateTimestamp()
 }
