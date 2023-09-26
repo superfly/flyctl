@@ -55,6 +55,7 @@ func (il *interactiveLogger) Destroy(clear bool) {
 	}
 }
 
+// TODO: It'd be nice to also consider line width, but that's a can of worms that will delay this shipping.
 func (il *interactiveLogger) consoleHeight() int {
 	_, height, err := terminal.GetSize(int(il.io.StdoutFd()))
 	if err != nil {
