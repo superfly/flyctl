@@ -195,8 +195,7 @@ func (il *interactiveLogger) lockedDraw() {
 		buf += line.buf + "\n"
 	}
 	// Send the cursor back up above the status block
-	newlines := strings.Count(buf, "\n")
-	buf += aec.Up(uint(newlines)).String()
+	buf += aec.Up(uint(il.height(len(currentLines)))).String()
 	fmt.Fprint(il.io.Out, buf)
 }
 

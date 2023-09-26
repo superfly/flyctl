@@ -21,7 +21,8 @@ func (line *interactiveLine) updateTimestamp() {
 func (line *interactiveLine) Log(s string) {
 	line.logger.lock.Lock()
 	defer line.logger.lock.Unlock()
-	line.buf = s
+	firstLine, _, _ := strings.Cut(s, "\n")
+	line.buf = firstLine
 	line.logger.lockedDraw()
 	line.updateTimestamp()
 }
@@ -44,8 +45,7 @@ func (line *interactiveLine) LogfStatus(s Status, format string, args ...interfa
 }
 
 func (line *interactiveLine) Failed(e error) {
-	firstLine, _, _ := strings.Cut(e.Error(), "\n")
-	line.LogfStatus(StatusFailure, "Failed: %s", firstLine)
+	line.LogfStatus(StatusFailure, "Failed: %s", e.Error())
 }
 
 func (line *interactiveLine) setStatus(s Status) {
