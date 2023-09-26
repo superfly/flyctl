@@ -20,7 +20,7 @@ func newSaveInstall() *cobra.Command {
 		"save-install",
 		"save-install",
 		"Save installation configuration",
-		runInitState)
+		runSaveInstall)
 
 	flag.Add(cmd,
 		flag.String{
@@ -40,25 +40,24 @@ func newSaveInstall() *cobra.Command {
 	return cmd
 }
 
-func runInitState(ctx context.Context) error {
+func runSaveInstall(ctx context.Context) error {
 	channel := flag.GetString(ctx, "channel")
 	autoUpdateEnabled := flag.GetBool(ctx, "auto-update")
 
-	return initState(ctx, channel, autoUpdateEnabled)
+	return saveInstall(ctx, channel, autoUpdateEnabled)
 }
 
-func initState(ctx context.Context, channel string, autoUpdateEnabled bool) error {
+func saveInstall(ctx context.Context, channel string, autoUpdateEnabled bool) error {
 	io := iostreams.FromContext(ctx)
 	cache := cache.FromContext(ctx)
 
 	cache.SetChannel(update.NormalizeChannel(channel))
 
-	fmt.Fprintf(io.ErrOut, "set update hannel to %s\n", channel)
+	fmt.Fprintf(io.ErrOut, "set update channel to %s\n", channel)
 
-	// This was copied from internal/command/settings/autoupdate.go... move it to a helper
+	// TODO[md]: This was copied from internal/command/settings/autoupdate.go... move it to a helper
 	// so we're not doing it twice
 	path := state.ConfigFile(ctx)
-
 	if err := config.SetAutoUpdate(path, autoUpdateEnabled); err != nil {
 		return fmt.Errorf("failed persisting %s in %s: %w", config.AutoUpdateFileKey, path, err)
 	}

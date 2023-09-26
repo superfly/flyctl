@@ -108,7 +108,6 @@ func UpgradeCheck(ctx context.Context, version string) error {
 // If the version is invalid, the error will be an InvalidReleaseError.
 // Note that other errors may be returned if the API call fails.
 func ValidateRelease(ctx context.Context, version string) (err error) {
-
 	_validatedReleaseLock.Lock()
 	defer _validatedReleaseLock.Unlock()
 
@@ -159,6 +158,7 @@ func ValidateRelease(ctx context.Context, version string) (err error) {
 
 // LatestRelease reports the latest release for the given channel.
 func LatestRelease(ctx context.Context, channel string) (*Release, error) {
+	channel = translateChannelForRails(channel)
 
 	// If running under homebrew, use the homebrew API to get the latest release
 	if IsUnderHomebrew() {
@@ -231,7 +231,6 @@ var errBrewNotFound = errors.New("command 'brew' not found")
 var _brewBinDir memoize[string]
 
 func brewBinDir() (string, error) {
-
 	return _brewBinDir.Get(func() (string, error) {
 
 		brewExe, err := safeexec.LookPath("brew")
@@ -257,7 +256,6 @@ var _isUnderHomebrew memoize[bool]
 // IsUnderHomebrew reports whether the fly binary was found under the Homebrew
 // prefix.
 func IsUnderHomebrew() bool {
-
 	if runtime.GOOS == "windows" {
 		return false
 	}
@@ -456,7 +454,6 @@ func UpgradeInPlace(ctx context.Context, io *iostreams.IOStreams, prelease, sile
 }
 
 func GetCurrentBinaryPath() (string, error) {
-
 	if IsUnderHomebrew() {
 		brewBinPrefix, err := brewBinDir()
 		if err != nil {
@@ -507,7 +504,6 @@ func CanUpdateThisInstallation() bool {
 
 // Relaunch only returns on error
 func Relaunch(ctx context.Context, silent bool) error {
-
 	io := iostreams.FromContext(ctx)
 
 	if !silent {
@@ -594,7 +590,6 @@ func currentWindowsBinaries() ([]string, error) {
 
 // BackgroundUpdate begins an update in the background.
 func BackgroundUpdate() error {
-
 	binPath, err := exec.LookPath(os.Args[0])
 	if err != nil {
 		return err
@@ -616,4 +611,16 @@ func NormalizeChannel(channel string) string {
 	channel = strings.ToLower(channel)
 
 	return channel
+}
+
+// Old install code conflates channels and versions. This fixes it so
+// "stable" maps to "latest" while preserving prerelease behavior.
+// This will get removed once we're using the new flypkgs api.
+func translateChannelForRails(channel string) string {
+	switch channel {
+	case "pre", "prerelease":
+		return "pre"
+	default:
+		return "latest"
+	}
 }

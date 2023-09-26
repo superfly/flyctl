@@ -221,7 +221,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, relDockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")

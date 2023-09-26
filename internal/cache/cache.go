@@ -81,7 +81,7 @@ type cache struct {
 }
 
 func (c *cache) Channel() string {
-	return c.channel
+	return update.NormalizeChannel(c.channel)
 }
 
 func (c *cache) Dirty() bool {

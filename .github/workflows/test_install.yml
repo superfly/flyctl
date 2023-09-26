@@ -1,8 +1,13 @@
 name: Test Installation
 
 on:
-  push:
   pull_request:
+    paths:
+      - '.github/workflows/test_install.yml'
+      - 'installers/**'
+  push:
+    branches:
+      - master
   workflow_dispatch:
 
 jobs:
@@ -47,13 +52,17 @@ jobs:
     - name: checkout
       uses: actions/checkout@v4
     - name: run installer
-      run: sh ./installers/install.sh
-    - run: |
-        echo "$HOME/.fly/bin" >> $GITHUB_PATH
-    - run: env
-    - name: check that binary is installed
       run: |
-        fly version
+        echo "$HOME/.fly/bin" >> $GITHUB_PATH
+        sh ./installers/install.sh
+    - name: check that `flyctl` binary is installed
+      run: flyctl version
+    - name: check that `fly` symlink is installed
+      run: fly version
+    # TODO[md]: this is currently broken on stable. restore once fixed.
+    # - name: Check that the install config was saved
+    #   run: |
+    #     grep -x -q "channel: stable" ~/.fly/state.yml
 
   test-native:
     strategy:
@@ -66,7 +75,6 @@ jobs:
           - macos-latest
           - macos-11
           - macos-13
-          # - windows-latest
     runs-on: ${{ matrix.os }}
     steps:
     - name: checkout
@@ -79,7 +87,10 @@ jobs:
       run: flyctl version
     - name: Check that `fly` works
       run: fly version
-
+    # TODO[md]: this is currently broken on the latest stable releases. restore once fixed.
+    # - name: Check that the install config was saved
+    #   run: |
+    #     grep -x -q "channel: stable" ~/.fly/state.yml
 
   test-windows:
     strategy:

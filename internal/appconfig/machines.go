@@ -191,6 +191,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	c.tomachineSetStopConfig(mConfig)
 
 	// Files
+	mConfig.Files = nil
 	machine.MergeFiles(mConfig, c.MergedFiles)
 
 	return mConfig, nil
