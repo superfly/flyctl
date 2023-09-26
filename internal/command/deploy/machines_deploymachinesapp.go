@@ -382,16 +382,20 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 	}
 
 	if md.strategy == "immediate" {
+		sl := statuslogger.Create(parentCtx, len(updateEntries), true)
+		defer func() {
+			sl.Destroy(err == nil)
+		}()
 		var wg sync.WaitGroup
 		pool := make(chan struct{}, md.immediateMaxConcurrent)
 		for i, updateEntry := range updateEntries {
+			ctx := statuslogger.NewContext(parentCtx, sl.Line(i))
 			e := updateEntry
-			indexStr := formatIndex(i, len(updateEntries))
 			wg.Add(1)
 			pool <- struct{}{}
 			go func() {
 				defer wg.Done()
-				if err := md.updateMachine(ctx, e, indexStr); err != nil {
+				if err := md.updateMachine(ctx, e); err != nil {
 					if md.strategy == "immediate" {
 						fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 					}
