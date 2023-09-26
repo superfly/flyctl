@@ -2,8 +2,10 @@ package flypg
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/superfly/flyctl/terminal"
 )
@@ -143,6 +145,12 @@ func (c *Client) legacyNodeRole(ctx context.Context) (string, error) {
 	out, err := c.DoPlaintext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err
+	}
+	if len(out) > 0 && out[0] == '"' {
+		// Parse as JSON-encoded string
+		var jsonOut string
+		err := json.NewDecoder(strings.NewReader(out)).Decode(&jsonOut)
+		return jsonOut, err
 	}
 	return out, nil
 }
