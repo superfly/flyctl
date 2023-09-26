@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 jobs:
+
   test:
     strategy:
       fail-fast: false
@@ -12,8 +13,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"

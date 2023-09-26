@@ -82,17 +82,7 @@ type cache struct {
 
 func (c *cache) Channel() string {
 	return c.channel
-	// return normalizeChannel(c.channel)
 }
-
-// func normalizeChannel(c string) string {
-// 	const pre = "pre"
-// 	if strings.Contains(c, pre) {
-// 		return pre
-// 	}
-
-// 	return c
-// }
 
 func (c *cache) Dirty() bool {
 	c.mu.RLock()

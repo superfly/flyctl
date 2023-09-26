@@ -121,15 +121,12 @@ func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.
 
 // Recover records the given panic to sentry.
 func Recover(v interface{}) {
-	fmt.Println("recover?")
 	if !isInitialized() {
-		fmt.Println("nope")
 		return
 	}
 
 	_ = sentry.CurrentHub().Recover(v)
 
-	fmt.Println("hi")
 	printError(v)
 }
 

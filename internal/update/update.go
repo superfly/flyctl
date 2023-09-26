@@ -616,12 +616,4 @@ func NormalizeChannel(channel string) string {
 	channel = strings.ToLower(channel)
 
 	return channel
-
-	// if channel == "stable" {
-	// 	return channel
-	// }
-
-	// if strings.HasPrefix(channel, "pr") {
-	// 	return channel
-	// }
 }
