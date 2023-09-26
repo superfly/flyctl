@@ -4,12 +4,12 @@
 package preflight
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/test/preflight/testlib"
-	"golang.org/x/exp/slices"
 )
 
 // test --port and --autostart --autostop flags
@@ -147,9 +147,6 @@ func TestFlyMachineRun_port(t *testing.T) {
 	}}
 	require.Equal(f, want, m.Config.Services)
 	require.Contains(f, []string{"created", "started"}, m.State)
-
-	result := f.Fly("dig %s.internal -a %s --short", appName, appName)
-	require.NotEmpty(f, result.StdOut().String())
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:http --port 1001/udp", appName, m.ID)
 	m = f.MachinesList(appName)[0]

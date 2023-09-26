@@ -4,6 +4,7 @@ kill_timeout = "3s"
 swap_size_mb = 512
 primary_region = "sea"
 console_command = "/bin/bash"
+host_dedication_id = "06031957"
 
 [experimental]
   cmd = ["cmd"]
@@ -38,9 +39,14 @@ console_command = "/bin/bash"
 [env]
   FOO = "BAR"
 
-[metrics]
+[[metrics]]
   port = 9999
   path = "/metrics"
+
+[[metrics]]
+  port = 9998
+  path = "/metrics"
+  processes = ["web"]
 
 [http_service]
   internal_port = 8080

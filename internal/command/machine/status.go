@@ -18,7 +18,7 @@ func newStatus() *cobra.Command {
 		short = "Show current status of a running machine"
 		long  = short + "\n"
 
-		usage = "status <id>"
+		usage = "status [id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStatus,

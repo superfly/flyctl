@@ -20,6 +20,8 @@ from the Fly platform.
 
 	destroy := command.New(usage, short, long, apps.RunDestroy,
 		command.RequireSession)
+	destroy.Hidden = true
+	destroy.Deprecated = "use `fly apps destroy` instead"
 
 	destroy.Args = cobra.ExactArgs(1)
 

@@ -162,13 +162,13 @@ func TestToDefinition(t *testing.T) {
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
 	assert.Equal(t, &api.Definition{
-		"app":             "foo",
-		"primary_region":  "sea",
-		"kill_signal":     "SIGTERM",
-		"kill_timeout":    "3s",
-		"swap_size_mb":    int64(512),
-		"console_command": "/bin/bash",
-
+		"app":                "foo",
+		"primary_region":     "sea",
+		"kill_signal":        "SIGTERM",
+		"kill_timeout":       "3s",
+		"swap_size_mb":       int64(512),
+		"console_command":    "/bin/bash",
+		"host_dedication_id": "06031957",
 		"build": map[string]any{
 			"builder":      "dockerfile",
 			"image":        "foo/fighter",
@@ -243,9 +243,16 @@ func TestToDefinition(t *testing.T) {
 		"env": map[string]any{
 			"FOO": "BAR",
 		},
-		"metrics": map[string]any{
-			"port": int64(9999),
-			"path": "/metrics",
+		"metrics": []map[string]any{
+			{
+				"port": int64(9999),
+				"path": "/metrics",
+			},
+			{
+				"port":      int64(9998),
+				"path":      "/metrics",
+				"processes": []any{"web"},
+			},
 		},
 		"statics": []map[string]any{
 			{

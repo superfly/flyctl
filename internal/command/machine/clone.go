@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 func newClone() *cobra.Command {
@@ -28,7 +28,7 @@ func newClone() *cobra.Command {
 		short = "Clone a Fly machine"
 		long  = short + "\n"
 
-		usage = "clone <machine_id>"
+		usage = "clone [machine_id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineClone,
@@ -245,12 +245,14 @@ func runMachineClone(ctx context.Context) (err error) {
 			}
 
 			volInput := api.CreateVolumeRequest{
-				Name:              mnt.Name,
-				Region:            region,
-				SizeGb:            &mnt.SizeGb,
-				Encrypted:         &mnt.Encrypted,
-				SnapshotID:        snapshotID,
-				RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
+				Name:                mnt.Name,
+				Region:              region,
+				SizeGb:              &mnt.SizeGb,
+				Encrypted:           &mnt.Encrypted,
+				SnapshotID:          snapshotID,
+				RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
+				HostDedicationId:    source.HostDedicationID,
+				ComputeRequirements: targetConfig.Guest,
 			}
 			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {
@@ -278,10 +280,11 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	input := api.LaunchMachineInput{
-		Name:       flag.GetString(ctx, "name"),
-		Region:     region,
-		Config:     targetConfig,
-		SkipLaunch: len(targetConfig.Standbys) > 0,
+		Name:             flag.GetString(ctx, "name"),
+		Region:           region,
+		Config:           targetConfig,
+		SkipLaunch:       len(targetConfig.Standbys) > 0,
+		HostDedicationID: source.HostDedicationID,
 	}
 
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)

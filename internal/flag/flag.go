@@ -390,7 +390,7 @@ const remoteOnlyName = "remote-only"
 func RemoteOnly(defaultValue bool) Bool {
 	return Bool{
 		Name:        remoteOnlyName,
-		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
+		Description: "Perform builds on a remote builder instance instead of using the local docker daemon. This is the default. Use --local-only to build locally.",
 		Default:     defaultValue,
 	}
 }
@@ -405,7 +405,7 @@ const localOnlyName = "local-only"
 func LocalOnly() Bool {
 	return Bool{
 		Name:        localOnlyName,
-		Description: "Only perform builds locally using the local docker daemon",
+		Description: "Perform builds locally using the local docker daemon. The default is --remote-only.",
 	}
 }
 
@@ -487,7 +487,7 @@ func NoCache() Bool {
 func BuildSecret() StringArray {
 	return StringArray{
 		Name:        "build-secret",
-		Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/develop/develop-images/build_enhancements/#new-docker-build-secret-information",
+		Description: "Set of build secrets of NAME=VALUE pairs. Can be specified multiple times. See https://docs.docker.com/engine/reference/commandline/buildx_build/#secret",
 	}
 }
 
@@ -526,5 +526,12 @@ func JSONOutput() Bool {
 		Shorthand:   "j",
 		Description: "JSON output",
 		Default:     false,
+	}
+}
+
+func ProcessGroup() String {
+	return String{
+		Name:        flagnames.ProcessGroup,
+		Description: "The target process group",
 	}
 }

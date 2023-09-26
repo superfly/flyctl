@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -16,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
-	"golang.org/x/exp/slices"
 )
 
 type Extension struct {
@@ -497,7 +497,7 @@ var PlatformMap = map[string]string{
 	"Python":        "python",
 	"Rails":         "ruby-rails",
 	"RedwoodJS":     "javascript-react",
-	"Remix":         "javscript-remix",
-	"Remix/Prisma":  "javscript-remix",
+	"Remix":         "javascript-remix",
+	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
 }

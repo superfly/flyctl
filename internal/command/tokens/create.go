@@ -155,7 +155,7 @@ func runOrg(ctx context.Context) error {
 		expiry = expiryDuration.String()
 	}
 
-	org, err := orgs.OrgFromFirstArgOrSelect(ctx)
+	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving org %w", err)
 	}

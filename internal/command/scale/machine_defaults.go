@@ -22,7 +22,7 @@ type defaultValues struct {
 	snapshotID      *string
 }
 
-func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, snapshotID string, withNewVolumes bool) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *api.MachineGuest) *defaultValues {
 	guestPerGroup := lo.Associate(
 		lo.Filter(machines, func(m *api.Machine, _ int) bool {
 			return m.Config.Guest != nil
@@ -36,6 +36,7 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 	// scan all the existing groups and pick the first
 	guest := guestPerGroup[appConfig.DefaultProcessName()]
 	if guest == nil {
+		guest = fallbackGuest
 		for _, name := range appConfig.ProcessNames() {
 			if v, ok := guestPerGroup[name]; ok {
 				guest = v
@@ -120,11 +121,13 @@ func (d *defaultValues) CreateVolumeRequest(mConfig *api.MachineConfig, region s
 	}
 	mount := mConfig.Mounts[0]
 	return &api.CreateVolumeRequest{
-		Name:              mount.Name,
-		Region:            region,
-		SizeGb:            &mount.SizeGb,
-		Encrypted:         api.Pointer(mount.Encrypted),
-		RequireUniqueZone: api.Pointer(false),
-		SnapshotID:        d.snapshotID,
+		Name:                mount.Name,
+		Region:              region,
+		SizeGb:              &mount.SizeGb,
+		Encrypted:           api.Pointer(mount.Encrypted),
+		RequireUniqueZone:   api.Pointer(false),
+		SnapshotID:          d.snapshotID,
+		HostDedicationId:    mConfig.HostDedicationId,
+		ComputeRequirements: mConfig.Guest,
 	}
 }

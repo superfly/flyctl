@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/MakeNowJust/heredoc/v2"
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
@@ -39,7 +38,7 @@ func New(usage, short, long string, fn Runner, p ...preparers.Preparer) *cobra.C
 	return &cobra.Command{
 		Use:   usage,
 		Short: short,
-		Long:  heredoc.Doc(long),
+		Long:  long,
 		RunE:  newRunE(fn, p...),
 	}
 }
@@ -372,7 +371,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 
 	versionInvalidMsg := cache.IsCurrentVersionInvalid()
 	if versionInvalidMsg != "" && !silent {
-		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s", versionInvalidMsg)
+		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s\n", versionInvalidMsg)
 	}
 
 	latest, err := buildinfo.ParseVersion(latestRel.Version)
@@ -581,7 +580,7 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	return
 }
 
-var ErrRequireAppName = fmt.Errorf("the config for your app is missing an app name, add an app field to the fly.toml file or specify with the -a flag`")
+var ErrRequireAppName = fmt.Errorf("the config for your app is missing an app name, add an app field to the fly.toml file or specify with the -a flag")
 
 // RequireAppName is a Preparer which makes sure the user has selected an
 // application name via command line arguments, the environment or an application

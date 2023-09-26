@@ -108,6 +108,21 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		opts.BuildSecrets = cliBuildSecrets
 	}
 
+	arrLabels := flag.GetStringArray(ctx, "label")
+	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
+	if err != nil {
+		return
+	}
+	if env.IS_GH_ACTION() {
+		labels["GH_SHA"] = env.GitCommitSHA()
+		labels["GH_ACTION_NAME"] = env.GitActionName()
+		labels["GH_REPO"] = env.GitRepoAndOwner()
+		labels["GH_EVENT_NAME"] = env.GitActionEventName()
+	}
+	if labels != nil {
+		opts.Label = labels
+	}
+
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
 		return

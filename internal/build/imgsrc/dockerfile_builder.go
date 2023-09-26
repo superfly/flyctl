@@ -221,7 +221,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, relDockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -290,6 +290,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
 		NoCache:     opts.NoCache,
+		Labels:      opts.Label,
 	}
 
 	resp, err := docker.ImageBuild(ctx, r, options)
@@ -324,6 +325,10 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 	attrs["target"] = opts.Target
 	if opts.NoCache {
 		attrs["no-cache"] = ""
+	}
+
+	for k, v := range opts.Label {
+		attrs["label:"+k] = v
 	}
 
 	for k, v := range buildArgs {

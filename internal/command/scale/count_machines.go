@@ -61,8 +61,13 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
+	defaultGuest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
+	}
+
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
-		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"))
+		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
@@ -191,7 +196,6 @@ type planItem struct {
 	// The number of machines to add or remove
 	Delta              int
 	Machines           []*api.Machine
-	MachineConfig      *api.MachineConfig
 	LaunchMachineInput *api.LaunchMachineInput
 	// Volumes to reuse
 	Volumes []*api.Volume
@@ -200,6 +204,9 @@ type planItem struct {
 }
 
 func (pi *planItem) VolumesDelta() int {
+	if pi.CreateVolumeRequest == nil {
+		return 0
+	}
 	return pi.Delta - len(pi.Volumes)
 }
 
@@ -209,6 +216,9 @@ func (pi *planItem) MachineSize() string {
 	}
 	if len(pi.Machines) > 0 {
 		return pi.Machines[0].Config.Guest.ToSize()
+	}
+	if guest := pi.LaunchMachineInput.Config.Guest; guest != nil {
+		return guest.ToSize()
 	}
 	return ""
 }

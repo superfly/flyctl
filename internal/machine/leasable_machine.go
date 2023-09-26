@@ -232,7 +232,14 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 
 	for {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		startedAt, startedAtErr := machine.MostRecentStartTimeAfterLaunch()
+		uptime := 0 * time.Second
+		if startedAtErr == nil {
+			uptime = time.Since(startedAt)
+		}
 		switch {
+		case uptime > 10*time.Second && !lm.isConstantlyRestarting(machine):
+			return nil
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):

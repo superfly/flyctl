@@ -39,10 +39,9 @@ func TestAppsV2Example(t *testing.T) {
 	require.Contains(f, result.StdOutString(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
 	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	require.Eventually(t, func() bool {
 		resp, err := http.Get(appUrl)
-		require.NoError(c, err)
-		require.Equal(c, http.StatusOK, resp.StatusCode)
+		return err == nil && resp.StatusCode == http.StatusOK
 	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", appUrl)
 
 	machList := f.MachinesList(appName)
@@ -488,7 +487,7 @@ func TestLaunchCpusMem(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpukind performance", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
 	firstMachineGuest := machines[0].Config.Guest
 
@@ -561,4 +560,30 @@ func TestErrOutput(t *testing.T) {
 
 	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+}
+
+func TestImageLabel(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	dockerfileContent := `FROM nginx:1.23.3
+
+ENV BUILT_BY_DOCKERFILE=true
+`
+	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	if err != nil {
+		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
+	}
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("deploy --label Z=ZZZ -a %s", appName)
+	res := f.Fly("image show -a %s --json", appName)
+
+	var machineImages []map[string]string
+	res.StdOutJSON(&machineImages)
+
+	for _, image := range machineImages {
+		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
+	}
 }

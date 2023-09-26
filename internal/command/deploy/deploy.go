@@ -10,7 +10,6 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -54,6 +53,7 @@ var CommonFlags = flag.Set{
 	flag.Bool{
 		Name:        "no-extensions",
 		Description: "Do not provision Sentry nor other auto-provisioned extensions",
+		Default:     true,
 	},
 	flag.StringArray{
 		Name:        "env",
@@ -88,11 +88,6 @@ var CommonFlags = flag.Set{
 		Default:     false,
 		Hidden:      true,
 	},
-	flag.String{
-		Name:        "vm-size",
-		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
-		Aliases:     []string{"size"},
-	},
 	flag.Bool{
 		Name:        "ha",
 		Description: "Create spare machines that increases app availability",
@@ -111,20 +106,6 @@ var CommonFlags = flag.Set{
 	flag.Bool{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
-	},
-	flag.Int{
-		Name:        "vm-cpus",
-		Description: "Number of CPUs",
-		Aliases:     []string{"cpus"},
-	},
-	flag.String{
-		Name:        "vm-cpukind",
-		Description: "The kind of CPU to use ('shared' or 'performance')",
-	},
-	flag.Int{
-		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the VM",
-		Aliases:     []string{"memory"},
 	},
 	flag.StringArray{
 		Name:        "file-local",
@@ -146,6 +127,16 @@ var CommonFlags = flag.Set{
 		Name:        "only-regions",
 		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
+	flag.StringArray{
+		Name:        "label",
+		Description: "Add custom metadata to an image via docker labels",
+	},
+	flag.Int{
+		Name:        "immediate-max-concurrent",
+		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
+		Default:     16,
+	},
+	flag.VMSizeFlags,
 }
 
 func New() (cmd *cobra.Command) {
@@ -270,29 +261,6 @@ func determineRelCmdTimeout(timeout string) (time.Duration, error) {
 	return time.Duration(asInt) * time.Second, nil
 }
 
-// ApplyFlagsToGuest applies CLI flags to a Guest
-// Returns true if any flags were applied
-func ApplyFlagsToGuest(ctx context.Context, guest *api.MachineGuest) bool {
-	modified := false
-	if flag.IsSpecified(ctx, "vm-size") {
-		guest.SetSize(flag.GetString(ctx, "vm-size"))
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-cpus") {
-		guest.CPUs = flag.GetInt(ctx, "vm-cpus")
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-memory") {
-		guest.MemoryMB = flag.GetInt(ctx, "vm-memory")
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-cpukind") {
-		guest.CPUKind = flag.GetString(ctx, "vm-cpukind")
-		modified = true
-	}
-	return modified
-}
-
 // in a rare twist, the guest param takes precedence over CLI flags!
 func deployToMachines(
 	ctx context.Context,
@@ -314,15 +282,16 @@ func deployToMachines(
 		return err
 	}
 
-	files, err := machine.FilesFromCommand(ctx)
+	files, err := command.FilesFromCommand(ctx)
 	if err != nil {
 		return err
 	}
 
 	if guest == nil {
-		guest = &api.MachineGuest{}
-		guest.SetSize(DefaultVMSize)
-		_ = ApplyFlagsToGuest(ctx, guest)
+		guest, err = flag.GetMachineGuest(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	excludeRegions := make(map[string]interface{})
@@ -341,25 +310,26 @@ func deployToMachines(
 	}
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:            appCompact,
-		DeploymentImage:       img.Tag,
-		Strategy:              flag.GetString(ctx, "strategy"),
-		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     appConfig.PrimaryRegion,
-		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
-		SkipHealthChecks:      flag.GetDetach(ctx),
-		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:        flag.GetFloat64(ctx, "max-unavailable"),
-		ReleaseCmdTimeout:     releaseCmdTimeout,
-		Guest:                 guest,
-		IncreasedAvailability: flag.GetBool(ctx, "ha"),
-		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
-		UpdateOnly:            flag.GetBool(ctx, "update-only"),
-		Files:                 files,
-		ExcludeRegions:        excludeRegions,
-		NoExtensions:          flag.GetBool(ctx, "no-extensions"),
-		OnlyRegions:           onlyRegions,
+		AppCompact:             appCompact,
+		DeploymentImage:        img.Tag,
+		Strategy:               flag.GetString(ctx, "strategy"),
+		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
+		PrimaryRegionFlag:      appConfig.PrimaryRegion,
+		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:       flag.GetDetach(ctx),
+		WaitTimeout:            time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+		LeaseTimeout:           time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		MaxUnavailable:         flag.GetFloat64(ctx, "max-unavailable"),
+		ReleaseCmdTimeout:      releaseCmdTimeout,
+		Guest:                  guest,
+		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
+		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
+		UpdateOnly:             flag.GetBool(ctx, "update-only"),
+		Files:                  files,
+		ExcludeRegions:         excludeRegions,
+		NoExtensions:           flag.GetBool(ctx, "no-extensions"),
+		OnlyRegions:            onlyRegions,
+		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)

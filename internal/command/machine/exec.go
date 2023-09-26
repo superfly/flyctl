@@ -19,7 +19,7 @@ func newMachineExec() *cobra.Command {
 	const (
 		short = "Execute a command on a machine"
 		long  = short + "\n"
-		usage = "exec <machine-id> <command>"
+		usage = "exec [machine-id] <command>"
 	)
 
 	cmd := command.New(usage, short, long, runMachineExec,

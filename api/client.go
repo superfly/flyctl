@@ -14,7 +14,6 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/graphql"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -89,7 +88,8 @@ func (t *Transport) setDefaults(opts ClientOptions) {
 	if opts.EnableDebugTrace != nil {
 		t.EnableDebugTrace = *opts.EnableDebugTrace
 	} else {
-		t.EnableDebugTrace = !slices.Contains([]string{"", "0", "false"}, os.Getenv("FLY_FORCE_TRACE"))
+		v := os.Getenv("FLY_FORCE_TRACE")
+		t.EnableDebugTrace = !(v == "" || v == "0" || v == "false")
 	}
 }
 

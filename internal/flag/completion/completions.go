@@ -3,6 +3,7 @@ package completion
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -10,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"golang.org/x/exp/slices"
 )
 
 func CompleteApps(

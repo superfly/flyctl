@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
+	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/config"
@@ -40,23 +43,9 @@ func New() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
-		flag.Int{
-			Name:        "vm-cpus",
-			Description: "How many CPUs to give the new machine",
-			Aliases:     []string{"cpus"},
-		},
 		flag.String{
 			Name:        "machine",
 			Description: "Run the console in the existing machine with the specified ID",
-		},
-		flag.Int{
-			Name:        "vm-memory",
-			Description: "How much memory (in MB) to give the new machine",
-			Aliases:     []string{"memory"},
-		},
-		flag.String{
-			Name:        "vm-size",
-			Description: "Use a preset size for the new machine",
 		},
 		flag.Bool{
 			Name:        "select",
@@ -70,6 +59,84 @@ func New() *cobra.Command {
 			Description: "Unix username to connect as",
 			Default:     ssh.DefaultSshUsername,
 		},
+		flag.String{
+			Name:        "image",
+			Shorthand:   "i",
+			Description: "image to use (default: current release)",
+		},
+		flag.StringArray{
+			Name:        "env",
+			Shorthand:   "e",
+			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "entrypoint",
+			Description: "ENTRYPOINT replacement",
+		},
+		flag.Bool{
+			Name:        "build-only",
+			Description: "Only build the image without running the machine",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-remote-only",
+			Description: "Perform builds remotely without using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-local-only",
+			Description: "Only perform builds locally using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-nixpacks",
+			Description: "Build your image with nixpacks",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "dockerfile",
+			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		},
+		flag.StringArray{
+			Name:        "build-arg",
+			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "image-label",
+			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "build-target",
+			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "no-build-cache",
+			Description: "Do not use the cache when building the image",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Default:     "",
+			Description: "command to run on SSH session",
+		},
+		flag.StringSlice{
+			Name:      "port",
+			Shorthand: "p",
+			Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
+		i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
+		To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
+		},
+		flag.Bool{
+			Name:        "skip-dns-registration",
+			Description: "Do not register the machine's 6PN IP with the internal DNS system",
+			Default:     true,
+			Hidden:      true,
+		},
+		flag.VMSizeFlags,
 	)
 
 	return cmd
@@ -136,7 +203,13 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	return ssh.Console(ctx, sshClient, appConfig.ConsoleCommand, true)
+	consoleCommand := appConfig.ConsoleCommand
+
+	if flag.IsSpecified(ctx, "command") {
+		consoleCommand = flag.GetString(ctx, "command")
+	}
+
+	return ssh.Console(ctx, sshClient, consoleCommand, true)
 }
 
 func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
@@ -223,7 +296,12 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, err
 	}
-	if currentRelease == nil {
+
+	if !flag.IsSpecified(ctx, "image") && flag.IsSpecified(ctx, "dockerfile") {
+		flag.SetString(ctx, "image", ".")
+	}
+
+	if currentRelease == nil && !flag.IsSpecified(ctx, "image") {
 		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
@@ -231,13 +309,62 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
-	machConfig.Image = currentRelease.ImageRef
+
+	machConfig.Mounts, err = command.DetermineMounts(ctx, machConfig.Mounts, config.FromContext(ctx).Region)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to process mounts: %w", err)
+	}
+
+	if flag.IsSpecified(ctx, "image") {
+		img, err := command.DetermineImage(ctx, app.Name, flag.GetString(ctx, "image"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get image: %w", err)
+		}
+		machConfig.Image = img.Tag
+	} else {
+		machConfig.Image = currentRelease.ImageRef
+	}
+
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed parsing environment: %w", err)
+		}
+		maps.Copy(machConfig.Env, parsedEnv)
+	}
+
+	if machConfig.DNS == nil {
+		machConfig.DNS = &api.DNSConfig{}
+	}
+	machConfig.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
+
+	machineFiles, err := command.FilesFromCommand(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing filest: %w", err)
+	}
+	machine.MergeFiles(machConfig, machineFiles)
+
 	machConfig.Guest = guest
+
+	services, err := command.DetermineServices(ctx, machConfig.Services)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing port: %w", err)
+	}
+	machConfig.Services = services
+
+	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
+		splitted, err := shlex.Split(entrypoint)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid entrypoint: %w", err)
+		}
+		machConfig.Init.Entrypoint = splitted
+	}
 
 	input := &machine.EphemeralInput{
 		LaunchInput: api.LaunchMachineInput{
-			Config: machConfig,
-			Region: config.FromContext(ctx).Region,
+			Config:           machConfig,
+			Region:           config.FromContext(ctx).Region,
+			HostDedicationID: appConfig.HostDedicationID,
 		},
 		What: "to run the console",
 	}
@@ -250,6 +377,10 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGue
 		if err := desiredGuest.SetSize(flag.GetString(ctx, "vm-size")); err != nil {
 			return nil, err
 		}
+	}
+
+	if cpuKind := flag.GetString(ctx, "vm-cpu-kind"); cpuKind != "" {
+		desiredGuest.CPUKind = cpuKind
 	}
 
 	if flag.IsSpecified(ctx, "vm-cpus") {
