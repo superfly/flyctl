@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/morikuni/aec"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/crypto/ssh/terminal"
 )
@@ -55,20 +56,20 @@ func (il *interactiveLogger) Destroy(clear bool) {
 	}
 }
 
-// TODO: It'd be nice to also consider line width, but that's a can of worms that will delay this shipping.
-func (il *interactiveLogger) consoleHeight() int {
-	_, height, err := terminal.GetSize(int(il.io.StdoutFd()))
+func (il *interactiveLogger) consoleSize() (int, int) {
+	width, height, err := terminal.GetSize(int(il.io.StdoutFd()))
 	if err != nil {
 		height = 24
+		width = 80
 	}
-	return height
+	return width, height
 }
 
 // The current sorting algorithm prioritizes failures, in-progress jobs, and then completed jobs.
 // It will pick the most recently modified jobs, sequentially in these categories, then finally sort them all by job ID
-func (il *interactiveLogger) currentLines() (finalLines []interactiveLine) {
+func (il *interactiveLogger) currentLines(conHeight int) (finalLines []interactiveLine) {
 
-	maxHeight := il.consoleHeight() - paddingBeforeJobs - 1
+	maxHeight := conHeight - paddingBeforeJobs - 1
 	if maxHeight < 0 {
 		return nil
 	}
@@ -184,7 +185,9 @@ func (il *interactiveLogger) lockedDraw() {
 		return
 	}
 
-	currentLines := il.currentLines()
+	conW, conH := il.consoleSize()
+
+	currentLines := il.currentLines(conH)
 	if len(currentLines) == 0 {
 		return
 	}
@@ -196,17 +199,50 @@ func (il *interactiveLogger) lockedDraw() {
 	buf := fmt.Sprintf("%s\n%s\n", il.clearStr(), divider)
 	for _, line := range currentLines {
 		buf += " "
+		line_len := 0
 		if il.showStatus {
 			buf += line.status.charFor(il.statusFrame) + " "
+			line_len += 2
 		}
 		if il.logNumbers {
-			buf += formatIndex(line.lineNum, len(il.lines)) + " "
+			idx := formatIndex(line.lineNum, len(il.lines))
+			buf += idx + " "
+			line_len += len(idx) + 1
 		}
-		buf += line.buf + "\n"
+		remainingSpace := conW - line_len - 3
+		switch {
+		case remainingSpace < 0:
+		case len(cmdutil.StripANSI(line.buf)) >= remainingSpace:
+			buf += substrIgnoreAnsi(line.buf, remainingSpace-1) + "…"
+		default:
+			buf += line.buf
+		}
+		buf += "\n"
 	}
+	// Erase last line, prevent weird display bug
+	buf += aec.EraseLine(aec.EraseModes.All).String()
 	// Send the cursor back up above the status block
 	buf += aec.Up(uint(il.height(len(currentLines)))).String()
 	fmt.Fprint(il.io.Out, buf)
+}
+
+func substrIgnoreAnsi(str string, length int) string {
+	for i := 0; i < length; i++ {
+		// Check if ansi escape
+		if str[i] == '\x1b' {
+			if len(str) > i+2 && str[i+1] == '[' {
+				// find next m
+				mIdx := strings.IndexByte(str[i+1:], 'm')
+				if mIdx != -1 {
+					// I don't understand how this could ever be >len(str), but it was
+					// causing crashes, so we'll just be safe :)
+					length = min(length+mIdx+2, len(str))
+					i += mIdx + 1
+				}
+			}
+		}
+	}
+	return str[:length] + aec.Reset
 }
 
 func (il *interactiveLogger) Pause() ResumeFn {
