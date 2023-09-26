@@ -53,7 +53,7 @@ func saveInstall(ctx context.Context, channel string, autoUpdateEnabled bool) er
 
 	cache.SetChannel(update.NormalizeChannel(channel))
 
-	fmt.Fprintf(io.ErrOut, "set update hannel to %s\n", channel)
+	fmt.Fprintf(io.ErrOut, "set update channel to %s\n", channel)
 
 	// TODO[md]: This was copied from internal/command/settings/autoupdate.go... move it to a helper
 	// so we're not doing it twice
