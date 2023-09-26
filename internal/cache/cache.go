@@ -6,7 +6,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -82,16 +81,7 @@ type cache struct {
 }
 
 func (c *cache) Channel() string {
-	return normalizeChannel(c.channel)
-}
-
-func normalizeChannel(c string) string {
-	const pre = "pre"
-	if strings.Contains(c, pre) {
-		return pre
-	}
-
-	return "latest"
+	return update.NormalizeChannel(c.channel)
 }
 
 func (c *cache) Dirty() bool {
@@ -107,7 +97,7 @@ func (c *cache) SetChannel(channel string) string {
 
 	c.dirty = true
 
-	if channel = normalizeChannel(channel); c.channel != channel {
+	if channel = update.NormalizeChannel(channel); c.channel != channel {
 		// purge timestamp & release since we're changing channels
 		c.lastCheckedAt = time.Time{}
 		c.latestRelease = nil
@@ -136,7 +126,7 @@ func (c *cache) SetLatestRelease(channel string, r *update.Release) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if channel = normalizeChannel(channel); channel != c.channel {
+	if channel = update.NormalizeChannel(channel); channel != c.channel {
 		return
 	}
 

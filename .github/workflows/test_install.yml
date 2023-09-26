@@ -1,0 +1,125 @@
+name: Test Installation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/test_install.yml'
+      - 'installers/**'
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  test-docker:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        image:
+          - "ubuntu:20.04"
+          - "ubuntu:22.04"
+          - "ubuntu:23.04"
+          - "debian:oldstable-slim"
+          - "debian:stable-slim"
+          - "alpine:latest"
+          - "archlinux:latest"
+          - "amazonlinux:latest"
+    runs-on: ubuntu-latest
+    env:
+      SHELL: /bin/bash
+      # FLYCTL_INSTALL: /usr/local/bin
+    container:
+      image: ${{ matrix.image }}
+      options: --user root
+    steps:
+    - name: Install Dependencies (apt-get)
+      if: |
+        contains(matrix.image, 'ubuntu') ||
+        contains(matrix.image, 'debian')
+      run: |
+        apt-get update && apt-get install -y curl
+    - name: Install Dependencies (apk)
+      if: |
+        contains(matrix.image, 'alpine')
+      run: |
+        apk --no-cache add curl
+    - name: Install Dependencies (yum)
+      if: |
+        contains(matrix.image, 'amazonlinux')
+      # actions/checkout needs tar & gzip, so install them too
+      run: yum install -y --allowerasing tar gzip curl
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: run installer
+      run: |
+        echo "$HOME/.fly/bin" >> $GITHUB_PATH
+        sh ./installers/install.sh
+    - name: check that `flyctl` binary is installed
+      run: flyctl version
+    - name: check that `fly` symlink is installed
+      run: fly version
+    # TODO[md]: this is currently broken on stable. restore once fixed.
+    # - name: Check that the install config was saved
+    #   run: |
+    #     grep -x -q "channel: stable" ~/.fly/state.yml
+
+  test-native:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-20.04
+          - macos-latest
+          - macos-11
+          - macos-13
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: Install (macOS/Linux)
+      run: |
+        echo "$HOME/.fly/bin" >> $GITHUB_PATH
+        sh ./installers/install.sh
+    - name: Check that `flyctl` works
+      run: flyctl version
+    - name: Check that `fly` works
+      run: fly version
+    # TODO[md]: this is currently broken on the latest stable releases. restore once fixed.
+    # - name: Check that the install config was saved
+    #   run: |
+    #     grep -x -q "channel: stable" ~/.fly/state.yml
+
+  test-windows:
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        os:
+          - windows-latest
+          - windows-2019
+    runs-on: ${{ matrix.os }}
+    env:
+      FLYCTL_INSTALL: "C:\\flyctl"
+    steps:
+    - name: checkout
+      uses: actions/checkout@v4
+    - name: Install
+      shell: powershell
+      run: |
+        ./installers/install.ps1
+    - name: Set Path
+      run: |
+        echo "$env:FLYCTL_INSTALL\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+    - run: env
+      shell: powershell
+    - run: ls $env:FLYCTL_INSTALL\bin
+      shell: powershell
+    - name: Check that `flyctl` works
+      shell: powershell
+      run: flyctl version
+    - name: Check that `fly` works
+      shell: powershell
+      run: fly version
