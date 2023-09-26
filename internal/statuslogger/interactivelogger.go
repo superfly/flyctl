@@ -78,11 +78,20 @@ func (il *interactiveLogger) currentLines() (finalLines []interactiveLine) {
 
 	// TODO: There's probably a more efficient way to insert these *and* have them sorted at the same time.
 
+	// Give tasks that are done a grace period before they're cleared.
+	now := time.Now()
+	twoSecondsAgo := now.Add(-time.Second * 2)
+
 	for _, line := range il.lines {
 		if line.status == StatusFailure {
 			errorLines = append(errorLines, *line)
 		} else if line.status == StatusSuccess {
-			doneLines = append(doneLines, *line)
+			if line.doneTime.Before(twoSecondsAgo) {
+				doneLines = append(doneLines, *line)
+			} else {
+				// Hack to ensure that this line is still visible
+				inProgressLines = append(inProgressLines, *line)
+			}
 		} else {
 			inProgressLines = append(inProgressLines, *line)
 		}
@@ -96,9 +105,9 @@ func (il *interactiveLogger) currentLines() (finalLines []interactiveLine) {
 		return a.lineNum - b.lineNum
 	}
 
-	slices.SortFunc(errorLines, sortByTime)
-	slices.SortFunc(inProgressLines, sortByTime)
-	slices.SortFunc(doneLines, sortByTime)
+	slices.SortStableFunc(errorLines, sortByTime)
+	slices.SortStableFunc(inProgressLines, sortByTime)
+	slices.SortStableFunc(doneLines, sortByTime)
 
 	defer func() {
 		slices.SortFunc(finalLines, sortById)

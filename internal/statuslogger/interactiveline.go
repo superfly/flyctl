@@ -12,6 +12,7 @@ type interactiveLine struct {
 	buf         string
 	status      Status
 	lastChanged time.Time
+	doneTime    time.Time
 }
 
 func (line *interactiveLine) updateTimestamp() {
@@ -31,10 +32,17 @@ func (line *interactiveLine) Logf(format string, args ...interface{}) {
 	line.Log(fmt.Sprintf(format, args...))
 }
 
+func (line *interactiveLine) updateStatus(s Status) {
+	if line.status != s && s == StatusSuccess {
+		line.doneTime = time.Now()
+	}
+	line.status = s
+}
+
 func (line *interactiveLine) LogStatus(s Status, str string) {
 	line.logger.lock.Lock()
 	defer line.logger.lock.Unlock()
-	line.status = s
+	line.updateStatus(s)
 	line.buf = str
 	line.logger.lockedDraw()
 	line.updateTimestamp()
@@ -51,7 +59,7 @@ func (line *interactiveLine) Failed(e error) {
 func (line *interactiveLine) setStatus(s Status) {
 	line.logger.lock.Lock()
 	defer line.logger.lock.Unlock()
-	line.status = s
+	line.updateStatus(s)
 	line.logger.lockedDraw()
 	line.updateTimestamp()
 }
