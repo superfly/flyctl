@@ -20,8 +20,8 @@ builds:
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
-    flags:
-      - -tags={{ envOrDefault "BUILD_ENV" "production" }}
+    tags:
+      - {{ envOrDefault "BUILD_ENV" "production" }}
 
   - id: windows
     env:
@@ -36,8 +36,8 @@ builds:
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
-    flags:
-      - -tags={{ envOrDefault "BUILD_ENV" "production" }}
+    tags:
+      - {{ envOrDefault "BUILD_ENV" "production" }}
 
 archives:
   - id: windows
