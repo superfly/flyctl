@@ -357,6 +357,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			EnableEtcd:   true,
 		},
 
+		Restart: &Restart{
+			Policy:     "always",
+			MaxRetries: 3,
+		},
+
 		Build: &Build{
 			Builder:           "dockerfile",
 			Image:             "foo/fighter",

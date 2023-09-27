@@ -222,11 +222,14 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 	}
 
 	// Restart Policy
-	mConfig.Restart = fly.MachineRestart{
-		Policy:     fly.MachineRestartPolicy(c.Restart.Policy),
-		MaxRetries: c.Restart.MaxRetries,
-	}
+	mConfig.Restart = nil
 
+	if c.Restart != nil {
+		mConfig.Restart = fly.MachineRestart{
+			Policy:     fly.MachineRestartPolicy(c.Restart.Policy),
+			MaxRetries: c.Restart.MaxRetries,
+		}
+	}
 	return mConfig, nil
 }
 
