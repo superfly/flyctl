@@ -90,7 +90,7 @@ func listVersionTags() ([]string, error) {
 	return strings.Split(string(out), "\n"), nil
 }
 
-func latestVersion(track string) (*version.Version, error) {
+func latestVersion(track string, semverOnly bool) (*version.Version, error) {
 	tags, err := listVersionTags()
 	if err != nil {
 		return nil, err
@@ -98,13 +98,23 @@ func latestVersion(track string) (*version.Version, error) {
 
 	var latest *version.Version
 	for _, tag := range tags {
-		if v, err := version.Parse(tag); err != nil {
+		v, err := version.Parse(tag)
+		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
-		} else {
-			if v.Channel == track {
-				latest = &v
-				break
-			}
+			continue
+		}
+
+		fmt.Printf("v.Channel: %q, track: %q, %v \n", v, v.Channel, v.Channel == "")
+
+		// semver stable doesn't have a track. check that it's empty. remove this once the calver migration is done
+		if semverOnly && !version.IsCalVer(v) && track == "stable" && v.Channel == "" {
+			latest = &v
+			break
+		}
+
+		if v.Channel == track {
+			latest = &v
+			break
 		}
 	}
 

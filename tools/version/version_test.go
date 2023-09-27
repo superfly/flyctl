@@ -151,7 +151,7 @@ func TestLatestVersionForTrack(t *testing.T) {
 
 	for track, expectedVersion := range tests {
 		t.Run(track, func(t *testing.T) {
-			latest, err := latestVersion(track)
+			latest, err := latestVersion(track, false)
 			assert.NoError(t, err)
 			assert.Equal(t, expectedVersion, latest)
 		})

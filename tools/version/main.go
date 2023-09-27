@@ -2,12 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/version"
 )
+
+// TODO[md]: remove this when we're done with the semver to calver migration
+const stableChannelStillOnSemver = true
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -46,10 +50,13 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	output.Channel = channel
 
-	previousVersion, err := latestVersion(channel)
+	fmt.Println("Channel:", channel)
+
+	previousVersion, err := latestVersion(channel, stableChannelStillOnSemver)
 	if err != nil {
 		return err
 	}
+	fmt.Println("Previous version:", previousVersion)
 
 	if previousVersion != nil {
 		str := previousVersion.String()

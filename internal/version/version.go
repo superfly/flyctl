@@ -38,7 +38,7 @@ type Version struct {
 func (v Version) String() string {
 	// TODO[md]: remove this when we're done with the semver to calver migration
 	// handle old v0.[1-2].XXX[-pre-X] format first
-	if !isCalVer(v) && !isDev(v) {
+	if !IsCalVer(v) && !isDev(v) {
 		// version is bumped on every release -- no channel or build on stable
 		if v.Channel == "stable" || v.Channel == "" {
 			return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
@@ -61,7 +61,7 @@ func (v Version) String() string {
 }
 
 // flag to indicate which side of the semver to calver migration we're on. drop when we're done
-func isCalVer(v Version) bool {
+func IsCalVer(v Version) bool {
 	return v.Major > 2022
 }
 
@@ -127,14 +127,14 @@ func (v Version) dateFromVersion() time.Time {
 
 func (v Version) SignificantlyBehind(latest Version) bool {
 	// both versions are calver, use date comparison. >28 days is old
-	if isCalVer(latest) && isCalVer(v) {
+	if IsCalVer(latest) && IsCalVer(v) {
 		latestDate := latest.dateFromVersion()
 		currentDate := v.dateFromVersion()
 		return latestDate.Sub(currentDate) >= 28*24*time.Hour
 	}
 
 	// latest is calver, current is not. consider out of date if latest is >30 days old
-	if isCalVer(latest) && !isCalVer(v) {
+	if IsCalVer(latest) && !IsCalVer(v) {
 		latestDate := latest.dateFromVersion()
 		return time.Until(latestDate) >= 28*24*time.Hour
 	}
@@ -153,6 +153,16 @@ func (v Version) SignificantlyBehind(latest Version) bool {
 }
 
 func (v Version) Increment(t time.Time) Version {
+	if !IsCalVer(v) {
+		return Version{
+			Major:   v.Major,
+			Minor:   v.Minor,
+			Patch:   v.Patch + 1,
+			Build:   0,
+			Channel: v.Channel,
+		}
+	}
+
 	buildNum := 0
 	if v.Major == t.Year() && v.Minor == int(t.Month()) && v.Patch == t.Day() {
 		buildNum = v.Build
@@ -213,7 +223,7 @@ func Parse(version string) (Version, error) {
 	if suffixStr != "" {
 		// handle old v0.1.xxx format first, which separated channel and build with a dash
 		// old channels began with either "pre-", or "beta-"
-		if !isCalVer(out) && (strings.HasPrefix(suffixStr, "pre-") || strings.HasPrefix(suffixStr, "beta-")) {
+		if !IsCalVer(out) && (strings.HasPrefix(suffixStr, "pre-") || strings.HasPrefix(suffixStr, "beta-")) {
 			parts = strings.SplitN(suffixStr, "-", 2)
 		} else {
 			// handle new calver format, which separates channel and build with a dot

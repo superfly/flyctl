@@ -191,7 +191,7 @@ func TestIsCalver(t *testing.T) {
 		t.Run(input, func(t *testing.T) {
 			v, err := Parse(input)
 			assert.NoError(t, err)
-			assert.Equal(t, expected, isCalVer(v))
+			assert.Equal(t, expected, IsCalVer(v))
 		})
 	}
 }
