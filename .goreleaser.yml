@@ -81,7 +81,7 @@ checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{incpatch .Version}}-snapshot.{{.Branch}}+{{.ShortCommit}}"
+  name_template: "{{.Version}}-{{.Branch}}.{{.CommitTimestamp}}"
 
 changelog:
   sort: asc
