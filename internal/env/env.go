@@ -87,6 +87,9 @@ func IsCI() bool {
 		// Gitlab CI, Appveyor, CodeShip, dsari
 		"CI",
 
+		// GitHub Actions
+		"GITHUB_ACTIONS",
+
 		// Travis CI, Cirrus CI
 		"CONTINUOUS_INTEGRATION",
 

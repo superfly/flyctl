@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/version"
 )
 
@@ -133,7 +134,7 @@ func Commit() string {
 }
 
 func loadBuildTime() error {
-	if IsDev() && buildDate == "<date>" {
+	if (IsDev() || env.IsCI()) && buildDate == "<date>" {
 		cachedBuildTime = time.Now()
 	} else {
 		parsed, err := time.Parse(time.RFC3339, buildDate)
@@ -152,6 +153,17 @@ func loadVersion() error {
 			Minor:   0,
 			Patch:   0,
 			Channel: "dev",
+			Build:   int(cachedBuildTime.Unix()),
+		}
+		return nil
+	}
+
+	if env.IsCI() && buildVersion == "<version>" {
+		cachedVersion = version.Version{
+			Major:   0,
+			Minor:   0,
+			Patch:   0,
+			Channel: "test",
 			Build:   int(cachedBuildTime.Unix()),
 		}
 		return nil
