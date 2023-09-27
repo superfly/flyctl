@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/version"
 )
 
@@ -133,47 +132,49 @@ func Commit() string {
 	return rev + dirty
 }
 
-func loadBuildTime() error {
-	if (IsDev() || env.IsCI()) && buildDate == "<date>" {
-		cachedBuildTime = time.Now()
-	} else {
-		parsed, err := time.Parse(time.RFC3339, buildDate)
-		if err != nil {
-			return err
-		}
-		cachedBuildTime = parsed
-	}
-	return nil
-}
+// func loadBuildTime() error {
+// 	if (IsDev() || env.IsCI()) && buildDate == "<date>" {
+// 		cachedBuildTime = time.Now()
+// 	} else {
+// 		parsed, err := time.Parse(time.RFC3339, buildDate)
+// 		if err != nil {
+// 			return err
+// 		}
+// 		cachedBuildTime = parsed
+// 	}
+// 	return nil
+// }
 
-func loadVersion() error {
-	if IsDev() && buildVersion == "<version>" {
-		cachedVersion = version.Version{
-			Major:   0,
-			Minor:   0,
-			Patch:   0,
-			Channel: "dev",
-			Build:   int(cachedBuildTime.Unix()),
-		}
-		return nil
-	}
+// func loadVersion() error {
+// 	if IsDev() && buildVersion == "<version>" {
+// 		cachedVersion = version.Version{
+// 			Major:   0,
+// 			Minor:   0,
+// 			Patch:   0,
+// 			Channel: "dev",
+// 			Build:   int(cachedBuildTime.Unix()),
+// 		}
+// 		return nil
+// 	}
 
-	if env.IsCI() && buildVersion == "<version>" {
-		cachedVersion = version.Version{
-			Major:   0,
-			Minor:   0,
-			Patch:   0,
-			Channel: "test",
-			Build:   int(cachedBuildTime.Unix()),
-		}
-		return nil
-	}
+// 	fmt.Println("dev:", IsDev(), "isCI:", env.IsCI(), "buildVersion:", buildVersion)
 
-	v, err := version.Parse(buildVersion)
-	if err != nil {
-		return err
-	}
-	cachedVersion = v
+// 	if env.IsCI() && buildVersion == "<version>" {
+// 		cachedVersion = version.Version{
+// 			Major:   0,
+// 			Minor:   0,
+// 			Patch:   0,
+// 			Channel: "test",
+// 			Build:   int(cachedBuildTime.Unix()),
+// 		}
+// 		return nil
+// 	}
 
-	return nil
-}
+// 	v, err := version.Parse(buildVersion)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	cachedVersion = v
+
+// 	return nil
+// }
