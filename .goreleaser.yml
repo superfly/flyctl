@@ -1,3 +1,6 @@
+env:
+  - "BUILD_ENV={{if index .Env \"BUILD_ENV\"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}"
+
 before:
   hooks:
     - go mod download
@@ -21,7 +24,7 @@ builds:
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
     tags:
-      - {{ envOrDefault "BUILD_ENV" "production" }}
+      - "{{.Env.BUILD_ENV}}"
 
   - id: windows
     env:
@@ -37,7 +40,7 @@ builds:
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
     tags:
-      - {{ envOrDefault "BUILD_ENV" "production" }}
+      - "{{.Env.BUILD_ENV}}"
 
 archives:
   - id: windows
