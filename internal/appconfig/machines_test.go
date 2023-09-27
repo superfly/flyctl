@@ -50,6 +50,9 @@ func TestToMachineConfig(t *testing.T) {
 		Init: fly.MachineInit{
 			SwapSizeMB: fly.Pointer(512),
 		},
+		Restart: fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyAlways,
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -75,7 +78,7 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, &fly.MachineGuest{CPUs: 3}, got.Guest)
 	assert.Equal(t, "24/7", got.Schedule)
 	assert.Equal(t, true, got.AutoDestroy)
-	assert.Equal(t, fly.MachineRestart{Policy: "poke"}, got.Restart)
+	assert.Equal(t, &fly.MachineRestart{Policy: "always"}, got.Restart)
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, got.DNS)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
