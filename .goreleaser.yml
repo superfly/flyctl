@@ -17,9 +17,9 @@ builds:
         goarch: 386
     ldflags:
       - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
 
   - id: windows
     env:
@@ -31,9 +31,9 @@ builds:
         goarch: 386
     ldflags:
       - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
 
 archives:
   - id: windows
