@@ -50,6 +50,9 @@ func TestToMachineConfig(t *testing.T) {
 		Init: api.MachineInit{
 			SwapSizeMB: api.Pointer(512),
 		},
+		Restart: &api.MachineRestart{
+			Policy: api.MachineRestartPolicyAlways,
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -61,7 +64,7 @@ func TestToMachineConfig(t *testing.T) {
 		Guest:       &api.MachineGuest{CPUs: 3},
 		Schedule:    "24/7",
 		AutoDestroy: true,
-		Restart:     api.MachineRestart{Policy: "always"},
+		Restart:     &api.MachineRestart{Policy: "always"},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
 		Env:         map[string]string{"removed": "by-update"},
 		Mounts:      []api.MachineMount{{Name: "removed", Path: "/by/update"}},
@@ -75,7 +78,7 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, &api.MachineGuest{CPUs: 3}, got.Guest)
 	assert.Equal(t, "24/7", got.Schedule)
 	assert.Equal(t, true, got.AutoDestroy)
-	assert.Equal(t, api.MachineRestart{Policy: "poke"}, got.Restart)
+	assert.Equal(t, &api.MachineRestart{Policy: "always"}, got.Restart)
 	assert.Equal(t, &api.DNSConfig{SkipRegistration: true}, got.DNS)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
@@ -159,7 +162,7 @@ func TestToReleaseMachineConfig(t *testing.T) {
 			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		AutoDestroy: true,
-		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
+		Restart:     &api.MachineRestart{Policy: api.MachineRestartPolicyNo},
 		DNS:         &api.DNSConfig{SkipRegistration: true},
 		StopConfig: &api.StopConfig{
 			Timeout: api.MustParseDuration("10s"),
@@ -192,7 +195,7 @@ func TestToConsoleMachineConfig(t *testing.T) {
 			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		AutoDestroy: true,
-		Restart: api.MachineRestart{
+		Restart: &api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
 		},
 		DNS: &api.DNSConfig{SkipRegistration: true},
