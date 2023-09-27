@@ -33,10 +33,6 @@ jobs:
         with:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl
-      - name: Upload flyctl for preflight
-        uses: actions/upload-artifact@v3
-        with:
-          path: dist
 
   preflight:
     needs: test_build
