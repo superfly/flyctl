@@ -28,7 +28,7 @@ func run() error {
 		apiClient = api.NewClientFromOptions(api.ClientOptions{
 			AccessToken: os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
 			Name:        buildinfo.Name(),
-			Version:     buildinfo.ParsedVersion().String(),
+			Version:     buildinfo.Version().String(),
 			BaseURL:     "https://api.fly.io",
 			Logger:      logger.FromEnv(iostreams.System().ErrOut),
 		})
