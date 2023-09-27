@@ -15,9 +15,10 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/statuslogger"
 )
 
-func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
+func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) {
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
 		return nil
 	}
@@ -26,7 +27,15 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		md.colorize.Bold(md.app.Name),
 		md.appConfig.Deploy.ReleaseCommand,
 	)
-	err := md.createOrUpdateReleaseCmdMachine(ctx)
+	ctx, loggerCleanup := statuslogger.SingleLine(ctx, true)
+	defer func() {
+		if err != nil {
+			statuslogger.Failed(ctx, err)
+		}
+		loggerCleanup(false)
+	}()
+
+	err = md.createOrUpdateReleaseCmdMachine(ctx)
 	if err != nil {
 		return fmt.Errorf("error running release_command machine: %w", err)
 	}
@@ -44,7 +53,12 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
 	}
+
 	if exitCode != 0 {
+		statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
+		// Preemptive cleanup of the logger so that the logs have a clean place to write to
+		loggerCleanup(false)
+
 		time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
 		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
 			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
@@ -63,8 +77,11 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) error {
 		}
 		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
-	md.logClearLinesAbove(1)
-	fmt.Fprintf(md.io.ErrOut, "  release_command %s completed successfully\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
+	statuslogger.LogfStatus(ctx,
+		statuslogger.StatusSuccess,
+		"release_command %s completed successfully",
+		md.colorize.Bold(releaseCmdMachine.Machine().ID),
+	)
 	return nil
 }
 
@@ -99,7 +116,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "  Created release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.ID))
+	statuslogger.Logf(ctx, "Created release_command machine %s", md.colorize.Bold(releaseCmdMachine.ID))
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*api.Machine{releaseCmdMachine})
 	return nil
 }
@@ -108,7 +125,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 
-	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout, "", false); err != nil {
+	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout, false); err != nil {
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return err
 	}
@@ -177,7 +194,7 @@ func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
-	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, "", false)
+	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, false)
 	if err != nil {
 		var flapsErr *flaps.FlapsError
 		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
@@ -187,7 +204,7 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.releaseCmdTimeout, "", true)
+	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.releaseCmdTimeout, true)
 	if err != nil {
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
