@@ -1,5 +1,5 @@
 env:
-  - "BUILD_ENV={{if index .Env \"BUILD_ENV\"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}"
+  - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
 
 before:
   hooks:
@@ -19,7 +19,6 @@ builds:
       - goos: linux
         goarch: 386
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
@@ -35,7 +34,6 @@ builds:
       - goos: windows
         goarch: 386
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
