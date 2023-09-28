@@ -501,12 +501,12 @@ func TestLaunchDetach(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	res := f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --detach", f.OrgSlug(), appName, f.PrimaryRegion())
-	require.NotContains(f, res.StdErrString(), "success")
+	require.NotContains(f, res.StdOutString(), "success")
 
 	res = f.Fly("apps destroy --yes %s", appName)
 
 	res = f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
-	require.Contains(f, res.StdErrString(), "success")
+	require.Contains(f, res.StdOutString(), "success")
 }
 
 func TestDeployDetach(t *testing.T) {
@@ -516,10 +516,10 @@ func TestDeployDetach(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	res := f.Fly("deploy --detach")
-	require.NotContains(f, res.StdErrString(), "started")
+	require.NotContains(f, res.StdOutString(), "started")
 
 	res = f.Fly("deploy")
-	require.Contains(f, res.StdErrString(), "started")
+	require.Contains(f, res.StdOutString(), "started")
 }
 
 func TestDeployDetachBatching(t *testing.T) {
@@ -530,10 +530,10 @@ func TestDeployDetachBatching(t *testing.T) {
 	f.Fly("scale count 6 --yes")
 
 	res := f.Fly("deploy --detach")
-	require.NotContains(f, res.StdErrString(), "started", false)
+	require.NotContains(f, res.StdOutString(), "started", false)
 
 	res = f.Fly("deploy")
-	require.Contains(f, res.StdErrString(), "started", false)
+	require.Contains(f, res.StdOutString(), "started", false)
 }
 
 func TestErrOutput(t *testing.T) {
