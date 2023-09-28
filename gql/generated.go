@@ -2174,6 +2174,9 @@ type GetOrganizationOrganization struct {
 	Slug string `json:"slug"`
 	// Single sign-on link for the given integration type
 	AddOnSsoLink string `json:"addOnSsoLink"`
+	// Whether the organization can provision beta extensions
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+	PaidPlan                 bool `json:"paidPlan"`
 }
 
 // GetId returns GetOrganizationOrganization.Id, and is useful for accessing the field via an interface.
@@ -2187,6 +2190,14 @@ func (v *GetOrganizationOrganization) GetSlug() string { return v.Slug }
 
 // GetAddOnSsoLink returns GetOrganizationOrganization.AddOnSsoLink, and is useful for accessing the field via an interface.
 func (v *GetOrganizationOrganization) GetAddOnSsoLink() string { return v.AddOnSsoLink }
+
+// GetProvisionsBetaExtensions returns GetOrganizationOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
+	return v.ProvisionsBetaExtensions
+}
+
+// GetPaidPlan returns GetOrganizationOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetPaidPlan() bool { return v.PaidPlan }
 
 // GetOrganizationResponse is returned by GetOrganization on success.
 type GetOrganizationResponse struct {
@@ -4203,6 +4214,8 @@ query GetOrganization ($slug: String!) {
 		name
 		slug
 		addOnSsoLink
+		provisionsBetaExtensions
+		paidPlan
 	}
 }
 `

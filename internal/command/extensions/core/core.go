@@ -10,6 +10,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/skratchdot/open-golang/open"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -21,26 +22,43 @@ import (
 
 type Extension struct {
 	Data gql.ExtensionData
-	App  gql.AppData
+	App  *gql.AppData
 }
 
-func ProvisionExtension(ctx context.Context, appName string, providerName string, auto bool, options map[string]interface{}) (extension Extension, err error) {
+func ProvisionExtension(ctx context.Context, appName string, organization *api.Organization, providerName string, auto bool, options map[string]interface{}) (*Extension, error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(providerName))
+	var err error
+	var appResponse *gql.GetAppWithAddonsResponse
+	var targetApp *gql.AppData
+	var targetOrg gql.GetOrganizationOrganization
+	if organization != nil {
+		resp, err := gql.GetOrganization(ctx, client, organization.Slug)
+		if err != nil {
+			return nil, err
+		}
+		targetOrg = resp.Organization
+	} else {
+		// Fetch the target organization from the app
+		appResponse, err = gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(providerName))
 
-	if err != nil {
-		return
+		if err != nil {
+			return nil, err
+		}
+
+		targetApp = &appResponse.App.AppData
+		resp, err := gql.GetOrganization(ctx, client, targetApp.Organization.Slug)
+		if err != nil {
+			return nil, err
+		}
+		targetOrg = resp.Organization
 	}
 
-	targetApp := appResponse.App.AppData
-	targetOrg := targetApp.Organization
 	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	provider := resp.AddOnProvider.ExtensionProviderData
@@ -48,14 +66,14 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	// Stop provisioning if being provisioned automatically, but the provider has auto-provisioning disabled
 
 	if auto && !provider.AutoProvision {
-		return extension, nil
+		return nil, nil
 	}
 
 	// Stop auto-provisioning if this provider is in beta and the target org does is not allowed to provision beta extensions.\
 	// Standard provisioning will be stopped by the backend for the same reason, but there, we'll supply a better error message.
 
 	if auto && provider.Beta && !targetOrg.ProvisionsBetaExtensions {
-		return extension, nil
+		return nil, nil
 	}
 
 	// Stop provisioning if this app already has an extension of this type, but only display an error for
@@ -68,7 +86,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 			existsError = nil
 		}
 
-		return extension, existsError
+		return nil, existsError
 	}
 
 	// Display ToS implicit agreement only once per org. Viewing makes the agreement official.
@@ -76,7 +94,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	err = DisplayTosAgreement(ctx, provider, targetOrg, auto)
 
 	if err != nil {
-		return extension, err
+		return nil, err
 	}
 
 	// Pick a name for the extension unless we want it to be the same as the app, like in Sentry's case
@@ -86,13 +104,13 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		name = flag.GetString(ctx, "name")
 
 		if name == "" {
-			if provider.NameSuffix != "" {
+			if targetApp != nil && provider.NameSuffix != "" {
 				name = targetApp.Name + "-" + provider.NameSuffix
 			}
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
 			if err != nil {
-				return
+				return nil, err
 			}
 		}
 	} else {
@@ -114,7 +132,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
 
 		if err != nil {
-			return extension, err
+			return nil, err
 		}
 
 		cfg := appconfig.ConfigFromContext(ctx)
@@ -135,7 +153,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 			})
 
 			if err != nil {
-				return extension, err
+				return nil, err
 			}
 
 			primaryRegion = region.Code
@@ -152,13 +170,13 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		absDir, err := filepath.Abs(".")
 
 		if err != nil {
-			return extension, err
+			return nil, err
 		}
 
 		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
 
 		if err != nil {
-			return extension, err
+			return nil, err
 		}
 
 		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
@@ -174,16 +192,18 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
-	extension.App = targetApp
+	extension := &Extension{
+		Data: createResp.CreateAddOn.AddOn.ExtensionData,
+		App:  targetApp,
+	}
 
 	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 
@@ -207,12 +227,12 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+	SetSecrets(ctx, targetApp, extension.Data.Environment.(map[string]interface{}))
 
 	return extension, nil
 }
 
-func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData, org gql.AppDataOrganization, auto bool) error {
+func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData, org gql.GetOrganizationOrganization, auto bool) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	client := client.FromContext(ctx).API().GenqClient

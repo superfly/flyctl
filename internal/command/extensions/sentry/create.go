@@ -30,7 +30,7 @@ func create() (cmd *cobra.Command) {
 func runSentryCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	extension, err := extensions_core.ProvisionExtension(ctx, appName, "sentry", false, gql.AddOnOptions{})
-	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
+	extension, err := extensions_core.ProvisionExtension(ctx, appName, nil, "sentry", false, gql.AddOnOptions{})
+	secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
 	return
 }

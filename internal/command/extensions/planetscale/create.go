@@ -37,13 +37,13 @@ func create() (cmd *cobra.Command) {
 func runPlanetscaleCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	extension, err := extensions_core.ProvisionExtension(ctx, appName, "planetscale", false, gql.AddOnOptions{})
+	extension, err := extensions_core.ProvisionExtension(ctx, appName, nil, "planetscale", false, gql.AddOnOptions{})
 
 	if err != nil {
 		return err
 	}
 
-	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
+	secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
 
 	return
 }

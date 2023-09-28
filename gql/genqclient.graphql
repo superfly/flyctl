@@ -92,6 +92,8 @@ query GetOrganization($slug: String!) {
 		name
 		slug
 		addOnSsoLink
+		provisionsBetaExtensions
+		paidPlan
 	}
 }
 
