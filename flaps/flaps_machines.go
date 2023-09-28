@@ -34,6 +34,29 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 
 	out = new(api.Machine)
 	if err := f.sendRequestMachines(ctx, http.MethodPost, "", builder, out, nil); err != nil {
+		// If we try to deploy to a region that's out of capacity, try deploying to backup regions
+		if statusCode := GetErrorStatusCode(err); statusCode != nil && *statusCode == regionOOCapacity {
+			if len(builder.BackupRegions) == 0 {
+				// TODO(billy): return a suggestion to add backup-regions
+			}
+
+			for _, region := range builder.BackupRegions {
+				// Explicit copy
+				builder := builder
+				builder.BackupRegions = nil
+				builder.Region = region
+
+				fmt.Println("Attempting launch to", region)
+
+				// If launching to a backup region succeeds, return
+				out, err = f.Launch(ctx, builder)
+
+				if err == nil {
+					return out, nil
+				}
+			}
+		}
+
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 

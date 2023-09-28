@@ -671,10 +671,11 @@ type LaunchMachineInput struct {
 	LeaseTTL int `json:"lease_ttl,omitempty"`
 
 	// Client side only
-	ID                  string `json:"-"`
-	SkipHealthChecks    bool   `json:"-"`
-	RequiresReplacement bool   `json:"-"`
-	Timeout             int    `json:"-"`
+	ID                  string   `json:"-"`
+	SkipHealthChecks    bool     `json:"-"`
+	RequiresReplacement bool     `json:"-"`
+	Timeout             int      `json:"-"`
+	BackupRegions       []string `json:"-"`
 }
 
 type MachineProcess struct {
