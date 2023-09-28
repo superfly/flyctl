@@ -104,8 +104,6 @@ func latestVersion(track string, semverOnly bool) (*version.Version, error) {
 			continue
 		}
 
-		fmt.Printf("v.Channel: %q, track: %q, %v \n", v, v.Channel, v.Channel == "")
-
 		// semver stable doesn't have a track. check that it's empty. remove this once the calver migration is done
 		if semverOnly && !version.IsCalVer(v) && track == "stable" && v.Channel == "" {
 			latest = &v

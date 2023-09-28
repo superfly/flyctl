@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"time"
 
@@ -50,13 +49,10 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	output.Channel = channel
 
-	fmt.Println("Channel:", channel)
-
 	previousVersion, err := latestVersion(channel, stableChannelStillOnSemver)
 	if err != nil {
 		return err
 	}
-	fmt.Println("Previous version:", previousVersion)
 
 	if previousVersion != nil {
 		str := previousVersion.String()
