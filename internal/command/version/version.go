@@ -40,7 +40,7 @@ number and build date.`
 	version.AddCommand(
 		newSaveInstall(),
 		newUpgrade(),
-		newChannel(),
+		newInstall(),
 	)
 
 	flag.Add(version, flag.JSONOutput())

@@ -13,23 +13,23 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newChannel() *cobra.Command {
+func newInstall() *cobra.Command {
 	const (
-		short = "Set the update channel for flyctl"
+		short = "Install another version of flyctl"
 
-		long = `Set the update channel for flyctl and installs the latest version on that channel. Valid channels are "stable",
+		long = `Install a specific version of flyctl, or install the latest version from a different update channel. Valid channels are "stable",
 		"nightly", and "prNNNN" for unstable pull request builds.`
 	)
 
-	cmd := command.New("set-channel <channel>", short, long, runSetChannel)
+	cmd := command.New("install <channel>", short, long, runInstall)
 	cmd.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
 
-func runSetChannel(ctx context.Context) error {
+func runInstall(ctx context.Context) error {
 	channel := flag.FirstArg(ctx)
-	fmt.Println("change channel to", channel)
+	fmt.Println("changed channel to", channel)
 
 	cache.FromContext(ctx).SetChannel(channel)
 
