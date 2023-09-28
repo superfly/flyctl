@@ -236,7 +236,9 @@ func ProvisionExtension(ctx context.Context, appName string, organization *api.O
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	SetSecrets(ctx, targetApp, extension.Data.Environment.(map[string]interface{}))
+	if targetApp != nil {
+		SetSecrets(ctx, targetApp, extension.Data.Environment.(map[string]interface{}))
+	}
 
 	return extension, nil
 }
