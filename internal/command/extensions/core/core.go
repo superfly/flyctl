@@ -79,7 +79,7 @@ func ProvisionExtension(ctx context.Context, appName string, organization *api.O
 	// Stop provisioning if this app already has an extension of this type, but only display an error for
 	// extensions that weren't automatically provisioned
 
-	if len(appResponse.App.AddOns.Nodes) > 0 {
+	if appResponse != nil && len(appResponse.App.AddOns.Nodes) > 0 {
 		existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
 
 		if auto {
@@ -113,14 +113,23 @@ func ProvisionExtension(ctx context.Context, appName string, organization *api.O
 				return nil, err
 			}
 		}
-	} else {
+	} else if targetApp != nil {
 		name = targetApp.Name
+	} else {
+		name = providerName
+	}
+
+	var appId string
+	if targetApp != nil {
+		appId = targetApp.Id
+	} else {
+		appId = ""
 	}
 
 	input := gql.CreateAddOnInput{
 		OrganizationId: targetOrg.Id,
 		Name:           name,
-		AppId:          targetApp.Id,
+		AppId:          appId,
 		Type:           gql.AddOnType(providerName),
 	}
 
