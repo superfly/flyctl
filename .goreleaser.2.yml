@@ -13,7 +13,7 @@ builds:
     goos:
       - linux
     goarch:
-      # - arm64
+      - arm64
       - amd64
     ldflags:
       - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
@@ -28,7 +28,7 @@ builds:
       - darwin
     goarch:
       - arm64
-      # - amd64
+      - amd64
     ldflags:
       - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
@@ -41,7 +41,7 @@ builds:
     goos:
       - windows
     goarch:
-      # - arm64
+      - arm64
       - amd64
     ldflags:
       - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
