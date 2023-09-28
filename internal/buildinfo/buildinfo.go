@@ -17,6 +17,7 @@ var (
 	cachedVersion   version.Version
 	cachedBuildTime time.Time
 	cachedName      string
+	branchName      string
 )
 
 func init() {

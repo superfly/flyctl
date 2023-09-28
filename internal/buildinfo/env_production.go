@@ -8,7 +8,11 @@ import (
 	"github.com/superfly/flyctl/internal/version"
 )
 
-var environment = "production"
+var (
+	buildDate    = "<date>"
+	buildVersion = "<version>"
+	environment  = "production"
+)
 
 func loadBuildTime() (err error) {
 	cachedBuildTime, err = time.Parse(time.RFC3339, buildDate)

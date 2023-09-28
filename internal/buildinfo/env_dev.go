@@ -10,10 +10,6 @@ import (
 
 var environment = "development"
 
-func init() {
-
-}
-
 func loadBuildTime() error {
 	cachedBuildTime = time.Now()
 	return nil
