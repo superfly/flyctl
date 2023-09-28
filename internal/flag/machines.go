@@ -6,7 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/docker/go-units"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 )
 
 var validGPUKinds = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
@@ -37,9 +39,15 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 	}
 
 	if IsSpecified(ctx, "vm-memory") {
-		guest.MemoryMB = GetInt(ctx, "vm-memory")
-		if guest.MemoryMB == 0 {
+		rawValue := GetString(ctx, "vm-memory")
+		memoryMB, err := helpers.ParseSize(rawValue, units.RAMInBytes, units.MiB)
+		switch {
+		case err != nil:
+			return nil, err
+		case memoryMB == 0:
 			return nil, fmt.Errorf("--vm-memory cannot be zero")
+		default:
+			guest.MemoryMB = memoryMB
 		}
 	}
 
@@ -76,7 +84,7 @@ var VMSizeFlags = Set{
 		Description: "The kind of CPU to use ('shared' or 'performance')",
 		Aliases:     []string{"vm-cpukind"},
 	},
-	Int{
+	String{
 		Name:        "vm-memory",
 		Description: "Memory (in megabytes) to attribute to the VM",
 		Aliases:     []string{"memory"},
