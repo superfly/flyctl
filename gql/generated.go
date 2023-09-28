@@ -2714,6 +2714,14 @@ func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrgani
 	return &retval, nil
 }
 
+// GetProvisionsBetaExtensions returns GetOrganizationOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
+	return v.ProvisionsBetaExtensions
+}
+
+// GetPaidPlan returns GetOrganizationOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetPaidPlan() bool { return v.PaidPlan }
+
 // GetOrganizationResponse is returned by GetOrganization on success.
 type GetOrganizationResponse struct {
 	// Find an organization by ID
