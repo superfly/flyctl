@@ -36,6 +36,8 @@ func (v *AddOnData) GetStatus() string { return v.Status }
 type AddOnType string
 
 const (
+	// A Kubernetes cluster
+	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A Logtail log receiver
 	AddOnTypeLogtail AddOnType = "logtail"
 	// A PlanetScale database

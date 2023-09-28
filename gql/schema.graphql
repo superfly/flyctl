@@ -69,6 +69,16 @@ enum AccessTokenType {
   pat
 
   """
+  used for Sentry
+  """
+  sentry
+
+  """
+  access token
+  """
+  token
+
+  """
   token generated for our UI frontend
   """
   ui
@@ -298,11 +308,16 @@ type AddOnProvider {
   selectName: Boolean!
   selectRegion: Boolean!
   selectReplicaRegions: Boolean!
-  tosAgreement: String!
+  tosAgreement: String
   tosUrl: String
 }
 
 enum AddOnType {
+  """
+  A Kubernetes cluster
+  """
+  kubernetes
+
   """
   A Logtail log receiver
   """
@@ -1663,6 +1678,11 @@ input BuildVolumeInput {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
+
+  """
+  compute requirements for volume placement (cpu, mem, gpu, ...)
+  """
+  computeRequirements: JSON
 
   """
   id of host dedication
@@ -5872,6 +5892,7 @@ type LimitedAccessToken implements Node {
   id: ID!
   name: String!
   organization: Organization!
+  profileParams: JSON
   token: String!
   tokenHeader: String
   user: User!
@@ -7299,7 +7320,7 @@ type Organization implements Node {
   """
   Single sign-on link for the given integration type
   """
-  addOnSsoLink: String!
+  addOnSsoLink: String
 
   """
   List third party integrations associated with an organization
