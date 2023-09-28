@@ -140,8 +140,7 @@ func (c *Client) NodeRole(ctx context.Context) (string, error) {
 
 func (c *Client) legacyNodeRole(ctx context.Context) (string, error) {
 	endpoint := "/flycheck/role"
-	var out string
-	err := c.Do(ctx, http.MethodGet, endpoint, nil, &out)
+	out, err := c.DoPlaintext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return "", err
 	}

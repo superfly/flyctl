@@ -65,7 +65,6 @@ var VMSizeFlags = Set{
 	String{
 		Name:        "vm-size",
 		Description: `The VM size to set machines to. See "fly platform vm-sizes" for valid values`,
-		Aliases:     []string{"size"},
 	},
 	Int{
 		Name:        "vm-cpus",

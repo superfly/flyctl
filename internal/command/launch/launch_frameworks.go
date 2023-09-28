@@ -136,11 +136,12 @@ func (state *launchState) scannerCreateVolumes(ctx context.Context) error {
 
 	for _, vol := range state.sourceInfo.Volumes {
 		volume, err := flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
-			Name:             vol.Source,
-			Region:           state.Plan.RegionCode,
-			SizeGb:           api.Pointer(1),
-			Encrypted:        api.Pointer(true),
-			HostDedicationId: state.appConfig.HostDedicationID,
+			Name:                vol.Source,
+			Region:              state.Plan.RegionCode,
+			SizeGb:              api.Pointer(1),
+			Encrypted:           api.Pointer(true),
+			HostDedicationId:    state.appConfig.HostDedicationID,
+			ComputeRequirements: state.Plan.Guest(),
 		})
 		if err != nil {
 			return err
@@ -219,7 +220,6 @@ func execInitCommand(ctx context.Context, command scanner.InitCommand) (err erro
 }
 
 func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
-
 	srcInfo := state.sourceInfo
 	appConfig := state.appConfig
 
