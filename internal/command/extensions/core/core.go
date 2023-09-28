@@ -22,7 +22,7 @@ import (
 
 type Extension struct {
 	Data gql.ExtensionData
-	App  gql.AppData
+	App  *gql.AppData
 }
 
 type ExtensionParams struct {
@@ -43,7 +43,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	provider := resp.AddOnProvider.ExtensionProviderData
@@ -77,7 +77,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	err = AgreeToProviderTos(ctx, provider, targetOrg)
 
 	if err != nil {
-		return extension, err
+		return nil, err
 	}
 
 	var name string
@@ -93,7 +93,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
 			if err != nil {
-				return
+				return nil, err
 			}
 		}
 	} else {
@@ -115,7 +115,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
 
 		if err != nil {
-			return extension, err
+			return nil, err
 		}
 
 		cfg := appconfig.ConfigFromContext(ctx)
@@ -136,7 +136,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			})
 
 			if err != nil {
-				return extension, err
+				return nil, err
 			}
 
 			primaryRegion = region.Code
@@ -152,13 +152,13 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		absDir, err := filepath.Abs(".")
 
 		if err != nil {
-			return extension, err
+			return nil, err
 		}
 
 		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
 
 		if err != nil {
-			return extension, err
+			return nil, err
 		}
 
 		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
@@ -173,16 +173,18 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
-	extension.App = targetApp
+	extension := &Extension{
+		Data: createResp.CreateAddOn.AddOn.ExtensionData,
+		App:  targetApp,
+	}
 
 	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
 
@@ -206,7 +208,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+	SetSecrets(ctx, targetApp, extension.Data.Environment.(map[string]interface{}))
 
 	return extension, nil
 }
