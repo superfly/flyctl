@@ -96,8 +96,17 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 				return nil, err
 			}
 		}
-	} else {
+	} else if targetApp != nil {
 		name = targetApp.Name
+	} else {
+		name = providerName
+	}
+
+	var appId string
+	if targetApp != nil {
+		appId = targetApp.Id
+	} else {
+		appId = ""
 	}
 
 	input := gql.CreateAddOnInput{
