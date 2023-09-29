@@ -126,7 +126,6 @@ func printVersionUpgrade(ctx context.Context, oldVersion version.Version, homebr
 // getNewVersionFlyInstaller queries homebrew for the latest currently installed version of flyctl
 // It parses the output of `brew info flyctl --json`
 func getNewVersionHomebrew(ctx context.Context) (version.Version, error) {
-
 	var ver version.Version
 
 	newVersionJson, err := exec.CommandContext(ctx, "brew", "info", "flyctl", "--json").CombinedOutput()
@@ -170,7 +169,6 @@ func getNewVersionHomebrew(ctx context.Context) (version.Version, error) {
 
 // getNewVersionFlyInstaller executes [os.Args[0], "version", "--json"] and parses the output into a semver.Version
 func getNewVersionFlyInstaller(ctx context.Context) (version.Version, error) {
-
 	var ver version.Version
 
 	newVersionJson, err := exec.CommandContext(ctx, os.Args[0], "version", "--json").CombinedOutput()

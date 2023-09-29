@@ -55,8 +55,19 @@ func run(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
 	herokuAppName := flag.FirstArg(ctx)
+	token := flag.Args(ctx)[1]
 
-	herokuClient := heroku.New(flag.Args(ctx)[1])
+	var auth heroku.Auth
+	if ta := os.Getenv("TOKENIZER_AUTH_TOKEN"); ta != "" {
+		auth = heroku.TokenizerAuth(token, ta)
+	} else {
+		auth = heroku.BearerTokenAuth(token)
+	}
+
+	herokuClient, err := heroku.New(auth)
+	if err != nil {
+		return err
+	}
 
 	hkApp, err := herokuClient.AppInfo(ctx, herokuAppName)
 	if err != nil {

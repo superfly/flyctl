@@ -47,3 +47,4 @@ jobs:
         with:
           version: v1.54
           working-directory: ${{ matrix.module }}
+          skip-pkg-cache: true

@@ -17,6 +17,7 @@ var (
 	cachedVersion   version.Version
 	cachedBuildTime time.Time
 	cachedName      string
+	branchName      string
 )
 
 func init() {
@@ -130,32 +131,4 @@ func Commit() string {
 		}
 	}
 	return rev + dirty
-}
-
-func loadBuildTime() error {
-	if IsDev() && buildDate == "<date>" {
-		cachedBuildTime = time.Now()
-	} else {
-		parsed, err := time.Parse(time.RFC3339, buildDate)
-		if err != nil {
-			return err
-		}
-		cachedBuildTime = parsed
-	}
-	return nil
-}
-
-func loadVersion() error {
-	if IsDev() && buildVersion == "<version>" {
-		cachedVersion = version.New(cachedBuildTime, "dev", int(cachedBuildTime.Unix()))
-		return nil
-	}
-
-	v, err := version.Parse(buildVersion)
-	if err != nil {
-		return err
-	}
-	cachedVersion = v
-
-	return nil
 }
