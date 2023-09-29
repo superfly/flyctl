@@ -37,8 +37,27 @@ jobs:
       - name: sanity check old script (pre)
         run: ./scripts/bump_version.sh prerel
 
+  tag:
+    runs-on: ubuntu-latest
+    needs: [version, test]
+    steps:
+      - name: Create tag
+        uses: actions/github-script@v6
+        env:
+          TAG_NAME: v${{ fromJSON(steps.version.outputs.json).nextVersion }}
+        with:
+          script: |
+            const { TAG_NAME } = process.env
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${TAG_NAME}`,
+              sha: context.sha
+            })
+
+
   build:
-    needs: version
+    needs: tag
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
