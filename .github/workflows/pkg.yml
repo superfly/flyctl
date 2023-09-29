@@ -65,7 +65,7 @@ jobs:
 
   build:
     needs: [tag, version]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest-m
     steps:
       - uses: actions/checkout@v4
         with:
@@ -91,7 +91,7 @@ jobs:
           path: dist/*.*
           retention-days: 1
 
-  publish:
+  upload:
     needs: build
     runs-on: ubuntu-latest
     steps:
@@ -104,7 +104,7 @@ jobs:
         with:
           name: build-artifacts
           path: ~/build-archive
-      - name: Publish to flypkgs
+      - name: Upload to flypkgs
         env:
           FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
         run: go run ./tools/publish ~/build-archive
