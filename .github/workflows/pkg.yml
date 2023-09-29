@@ -44,7 +44,7 @@ jobs:
       - name: Create tag
         uses: actions/github-script@v6
         env:
-          TAG_NAME: v${{ fromJSON(steps.version.outputs.json).nextVersion }}
+          TAG_NAME: v${{ fromJSON(needs.version.outputs.json).nextVersion }}
         with:
           script: |
             const { TAG_NAME } = process.env
@@ -57,7 +57,7 @@ jobs:
 
 
   build:
-    needs: tag
+    needs: [tag, version]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
