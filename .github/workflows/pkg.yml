@@ -8,3 +8,31 @@ jobs:
   test:
     uses:
       ./.github/workflows/test.yml
+
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Get version numbers
+        id: version
+        run: |
+          echo "json=$(go run ./tools/version)" >> "$GITHUB_OUTPUT"
+      - name: Print version numbers
+        run: |
+          echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}" >> $GITHUB_STEP_SUMMARY
+          echo "Channel: ${{ fromJSON(steps.version.outputs.json).channel }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit SHA": ${{ github.sha }}
+          echo "Commit Time: ${{ fromJSON(steps.version.outputs.json).commitTime }}" >> $GITHUB_STEP_SUMMARY
+          echo "GitHub Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "Previous version: ${{ fromJSON(steps.version.outputs.json).previousVersion }}" >> $GITHUB_STEP_SUMMARY
+      - name: sanity check old script (stable)
+        run: ./scripts/bump_version.sh
+      - name: sanity check old script (pre)
+        run: ./scripts/bump_version.sh (prerel)
