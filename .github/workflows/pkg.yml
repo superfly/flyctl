@@ -35,4 +35,4 @@ jobs:
       - name: sanity check old script (stable)
         run: ./scripts/bump_version.sh
       - name: sanity check old script (pre)
-        run: ./scripts/bump_version.sh (prerel)
+        run: ./scripts/bump_version.sh prerel
