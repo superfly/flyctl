@@ -157,7 +157,7 @@ func isCI() bool {
 }
 
 func isRefStableBranch(ref string) bool {
-	return ref == "refs/heads/master" || ref == "refs/heads/main"
+	return ref == "refs/heads/master" || ref == "refs/heads/main" || ref == "refs/heads/flypkgs-builds"
 }
 
 func prNumber(ref string) (int, error) {
