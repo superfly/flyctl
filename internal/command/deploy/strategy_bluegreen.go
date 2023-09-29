@@ -74,12 +74,68 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 	return bg
 }
 
+// detects zombie machines, deletes them, and update the list of machines to be updated
+func (bg *blueGreen) DeleteZombiesFromPreviousDeployment(ctx context.Context) error {
+	zombieMap := map[string]bool{}
+	deploymentTagMap := map[string]bool{}
+
+	for _, mach := range bg.blueMachines {
+		deploymentTag := mach.launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyctlDeploymentTag]
+		deploymentTagMap[deploymentTag] = true
+	}
+
+	// rare edge case but if the untagging process fails
+	// it's possible for all machines in an app to have the same tag.
+	// in this case there's nothing to do.
+	if len(deploymentTagMap) == 1 {
+		return nil
+	}
+
+	for _, mach := range bg.blueMachines {
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
+
+		deploymentTag := mach.launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyctlDeploymentTag]
+
+		if strings.Contains(deploymentTag, "green") {
+			zombieMap[mach.launchInput.ID] = true
+
+			err := mach.leasableMachine.Destroy(ctx, true)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(mach.leasableMachine.FormattedMachineId()))
+
+		}
+	}
+
+	filteredBlueMachines := []*machineUpdateEntry{}
+	for _, mach := range bg.blueMachines {
+		if !zombieMap[mach.launchInput.ID] {
+			filteredBlueMachines = append(filteredBlueMachines, mach)
+		}
+	}
+
+	bg.blueMachines = filteredBlueMachines
+
+	if len(zombieMap) == 0 {
+		fmt.Fprintf(bg.io.ErrOut, "  No hanging machines from a failed previous deployment\n")
+	}
+
+	return nil
+}
+
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
+	tag := fmt.Sprintf("green_%d", time.Now().Unix())
+
 	var greenMachines []machine.LeasableMachine
 
 	for _, mach := range bg.blueMachines {
 		launchInput := mach.launchInput
 		launchInput.SkipServiceRegistration = true
+		launchInput.Config.Metadata[api.MachineConfigMetadataKeyFlyctlDeploymentTag] = tag
 
 		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
 		if err != nil {
@@ -96,6 +152,21 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 	bg.greenMachines = greenMachines
 	return nil
+}
+
+func (bg *blueGreen) ClearMachineOfZombieStatus(ctx context.Context) {
+	doneChan := make(chan error)
+
+	for _, mach := range bg.greenMachines {
+		go func(mach machine.LeasableMachine) {
+			doneChan <- bg.flaps.DeleteMetadata(ctx, mach.Machine().ID, api.MachineConfigMetadataKeyFlyctlDeploymentTag)
+		}(mach)
+	}
+
+	for range doneChan {
+		// we don't really care about the error returned by the delete calls.
+		// nothing bad happens if they fail. the zombie detection logic will work just fine.
+	}
 }
 
 func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
@@ -429,6 +500,13 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrOrgLimit
 	}
 
+	fmt.Fprintf(bg.io.ErrOut, "\nCleanup Previous Deployment\n")
+
+	err = bg.DeleteZombiesFromPreviousDeployment(ctx)
+	if err != nil {
+		return err
+	}
+
 	bg.attachCustomTopLevelChecks()
 
 	totalChecks := 0
@@ -441,7 +519,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		totalChecks++
 	}
 
-	if totalChecks == 0 {
+	if totalChecks == 0 && len(bg.blueMachines) != 0 {
 		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
 		return ErrValidationError
 	}
@@ -485,10 +563,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
+	// return nil
+
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
 		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
 	}
+
+	bg.ClearMachineOfZombieStatus(ctx)
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
 	return nil
