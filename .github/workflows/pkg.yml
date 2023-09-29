@@ -7,4 +7,4 @@ on:
 jobs:
   test:
     uses:
-      ./.github/workflows/reusable/test.yml
+      ./.github/workflows/test.yml
