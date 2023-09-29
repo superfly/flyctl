@@ -8,19 +8,38 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/tools/publish/flypkgs"
+	"github.com/superfly/flyctl/tools/distribute/flypkgs"
+)
+
+var (
+	apiEndpoint = envOrDefault("FLYPKGS_API_ENDPOINT", "https://flyio-pkgs.fly.dev/api")
+	apiToken    = mustEnv("FLYPKGS_API_TOKEN")
 )
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:          "publish <path>",
-		Short:        "Publish a release to pkgs.fly.io",
-		Long:         "Publish a release from <path> to pkgs.fly.io",
+		Use:          "distribute",
+		Short:        "Distribute releases to pkgs.fly.io",
 		SilenceUsage: true,
-		RunE:         run,
 	}
 
-	rootCmd.Args = cobra.ExactArgs(1)
+	uploadCmd := &cobra.Command{
+		Use:          "upload <path>",
+		Short:        "upload a release from <path>",
+		SilenceUsage: true,
+		RunE:         runUpload,
+	}
+	uploadCmd.Args = cobra.ExactArgs(1)
+
+	publishCmd := &cobra.Command{
+		Use:          "publish <version>",
+		Short:        "publish a previously uploaded version",
+		SilenceUsage: true,
+		RunE:         runPublish,
+	}
+	publishCmd.Args = cobra.ExactArgs(1)
+
+	rootCmd.AddCommand(uploadCmd, publishCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		// fmt.Println(err)
@@ -28,20 +47,8 @@ func main() {
 	}
 }
 
-const FlyPkgsEndpoint = "https://flyio-pkgs.fly.dev/api"
-
-func run(cmd *cobra.Command, args []string) error {
+func runUpload(cmd *cobra.Command, args []string) error {
 	distDir := args[0]
-
-	apiToken := os.Getenv("FLYPKGS_API_TOKEN")
-	if apiToken == "" {
-		return fmt.Errorf("FLYPKGS_API_TOKEN not set")
-	}
-
-	apiEndpoint := os.Getenv("FLYPKGS_API_ENDPOINT")
-	if apiEndpoint == "" {
-		apiEndpoint = FlyPkgsEndpoint
-	}
 
 	ctx := cmd.Context()
 
@@ -86,6 +93,19 @@ func run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func runPublish(cmd *cobra.Command, args []string) error {
+	version := args[0]
+
+	client := flypkgs.NewClient(apiEndpoint, apiToken)
+	release, err := client.PublishRelease(cmd.Context(), version)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Published release", release.Version)
+	return nil
+}
+
 func checkExistingRelease(ctx context.Context, client *flypkgs.Client, distDir string) error {
 	buildInfo, err := loadJSONFile[buildInfo](filepath.Join(distDir, "metadata.json"))
 	if err != nil {
@@ -101,4 +121,18 @@ func checkExistingRelease(ctx context.Context, client *flypkgs.Client, distDir s
 		return fmt.Errorf("release %s already exists", version)
 	}
 	return err
+}
+
+func envOrDefault(varName string, defaultValue string) string {
+	if v := os.Getenv(varName); v != "" {
+		return v
+	}
+	return defaultValue
+}
+
+func mustEnv(varName string) string {
+	if v := os.Getenv(varName); v != "" {
+		return v
+	}
+	panic(fmt.Sprintf("missing required environment variable %s", varName))
 }

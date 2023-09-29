@@ -95,3 +95,18 @@ func (c *Client) UploadRelease(ctx context.Context, version string, r io.Reader)
 
 	return &out, nil
 }
+
+func (c *Client) PublishRelease(ctx context.Context, version string) (*Release, error) {
+	req, err := http.NewRequest("POST", c.URL("/releases/%s/publish", version), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json; charset=utf-8")
+
+	var out Release
+	if err := c.sendRequest(ctx, req, &out); err != nil {
+		return nil, err
+	}
+
+	return &out, nil
+}
