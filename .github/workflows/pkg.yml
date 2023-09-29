@@ -46,7 +46,7 @@ jobs:
     steps:
       - name: debug version output
         run: |
-          echo ${{ needs.version.outputs.json }}
+          echo ${{ needs.version.outputs.version.json }}
       # - name: Create tag
       #   uses: actions/github-script@v6
       #   env:
