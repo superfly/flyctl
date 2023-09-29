@@ -11,7 +11,8 @@ func freshV2Config(appName string, srcCfg *appconfig.Config) (*appconfig.Config,
 	newCfg.Build = srcCfg.Build
 	newCfg.PrimaryRegion = srcCfg.PrimaryRegion
 	newCfg.Restart = &appconfig.Restart{
-		Policy: appconfig.RestartPolicyAlways,
+		Policy:     appconfig.RestartPolicyAlways,
+		MaxRetries: 5,
 	}
 	newCfg.HTTPService = &appconfig.HTTPService{
 		InternalPort:       8080,
