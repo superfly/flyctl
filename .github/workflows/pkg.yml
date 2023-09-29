@@ -32,6 +32,9 @@ jobs:
           echo "Commit Time: ${{ fromJSON(steps.version.outputs.json).commitTime }}" >> $GITHUB_STEP_SUMMARY
           echo "GitHub Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
           echo "Previous version: ${{ fromJSON(steps.version.outputs.json).previousVersion }}" >> $GITHUB_STEP_SUMMARY
+      - name: debug version number
+        run: |
+          echo ${{ steps.version.outputs.json }}
       - name: sanity check old script (stable)
         run: ./scripts/bump_version.sh
       - name: sanity check old script (pre)
