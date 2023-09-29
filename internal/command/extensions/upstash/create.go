@@ -19,7 +19,7 @@ func create() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.RequireAppName)
+	cmd = command.New("create", short, long, runCreate, command.RequireSession)
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
