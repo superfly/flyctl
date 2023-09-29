@@ -23,9 +23,11 @@ jobs:
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: build
         uses: goreleaser/goreleaser-action@v5
+        env:
+          BUILD_ENV: "development"
         with:
           version: latest
-          args: build --clean --snapshot
+          args: build --clean --snapshot --verbose
       - name: Upload flyctl for preflight
         uses: actions/upload-artifact@v3
         with:

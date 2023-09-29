@@ -33,7 +33,6 @@ require (
 	github.com/jinzhu/copier v0.3.5
 	github.com/jpillora/backoff v1.0.0
 	github.com/kr/text v0.2.0
-	github.com/loadsmart/calver-go v0.0.0-20230323142215-56cf73a68e8a
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.19
