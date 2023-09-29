@@ -11,6 +11,8 @@ jobs:
 
   version:
     runs-on: ubuntu-latest
+    outputs:
+      next_version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -46,7 +48,7 @@ jobs:
     steps:
       - name: debug version output
         run: |
-          echo ${{ needs.version.outputs.version.json }}
+          echo ${{ needs.version.outputs.next_version }}
       # - name: Create tag
       #   uses: actions/github-script@v6
       #   env:
