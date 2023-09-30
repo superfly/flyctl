@@ -19,7 +19,7 @@ func create() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("create", short, long, runCreate, command.RequireSession)
+	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.LoadAppNameIfPresent)
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
@@ -54,7 +54,9 @@ func create() (cmd *cobra.Command) {
 func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	extension, err := extensions_core.ProvisionExtension(ctx, appName, "upstash_redis", false, gql.AddOnOptions{})
+	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
+		AppName: appName,
+	})
 
 	if err != nil {
 		return err

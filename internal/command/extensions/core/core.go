@@ -107,42 +107,11 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		Type:           gql.AddOnType(provider.Name),
 	}
 
-	var inExcludedRegion bool
-	var primaryRegion string
-
 	if provider.SelectRegion {
-
-		// Fetch and cache platform regions for later use
-		prompt.PlatformRegions(ctx)
-
-		excludedRegions, err := GetExcludedRegions(ctx, provider)
+		primaryRegion, err := SelectPrimaryRegion(ctx, targetOrg, provider)
 
 		if err != nil {
 			return extension, err
-		}
-
-		cfg := appconfig.ConfigFromContext(ctx)
-
-		if cfg != nil && cfg.PrimaryRegion != "" {
-
-			primaryRegion = cfg.PrimaryRegion
-
-			if slices.Contains(excludedRegions, primaryRegion) {
-				inExcludedRegion = true
-			}
-
-		} else {
-
-			region, err := prompt.Region(ctx, !targetOrg.PaidPlan, prompt.RegionParams{
-				Message:             "Choose the primary region (can't be changed later)",
-				ExcludedRegionCodes: excludedRegions,
-			})
-
-			if err != nil {
-				return extension, err
-			}
-
-			primaryRegion = region.Code
 		}
 
 		input.PrimaryRegion = primaryRegion
@@ -203,12 +172,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	fmt.Fprintf(io.Out, provisioningMsg+" is ready. See details and next steps with: %s\n\n", colorize.Green(provider.ProvisioningInstructions))
 
-	if inExcludedRegion {
-		fmt.Fprintf(io.ErrOut,
-			"Note: Your app is deployed in %s which isn't a supported %s region. Expect database request latency of 10ms or more.\n\n",
-			colorize.Green(primaryRegion), provider.DisplayName)
-	}
-
 	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
 
 	return extension, nil
@@ -248,6 +211,55 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData,
 	}
 
 	return err
+}
+
+func SelectPrimaryRegion(ctx context.Context, org gql.OrganizationData, provider gql.ExtensionProviderData) (string, error) {
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	var inExcludedRegion bool
+	var primaryRegion string
+
+	// Fetch and cache platform regions for later use
+	prompt.PlatformRegions(ctx)
+
+	excludedRegions, err := GetExcludedRegions(ctx, provider)
+
+	if err != nil {
+		return "", err
+	}
+
+	cfg := appconfig.ConfigFromContext(ctx)
+
+	if cfg != nil && cfg.PrimaryRegion != "" {
+
+		primaryRegion = cfg.PrimaryRegion
+
+		if slices.Contains(excludedRegions, primaryRegion) {
+			inExcludedRegion = true
+		}
+
+	} else {
+
+		region, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+			Message:             "Choose the primary region (can't be changed later)",
+			ExcludedRegionCodes: excludedRegions,
+		})
+
+		if err != nil {
+			return "", err
+		}
+
+		primaryRegion = region.Code
+	}
+
+	if inExcludedRegion {
+		fmt.Fprintf(io.ErrOut,
+			"Note: %s does not support the %s region. Expect database request latency of 10ms or more.\n\n",
+			provider.DisplayName, colorize.Green(primaryRegion))
+	}
+	return primaryRegion, nil
 }
 
 func WaitForProvision(ctx context.Context, name string) error {
