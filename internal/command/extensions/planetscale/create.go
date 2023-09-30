@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -19,7 +20,7 @@ func create() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("create", short, long, runPlanetscaleCreate, command.RequireSession, command.RequireAppName)
+	cmd = command.New("create", short, long, runPlanetscaleCreate, command.RequireSession, command.LoadAppNameIfPresent)
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
@@ -36,8 +37,13 @@ func create() (cmd *cobra.Command) {
 
 func runPlanetscaleCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
+	org, err := orgs.OrgFromFlagOrSelect(ctx)
 
-	extension, err := extensions_core.ProvisionExtension(ctx, appName, "planetscale", false, gql.AddOnOptions{})
+	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
+		AppName:      appName,
+		Provider:     "planetscale",
+		Organization: org,
+	})
 
 	if err != nil {
 		return err
