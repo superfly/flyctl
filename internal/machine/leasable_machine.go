@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
-	"github.com/morikuni/aec"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
@@ -27,9 +27,9 @@ type LeasableMachine interface {
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
-	WaitForState(context.Context, string, time.Duration, string, bool) error
-	WaitForSmokeChecksToPass(context.Context, string) error
-	WaitForHealthchecksToPass(context.Context, time.Duration, string) error
+	WaitForState(context.Context, string, time.Duration, bool) error
+	WaitForSmokeChecksToPass(context.Context) error
+	WaitForHealthchecksToPass(context.Context, time.Duration) error
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*api.MachineEvent, error)
 	FormattedMachineId() string
 	GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration)
@@ -99,33 +99,16 @@ func (lm *leasableMachine) FormattedMachineId() string {
 	return fmt.Sprintf("%s [%s]", res, procGroup)
 }
 
-func (lm *leasableMachine) logClearLinesAbove(count int) {
-	if lm.io.IsInteractive() {
-		builder := aec.EmptyBuilder
-		str := builder.Up(uint(count)).EraseLine(aec.EraseModes.All).ANSI
-		fmt.Fprint(lm.io.ErrOut, str.String())
-	}
+func (lm *leasableMachine) logStatusWaiting(ctx context.Context, desired string) {
+
+	statuslogger.Logf(ctx, "Waiting for %s to have state: %s", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(desired))
 }
 
-func (lm *leasableMachine) logStatusWaiting(desired, prefix string) {
-	if prefix != "" {
-		prefix += " "
-	}
-	fmt.Fprintf(lm.io.ErrOut, "  %sWaiting for %s to have state: %s\n",
-		prefix,
-		lm.colorize.Bold(lm.FormattedMachineId()),
-		lm.colorize.Yellow(desired),
-	)
+func (lm *leasableMachine) logStatusFinished(ctx context.Context, current string) {
+	statuslogger.Logf(ctx, "Machine %s has state: %s", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Green(current))
 }
 
-func (lm *leasableMachine) logStatusFinished(current string) {
-	fmt.Fprintf(lm.io.ErrOut, "  Machine %s has state: %s\n",
-		lm.colorize.Bold(lm.FormattedMachineId()),
-		lm.colorize.Green(current),
-	)
-}
-
-func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus, prefix string) {
+func (lm *leasableMachine) logHealthCheckStatus(ctx context.Context, status *api.HealthCheckStatus) {
 	if status == nil {
 		return
 	}
@@ -133,11 +116,8 @@ func (lm *leasableMachine) logHealthCheckStatus(status *api.HealthCheckStatus, p
 	if status.Passing != status.Total {
 		resColor = lm.colorize.Yellow
 	}
-	if prefix != "" {
-		prefix += " "
-	}
-	fmt.Fprintf(lm.io.ErrOut, "  %sWaiting for %s to become healthy: %s\n",
-		prefix,
+	statuslogger.Logf(ctx,
+		"Waiting for %s to become healthy: %s\n",
 		lm.colorize.Bold(lm.FormattedMachineId()),
 		resColor(fmt.Sprintf("%d/%d", status.Passing, status.Total)),
 	)
@@ -150,7 +130,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.HasLease() {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
-	lm.logStatusWaiting(api.MachineStateStarted, "")
+	lm.logStatusWaiting(ctx, api.MachineStateStarted)
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
 		return err
@@ -178,7 +158,7 @@ func resolveTimeoutContext(ctx context.Context, timeout time.Duration, allowInfi
 	}
 }
 
-func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, logPrefix string, allowInfinite bool) error {
+func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string, timeout time.Duration, allowInfinite bool) error {
 	waitCtx, cancel, timeout := resolveTimeoutContext(ctx, timeout, allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
@@ -188,8 +168,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		Factor: 2,
 		Jitter: true,
 	}
-	lm.logClearLinesAbove(1)
-	lm.logStatusWaiting(desiredState, logPrefix)
+	lm.logStatusWaiting(ctx, desiredState)
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
 		notFoundResponse := false
@@ -213,8 +192,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			}
 			continue
 		}
-		lm.logClearLinesAbove(1)
-		lm.logStatusFinished(desiredState)
+		lm.logStatusFinished(ctx, desiredState)
 		return nil
 	}
 }
@@ -239,7 +217,7 @@ func (lm *leasableMachine) isConstantlyRestarting(machine *api.Machine) bool {
 		ev.Request.ExitEvent.ExitCode != 0
 }
 
-func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPrefix string) error {
+func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, 10*time.Second))
 	defer cancel()
 
@@ -250,10 +228,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPref
 		Jitter: true,
 	}
 
-	fmt.Fprintf(lm.io.ErrOut, "  %s Checking that %s is up and running\n",
-		logPrefix,
-		lm.colorize.Bold(lm.FormattedMachineId()),
-	)
+	statuslogger.Logf(ctx, "Checking that %s is up and running", lm.colorize.Bold(lm.FormattedMachineId()))
 
 	for {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
@@ -285,7 +260,7 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context, logPref
 	}
 }
 
-func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration, logPrefix string) error {
+func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
 	if len(lm.Machine().Checks) == 0 {
 		return nil
 	}
@@ -320,8 +295,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
 			if !printedFirst || lm.io.IsInteractive() {
-				lm.logClearLinesAbove(1)
-				lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
+				lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
 				printedFirst = true
 			}
 			select {
@@ -330,8 +304,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			}
 			continue
 		}
-		lm.logClearLinesAbove(1)
-		lm.logHealthCheckStatus(updateMachine.AllHealthChecks(), logPrefix)
+		lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
 		return nil
 	}
 }
@@ -347,11 +320,7 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 		Factor: 2,
 		Jitter: true,
 	}
-	lm.logClearLinesAbove(1)
-	fmt.Fprintf(lm.io.ErrOut, "  Waiting for %s to get %s event\n",
-		lm.colorize.Bold(lm.FormattedMachineId()),
-		lm.colorize.Yellow(eventType1),
-	)
+	statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType1))
 	for {
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {

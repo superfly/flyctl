@@ -2,18 +2,11 @@ package machine
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"os"
-	"path"
-	"path/filepath"
-	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -25,14 +18,11 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
@@ -194,6 +184,11 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name: "host-dedication-id",
 		},
+		flag.Bool{
+			Name:        "lsvd",
+			Description: "Enable LSVD for this machine",
+			Hidden:      true,
+		},
 		sharedFlags,
 	)
 
@@ -252,6 +247,7 @@ func runMachineRun(ctx context.Context) error {
 		Name:             flag.GetString(ctx, "name"),
 		Region:           flag.GetString(ctx, "region"),
 		HostDedicationID: flag.GetString(ctx, "host-dedication-id"),
+		LSVD:             flag.GetBool(ctx, "lsvd"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -390,303 +386,6 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 	return parsed, nil
 }
 
-func determineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
-	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
-		cfg    = appconfig.ConfigFromContext(ctx)
-	)
-
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
-
-	// build if relative or absolute path
-	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
-		opts := imgsrc.ImageOptions{
-			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
-			Publish:    !flag.GetBuildOnly(ctx),
-			ImageLabel: flag.GetString(ctx, "image-label"),
-			Target:     flag.GetString(ctx, "build-target"),
-			NoCache:    flag.GetBool(ctx, "no-build-cache"),
-		}
-
-		dockerfilePath := cfg.Dockerfile()
-
-		// dockerfile passed through flags takes precedence over the one set in config
-		if flag.GetString(ctx, "dockerfile") != "" {
-			dockerfilePath = flag.GetString(ctx, "dockerfile")
-		}
-
-		if dockerfilePath != "" {
-			dockerfilePath, err := filepath.Abs(dockerfilePath)
-			if err != nil {
-				return nil, err
-			}
-			opts.DockerfilePath = dockerfilePath
-		}
-
-		extraArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid build-arg")
-		}
-		opts.BuildArgs = extraArgs
-
-		img, err = resolver.BuildImage(ctx, io, opts)
-		if err != nil {
-			return nil, err
-		}
-		if img == nil {
-			return nil, errors.New("could not find an image to deploy")
-		}
-	} else {
-		opts := imgsrc.RefOptions{
-			AppName:    appName,
-			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBool(ctx, "build-only"),
-			ImageRef:   imageOrPath,
-			ImageLabel: flag.GetString(ctx, "image-label"),
-		}
-
-		img, err = resolver.ResolveReference(ctx, io, opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if img == nil {
-		return nil, errors.New("could not find an image to deploy")
-	}
-
-	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
-
-	return img, nil
-}
-
-func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
-	unattachedVolumes := make(map[string][]api.Volume)
-
-	pathIndex := make(map[string]int)
-	for idx, m := range mounts {
-		pathIndex[m.Path] = idx
-	}
-
-	for _, v := range flag.GetStringSlice(ctx, "volume") {
-		splittedIDDestOpts := strings.Split(v, ":")
-		if len(splittedIDDestOpts) < 2 {
-			return nil, fmt.Errorf("Can't infer volume and mount path from '%s'", v)
-		}
-		volID := splittedIDDestOpts[0]
-		mountPath := splittedIDDestOpts[1]
-
-		if !strings.HasPrefix(volID, "vol_") {
-			volName := volID
-
-			// Load app volumes the first time
-			if len(unattachedVolumes) == 0 {
-				var err error
-				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if len(unattachedVolumes[volName]) == 0 {
-				return nil, fmt.Errorf("not enough unattached volumes for '%s'", volName)
-			}
-			volID = unattachedVolumes[volName][0].ID
-			unattachedVolumes[volName] = unattachedVolumes[volName][1:]
-		}
-
-		if idx, found := pathIndex[mountPath]; found {
-			mounts[idx].Volume = volID
-		} else {
-			mounts = append(mounts, api.MachineMount{
-				Volume: volID,
-				Path:   mountPath,
-			})
-		}
-	}
-	return mounts, nil
-}
-
-func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	apiclient := client.FromContext(ctx).API()
-	flapsClient := flaps.FromContext(ctx)
-
-	if regionCode == "" {
-		region, err := apiclient.GetNearestRegion(ctx)
-		if err != nil {
-			return nil, err
-		}
-		regionCode = region.Code
-	}
-
-	volumes, err := flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
-	}
-
-	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return !v.IsAttached() && (regionCode == v.Region)
-	})
-	if len(unattached) == 0 {
-		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
-	}
-
-	unattachedMap := lo.GroupBy(unattached, func(v api.Volume) string { return v.Name })
-	return unattachedMap, nil
-}
-
-func determineServices(ctx context.Context, services []api.MachineService) ([]api.MachineService, error) {
-	svcKey := func(internalPort int, protocol string) string {
-		return fmt.Sprintf("%d/%s", internalPort, protocol)
-	}
-	servicesRef := lo.Map(services, func(s api.MachineService, _ int) *api.MachineService { return &s })
-	servicesMap := lo.KeyBy(servicesRef, func(s *api.MachineService) string {
-		return svcKey(s.InternalPort, s.Protocol)
-	})
-
-	for _, p := range flag.GetStringSlice(ctx, "port") {
-		internalPort, proto, edgePort, edgeStartPort, edgeEndPort, handlers, err := parsePortFlag(p)
-		if err != nil {
-			return nil, err
-		}
-
-		// Look for existing services or append a new one
-		svc, ok := servicesMap[svcKey(internalPort, proto)]
-		if !ok {
-			svc = &api.MachineService{
-				InternalPort: internalPort,
-				Protocol:     proto,
-			}
-			servicesRef = append(servicesRef, svc)
-			servicesMap[svcKey(internalPort, proto)] = svc
-		}
-
-		// A dash handler removes the service: --port 5432/tcp:-
-		if slices.Equal(handlers, []string{"-"}) {
-			svc.Ports = nil
-			continue
-		}
-
-		// Look for existing ports and update them
-		found := false
-		for idx := range svc.Ports {
-			svcPort := &svc.Ports[idx]
-			if svcPort.Port != nil && edgePort != nil && *(svcPort.Port) == *edgePort {
-				found = true
-				svcPort.Handlers = handlers
-			}
-			if svcPort.StartPort != nil && edgeStartPort != nil && *(svcPort.StartPort) == *edgeStartPort {
-				found = true
-				svcPort.Handlers = handlers
-				svcPort.EndPort = edgeEndPort
-			}
-		}
-		// Or append new port definition
-		if !found {
-			svc.Ports = append(svc.Ports, api.MachinePort{
-				Port:      edgePort,
-				StartPort: edgeStartPort,
-				EndPort:   edgeEndPort,
-				Handlers:  handlers,
-			})
-		}
-	}
-
-	// Remove any service without exposed ports
-	services = lo.FilterMap(servicesRef, func(s *api.MachineService, _ int) (api.MachineService, bool) {
-		if s != nil && len(s.Ports) > 0 {
-			return *s, true
-		}
-		return api.MachineService{}, false
-	})
-
-	return services, nil
-}
-
-func parsePortFlag(str string) (internalPort int, protocol string, port, startPort, endPort *int, handlers []string, err error) {
-	protocol = "tcp"
-	splittedPortsProto := strings.Split(str, "/")
-	if len(splittedPortsProto) == 2 {
-		splittedProtoHandlers := strings.Split(splittedPortsProto[1], ":")
-		protocol = splittedProtoHandlers[0]
-		handlers = append(handlers, splittedProtoHandlers[1:]...)
-	} else if len(splittedPortsProto) > 2 {
-		err = errors.New("port must be at most two elements (ports/protocol:handler)")
-		return
-	}
-
-	port, startPort, endPort, internalPort, err = parsePorts(splittedPortsProto[0])
-	if internalPort == 0 {
-		switch {
-		case port != nil:
-			internalPort = *port
-		case startPort != nil:
-			internalPort = *startPort
-		}
-	}
-	return
-}
-
-func parsePorts(input string) (port, start_port, end_port *int, internal_port int, err error) {
-	split := strings.Split(input, ":")
-	if len(split) == 1 {
-		var external_port int
-		external_port, err = strconv.Atoi(split[0])
-		if err != nil {
-			err = errors.Wrap(err, "invalid port")
-			return
-		}
-
-		port = api.IntPointer(external_port)
-	} else if len(split) == 2 {
-		internal_port, err = strconv.Atoi(split[1])
-		if err != nil {
-			err = errors.Wrap(err, "invalid machine (internal) port")
-			return
-		}
-
-		external_split := strings.Split(split[0], "-")
-		if len(external_split) == 1 {
-			var external_port int
-			external_port, err = strconv.Atoi(external_split[0])
-			if err != nil {
-				err = errors.Wrap(err, "invalid external port")
-				return
-			}
-
-			port = api.IntPointer(external_port)
-		} else if len(external_split) == 2 {
-			var start int
-			start, err = strconv.Atoi(external_split[0])
-			if err != nil {
-				err = errors.Wrap(err, "invalid start port for port range")
-				return
-			}
-
-			start_port = api.IntPointer(start)
-
-			var end int
-			end, err = strconv.Atoi(external_split[0])
-			if err != nil {
-				err = errors.Wrap(err, "invalid end port for port range")
-				return
-			}
-
-			end_port = api.IntPointer(end)
-		} else {
-			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
-		}
-	} else {
-		err = errors.New("port definition must be at most 2 elements (external:internal)")
-	}
-
-	return
-}
-
 func selectAppName(ctx context.Context) (name string, err error) {
 	const msg = "App Name:"
 
@@ -770,7 +469,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Metadata[k] = v
 	}
 
-	services, err := determineServices(ctx, machineConf.Services)
+	services, err := command.DetermineServices(ctx, machineConf.Services)
 	if err != nil {
 		return machineConf, err
 	}
@@ -808,13 +507,13 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return machineConf, errors.New("invalid restart provided")
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, input.region)
+	machineConf.Mounts, err = command.DetermineMounts(ctx, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}
 
 	if input.imageOrPath != "" {
-		img, err := determineImage(ctx, input.appName, input.imageOrPath)
+		img, err := command.DetermineImage(ctx, input.appName, input.imageOrPath)
 		if err != nil {
 			return machineConf, err
 		}
@@ -845,80 +544,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
 	}
 
-	machineFiles, err := FilesFromCommand(ctx)
+	machineFiles, err := command.FilesFromCommand(ctx)
 	if err != nil {
 		return machineConf, err
 	}
 	mach.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
-}
-
-// FilesFromCommand checks the specified flags for files and returns a list of api.File to be used
-// in the machine configuration.
-func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
-	machineFiles := []*api.File{}
-
-	localFiles, err := parseFiles(ctx, "file-local", func(value string, file *api.File) error {
-		content, err := os.ReadFile(value)
-		if err != nil {
-			return fmt.Errorf("could not read file %s: %w", value, err)
-		}
-		rawValue := base64.StdEncoding.EncodeToString(content)
-		file.RawValue = &rawValue
-		return nil
-	})
-	if err != nil {
-		return machineFiles, fmt.Errorf("failed to read file-local: %w", err)
-	}
-	machineFiles = append(machineFiles, localFiles...)
-
-	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *api.File) error {
-		encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
-		file.RawValue = &encodedValue
-		return nil
-	})
-	if err != nil {
-		return machineFiles, fmt.Errorf("failed to read file-literal: %w", err)
-	}
-	machineFiles = append(machineFiles, literalFiles...)
-
-	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *api.File) error {
-		file.SecretName = &value
-		return nil
-	})
-	if err != nil {
-		return machineFiles, fmt.Errorf("failed to read file-secret: %w", err)
-	}
-	machineFiles = append(machineFiles, secretFiles...)
-
-	return machineFiles, nil
-}
-
-func parseFiles(ctx context.Context, flagName string, cb func(value string, file *api.File) error) ([]*api.File, error) {
-	flagFiles := flag.GetStringArray(ctx, flagName)
-	machineFiles := make([]*api.File, 0, len(flagFiles))
-
-	for _, f := range flagFiles {
-		guestPath, fileRef, ok := strings.Cut(f, "=")
-		file := api.File{
-			GuestPath: guestPath,
-		}
-		switch {
-		case !ok:
-			return nil, fmt.Errorf("invalid %s argument %s", flagName, f)
-		case !filepath.IsAbs(guestPath):
-			return nil, fmt.Errorf("guest path, %s, must be absolute", guestPath)
-		case fileRef == "":
-			// empty value is allowed to remove file from machine
-		default:
-			if err := cb(fileRef, &file); err != nil {
-				return nil, err
-			}
-		}
-
-		machineFiles = append(machineFiles, &file)
-	}
-
-	return machineFiles, nil
 }

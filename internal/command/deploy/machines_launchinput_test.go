@@ -39,7 +39,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}
@@ -271,7 +271,7 @@ func Test_launchInputForLaunch_Files(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "release_id",
 				"fly_release_version":  "3",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Files: []*api.File{
 				{
@@ -296,9 +296,6 @@ func Test_launchInputForUpdate_Files(t *testing.T) {
 				SecretName: api.StringPointer("SECRET_CONFIG"),
 			},
 			{
-				GuestPath: "/path/to/be/deleted",
-			},
-			{
 				GuestPath: "/path/to/hello.txt",
 				RawValue:  api.StringPointer("Z29vZGJ5ZQo="),
 			},
@@ -321,14 +318,8 @@ func Test_launchInputForUpdate_Files(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, []*api.File{
-		{
-			GuestPath: "/path/to/hello.txt",
-			RawValue:  api.StringPointer("Z29vZGJ5ZQo="),
-		},
-		{
-			GuestPath:  "/path/to/config/yaml",
-			SecretName: api.StringPointer("SECRET_CONFIG"),
-		},
-	}, li.Config.Files)
+	assert.Equal(t, "/path/to/config/yaml", li.Config.Files[0].GuestPath)
+	assert.Equal(t, "SECRET_CONFIG", *li.Config.Files[0].SecretName)
+	assert.Equal(t, "/path/to/hello.txt", li.Config.Files[1].GuestPath)
+	assert.Equal(t, "Z29vZGJ5ZQo=", *li.Config.Files[1].RawValue)
 }
