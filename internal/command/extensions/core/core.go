@@ -10,6 +10,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/skratchdot/open-golang/open"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -24,20 +25,22 @@ type Extension struct {
 	App  gql.AppData
 }
 
-func ProvisionExtension(ctx context.Context, appName string, providerName string, auto bool, options map[string]interface{}) (extension Extension, err error) {
+type ExtensionParams struct {
+	AppName      string
+	Organization *api.Organization
+	Provider     string
+	Options      map[string]interface{}
+}
+
+func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(providerName))
 
-	if err != nil {
-		return
-	}
+	var targetApp gql.AppData
+	var targetOrg gql.OrganizationData
 
-	targetApp := appResponse.App.AppData
-	targetOrg := targetApp.Organization
-	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
+	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
 
 	if err != nil {
 		return
@@ -45,48 +48,46 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
-	// Stop provisioning if being provisioned automatically, but the provider has auto-provisioning disabled
-
-	if auto && !provider.AutoProvision {
-		return extension, nil
-	}
-
-	// Stop auto-provisioning if this provider is in beta and the target org does is not allowed to provision beta extensions.\
-	// Standard provisioning will be stopped by the backend for the same reason, but there, we'll supply a better error message.
-
-	if auto && provider.Beta && !targetOrg.ProvisionsBetaExtensions {
-		return extension, nil
-	}
-
-	// Stop provisioning if this app already has an extension of this type, but only display an error for
-	// extensions that weren't automatically provisioned
-
-	if len(appResponse.App.AddOns.Nodes) > 0 {
-		existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
-
-		if auto {
-			existsError = nil
+	if params.AppName != "" {
+		appResponse, err := gql.GetAppWithAddons(ctx, client, params.AppName, gql.AddOnType(params.Provider))
+		if err != nil {
+			return extension, err
 		}
 
-		return extension, existsError
+		targetApp = appResponse.App.AppData
+		targetOrg = appResponse.App.Organization.OrganizationData
+
+		if len(appResponse.App.AddOns.Nodes) > 0 {
+			existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(params.AppName))
+
+			return extension, existsError
+		}
+
+	} else {
+		resp, err := gql.GetOrganization(ctx, client, params.Organization.Slug)
+
+		if err != nil {
+			return extension, err
+		}
+
+		targetOrg = resp.Organization.OrganizationData
 	}
 
-	// Display ToS implicit agreement only once per org. Viewing makes the agreement official.
-
-	err = DisplayTosAgreement(ctx, provider, targetOrg, auto)
+	// Ensure orgs have agreed to the provider terms of service
+	err = AgreeToProviderTos(ctx, provider, targetOrg)
 
 	if err != nil {
 		return extension, err
 	}
 
-	// Pick a name for the extension unless we want it to be the same as the app, like in Sentry's case
 	var name string
 
+	// Prompt to name the provisioned resource, or use the target app name like in Sentry's case
 	if provider.SelectName {
 		name = flag.GetString(ctx, "name")
 
 		if name == "" {
-			if provider.NameSuffix != "" {
+			if provider.NameSuffix != "" && targetApp.Name != "" {
 				name = targetApp.Name + "-" + provider.NameSuffix
 			}
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
@@ -103,7 +104,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		OrganizationId: targetOrg.Id,
 		Name:           name,
 		AppId:          targetApp.Id,
-		Type:           gql.AddOnType(providerName),
+		Type:           gql.AddOnType(provider.Name),
 	}
 
 	var inExcludedRegion bool
@@ -150,7 +151,6 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	var detectedPlatform *scanner.SourceInfo
 
 	// Pass the detected platform family to the API
-
 	if provider.DetectPlatform {
 		absDir, err := filepath.Abs(".")
 
@@ -165,15 +165,14 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		}
 
 		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
-			if options == nil {
-				options = gql.AddOnOptions{}
+			if params.Options == nil {
+				params.Options = gql.AddOnOptions{}
 			}
-			options["platform"] = PlatformMap[detectedPlatform.Family]
+			params.Options["platform"] = PlatformMap[detectedPlatform.Family]
 		}
-
 	}
 
-	input.Options = options
+	input.Options = params.Options
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
@@ -215,31 +214,33 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	return extension, nil
 }
 
-func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData, org gql.AppDataOrganization, auto bool) error {
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData, org gql.OrganizationData) error {
 	client := client.FromContext(ctx).API().GenqClient
 
+	// Internal providers like kubernetes don't need ToS agreement
+	if provider.TosAgreement == "" {
+		return nil
+	}
+
+	// Check if the provider ToS was agreed to already
 	agreed, err := AgreedToProviderTos(ctx, provider.Name, org.Id)
 
 	if err != nil {
 		return err
 	}
 
-	var tosMsgPrefix string
-
-	// Display different ToS copy if an extension was automatically provisioned at deploy time
-	if auto {
-		tosMsgPrefix = "By deploying this app"
-	} else {
-		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
+	if agreed {
+		return nil
 	}
 
-	tosSuffix := "you agree to the %s Terms of Service: https://fly.io/legal/supplemental-terms"
-	tosMessage := colorize.Green("* ") + provider.TosAgreement + " " + tosMsgPrefix + ", " + tosSuffix
+	// Prompt the user to agree to the provider ToS
+	confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To provision this %s, you must agree on behalf of your organization to the %s Terms Of Service at %s. Do you agree?", provider.ResourceName, provider.DisplayName, provider.TosUrl))
 
-	if !agreed {
-		fmt.Fprintf(io.Out, tosMessage+"\n\n", provider.DisplayName)
+	if err != nil {
+		return err
+	}
+
+	if confirmTos {
 		_, err = gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
 			AddOnProviderName: provider.Name,
 			OrganizationId:    org.Id,

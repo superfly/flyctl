@@ -50,11 +50,6 @@ var CommonFlags = flag.Set{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
 	},
-	flag.Bool{
-		Name:        "no-extensions",
-		Description: "Do not provision Sentry nor other auto-provisioned extensions",
-		Default:     true,
-	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
@@ -327,7 +322,6 @@ func deployToMachines(
 		UpdateOnly:             flag.GetBool(ctx, "update-only"),
 		Files:                  files,
 		ExcludeRegions:         excludeRegions,
-		NoExtensions:           flag.GetBool(ctx, "no-extensions"),
 		OnlyRegions:            onlyRegions,
 		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
 	})
