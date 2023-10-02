@@ -12,24 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/version"
 )
 
-// numbers are based on commit time
-// track is based on branch name, or PR number
-
-// GITHUB_ACTIONS=true
-// GITHUB_SHA=e27c15c6853de3735da04ad59d963af83f42aee2
-// GITHUB_WORKFLOW_REF=michaeldwan/actions-test/.github/workflows/build.yml@refs/heads/main
-// GITHUB_REF=refs/heads/main
-// GITHUB_EVENT_NAME=workflow_dispatch
-// GITHUB_RUN_ID=6042463302
-// GITHUB_WORKFLOW_SHA=e27c15c6853de3735da04ad59d963af83f42aee2
-// GITHUB_REF_NAME=main
-// GITHUB_JOB=test_context
-// GITHUB_HEAD_REF=
-// GITHUB_ACTION_REF=
-// GITHUB_BASE_REF=
-// GITHUB_REPOSITORY=michaeldwan/actions-test
-// GITHUB_REF=refs/pull/1/merge
-
 func gitCommitTime(ref string) (time.Time, error) {
 	out, err := runGit("show", "-s", "--format=%ct", ref)
 	if err != nil {
