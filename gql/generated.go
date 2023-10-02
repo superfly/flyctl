@@ -286,30 +286,87 @@ func (v *AppData) GetOrganization() AppDataOrganization { return v.Organization 
 
 // AppDataOrganization includes the requested fields of the GraphQL type Organization.
 type AppDataOrganization struct {
-	Id string `json:"id"`
-	// Unique organization slug
-	Slug string `json:"slug"`
-	// Unmodified unique org slug
-	RawSlug  string `json:"rawSlug"`
-	PaidPlan bool   `json:"paidPlan"`
-	// Whether the organization can provision beta extensions
-	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+	OrganizationData `json:"-"`
 }
 
 // GetId returns AppDataOrganization.Id, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetId() string { return v.Id }
+func (v *AppDataOrganization) GetId() string { return v.OrganizationData.Id }
 
 // GetSlug returns AppDataOrganization.Slug, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetSlug() string { return v.Slug }
+func (v *AppDataOrganization) GetSlug() string { return v.OrganizationData.Slug }
 
 // GetRawSlug returns AppDataOrganization.RawSlug, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetRawSlug() string { return v.RawSlug }
+func (v *AppDataOrganization) GetRawSlug() string { return v.OrganizationData.RawSlug }
 
 // GetPaidPlan returns AppDataOrganization.PaidPlan, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetPaidPlan() bool { return v.PaidPlan }
+func (v *AppDataOrganization) GetPaidPlan() bool { return v.OrganizationData.PaidPlan }
+
+// GetAddOnSsoLink returns AppDataOrganization.AddOnSsoLink, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetAddOnSsoLink() string { return v.OrganizationData.AddOnSsoLink }
 
 // GetProvisionsBetaExtensions returns AppDataOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
+func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool {
+	return v.OrganizationData.ProvisionsBetaExtensions
+}
+
+func (v *AppDataOrganization) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*AppDataOrganization
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.AppDataOrganization = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.OrganizationData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalAppDataOrganization struct {
+	Id string `json:"id"`
+
+	Slug string `json:"slug"`
+
+	RawSlug string `json:"rawSlug"`
+
+	PaidPlan bool `json:"paidPlan"`
+
+	AddOnSsoLink string `json:"addOnSsoLink"`
+
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+}
+
+func (v *AppDataOrganization) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *AppDataOrganization) __premarshalJSON() (*__premarshalAppDataOrganization, error) {
+	var retval __premarshalAppDataOrganization
+
+	retval.Id = v.OrganizationData.Id
+	retval.Slug = v.OrganizationData.Slug
+	retval.RawSlug = v.OrganizationData.RawSlug
+	retval.PaidPlan = v.OrganizationData.PaidPlan
+	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
+	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
+	return &retval, nil
+}
 
 type BuildFinalImageInput struct {
 	// Sha256 id of docker image
@@ -2167,26 +2224,89 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 
 // GetOrganizationOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrganizationOrganization struct {
-	Id string `json:"id"`
-	// Organization name
-	Name string `json:"name"`
-	// Unique organization slug
-	Slug string `json:"slug"`
-	// Single sign-on link for the given integration type
-	AddOnSsoLink string `json:"addOnSsoLink"`
+	OrganizationData `json:"-"`
 }
 
 // GetId returns GetOrganizationOrganization.Id, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetId() string { return v.Id }
-
-// GetName returns GetOrganizationOrganization.Name, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetName() string { return v.Name }
+func (v *GetOrganizationOrganization) GetId() string { return v.OrganizationData.Id }
 
 // GetSlug returns GetOrganizationOrganization.Slug, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetSlug() string { return v.Slug }
+func (v *GetOrganizationOrganization) GetSlug() string { return v.OrganizationData.Slug }
+
+// GetRawSlug returns GetOrganizationOrganization.RawSlug, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetRawSlug() string { return v.OrganizationData.RawSlug }
+
+// GetPaidPlan returns GetOrganizationOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetPaidPlan() bool { return v.OrganizationData.PaidPlan }
 
 // GetAddOnSsoLink returns GetOrganizationOrganization.AddOnSsoLink, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetAddOnSsoLink() string { return v.AddOnSsoLink }
+func (v *GetOrganizationOrganization) GetAddOnSsoLink() string {
+	return v.OrganizationData.AddOnSsoLink
+}
+
+// GetProvisionsBetaExtensions returns GetOrganizationOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
+	return v.OrganizationData.ProvisionsBetaExtensions
+}
+
+func (v *GetOrganizationOrganization) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetOrganizationOrganization
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetOrganizationOrganization = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.OrganizationData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetOrganizationOrganization struct {
+	Id string `json:"id"`
+
+	Slug string `json:"slug"`
+
+	RawSlug string `json:"rawSlug"`
+
+	PaidPlan bool `json:"paidPlan"`
+
+	AddOnSsoLink string `json:"addOnSsoLink"`
+
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+}
+
+func (v *GetOrganizationOrganization) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrganizationOrganization, error) {
+	var retval __premarshalGetOrganizationOrganization
+
+	retval.Id = v.OrganizationData.Id
+	retval.Slug = v.OrganizationData.Slug
+	retval.RawSlug = v.OrganizationData.RawSlug
+	retval.PaidPlan = v.OrganizationData.PaidPlan
+	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
+	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
+	return &retval, nil
+}
 
 // GetOrganizationResponse is returned by GetOrganization on success.
 type GetOrganizationResponse struct {
@@ -2493,6 +2613,38 @@ type MigrateMachinesCreateReleaseResponse struct {
 func (v *MigrateMachinesCreateReleaseResponse) GetCreateRelease() MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload {
 	return v.CreateRelease
 }
+
+// OrganizationData includes the GraphQL fields of Organization requested by the fragment OrganizationData.
+type OrganizationData struct {
+	Id string `json:"id"`
+	// Unique organization slug
+	Slug string `json:"slug"`
+	// Unmodified unique org slug
+	RawSlug  string `json:"rawSlug"`
+	PaidPlan bool   `json:"paidPlan"`
+	// Single sign-on link for the given integration type
+	AddOnSsoLink string `json:"addOnSsoLink"`
+	// Whether the organization can provision beta extensions
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+}
+
+// GetId returns OrganizationData.Id, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetId() string { return v.Id }
+
+// GetSlug returns OrganizationData.Slug, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetSlug() string { return v.Slug }
+
+// GetRawSlug returns OrganizationData.RawSlug, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetRawSlug() string { return v.RawSlug }
+
+// GetPaidPlan returns OrganizationData.PaidPlan, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetPaidPlan() bool { return v.PaidPlan }
+
+// GetAddOnSsoLink returns OrganizationData.AddOnSsoLink, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetAddOnSsoLink() string { return v.AddOnSsoLink }
+
+// GetProvisionsBetaExtensions returns OrganizationData.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
 
 type PlatformVersionEnum string
 
@@ -3561,12 +3713,16 @@ fragment AppData on App {
 	deployed
 	platformVersion
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		... OrganizationData
 	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -3871,12 +4027,16 @@ fragment AppData on App {
 	deployed
 	platformVersion
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		... OrganizationData
 	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -3974,12 +4134,16 @@ fragment AppData on App {
 	deployed
 	platformVersion
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		... OrganizationData
 	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4067,11 +4231,7 @@ fragment AppData on App {
 	deployed
 	platformVersion
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		... OrganizationData
 	}
 }
 fragment AddOnData on AddOn {
@@ -4079,6 +4239,14 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4125,12 +4293,16 @@ fragment AppData on App {
 	deployed
 	platformVersion
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		... OrganizationData
 	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4199,11 +4371,16 @@ func GetNearestRegion(
 const GetOrganization_Operation = `
 query GetOrganization ($slug: String!) {
 	organization(slug: $slug) {
-		id
-		name
-		slug
-		addOnSsoLink
+		... OrganizationData
 	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 

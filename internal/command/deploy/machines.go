@@ -51,8 +51,6 @@ type MachineDeploymentArgs struct {
 	AllocPublicIP          bool
 	UpdateOnly             bool
 	Files                  []*api.File
-	ProvisionExtensions    bool
-	NoExtensions           bool
 	ExcludeRegions         map[string]interface{}
 	OnlyRegions            map[string]interface{}
 	ImmediateMaxConcurrent int
@@ -86,7 +84,6 @@ type machineDeployment struct {
 	increasedAvailability  bool
 	listenAddressChecked   map[string]struct{}
 	updateOnly             bool
-	noExtensions           bool
 	excludeRegions         map[string]interface{}
 	onlyRegions            map[string]interface{}
 	immediateMaxConcurrent int
@@ -172,7 +169,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		listenAddressChecked:   make(map[string]struct{}),
 		updateOnly:             args.UpdateOnly,
 		machineGuest:           args.Guest,
-		noExtensions:           args.NoExtensions,
 		excludeRegions:         args.ExcludeRegions,
 		onlyRegions:            args.OnlyRegions,
 		immediateMaxConcurrent: immedateMaxConcurrent,
