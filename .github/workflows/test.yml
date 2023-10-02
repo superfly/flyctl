@@ -9,20 +9,21 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest-m
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest-m, macos-latest-xl, windows-latest-l ]
+        workdir: [ ".", "api" ]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
-          go-version-file: "go.mod"
-          cache: true
-          check-latest: true
-      - name: Run tests
-        run: go test ./...
-      - name: Run API tests
-        working-directory: ./api
+          go-version-file: "${{ matrix.workdir }}/go.mod"
+      - name: Run Tests (${{ matrix.workdir }})
+        working-directory: ${{ matrix.workdir }}
         run: go test ./...
 
   # precommit:
