@@ -22,6 +22,8 @@ jobs:
         with:
           fetch-tags: true
       - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
       - name: Get version numbers
         id: version
         run: |
@@ -72,6 +74,8 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - name: Run GoReleaser
@@ -95,6 +99,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
       - uses: actions/download-artifact@v3
         with:
           name: build-artifacts
@@ -110,6 +116,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
       - name: Upload to flypkgs
         env:
           FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
