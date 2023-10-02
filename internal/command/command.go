@@ -30,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/update"
+	"github.com/superfly/flyctl/internal/version"
 )
 
 type Runner func(context.Context) error
@@ -287,7 +288,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 
 			// Check if the current version has been yanked.
 			if cache.IsCurrentVersionInvalid() == "" {
-				currentRelErr := update.ValidateRelease(ctx, buildinfo.ParsedVersion().String())
+				currentRelErr := update.ValidateRelease(ctx, buildinfo.Version().String())
 				if currentRelErr != nil {
 					var invalidRelErr *update.InvalidReleaseError
 					if errors.As(currentRelErr, &invalidRelErr) {
@@ -356,7 +357,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	var (
-		current   = buildinfo.ParsedVersion()
+		current   = buildinfo.Version()
 		cache     = cache.FromContext(ctx)
 		logger    = logger.FromContext(ctx)
 		io        = iostreams.FromContext(ctx)
@@ -374,13 +375,13 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s\n", versionInvalidMsg)
 	}
 
-	latest, err := buildinfo.ParseVersion(latestRel.Version)
+	latest, err := version.Parse(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
 		return ctx, err
 	}
 
-	if !latest.Newer() {
+	if !latest.Newer(current) {
 		if versionInvalidMsg != "" && !silent {
 			// Continuing from versionInvalidMsg above
 			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
@@ -393,7 +394,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() && update.CanUpdateThisInstallation() {
-		if versionInvalidMsg != "" || current.SeverelyOutdated(latest) {
+		if versionInvalidMsg != "" || current.SignificantlyBehind(latest) {
 			if !silent {
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
