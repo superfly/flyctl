@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -28,7 +27,10 @@ func runK8sCreate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	_, err = extensions_core.ProvisionExtension(ctx, "", targetOrg, "kubernetes", false, gql.AddOnOptions{})
+	_, err = extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
+		Provider:     "kubernetes",
+		Organization: targetOrg,
+	})
 	if err != nil {
 		return err
 	}
