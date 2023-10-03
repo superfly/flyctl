@@ -363,20 +363,108 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 	return nil
 }
 
-func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
+func (bg *blueGreen) markAllBlueMachinesAsHanging() {
+	for _, gm := range bg.blueMachines {
+		bg.hangingBlueMachines[gm.launchInput.ID] = struct{}{}
+	}
+}
+
+func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 	for _, gm := range bg.blueMachines {
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
-		err := gm.leasableMachine.Destroy(ctx, true)
+		err := gm.leasableMachine.Stop(ctx)
 		if err != nil {
 			bg.hangingBlueMachines[gm.launchInput.ID] = struct{}{}
 			continue
 		}
 
+		fmt.Fprintf(bg.io.ErrOut, "  Machine %s signaled to stop\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+	}
+
+	return nil
+}
+
+func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
+	wait := time.After(bg.timeout)
+	machineIDToState := map[string]int{}
+	render := bg.renderMachineStates(machineIDToState, "stopping", "stopped")
+
+	var stoppingMachines []machine.LeasableMachine
+	for _, gm := range bg.blueMachines {
+		if _, present := bg.hangingBlueMachines[gm.launchInput.ID]; !present {
+			stoppingMachines = append(stoppingMachines, gm.leasableMachine)
+		}
+	}
+
+	for _, gm := range stoppingMachines {
+		machineIDToState[gm.FormattedMachineId()] = 0
+	}
+
+	for _, gm := range stoppingMachines {
+		id := gm.FormattedMachineId()
+
+		go func(lm machine.LeasableMachine) {
+			err := machine.WaitForStartOrStop(ctx, lm.Machine(), "stop", bg.timeout)
+			if err != nil {
+				return
+			}
+
+			bg.stateLock.Lock()
+			machineIDToState[id] = 1
+			bg.stateLock.Unlock()
+		}(gm)
+	}
+
+	for {
+		if bg.allMachinesChangedState(machineIDToState) {
+			break
+		}
+
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
+
+		select {
+		case <-wait:
+			return ErrWaitTimeout
+		default:
+			time.Sleep(90 * time.Millisecond)
+			render()
+		}
+	}
+
+	// Add any machines that we failed to wait on to the set of hanging
+	// machines before returning.
+	bg.stateLock.RLock()
+	for id, state := range machineIDToState {
+		if state != 1 {
+			bg.hangingBlueMachines[id] = struct{}{}
+		}
+	}
+	bg.stateLock.RUnlock()
+	return nil
+}
+
+func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) ([]string, error) {
+	var deletedIDs []string
+	for _, gm := range bg.blueMachines {
+		if bg.aborted.Load() {
+			return deletedIDs, ErrAborted
+		} else if _, present := bg.hangingBlueMachines[gm.launchInput.ID]; present {
+			continue
+		}
+		err := gm.leasableMachine.Destroy(ctx, false)
+		if err != nil {
+			bg.hangingBlueMachines[gm.launchInput.ID] = struct{}{}
+			continue
+		}
+
+		deletedIDs = append(deletedIDs, gm.launchInput.ID)
 		fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
 	}
-	return nil
+	return deletedIDs, nil
 }
 
 func (bg *blueGreen) attachCustomTopLevelChecks() {
@@ -488,10 +576,28 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrAborted
 	}
 
-	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
-	if err := bg.DestroyBlueMachines(ctx); err != nil {
+	fmt.Fprintf(bg.io.ErrOut, "\nSignaling all blue machines to stop\n")
+	if err := bg.StopBlueMachines(ctx); err != nil {
+		bg.markAllBlueMachinesAsHanging()
 		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
-	} else if len(bg.hangingBlueMachines) > 0 {
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all blue machines to stop\n")
+	if err := bg.WaitForBlueMachinesToBeStopped(ctx); err != nil {
+		bg.markAllBlueMachinesAsHanging()
+		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
+	if deletedIDs, err := bg.DestroyBlueMachines(ctx); err != nil {
+		bg.markAllBlueMachinesAsHanging()
+		for _, id := range deletedIDs {
+			delete(bg.hangingBlueMachines, id)
+		}
+		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
+	}
+
+	if len(bg.hangingBlueMachines) > 0 {
 		return ErrDestroyBlueMachines
 	}
 
