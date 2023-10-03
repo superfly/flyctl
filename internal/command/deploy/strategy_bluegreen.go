@@ -503,7 +503,7 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		hangingBlueMachines := lo.Keys(bg.hangingBlueMachines)
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(hangingBlueMachines, ","))
-		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
+		fmt.Fprintln(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
 		return nil
 	}
 
