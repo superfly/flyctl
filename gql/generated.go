@@ -19,6 +19,8 @@ type AddOnData struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Status of the add-on
 	Status string `json:"status"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -33,13 +35,14 @@ func (v *AddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
 // GetStatus returns AddOnData.Status, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetStatus() string { return v.Status }
 
+// GetMetadata returns AddOnData.Metadata, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetMetadata() interface{} { return v.Metadata }
+
 type AddOnType string
 
 const (
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
-	// A Logtail log receiver
-	AddOnTypeLogtail AddOnType = "logtail"
 	// A PlanetScale database
 	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
@@ -1420,6 +1423,9 @@ func (v *GetAddOnAddOn) GetId() string { return v.AddOnData.Id }
 // GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 
+// GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.AddOnData.Metadata }
+
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1471,6 +1477,8 @@ type __premarshalGetAddOnAddOn struct {
 	Id string `json:"id"`
 
 	Name string `json:"name"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1497,6 +1505,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.AddOnPlan = v.AddOnPlan
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -2031,6 +2040,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetStatus() string 
 	return v.AddOnData.Status
 }
 
+// GetMetadata returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.AddOnData.Metadata
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2064,6 +2078,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	PrimaryRegion string `json:"primaryRegion"`
 
 	Status string `json:"status"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2081,6 +2097,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.Name = v.AddOnData.Name
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -4022,6 +4039,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	metadata
 }
 fragment AppData on App {
 	id
@@ -4241,6 +4259,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	metadata
 }
 fragment OrganizationData on Organization {
 	id

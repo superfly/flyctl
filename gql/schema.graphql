@@ -147,6 +147,11 @@ type AddOn implements Node {
   id: ID!
 
   """
+  Add-on metadata
+  """
+  metadata: JSON
+
+  """
   The service name according to the provider
   """
   name: String
@@ -200,11 +205,6 @@ type AddOn implements Node {
   Status of the add-on
   """
   status: String
-
-  """
-  Token for the add-on
-  """
-  token: String
 }
 
 """
@@ -317,11 +317,6 @@ enum AddOnType {
   A Kubernetes cluster
   """
   kubernetes
-
-  """
-  A Logtail log receiver
-  """
-  logtail
 
   """
   A PlanetScale database
@@ -449,6 +444,11 @@ input AllocateIPAddressInput {
   Desired IP region (defaults to global)
   """
   region: String
+
+  """
+  The name of the associated service
+  """
+  serviceName: String
 
   """
   The type of IP address to allocate (v4, v6, or private_v6)
