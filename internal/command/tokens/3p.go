@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -212,16 +211,7 @@ func run3PAdd(ctx context.Context) error {
 		return err
 	}
 
-	// BUG(tqbf): Add3P bombs with a nil caveat, so just dummy up a meaningless
-	// caveat. Technically, this value doesn't even need to be a caveat; it's an
-	// opaque blob shared between the caveat author and the third-party service.
-	// Add3P should work with a nil "caveat".
-	dummy := &macaroon.ValidityWindow{
-		NotBefore: time.Now().Unix(),
-		NotAfter:  time.Now().Add(time.Hour * 24 * 365 * 20).Unix(),
-	}
-
-	m.Add3P(secret, loc, dummy)
+	m.Add3P(secret, loc)
 
 	tok, err := m.Encode()
 	if err != nil {
