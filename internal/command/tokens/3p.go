@@ -140,7 +140,7 @@ to retrieve a discharge token.`
 
 func new3PDischarge() *cobra.Command {
 	const (
-		short = "Discharge a third-party caveat"
+		short = "Exchange a ticket for the token that discharges a third-party caveat"
 		long  = `Given the ticket for a third-party caveat, generate the discharge token
 that satisfies the caveat.`
 		usage = "discharge"
