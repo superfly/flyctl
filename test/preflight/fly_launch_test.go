@@ -46,8 +46,8 @@ func TestFlyLaunchV2(t *testing.T) {
 			"processes":            []any{"app"},
 		},
 		"restart": map[string]any{
-			"policy":      "always",
-			"max_retries": int64(5),
+			"policy":  "always",
+			"retries": int64(5),
 		},
 	}
 	require.EqualValues(f, want, toml)
