@@ -136,7 +136,7 @@ func (bg *blueGreen) renderMachineStates(state map[string]int, fromState, toStat
 	}
 }
 
-func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
+func (bg *blueGreen) allMachinesChangedState(stateMap map[string]int) bool {
 	started := 0
 	bg.stateLock.RLock()
 	for _, v := range stateMap {
@@ -179,7 +179,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	}
 
 	for {
-		if bg.allMachinesStarted(machineIDToState) {
+		if bg.allMachinesChangedState(machineIDToState) {
 			return nil
 		}
 
