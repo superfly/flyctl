@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/samber/lo"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -47,7 +48,7 @@ type blueGreen struct {
 	stateLock           sync.RWMutex
 	ctrlcHook           ctrlc.Handle
 	appConfig           *appconfig.Config
-	hangingBlueMachines []string
+	hangingBlueMachines map[string]struct{}
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -64,7 +65,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		aborted:             atomic.Bool{},
 		healthLock:          sync.RWMutex{},
 		stateLock:           sync.RWMutex{},
-		hangingBlueMachines: []string{},
+		hangingBlueMachines: make(map[string]struct{}),
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
@@ -369,7 +370,7 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 		}
 		err := gm.leasableMachine.Destroy(ctx, true)
 		if err != nil {
-			bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
+			bg.hangingBlueMachines[gm.launchInput.ID] = struct{}{}
 			continue
 		}
 
@@ -498,7 +499,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
-		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
+		hangingBlueMachines := lo.Keys(bg.hangingBlueMachines)
+		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
 		return nil
 	}
