@@ -43,7 +43,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
 
 	if err != nil {
-		return nil, err
+		return
 	}
 
 	provider := resp.AddOnProvider.ExtensionProviderData
@@ -77,7 +77,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	err = AgreeToProviderTos(ctx, provider, targetOrg)
 
 	if err != nil {
-		return nil, err
+		return extension, err
 	}
 
 	var name string
@@ -93,20 +93,11 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
 			if err != nil {
-				return nil, err
+				return
 			}
 		}
-	} else if targetApp != nil {
+	} else {
 		name = targetApp.Name
-	} else {
-		name = providerName
-	}
-
-	var appId string
-	if targetApp != nil {
-		appId = targetApp.Id
-	} else {
-		appId = ""
 	}
 
 	input := gql.CreateAddOnInput{
@@ -124,7 +115,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
 
 		if err != nil {
-			return nil, err
+			return extension, err
 		}
 
 		cfg := appconfig.ConfigFromContext(ctx)
@@ -145,7 +136,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			})
 
 			if err != nil {
-				return nil, err
+				return extension, err
 			}
 
 			primaryRegion = region.Code
@@ -161,13 +152,13 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		absDir, err := filepath.Abs(".")
 
 		if err != nil {
-			return nil, err
+			return extension, err
 		}
 
 		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
 
 		if err != nil {
-			return nil, err
+			return extension, err
 		}
 
 		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
@@ -182,18 +173,16 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	extension := &Extension{
-		Data: createResp.CreateAddOn.AddOn.ExtensionData,
-		App:  targetApp,
-	}
+	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
+	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
 		if err != nil {
-			return nil, err
+			return
 		}
 	}
 
@@ -217,9 +206,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	if targetApp != nil {
-		SetSecrets(ctx, targetApp, extension.Data.Environment.(map[string]interface{}))
-	}
+	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
 
 	return extension, nil
 }
