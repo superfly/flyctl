@@ -491,6 +491,8 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
 		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
+	} else if len(bg.hangingBlueMachines) > 0 {
+		return ErrDestroyBlueMachines
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
