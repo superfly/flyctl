@@ -101,7 +101,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	return nil
 }
 
-func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
+func (bg *blueGreen) renderMachineStates(state map[string]int, fromState, toState string) func() {
 	firstRun := true
 
 	previousView := map[string]string{}
@@ -111,9 +111,9 @@ func (bg *blueGreen) renderMachineStates(state map[string]int) func() {
 		rows := []string{}
 		bg.stateLock.RLock()
 		for id, value := range state {
-			status := "created"
+			status := fromState
 			if value == 1 {
-				status = "started"
+				status = toState
 			}
 
 			currentView[id] = status
@@ -150,7 +150,7 @@ func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
 func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error {
 	wait := time.NewTicker(bg.timeout)
 	machineIDToState := map[string]int{}
-	render := bg.renderMachineStates(machineIDToState)
+	render := bg.renderMachineStates(machineIDToState, "created", "started")
 	errChan := make(chan error)
 
 	for _, gm := range bg.greenMachines {
