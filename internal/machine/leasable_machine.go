@@ -26,6 +26,7 @@ type LeasableMachine interface {
 	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
 	Update(context.Context, api.LaunchMachineInput) error
 	Start(context.Context) error
+	Stop(context.Context) error
 	Destroy(context.Context, bool) error
 	WaitForState(context.Context, string, time.Duration, bool) error
 	WaitForSmokeChecksToPass(context.Context) error
@@ -133,6 +134,17 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	lm.logStatusWaiting(ctx, api.MachineStateStarted)
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (lm *leasableMachine) Stop(ctx context.Context) error {
+	if lm.IsDestroyed() {
+		return fmt.Errorf("error cannot stop machine %s that was already destroyed", lm.machine.ID)
+	}
+	input := api.StopMachineInput{ID: lm.machine.ID}
+	if err := lm.flapsClient.Stop(ctx, input, lm.leaseNonce); err != nil {
 		return err
 	}
 	return nil
