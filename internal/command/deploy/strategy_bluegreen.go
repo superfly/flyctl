@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+// TODO(ali): Use statuslogger here
+
 var (
 	ErrAborted             = errors.New("deployment aborted by user")
 	ErrWaitTimeout         = errors.New("wait timeout")

@@ -34,60 +34,59 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact            *api.AppCompact
-	DeploymentImage       string
-	Strategy              string
-	EnvFromFlags          []string
-	PrimaryRegionFlag     string
-	SkipSmokeChecks       bool
-	SkipHealthChecks      bool
-	MaxUnavailable        float64
-	RestartOnly           bool
-	WaitTimeout           time.Duration
-	LeaseTimeout          time.Duration
-	ReleaseCmdTimeout     time.Duration
-	Guest                 *api.MachineGuest
-	IncreasedAvailability bool
-	AllocPublicIP         bool
-	UpdateOnly            bool
-	Files                 []*api.File
-	ProvisionExtensions   bool
-	NoExtensions          bool
-	ExcludeRegions        map[string]interface{}
-	OnlyRegions           map[string]interface{}
+	AppCompact             *api.AppCompact
+	DeploymentImage        string
+	Strategy               string
+	EnvFromFlags           []string
+	PrimaryRegionFlag      string
+	SkipSmokeChecks        bool
+	SkipHealthChecks       bool
+	MaxUnavailable         float64
+	RestartOnly            bool
+	WaitTimeout            time.Duration
+	LeaseTimeout           time.Duration
+	ReleaseCmdTimeout      time.Duration
+	Guest                  *api.MachineGuest
+	IncreasedAvailability  bool
+	AllocPublicIP          bool
+	UpdateOnly             bool
+	Files                  []*api.File
+	ExcludeRegions         map[string]interface{}
+	OnlyRegions            map[string]interface{}
+	ImmediateMaxConcurrent int
 }
 
 type machineDeployment struct {
-	apiClient             *api.Client
-	gqlClient             graphql.Client
-	flapsClient           *flaps.Client
-	io                    *iostreams.IOStreams
-	colorize              *iostreams.ColorScheme
-	app                   *api.AppCompact
-	appConfig             *appconfig.Config
-	img                   string
-	machineSet            machine.MachineSet
-	releaseCommandMachine machine.MachineSet
-	volumes               map[string][]api.Volume
-	strategy              string
-	releaseId             string
-	releaseVersion        int
-	skipSmokeChecks       bool
-	skipHealthChecks      bool
-	maxUnavailable        float64
-	restartOnly           bool
-	waitTimeout           time.Duration
-	leaseTimeout          time.Duration
-	leaseDelayBetween     time.Duration
-	releaseCmdTimeout     time.Duration
-	isFirstDeploy         bool
-	machineGuest          *api.MachineGuest
-	increasedAvailability bool
-	listenAddressChecked  map[string]struct{}
-	updateOnly            bool
-	noExtensions          bool
-	excludeRegions        map[string]interface{}
-	onlyRegions           map[string]interface{}
+	apiClient              *api.Client
+	gqlClient              graphql.Client
+	flapsClient            *flaps.Client
+	io                     *iostreams.IOStreams
+	colorize               *iostreams.ColorScheme
+	app                    *api.AppCompact
+	appConfig              *appconfig.Config
+	img                    string
+	machineSet             machine.MachineSet
+	releaseCommandMachine  machine.MachineSet
+	volumes                map[string][]api.Volume
+	strategy               string
+	releaseId              string
+	releaseVersion         int
+	skipSmokeChecks        bool
+	skipHealthChecks       bool
+	maxUnavailable         float64
+	restartOnly            bool
+	waitTimeout            time.Duration
+	leaseTimeout           time.Duration
+	leaseDelayBetween      time.Duration
+	releaseCmdTimeout      time.Duration
+	isFirstDeploy          bool
+	machineGuest           *api.MachineGuest
+	increasedAvailability  bool
+	listenAddressChecked   map[string]struct{}
+	updateOnly             bool
+	excludeRegions         map[string]interface{}
+	onlyRegions            map[string]interface{}
+	immediateMaxConcurrent int
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -144,30 +143,35 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		maxUnavailable = mu
 	}
 
+	immedateMaxConcurrent := args.ImmediateMaxConcurrent
+	if immedateMaxConcurrent < 1 {
+		immedateMaxConcurrent = 1
+	}
+
 	md := &machineDeployment{
-		apiClient:             apiClient,
-		gqlClient:             apiClient.GenqClient,
-		flapsClient:           flapsClient,
-		io:                    io,
-		colorize:              io.ColorScheme(),
-		app:                   args.AppCompact,
-		appConfig:             appConfig,
-		img:                   args.DeploymentImage,
-		skipSmokeChecks:       args.SkipSmokeChecks,
-		skipHealthChecks:      args.SkipHealthChecks,
-		restartOnly:           args.RestartOnly,
-		maxUnavailable:        maxUnavailable,
-		waitTimeout:           waitTimeout,
-		leaseTimeout:          leaseTimeout,
-		leaseDelayBetween:     leaseDelayBetween,
-		releaseCmdTimeout:     args.ReleaseCmdTimeout,
-		increasedAvailability: args.IncreasedAvailability,
-		listenAddressChecked:  make(map[string]struct{}),
-		updateOnly:            args.UpdateOnly,
-		machineGuest:          args.Guest,
-		noExtensions:          args.NoExtensions,
-		excludeRegions:        args.ExcludeRegions,
-		onlyRegions:           args.OnlyRegions,
+		apiClient:              apiClient,
+		gqlClient:              apiClient.GenqClient,
+		flapsClient:            flapsClient,
+		io:                     io,
+		colorize:               io.ColorScheme(),
+		app:                    args.AppCompact,
+		appConfig:              appConfig,
+		img:                    args.DeploymentImage,
+		skipSmokeChecks:        args.SkipSmokeChecks,
+		skipHealthChecks:       args.SkipHealthChecks,
+		restartOnly:            args.RestartOnly,
+		maxUnavailable:         maxUnavailable,
+		waitTimeout:            waitTimeout,
+		leaseTimeout:           leaseTimeout,
+		leaseDelayBetween:      leaseDelayBetween,
+		releaseCmdTimeout:      args.ReleaseCmdTimeout,
+		increasedAvailability:  args.IncreasedAvailability,
+		listenAddressChecked:   make(map[string]struct{}),
+		updateOnly:             args.UpdateOnly,
+		machineGuest:           args.Guest,
+		excludeRegions:         args.ExcludeRegions,
+		onlyRegions:            args.OnlyRegions,
+		immediateMaxConcurrent: immedateMaxConcurrent,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
@@ -257,7 +261,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 
 	for _, m := range machines {
 		if m.Config != nil && m.Config.Metadata != nil {
-			m.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
+			m.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 			if m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == "" {
 				m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = md.appConfig.DefaultProcessName()
 			}

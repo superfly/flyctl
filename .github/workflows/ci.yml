@@ -69,6 +69,7 @@ jobs:
           version: latest
           args: release --clean --release-notes=./tmp/changelog.txt
         env:
+          BUILD_ENV: "production"
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       - name: Upload checksums as artifact
         uses: actions/upload-artifact@v3
@@ -132,6 +133,7 @@ jobs:
           args: release --config .goreleaser.dev.yml --rm-dist --release-notes=./tmp/changelog.txt
         env:
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
+          BUILD_ENV: "development"
       - name: Upload checksums as artifact
         uses: actions/upload-artifact@v3
         with:

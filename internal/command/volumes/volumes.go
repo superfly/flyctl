@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/volumes/lsvd"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -43,6 +44,7 @@ func New() *cobra.Command {
 		newExtend(),
 		newShow(),
 		newFork(),
+		lsvd.New(),
 		snapshots.New(),
 	)
 

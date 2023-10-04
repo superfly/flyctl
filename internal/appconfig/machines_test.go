@@ -28,7 +28,7 @@ func TestToMachineConfig(t *testing.T) {
 		Metadata: map[string]string{
 			"fly_platform_version": "v2",
 			"fly_process_group":    "app",
-			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		Metrics: &api.MachineMetrics{Port: 9999, Path: "/metrics"},
 		Statics: []*api.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
@@ -156,7 +156,7 @@ func TestToReleaseMachineConfig(t *testing.T) {
 		Metadata: map[string]string{
 			"fly_platform_version": "v2",
 			"fly_process_group":    "fly_app_release_command",
-			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		AutoDestroy: true,
 		Restart:     api.MachineRestart{Policy: api.MachineRestartPolicyNo},
@@ -189,7 +189,7 @@ func TestToConsoleMachineConfig(t *testing.T) {
 		Metadata: map[string]string{
 			"fly_platform_version": "v2",
 			"fly_process_group":    "fly_app_console",
-			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		AutoDestroy: true,
 		Restart: api.MachineRestart{
@@ -291,7 +291,7 @@ func TestToMachineConfig_defaultV2flytoml(t *testing.T) {
 		Metadata: map[string]string{
 			"fly_platform_version": "v2",
 			"fly_process_group":    "app",
-			"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		Checks: map[string]api.MachineCheck{
 			"alive": {

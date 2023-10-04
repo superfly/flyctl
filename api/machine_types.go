@@ -666,6 +666,7 @@ type LaunchMachineInput struct {
 	SkipLaunch              bool           `json:"skip_launch,omitempty"`
 	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
 	HostDedicationID        string         `json:"host_dedication_id,omitempty"`
+	LSVD                    bool           `json:"lsvd,omitempty"`
 
 	LeaseTTL int `json:"lease_ttl,omitempty"`
 

@@ -16,6 +16,7 @@ import (
 	"github.com/kr/text"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -120,7 +121,13 @@ func isUnchangedError(err error) bool {
 }
 
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
-	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), "\n")
+	var requestId string
+
+	if requestId = flaps.GetErrorRequestID(err); requestId != "" {
+		requestId = fmt.Sprintf(" (Request ID: %s)", requestId)
+	}
+
+	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, "\n")
 
 	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
 		fmt.Fprintln(io.ErrOut, description)

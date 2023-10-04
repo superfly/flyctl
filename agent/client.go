@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/version"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -45,17 +46,17 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return StartDaemon(ctx)
 	}
 
-	resVer, err := buildinfo.ParseVersion(res.Version)
+	resVer, err := version.Parse(res.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	if buildinfo.ParsedVersion().EQ(resVer) {
+	if buildinfo.Version().Equal(resVer) {
 		return c, nil
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.ParsedVersion())
+	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {

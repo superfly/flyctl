@@ -68,6 +68,10 @@ func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.Org
 		return orgSlug, nil
 	}
 
+	if args := flag.Args(ctx); len(args) > 0 {
+		return args[0], nil
+	}
+
 	io := iostreams.FromContext(ctx)
 	if !io.IsInteractive() {
 		err = errSlugArgMustBeSpecified
