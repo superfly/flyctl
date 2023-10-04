@@ -1,0 +1,56 @@
+name: CI - Dev
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+    
+jobs:
+  test:
+    uses:
+      ./.github/workflows/test.yml
+
+  tag_version:
+    needs: test
+    if: ${{ github.ref_type == 'branch' && github.ref_name != 'master' }}
+    runs-on: ubuntu-latest
+    outputs:
+      next_version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Get version numbers
+        id: version
+        run: |
+          echo "json=$(go run ./tools/version)" >> "$GITHUB_OUTPUT"
+      - name: Print version numbers
+        run: |
+          echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}" >> $GITHUB_STEP_SUMMARY
+          echo "Channel: ${{ fromJSON(steps.version.outputs.json).channel }}" >> $GITHUB_STEP_SUMMARY
+          echo "Commit SHA": ${{ github.sha }}
+          echo "Commit Time: ${{ fromJSON(steps.version.outputs.json).commitTime }}" >> $GITHUB_STEP_SUMMARY
+          echo "GitHub Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
+          echo "Previous version: ${{ fromJSON(steps.version.outputs.json).previousVersion }}" >> $GITHUB_STEP_SUMMARY
+      - name: Create tag
+        uses: actions/github-script@v6
+        env:
+          TAG_NAME: v${{ fromJSON(steps.version.outputs.json).nextVersion }}
+        with:
+          script: |
+            const { TAG_NAME } = process.env
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${TAG_NAME}`,
+              sha: context.sha
+            })
+
