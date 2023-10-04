@@ -67,4 +67,5 @@ jobs:
     with:
       version: ${{ needs.tag_version.outputs.version }}
       tag: ${{ needs.tag_version.outputs.tag }}
+    secrets: inherit
 
