@@ -32,9 +32,12 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:
+          distribution: goreleaser-pro
           version: latest
           args: release --clean -f .goreleaser.2.yml --fail-fast --debug --skip-publish
         env:
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          # GOOS: ${{ matrix.GOOS }}
           SNAPSHOT_NAME: ${{ inputs.version }}
       - name: Write git status
         run: git status --branch --porcelain=v2 > ./dist/git-status.txt

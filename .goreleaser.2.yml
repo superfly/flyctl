@@ -1,10 +1,18 @@
 # This config targets the new flypkgs distribution system. Once all releases are
 # being served by flypkgs, this file will replace .goreleaser.yml and .goreleaser.dev.yml
 
+env:
+  - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
+
 before:
   hooks:
     - go mod download
     - go generate ./...
+#     - cmd: git status --branch --porcelain=v2 > ./tmp/git-status.txt
+#       output: true
+# after:
+#   hooks:
+#     - rm ./tmp/git-status.txt
 
 builds:
   - id: linux
@@ -16,10 +24,11 @@ builds:
       # - arm64
       - amd64
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
 
   - id: macos
     env:
@@ -30,10 +39,11 @@ builds:
       # - arm64
       - amd64
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
 
   - id: windows
     env:
@@ -44,10 +54,11 @@ builds:
       # - arm64
       - amd64
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
       - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
       - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
       - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
 
 archives:
   - id: linux
