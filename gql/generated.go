@@ -36,14 +36,14 @@ func (v *AddOnData) GetStatus() string { return v.Status }
 type AddOnType string
 
 const (
-	// A Logtail log receiver
-	AddOnTypeLogtail AddOnType = "logtail"
 	// A PlanetScale database
 	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
 	// A Sentry project endpoint
 	AddOnTypeSentry AddOnType = "sentry"
+	// A Supabase database
+	AddOnTypeSupabase AddOnType = "supabase"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )

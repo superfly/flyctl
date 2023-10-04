@@ -31,7 +31,7 @@ func dashboard() (cmd *cobra.Command) {
 
 func runDashboard(ctx context.Context) (err error) {
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
 
 	if err != nil {
 		return err

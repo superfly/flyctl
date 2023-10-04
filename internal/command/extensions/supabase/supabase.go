@@ -12,8 +12,7 @@ func New() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("planetscale", short, long, nil)
-	cmd.Aliases = []string{"mysql"}
+	cmd = command.New("supabase", short, long, nil)
 	cmd.AddCommand(create(), destroy(), dashboard(), list(), status())
 
 	return cmd

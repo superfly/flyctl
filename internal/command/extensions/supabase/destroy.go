@@ -48,10 +48,10 @@ func runDestroy(ctx context.Context) (err error) {
 	}
 
 	if !flag.GetYes(ctx) {
-		const msg = "Destroying a PlanetScale database is not reversible."
+		const msg = "Destroying a Supabase database is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Destroy PlanetScale database %s?", extension.Name); {
+		switch confirmed, err := prompt.Confirmf(ctx, "Destroy Supabase database %s?", extension.Name); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -74,7 +74,7 @@ func runDestroy(ctx context.Context) (err error) {
 		return
 	}
 
-	fmt.Fprintf(out, "Your PlanetScale database %s was destroyed\n", extension.Name)
+	fmt.Fprintf(out, "Your Supabase database %s was destroyed\n", extension.Name)
 
 	return
 }
