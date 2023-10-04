@@ -44,22 +44,22 @@ jobs:
           path: dist/*.*
           retention-days: 1
 
-  # upload:
-  #   needs: build
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #     - uses: actions/setup-go@v4
-  #       with:
-  #         go-version-file: "go.mod"
-  #     - uses: actions/download-artifact@v3
-  #       with:
-  #         name: build-artifacts
-  #         path: ~/build-archive
-  #     - name: Upload to flypkgs
-  #       env:
-  #         FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
-  #       run: go run ./tools/distribute upload ~/build-archive
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: ~/build-archive
+      - name: Upload to flypkgs
+        env:
+          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
+        run: go run ./tools/distribute upload ~/build-archive
 
   # publish:
   #   needs: [version, upload]
