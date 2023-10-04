@@ -13,6 +13,11 @@ jobs:
   test:
     uses:
       ./.github/workflows/test.yml
+  
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ${{ toJSON(github) }} | jq
 
   tag_version:
     needs: test
