@@ -19,6 +19,9 @@ on:
     
 jobs:
   build:
+    strategy:
+      matrix:
+        GOOS: [linux, windows, darwin]
     runs-on: ubuntu-latest-m
     steps:
       - uses: actions/checkout@v4
@@ -29,15 +32,24 @@ jobs:
           go-version-file: "go.mod"
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - id: cache
+        uses: actions/cache@v3
+        with:
+          path: dist/${{ matrix.GOOS }}
+          key: ${{ matrix.GOOS }}-${{ env.sha_short }}
       - name: Run GoReleaser
+        if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
         uses: goreleaser/goreleaser-action@v4
         with:
           distribution: goreleaser-pro
           version: latest
-          args: release --clean -f .goreleaser.2.yml --fail-fast --debug --skip-publish
+          args: release --clean -f .goreleaser.2.yml --fail-fast --split
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-          # GOOS: ${{ matrix.GOOS }}
+          GOOS: ${{ matrix.GOOS }}
           SNAPSHOT_NAME: ${{ inputs.version }}
       - name: Write git status
         run: git status --branch --porcelain=v2 > ./dist/git-status.txt
@@ -47,22 +59,22 @@ jobs:
           path: dist/*.*
           retention-days: 1
 
-  upload:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-      - uses: actions/download-artifact@v3
-        with:
-          name: build-artifacts
-          path: ~/build-archive
-      - name: Upload to flypkgs
-        env:
-          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
-        run: go run ./tools/distribute upload ~/build-archive
+  # upload:
+  #   needs: build
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: actions/setup-go@v4
+  #       with:
+  #         go-version-file: "go.mod"
+  #     - uses: actions/download-artifact@v3
+  #       with:
+  #         name: build-artifacts
+  #         path: ~/build-archive
+  #     - name: Upload to flypkgs
+  #       env:
+  #         FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
+  #       run: go run ./tools/distribute upload ~/build-archive
 
   # publish:
   #   needs: [version, upload]
