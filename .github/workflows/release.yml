@@ -49,7 +49,7 @@ jobs:
           args: release --clean -f .goreleaser.2.yml --fail-fast --split
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
-          GOOS: ${{ matrix.GOOS }}
+          GGOOS: ${{ matrix.GOOS }}
           SNAPSHOT_NAME: ${{ inputs.version }}
       - name: Write git status
         run: git status --branch --porcelain=v2 > ./dist/git-status.txt
