@@ -51,12 +51,46 @@ jobs:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
           GGOOS: ${{ matrix.GOOS }}
           SNAPSHOT_NAME: ${{ inputs.version }}
+      # - name: Write git status
+      #   run: git status --branch --porcelain=v2 > ./dist/git-status.txt
+      # - uses: actions/upload-artifact@v3
+      #   with:
+      #     name: build-artifacts
+      #     path: dist/*.*
+      #     retention-days: 1
+
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      # copy the cashes from prepare
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - uses: actions/cache@v3
+        with:
+          path: dist/linux
+          key: linux-${{ env.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/darwin
+          key: darwin-${{ env.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/windows
+          key: windows-${{ env.sha_short }}
       - name: Write git status
         run: git status --branch --porcelain=v2 > ./dist/git-status.txt
       - uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
-          path: dist/*.*
+          path: dist/*
           retention-days: 1
 
   # upload:
