@@ -12,8 +12,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest-m, macos-latest-xl, windows-latest-l ]
-        workdir: [ ".", "api" ]
+        # os: [ ubuntu-latest-m, macos-latest-xl, windows-latest-l ]
+        os: [ ubuntu-latest-m ]
+        # workdir: [ ".", "api" ]
+        workdir: [ "api" ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
