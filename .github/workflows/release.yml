@@ -88,6 +88,7 @@ jobs:
           key: windows-${{ env.sha_short }}
       - name: Write git status
         run: git status --branch --porcelain=v2 > ./dist/git-status.txt
+      - run: find ./dist
       - uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
