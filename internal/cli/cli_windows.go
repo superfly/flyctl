@@ -1,9 +1,11 @@
+//go:build windows
+// +build windows
+
 package cli
 
 import "golang.org/x/sys/windows"
 
 func init() {
-
 	kernel32 := windows.NewLazySystemDLL("kernel32.dll")
 	setConsoleCP := kernel32.NewProc("SetConsoleCP")
 	// Set codepage to UTF-8
