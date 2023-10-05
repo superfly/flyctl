@@ -109,7 +109,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	total := len(groupsInConfig)
 	sl := statuslogger.Create(ctx, total, true)
 	defer func() {
-		sl.Destroy(err == nil)
+		sl.Destroy(false)
 	}()
 	for idx, name := range groupsInConfig {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
@@ -150,7 +150,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 
 	sl := statuslogger.Create(ctx, total, true)
 	defer func() {
-		sl.Destroy(err == nil)
+		sl.Destroy(false)
 	}()
 	for idx, name := range groups {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
@@ -384,7 +384,7 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 	if md.strategy == "immediate" {
 		sl := statuslogger.Create(parentCtx, len(updateEntries), true)
 		defer func() {
-			sl.Destroy(err == nil)
+			sl.Destroy(false)
 		}()
 		var wg sync.WaitGroup
 		pool := make(chan struct{}, md.immediateMaxConcurrent)
@@ -428,7 +428,7 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 
 	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
 	defer func() {
-		sl.Destroy(err == nil)
+		sl.Destroy(false)
 	}()
 
 	for i, e := range updateEntries {
