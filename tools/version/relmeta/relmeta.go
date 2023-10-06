@@ -91,18 +91,18 @@ func GenerateReleaseMeta(dir string, stillOnSemver bool) (release.Meta, error) {
 		output.Version = &currentVersion
 	}
 
-	// previousTag, err := repo.previousTag(currentTag)
-	// if err != nil {
-	// 	return output, err
-	// }
-	// if previousTag != "" {
-	// 	output.PreviousTag = previousTag
-	// 	previousVersion, err := version.Parse(previousTag)
-	// 	if err != nil {
-	// 		return output, err
-	// 	}
-	// 	output.PreviousVersion = &previousVersion
-	// }
+	previousTag, err := repo.previousTag(currentTag)
+	if err != nil {
+		return output, err
+	}
+	if previousTag != "" {
+		output.PreviousTag = previousTag
+		previousVersion, err := version.Parse(previousTag)
+		if err != nil {
+			return output, err
+		}
+		output.PreviousVersion = &previousVersion
+	}
 
 	return output, nil
 }

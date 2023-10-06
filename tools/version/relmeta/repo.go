@@ -30,7 +30,6 @@ func newGitRepo(dir string) *gitRepo {
 
 func (r *gitRepo) runGit(args ...string) (string, error) {
 	cmd := exec.Command("git", args...)
-	fmt.Println(cmd.String())
 	cmd.Dir = r.wd
 	cmd.Env = r.env
 	out, err := cmd.CombinedOutput()
