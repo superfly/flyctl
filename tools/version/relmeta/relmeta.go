@@ -29,28 +29,28 @@ func NextVersion(dir string, semverOnly bool) (*version.Version, error) {
 		return nil, err
 	}
 
-	fmt.Println("ref", ref)
+	// fmt.Println("ref", ref)
 	channel, err := channelFromRef(ref)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("channel", channel)
+	// fmt.Println("channel", channel)
 
 	tag, err := repo.previousTagOnChannel2(channel, semverOnly)
 	// tag, err := repo.previousTagOnChannel(channel)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("tag", tag)
+	// fmt.Println("tag", tag)
 
 	ver, err := version.Parse(tag)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("ver", ver)
+	// fmt.Println("ver", ver)
 
 	nextVer := ver.Increment(time.Now())
-	fmt.Println("nextVer", nextVer)
+	// fmt.Println("nextVer", nextVer)
 	return &nextVer, nil
 }
 
