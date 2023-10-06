@@ -45,7 +45,8 @@ jobs:
         id: version
         run: |
           echo "next=$(go run ./tools/version next)" >> "$GITHUB_OUTPUT"
-      - run: echo "${{ join(steps.version.outputs.*, '\n') }}"
+          echo $GITHUB_OUTPUT
+      - run: echo "${{ steps.version.outputs.next }}"
       - name: Print version number
         run: |
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
