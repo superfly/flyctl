@@ -1,6 +1,9 @@
 package relmeta
 
 import (
+	"fmt"
+	"time"
+
 	"github.com/superfly/flyctl/internal/release"
 	"github.com/superfly/flyctl/internal/version"
 )
@@ -20,19 +23,27 @@ func CurrentVersion(dir string) (*version.Version, error) {
 }
 
 func NextVersion(dir string) (*version.Version, error) {
-	meta, err := GenerateReleaseMeta(dir, true)
+	repo := newGitRepo(dir)
+	ref, err := repo.gitRef()
+	if err != nil {
+		return nil, err
+	}
+	channel, err := channelFromRef(ref)
 	if err != nil {
 		return nil, err
 	}
 
-	var nextVer version.Version
-
-	if meta.Version != nil {
-		nextVer = meta.Version.Increment(meta.CommitTime)
-	} else {
-		nextVer = version.New(meta.CommitTime, meta.Channel, 1)
+	tag, err := repo.previousTagOnChannel(channel)
+	if err != nil {
+		return nil, err
 	}
 
+	ver, err := version.Parse(tag)
+	if err != nil {
+		return nil, err
+	}
+
+	nextVer := ver.Increment(time.Now())
 	return &nextVer, nil
 }
 
@@ -78,6 +89,7 @@ func GenerateReleaseMeta(dir string, stillOnSemver bool) (release.Meta, error) {
 	output.Channel = channel
 
 	currentTag, err := repo.currentTag(commit)
+	fmt.Println("currentTag", currentTag)
 	if err != nil {
 		return output, err
 	}
