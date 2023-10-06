@@ -1,7 +1,6 @@
 package relmeta
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/superfly/flyctl/internal/release"
@@ -96,7 +95,6 @@ func GenerateReleaseMeta(dir string, stillOnSemver bool) (release.Meta, error) {
 	output.Channel = channel
 
 	currentTag, err := repo.currentTag(commit)
-	fmt.Println("currentTag", currentTag)
 	if err != nil {
 		return output, err
 	}
