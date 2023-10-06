@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/version"
 )
 
 type gitError struct {
@@ -118,6 +119,39 @@ func (r *gitRepo) previousTagOnChannel(channel string) (string, error) {
 		return "", err
 	}
 	return strings.TrimSpace(out), nil
+}
+
+func (r *gitRepo) previousTagOnChannel2(channel string, semverOnly bool) (string, error) {
+	out, err := r.runGit("tag", "-l", "--sort=-version:refname", "v*")
+	if err != nil {
+		return "", err
+	}
+	tags := strings.Split(string(out), "\n")
+
+	// var latest *version.Version
+	var latestTag string
+	for _, tag := range tags {
+		v, err := version.Parse(tag)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			continue
+		}
+
+		// semver stable doesn't have a track. check that it's empty. remove this once the calver migration is done
+		if semverOnly && !version.IsCalVer(v) && channel == "stable" && v.Channel == "" {
+			// latest = &v
+			latestTag = tag
+			break
+		}
+
+		if v.Channel == channel {
+			// latest = &v
+			latestTag = tag
+			break
+		}
+	}
+
+	return latestTag, nil
 }
 
 func (r *gitRepo) previousTag(currentTag string) (string, error) {
