@@ -35,19 +35,14 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"
-      - name: Get version numbers
+      - name: Get version number
         id: version
         run: |
-          echo "json=$(go run ./tools/version)" >> "$GITHUB_OUTPUT"
-      - name: Print version numbers
+          echo "next=$(go run ./tools/version next)" >> "$GITHUB_OUTPUT"
+      - name: Print version number
         run: |
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}" >> $GITHUB_STEP_SUMMARY
-          echo "Channel: ${{ fromJSON(steps.version.outputs.json).channel }}" >> $GITHUB_STEP_SUMMARY
-          echo "Commit SHA": ${{ github.sha }}
-          echo "Commit Time: ${{ fromJSON(steps.version.outputs.json).commitTime }}" >> $GITHUB_STEP_SUMMARY
-          echo "GitHub Ref: ${{ fromJSON(steps.version.outputs.json).ref }}" >> $GITHUB_STEP_SUMMARY
-          echo "Previous version: ${{ fromJSON(steps.version.outputs.json).previousVersion }}" >> $GITHUB_STEP_SUMMARY
       - name: Create tag
         uses: actions/github-script@v6
         env:
