@@ -11,8 +11,11 @@ concurrency:
     
 jobs:
   test:
-    uses:
-      ./.github/workflows/test.yml
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo hello
+    # uses:
+    #   ./.github/workflows/test.yml
   
   debug:
     runs-on: ubuntu-latest
@@ -35,6 +38,9 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"
+      - name: print
+        run: |
+          echo $(go run ./tools/version next)
       - name: Get version number
         id: version
         run: |
