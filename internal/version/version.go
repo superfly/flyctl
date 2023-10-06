@@ -28,36 +28,53 @@ func New(t time.Time, channel string, buildNum int) Version {
 }
 
 type Version struct {
-	Major   int
-	Minor   int
-	Patch   int
-	Build   int
-	Channel string
+	Major     int
+	Minor     int
+	Patch     int
+	Build     int
+	Channel   string
+	BuildMeta string
 }
 
 func (v Version) String() string {
+	return v.baseString() + v.suffixString() + v.buildSuffixString()
+}
+
+func (v Version) baseString() string {
+	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+}
+
+func (v Version) suffixString() string {
 	// TODO[md]: remove this when we're done with the semver to calver migration
-	// handle old v0.[1-2].XXX[-pre-X] format first
 	if !IsCalVer(v) && !isDev(v) {
 		// version is bumped on every release -- no channel or build on stable
 		if v.Channel == "stable" || v.Channel == "" {
-			return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+			return ""
 		}
-		if v.Channel == "pre" || v.Channel == "beta" {
-			return fmt.Sprintf("%d.%d.%d-%s-%d", v.Major, v.Minor, v.Patch, v.Channel, v.Build)
+
+		if v.Build > 0 {
+			return fmt.Sprintf("-%s-%d", v.Channel, v.Build)
 		}
-		return fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Channel)
+
+		return fmt.Sprintf("-%s", v.Channel)
 	}
 
 	if v.Channel != "" && v.Build != 0 {
-		return fmt.Sprintf("%d.%d.%d-%s.%d", v.Major, v.Minor, v.Patch, v.Channel, v.Build)
+		return fmt.Sprintf("-%s.%d", v.Channel, v.Build)
 	}
 
 	if v.Channel != "" && v.Build == 0 {
-		return fmt.Sprintf("%d.%d.%d-%s", v.Major, v.Minor, v.Patch, v.Channel)
+		return fmt.Sprintf("-%s", v.Channel)
 	}
 
-	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Patch)
+	return ""
+}
+
+func (v Version) buildSuffixString() string {
+	if v.BuildMeta != "" {
+		return fmt.Sprintf("+%s", v.BuildMeta)
+	}
+	return ""
 }
 
 // flag to indicate which side of the semver to calver migration we're on. drop when we're done
@@ -181,6 +198,7 @@ func Parse(version string) (Version, error) {
 	versionStr := parts[0]
 	suffixStr := ""
 	// if parts has a length of 2, suffixStr contains "CHANNEL.BUILD" or "CHANNEL-BUILD" (latter is old format)
+	// suffix may also contain "+BUILD.META"
 	if len(parts) == 2 {
 		suffixStr = parts[1]
 	}
@@ -221,6 +239,13 @@ func Parse(version string) (Version, error) {
 	}
 
 	if suffixStr != "" {
+		// if suffix contains a "+", put everything after the plux into BuildMeta and remove it from suffixStr
+		parts = strings.Split(suffixStr, "+")
+		if len(parts) == 2 {
+			out.BuildMeta = parts[1]
+			suffixStr = parts[0]
+		}
+
 		// handle old v0.1.xxx format first, which separated channel and build with a dash
 		// old channels began with either "pre-", or "beta-"
 		if !IsCalVer(out) && (strings.HasPrefix(suffixStr, "pre-") || strings.HasPrefix(suffixStr, "beta-")) {
@@ -251,4 +276,8 @@ func Parse(version string) (Version, error) {
 	}
 
 	return out, nil
+}
+
+func (v Version) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf("\"%s\"", v.String())), nil
 }
