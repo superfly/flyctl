@@ -13,6 +13,22 @@ import (
 	"golang.org/x/term"
 )
 
+func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int, int, error) {
+	fd, ok := getFd(s.Stdin)
+	if !ok {
+		return 0, 0, errors.New("could not get console handle")
+	}
+
+	width, height, err := term.GetSize(fd)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	go watchWindowSize(ctx, fd, sess)
+
+	return width, height, nil
+}
+
 func watchWindowSize(ctx context.Context, fd int, sess *ssh.Session) error {
 	sigc := make(chan os.Signal, 1)
 	signal.Notify(sigc, syscall.SIGWINCH)

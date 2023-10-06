@@ -8,10 +8,39 @@ import (
 	"time"
 
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/term"
+	"golang.org/x/sys/windows"
 )
 
-func watchWindowSize(ctx context.Context, fd int, sess *ssh.Session) error {
+func getConsoleSize(fd windows.Handle) (int, int, error) {
+	var csbi windows.ConsoleScreenBufferInfo;
+	err := windows.GetConsoleScreenBufferInfo(fd, &csbi)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	width := csbi.Window.Right - csbi.Window.Left + 1
+	height := csbi.Window.Bottom - csbi.Window.Top + 1
+
+	return int(width), int(height), nil
+}
+
+func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int, int, error) {
+
+	// TODO(Ali): Hardcoded stdout instead of pulling it from the SessionIO because it's
+	//            wrapped in multiple wrapper types.
+	fd := windows.Stdout;
+
+	width, height, err := getConsoleSize(fd)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	go watchWindowSize(ctx, fd, sess, width, height)
+
+	return width, height, nil
+}
+
+func watchWindowSize(ctx context.Context, fd windows.Handle, sess *ssh.Session, width int, height int) error {
 
 	// NOTE(Ali): Windows doesn't support SIGWINCH. The closest it has is WINDOW_BUFFER_SIZE_EVENT,
 	// which you only seem to be able to receive if *all* of your console input is read with ReadConsoleInput.
@@ -22,11 +51,6 @@ func watchWindowSize(ctx context.Context, fd int, sess *ssh.Session) error {
 	//
 	// Because of this, we resort to the oldest trick in the book: polling! Sorry.
 
-	width, height, err := term.GetSize(fd)
-	if err != nil {
-		return err
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -34,7 +58,7 @@ func watchWindowSize(ctx context.Context, fd int, sess *ssh.Session) error {
 		case <-time.After(200 * time.Millisecond):
 		}
 
-		newWidth, newHeight, err := term.GetSize(fd)
+		newWidth, newHeight, err := getConsoleSize(fd)
 		if err != nil {
 			return err
 		}
