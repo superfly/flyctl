@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 
 	"github.com/spf13/cobra"
@@ -69,7 +70,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	cmd.Print(ver.String())
+	fmt.Fprint(cmd.OutOrStdout(), ver.String())
 
 	return nil
 }
