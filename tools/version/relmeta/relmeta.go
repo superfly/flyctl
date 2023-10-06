@@ -22,7 +22,7 @@ func CurrentVersion(dir string) (*version.Version, error) {
 	return meta.Version, nil
 }
 
-func NextVersion(dir string) (*version.Version, error) {
+func NextVersion(dir string, semverOnly bool) (*version.Version, error) {
 	repo := newGitRepo(dir)
 	ref, err := repo.gitRef()
 	if err != nil {
@@ -36,7 +36,8 @@ func NextVersion(dir string) (*version.Version, error) {
 	}
 	fmt.Println("channel", channel)
 
-	tag, err := repo.previousTagOnChannel(channel)
+	tag, err := repo.previousTagOnChannel2(channel, semverOnly)
+	// tag, err := repo.previousTagOnChannel(channel)
 	if err != nil {
 		return nil, err
 	}

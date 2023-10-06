@@ -64,7 +64,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	ver, err := relmeta.NextVersion(gitDir)
+	ver, err := relmeta.NextVersion(gitDir, false)
 	if err != nil {
 		return err
 	}
