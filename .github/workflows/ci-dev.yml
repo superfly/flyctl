@@ -26,8 +26,8 @@ jobs:
     if: ${{ github.ref_type == 'branch' && github.ref_name != 'master' }}
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}
-      tag: v${{ fromJSON(steps.version.outputs.json).nextVersion }}
+      version: ${{ steps.version.outputs.next }}
+      tag: v${{ steps.version.outputs.next }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -42,11 +42,11 @@ jobs:
       - name: Print version number
         run: |
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
-          echo "Version: ${{ fromJSON(steps.version.outputs.json).nextVersion }}" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ steps.version.outputs.next }}" >> $GITHUB_STEP_SUMMARY
       - name: Create tag
         uses: actions/github-script@v6
         env:
-          TAG_NAME: v${{ fromJSON(steps.version.outputs.json).nextVersion }}
+          TAG_NAME: v${{ steps.version.outputs.next }}
         with:
           script: |
             const { TAG_NAME } = process.env
