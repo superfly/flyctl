@@ -281,3 +281,20 @@ func Parse(version string) (Version, error) {
 func (v Version) MarshalJSON() ([]byte, error) {
 	return []byte(fmt.Sprintf("\"%s\"", v.String())), nil
 }
+
+func (v *Version) UnmarshalJSON(data []byte) error {
+	// Ignore null, like in the main JSON package.
+	if string(data) == "null" || string(data) == `""` {
+		return nil
+	}
+	str, err := strconv.Unquote(string(data))
+	if err != nil {
+		return err
+	}
+	decodedVer, err := Parse(str)
+	if err != nil {
+		return err
+	}
+	*v = decodedVer
+	return nil
+}
