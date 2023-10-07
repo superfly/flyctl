@@ -11,16 +11,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func getConsoleSize(fd windows.Handle) (int, int, error) {
-	var csbi windows.ConsoleScreenBufferInfo;
-	err := windows.GetConsoleScreenBufferInfo(fd, &csbi)
-	if err != nil {
-		return 0, 0, err
-	}
-
-	return int(csbi.Size.X), int(csbi.Size.Y), nil
-}
-
 func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int, int, error) {
 
 	// TODO(Ali): Hardcoded stdout instead of pulling it from the SessionIO because it's
@@ -73,4 +63,20 @@ func watchWindowSize(ctx context.Context, fd windows.Handle, sess *ssh.Session, 
 	}
 
 	return nil
+}
+
+func getConsoleSize(fd windows.Handle) (int, int, error) {
+	var csbi windows.ConsoleScreenBufferInfo;
+	err := windows.GetConsoleScreenBufferInfo(fd, &csbi)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	// Cannot use csbi.Size here because it represents a size of
+	// the buffer (which includes scrollback) but not the size of
+	// the window. 
+	width := csbi.Window.Right - csbi.Window.Left + 1
+	height := csbi.Window.Bottom - csbi.Window.Top + 1
+
+	return int(width), int(height), nil
 }
