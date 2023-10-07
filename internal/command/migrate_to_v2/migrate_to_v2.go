@@ -98,6 +98,11 @@ func newMigrateToV2() *cobra.Command {
 			Description: "Use local fly.toml. Do not attempt to remotely fetch the app configuration from the latest deployed release",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "force-standard-migration",
+			Description: "Use the standard volume fork-based migration, even for apps using the Postgres image",
+			Default:     false,
+		},
 	)
 
 	cmd.AddCommand(newTroubleshoot())
@@ -308,7 +313,11 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	}
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
-	isPostgres := appCompact.IsPostgresApp() && appFull.ImageDetails.Repository == "flyio/postgres"
+
+	isPostgres := appCompact.IsPostgresApp() &&
+		appFull.ImageDetails.Repository == "flyio/postgres" &&
+		!flag.GetBool(ctx, "force-standard-migration")
+
 	migrator := &v2PlatformMigrator{
 		apiClient:               apiClient,
 		flapsClient:             flapsClient,

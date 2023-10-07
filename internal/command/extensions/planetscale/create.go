@@ -14,7 +14,6 @@ import (
 )
 
 func create() (cmd *cobra.Command) {
-
 	const (
 		short = "Provision a PlanetScale MySQL database"
 		long  = short + "\n"
@@ -35,21 +34,21 @@ func create() (cmd *cobra.Command) {
 	return cmd
 }
 
-func runPlanetscaleCreate(ctx context.Context) (err error) {
+func runPlanetscaleCreate(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	if err != nil {
+		return err
+	}
 
 	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
 		AppName:      appName,
 		Provider:     "planetscale",
 		Organization: org,
 	})
-
 	if err != nil {
 		return err
 	}
 
-	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
-
-	return
+	return secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
 }
