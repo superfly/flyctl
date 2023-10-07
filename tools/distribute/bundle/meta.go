@@ -1,7 +1,10 @@
 package bundle
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -91,13 +94,18 @@ func assetsFromGoReleaserDist(distDir string) ([]Asset, error) {
 				relPath := strings.TrimPrefix(artifact.Path, "dist/")
 				fullPath := filepath.Join(distDir, relPath)
 
+				sha, err := sha256File(fullPath)
+				if err != nil {
+					return errors.Wrapf(err, "hashing %q", fullPath)
+				}
+
 				a := Asset{
 					Name:         artifact.Name,
-					Path:         relPath,
+					Path:         artifact.Name,
 					AbsolutePath: fullPath,
 					OS:           artifact.Goos,
 					Arch:         artifact.Goarch,
-					SHA256:       strings.TrimPrefix(artifact.Extra.Checksum, "sha256:"),
+					SHA256:       sha,
 				}
 
 				if artifact.Extra.Format == "tar.gz" {
@@ -134,4 +142,19 @@ func BuildMeta(distDir string) (Meta, error) {
 	m.Assets = assets
 
 	return m, nil
+}
+
+func sha256File(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", errors.Wrapf(err, "opening %q", path)
+	}
+	defer file.Close()
+
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return "", errors.Wrapf(err, "hashing %q", path)
+	}
+
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
 }
