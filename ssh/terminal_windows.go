@@ -18,10 +18,7 @@ func getConsoleSize(fd windows.Handle) (int, int, error) {
 		return 0, 0, err
 	}
 
-	width := csbi.Window.Right - csbi.Window.Left + 1
-	height := csbi.Window.Bottom - csbi.Window.Top + 1
-
-	return int(width), int(height), nil
+	return int(csbi.Size.X), int(csbi.Size.Y), nil
 }
 
 func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int, int, error) {
