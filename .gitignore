@@ -37,3 +37,4 @@ out
 
 .direnv/
 /ci-preflight-test-results.njson
+.tool-versions
