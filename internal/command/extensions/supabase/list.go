@@ -38,7 +38,7 @@ func runList(ctx context.Context) (err error) {
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	response, err := gql.ListAddOns(ctx, client, "planetscale")
+	response, err := gql.ListAddOns(ctx, client, "supabase")
 
 	var rows [][]string
 

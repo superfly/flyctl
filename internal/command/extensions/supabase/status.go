@@ -39,7 +39,7 @@ func runStatus(ctx context.Context) (err error) {
 		io = iostreams.FromContext(ctx)
 	)
 
-	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
+	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
 
 	if err != nil {
 		return err
