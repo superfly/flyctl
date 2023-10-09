@@ -560,9 +560,8 @@ type MachineConfig struct {
 	Statics  []*Static               `json:"statics,omitempty"`
 
 	// Set by fly deploy or fly machines commands
-	Image                  string                         `json:"image,omitempty"`
-	Files                  []*File                        `json:"files,omitempty"`
-	VolumeAutoResizeConfig *MachineVolumeAutoResizeConfig `json:"volume_auto_resize_config,omitempty"`
+	Image string  `json:"image,omitempty"`
+	Files []*File `json:"files,omitempty"`
 
 	// The following fields can only be set or updated by `fly machines run|update` commands
 	// "fly deploy" must preserve them, if you add anything here, ensure it is propagated on deploys
@@ -642,12 +641,6 @@ type File struct {
 
 	// SecretName is the name of the secret that contains the base64 encoded file contents.
 	SecretName *string `json:"secret_name,omitempty"`
-}
-
-type MachineVolumeAutoResizeConfig struct {
-	ThresholdPercent int `json:"threshold_percent,omitempty"`
-	AddSizeGb        int `json:"add_size_gb,omitempty"`
-	SizeGbLimit      int `json:"size_gb_limit,omitempty"`
 }
 
 type MachineLease struct {
