@@ -51,6 +51,7 @@ func runCreate(ctx context.Context) (err error) {
 		params.Organization = org
 	}
 
+	params.Provider = "supabase"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 
 	if err != nil {
