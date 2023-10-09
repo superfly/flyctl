@@ -17,8 +17,6 @@ var (
 )
 
 func main() {
-	var gitDir string
-
 	rootCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Tool for working with flyctl version numbers",
@@ -26,15 +24,17 @@ func main() {
 	rootCmd.PersistentFlags().StringVar(&gitDir, "git-dir", "", "path to git directory. defaults to current directory.")
 
 	showCmd := &cobra.Command{
-		Use:   "show",
-		Short: "Show version information as a JSON object",
-		RunE:  runShow,
+		Use:          "show",
+		Short:        "Show version information as a JSON object",
+		SilenceUsage: true,
+		RunE:         runShow,
 	}
 
 	nextCmd := &cobra.Command{
-		Use:   "next",
-		Short: "show the next version number for the current channel",
-		RunE:  runNext,
+		Use:          "next",
+		Short:        "show the next version number for the current channel",
+		SilenceUsage: true,
+		RunE:         runNext,
 	}
 
 	rootCmd.AddCommand(showCmd, nextCmd)
@@ -45,6 +45,8 @@ func main() {
 }
 
 func runShow(cmd *cobra.Command, args []string) error {
+	cmd.PrintErrln("Git dir:", gitDir)
+
 	if err := relmeta.RefreshTags(gitDir); err != nil {
 		return err
 	}
@@ -54,6 +56,10 @@ func runShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if meta.Version == nil {
+		return fmt.Errorf("no version tag for commit %s", meta.Commit)
+	}
+
 	enc := json.NewEncoder(cmd.OutOrStdout())
 	enc.Encode(meta)
 
@@ -61,11 +67,13 @@ func runShow(cmd *cobra.Command, args []string) error {
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
+	cmd.PrintErrln("Git dir:", gitDir)
+
 	if err := relmeta.RefreshTags(gitDir); err != nil {
 		return err
 	}
 
-	ver, err := relmeta.NextVersion(gitDir, false)
+	ver, err := relmeta.NextVersion(gitDir, stableChannelStillOnSemver)
 	if err != nil {
 		return err
 	}
