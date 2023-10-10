@@ -7,7 +7,7 @@
 
 To build `flyctl`, all you need to do is to run `make build` from the `flyctl/` directory. This will build a binary in the `bin/` directory. Alternatively, you can run `go build .`
 
-To run `flyctl`, you can run `go run .`, followed by whatever sub-command you want to run. So for example, to update a machine, you can run =go run . m update -a <app<sub>name</sub>> <machine<sub>id</sub>>
+To run `flyctl`, you can run `go run .`, followed by whatever sub-command you want to run. So for example, to update a machine, you can run `go run . m update -a <app_name> <machine_id>`
 
 
 ## Testing
