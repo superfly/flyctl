@@ -17,7 +17,7 @@ We have two different kinds of tests in `flyctl`, unit tests and integration tes
 
 ## Linting
 
-With the trifecta of the development process nearly complete, let&rsquo;s talk about linting. The linter we run is [golangci-lint](https://golangci-lint.run/). It helps with finding potential bugs in programs, as well as helping you follow standard go convetions. To run it locally, just run `golangci-lint --path-prefix=. run`.
+With the trifecta of the development process nearly complete, let&rsquo;s talk about linting. The linter we run is [golangci-lint](https://golangci-lint.run/). It helps with finding potential bugs in programs, as well as helping you follow standard go convetions. To run it locally, just run `golangci-lint --path-prefix=. run`. If you&rsquo;d like to run all of our [pre-commit lints](https://pre-commit.com/), then run `pre-commit run --all-files`
 
 
 # Testing
