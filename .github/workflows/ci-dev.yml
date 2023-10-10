@@ -23,6 +23,9 @@ jobs:
       version: ${{ steps.version.outputs.next }}
       tag: v${{ steps.version.outputs.next }}
     steps:
+      - run: echo "$GITHUB_CONTEXT"
+        env: 
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
       - uses: actions/checkout@v4
         with:
           fetch-tags: true
