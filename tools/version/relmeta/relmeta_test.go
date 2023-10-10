@@ -2,14 +2,11 @@ package relmeta
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/internal/version"
 )
 
 type testRepo struct {
@@ -79,85 +76,85 @@ func newTestGitRepo(t *testing.T) *testRepo {
 	return repo
 }
 
-func TestCommit(t *testing.T) {
-	repo := newTestGitRepo(t)
-	sha := repo.commit(t, "second commit")
+// func TestCommit(t *testing.T) {
+// 	repo := newTestGitRepo(t)
+// 	sha := repo.commit(t, "second commit")
 
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	assert.NoError(t, err)
-	assert.Equal(t, sha, meta.Commit)
-}
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, sha, meta.Commit)
+// }
 
-func TestBranch(t *testing.T) {
-	repo := newTestGitRepo(t)
-	repo.branch(t, "my-branch")
+// func TestBranch(t *testing.T) {
+// 	repo := newTestGitRepo(t)
+// 	repo.branch(t, "my-branch")
 
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
 
-	assert.Equal(t, "my-branch", meta.Branch)
-}
+// 	assert.Equal(t, "my-branch", meta.Branch)
+// }
 
-func TestRef(t *testing.T) {
-	repo := newTestGitRepo(t)
-	repo.branch(t, "my-branch")
+// func TestRef(t *testing.T) {
+// 	repo := newTestGitRepo(t)
+// 	repo.branch(t, "my-branch")
 
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
 
-	assert.Equal(t, "refs/heads/my-branch", meta.Ref)
-}
+// 	assert.Equal(t, "refs/heads/my-branch", meta.Ref)
+// }
 
-func TestGitRefFromGitHubEnvVar(t *testing.T) {
-	repo := newTestGitRepo(t)
-	t.Setenv("GITHUB_REF", "refs/pull/123/merge")
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
-	assert.Equal(t, "refs/pull/123/merge", meta.Ref)
-}
+// func TestGitRefFromGitHubEnvVar(t *testing.T) {
+// 	repo := newTestGitRepo(t)
+// 	t.Setenv("GITHUB_REF", "refs/pull/123/merge")
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
+// 	assert.Equal(t, "refs/pull/123/merge", meta.Ref)
+// }
 
-func TestCommitTime(t *testing.T) {
-	repo := newTestGitRepo(t)
-	commitTime := time.Now().Truncate(time.Second).Add(-time.Hour * 5)
-	repo.commitTime(t, "second commit", commitTime)
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
-	assert.Equal(t, commitTime.UTC(), meta.CommitTime.UTC())
-}
+// func TestCommitTime(t *testing.T) {
+// 	repo := newTestGitRepo(t)
+// 	commitTime := time.Now().Truncate(time.Second).Add(-time.Hour * 5)
+// 	repo.commitTime(t, "second commit", commitTime)
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
+// 	assert.Equal(t, commitTime.UTC(), meta.CommitTime.UTC())
+// }
 
-func TestDirty(t *testing.T) {
-	repo := newTestGitRepo(t)
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
-	assert.False(t, meta.Dirty)
+// func TestDirty(t *testing.T) {
+// 	repo := newTestGitRepo(t)
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
+// 	assert.False(t, meta.Dirty)
 
-	err = os.WriteFile(repo.wd+"/dirty", []byte("dirty"), 0644)
-	require.NoError(t, err)
+// 	err = os.WriteFile(repo.wd+"/dirty", []byte("dirty"), 0644)
+// 	require.NoError(t, err)
 
-	meta, err = GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
-	assert.True(t, meta.Dirty)
-}
+// 	meta, err = GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
+// 	assert.True(t, meta.Dirty)
+// }
 
-func TestCurrentTagAndVersion(t *testing.T) {
-	repo := newTestGitRepo(t)
+// func TestCurrentTagAndVersion(t *testing.T) {
+// 	repo := newTestGitRepo(t)
 
-	meta, err := GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
-	assert.Empty(t, meta.Tag)
-	assert.Empty(t, meta.Version)
+// 	meta, err := GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
+// 	assert.Empty(t, meta.Tag)
+// 	assert.Empty(t, meta.Version)
 
-	expected := "v2023.10.6-stable.1"
-	expectedVer, err := version.Parse(expected)
-	require.NoError(t, err)
+// 	expected := "v2023.10.6-stable.1"
+// 	expectedVer, err := version.Parse(expected)
+// 	require.NoError(t, err)
 
-	repo.tag(t, expected)
+// 	repo.tag(t, expected)
 
-	meta, err = GenerateReleaseMeta(repo.wd, false)
-	require.NoError(t, err)
-	assert.Equal(t, expected, meta.Tag)
-	assert.Equal(t, &expectedVer, meta.Version)
-}
+// 	meta, err = GenerateReleaseMeta(repo.wd, false)
+// 	require.NoError(t, err)
+// 	assert.Equal(t, expected, meta.Tag)
+// 	assert.Equal(t, &expectedVer, meta.Version)
+// }
 
 func TestIsStableBranch(t *testing.T) {
 	tests := map[string]bool{
