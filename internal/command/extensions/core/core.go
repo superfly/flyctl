@@ -363,26 +363,32 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	return
 }
 
-func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interface{}) error {
+func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interface{}) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	input := gql.SetSecretsInput{
-		AppId: app.Id,
+	if app.Name != "" {
+		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
+		input := gql.SetSecretsInput{
+			AppId: app.Id,
+		}
+		for key, value := range secrets {
+			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
+			fmt.Println(key)
+		}
+
+		fmt.Fprintln(io.Out)
+
+		_, err = gql.SetSecrets(ctx, client, input)
+
+	} else {
+		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
+		for key, value := range secrets {
+			fmt.Println(key + ": " + value.(string))
+		}
 	}
-
-	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
-
-	for key, value := range secrets {
-		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
-		fmt.Println(key)
-	}
-
-	fmt.Fprintln(io.Out)
-
-	_, err := gql.SetSecrets(ctx, client, input)
 
 	return err
 }

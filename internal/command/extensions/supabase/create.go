@@ -1,4 +1,4 @@
-package planetscale
+package supabase
 
 import (
 	"context"
@@ -14,12 +14,13 @@ import (
 )
 
 func create() (cmd *cobra.Command) {
+
 	const (
-		short = "Provision a PlanetScale MySQL database"
+		short = "Provision a Supabase PostgreSQL database"
 		long  = short + "\n"
 	)
 
-	cmd = command.New("create", short, long, runPlanetscaleCreate, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.LoadAppNameIfPresent)
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
@@ -34,21 +35,30 @@ func create() (cmd *cobra.Command) {
 	return cmd
 }
 
-func runPlanetscaleCreate(ctx context.Context) error {
+func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	params := extensions_core.ExtensionParams{}
+
+	if appName != "" {
+		params.AppName = appName
+	} else {
+		org, err := orgs.OrgFromFlagOrSelect(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		params.Organization = org
+	}
+
+	params.Provider = "supabase"
+	extension, err := extensions_core.ProvisionExtension(ctx, params)
+
 	if err != nil {
 		return err
 	}
 
-	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
-		AppName:      appName,
-		Provider:     "planetscale",
-		Organization: org,
-	})
-	if err != nil {
-		return err
-	}
+	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
 
-	return secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
+	return
 }
