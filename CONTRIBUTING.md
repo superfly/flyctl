@@ -85,4 +85,3 @@ Go is a weird language full of a million different pitfalls. If you haven&rsquo;
 
 -   <https://go.dev/doc/effective_go> (just a generally great resource)
 -   <https://go.dev/blog/go1.13-errors> (error wrapping specifically is useful for a lot of the functionality we use)
-
