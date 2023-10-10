@@ -1,6 +1,8 @@
 package relmeta
 
 import (
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/superfly/flyctl/internal/release"
@@ -21,36 +23,48 @@ func CurrentVersion(dir string) (*version.Version, error) {
 	return meta.Version, nil
 }
 
-func NextVersion(dir string, semverOnly bool) (*version.Version, error) {
+func NextVersion(dir string, semverOnly bool) (version.Version, error) {
 	repo := newGitRepo(dir)
 	ref, err := repo.gitRef()
 	if err != nil {
-		return nil, err
+		return version.Version{}, err
 	}
+	fmt.Fprintln(os.Stderr, "ref:", ref)
 
-	// fmt.Println("ref", ref)
 	channel, err := channelFromRef(ref)
 	if err != nil {
-		return nil, err
+		return version.Version{}, err
 	}
-	// fmt.Println("channel", channel)
+	fmt.Fprintln(os.Stderr, "channel:", channel)
 
 	tag, err := repo.previousTagOnChannel2(channel, semverOnly)
-	// tag, err := repo.previousTagOnChannel(channel)
 	if err != nil {
-		return nil, err
+		return version.Version{}, err
 	}
-	// fmt.Println("tag", tag)
+	if tag == "" {
+		tag, err = repo.previousTagOnChannel2("stable", semverOnly)
+		if err != nil {
+			return version.Version{}, err
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "previous tag:", tag)
+
+	if tag == "" {
+		return version.New(time.Now(), channel, 1), nil
+	}
 
 	ver, err := version.Parse(tag)
 	if err != nil {
-		return nil, err
+		return version.Version{}, err
 	}
-	// fmt.Println("ver", ver)
+	fmt.Fprintln(os.Stderr, "parsed version:", ver)
 
-	nextVer := ver.Increment(time.Now())
-	// fmt.Println("nextVer", nextVer)
-	return &nextVer, nil
+	if ver.Channel != channel {
+		return version.New(time.Now(), channel, 1), nil
+	}
+
+	return ver.Increment(time.Now()), nil
 }
 
 func GenerateReleaseMeta(dir string, stillOnSemver bool) (release.Meta, error) {

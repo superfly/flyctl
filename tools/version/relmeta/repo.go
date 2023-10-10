@@ -122,7 +122,7 @@ func (r *gitRepo) previousTagOnChannel(channel string) (string, error) {
 }
 
 func (r *gitRepo) previousTagOnChannel2(channel string, semverOnly bool) (string, error) {
-	out, err := r.runGit("tag", "-l", "--sort=-version:refname", "v*")
+	out, err := r.runGit("tag", "-l", "--sort=-version:refname", "v*", "--merged")
 	if err != nil {
 		return "", err
 	}
