@@ -84,8 +84,12 @@ type Config struct {
 	// LocalOnly denotes whether the user wants only local operations.
 	LocalOnly bool
 
-	// AccessToken denotes the user's access token.
+	// AccessToken is the normalized access token for use with services other
+	// than api.fly.io.
 	AccessToken string
+
+	// APIAccessToken is the normalized access token for use with api.fly.io.
+	APIAccessToken string
 
 	// MetricsToken denotes the user's metrics token.
 	MetricsToken string
@@ -109,11 +113,9 @@ func (cfg *Config) ApplyEnv() {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	cfg.AccessToken = env.FirstOrDefault(cfg.AccessToken,
-		AccessTokenEnvKey, APITokenEnvKey)
-
-	// trim whitespace since it causes http errors when passsed to Docker auth
-	cfg.AccessToken = strings.TrimSpace(cfg.AccessToken)
+	if token := env.First(AccessTokenEnvKey, APITokenEnvKey); token != "" {
+		cfg.setAccessToken(token)
+	}
 
 	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey) || cfg.VerboseOutput
 	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey) || cfg.JSONOutput
@@ -146,7 +148,7 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 	w.AutoUpdate = true
 
 	if err = unmarshal(path, &w); err == nil {
-		cfg.AccessToken = w.AccessToken
+		cfg.setAccessToken(w.AccessToken)
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
@@ -162,9 +164,8 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 	defer cfg.mu.Unlock()
 
 	applyStringFlags(fs, map[string]*string{
-		flagnames.AccessToken: &cfg.AccessToken,
-		flagnames.Org:         &cfg.Organization,
-		flagnames.Region:      &cfg.Region,
+		flagnames.Org:    &cfg.Organization,
+		flagnames.Region: &cfg.Region,
 	})
 
 	applyBoolFlags(fs, map[string]*bool{
@@ -172,10 +173,25 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 		flagnames.JSONOutput: &cfg.JSONOutput,
 		flagnames.LocalOnly:  &cfg.LocalOnly,
 	})
+
+	if fs.Changed(flagnames.AccessToken) {
+		if v, err := fs.GetString(flagnames.AccessToken); err != nil {
+			panic(err)
+		} else {
+			cfg.setAccessToken(v)
+		}
+	}
 }
 
 func (cfg *Config) MetricsBaseURLIsProduction() bool {
 	return cfg.MetricsBaseURL == defaultMetricsBaseURL
+}
+
+func (cfg *Config) setAccessToken(token string) {
+	mu := ParseMacaroonAndUserTokens(token)
+
+	cfg.AccessToken = mu.NonAPIToken()
+	cfg.APIAccessToken = mu.APIToken()
 }
 
 func applyStringFlags(fs *pflag.FlagSet, flags map[string]*string) {
@@ -204,4 +220,64 @@ func applyBoolFlags(fs *pflag.FlagSet, flags map[string]*bool) {
 			*dst = v
 		}
 	}
+}
+
+type MacaroonAndUserTokens struct {
+	macaroonTokens []string
+	userTokens     []string
+}
+
+func ParseMacaroonAndUserTokens(token string) *MacaroonAndUserTokens {
+	token = stripAuthorizationScheme(token)
+	ret := &MacaroonAndUserTokens{}
+
+	for _, tok := range strings.Split(token, ",") {
+		tok = strings.TrimSpace(tok)
+		switch pfx, _, _ := strings.Cut(tok, "_"); pfx {
+		case "fm1r", "fm1a", "fm2":
+			ret.macaroonTokens = append(ret.macaroonTokens, tok)
+		default:
+			ret.userTokens = append(ret.userTokens, tok)
+		}
+	}
+
+	return ret
+}
+
+// token appropriate for sending to api.fly.io. Includes macaroons and user
+// token if both are present.
+func (mu *MacaroonAndUserTokens) APIToken() string {
+	return mu.normalized(true)
+}
+
+// token appropriate for sending to services other than api.fly.io. Prefers
+// macaroons, but falls back to user token.
+func (mu *MacaroonAndUserTokens) NonAPIToken() string {
+	return mu.normalized(false)
+}
+
+func (mu *MacaroonAndUserTokens) normalized(macaroonsAndUserTokens bool) string {
+	if macaroonsAndUserTokens {
+		return strings.Join(append(mu.macaroonTokens, mu.userTokens...), ",")
+	}
+	if len(mu.macaroonTokens) == 0 {
+		return strings.Join(mu.userTokens, ",")
+	}
+	return strings.Join(mu.macaroonTokens, ",")
+}
+
+// strip any FlyV1/Bearer schemes from token.
+func stripAuthorizationScheme(token string) string {
+	token = strings.TrimSpace(token)
+
+	pfx, rest, found := strings.Cut(token, " ")
+	if !found {
+		return token
+	}
+
+	if pfx = strings.TrimSpace(pfx); strings.EqualFold(pfx, "Bearer") || strings.EqualFold(pfx, "FlyV1") {
+		return stripAuthorizationScheme(rest)
+	}
+
+	return token
 }

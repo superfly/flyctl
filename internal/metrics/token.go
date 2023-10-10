@@ -18,7 +18,7 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	// We use this over the context API client because we're trying to
 	// authenticate the human user, not the specific credentials they're using.
 	cfg := config.FromContext(ctx)
-	apiClient := client.NewClient(cfg.AccessToken)
+	apiClient := client.NewClient(cfg.APIAccessToken)
 
 	personal, _, err := apiClient.GetCurrentOrganizations(ctx)
 	if err != nil {
