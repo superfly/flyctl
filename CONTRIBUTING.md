@@ -38,7 +38,7 @@ You can run these tests by running `make test` from the `flyctl/` directory.
 
 The integration tests, called preflight, are different. They exist to test flyctl functionality on production infra, in order to make sure that entire commands and workflows don&rsquo;t break. Those are located in the `test/preflight` directory.
 
-For outside contributors, please be warned that running preflight tests creates real apps and machines and will cost real money. We already run preflight by default on all pull requests, so we recommend just opening up a draft PR instead. If you work at Fly and want to work on preflight tests, go ahead and continue reading.
+For outside contributors, **please be warned that running preflight tests creates real apps and machines and will cost real money**. We already run preflight by default on all pull requests, so we recommend just opening up a draft PR instead. If you work at Fly and want to work on preflight tests, go ahead and continue reading.
 
 Before running any preflight test, you must first set some specific environment variables. It&rsquo;s recommended to set them up using [direnv](https://direnv.net/docs/installation.html). First, copy the `.direnv/preflight-example` file to `.direnv/preflight`. Next, modify `FLY_PREFLIGHT_TEST_FLY_ORG` to an organization you make specifically for testing. Don&rsquo;t use your `personal` org. Modify `FLY_PREFLIGHT_TEST_FLY_REGIONS` to have two regions, ideally ones not the closest ones. For example, `"iad sin"`. Finally, set `FLY_PREFLIGHT_TEST_ACCESS_TOKEN` to whatever `fly auth token` outputs.
 
