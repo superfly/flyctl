@@ -1,0 +1,64 @@
+name: CI - Dev
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+    
+jobs:
+  test:
+    uses:
+      ./.github/workflows/test.yml
+  
+  # create a dev tag for every branch except master
+  tag_version:
+    needs: test
+    if: ${{ github.ref_type == 'branch' && github.ref_name != 'master' }}
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.next }}
+      tag: v${{ steps.version.outputs.next }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Get version number
+        id: version
+        run: |
+          echo "next=$(go run ./tools/version next)" >> "$GITHUB_OUTPUT"
+      - name: Print version number
+        run: |
+          echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "Version: ${{ steps.version.outputs.next }}" >> $GITHUB_STEP_SUMMARY
+      - name: Create tag
+        uses: actions/github-script@v6
+        env:
+          TAG_NAME: v${{ steps.version.outputs.next }}
+        with:
+          script: |
+            const { TAG_NAME } = process.env
+            github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${TAG_NAME}`,
+              sha: context.sha
+            })
+  
+  # build and release the dev tag to flypkgs
+  build_and_release:
+    uses:
+      ./.github/workflows/release.yml
+    needs: tag_version
+    with:
+      version: ${{ needs.tag_version.outputs.version }}
+      tag: ${{ needs.tag_version.outputs.tag }}
+    secrets: inherit
+
