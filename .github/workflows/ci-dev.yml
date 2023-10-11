@@ -13,12 +13,12 @@ on:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
-    
+
 jobs:
   test:
     uses:
       ./.github/workflows/test.yml
-  
+
   # create a dev tag for every branch except master
   tag_version:
     needs: test
@@ -56,7 +56,7 @@ jobs:
               ref: `refs/tags/${TAG_NAME}`,
               sha: context.sha
             })
-  
+
   # build and release the dev tag to flypkgs
   build_and_release:
     uses:
@@ -66,4 +66,3 @@ jobs:
       version: ${{ needs.tag_version.outputs.version }}
       tag: ${{ needs.tag_version.outputs.tag }}
     secrets: inherit
-

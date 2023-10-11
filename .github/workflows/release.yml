@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      version: 
+      version:
         description: Version number
         required: true
         type: string
-      tag: 
+      tag:
         description: Tag
         required: true
         type: string
