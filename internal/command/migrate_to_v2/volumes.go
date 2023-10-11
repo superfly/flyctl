@@ -134,6 +134,14 @@ func (m *v2PlatformMigrator) resolveOldVolumes(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	// GetVolumes doesn't return attached allocations or machines.
+	for i := range vols {
+		fullVol, err := m.flapsClient.GetVolume(ctx, vols[i].ID)
+		if err != nil {
+			return err
+		}
+		vols[i] = *fullVol
+	}
 	m.oldAttachedVolumes = lo.Filter(vols, func(v api.Volume, _ int) bool {
 		if v.AttachedAllocation != nil {
 			for _, a := range m.oldAllocs {
