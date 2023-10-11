@@ -171,33 +171,30 @@ func TestIsStableBranch(t *testing.T) {
 
 func TestTrackFromRef_CI(t *testing.T) {
 	tests := []struct {
-		ref           string
-		expectedTrack string
-		expectedErr   error
+		ref             string
+		headRef         string
+		expectedChannel string
 	}{
-		{"refs/heads/master", "stable", nil},
-		{"refs/heads/main", "stable", nil},
-		{"refs/pull/5432/merge", "pr5432", nil},
-		{"refs/pull/543/merge", "pr543", nil},
-		{"refs/pull/54/merge", "pr54", nil},
-		{"refs/pull/5/merge", "pr5", nil},
-		{"refs/heads/my-branch", "my-branch", nil},
-		{"refs/heads/feature/123", "feature/123", nil},
-		{"refs/heads/feat/launch-v2/databases", "feat/launch-v2/databases", nil},
-		{"refs/heads/fix/prompt-app-create-on-deploy", "fix/prompt-app-create-on-deploy", nil},
-		{"refs/heads/dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8", "dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8", nil},
+		{"refs/heads/master", "master", "stable"},
+		{"refs/heads/main", "main", "stable"},
+		{"refs/pull/5432/merge", "pr5432-branch", "pr5432"},
+		{"refs/pull/543/merge", "pr543-branch", "pr543"},
+		{"refs/pull/54/merge", "pr54-branch", "pr54"},
+		{"refs/pull/5/merge", "pr5-branch", "pr5"},
+		{"refs/heads/my-branch", "my-branch", "my-branch"},
+		{"refs/heads/feature/123", "feature/123", "feature/123"},
+		{"refs/heads/feat/launch-v2/databases", "feat/launch-v2/databases", "feat/launch-v2/databases"},
+		{"refs/heads/fix/prompt-app-create-on-deploy", "fix/prompt-app-create-on-deploy", "fix/prompt-app-create-on-deploy"},
+		{"refs/heads/dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8", "dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8", "dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8"},
 	}
 
 	for _, test := range tests {
 		t.Run(test.ref, func(t *testing.T) {
 			t.Setenv("CI", "true")
-			track, err := channelFromRef(test.ref)
-			if test.expectedErr != nil {
-				assert.EqualError(t, err, test.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
-			assert.Equal(t, test.expectedTrack, track)
+			t.Setenv("GITHUB_HEAD_REF", test.headRef)
+			ch, err := channelFromRef(test.ref)
+			assert.NoError(t, err)
+			assert.Equal(t, test.expectedChannel, ch)
 		})
 	}
 }

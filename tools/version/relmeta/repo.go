@@ -172,6 +172,10 @@ func channelFromRef(ref string) (string, error) {
 		return "stable", nil
 	}
 
+	if headRef := os.Getenv("GITHUB_HEAD_REF"); headRef != "" {
+		return headRef, nil
+	}
+
 	branch, err := branchFromRef(ref)
 	if err != nil {
 		return "", errors.Wrapf(err, "unable to select track from ref \"%s\"", ref)
@@ -181,10 +185,6 @@ func channelFromRef(ref string) (string, error) {
 }
 
 func branchFromRef(ref string) (string, error) {
-	if headRef := os.Getenv("GITHUB_HEAD_REF"); headRef != "" {
-		return headRef, nil
-	}
-
 	if strings.HasPrefix(ref, "refs/heads/") {
 		return strings.TrimPrefix(ref, "refs/heads/"), nil
 	}
