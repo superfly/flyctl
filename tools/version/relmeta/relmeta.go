@@ -37,12 +37,12 @@ func NextVersion(dir string, semverOnly bool) (version.Version, error) {
 	}
 	fmt.Fprintln(os.Stderr, "channel:", channel)
 
-	tag, err := repo.previousTagOnChannel2(channel, semverOnly)
+	tag, err := repo.previousTagOnChannel(channel, semverOnly)
 	if err != nil {
 		return version.Version{}, err
 	}
 	if tag == "" {
-		tag, err = repo.previousTagOnChannel2("stable", semverOnly)
+		tag, err = repo.previousTagOnChannel("stable", semverOnly)
 		if err != nil {
 			return version.Version{}, err
 		}

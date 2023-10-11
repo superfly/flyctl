@@ -1,80 +1,77 @@
 package relmeta
 
 import (
-	"fmt"
-	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type testRepo struct {
-	*gitRepo
-}
+// type testRepo struct {
+// 	*gitRepo
+// }
 
-func (r *testRepo) init(t *testing.T) {
-	_, err := r.runGit("init")
-	if err != nil {
-		t.Fatalf("failed to init repo: %s", err)
-	}
-}
+// func (r *testRepo) init(t *testing.T) {
+// 	_, err := r.runGit("init")
+// 	if err != nil {
+// 		t.Fatalf("failed to init repo: %s", err)
+// 	}
+// }
 
-func (r *testRepo) commit(t *testing.T, msg string) string {
-	return r.commitTime(t, msg, time.Now())
-}
+// func (r *testRepo) commit(t *testing.T, msg string) string {
+// 	return r.commitTime(t, msg, time.Now())
+// }
 
-func (r *testRepo) commitTime(t *testing.T, msg string, commitTime time.Time) string {
-	r.gitRepo.env = append(r.gitRepo.env, "GIT_COMMITTER_DATE="+commitTime.Format(time.RFC3339))
-	defer func() {
-		r.gitRepo.env = r.gitRepo.env[:len(r.gitRepo.env)-1]
-	}()
+// func (r *testRepo) commitTime(t *testing.T, msg string, commitTime time.Time) string {
+// 	r.gitRepo.env = append(r.gitRepo.env, "GIT_COMMITTER_DATE="+commitTime.Format(time.RFC3339))
+// 	defer func() {
+// 		r.gitRepo.env = r.gitRepo.env[:len(r.gitRepo.env)-1]
+// 	}()
 
-	out, err := r.runGit("commit", "--allow-empty", "-m", msg)
-	if err != nil {
-		t.Fatalf("failed to commit: %s", err)
-	}
+// 	out, err := r.runGit("commit", "--allow-empty", "-m", msg)
+// 	if err != nil {
+// 		t.Fatalf("failed to commit: %s", err)
+// 	}
 
-	fmt.Println(out)
+// 	fmt.Println(out)
 
-	// output can be one of:
-	//   [branch 17c0a58] commit message
-	//   [branch (root-commit) 17c0a58] commit message
+// 	// output can be one of:
+// 	//   [branch 17c0a58] commit message
+// 	//   [branch (root-commit) 17c0a58] commit message
 
-	out = strings.Replace(out, "(root-commit) ", "", -1)
-	out = out[strings.Index(out, " "):strings.Index(out, "]")]
-	out = strings.TrimSpace(out)
-	fmt.Println(out)
-	out, err = r.runGit("rev-parse", out)
-	if err != nil {
-		t.Fatalf("failed to get commit sha: %s", err)
-	}
+// 	out = strings.Replace(out, "(root-commit) ", "", -1)
+// 	out = out[strings.Index(out, " "):strings.Index(out, "]")]
+// 	out = strings.TrimSpace(out)
+// 	fmt.Println(out)
+// 	out, err = r.runGit("rev-parse", out)
+// 	if err != nil {
+// 		t.Fatalf("failed to get commit sha: %s", err)
+// 	}
 
-	return out
-}
+// 	return out
+// }
 
-func (r *testRepo) tag(t *testing.T, name string) string {
-	out, err := r.runGit("tag", name)
-	if err != nil {
-		t.Fatalf("failed to tag: %s", err)
-	}
-	return out
-}
+// func (r *testRepo) tag(t *testing.T, name string) string {
+// 	out, err := r.runGit("tag", name)
+// 	if err != nil {
+// 		t.Fatalf("failed to tag: %s", err)
+// 	}
+// 	return out
+// }
 
-func (r *testRepo) branch(t *testing.T, name string) string {
-	out, err := r.runGit("checkout", "-b", name)
-	if err != nil {
-		t.Fatalf("failed to create branch: %s", err)
-	}
-	return out
-}
+// func (r *testRepo) branch(t *testing.T, name string) string {
+// 	out, err := r.runGit("checkout", "-b", name)
+// 	if err != nil {
+// 		t.Fatalf("failed to create branch: %s", err)
+// 	}
+// 	return out
+// }
 
-func newTestGitRepo(t *testing.T) *testRepo {
-	repo := &testRepo{newGitRepo(t.TempDir())}
-	repo.init(t)
-	repo.commitTime(t, "initial commit", time.Now().Add(-time.Hour*24).UTC())
-	return repo
-}
+// func newTestGitRepo(t *testing.T) *testRepo {
+// 	repo := &testRepo{newGitRepo(t.TempDir())}
+// 	repo.init(t)
+// 	repo.commitTime(t, "initial commit", time.Now().Add(-time.Hour*24).UTC())
+// 	return repo
+// }
 
 // func TestCommit(t *testing.T) {
 // 	repo := newTestGitRepo(t)

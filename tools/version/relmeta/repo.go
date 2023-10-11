@@ -112,16 +112,7 @@ func (r *gitRepo) currentTag(sha string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-func (r *gitRepo) previousTagOnChannel(channel string) (string, error) {
-	// git describe --abbrev=0 --tags --exclude="$(git describe --abbrev=0 --tags --match 'v*')" --match 'v*'
-	out, err := r.runGit("describe", "--abbrev=0", "--tags", "--match=v*"+"-"+channel+".*")
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(out), nil
-}
-
-func (r *gitRepo) previousTagOnChannel2(channel string, semverOnly bool) (string, error) {
+func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string, error) {
 	out, err := r.runGit("tag", "-l", "--sort=-version:refname", "v*", "--merged")
 	if err != nil {
 		return "", err
