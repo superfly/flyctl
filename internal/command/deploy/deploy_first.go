@@ -107,12 +107,17 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				continue
 			}
 
-			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. Use 'fly vol extend' to increase its size\n", m.Source, groupName)
+			fmt.Fprintf(
+				md.io.Out,
+				"Creating a %d GB volume named '%s' for process group '%s'. "+
+					"Use 'fly vol extend' to increase its size\n",
+				md.volumeInitialSize, m.Source, groupName,
+			)
 
 			input := api.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              api.Pointer(1),
+				SizeGb:              api.Pointer(md.volumeInitialSize),
 				Encrypted:           api.Pointer(true),
 				HostDedicationId:    md.appConfig.HostDedicationID,
 				ComputeRequirements: md.machineGuest,

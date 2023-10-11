@@ -131,6 +131,11 @@ var CommonFlags = flag.Set{
 		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
 		Default:     16,
 	},
+	flag.Int{
+		Name:        "volume-initial-size",
+		Description: "The initial size in GB for volumes created on first deploy",
+		Default:     1,
+	},
 	flag.VMSizeFlags,
 }
 
@@ -324,6 +329,7 @@ func deployToMachines(
 		ExcludeRegions:         excludeRegions,
 		OnlyRegions:            onlyRegions,
 		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
+		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
