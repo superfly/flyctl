@@ -98,5 +98,5 @@ There is a simple Powershell script, `winbuild.ps1`, which will run the code gen
 Run `scripts/build-dfly` to build a Docker image from the current branch. Then, use `scripts/dfly` to run it. This assumes you are already
 authenticated to Fly in your local environment.
 
-## Development/Contributing guide
+## Contributing guide
 See [CONTRIBUTING.md](./CONTRIBUTING.mdl)
