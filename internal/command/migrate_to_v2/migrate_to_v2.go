@@ -315,8 +315,20 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 
 	isPostgres := appCompact.IsPostgresApp() &&
-		appFull.ImageDetails.Repository == "flyio/postgres" &&
-		!flag.GetBool(ctx, "force-standard-migration")
+		appFull.ImageDetails.Repository == "flyio/postgres"
+
+	pgConsulUrl := ""
+	if isPostgres {
+		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
+		if err != nil {
+			return nil, err
+		}
+		pgConsulUrl = consul.ConsulURL
+	}
+
+	if flag.GetBool(ctx, "force-standard-migration") {
+		isPostgres = false
+	}
 
 	migrator := &v2PlatformMigrator{
 		apiClient:               apiClient,
@@ -343,13 +355,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		backupMachines:     map[string]int{},
 		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
 		skipHealthChecks:   flag.GetBool(ctx, "skip-health-checks"),
-	}
-	if migrator.isPostgres {
-		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
-		if err != nil {
-			return nil, err
-		}
-		migrator.pgConsulUrl = consul.ConsulURL
+		pgConsulUrl:        pgConsulUrl,
 	}
 
 	migrator.applyHacks(ctx)
