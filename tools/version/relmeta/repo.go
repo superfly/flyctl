@@ -45,9 +45,9 @@ func (r *gitRepo) gitCommitTime(ref string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, err
 	}
-	i, err := strconv.ParseInt(strings.TrimSpace(string(out)), 10, 64)
+	i, err := strconv.ParseInt(strings.TrimSpace(out), 10, 64)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("invalid commit time - expected \"%s\" to be a unix timestamp", string(out))
+		return time.Time{}, fmt.Errorf("invalid commit time - expected \"%s\" to be a unix timestamp", out)
 	}
 	return time.Unix(i, 0).UTC(), nil
 }
@@ -95,7 +95,7 @@ func (r *gitRepo) gitDirty() (bool, error) {
 		return false, errors.Wrap(err, "failed to get git status")
 	}
 
-	return strings.TrimSpace(string(output)) != "", nil
+	return strings.TrimSpace(output) != "", nil
 }
 
 func (r *gitRepo) RefreshTags() error {
@@ -109,7 +109,7 @@ func (r *gitRepo) currentTag(sha string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(string(out)), nil
+	return strings.TrimSpace(out), nil
 }
 
 func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string, error) {
@@ -117,7 +117,7 @@ func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string,
 	if err != nil {
 		return "", err
 	}
-	tags := strings.Split(string(out), "\n")
+	tags := strings.Split(out, "\n")
 
 	// var latest *version.Version
 	var latestTag string
