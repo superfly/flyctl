@@ -1,0 +1,105 @@
+name: Build & Release
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      version:
+        description: Version number
+        required: true
+        type: string
+      tag:
+        description: Tag
+        required: true
+        type: string
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        GOOS: [linux, windows, darwin]
+    runs-on: ubuntu-latest-m
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Place wintun.dll
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - id: cache
+        uses: actions/cache@v3
+        with:
+          path: dist/${{ matrix.GOOS }}
+          key: ${{ matrix.GOOS }}-${{ env.sha_short }}
+      - name: Run GoReleaser
+        if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: release --clean -f .goreleaser.2.yml --fail-fast --split
+        env:
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GGOOS: ${{ matrix.GOOS }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      # copy the cashes from prepare
+      - shell: bash
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+      - uses: actions/cache@v3
+        with:
+          path: dist/linux
+          key: linux-${{ env.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/darwin
+          key: darwin-${{ env.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/windows
+          key: windows-${{ env.sha_short }}
+      - name: Write release meta
+        run: go run ./tools/version show > ./dist/release.json
+      - run: find ./dist
+      - uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: dist/*
+          retention-days: 1
+      - name: Upload to flypkgs
+        env:
+          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
+        run: go run ./tools/distribute upload ./dist
+
+  # preflight here
+
+  publish:
+    needs: [release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Upload to flypkgs
+        env:
+          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
+        run: go run ./tools/distribute publish ${{ inputs.version }}
