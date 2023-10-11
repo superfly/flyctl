@@ -7,6 +7,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func create() (cmd *cobra.Command) {
@@ -14,11 +15,18 @@ func create() (cmd *cobra.Command) {
 	const (
 		short = "Provision a Kubernetes cluster for an organization"
 		long  = short + "\n"
-		usage = "create [slug]"
+		usage = "create [organization slug]"
 	)
 
 	cmd = command.New(usage, short, long, runK8sCreate, command.RequireSession)
 	cmd.Args = cobra.MaximumNArgs(1)
+	flag.Add(cmd,
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "The name of your cluster",
+		},
+	)
 	return cmd
 }
 
