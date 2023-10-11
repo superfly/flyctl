@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func CreateReleaseBundle(meta Meta, w io.WriteCloser) (*archive, error) {
+func CreateReleaseBundle(meta Meta, w io.WriteCloser) (*Archive, error) {
 	archive := newArchive(w)
 	defer archive.Close()
 
@@ -28,18 +28,18 @@ func CreateReleaseBundle(meta Meta, w io.WriteCloser) (*archive, error) {
 	return archive, nil
 }
 
-func newArchive(w io.WriteCloser) *archive {
+func newArchive(w io.WriteCloser) *Archive {
 	gw := gzip.NewWriter(w)
 	tw := tar.NewWriter(gw)
-	return &archive{tw, gw}
+	return &Archive{tw, gw}
 }
 
-type archive struct {
+type Archive struct {
 	tw *tar.Writer
 	gq *gzip.Writer
 }
 
-func (a *archive) WriteJSON(thing any, name string) error {
+func (a *Archive) WriteJSON(thing any, name string) error {
 	data, err := json.Marshal(thing)
 	if err != nil {
 		return err
@@ -61,7 +61,7 @@ func (a *archive) WriteJSON(thing any, name string) error {
 	return nil
 }
 
-func (a *archive) WriteFile(path string) error {
+func (a *Archive) WriteFile(path string) error {
 	file, err := os.Open(path)
 	if err != nil {
 		return err
@@ -91,6 +91,6 @@ func (a *archive) WriteFile(path string) error {
 	return nil
 }
 
-func (a *archive) Close() error {
+func (a *Archive) Close() error {
 	return multierror.Append(nil, a.tw.Close(), a.gq.Close())
 }
