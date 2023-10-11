@@ -60,7 +60,7 @@ jobs:
       - shell: bash
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-      # copy the cashes from prepare
+      # copy the caches from prepare
       - shell: bash
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -89,7 +89,7 @@ jobs:
           FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
         run: go run ./tools/distribute upload ./dist
 
-  # preflight here
+  # preflight here once old and new workflows are merged
 
   publish:
     needs: [release]
