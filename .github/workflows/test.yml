@@ -9,7 +9,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest-m, macos-latest-xl, windows-latest-l ]
-        workdir: [ ".", "api" ]
+        test:
+          - workdir: "."
+            target: "test"
+          - workdir: "api"
+            target: "test-api"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -17,7 +21,6 @@ jobs:
           fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
-          go-version-file: "${{ matrix.workdir }}/go.mod"
-      - name: Run Tests (${{ matrix.workdir }})
-        working-directory: ${{ matrix.workdir }}
-        run: go test ./...
+          go-version-file: "${{ matrix.test.workdir }}/go.mod"
+      - name: Run Tests (${{ matrix.test.target }})
+        run: make ${{ matrix.test.target }}
