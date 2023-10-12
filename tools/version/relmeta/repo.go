@@ -113,7 +113,7 @@ func (r *gitRepo) currentTag(sha string) (string, error) {
 }
 
 func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string, error) {
-	out, err := r.runGit("tag", "-l", "--sort=-version:refname", "v*", "--merged")
+	out, err := r.runGit("tag", "-l", "--sort=-version:refname", "v*")
 	if err != nil {
 		return "", err
 	}
