@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -53,10 +54,23 @@ func create() (cmd *cobra.Command) {
 
 func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
+	params := extensions_core.ExtensionParams{}
 
-	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
-		AppName: appName,
-	})
+	if appName != "" {
+		params.AppName = appName
+	} else {
+		org, err := orgs.OrgFromFlagOrSelect(ctx)
+
+		if err != nil {
+			return err
+		}
+
+		params.Organization = org
+	}
+
+	params.Provider = "upstash_redis"
+
+	extension, err := extensions_core.ProvisionExtension(ctx, params)
 
 	if err != nil {
 		return err
