@@ -18,7 +18,7 @@ func newClustersList() *cobra.Command {
 
 		short = "Show LiteFS Cloud clusters"
 
-		usage = "list <clustername>"
+		usage = "list"
 	)
 
 	cmd := command.New(usage, short, long, runClustersList,

@@ -21,6 +21,7 @@ func newClusters() *cobra.Command {
 	cmd.Aliases = []string{"clusters"}
 
 	cmd.AddCommand(
+		newClustersDestroy(),
 		newClustersList(),
 	)
 
