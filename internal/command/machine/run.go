@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -189,6 +190,11 @@ func newRun() *cobra.Command {
 			Description: "Enable LSVD for this machine",
 			Hidden:      true,
 		},
+		flag.StringSlice{
+			// TODO: maybe rename this to backup-regions
+			Name:        "launch-backup-regions",
+			Description: "Regions to launch to in case the region you've chosen is full",
+		},
 		sharedFlags,
 	)
 
@@ -287,24 +293,33 @@ func runMachineRun(ctx context.Context) error {
 
 	input.SkipLaunch = len(machineConf.Standbys) > 0
 	input.Config = machineConf
+	input.BackupRegions = flag.GetStringSlice(ctx, "launch-backup-regions")
 
 	machine, err := flapsClient.Launch(ctx, input)
+
 	if err != nil {
 		return fmt.Errorf("could not launch machine: %w", err)
 	}
 
-	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
+	id, instanceID, state, privateIP, region := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP, machine.Region
+
+	var backupRegionText string
+	if slices.Contains(input.BackupRegions, machine.Region) {
+		backupRegionText = " (backup region)"
+	}
 
 	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", appName)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
+	fmt.Fprintf(io.Out, " Region: %s%s\n", region, backupRegionText)
 
+	//FIXME: is this a bug? should this be before flapsClient.Launch
 	if input.SkipLaunch {
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	fmt.Fprintf(io.Out, "\n Waiting for machine to start...\n\n")
 	s.Start()
 	// wait for machine to be started
 	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
