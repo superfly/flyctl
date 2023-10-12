@@ -243,7 +243,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData,
 			OrganizationId:    org.Id,
 		})
 	} else {
-		return errors.New(fmt.Sprintf("%s provisioning stopped.", provider.DisplayName))
+		return fmt.Errorf("%s provisioning stopped.", provider.DisplayName)
 	}
 
 	return err
