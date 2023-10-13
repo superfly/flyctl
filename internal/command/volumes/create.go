@@ -62,9 +62,6 @@ sets the size as the number of gigabytes the volume will consume.`
 			Name:        "snapshot-id",
 			Description: "Create volume from a specified snapshot",
 		},
-		flag.String{
-			Name: "host-dedication-id",
-		},
 		flag.Yes(),
 		flag.Int{
 			Name:        "count",
@@ -138,7 +135,6 @@ func runCreate(ctx context.Context) error {
 		Encrypted:           api.Pointer(!flag.GetBool(ctx, "no-encryption")),
 		RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:          snapshotID,
-		HostDedicationId:    flag.GetString(ctx, "host-dedication-id"),
 		ComputeRequirements: computeRequirements,
 	}
 	out := iostreams.FromContext(ctx).Out
