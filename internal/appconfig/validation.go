@@ -17,7 +17,7 @@ import (
 
 var (
 	ValidationError          = errors.New("invalid app configuration")
-	MachinesDeployStrategies = []string{"canary", "rolling", "immediate", "bluegreen"}
+	MachinesDeployStrategies = []string{"canary", "rolling", "rolling_one", "immediate", "bluegreen"}
 )
 
 func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {

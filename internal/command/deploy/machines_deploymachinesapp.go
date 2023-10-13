@@ -33,6 +33,11 @@ type ProcessGroupsDiff struct {
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, md.flapsClient)
 
+	if md.strategy == "rolling_one" {
+		md.maxUnavailable = 1
+		md.strategy = "rolling"
+	}
+
 	if err := md.updateReleaseInBackend(ctx, "running"); err != nil {
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
