@@ -30,19 +30,19 @@ jobs:
           go-version-file: "go.mod"
       - name: Generate release meta
         run: |
-          go run ./tools/version show > ./dist/release.json
+          go run ./tools/version show > release.json
       - name: Output release meta
         id: gen
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-          echo "json=$(cat ./dist/release.json)" >> "$GITHUB_OUTPUT"
-          echo "version=$(cat ./dist/release.json | jq -r .version)" >> "$GITHUB_OUTPUT"
-          echo "tag=$(cat ./dist/release.json | jq -r .tag)" >> "$GITHUB_OUTPUT"
+          echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat release.json | jq -r .version)" >> "$GITHUB_OUTPUT"
+          echo "tag=$(cat release.json | jq -r .tag)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
           path: |
-            dist/release.json
+            release.json
 
   build:
     needs: meta
