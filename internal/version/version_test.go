@@ -1,11 +1,13 @@
 package version
 
 import (
+	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 )
 
@@ -227,4 +229,30 @@ func TestIncrement(t *testing.T) {
 			assert.Equal(t, test.next, nextVer.String())
 		})
 	}
+}
+
+func TestJSONMarshalling(t *testing.T) {
+	v1 := New(time.Date(2023, 8, 16, 0, 0, 0, 0, time.UTC), "stable", 1)
+	data, err := json.Marshal(v1)
+	require.NoError(t, err)
+	v2 := Version{}
+	err = json.Unmarshal(data, &v2)
+	require.NoError(t, err)
+	assert.Equal(t, v1, v2)
+	assert.True(t, v1.Equal(v2))
+}
+
+func TestNestedJSONMarshalling(t *testing.T) {
+	a := struct{ V Version }{
+		New(time.Date(2023, 8, 16, 0, 0, 0, 0, time.UTC), "stable", 1),
+	}
+
+	data, err := json.Marshal(a)
+	require.NoError(t, err)
+
+	b := struct{ V Version }{}
+	err = json.Unmarshal(data, &b)
+	require.NoError(t, err)
+	assert.Equal(t, a, b)
+	// assert.True(t, v1.Equal(v2))
 }
