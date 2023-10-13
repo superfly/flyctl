@@ -53,7 +53,7 @@ func (r *gitRepo) gitCommitTime(ref string) (time.Time, error) {
 }
 
 func (r *gitRepo) gitBranch() (string, error) {
-	if ref := os.Getenv("GITHUB_HEAD_NAME"); ref != "" {
+	if ref := os.Getenv("GITHUB_HEAD_REF"); ref != "" {
 		return ref, nil
 	}
 	if ref := os.Getenv("GITHUB_REF_NAME"); ref != "" {
