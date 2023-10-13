@@ -1,46 +1,57 @@
 package version
 
 import (
+	"encoding/json"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 )
 
 func TestEncode(t *testing.T) {
 	cases := map[string]Version{
-		"0.0.1":                              {0, 0, 1, 0, ""},
-		"0.0.10":                             {0, 0, 10, 0, ""},
-		"0.0.138":                            {0, 0, 138, 0, ""},
-		"0.0.138-beta-1":                     {0, 0, 138, 1, "beta"},
-		"0.0.138-beta-10":                    {0, 0, 138, 10, "beta"},
-		"0.0.218-pre-1":                      {0, 0, 218, 1, "pre"},
-		"0.0.218-pre-10":                     {0, 0, 218, 10, "pre"},
-		"0.1.0":                              {0, 1, 0, 0, ""},
-		"0.1.1":                              {0, 1, 1, 0, ""},
-		"0.1.10":                             {0, 1, 10, 0, ""},
-		"0.1.44":                             {0, 1, 44, 0, ""},
-		"0.1.44-pre-2":                       {0, 1, 44, 2, "pre"},
-		"0.0.269-dev-tqbf-tcp-proxy-48b8696": {0, 0, 269, 0, "dev-tqbf-tcp-proxy-48b8696"},
+		"0.0.1":                              {0, 0, 1, 0, "", ""},
+		"0.0.10":                             {0, 0, 10, 0, "", ""},
+		"0.0.138":                            {0, 0, 138, 0, "", ""},
+		"0.0.138-beta-1":                     {0, 0, 138, 1, "beta", ""},
+		"0.0.138-beta-10":                    {0, 0, 138, 10, "beta", ""},
+		"0.0.218-pre-1":                      {0, 0, 218, 1, "pre", ""},
+		"0.0.218-pre-10":                     {0, 0, 218, 10, "pre", ""},
+		"0.1.0":                              {0, 1, 0, 0, "", ""},
+		"0.1.1":                              {0, 1, 1, 0, "", ""},
+		"0.1.10":                             {0, 1, 10, 0, "", ""},
+		"0.1.44":                             {0, 1, 44, 0, "", ""},
+		"0.1.44-pre-2":                       {0, 1, 44, 2, "pre", ""},
+		"0.0.269-dev-tqbf-tcp-proxy-48b8696": {0, 0, 269, 0, "dev-tqbf-tcp-proxy-48b8696", ""},
 
-		"2023.1.1":                     {2023, 1, 1, 0, ""},
-		"2023.1.12":                    {2023, 1, 12, 0, ""},
-		"2023.12.1":                    {2023, 12, 1, 0, ""},
-		"2023.12.12":                   {2023, 12, 12, 0, ""},
-		"2023.8.16":                    {2023, 8, 16, 0, ""},
-		"2023.8.16-stable":             {2023, 8, 16, 0, "stable"},
-		"2023.8.16-stable.1":           {2023, 8, 16, 1, "stable"},
-		"2023.8.16-stable.12":          {2023, 8, 16, 12, "stable"},
-		"2023.8.16-stable.123":         {2023, 8, 16, 123, "stable"},
-		"2023.8.16-pr1234.1":           {2023, 8, 16, 1, "pr1234"},
-		"2023.8.16-pr1234.12":          {2023, 8, 16, 12, "pr1234"},
-		"2023.8.16-pr1234.123":         {2023, 8, 16, 123, "pr1234"},
-		"2023.9.5-my-feature-branch.1": {2023, 9, 5, 1, "my-feature-branch"},
+		"2023.1.1":                     {2023, 1, 1, 0, "", ""},
+		"2023.1.12":                    {2023, 1, 12, 0, "", ""},
+		"2023.12.1":                    {2023, 12, 1, 0, "", ""},
+		"2023.12.12":                   {2023, 12, 12, 0, "", ""},
+		"2023.8.16":                    {2023, 8, 16, 0, "", ""},
+		"2023.8.16-stable":             {2023, 8, 16, 0, "stable", ""},
+		"2023.8.16-stable.1":           {2023, 8, 16, 1, "stable", ""},
+		"2023.8.16-stable.12":          {2023, 8, 16, 12, "stable", ""},
+		"2023.8.16-stable.123":         {2023, 8, 16, 123, "stable", ""},
+		"2023.8.16-pr1234.1":           {2023, 8, 16, 1, "pr1234", ""},
+		"2023.8.16-pr1234.12":          {2023, 8, 16, 12, "pr1234", ""},
+		"2023.8.16-pr1234.123":         {2023, 8, 16, 123, "pr1234", ""},
+		"2023.9.5-my-feature-branch.1": {2023, 9, 5, 1, "my-feature-branch", ""},
 
-		"0.0.0-dev":            {0, 0, 0, 0, "dev"},
-		"0.0.0-dev.1694038019": {0, 0, 0, 1694038019, "dev"},
+		"0.0.0-dev":                  {0, 0, 0, 0, "dev", ""},
+		"0.0.0-dev.1694038019":       {0, 0, 0, 1694038019, "dev", ""},
+		"0.0.0-dev+gitsha":           {0, 0, 0, 0, "dev", "gitsha"},
+		"0.0.0-dev+gitsha-dirty":     {0, 0, 0, 0, "dev", "gitsha-dirty"},
+		"0.0.0-dev+123-gitsha":       {0, 0, 0, 0, "dev", "123-gitsha"},
+		"0.0.0-dev+123-gitsha-dirty": {0, 0, 0, 0, "dev", "123-gitsha-dirty"},
+
+		"2023.10.5-some-branch+gitsha":           {2023, 10, 5, 0, "some-branch", "gitsha"},
+		"2023.10.5-some-branch+gitsha-dirty":     {2023, 10, 5, 0, "some-branch", "gitsha-dirty"},
+		"2023.10.5-some-branch+123-gitsha":       {2023, 10, 5, 0, "some-branch", "123-gitsha"},
+		"2023.10.5-some-branch+123-gitsha-dirty": {2023, 10, 5, 0, "some-branch", "123-gitsha-dirty"},
 	}
 
 	for vString, vStruct := range cases {
@@ -61,7 +72,7 @@ func TestEncode(t *testing.T) {
 func TestParseVPrefix(t *testing.T) {
 	v1, err1 := Parse("0.1.2")
 	v2, err2 := Parse("v0.1.2")
-	expected := Version{0, 1, 2, 0, ""}
+	expected := Version{0, 1, 2, 0, "", ""}
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
 	assert.Equal(t, expected, v1)
@@ -218,4 +229,30 @@ func TestIncrement(t *testing.T) {
 			assert.Equal(t, test.next, nextVer.String())
 		})
 	}
+}
+
+func TestJSONMarshalling(t *testing.T) {
+	v1 := New(time.Date(2023, 8, 16, 0, 0, 0, 0, time.UTC), "stable", 1)
+	data, err := json.Marshal(v1)
+	require.NoError(t, err)
+	v2 := Version{}
+	err = json.Unmarshal(data, &v2)
+	require.NoError(t, err)
+	assert.Equal(t, v1, v2)
+	assert.True(t, v1.Equal(v2))
+}
+
+func TestNestedJSONMarshalling(t *testing.T) {
+	a := struct{ V Version }{
+		New(time.Date(2023, 8, 16, 0, 0, 0, 0, time.UTC), "stable", 1),
+	}
+
+	data, err := json.Marshal(a)
+	require.NoError(t, err)
+
+	b := struct{ V Version }{}
+	err = json.Unmarshal(data, &b)
+	require.NoError(t, err)
+	assert.Equal(t, a, b)
+	// assert.True(t, v1.Equal(v2))
 }
