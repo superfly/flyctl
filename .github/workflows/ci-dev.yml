@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: echo "$GITHUB_CONTEXT"
-        env: 
+        env:
           GITHUB_CONTEXT: ${{ toJSON(github) }}
 
   # create a dev tag for every branch except master
