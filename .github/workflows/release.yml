@@ -1,0 +1,131 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - v**
+
+  # need this until this file is on the default branch so tag creates are picked up
+  workflow_call:
+
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
+
+jobs:
+  meta:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.gen.outputs.version }}
+      tag: ${{ steps.gen.outputs.tag }}
+      sha_short: ${{ steps.gen.outputs.sha_short }}
+      json: ${{ steps.gen.outputs.json }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Generate release meta
+        run: |
+          go run ./tools/version show > release.json
+      - name: Output release meta
+        id: gen
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+          echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
+          echo "version=$(cat release.json | jq -r .version)" >> "$GITHUB_OUTPUT"
+          echo "tag=$(cat release.json | jq -r .tag)" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            release.json
+
+  build:
+    needs: meta
+    strategy:
+      matrix:
+        GOOS: [linux, windows, darwin]
+    runs-on: ubuntu-latest-m
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Place wintun.dll
+        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
+      - name: Write release meta
+        run: echo "${{ needs.meta.outputs.json }}" > ./dist/release.json
+      - id: cache
+        uses: actions/cache@v3
+        with:
+          path: dist/${{ matrix.GOOS }}
+          key: ${{ matrix.GOOS }}-${{ needs.meta.outputs.sha_short }}
+      - name: Run GoReleaser
+        if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
+        uses: goreleaser/goreleaser-action@v4
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: release --clean -f .goreleaser.2.yml --fail-fast --split
+        env:
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GGOOS: ${{ matrix.GOOS }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [meta, build]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      # copy the caches from prepare
+      - uses: actions/cache@v3
+        with:
+          path: dist/linux
+          key: linux-${{ needs.meta.outputs.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/darwin
+          key: darwin-${{ needs.meta.outputs.sha_short }}
+      - uses: actions/cache@v3
+        with:
+          path: dist/windows
+          key: windows-${{ needs.meta.outputs.sha_short }}
+      - name: Write release meta
+        run: echo "${{ needs.meta.outputs.json }}" > ./dist/release.json
+      - uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: |
+            dist/**/*.json
+            dist/**/*.zip
+            dist/**/*.tar.gz
+          retention-days: 1
+      - name: Upload to flypkgs
+        env:
+          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
+        run: go run ./tools/distribute upload ./dist
+
+  # preflight here once old and new workflows are merged
+
+  publish:
+    needs: [meta, release]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version-file: "go.mod"
+      - name: Upload to flypkgs
+        env:
+          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
+        run: go run ./tools/distribute publish ${{ needs.meta.outputs.version }}
