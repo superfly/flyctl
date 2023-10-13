@@ -16,10 +16,10 @@ jobs:
   meta:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.gen.outputs.version }}
-      tag: ${{ steps.gen.outputs.tag }}
       sha_short: ${{ steps.gen.outputs.sha_short }}
       json: ${{ steps.gen.outputs.json }}
+      version: ${{ fromJSON(steps.gen.outputs.json).version }}
+      tag: ${{ fromJSON(steps.gen.outputs.json).tag }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,8 +36,6 @@ jobs:
         run: |
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
-          echo "version=$(cat release.json | jq -r .version)" >> "$GITHUB_OUTPUT"
-          echo "tag=$(cat release.json | jq -r .tag)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
@@ -99,7 +97,9 @@ jobs:
           path: dist/windows
           key: windows-${{ needs.meta.outputs.sha_short }}
       - name: Write release meta
-        run: echo "${{ needs.meta.outputs.json }}" > ./dist/release.json
+        env:
+          RELEASE_JSON: ${{ needs.meta.outputs.json }}
+        run: echo "$RELEASE_JSON" > ./dist/release.json
       - uses: actions/upload-artifact@v3
         with:
           name: build-artifacts
