@@ -18,7 +18,7 @@ jobs:
     outputs:
       version: ${{ steps.gen.outputs.version }}
       tag: ${{ steps.gen.outputs.tag }}
-      sha_short: ${{ steps.sha_short.outputs.sha_short }}
+      sha_short: ${{ steps.gen.outputs.sha_short }}
       json: ${{ steps.gen.outputs.json }}
     steps:
       - uses: actions/checkout@v4
@@ -28,14 +28,13 @@ jobs:
       - uses: actions/setup-go@v4
         with:
           go-version-file: "go.mod"
-      - shell: bash
-        id: sha_short
-        run: |
-          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
-      - name: Generate version meta
-        id: gen
+      - name: Generate release meta
         run: |
           go run ./tools/version show > ./dist/release.json
+      - name: Output release meta
+        id: gen
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat ./dist/release.json)" >> "$GITHUB_OUTPUT"
           echo "version=$(cat ./dist/release.json | jq -r .version)" >> "$GITHUB_OUTPUT"
           echo "tag=$(cat ./dist/release.json | jq -r .tag)" >> "$GITHUB_OUTPUT"
