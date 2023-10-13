@@ -314,8 +314,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 
-	isPostgres := appCompact.IsPostgresApp() &&
-		appFull.ImageDetails.Repository == "flyio/postgres"
+	isPostgres := appCompact.IsPostgresApp()
 
 	pgConsulUrl := ""
 	if isPostgres {
@@ -326,7 +325,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		pgConsulUrl = consul.ConsulURL
 	}
 
-	if flag.GetBool(ctx, "force-standard-migration") {
+	if flag.GetBool(ctx, "force-standard-migration") || appFull.ImageDetails.Repository != "flyio/postgres" {
 		isPostgres = false
 	}
 
