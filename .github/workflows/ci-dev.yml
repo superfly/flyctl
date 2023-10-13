@@ -64,12 +64,10 @@ jobs:
               sha: context.sha
             })
 
-  # # build and release the dev tag to flypkgs
-  # build_and_release:
-  #   uses:
-  #     ./.github/workflows/release.yml
-  #   needs: tag_version
-  #   with:
-  #     version: ${{ needs.tag_version.outputs.version }}
-  #     tag: ${{ needs.tag_version.outputs.tag }}
-  #   secrets: inherit
+  # we can remove this workflow_call once the release.yml workflow file is
+  # merged into the default branch
+  build_and_release:
+    uses:
+      ./.github/workflows/release.yml
+    needs: tag_version
+    secrets: inherit

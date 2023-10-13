@@ -5,17 +5,8 @@ on:
     tags:
       - v**
 
-  # workflow_dispatch:
-  # workflow_call:
-  #   inputs:
-  #     version:
-  #       description: Version number
-  #       required: true
-  #       type: string
-  #     tag:
-  #       description: Tag
-  #       required: true
-  #       type: string
+  # need this until this file is on the default branch so tag creates are picked up
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
