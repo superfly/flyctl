@@ -1042,8 +1042,21 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	return confirm, err
 }
 
-func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context) (cfg *appconfig.Config, err error) {
 	appNameFromContext := appconfig.NameFromContext(ctx)
+
+	defer func() {
+		// Hack to support simple deploy strategy
+		if cfg == nil {
+			return
+		}
+		if cfg.Deploy == nil {
+			return
+		}
+		if cfg.Deploy.Strategy == "simple" {
+			cfg.Deploy.Strategy = "immediate"
+		}
+	}()
 
 	// We're pulling the remote config because we don't want to inadvertently trigger a new deployment -
 	// people will expect this to migrate what's _currently_ live.
@@ -1057,7 +1070,7 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 		return localAppConfig, nil
 	}
 
-	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
+	cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err
 	}
