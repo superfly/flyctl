@@ -600,9 +600,10 @@ type IPAddress struct {
 }
 
 type User struct {
-	ID    string
-	Name  string
-	Email string
+	ID              string
+	Name            string
+	Email           string
+	EnablePaidHobby bool
 }
 
 type Secret struct {
