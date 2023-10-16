@@ -134,20 +134,23 @@ func (state *launchState) scannerCreateVolumes(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 
+	computeRequirements := state.Plan.Guest()
+	if hdid := state.appConfig.HostDedicationID; hdid != "" {
+		computeRequirements.HostDedicationID = hdid
+	}
+
 	for _, vol := range state.sourceInfo.Volumes {
 		volume, err := flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
 			Name:                vol.Source,
 			Region:              state.Plan.RegionCode,
 			SizeGb:              api.Pointer(1),
 			Encrypted:           api.Pointer(true),
-			HostDedicationId:    state.appConfig.HostDedicationID,
-			ComputeRequirements: state.Plan.Guest(),
+			ComputeRequirements: computeRequirements,
 		})
 		if err != nil {
 			return err
-		} else {
-			fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.Plan.RegionCode)
 		}
+		fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.Plan.RegionCode)
 	}
 	return nil
 }
