@@ -98,7 +98,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.Files)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
 		return nil, err
 	}
@@ -141,8 +141,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	apiClient := client.FromContext(ctx).API()
 
 	maxUnavailable := DefaultMaxUnavailable
-	if mu := args.MaxUnavailable; mu > 0 {
-		maxUnavailable = mu
+	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable > 0.0 {
+		maxUnavailable = appConfig.Deploy.MaxUnavailable
 	}
 
 	immedateMaxConcurrent := args.ImmediateMaxConcurrent
@@ -507,7 +507,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, files []*api.File) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable float64, files []*api.File) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -527,6 +527,12 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			appConfig.Deploy = &appconfig.Deploy{}
 		}
 		appConfig.Deploy.Strategy = strategy
+	}
+	if maxUnavailable != 0.0 {
+		if appConfig.Deploy == nil {
+			appConfig.Deploy = &appconfig.Deploy{}
+		}
+		appConfig.Deploy.MaxUnavailable = maxUnavailable
 	}
 
 	// deleting this block will result in machines not being deployed in the user selected region

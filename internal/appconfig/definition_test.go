@@ -239,6 +239,7 @@ func TestToDefinition(t *testing.T) {
 		"deploy": map[string]any{
 			"release_command": "release command",
 			"strategy":        "rolling-eyes",
+			"max_unavailable": 0.2,
 		},
 		"env": map[string]any{
 			"FOO": "BAR",
