@@ -359,11 +359,14 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 		machConfig.Init.Entrypoint = splitted
 	}
 
+	if hdid := appConfig.HostDedicationID; hdid != "" {
+		machConfig.Guest.HostDedicationID = hdid
+	}
+
 	input := &machine.EphemeralInput{
 		LaunchInput: api.LaunchMachineInput{
-			Config:           machConfig,
-			Region:           config.FromContext(ctx).Region,
-			HostDedicationID: appConfig.HostDedicationID,
+			Config: machConfig,
+			Region: config.FromContext(ctx).Region,
 		},
 		What: "to run the console",
 	}

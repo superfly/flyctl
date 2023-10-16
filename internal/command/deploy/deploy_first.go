@@ -119,7 +119,6 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				Region:              groupConfig.PrimaryRegion,
 				SizeGb:              api.Pointer(md.volumeInitialSize),
 				Encrypted:           api.Pointer(true),
-				HostDedicationId:    md.appConfig.HostDedicationID,
 				ComputeRequirements: md.machineGuest,
 			}
 

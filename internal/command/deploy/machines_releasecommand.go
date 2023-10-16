@@ -88,7 +88,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 // dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
 // a mismatch will result in a delete+recreate op
 func dedicatedHostIdMismatch(m *api.Machine, ac *appconfig.Config) bool {
-	return strings.TrimSpace(ac.HostDedicationID) != "" && m.HostDedicationID != ac.HostDedicationID
+	return strings.TrimSpace(ac.HostDedicationID) != "" && m.Config.Guest.HostDedicationID != ac.HostDedicationID
 }
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
@@ -157,10 +157,13 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
 
+	if hdid := md.appConfig.HostDedicationID; hdid != "" {
+		mConfig.Guest.HostDedicationID = hdid
+	}
+
 	return &api.LaunchMachineInput{
-		Config:           mConfig,
-		Region:           origMachineRaw.Region,
-		HostDedicationID: md.appConfig.HostDedicationID,
+		Config: mConfig,
+		Region: origMachineRaw.Region,
 	}
 }
 

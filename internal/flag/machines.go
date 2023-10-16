@@ -66,6 +66,10 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 		guest.GPUKind = m
 	}
 
+	if IsSpecified(ctx, "host-dedication-id") {
+		guest.HostDedicationID = GetString(ctx, "host-dedication-id")
+	}
+
 	return guest, nil
 }
 
@@ -94,5 +98,9 @@ var VMSizeFlags = Set{
 		Description: fmt.Sprintf("If set, the GPU model to attach (%v)", strings.Join(validGPUKinds, ", ")),
 		Aliases:     []string{"vm-gpukind"},
 		Hidden:      true,
+	},
+	String{
+		Name:        "host-dedication-id",
+		Description: "The dedication id of the reserved hosts for your organization (if any)",
 	},
 }
