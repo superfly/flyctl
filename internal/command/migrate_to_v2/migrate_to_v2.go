@@ -1056,6 +1056,10 @@ func determineAppConfigForMachines(ctx context.Context) (cfg *appconfig.Config, 
 		if cfg.Deploy.Strategy == "simple" {
 			cfg.Deploy.Strategy = "immediate"
 		}
+		if cfg.Deploy.Strategy == "rolling_one" {
+			cfg.Deploy.Strategy = "rolling"
+			cfg.Deploy.MaxUnavailable = 1
+		}
 	}()
 
 	// We're pulling the remote config because we don't want to inadvertently trigger a new deployment -
