@@ -10,6 +10,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -459,6 +460,12 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+		if !config.FromContext(ctx).JSONOutput {
+			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
+		}
 	}
 
 	tb.Done("Verified app config")
