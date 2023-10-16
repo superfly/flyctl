@@ -158,6 +158,11 @@ func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
 			extraInfo += "error canary deployment strategy is not supported when using mounted volumes"
 			err = ValidationError
 		}
+
+		if s != "rolling" && cfg.Deploy.MaxUnavailable != 0.0 {
+			extraInfo += "error max_unavailable is only supported for rolling deployments"
+			err = ValidationError
+		}
 	}
 
 	return

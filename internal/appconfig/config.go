@@ -51,7 +51,7 @@ type Config struct {
 	// Sections that are typically short and benefit from being on top
 	Experimental *Experimental     `toml:"experimental,omitempty" json:"experimental,omitempty"`
 	Build        *Build            `toml:"build,omitempty" json:"build,omitempty"`
-	Deploy       *Deploy           `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	Deploy       *Deploy           `toml:"deploy,omitempty" json:"deploy,omitempty"`
 	Env          map[string]string `toml:"env,omitempty" json:"env,omitempty"`
 
 	// Fields that are process group aware must come after Processes
@@ -88,8 +88,9 @@ type Config struct {
 }
 
 type Deploy struct {
-	ReleaseCommand string `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	Strategy       string `toml:"strategy,omitempty" json:"strategy,omitempty"`
+	ReleaseCommand string  `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	Strategy       string  `toml:"strategy,omitempty" json:"strategy,omitempty"`
+	MaxUnavailable float64 `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 }
 
 type File struct {
