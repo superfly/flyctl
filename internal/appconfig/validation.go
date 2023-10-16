@@ -159,7 +159,7 @@ func (cfg *Config) validateDeploySection() (extraInfo string, err error) {
 			err = ValidationError
 		}
 
-		if s != "rolling" && cfg.Deploy.MaxUnavailable != 0.0 {
+		if s != "rolling" && cfg.Deploy.MaxUnavailable != nil {
 			extraInfo += "error max_unavailable is only supported for rolling deployments"
 			err = ValidationError
 		}

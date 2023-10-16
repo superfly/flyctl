@@ -88,9 +88,9 @@ type Config struct {
 }
 
 type Deploy struct {
-	ReleaseCommand string  `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	Strategy       string  `toml:"strategy,omitempty" json:"strategy,omitempty"`
-	MaxUnavailable float64 `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
+	ReleaseCommand string   `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	Strategy       string   `toml:"strategy,omitempty" json:"strategy,omitempty"`
+	MaxUnavailable *float64 `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 }
 
 type File struct {

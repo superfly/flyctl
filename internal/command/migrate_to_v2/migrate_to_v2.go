@@ -1058,7 +1058,7 @@ func determineAppConfigForMachines(ctx context.Context) (cfg *appconfig.Config, 
 		}
 		if cfg.Deploy.Strategy == "rolling_one" {
 			cfg.Deploy.Strategy = "rolling"
-			cfg.Deploy.MaxUnavailable = 1
+			cfg.Deploy.MaxUnavailable = api.Pointer(1.0)
 		}
 	}()
 

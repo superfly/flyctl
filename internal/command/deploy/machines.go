@@ -41,7 +41,7 @@ type MachineDeploymentArgs struct {
 	PrimaryRegionFlag      string
 	SkipSmokeChecks        bool
 	SkipHealthChecks       bool
-	MaxUnavailable         float64
+	MaxUnavailable         *float64
 	RestartOnly            bool
 	WaitTimeout            time.Duration
 	LeaseTimeout           time.Duration
@@ -141,8 +141,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	apiClient := client.FromContext(ctx).API()
 
 	maxUnavailable := DefaultMaxUnavailable
-	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable > 0.0 {
-		maxUnavailable = appConfig.Deploy.MaxUnavailable
+	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
+		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
 	immedateMaxConcurrent := args.ImmediateMaxConcurrent
@@ -507,7 +507,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable float64, files []*api.File) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable *float64, files []*api.File) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -528,7 +528,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 		}
 		appConfig.Deploy.Strategy = strategy
 	}
-	if maxUnavailable != 0.0 {
+	if maxUnavailable != nil {
 		if appConfig.Deploy == nil {
 			appConfig.Deploy = &appconfig.Deploy{}
 		}

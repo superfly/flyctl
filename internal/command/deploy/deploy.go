@@ -312,11 +312,11 @@ func deployToMachines(
 	// We default the flag to 0.33 so that --help can show the actual default value,
 	// but internally we want to differentiate between the flag being specified and not.
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
-	maxUnavailable := 0.0
+	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = flag.GetFloat64(ctx, "max-unavailable")
+		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
-		if maxUnavailable <= 0 {
+		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")
 		}
 	}
