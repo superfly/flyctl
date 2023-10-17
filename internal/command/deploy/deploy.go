@@ -10,6 +10,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -96,7 +97,7 @@ var CommonFlags = flag.Set{
 	flag.Float64{
 		Name:        "max-unavailable",
 		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
-		Default:     0.33,
+		Default:     DefaultMaxUnavailable,
 	},
 	flag.Bool{
 		Name:        "no-public-ips",
@@ -309,6 +310,18 @@ func deployToMachines(
 		}
 	}
 
+	// We default the flag to 0.33 so that --help can show the actual default value,
+	// but internally we want to differentiate between the flag being specified and not.
+	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
+	var maxUnavailable *float64 = nil
+	if flag.IsSpecified(ctx, "max-unavailable") {
+		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		// Validation to ensure that 0.0 is *purely* the "unspecified" value
+		if *maxUnavailable <= 0 {
+			return fmt.Errorf("the value for --max-unavailable must be > 0")
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:             appCompact,
 		DeploymentImage:        img.Tag,
@@ -319,7 +332,7 @@ func deployToMachines(
 		SkipHealthChecks:       flag.GetDetach(ctx),
 		WaitTimeout:            time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
 		LeaseTimeout:           time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:         flag.GetFloat64(ctx, "max-unavailable"),
+		MaxUnavailable:         maxUnavailable,
 		ReleaseCmdTimeout:      releaseCmdTimeout,
 		Guest:                  guest,
 		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
@@ -447,6 +460,12 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+		if !config.FromContext(ctx).JSONOutput {
+			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
+		}
 	}
 
 	tb.Done("Verified app config")
