@@ -105,12 +105,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 
-	// TODO: Blend extraInfo into ValidationError and remove this hack
-	if err, extraInfo := appConfig.Validate(ctx); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
-		return nil, err
-	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +177,12 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		volumeInitialSize:      volumeInitialSize,
 		processGroups:          args.ProcessGroups,
 	}
+	// TODO: Blend extraInfo into ValidationError and remove this hack
+	if err, extraInfo := md.Validate(ctx); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		return nil, err
+	}
+
 	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
@@ -575,4 +575,18 @@ func (md *machineDeployment) ProcessNames() (names []string) {
 		})
 	}
 	return
+}
+
+// Validate validates app config for process groups in the deployment.
+func (md *machineDeployment) Validate(ctx context.Context) (err error, info string) {
+	if len(md.processGroups) == 0 {
+		return md.appConfig.Validate(ctx)
+	}
+	for _, config := range md.appConfig.GroupConfigs(lo.Keys(md.processGroups)) {
+		err, info = config.Validate(ctx)
+		if err != nil {
+			return err, info
+		}
+	}
+	return nil, ""
 }
