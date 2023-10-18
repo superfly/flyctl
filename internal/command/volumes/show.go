@@ -22,6 +22,8 @@ func newShow() (cmd *cobra.Command) {
 	const (
 
 		short = "Show the details of the specified volume."
+
+		long = short
 	)
 
 	cmd = command.New("show [id]", short, long, runShow,

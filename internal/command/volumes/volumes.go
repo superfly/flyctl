@@ -29,6 +29,8 @@ func New() *cobra.Command {
 
 		short = "Manage Fly Volumes."
 
+		long = short
+
 		usage = "volumes <command>"
 	)
 

@@ -21,6 +21,8 @@ func newList() *cobra.Command {
 
 		short = "List the volumes associated with an app."
 
+		long = short
+
 	)
 
 	cmd := command.New("list", short, long, runList,
