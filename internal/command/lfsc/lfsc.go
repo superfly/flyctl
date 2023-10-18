@@ -31,13 +31,14 @@ func New() *cobra.Command {
 		usage = "litefs-cloud <command>"
 	)
 
-	cmd := command.New("usage", short, long, nil)
+	cmd := command.New(usage, short, long, nil)
 	cmd.Aliases = []string{"litefs-cloud", "lfsc"}
 
 	cmd.AddCommand(
 		newClusters(),
 		newExport(),
 		newImport(),
+		newRegions(),
 		newRestore(),
 		newStatus(),
 	)
@@ -71,40 +72,27 @@ func databaseFlag() flag.String {
 	}
 }
 
+func regionFlag() flag.String {
+	return flag.String{
+		Name:        "region",
+		Description: "The target region (see 'flyctl litefs-cloud regions')",
+		Shorthand:   "r",
+	}
+}
+
 // newLFSCClient returns an lfsc.Client with a temporary auth token.
 func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error) {
 	apiClient := client.FromContext(ctx).API()
 
 	// Determine the org via flag or environment variable first.
 	// If neither is available, use the local app's org, if available.
-	var orgID string
-	if slug := flag.GetOrg(ctx); slug != "" {
-		org, err := apiClient.GetOrganizationBySlug(ctx, slug)
-		if err != nil {
-			return nil, fmt.Errorf("failed retrieving organization with slug %s: %w", slug, err)
-		}
-		orgID = org.ID
-
-	} else {
-		appName := appconfig.NameFromContext(ctx)
-		if appName == "" {
-			return nil, errors.New("no org was provided, and none is available from the environment or fly.toml")
-		}
-
-		app, err := apiClient.GetAppCompact(ctx, appName)
-		if err != nil {
-			return nil, err
-		}
-		orgID = app.Organization.ID
+	orgID, err := getOrgID(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	// Acquire a temporary auth token to access LiteFS Cloud.
-	resp, err := gql.CreateLimitedAccessToken(
-		ctx,
-		apiClient.GenqClient,
-		"flyctl-lfsc",
-		orgID,
-		"litefs_cloud",
+	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient, "flyctl-lfsc", orgID, "litefs_cloud",
 		&gql.LimitedAccessTokenOptions{
 			"cluster": clusterName,
 		},
@@ -119,4 +107,27 @@ func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error
 	client.Token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
 
 	return client, nil
+}
+
+func getOrgID(ctx context.Context) (string, error) {
+	apiClient := client.FromContext(ctx).API()
+
+	if slug := flag.GetOrg(ctx); slug != "" {
+		org, err := apiClient.GetOrganizationBySlug(ctx, slug)
+		if err != nil {
+			return "", fmt.Errorf("failed retrieving organization with slug %s: %w", slug, err)
+		}
+		return org.ID, nil
+	}
+
+	appName := appconfig.NameFromContext(ctx)
+	if appName == "" {
+		return "", errors.New("no org was provided, and none is available from the environment or fly.toml")
+	}
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return "", err
+	}
+	return app.Organization.ID, nil
 }

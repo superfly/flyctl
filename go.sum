@@ -742,6 +742,8 @@ github.com/superfly/graphql v0.2.4 h1:Av8hSk4x8WvKJ6MTnEwrLknSVSGPc7DWpgT3z/kt3P
 github.com/superfly/graphql v0.2.4/go.mod h1:CVfDl31srm8HnJ9udwLu6hFNUW/P6GUM2dKcG1YQ8jc=
 github.com/superfly/lfsc-go v0.1.0 h1:jXxla4ns3EjLOS+4ZVgHTfvmNPBKs+iUlbHyBAVttrM=
 github.com/superfly/lfsc-go v0.1.0/go.mod h1:zVb0VENz/Il8Nmvvd4XAsX2bWhQ+sr0nK8vv9PeezcE=
+github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2Q=
+github.com/superfly/lfsc-go v0.1.1/go.mod h1:zVb0VENz/Il8Nmvvd4XAsX2bWhQ+sr0nK8vv9PeezcE=
 github.com/superfly/ltx v0.3.12 h1:Z7z1sc4g34/jUi3XO84+zBlIsbaoh2RJ3b4zTQpBK/M=
 github.com/superfly/ltx v0.3.12/go.mod h1:ly+Dq7UVacQVEI5/b0r6j+PSNy9ibwx1yikcWAaSkhE=
 github.com/superfly/macaroon v0.0.5 h1:Rw48kdYc2k0PHccGnNWO0Byc5TQoJBjbQtzGZJPFKcU=
