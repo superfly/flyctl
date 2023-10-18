@@ -25,9 +25,9 @@ func newCreate() *cobra.Command {
 
 		short = "Create a new volume for an app."
 
-		long = short + " Volumes are persistent storage for 
+		long = short + ` Volumes are persistent storage for 
 		Fly Machines. The default size is 3 GB. Learn how to add a volume to 
-		your app: https://fly.io/docs/apps/volume-storage/"
+		your app: https://fly.io/docs/apps/volume-storage/`
 
 		usage = "create <volumename>"
 	)
