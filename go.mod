@@ -38,7 +38,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/miekg/dns v1.1.55
+	github.com/miekg/dns v1.1.56
 	github.com/moby/buildkit v0.11.6
 	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
@@ -155,7 +155,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	go.opentelemetry.io/otel/metric v0.37.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/tools v0.12.1-0.20230815132531-74c255bcf846 // indirect
+	golang.org/x/tools v0.13.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230803162519-f966b187b2e5 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230803162519-f966b187b2e5 // indirect
