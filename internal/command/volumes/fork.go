@@ -45,7 +45,7 @@ func newFork() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "machines-only",
-			Description: "volume will be visible to machines platform only",
+			Description: "volume will be visible to Machines platform only",
 			Hidden:      true,
 		},
 		flag.Bool{

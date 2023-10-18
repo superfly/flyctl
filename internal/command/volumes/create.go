@@ -51,7 +51,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "no-encryption",
-			Description: "Do not encrypt the volume contents. Volume content are encrypted by default.",
+			Description: "Do not encrypt the volume contents. Volume contents are encrypted by default.",
 			Default:     false,
 		},
 		flag.Bool{
