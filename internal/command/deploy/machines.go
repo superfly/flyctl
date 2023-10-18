@@ -55,6 +55,7 @@ type MachineDeploymentArgs struct {
 	OnlyRegions            map[string]interface{}
 	ImmediateMaxConcurrent int
 	VolumeInitialSize      int
+	ProcessGroups          map[string]interface{}
 }
 
 type machineDeployment struct {
@@ -89,6 +90,7 @@ type machineDeployment struct {
 	onlyRegions            map[string]interface{}
 	immediateMaxConcurrent int
 	volumeInitialSize      int
+	processGroups          map[string]interface{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -100,12 +102,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
-		return nil, err
-	}
-
-	// TODO: Blend extraInfo into ValidationError and remove this hack
-	if err, extraInfo := appConfig.Validate(ctx); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
 		return nil, err
 	}
 
@@ -179,7 +175,14 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		onlyRegions:            args.OnlyRegions,
 		immediateMaxConcurrent: immedateMaxConcurrent,
 		volumeInitialSize:      volumeInitialSize,
+		processGroups:          args.ProcessGroups,
 	}
+	// TODO: Blend extraInfo into ValidationError and remove this hack
+	if err, extraInfo := md.Validate(ctx); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		return nil, err
+	}
+
 	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
@@ -264,6 +267,16 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 		fmt.Fprintf(md.io.ErrOut, "--exclude-regions filter applied, deploying to %d/%d machines\n", len(excludeRegionMachines), len(machines))
 		machines = excludeRegionMachines
+	}
+	if len(md.processGroups) > 0 {
+		var processGroupMachines []*api.Machine
+		for _, m := range machines {
+			if _, present := md.processGroups[m.ProcessGroup()]; present {
+				processGroupMachines = append(processGroupMachines, m)
+			}
+		}
+		fmt.Fprintf(md.io.ErrOut, "--process-groups filter applied, deploying to %d/%d machines\n", len(processGroupMachines), len(machines))
+		machines = processGroupMachines
 	}
 
 	for _, m := range machines {
@@ -552,4 +565,28 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 	}
 
 	return appConfig, nil
+}
+
+func (md *machineDeployment) ProcessNames() (names []string) {
+	names = md.appConfig.ProcessNames()
+	if len(md.processGroups) > 0 {
+		names = lo.Filter(names, func(name string, _ int) bool {
+			return md.processGroups[name] != nil
+		})
+	}
+	return
+}
+
+// Validate validates app config for process groups in the deployment.
+func (md *machineDeployment) Validate(ctx context.Context) (err error, info string) {
+	if len(md.processGroups) == 0 {
+		return md.appConfig.Validate(ctx)
+	}
+	for _, config := range md.appConfig.GroupConfigs(lo.Keys(md.processGroups)) {
+		err, info = config.Validate(ctx)
+		if err != nil {
+			return err, info
+		}
+	}
+	return nil, ""
 }
