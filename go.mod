@@ -23,7 +23,7 @@ require (
 	github.com/ejcx/sshcert v1.1.0
 	github.com/getsentry/sentry-go v0.23.0
 	github.com/gofrs/flock v0.8.1
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
 	github.com/hashicorp/go-multierror v1.1.1
@@ -40,7 +40,7 @@ require (
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.55
 	github.com/moby/buildkit v0.11.6
-	github.com/moby/patternmatcher v0.5.0
+	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.15.2
 	github.com/nats-io/nats.go v1.28.0
@@ -68,7 +68,7 @@ require (
 	golang.org/x/sync v0.3.0
 	golang.org/x/term v0.13.0
 	golang.zx2c4.com/wireguard v0.0.0-20230325221338-052af4a8072b
-	google.golang.org/grpc v1.57.0
+	google.golang.org/grpc v1.58.3
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	nhooyr.io/websocket v1.8.7
