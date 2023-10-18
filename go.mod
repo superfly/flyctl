@@ -58,7 +58,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/superfly/flyctl/api v0.0.0-20230714194642-3abf5055f01a
 	github.com/superfly/graphql v0.2.4
-	github.com/superfly/lfsc-go v0.1.0
+	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.0.5
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
@@ -231,6 +231,6 @@ require (
 
 replace github.com/superfly/flyctl/api => ./api
 
-//replace github.com/superfly/lfsc-go => ../lfsc-go
+// replace github.com/superfly/lfsc-go => ../lfsc-go
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
