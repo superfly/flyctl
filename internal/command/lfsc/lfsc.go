@@ -32,7 +32,7 @@ func New() *cobra.Command {
 	)
 
 	cmd := command.New(usage, short, long, nil)
-	cmd.Aliases = []string{"litefs-cloud", "lfsc"}
+	cmd.Aliases = []string{"lfsc"}
 
 	cmd.AddCommand(
 		newClusters(),

@@ -18,8 +18,6 @@ func newClusters() *cobra.Command {
 		command.RequireSession,
 	)
 
-	cmd.Aliases = []string{"clusters"}
-
 	cmd.AddCommand(
 		newClustersCreate(),
 		newClustersDestroy(),
