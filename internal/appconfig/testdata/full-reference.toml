@@ -52,6 +52,9 @@ host_dedication_id = "06031957"
 [http_service]
   internal_port = 8080
   force_https = true
+  auto_start_machines = false
+  auto_stop_machines = false
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = "1m21s"
@@ -128,6 +131,9 @@ host_dedication_id = "06031957"
   internal_port = 8081
   protocol = "tcp"
   processes = ["app"]
+  auto_start_machines = false
+  auto_stop_machines = false
+  min_machines_running = 1
 
   [services.concurrency]
     type = "requests"

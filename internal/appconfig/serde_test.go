@@ -495,8 +495,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		},
 
 		HTTPService: &HTTPService{
-			InternalPort: 8080,
-			ForceHTTPS:   true,
+			InternalPort:       8080,
+			ForceHTTPS:         true,
+			AutoStartMachines:  api.Pointer(false),
+			AutoStopMachines:   api.Pointer(false),
+			MinMachinesRunning: api.Pointer(0),
 			Concurrency: &api.MachineServiceConcurrency{
 				Type:      "donuts",
 				HardLimit: 10,
@@ -588,9 +591,12 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Services: []Service{
 			{
-				InternalPort: 8081,
-				Protocol:     "tcp",
-				Processes:    []string{"app"},
+				InternalPort:       8081,
+				Protocol:           "tcp",
+				Processes:          []string{"app"},
+				AutoStartMachines:  api.Pointer(false),
+				AutoStopMachines:   api.Pointer(false),
+				MinMachinesRunning: api.Pointer(1),
 
 				Concurrency: &api.MachineServiceConcurrency{
 					Type:      "requests",
