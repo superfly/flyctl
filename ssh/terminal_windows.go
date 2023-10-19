@@ -7,6 +7,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/sys/windows"
 )

@@ -59,7 +59,6 @@ func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) e
 			defer term.Restore(fd, state)
 		}
 
-
 		if w, h, err := s.getAndWatchSize(ctx, sess); err == nil {
 			width, height = w, h
 		}
