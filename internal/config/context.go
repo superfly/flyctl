@@ -1,6 +1,10 @@
 package config
 
-import "context"
+import (
+	"context"
+
+	"github.com/superfly/flyctl/internal/tokens"
+)
 
 type contextKey struct{}
 
@@ -13,4 +17,8 @@ func NewContext(ctx context.Context, cfg *Config) context.Context {
 // no Config.
 func FromContext(ctx context.Context) *Config {
 	return ctx.Value(contextKey{}).(*Config)
+}
+
+func Tokens(ctx context.Context) *tokens.Tokens {
+	return FromContext(ctx).Tokens
 }

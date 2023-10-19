@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -86,9 +85,9 @@ func getPermissionAndDischargeTokens(ctx context.Context) ([]*macaroon.Macaroon,
 }
 
 func getTokens(ctx context.Context) ([][]byte, error) {
-	token := config.FromContext(ctx).AccessToken
+	token := config.Tokens(ctx).Macaroons()
 
-	if strings.HasPrefix(token, "fo1_") {
+	if token == "" {
 		return nil, errors.New("pass a macaroon token (e.g. from `fly tokens deploy`) as the -t argument or in FLY_API_TOKEN")
 	}
 
