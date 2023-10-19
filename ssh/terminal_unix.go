@@ -5,10 +5,12 @@ package ssh
 
 import (
 	"context"
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
 
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/term"
 )
@@ -24,7 +26,11 @@ func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int
 		return 0, 0, err
 	}
 
-	go watchWindowSize(ctx, fd, sess)
+	go func() {
+		if err := watchWindowSize(ctx, fd, sess); err != nil {
+			terminal.Debugf("Error watching window size: %s\n", err)
+		}
+	}()
 
 	return width, height, nil
 }

@@ -15,14 +15,18 @@ func (s *SessionIO) getAndWatchSize(ctx context.Context, sess *ssh.Session) (int
 
 	// TODO(Ali): Hardcoded stdout instead of pulling it from the SessionIO because it's
 	//            wrapped in multiple wrapper types.
-	fd := windows.Stdout;
+	fd := windows.Stdout
 
 	width, height, err := getConsoleSize(fd)
 	if err != nil {
 		return 0, 0, err
 	}
 
-	go watchWindowSize(ctx, fd, sess, width, height)
+	go func() {
+		if err := watchWindowSize(ctx, fd, sess, width, height); err != nil {
+			terminal.Debugf("Error watching window size: %s\n", err)
+		}
+	}()
 
 	return width, height, nil
 }
@@ -66,7 +70,7 @@ func watchWindowSize(ctx context.Context, fd windows.Handle, sess *ssh.Session, 
 }
 
 func getConsoleSize(fd windows.Handle) (int, int, error) {
-	var csbi windows.ConsoleScreenBufferInfo;
+	var csbi windows.ConsoleScreenBufferInfo
 	err := windows.GetConsoleScreenBufferInfo(fd, &csbi)
 	if err != nil {
 		return 0, 0, err
@@ -74,7 +78,7 @@ func getConsoleSize(fd windows.Handle) (int, int, error) {
 
 	// Cannot use csbi.Size here because it represents a size of
 	// the buffer (which includes scrollback) but not the size of
-	// the window. 
+	// the window.
 	width := csbi.Window.Right - csbi.Window.Left + 1
 	height := csbi.Window.Bottom - csbi.Window.Top + 1
 
