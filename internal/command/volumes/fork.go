@@ -20,7 +20,6 @@ import (
 
 func newFork() *cobra.Command {
 	const (
-
 		short = "Fork the specified volume."
 
 		long  = short + ` Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`

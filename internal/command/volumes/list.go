@@ -18,7 +18,6 @@ import (
 
 func newList() *cobra.Command {
 	const (
-
 		short = "List the volumes associated with an app."
 
 		long = short

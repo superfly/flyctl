@@ -22,7 +22,6 @@ import (
 
 func newExtend() *cobra.Command {
 	const (
-
 		short = "Extend a volume to the specified size."
 
 		long = short + ` Most Machines don't require a restart. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`

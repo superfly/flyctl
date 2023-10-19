@@ -19,7 +19,6 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-
 		short = "Destroy a volume."
 
 		long = short + " When you destroy a volume, you permanently delete all its data."
