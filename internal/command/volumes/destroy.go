@@ -19,20 +19,22 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `Destroy a volume Requires the volume's ID
-number to operate. This can be found through the volumes list command`
+		short = "Destroy a volume."
 
-		short = "Destroy a volume"
+		long = short + " When you destroy a volume, you permanently delete all its data."
 	)
 
-	cmd := command.New("destroy <id>", short, long, runDestroy,
+	cmd := command.New("destroy [id]", short, long, runDestroy,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Aliases = []string{"delete", "rm"}
 
 	flag.Add(cmd,
 		flag.Yes(),
+		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -46,6 +48,10 @@ func runDestroy(ctx context.Context) error {
 	)
 
 	appName := appconfig.NameFromContext(ctx)
+	if volID == "" && appName == "" {
+		return fmt.Errorf("volume ID or app required")
+	}
+
 	if appName == "" {
 		n, err := client.GetAppNameFromVolume(ctx, volID)
 		if err != nil {
@@ -60,6 +66,18 @@ func runDestroy(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
+	if volID == "" {
+		app, err := client.GetApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+		volume, err := selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+		volID = volume.ID
+	}
+
 	if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
 		return err
 	} else if !confirm {
@@ -71,7 +89,7 @@ func runDestroy(ctx context.Context) error {
 		return fmt.Errorf("failed destroying volume: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "Destroyed volume %s from %s\n", volID, data.Name)
+	fmt.Fprintf(io.Out, "Destroyed volume ID: %s name: %s\n", volID, data.Name)
 
 	return nil
 }
@@ -103,7 +121,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	var msg = "Deleting a volume is not reversible."
 	if matches <= 2 {
-		msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
+		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
 	}
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 

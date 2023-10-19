@@ -6,7 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -70,11 +72,20 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		},
 	}
 
-	// We found Phoenix, so check if the Docker generator is present
-	cmd := exec.Command("mix", "do", "deps.get,", "compile,", "run", "-e", "\"true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)\"")
+	// We found Phoenix, so check if the project compiles.
+	cmd := exec.Command("mix", "do", "deps.get,", "compile")
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err := cmd.Run()
+	if err != nil {
+		return nil, errors.Wrap(err, "We've identified an Elixir Project but when attempting to compile it we ran into an error. Please check that your Elixir project builds successfully and try again.")
+	}
+
+	// We found Phoenix, so lets check if its a recent version.
+	releaseCmd := exec.Command("mix", "run", "-e", "\"true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)\"")
+	releaseCmd.Stdout = os.Stdout
+	releaseCmd.Stderr = os.Stderr
+	err = releaseCmd.Run()
 	if err == nil {
 		s.DeployDocs = `
 Your Phoenix app should be ready for deployment!.
@@ -86,7 +97,7 @@ When you're ready to deploy, use 'fly deploy'.
 	} else {
 		s.SkipDeploy = true
 		s.DeployDocs = `
-We recommend upgrading to Phoenix 1.6.3 which includes a release configuration for Docker-based deployment.
+We recommend upgrading to Phoenix 1.7.9 which includes a release configuration for Docker-based deployment.
 
 If you do upgrade, you can run 'fly launch' again to get the required deployment setup.
 
@@ -105,7 +116,7 @@ a Postgresql database.
 	return s, nil
 }
 
-func PhoenixCallback(appName string, _ *SourceInfo, options map[string]bool) error {
+func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan) error {
 	envEExPath := "rel/env.sh.eex"
 	envEExContents := `
 # configure node for distributed erlang with IPV6 support

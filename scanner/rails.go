@@ -7,10 +7,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 var healthcheck_channel = make(chan string)
@@ -72,13 +72,41 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
+		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
 	}
 
-	// don't prompt for pg, redis if litestack is in the Gemfile
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
+		// don't prompt for pg, redis if litestack is in the Gemfile
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
+	} else if checksPass(sourceDir, dirContains("Gemfile", "mysql")) {
+		// mysql
+		s.DatabaseDesired = DatabaseKindMySQL
+		s.SkipDatabase = false
+	} else {
+		// postgresql
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
+	}
+
+	// enable redis if there are any action cable / anycable channels
+	redis := false
+	files, err := filepath.Glob("app/channels/*.rb")
+	if err == nil && len(files) > 0 {
+		redis = true
+	}
+
+	// enable redis if redis is used for caching
+	prodEnv, err := os.ReadFile("config/environments/production.rb")
+	if err == nil && strings.Contains(string(prodEnv), "redis") {
+		redis = true
+	}
+
+	if redis {
+		s.RedisDesired = true
+		s.SkipDatabase = false
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
@@ -157,7 +185,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
 	// install dockerfile-rails gem, if not already included
 	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {
@@ -193,59 +221,53 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		}
 	}
 
-	// generate Dockerfile if it doesn't already exist
+	// ensure fly.toml exists.  If present, the rails dockerfile generator will
+	// add volumes, processes, release command and potentailly other configuration.
+	flyToml := "fly.toml"
+	_, err = os.Stat(flyToml)
+	if os.IsNotExist(err) {
+		// "touch" fly.toml
+		file, err := os.Create(flyToml)
+		if err != nil {
+			log.Fatal(err)
+		}
+		file.Close()
+
+		// inform caller of the presence of this file
+		srcInfo.MergeConfig = &MergeConfigStruct{
+			Name:      flyToml,
+			Temporary: true,
+		}
+	}
+
+	// base generate command
+	args := []string{"./bin/rails", "generate", "dockerfile",
+		"--sentry", "--label=fly_launch_runtime:rails"}
+
+	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
-		flyToml := "fly.toml"
-		_, err := os.Stat(flyToml)
-		if os.IsNotExist(err) {
-			// "touch" fly.toml
-			file, err := os.Create(flyToml)
-			if err != nil {
-				log.Fatal(err)
-			}
-			file.Close()
+		args = append(args, "--skip")
+	}
 
-			// inform caller of the presence of this file
-			srcInfo.MergeConfig = &MergeConfigStruct{
-				Name:      flyToml,
-				Temporary: true,
-			}
-		}
+	// add postgres
+	if postgres := plan.Postgres.Provider(); postgres != nil {
+		args = append(args, "--postgresql", "--no-prepare")
+	}
 
-		args := []string{"./bin/rails", "generate", "dockerfile",
-			"--sentry", "--label=fly_launch_runtime:rails"}
+	// add redis
+	if redis := plan.Redis.Provider(); redis != nil {
+		args = append(args, "--redis")
+	}
 
-		if options["postgresql"] {
-			args = append(args, "--postgresql", "--no-prepare")
-		}
+	// run command
+	cmd := exec.Command(ruby, args...)
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-		if options["redis"] {
-			args = append(args, "--redis")
-		}
-
-		cmd := exec.Command(ruby, args...)
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to generate Dockerfile")
-		}
-	} else {
-		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
-			cmd := exec.Command(bundle, "add", "pg")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install pg gem")
-			}
-		}
-
-		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
-			cmd := exec.Command(bundle, "add", "redis")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install redis gem")
-			}
-		}
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "Failed to generate Dockerfile")
 	}
 
 	// read dockerfile
@@ -254,24 +276,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		return errors.Wrap(err, "Dockerfile not found")
 	}
 
-	// extract port
-	port := 3000
-	re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
-	m := re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "port" {
-			port, err = strconv.Atoi(m[i])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	srcInfo.Port = port
-
 	// extract volume - handle both plain string and JSON format, but only allow one path
-	re = regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
-	m = re.FindStringSubmatch(string(dockerfile))
+	re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+	m := re.FindStringSubmatch(string(dockerfile))
 
 	if len(m) > 0 {
 		srcInfo.Volumes = []Volume{

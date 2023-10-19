@@ -3,12 +3,12 @@ package migrate_to_v2
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"golang.org/x/exp/slices"
 )
 
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
@@ -60,35 +60,52 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 		return v
 	}))
 
+	allocMap := lo.KeyBy(m.oldAllocs, func(a *api.AllocationStatus) string {
+		return a.IDShort
+	})
+
 	for _, vol := range m.oldAttachedVolumes {
+		// We have to search for the full alloc ID, because the volume only has the short-form alloc ID
+		path := ""
+		allocId := ""
+		processGroup := ""
+
+		if shortAllocId := vol.AttachedAllocation; shortAllocId != nil {
+			alloc, ok := allocMap[*shortAllocId]
+			if !ok {
+				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *shortAllocId)
+			}
+			allocId = alloc.ID
+			processGroup = alloc.TaskName
+
+			path = m.nomadVolPath(&vol, alloc.TaskName)
+			if path == "" {
+				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, allocId)
+			}
+		}
+
+		// maa is deprecated. see migrate_to_v2/machines.go:createMachines
+		region := vol.Region
+		if region == "maa" {
+			region = "bom"
+		}
+
 		newVol, err := m.flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
-			SourceVolumeID: &vol.ID,
-			MachinesOnly:   api.Pointer(true),
-			Name:           vol.Name,
+			SourceVolumeID:      &vol.ID,
+			MachinesOnly:        api.Pointer(true),
+			Name:                vol.Name,
+			ComputeRequirements: m.machineGuests[processGroup],
+			Region:              region,
 		})
 		if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
 			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
 		} else if err != nil {
 			return err
 		}
-
-		allocId := ""
-		path := ""
-		if allocId := vol.AttachedAllocation; allocId != nil {
-			alloc, ok := lo.Find(m.oldAllocs, func(a *api.AllocationStatus) bool {
-				return a.ID == *allocId
-			})
-			if !ok {
-				return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *allocId)
-			}
-			path = m.nomadVolPath(&vol, alloc.TaskName)
-			if path == "" {
-				return fmt.Errorf("volume %s[%s] is mounted on alloc %s, but has no mountpoint", vol.Name, vol.ID, *allocId)
-			}
-		}
 		if m.verbose {
 			fmt.Fprintf(m.io.Out, "Forked volume %s[%s] into %s[%s]\n", vol.Name, vol.ID, newVol.Name, newVol.ID)
 		}
+
 		m.createdVolumes = append(m.createdVolumes, &NewVolume{
 			vol:             newVol,
 			previousAllocId: allocId,
@@ -113,14 +130,22 @@ func (m *v2PlatformMigrator) nomadVolPath(v *api.Volume, group string) string {
 
 // Must run *after* allocs are filtered
 func (m *v2PlatformMigrator) resolveOldVolumes(ctx context.Context) error {
-	vols, err := m.flapsClient.GetAllVolumes(ctx)
+	vols, err := m.flapsClient.GetVolumes(ctx)
 	if err != nil {
 		return err
+	}
+	// GetVolumes doesn't return attached allocations or machines.
+	for i := range vols {
+		fullVol, err := m.flapsClient.GetVolume(ctx, vols[i].ID)
+		if err != nil {
+			return err
+		}
+		vols[i] = *fullVol
 	}
 	m.oldAttachedVolumes = lo.Filter(vols, func(v api.Volume, _ int) bool {
 		if v.AttachedAllocation != nil {
 			for _, a := range m.oldAllocs {
-				if a.ID == *v.AttachedAllocation {
+				if a.IDShort == *v.AttachedAllocation {
 					return true
 				}
 			}

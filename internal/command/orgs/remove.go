@@ -33,7 +33,7 @@ invitation to join (if not, see orgs revoke).
 
 func runRemove(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
-	selectedOrg, err := OrgFromFirstArgOrSelect(ctx, api.AdminOnly)
+	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
 		return nil
 	}

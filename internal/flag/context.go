@@ -2,12 +2,13 @@ package flag
 
 import (
 	"context"
+	"slices"
 	"time"
 
 	"github.com/spf13/pflag"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"golang.org/x/exp/slices"
 )
 
 // NewContext derives a context that carries fs from ctx.
@@ -61,7 +62,7 @@ func GetInt(ctx context.Context, name string) int {
 }
 
 // GetFloat64 returns the value of the named int flag ctx carries. It panics
-// in case ctx carries no flags or in case the named flag isn't an int one.
+// in case ctx carries no flags or in case the named flag isn't a float64 one.
 func GetFloat64(ctx context.Context, name string) float64 {
 	if v, err := FromContext(ctx).GetFloat64(name); err != nil {
 		panic(err)
@@ -118,7 +119,11 @@ func IsSpecified(ctx context.Context, name string) bool {
 
 // GetOrg is shorthand for GetString(ctx, Org).
 func GetOrg(ctx context.Context) string {
-	return GetString(ctx, flagnames.Org)
+	org := GetString(ctx, flagnames.Org)
+	if org == "" {
+		org = env.First("FLY_ORG")
+	}
+	return org
 }
 
 // GetRegion is shorthand for GetString(ctx, Region).
@@ -165,4 +170,8 @@ func GetFlagsName(ctx context.Context, ignoreFlags []string) []string {
 	})
 
 	return flagsName
+}
+
+func GetProcessGroup(ctx context.Context) string {
+	return GetString(ctx, flagnames.ProcessGroup)
 }

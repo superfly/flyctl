@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 func newClone() *cobra.Command {
@@ -28,7 +28,7 @@ func newClone() *cobra.Command {
 		short = "Clone a Fly machine"
 		long  = short + "\n"
 
-		usage = "clone <machine_id>"
+		usage = "clone [machine_id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineClone,
@@ -152,7 +152,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			targetConfig.Metadata = make(map[string]string)
 		}
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
-		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
+		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 
 		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
 		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
@@ -245,12 +245,13 @@ func runMachineClone(ctx context.Context) (err error) {
 			}
 
 			volInput := api.CreateVolumeRequest{
-				Name:              mnt.Name,
-				Region:            region,
-				SizeGb:            &mnt.SizeGb,
-				Encrypted:         &mnt.Encrypted,
-				SnapshotID:        snapshotID,
-				RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
+				Name:                mnt.Name,
+				Region:              region,
+				SizeGb:              &mnt.SizeGb,
+				Encrypted:           &mnt.Encrypted,
+				SnapshotID:          snapshotID,
+				RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
+				ComputeRequirements: targetConfig.Guest,
 			}
 			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {

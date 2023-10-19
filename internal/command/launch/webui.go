@@ -12,7 +12,6 @@ import (
 
 	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
-	"github.com/google/go-querystring/query"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
@@ -24,33 +23,27 @@ import (
 // EditInWebUi launches a web-based editor for the app plan
 func (state *launchState) EditInWebUi(ctx context.Context) error {
 
-	session, err := api.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.plan.AppName), map[string]any{
-		"target": "launch",
+	session, err := api.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.Plan.AppName), map[string]any{
+		"target":   "launch",
+		"metadata": state.Plan,
 	})
 	if err != nil {
 		return err
 	}
 
-	sessionURL := session.URL
-
-	qsVals, err := query.Values(state.plan)
-	if err != nil {
-		return fmt.Errorf("error making query string for launch plan: %w", err)
-	}
-	sessionURL += fmt.Sprintf("?%s", qsVals.Encode())
-
 	io := iostreams.FromContext(ctx)
-	if err := open.Run(sessionURL); err != nil {
+	if err := open.Run(session.URL); err != nil {
 		fmt.Fprintf(io.ErrOut,
 			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			sessionURL,
+			session.URL,
 		)
+	} else {
+
+		colorize := io.ColorScheme()
+		fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(session.URL))
 	}
 
 	logger := logger.FromContext(ctx)
-
-	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(sessionURL))
 
 	finalSession, err := waitForCLISession(ctx, logger, io.ErrOut, session.ID)
 	switch {
@@ -60,23 +53,26 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 		return err
 	}
 
-	oldPlan := helpers.Clone(state.plan)
+	oldPlan := helpers.Clone(state.Plan)
 
+	// TODO(Ali): Remove me.
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
 	if err := patchNumbers(finalSession.Metadata, "vm_cpus", "vm_memory"); err != nil {
 		return err
 	}
 
+	// Wasteful, but gets the job done without uprooting the session types.
+	// Just round-trip the map[string]interface{} back into json, so we can re-deserialize it into a complete type.
 	metaJson, err := json.Marshal(finalSession.Metadata)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(metaJson, &state.plan)
+	err = json.Unmarshal(metaJson, &state.Plan)
 	if err != nil {
 		return err
 	}
 
-	state.plan.ScannerFamily = oldPlan.ScannerFamily
+	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	return nil
 }

@@ -18,7 +18,7 @@ func newRestart() *cobra.Command {
 		short = "Restart one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "restart <id> [<id>...]"
+		usage = "restart [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineRestart,

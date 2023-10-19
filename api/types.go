@@ -215,6 +215,8 @@ type Query struct {
 	UpdateRemoteBuilder struct {
 		Organization Organization
 	}
+
+	CanPerformBluegreenDeployment bool
 }
 
 type CreatedWireGuardPeer struct {
@@ -598,9 +600,10 @@ type IPAddress struct {
 }
 
 type User struct {
-	ID    string
-	Name  string
-	Email string
+	ID              string
+	Name            string
+	Email           string
+	EnablePaidHobby bool
 }
 
 type Secret struct {

@@ -14,6 +14,9 @@ build: generate
 test: FORCE
 	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
 
+test-api: FORCE
+	cd ./api && go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
+
 raw-preflight-test:
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
 	go test ./test/preflight --tags=integration -v -timeout 10m --run="$(T)"

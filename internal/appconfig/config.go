@@ -8,11 +8,11 @@ import (
 	"net/url"
 	"os"
 	"reflect"
+	"slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/scanner"
-	"golang.org/x/exp/slices"
 )
 
 const (
@@ -33,6 +33,11 @@ func NewConfig() *Config {
 	}
 }
 
+type Metrics struct {
+	*api.MachineMetrics
+	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+
 // Config wraps the properties of app configuration.
 // NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
 type Config struct {
@@ -46,23 +51,23 @@ type Config struct {
 	// Sections that are typically short and benefit from being on top
 	Experimental *Experimental     `toml:"experimental,omitempty" json:"experimental,omitempty"`
 	Build        *Build            `toml:"build,omitempty" json:"build,omitempty"`
-	Deploy       *Deploy           `toml:"deploy, omitempty" json:"deploy,omitempty"`
+	Deploy       *Deploy           `toml:"deploy,omitempty" json:"deploy,omitempty"`
 	Env          map[string]string `toml:"env,omitempty" json:"env,omitempty"`
 
 	// Fields that are process group aware must come after Processes
-	Processes   map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
-	Mounts      []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
-	HTTPService *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
-	Services    []Service                 `toml:"services,omitempty" json:"services,omitempty"`
-	Checks      map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
-	Files       []File                    `toml:"files,omitempty" json:"files,omitempty"`
-
+	Processes        map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
+	Mounts           []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
+	HTTPService      *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
+	Services         []Service                 `toml:"services,omitempty" json:"services,omitempty"`
+	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
+	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
+	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 	// MergedFiles is a list of files that have been merged from the app config and flags.
 	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Others, less important.
-	Statics []Static            `toml:"statics,omitempty" json:"statics,omitempty"`
-	Metrics *api.MachineMetrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
+	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`
+	Metrics []*Metrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	// RawDefinition contains fly.toml parsed as-is
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
@@ -83,8 +88,9 @@ type Config struct {
 }
 
 type Deploy struct {
-	ReleaseCommand string `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	Strategy       string `toml:"strategy,omitempty" json:"strategy,omitempty"`
+	ReleaseCommand string   `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	Strategy       string   `toml:"strategy,omitempty" json:"strategy,omitempty"`
+	MaxUnavailable *float64 `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 }
 
 type File struct {

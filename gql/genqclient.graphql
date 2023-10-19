@@ -4,7 +4,6 @@ query GetAddOn($name: String) {
 		publicUrl
 		privateIp
 		password
-		token
 		status
 		primaryRegion
 		readRegions
@@ -38,7 +37,6 @@ mutation CreateAddOn($input: CreateAddOnInput!) {
 			name
 			publicUrl
 			ssoLink
-			token
 			environment
 			primaryRegion
 		}
@@ -90,10 +88,7 @@ query AgreedToProviderTos($addOnProviderName: String!, $organizationId: ID!) {
 
 query GetOrganization($slug: String!) {
 	organization(slug: $slug) {
-		id
-		name
-		slug
-		addOnSsoLink
+		...OrganizationData
 	}
 }
 
@@ -122,17 +117,22 @@ query GetAppsByRole($role: String!, $organizationId: ID!) {
 	}
 }
 
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
+}
+
 fragment AppData on App {
 	id
 	name
 	deployed
 	platformVersion
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		...OrganizationData
 	}
 }
 

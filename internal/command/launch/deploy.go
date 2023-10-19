@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
@@ -17,7 +18,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 
-	ctx = appconfig.WithName(ctx, state.plan.AppName)
+	ctx = appconfig.WithName(ctx, state.Plan.AppName)
 	ctx = appconfig.WithConfig(ctx, state.appConfig)
 
 	// Notices from a launcher about its behavior that should always be displayed
@@ -75,7 +76,14 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"), state.plan.Guest())
+		// We want to allow overriding HA, but otherwise we want to inherit HA from the plan.
+		if !flag.IsSpecified(ctx, "ha") {
+			// TODO(Ali): This is a hack to get launch v2 shipping. We probably want to pipe the HA flag through deploy properly.
+			if err := flag.SetString(ctx, "ha", lo.Ternary(state.Plan.HighAvailability, "true", "false")); err != nil {
+				return err
+			}
+		}
+		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"), state.Plan.Guest())
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct

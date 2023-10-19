@@ -58,31 +58,51 @@ func newHttpClient(dialer agent.Dialer) *http.Client {
 	return &http.Client{Transport: logging}
 }
 
-func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
+func (c *Client) doRequest(ctx context.Context, method, path string, in interface{}) (io.ReadCloser, error) {
 	req, err := c.NewRequest(path, method, in)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	req = req.WithContext(ctx)
 
 	res, err := c.httpClient.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode > 299 {
-		return newError(res.StatusCode, res)
+		return nil, newError(res.StatusCode, res)
 	}
 
-	if out != nil {
-		if err := json.NewDecoder(res.Body).Decode(out); err != nil {
-			return err
-		}
+	return res.Body, nil
+}
+
+func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
+
+	body, err := c.doRequest(ctx, method, path, in)
+
+	if err != nil {
+		return err
+	}
+	if out == nil {
+		return nil
 	}
 
-	return nil
+	return json.NewDecoder(body).Decode(out)
+}
+
+func (c *Client) DoPlaintext(ctx context.Context, method, path string, in interface{}) (string, error) {
+	body, err := c.doRequest(ctx, method, path, in)
+	if err != nil {
+		return "", err
+	}
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
 }
 
 func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {

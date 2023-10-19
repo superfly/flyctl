@@ -6,6 +6,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -33,11 +34,13 @@ func (state *launchState) Launch(ctx context.Context) error {
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
 		return err
 	}
-	dbOptions, err := state.createDatabases(ctx)
+	// TODO: Return rich info about provisioned DBs, including things
+	//       like public URLs.
+	err = state.createDatabases(ctx)
 	if err != nil {
 		return err
 	}
-	if err = state.satisfyScannerAfterDb(ctx, dbOptions); err != nil {
+	if err = state.satisfyScannerAfterDb(ctx); err != nil {
 		return err
 	}
 	if err = state.createDockerIgnore(ctx); err != nil {
@@ -66,10 +69,22 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
-	state.appConfig.AppName = state.plan.AppName
-	state.appConfig.PrimaryRegion = state.plan.RegionCode
+	state.appConfig.AppName = state.Plan.AppName
+	state.appConfig.PrimaryRegion = state.Plan.RegionCode
 	if state.env != nil {
 		state.appConfig.SetEnvVariables(state.env)
+	}
+	if state.Plan.HttpServicePort != 0 {
+		state.appConfig.HTTPService = &appconfig.HTTPService{
+			InternalPort:       state.Plan.HttpServicePort,
+			ForceHTTPS:         true,
+			AutoStartMachines:  api.Pointer(true),
+			AutoStopMachines:   api.Pointer(true),
+			MinMachinesRunning: api.Pointer(1),
+			Processes:          []string{"app"},
+		}
+	} else {
+		state.appConfig.HTTPService = nil
 	}
 }
 
@@ -82,18 +97,8 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 	}
 	return apiClient.CreateApp(ctx, api.CreateAppInput{
 		OrganizationID:  org.ID,
-		Name:            state.plan.AppName,
-		PreferredRegion: &state.plan.RegionCode,
+		Name:            state.Plan.AppName,
+		PreferredRegion: &state.Plan.RegionCode,
 		Machines:        true,
 	})
-}
-
-// createDatabases creates databases requested by the plan
-func (state *launchState) createDatabases(ctx context.Context) (map[string]bool, error) {
-	options := map[string]bool{}
-
-	// TODO: Create databases requested by the plan
-	// Base this on v1's createDatabases()
-
-	return options, nil
 }

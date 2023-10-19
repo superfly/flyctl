@@ -10,12 +10,14 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/jpillora/backoff"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/watch"
+	"github.com/superfly/flyctl/terminal"
 )
 
 func (m *v2PlatformMigrator) updateNomadPostgresImage(ctx context.Context) error {
@@ -97,13 +99,24 @@ func (m *v2PlatformMigrator) migratePgVolumes(ctx context.Context) error {
 				Encrypted:    api.Pointer(vol.Encrypted),
 				MachinesOnly: api.Pointer(true),
 			}
+			// We have to search for the full alloc ID, because the volume only has the short-form alloc ID
+			var allocId string
+			if shortAllocId := vol.AttachedAllocation; shortAllocId != nil {
+				alloc, ok := lo.Find(m.oldAllocs, func(a *api.AllocationStatus) bool {
+					return a.IDShort == *shortAllocId
+				})
+				if !ok {
+					return fmt.Errorf("volume %s[%s] is attached to alloc %s, but that alloc is not running", vol.Name, vol.ID, *shortAllocId)
+				}
+				allocId = alloc.ID
+			}
 			newVol, err := m.flapsClient.CreateVolume(ctx, input)
 			if err != nil {
 				return err
 			}
 			newVols = append(newVols, &NewVolume{
 				vol:             newVol,
-				previousAllocId: *vol.AttachedAllocation,
+				previousAllocId: allocId,
 				mountPoint:      "/data",
 			})
 		}
@@ -142,7 +155,7 @@ func leaderIpFromInstances(ctx context.Context, addrs []string) (string, error) 
 		if err != nil {
 			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
 		}
-
+		terminal.Debugf("role for %s: %s\n", addr, role)
 		if role == "leader" || role == "primary" {
 			return addr, nil
 		}

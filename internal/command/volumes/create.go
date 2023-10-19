@@ -22,11 +22,11 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		long = `Create new volume for app. --region flag must be included to specify
-region the volume exists in. --size flag is optional, defaults to 3,
-sets the size as the number of gigabytes the volume will consume.`
+		short = "Create a new volume for an app."
 
-		short = "Create new volume for app"
+		long = short + ` Volumes are persistent storage for
+		Fly Machines. The default size is 3 GB. Learn how to add a volume to
+		your app: https://fly.io/docs/apps/volume-storage/`
 
 		usage = "create <volumename>"
 	)
@@ -46,23 +46,30 @@ sets the size as the number of gigabytes the volume will consume.`
 			Name:        "size",
 			Shorthand:   "s",
 			Default:     3,
-			Description: "Size of volume in gigabytes",
+			Description: "The size of volume in gigabytes. The default is 3.",
 		},
 		flag.Bool{
 			Name:        "no-encryption",
-			Description: "Do not encrypt the volume contents",
+			Description: "Do not encrypt the volume contents. Volume contents are encrypted by default.",
 			Default:     false,
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
-			Description: "Require volume to be placed in separate hardware zone from existing volumes",
+			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 			Default:     true,
 		},
 		flag.String{
 			Name:        "snapshot-id",
-			Description: "Create volume from a specified snapshot",
+			Description: "Create the volume from the specified snapshot",
 		},
 		flag.Yes(),
+		flag.Int{
+			Name:        "count",
+			Shorthand:   "n",
+			Default:     1,
+			Description: "The number of volumes to create",
+		},
+		flag.VMSizeFlags,
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -76,6 +83,7 @@ func runCreate(ctx context.Context) error {
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
+		count      = flag.GetInt(ctx, "count")
 	)
 
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
@@ -115,31 +123,41 @@ func runCreate(ctx context.Context) error {
 		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
-	input := api.CreateVolumeRequest{
-		Name:              volumeName,
-		Region:            region.Code,
-		SizeGb:            api.Pointer(flag.GetInt(ctx, "size")),
-		Encrypted:         api.Pointer(!flag.GetBool(ctx, "no-encryption")),
-		RequireUniqueZone: api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
-		SnapshotID:        snapshotID,
-	}
-
-	volume, err := flapsClient.CreateVolume(ctx, input)
+	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("failed creating volume: %w", err)
+		return err
 	}
 
+	input := api.CreateVolumeRequest{
+		Name:                volumeName,
+		Region:              region.Code,
+		SizeGb:              api.Pointer(flag.GetInt(ctx, "size")),
+		Encrypted:           api.Pointer(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		SnapshotID:          snapshotID,
+		ComputeRequirements: computeRequirements,
+	}
 	out := iostreams.FromContext(ctx).Out
+	for i := 0; i < count; i++ {
+		volume, err := flapsClient.CreateVolume(ctx, input)
+		if err != nil {
+			return fmt.Errorf("failed creating volume: %w", err)
+		}
 
-	if cfg.JSONOutput {
-		return render.JSON(out, volume)
+		if cfg.JSONOutput {
+			err = render.JSON(out, volume)
+		} else {
+			err = printVolume(out, volume, appName)
+		}
+		if err != nil {
+			return err
+		}
 	}
-
-	return printVolume(out, volume, appName)
+	return nil
 }
 
 func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
-	var volumeName = flag.FirstArg(ctx)
+	volumeName := flag.FirstArg(ctx)
 
 	// If the Yes flag has been supplied we skip the warning entirely, so no
 	// need to query for the set of volumes
@@ -147,7 +165,11 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 		return true, nil
 	}
 
-	// If we have more than 0 volues with this name already, return early
+	if flag.GetInt(ctx, "count") > 1 {
+		return true, nil
+	}
+
+	// If we have more than 0 volumes with this name already, return early
 	if matches, err := countVolumesMatchingName(ctx, volumeName); err != nil {
 		return false, err
 	} else if matches > 0 {
@@ -157,7 +179,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. You will have downtime if you only create one. Learn more at https://fly.io/docs/reference/volumes/"
+	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/reference/volumes/"
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {

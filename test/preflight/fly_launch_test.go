@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,8 +29,6 @@ import (
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 // - As we are reusing an existing app, the --org param is not needed after the first call
 func TestFlyLaunchV2(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -72,8 +69,6 @@ func TestFlyLaunchV2(t *testing.T) {
 
 // Same as case01 but for Nomad apps
 func TestFlyLaunchV1(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -129,8 +124,6 @@ func TestFlyLaunchV1(t *testing.T) {
 
 // Run fly launch from a template Fly App directory (fly.toml without app name)
 func TestFlyLaunchWithTOML(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -167,8 +160,6 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 
 // Trying to import an invalid fly.toml should fail before creating the app
 func TestFlyLaunchWithInvalidTOML(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -181,26 +172,22 @@ app = "foo"
 	`)
 
 	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `Can not use configuration for Apps V2, check fly.toml`)
+	require.Contains(f, x.StdErrString(), `Can not use configuration for Apps V2, check fly.toml`)
 }
 
 // Fail if the existing app doesn't match the forced platform version
 // V2 app forced as V1
 func TestFlyLaunchForceV1(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 
 	appName := f.CreateRandomAppName()
 	f.Fly("apps create %s --machines -o %s", appName, f.OrgSlug())
 	x := f.FlyAllowExitFailure("launch --no-deploy --reuse-app --name %s --region %s --force-nomad", appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `--force-nomad won't work for existing app in machines platform`)
+	require.Contains(f, x.StdErrString(), `--force-nomad won't work for existing app in machines platform`)
 }
 
 // test --generate-name, --name and reuse imported name
 func TestFlyLaunchReuseName(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// V2 app forced as V1
@@ -232,8 +219,6 @@ primary_region = "%s"
 
 // test volumes are created on first launch
 func TestFlyLaunchWithVolumes(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -262,8 +247,6 @@ func TestFlyLaunchWithVolumes(t *testing.T) {
 
 // test --vm-size sets the machine guest on first deploy
 func TestFlyLaunchWithSize(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -279,8 +262,6 @@ func TestFlyLaunchWithSize(t *testing.T) {
 
 // test default HA setup
 func TestFlyLaunchHA(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -306,14 +287,14 @@ func TestFlyLaunchHA(t *testing.T) {
 `)
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(500 * time.Millisecond)
-	ml := f.MachinesList(appName)
-	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 3 * time.Second}
-	for i := 0; len(ml) < 5 || i < 5; i++ {
-		time.Sleep(b.Duration())
+
+	var ml []*api.Machine
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml = f.MachinesList(appName)
-	}
-	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
+		assert.Equal(c, 5, len(ml), "want 5 machines, which includes two standbys")
+	}, 10*time.Second, 1*time.Second)
+
 	groups := lo.GroupBy(ml, func(m *api.Machine) string {
 		return m.ProcessGroup()
 	})
@@ -337,9 +318,7 @@ func TestFlyLaunchHA(t *testing.T) {
 }
 
 // test first deploy with single mount for multiple processes
-func TestFlyLaunchSigleMount(t *testing.T) {
-	t.Parallel()
-
+func TestFlyLaunchSingleMount(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -358,10 +337,15 @@ func TestFlyLaunchSigleMount(t *testing.T) {
 `)
 
 	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
-	ml := f.MachinesList(appName)
-	require.Equal(f, 2, len(ml))
-	vl := f.VolumeList(appName)
-	require.Equal(f, 2, len(vl))
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 2, len(ml))
+	}, 15*time.Second, 1*time.Second, "want 2 machines, one for each process")
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		vl := f.VolumeList(appName)
+		assert.Equal(c, 2, len(vl))
+	}, 15*time.Second, 1*time.Second, "want 2 volumes, one for each process")
 }
 
 func TestFlyLaunchWithBuildSecrets(t *testing.T) {
@@ -375,13 +359,14 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 `)
 
 	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
-	ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
-	assert.Equal(f, "SECRET1", ssh.StdOut().String())
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
+		assert.Equal(c, "SECRET1", ssh.StdOut().String())
+	}, 10*time.Second, 1*time.Second)
 }
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
@@ -403,6 +388,5 @@ func TestFlyLaunchBasicNodeApp(t *testing.T) {
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
-
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }

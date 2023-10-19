@@ -189,10 +189,12 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		defaultGroupName: "app",
 		AppName:          "foo",
 		KillTimeout:      api.MustParseDuration("3s"),
-		Metrics: &api.MachineMetrics{
-			Path: "/foo",
-			Port: 9000,
-		},
+		Metrics: []*Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Path: "/foo",
+				Port: 9000,
+			},
+		}},
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
@@ -266,6 +268,12 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			Source:      "data",
 			Destination: "/data",
 		}},
+		Metrics: []*Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Port: 9999,
+				Path: "/metrics",
+			},
+		}},
 		Services: []Service{
 			{
 				InternalPort: 8080,
@@ -323,6 +331,10 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			"mount": map[string]any{
 				"source":      "data",
 				"destination": "/data",
+			},
+			"metrics": map[string]any{
+				"port": int64(9999),
+				"path": "/metrics",
 			},
 			"processes": []map[string]any{{}},
 			"services": []map[string]any{{
@@ -427,6 +439,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		SwapSizeMB:       api.Pointer(512),
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
+		HostDedicationID: "06031957",
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},
@@ -458,20 +471,35 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Deploy: &Deploy{
 			ReleaseCommand: "release command",
 			Strategy:       "rolling-eyes",
+			MaxUnavailable: api.Pointer(0.2),
 		},
 
 		Env: map[string]string{
 			"FOO": "BAR",
 		},
 
-		Metrics: &api.MachineMetrics{
-			Port: 9999,
-			Path: "/metrics",
+		Metrics: []*Metrics{
+			{
+				MachineMetrics: &api.MachineMetrics{
+					Port: 9999,
+					Path: "/metrics",
+				},
+			},
+			{
+				MachineMetrics: &api.MachineMetrics{
+					Port: 9998,
+					Path: "/metrics",
+				},
+				Processes: []string{"web"},
+			},
 		},
 
 		HTTPService: &HTTPService{
-			InternalPort: 8080,
-			ForceHTTPS:   true,
+			InternalPort:       8080,
+			ForceHTTPS:         true,
+			AutoStartMachines:  api.Pointer(false),
+			AutoStopMachines:   api.Pointer(false),
+			MinMachinesRunning: api.Pointer(0),
 			Concurrency: &api.MachineServiceConcurrency{
 				Type:      "donuts",
 				HardLimit: 10,
@@ -563,9 +591,12 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Services: []Service{
 			{
-				InternalPort: 8081,
-				Protocol:     "tcp",
-				Processes:    []string{"app"},
+				InternalPort:       8081,
+				Protocol:           "tcp",
+				Processes:          []string{"app"},
+				AutoStartMachines:  api.Pointer(false),
+				AutoStopMachines:   api.Pointer(false),
+				MinMachinesRunning: api.Pointer(1),
 
 				Concurrency: &api.MachineServiceConcurrency{
 					Type:      "requests",

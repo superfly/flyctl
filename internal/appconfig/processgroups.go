@@ -2,13 +2,13 @@ package appconfig
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
-	"golang.org/x/exp/slices"
 )
 
 // ProcessNames lists each key of c.Processes, sorted lexicographically
@@ -81,7 +81,7 @@ func (c *Config) DefaultProcessName() string {
 
 // Flatten generates a machine config specific to a process_group.
 //
-// Only services, mounts, checks & files specific to the provided progress group will be in the returned config.
+// Only services, mounts, checks, metrics & files specific to the provided progress group will be in the returned config.
 func (c *Config) Flatten(groupName string) (*Config, error) {
 	if err := c.SetMachinesPlatform(); err != nil {
 		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
@@ -151,6 +151,11 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[Files]]
 	dst.Files = lo.Filter(c.Files, func(x File, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+
+	// [[metrics]]
+	dst.Metrics = lo.Filter(c.Metrics, func(x *Metrics, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
 

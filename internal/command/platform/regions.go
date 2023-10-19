@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/iostreams"
 
@@ -15,6 +16,10 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 )
+
+// Hardcoded list of regions with GPUs
+// TODO: fetch this list from the graphql endpoint once it is there
+var gpuRegions = []string{"iad", "sjc", "syd", "ams"}
 
 func newRegions() (cmd *cobra.Command) {
 	const (
@@ -58,13 +63,19 @@ func runRegions(ctx context.Context) error {
 		if region.RequiresPaidPlan {
 			paidPlan = "✓"
 		}
+		gpuAvailable := ""
+		if slices.Contains(gpuRegions, region.Code) {
+			gpuAvailable = "✓"
+		}
+
 		rows = append(rows, []string{
 			region.Name,
 			region.Code,
 			gateway,
 			paidPlan,
+			gpuAvailable,
 		})
 	}
 
-	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Paid Plan Only")
+	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Paid-Only", "GPUs")
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/logrusorgru/aurora"
@@ -15,13 +16,14 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/set"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
-	"golang.org/x/exp/slices"
 )
 
 func Run(ctx context.Context) (err error) {
@@ -210,8 +212,9 @@ func Run(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+	plan := buildPlanFromLegacyOptions(appConfig, region, org, srcInfo, options)
 	// Invoke Callback, if any
-	if err := runCallback(ctx, appConfig.AppName, srcInfo, options); err != nil {
+	if err := runCallback(ctx, appConfig.AppName, srcInfo, plan); err != nil {
 		return err
 	}
 	// Run any initialization commands
@@ -386,7 +389,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
-			case prompt.IsNonInteractive(err) && !flag.GetBool(ctx, "auto-confirm"):
+			case prompt.IsNonInteractive(err) && !flag.GetYes(ctx):
 				return nil, false, err
 			case err != nil:
 				return nil, false, err
@@ -399,6 +402,42 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	}
 
 	return appconfig.NewConfig(), false, nil
+}
+
+func buildPlanFromLegacyOptions(
+	appConfig *appconfig.Config,
+	region *api.Region,
+	org *api.Organization,
+	sourceInfo *scanner.SourceInfo,
+	options set.Set[string],
+) *plan.LaunchPlan {
+
+	// Sensible default, but not necessarily what's about to be launched.
+	// Should work fine though, at least until we (hopefully soon) rip this legacy code out.
+	guest := api.MachinePresets["shared-cpu-1x"]
+
+	launchPlan := &plan.LaunchPlan{
+		AppName:    appConfig.AppName,
+		RegionCode: region.Code,
+		OrgSlug:    org.Slug,
+		CPUKind:    guest.CPUKind,
+		CPUs:       guest.CPUs,
+		MemoryMB:   guest.MemoryMB,
+		VmSize:     guest.ToSize(),
+	}
+	if sourceInfo != nil {
+		launchPlan.ScannerFamily = sourceInfo.Family
+	}
+
+	if options.Has("postgres") {
+		launchPlan.Postgres = plan.DefaultPostgres(launchPlan)
+	}
+
+	if options.Has("redis") {
+		launchPlan.Redis = plan.DefaultRedis(launchPlan)
+	}
+
+	return launchPlan
 }
 
 func determineAppName(ctx context.Context, appConfig *appconfig.Config) (string, error) {

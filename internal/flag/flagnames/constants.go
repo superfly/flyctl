@@ -48,4 +48,7 @@ const (
 
 	// BindAddr denotes the name of the local bind address flag.
 	BindAddr = "bind-addr"
+
+	// ProcessGroup denotes the name of the process group flag.
+	ProcessGroup = "group"
 )

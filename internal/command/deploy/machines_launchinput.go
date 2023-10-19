@@ -47,6 +47,10 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		mConfig.Standbys = standbyFor
 	}
 
+	if hdid := md.appConfig.HostDedicationID; hdid != "" {
+		mConfig.Guest.HostDedicationID = hdid
+	}
+
 	return &api.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
@@ -56,7 +60,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 
 func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
-	machineShouldBeReplaced := false
+	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
@@ -128,6 +132,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mConfig.Standbys = nil
 	}
 
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != mConfig.Guest.HostDedicationID {
+		mConfig.Guest.HostDedicationID = md.appConfig.HostDedicationID
+		machineShouldBeReplaced = true
+	}
+
 	return &api.LaunchMachineInput{
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
@@ -141,7 +150,7 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
 		api.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
 		api.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
-		api.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.Version().String(),
 	})
 
 	// These defaults should come from appConfig.ToMachineConfig() and set on launch;

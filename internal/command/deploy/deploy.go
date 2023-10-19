@@ -10,7 +10,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -51,19 +51,12 @@ var CommonFlags = flag.Set{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
 	},
-	flag.Bool{
-		Name:        "no-extensions",
-		Description: "Do not provision Sentry nor other auto-provisioned extensions",
-	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
-	flag.Bool{
-		Name:        "auto-confirm",
-		Description: "Will automatically confirm changes when running non-interactively.",
-	},
+	flag.Yes(),
 	flag.Int{
 		Name:        "wait-timeout",
 		Description: "Seconds to wait for individual machines to transition states and become healthy.",
@@ -91,11 +84,6 @@ var CommonFlags = flag.Set{
 		Default:     false,
 		Hidden:      true,
 	},
-	flag.String{
-		Name:        "vm-size",
-		Description: `The VM size to use when deploying for the first time. See "fly platform vm-sizes" for valid values`,
-		Aliases:     []string{"size"},
-	},
 	flag.Bool{
 		Name:        "ha",
 		Description: "Create spare machines that increases app availability",
@@ -109,25 +97,11 @@ var CommonFlags = flag.Set{
 	flag.Float64{
 		Name:        "max-unavailable",
 		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
-		Default:     0.33,
+		Default:     DefaultMaxUnavailable,
 	},
 	flag.Bool{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
-	},
-	flag.Int{
-		Name:        "vm-cpus",
-		Description: "Number of CPUs",
-		Aliases:     []string{"cpus"},
-	},
-	flag.String{
-		Name:        "vm-cpukind",
-		Description: "The kind of CPU to use ('shared' or 'performance')",
-	},
-	flag.Int{
-		Name:        "vm-memory",
-		Description: "Memory (in megabytes) to attribute to the VM",
-		Aliases:     []string{"memory"},
 	},
 	flag.StringArray{
 		Name:        "file-local",
@@ -149,6 +123,21 @@ var CommonFlags = flag.Set{
 		Name:        "only-regions",
 		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
+	flag.StringArray{
+		Name:        "label",
+		Description: "Add custom metadata to an image via docker labels",
+	},
+	flag.Int{
+		Name:        "immediate-max-concurrent",
+		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
+		Default:     16,
+	},
+	flag.Int{
+		Name:        "volume-initial-size",
+		Description: "The initial size in GB for volumes created on first deploy",
+		Default:     1,
+	},
+	flag.VMSizeFlags,
 }
 
 func New() (cmd *cobra.Command) {
@@ -199,7 +188,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "auto-confirm"), nil)
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
@@ -273,29 +262,6 @@ func determineRelCmdTimeout(timeout string) (time.Duration, error) {
 	return time.Duration(asInt) * time.Second, nil
 }
 
-// ApplyFlagsToGuest applies CLI flags to a Guest
-// Returns true if any flags were applied
-func ApplyFlagsToGuest(ctx context.Context, guest *api.MachineGuest) bool {
-	modified := false
-	if flag.IsSpecified(ctx, "vm-size") {
-		guest.SetSize(flag.GetString(ctx, "vm-size"))
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-cpus") {
-		guest.CPUs = flag.GetInt(ctx, "vm-cpus")
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-memory") {
-		guest.MemoryMB = flag.GetInt(ctx, "vm-memory")
-		modified = true
-	}
-	if flag.IsSpecified(ctx, "vm-cpukind") {
-		guest.CPUKind = flag.GetString(ctx, "vm-cpukind")
-		modified = true
-	}
-	return modified
-}
-
 // in a rare twist, the guest param takes precedence over CLI flags!
 func deployToMachines(
 	ctx context.Context,
@@ -317,15 +283,16 @@ func deployToMachines(
 		return err
 	}
 
-	files, err := machine.FilesFromCommand(ctx)
+	files, err := command.FilesFromCommand(ctx)
 	if err != nil {
 		return err
 	}
 
 	if guest == nil {
-		guest = &api.MachineGuest{}
-		guest.SetSize(DefaultVMSize)
-		_ = ApplyFlagsToGuest(ctx, guest)
+		guest, err = flag.GetMachineGuest(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	excludeRegions := make(map[string]interface{})
@@ -343,26 +310,39 @@ func deployToMachines(
 		}
 	}
 
+	// We default the flag to 0.33 so that --help can show the actual default value,
+	// but internally we want to differentiate between the flag being specified and not.
+	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
+	var maxUnavailable *float64 = nil
+	if flag.IsSpecified(ctx, "max-unavailable") {
+		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		// Validation to ensure that 0.0 is *purely* the "unspecified" value
+		if *maxUnavailable <= 0 {
+			return fmt.Errorf("the value for --max-unavailable must be > 0")
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:            appCompact,
-		DeploymentImage:       img.Tag,
-		Strategy:              flag.GetString(ctx, "strategy"),
-		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     appConfig.PrimaryRegion,
-		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
-		SkipHealthChecks:      flag.GetDetach(ctx),
-		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:        flag.GetFloat64(ctx, "max-unavailable"),
-		ReleaseCmdTimeout:     releaseCmdTimeout,
-		Guest:                 guest,
-		IncreasedAvailability: flag.GetBool(ctx, "ha"),
-		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
-		UpdateOnly:            flag.GetBool(ctx, "update-only"),
-		Files:                 files,
-		ExcludeRegions:        excludeRegions,
-		NoExtensions:          flag.GetBool(ctx, "no-extensions"),
-		OnlyRegions:           onlyRegions,
+		AppCompact:             appCompact,
+		DeploymentImage:        img.Tag,
+		Strategy:               flag.GetString(ctx, "strategy"),
+		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
+		PrimaryRegionFlag:      appConfig.PrimaryRegion,
+		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:       flag.GetDetach(ctx),
+		WaitTimeout:            time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
+		LeaseTimeout:           time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
+		MaxUnavailable:         maxUnavailable,
+		ReleaseCmdTimeout:      releaseCmdTimeout,
+		Guest:                  guest,
+		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
+		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
+		UpdateOnly:             flag.GetBool(ctx, "update-only"),
+		Files:                  files,
+		ExcludeRegions:         excludeRegions,
+		OnlyRegions:            onlyRegions,
+		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
+		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
@@ -480,6 +460,12 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+		if !config.FromContext(ctx).JSONOutput {
+			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
+		}
 	}
 
 	tb.Done("Verified app config")

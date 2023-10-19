@@ -39,13 +39,15 @@ func (m *v2PlatformMigrator) createLaunchMachineInput(oldAllocID string, skipLau
 	mConfig.Guest = guest
 	mConfig.Image = m.img
 	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = m.releaseId
-	mConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
+	mConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 	mConfig.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = strconv.Itoa(m.releaseVersion)
 	if oldAllocID != "" {
 		mConfig.Metadata[api.MachineConfigMetadataKeyFlyPreviousAlloc] = oldAllocID
 	}
 
-	if m.isPostgres {
+	// Intentionally not checking m.isPostgres here because we need to support
+	// standard "app"-style migrations for PG apps
+	if m.pgConsulUrl != "" {
 		mConfig.Env["FLY_CONSUL_URL"] = m.pgConsulUrl
 		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	}

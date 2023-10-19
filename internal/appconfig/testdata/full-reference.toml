@@ -4,6 +4,7 @@ kill_timeout = "3s"
 swap_size_mb = 512
 primary_region = "sea"
 console_command = "/bin/bash"
+host_dedication_id = "06031957"
 
 [experimental]
   cmd = ["cmd"]
@@ -34,17 +35,26 @@ console_command = "/bin/bash"
 [deploy]
   release_command = "release command"
   strategy = "rolling-eyes"
+  max_unavailable = 0.2
 
 [env]
   FOO = "BAR"
 
-[metrics]
+[[metrics]]
   port = 9999
   path = "/metrics"
+
+[[metrics]]
+  port = 9998
+  path = "/metrics"
+  processes = ["web"]
 
 [http_service]
   internal_port = 8080
   force_https = true
+  auto_start_machines = false
+  auto_stop_machines = false
+  min_machines_running = 0
 
   [[http_service.checks]]
     interval = "1m21s"
@@ -121,6 +131,9 @@ console_command = "/bin/bash"
   internal_port = 8081
   protocol = "tcp"
   processes = ["app"]
+  auto_start_machines = false
+  auto_stop_machines = false
+  min_machines_running = 1
 
   [services.concurrency]
     type = "requests"

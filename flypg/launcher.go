@@ -193,13 +193,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			machineConf.Env["FLY_RESTORED_FROM"] = config.ForkFrom
 
 			action = "fork"
-
 			volInput.SourceVolumeID = &config.ForkFrom
 			volInput.MachinesOnly = api.Pointer(true)
 			volInput.Name = "pg_data"
 		} else {
 			action = "create"
-
 			volInput.Region = config.Region
 			volInput.SizeGb = config.VolumeSize
 		}
@@ -224,15 +222,10 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
-		if config.ForkFrom != "" {
-			fmt.Fprintf(io.Out, "Waiting for volume fork process to complete...\n")
-			fmt.Fprintf(io.Out, "This may take a while...\n")
-		} else {
-			fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
-		}
+		fmt.Fprintf(io.Out, "Waiting for machine to start...\n")
 
 		waitTimeout := time.Minute * 5
-		if snapshot != nil || config.ForkFrom != "" {
+		if snapshot != nil {
 			waitTimeout = time.Hour
 		}
 
@@ -336,7 +329,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
-		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyManagedPostgres: "true",
 		"managed-by-fly-deploy":                        "true",

@@ -43,6 +43,7 @@ type ImageOptions struct {
 	BuiltInSettings map[string]interface{}
 	Builder         string
 	Buildpacks      []string
+	Label           map[string]string
 }
 
 type RefOptions struct {
@@ -55,9 +56,10 @@ type RefOptions struct {
 }
 
 type DeploymentImage struct {
-	ID   string
-	Tag  string
-	Size int64
+	ID     string
+	Tag    string
+	Size   int64
+	Labels map[string]string
 }
 
 type Resolver struct {
@@ -515,7 +517,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		return nil, nil
 	}
 	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.FromContext(ctx).AccessToken)
-	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.ParsedVersion().String()))
+	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 

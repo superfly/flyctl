@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
@@ -25,8 +24,6 @@ func copyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
 }
 
 func TestFlyDeployBuildpackNodeAppWithRemoteBuilder(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
@@ -44,31 +41,9 @@ func TestFlyDeployBuildpackNodeAppWithRemoteBuilder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// _ = testlib.CopyDir(f.WorkDir(), "/Users/gwuah/Desktop/work/fly/flyctl/dirss", []string{})
-
 	f.Fly("deploy --remote-only --ha=false")
 
-	result := f.Fly("dig %s.internal -a %s --short", appName, appName)
-	require.NotEmpty(f, result.StdOut().String())
-	require.Empty(f, result.StdErr().String())
-
 	f.Fly("deploy --remote-only --strategy immediate --ha=false")
-
-	attempts := 30
-	for {
-		attempts -= 1
-		if attempts <= 0 {
-			t.Fatal("subsequent deploy resulted in 6PN address change")
-			return
-		}
-		result2 := f.Fly("dig %s.internal -a %s --short", appName, appName)
-		if result2.StdOut().String() == result.StdOut().String() {
-			require.NotEmpty(f, result2.StdOut().String())
-			require.Empty(f, result2.StdErr().String())
-			break
-		}
-		time.Sleep(2 * time.Second)
-	}
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -77,8 +52,6 @@ func TestFlyDeployBuildpackNodeAppWithRemoteBuilder(t *testing.T) {
 }
 
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
-	t.Parallel()
-
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
@@ -99,10 +72,6 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 	f.Fly("wireguard websockets enable")
 
 	f.Fly("deploy --remote-only --ha=false")
-
-	result := f.Fly("dig %s.internal -a %s --short", appName, appName)
-	require.NotEmpty(f, result.StdOut().String())
-	require.Empty(f, result.StdErr().String())
 
 	f.Fly("wireguard websockets disable")
 

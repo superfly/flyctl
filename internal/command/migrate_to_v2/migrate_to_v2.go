@@ -1,9 +1,11 @@
 package migrate_to_v2
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,7 +34,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
 
 const defaultWaitTimeout = 5 * time.Minute
@@ -95,6 +96,11 @@ func newMigrateToV2() *cobra.Command {
 		flag.Bool{
 			Name:        "use-local-config",
 			Description: "Use local fly.toml. Do not attempt to remotely fetch the app configuration from the latest deployed release",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "force-standard-migration",
+			Description: "Use the standard volume fork-based migration, even for apps using the Postgres image",
 			Default:     false,
 		},
 	)
@@ -283,9 +289,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	}
 
 	// sort allocs by version descending
-	slices.SortFunc(allocs, func(i, j *api.AllocationStatus) bool {
-		return i.Version > j.Version
+	slices.SortFunc(allocs, func(i, j *api.AllocationStatus) int {
+		return cmp.Compare(i.Version, j.Version)
 	})
+	slices.Reverse(allocs)
 
 	var highestVersion int
 	allocs = lo.Filter(allocs, func(alloc *api.AllocationStatus, _ int) bool {
@@ -306,6 +313,22 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	}
 	leaseTimeout := 13 * time.Second
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
+
+	isPostgres := appCompact.IsPostgresApp()
+
+	pgConsulUrl := ""
+	if isPostgres {
+		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
+		if err != nil {
+			return nil, err
+		}
+		pgConsulUrl = consul.ConsulURL
+	}
+
+	if flag.GetBool(ctx, "force-standard-migration") || appFull.ImageDetails.Repository != "flyio/postgres" {
+		isPostgres = false
+	}
+
 	migrator := &v2PlatformMigrator{
 		apiClient:               apiClient,
 		flapsClient:             flapsClient,
@@ -322,7 +345,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		img:                     img,
 		oldAllocs:               allocs,
 		machineGuests:           machineGuests,
-		isPostgres:              appCompact.IsPostgresApp(),
+		isPostgres:              isPostgres,
 		replacedVolumes:         map[string][]string{},
 		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
@@ -331,14 +354,11 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		backupMachines:     map[string]int{},
 		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
 		skipHealthChecks:   flag.GetBool(ctx, "skip-health-checks"),
+		pgConsulUrl:        pgConsulUrl,
 	}
-	if migrator.isPostgres {
-		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
-		if err != nil {
-			return nil, err
-		}
-		migrator.pgConsulUrl = consul.ConsulURL
-	}
+
+	migrator.applyHacks(ctx)
+
 	err = migrator.validate(ctx)
 	if err != nil {
 		return nil, err
@@ -1021,8 +1041,25 @@ func (m *v2PlatformMigrator) ConfirmChanges(ctx context.Context) (bool, error) {
 	return confirm, err
 }
 
-func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context) (cfg *appconfig.Config, err error) {
 	appNameFromContext := appconfig.NameFromContext(ctx)
+
+	defer func() {
+		// Hack to support simple deploy strategy
+		if cfg == nil {
+			return
+		}
+		if cfg.Deploy == nil {
+			return
+		}
+		if cfg.Deploy.Strategy == "simple" {
+			cfg.Deploy.Strategy = "immediate"
+		}
+		if cfg.Deploy.Strategy == "rolling_one" {
+			cfg.Deploy.Strategy = "rolling"
+			cfg.Deploy.MaxUnavailable = api.Pointer(1.0)
+		}
+	}()
 
 	// We're pulling the remote config because we don't want to inadvertently trigger a new deployment -
 	// people will expect this to migrate what's _currently_ live.
@@ -1036,7 +1073,7 @@ func determineAppConfigForMachines(ctx context.Context) (*appconfig.Config, erro
 		return localAppConfig, nil
 	}
 
-	cfg, err := appconfig.FromRemoteApp(ctx, appNameFromContext)
+	cfg, err = appconfig.FromRemoteApp(ctx, appNameFromContext)
 	if err != nil {
 		return nil, err
 	}

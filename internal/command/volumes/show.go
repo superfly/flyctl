@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -19,18 +20,23 @@ import (
 
 func newShow() (cmd *cobra.Command) {
 	const (
-		long = `Show details of an app's volume. Requires the volume's ID
-number to operate. This can be found through the volumes list command`
+		short = "Show the details of the specified volume."
 
-		short = "Show details of an app's volume"
+		long = short
 	)
 
-	cmd = command.New("show <id>", short, long, runShow,
+	cmd = command.New("show [id]", short, long, runShow,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
-	flag.Add(cmd, flag.JSONOutput())
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.App(),
+		flag.AppConfig(),
+	)
+
 	return
 }
 
@@ -41,6 +47,10 @@ func runShow(ctx context.Context) error {
 	volumeID := flag.FirstArg(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
+	if volumeID == "" && appName == "" {
+		return fmt.Errorf("volume ID or app required")
+	}
+
 	if appName == "" {
 		n, err := client.GetAppNameFromVolume(ctx, volumeID)
 		if err != nil {
@@ -54,9 +64,21 @@ func runShow(ctx context.Context) error {
 		return err
 	}
 
-	volume, err := flapsClient.GetVolume(ctx, volumeID)
-	if err != nil {
-		return fmt.Errorf("failed retrieving volume: %w", err)
+	var volume *api.Volume
+	if volumeID == "" {
+		app, err := client.GetApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+		volume, err = selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+	} else {
+		volume, err = flapsClient.GetVolume(ctx, volumeID)
+		if err != nil {
+			return fmt.Errorf("failed retrieving volume: %w", err)
+		}
 	}
 
 	out := iostreams.FromContext(ctx).Out
