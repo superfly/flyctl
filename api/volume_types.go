@@ -34,8 +34,6 @@ type CreateVolumeRequest struct {
 	SourceVolumeID *string `json:"source_volume_id"`
 
 	ComputeRequirements *MachineGuest `json:"compute"`
-
-	HostDedicationId string `json:"host_dedication_id"`
 }
 
 type VolumeSnapshot struct {

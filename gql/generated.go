@@ -49,6 +49,8 @@ const (
 	AddOnTypeRedis AddOnType = "redis"
 	// A Sentry project endpoint
 	AddOnTypeSentry AddOnType = "sentry"
+	// A Supabase database
+	AddOnTypeSupabase AddOnType = "supabase"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
