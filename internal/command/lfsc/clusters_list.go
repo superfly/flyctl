@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/lfsc-go"
 )
 
 func newClustersList() *cobra.Command {
@@ -31,6 +32,16 @@ func newClustersList() *cobra.Command {
 	flag.Add(cmd,
 		urlFlag(),
 		flag.Org(),
+		flag.Int{
+			Name:        "offset",
+			Description: "Index of results to return from",
+			Default:     0,
+		},
+		flag.Int{
+			Name:        "limit",
+			Description: "Number of results to return",
+			Default:     50,
+		},
 		flag.JSONOutput(),
 	)
 
@@ -45,7 +56,11 @@ func runClustersList(ctx context.Context) error {
 		return err
 	}
 
-	output, err := lfscClient.ListClusters(ctx, nil)
+	var input lfsc.ListClustersInput
+	input.Offset = flag.GetInt(ctx, "offset")
+	input.Limit = flag.GetInt(ctx, "limit")
+
+	output, err := lfscClient.ListClusters(ctx, &input)
 	if err != nil {
 		return err
 	}
