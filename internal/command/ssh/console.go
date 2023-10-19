@@ -196,7 +196,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 	}()
 
 	sessIO := &ssh.SessionIO{
-		Stdin:    os.Stdin,
+		Stdin: os.Stdin,
 		// "colorable" package should be used after the console setup performed above.
 		// Otherwise, virtual terminal emulation provided by the package will break UTF-8 encoding.
 		// If flyctl targets Windows 10+ only then we can avoid using this package at all
