@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/extensions/planetscale"
 	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
+	"github.com/superfly/flyctl/internal/command/extensions/upstash"
 )
 
 func New() (cmd *cobra.Command) {
@@ -20,6 +21,6 @@ func New() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.NoArgs
 
-	cmd.AddCommand(sentry_ext.New(), planetscale.New(), supabase.New())
+	cmd.AddCommand(sentry_ext.New(), planetscale.New(), upstash.New(), supabase.New())
 	return
 }
