@@ -26,9 +26,9 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long = "Commands for managing Fly Volumes associated with an application"
+		short = "Manage Fly Volumes."
 
-		short = "Volume management commands"
+		long = short
 
 		usage = "volumes <command>"
 	)
