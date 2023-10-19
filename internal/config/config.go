@@ -99,6 +99,7 @@ func New() *Config {
 		FlapsBaseURL:   defaultFlapsBaseURL,
 		RegistryHost:   defaultRegistryHost,
 		MetricsBaseURL: defaultMetricsBaseURL,
+		Tokens:         new(tokens.Tokens),
 	}
 }
 
