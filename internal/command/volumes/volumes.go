@@ -28,8 +28,6 @@ func New() *cobra.Command {
 	const (
 		short = "Manage Fly Volumes."
 
-		long = short
-
 		usage = "volumes <command>"
 	)
 
