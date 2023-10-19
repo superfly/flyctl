@@ -8,7 +8,7 @@ require (
 	github.com/Khan/genqlient v0.6.0
 	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/alecthomas/chroma v0.10.0
-	github.com/avast/retry-go/v4 v4.2.0
+	github.com/avast/retry-go/v4 v4.5.0
 	github.com/azazeal/pause v1.3.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.23.0
