@@ -37,6 +37,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/command/jobs"
 	"github.com/superfly/flyctl/internal/command/launch"
+	"github.com/superfly/flyctl/internal/command/lfsc"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
@@ -105,6 +106,7 @@ func New() *cobra.Command {
 		group(doctor.New(), "more_help"),
 		group(dig.New(), "upkeep"),
 		group(volumes.New(), "configuring"),
+		group(lfsc.New(), "dbs_and_extensions"),
 		agent.New(),
 		group(image.New(), "configuring"),
 		group(ping.New(), "upkeep"),
