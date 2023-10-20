@@ -705,10 +705,9 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context, lm machine.LeasableMachine) {
 	group := lm.Machine().ProcessGroup()
 
-	if _, ok := md.listenAddressChecked[group]; ok {
+	if _, seen := md.listenAddressChecked.LoadOrStore(group, struct{}{}); seen {
 		return
 	}
-	md.listenAddressChecked[group] = struct{}{}
 
 	groupConfig, err := md.appConfig.Flatten(group)
 	if err != nil {
