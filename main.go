@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"runtime"
 	"syscall"
+	"time"
 
 	dockerclient "github.com/docker/docker/client"
 	dockeropts "github.com/docker/docker/opts"
@@ -21,9 +22,11 @@ import (
 )
 
 func main() {
+	st := time.Now()
 	guessDockerHost()
-
-	os.Exit(run())
+	exitCode := run()
+	fmt.Println("Execution time: ", time.Since(st).String())
+	os.Exit(exitCode)
 }
 
 func run() (exitCode int) {
