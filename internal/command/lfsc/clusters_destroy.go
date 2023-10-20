@@ -25,11 +25,10 @@ func newClustersDestroy() *cobra.Command {
 		command.LoadAppNameIfPresentNoFlag,
 	)
 
-	cmd.Args = cobra.NoArgs
+	cmd.Args = cobra.RangeArgs(0, 1)
 
 	flag.Add(cmd,
 		urlFlag(),
-		clusterFlag(),
 		flag.Org(),
 		flag.JSONOutput(),
 	)
@@ -38,9 +37,9 @@ func newClustersDestroy() *cobra.Command {
 }
 
 func runClustersDestroy(ctx context.Context) error {
-	clusterName := flag.GetString(ctx, "cluster")
+	clusterName := flag.FirstArg(ctx)
 	if clusterName == "" {
-		return errors.New("required: --cluster NAME")
+		return errors.New("cluster name required as first argument")
 	}
 
 	lfscClient, err := newLFSCClient(ctx, "")
