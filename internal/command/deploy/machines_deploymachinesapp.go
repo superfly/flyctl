@@ -25,6 +25,8 @@ import (
 	"golang.org/x/exp/maps"
 )
 
+const rollingStrategyMaxConcurrentGroups = 10
+
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
@@ -411,19 +413,23 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 	}()
 
 	// Rolling strategy
+
+	// Group updates by process group
 	entriesByGroup := lo.GroupBy(updateEntries, func(e *machineUpdateEntry) string {
 		return e.launchInput.Config.ProcessGroup()
 	})
 
 	startIdx := 0
-	groupsPool := pool.New().WithErrors().WithMaxGoroutines(10).WithContext(parentCtx)
+	groupsPool := pool.New().WithErrors().WithMaxGoroutines(rollingStrategyMaxConcurrentGroups)
+
 	for _, entries := range entriesByGroup {
 		entries := entries
 		startIdx += len(entries)
-		groupsPool.Go(func(ctx context.Context) error {
-			return md.updateMachineEntries(ctx, entries, sl, startIdx-len(entries))
+		groupsPool.Go(func() error {
+			return md.updateMachineEntries(parentCtx, entries, sl, startIdx-len(entries))
 		})
 	}
+
 	return groupsPool.Wait()
 }
 
@@ -453,12 +459,7 @@ func (md *machineDeployment) updateMachineEntries(parentCtx context.Context, ent
 		})
 	}
 
-	if err := updatePool.Wait(); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
-	return nil
+	return updatePool.Wait()
 }
 
 func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry) error {
