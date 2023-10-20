@@ -18,9 +18,9 @@ import (
 func new3P() *cobra.Command {
 	const (
 		short = "Manage third-party (3P) caveats for Fly.io API tokens"
-		long  = `Add, manage, and discharge third-party tokens for a Fly.io API token. 
+		long  = `Add, manage, and discharge third-party tokens for a Fly.io API token.
 The token to be manipulated may either be passed in the -t argument or in FLY_API_TOKEN.
-Third-party caveats rely on a secret shared with between the third party and the 
+Third-party caveats rely on a secret shared with between the third party and the
 author of the caveat. Pass this secret with --secret, --secret-file, or through the
 TOKEN_3P_SHARED_SECRET variable.
 `
@@ -66,9 +66,7 @@ func getRootToken(ctx context.Context) (*macaroon.Macaroon, error) {
 }
 
 func get3PSharedSecret(ctx context.Context) ([]byte, error) {
-	var (
-		s64 string
-	)
+	var s64 string
 
 	path := flag.GetString(ctx, "secret-file")
 	if path != "" {
@@ -104,7 +102,7 @@ func get3PSharedSecret(ctx context.Context) ([]byte, error) {
 func new3PAdd() *cobra.Command {
 	const (
 		short = "Add a third-party caveat"
-		long  = `Add a caveat to the Fly.io token that requires a third-party service, 
+		long  = `Add a caveat to the Fly.io token that requires a third-party service,
 identified by --location (a URL), to supply a discharge token in order to clear.
 `
 		usage = "add"
