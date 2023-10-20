@@ -26,6 +26,7 @@ func New() *cobra.Command {
 		newRevoke(),
 		newAttenuate(),
 		newDebug(),
+		new3P(),
 		hiddenDeploy,
 		hiddenOrg,
 	)
