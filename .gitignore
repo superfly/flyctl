@@ -38,3 +38,6 @@ out
 .direnv/
 /ci-preflight-test-results.njson
 .tool-versions
+
+# generated release meta
+release.json

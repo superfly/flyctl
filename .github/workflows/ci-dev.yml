@@ -64,10 +64,10 @@ jobs:
               sha: context.sha
             })
 
-  # we can remove this workflow_call once the release.yml workflow file is
-  # merged into the default branch
-  build_and_release:
-    uses:
-      ./.github/workflows/release.yml
-    needs: tag_version
-    secrets: inherit
+  # # we can remove this workflow_call once the release.yml workflow file is
+  # # merged into the default branch
+  # build_and_release:
+  #   uses:
+  #     ./.github/workflows/release.yml
+  #   needs: tag_version
+  #   secrets: inherit
