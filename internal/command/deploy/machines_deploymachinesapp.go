@@ -313,13 +313,8 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 }
 
 func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.LeasableMachine) error {
-	if md.strategy == "immediate" {
-		return nil
-	}
-
 	// Don't wait for Standby machines, they are updated but not started
 	if len(lm.Machine().Config.Standbys) > 0 {
-
 		statuslogger.LogfStatus(ctx,
 			statuslogger.StatusSuccess,
 			"Machine %s update finished: %s",
@@ -532,13 +527,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
-	if err := lm.Update(ctx, *e.launchInput); err != nil {
-		if md.strategy != "immediate" {
-			return err
-		}
-		fmt.Fprintf(md.io.ErrOut, " (%s) Continuing after error: %v\n", md.colorize.Bold(lm.FormattedMachineId()), err)
-	}
-	return nil
+	return lm.Update(ctx, *e.launchInput)
 }
 
 type spawnOptions struct {
