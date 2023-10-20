@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -53,13 +54,32 @@ func (r *gitRepo) gitCommitTime(ref string) (time.Time, error) {
 }
 
 func (r *gitRepo) gitBranch() (string, error) {
+	// running in github actions, trigger event is a PR
 	if ref := os.Getenv("GITHUB_HEAD_REF"); ref != "" {
 		return ref, nil
 	}
-	if ref := os.Getenv("GITHUB_REF_NAME"); ref != "" {
-		return ref, nil
+	// running in github actions, trigger event is a branch push
+	if os.Getenv("GITHUB_REF_TYPE") == "branch" {
+		if ref := os.Getenv("GITHUB_REF_NAME"); ref != "" {
+			return ref, nil
+		}
 	}
 
+	if isDetached, err := r.isDetachedHead(); err != nil {
+		return "", errors.Wrap(err, "failed to check if git repo is detached")
+	} else if isDetached {
+		ref, err := r.gitRef()
+		if err != nil {
+			return "", errors.Wrap(err, "failed to get current git ref")
+		}
+		if branch, err := r.branchFromRef(ref); err != nil {
+			return "", errors.Wrap(err, "failed to get branch from ref")
+		} else {
+			return branch, nil
+		}
+	}
+
+	// find the branch from Git
 	output, err := r.runGit("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get current git branch")
@@ -156,45 +176,68 @@ func (r *gitRepo) previousTag(currentTag string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-func channelFromRef(ref string) (string, error) {
-	// track is always "dev" unless built on CI
-	// if !isCI() {
-	// 	return "dev", nil
-	// }
+func (r *gitRepo) isDetachedHead() (bool, error) {
+	out, err := r.runGit("rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) == "HEAD", nil
+}
 
+func (r *gitRepo) branchFromRef(ref string) (string, error) {
+	out, err := r.runGit("branch", "-r", "--contains", ref)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get branches containing ref")
+	}
+
+	var branches []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "origin/") {
+			branches = append(branches, strings.TrimPrefix(line, "origin/"))
+		}
+	}
+
+	// prefer master/main branch if it contains this ref
+	if slices.Contains(branches, "master") {
+		return "master", nil
+	}
+	if slices.Contains(branches, "main") {
+		return "main", nil
+	}
+
+	// otherwise, return the first branch that contains this ref
+	if len(branches) > 0 {
+		return branches[0], nil
+	}
+
+	return "", fmt.Errorf("no branch found containing ref \"%s\"", ref)
+}
+
+func channelFromRef(ref string) (string, error) {
+	// return "pr<num>" if the ref is a PR
 	if strings.HasPrefix(ref, "refs/pull/") {
 		num, err := prNumber(ref)
 		if err != nil {
-			return "", errors.Wrapf(err, "failed to get PR number from ref \"%s\"", ref)
+			return "", errors.Wrapf(err, "failed to get PR number from ref %q", ref)
 		}
 		return fmt.Sprintf("pr%d", num), nil
 	}
 
-	if isRefStableBranch(ref) {
-		return "stable", nil
+	// return the version's channel if ref is a tag
+	if strings.HasPrefix(ref, "refs/tags/v") {
+		ver, err := version.Parse(strings.TrimPrefix(ref, "refs/tags/v"))
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to parse version from ref %q", ref)
+		}
+		return version.ChannelFromCalverOrSemver(ver), nil
 	}
 
-	if headRef := os.Getenv("GITHUB_HEAD_REF"); headRef != "" {
-		return headRef, nil
-	}
-
-	branch, err := branchFromRef(ref)
-	if err != nil {
-		return "", errors.Wrapf(err, "unable to select track from ref \"%s\"", ref)
-	}
-
-	return branch, nil
-}
-
-func branchFromRef(ref string) (string, error) {
+	// return the branch name if ref is a branch
 	if strings.HasPrefix(ref, "refs/heads/") {
 		return strings.TrimPrefix(ref, "refs/heads/"), nil
 	}
-	return "", fmt.Errorf("invalid branch ref \"%s\"", ref)
-}
 
-func isRefStableBranch(ref string) bool {
-	return ref == "refs/heads/master" || ref == "refs/heads/main"
+	return "", fmt.Errorf("unable to determine channel from ref: %q", ref)
 }
 
 func prNumber(ref string) (int, error) {

@@ -77,36 +77,42 @@ func GenerateReleaseMeta(dir string, stillOnSemver bool) (release.Meta, error) {
 		return output, err
 	}
 	output.Branch = branch
+	fmt.Fprintln(os.Stderr, "branch:", branch)
 
 	commit, err := repo.gitCommitSHA()
 	if err != nil {
 		return output, err
 	}
 	output.Commit = commit
+	fmt.Fprintln(os.Stderr, "commit:", commit)
 
 	ref, err := repo.gitRef()
 	if err != nil {
 		return output, err
 	}
 	output.Ref = ref
+	fmt.Fprintln(os.Stderr, "ref:", ref)
 
 	commitTime, err := repo.gitCommitTime(commit)
 	if err != nil {
 		return output, err
 	}
 	output.CommitTime = commitTime
+	fmt.Fprintln(os.Stderr, "commitTime:", commitTime)
 
 	dirty, err := repo.gitDirty()
 	if err != nil {
 		return output, err
 	}
 	output.Dirty = dirty
+	fmt.Fprintln(os.Stderr, "dirty:", dirty)
 
 	channel, err := channelFromRef(ref)
 	if err != nil {
 		return output, err
 	}
 	output.Channel = channel
+	fmt.Fprintln(os.Stderr, "channel:", channel)
 
 	currentTag, err := repo.currentTag(commit)
 	if err != nil {
