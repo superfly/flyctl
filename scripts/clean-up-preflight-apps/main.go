@@ -11,8 +11,8 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/logger"
 )
 
 func main() {
