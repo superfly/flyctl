@@ -420,13 +420,17 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 	})
 
 	startIdx := 0
-	groupsPool := pool.New().WithErrors().WithMaxGoroutines(rollingStrategyMaxConcurrentGroups)
+	groupsPool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(rollingStrategyMaxConcurrentGroups).
+		WithContext(parentCtx).
+		WithCancelOnError()
 
 	for _, entries := range entriesByGroup {
 		entries := entries
 		startIdx += len(entries)
-		groupsPool.Go(func() error {
-			return md.updateMachineEntries(parentCtx, entries, sl, startIdx-len(entries))
+		groupsPool.Go(func(ctx context.Context) error {
+			return md.updateMachineEntries(ctx, entries, sl, startIdx-len(entries))
 		})
 	}
 
@@ -444,13 +448,17 @@ func (md *machineDeployment) updateMachineEntries(parentCtx context.Context, ent
 		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
 	}
 
-	updatePool := pool.New().WithErrors().WithMaxGoroutines(poolSize)
+	updatePool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(poolSize).
+		WithContext(parentCtx).
+		WithCancelOnError()
 
 	for i, e := range entries {
 		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+i))
 
-		updatePool.Go(func() error {
+		updatePool.Go(func(_ context.Context) error {
 			statuslogger.LogStatus(eCtx, statuslogger.StatusRunning, "Updating")
 			if err := md.updateMachine(eCtx, e); err != nil {
 				return err
