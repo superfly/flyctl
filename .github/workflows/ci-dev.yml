@@ -51,18 +51,22 @@ jobs:
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ steps.version.outputs.next }}" >> $GITHUB_STEP_SUMMARY
       - name: Create tag
-        uses: actions/github-script@v6
-        env:
-          TAG_NAME: v${{ steps.version.outputs.next }}
-        with:
-          script: |
-            const { TAG_NAME } = process.env
-            github.rest.git.createRef({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              ref: `refs/tags/${TAG_NAME}`,
-              sha: context.sha
-            })
+        run: |
+          git tag -a v${{ steps.version.outputs.next }} -m "Creating release ${{ steps.version.outputs.next }}"
+          git push origin v${{ steps.version.outputs.next }}
+      # - name: Create tag
+      #   uses: actions/github-script@v6
+      #   env:
+      #     TAG_NAME: v${{ steps.version.outputs.next }}
+      #   with:
+      #     script: |
+      #       const { TAG_NAME } = process.env
+      #       github.rest.git.createRef({
+      #         owner: context.repo.owner,
+      #         repo: context.repo.repo,
+      #         ref: `refs/tags/${TAG_NAME}`,
+      #         sha: context.sha
+      #       })
 
   # # we can remove this workflow_call once the release.yml workflow file is
   # # merged into the default branch
