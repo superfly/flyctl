@@ -471,19 +471,36 @@ func (md *machineDeployment) updateMachineEntries(parentCtx context.Context, ent
 }
 
 func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry) error {
-	if e.launchInput.RequiresReplacement {
-		return md.updateMachineByReplace(ctx, e)
+	fmtID := e.leasableMachine.FormattedMachineId()
+
+	replaceMachine := func() error {
+		statuslogger.Logf(ctx, "Replacing %s by new machine", md.colorize.Bold(fmtID))
+		err := md.updateMachineByReplace(ctx, e)
+		if err != nil {
+			statuslogger.Failed(ctx, err)
+			return err
+		}
+		statuslogger.Logf(ctx, "Created machine %s", md.colorize.Bold(fmtID))
+		return nil
 	}
+
+	if e.launchInput.RequiresReplacement {
+		return replaceMachine()
+	}
+
+	statuslogger.Logf(ctx, "Updating %s", md.colorize.Bold(fmtID))
 
 	if err := md.updateMachineInPlace(ctx, e); err != nil {
 		switch {
 		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
 			// Replacing a machine with a volume will cause the placement logic to pick wthe same host
 			// dismissing the value of replacing it in case of lack of host capacity
+			statuslogger.Failed(ctx, err)
 			return err
 		case strings.Contains(err.Error(), "could not reserve resource for machine"):
-			return md.updateMachineByReplace(ctx, e)
+			return replaceMachine()
 		default:
+			statuslogger.Failed(ctx, err)
 			return err
 		}
 	}
@@ -494,7 +511,6 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	lm := e.leasableMachine
 	// If machine requires replacement, destroy old machine and launch a new one
 	// This can be the case for machines that changes its volumes.
-	statuslogger.Logf(ctx, "Replacing %s by new machine", md.colorize.Bold(lm.FormattedMachineId()))
 	if err := lm.Destroy(ctx, true); err != nil {
 		return err
 	}
@@ -509,7 +525,6 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
-	statuslogger.Logf(ctx, "Created machine %s", md.colorize.Bold(lm.FormattedMachineId()))
 	defer lm.ReleaseLease(ctx)
 	e.leasableMachine = lm
 	return nil
@@ -517,12 +532,10 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
-	statuslogger.Logf(ctx, "Updating %s", md.colorize.Bold(lm.FormattedMachineId()))
 	if err := lm.Update(ctx, *e.launchInput); err != nil {
 		if md.strategy != "immediate" {
 			return err
 		}
-		statuslogger.Failed(ctx, err)
 		fmt.Fprintf(md.io.ErrOut, " (%s) Continuing after error: %v\n", md.colorize.Bold(lm.FormattedMachineId()), err)
 	}
 	return nil
