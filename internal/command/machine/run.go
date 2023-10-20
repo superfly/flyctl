@@ -140,6 +140,38 @@ var sharedFlags = flag.Set{
 	flag.VMSizeFlags,
 }
 
+var runOrCreateFlags = flag.Set{
+	flag.Region(),
+	// deprecated in favor of `flyctl machine update`
+	flag.String{
+		Name:        "id",
+		Description: "Machine ID, if previously known",
+	},
+	flag.String{
+		Name:        "name",
+		Shorthand:   "n",
+		Description: "Machine name, will be generated if missing",
+	},
+	flag.String{
+		Name:        "org",
+		Description: `The organization that will own the app`,
+	},
+	flag.Bool{
+		Name:        "rm",
+		Description: "Automatically remove the machine when it exits",
+	},
+	flag.StringSlice{
+		Name:        "volume",
+		Shorthand:   "v",
+		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+	},
+	flag.Bool{
+		Name:        "lsvd",
+		Description: "Enable LSVD for this machine",
+		Hidden:      true,
+	},
+}
+
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
@@ -157,41 +189,47 @@ func newRun() *cobra.Command {
 
 	flag.Add(
 		cmd,
-		flag.Region(),
-		// deprecated in favor of `flyctl machine update`
-		flag.String{
-			Name:        "id",
-			Description: "Machine ID, if previously known",
-		},
-		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "Machine name, will be generated if missing",
-		},
-		flag.String{
-			Name:        "org",
-			Description: `The organization that will own the app`,
-		},
-		flag.Bool{
-			Name:        "rm",
-			Description: "Automatically remove the machine when it exits",
-		},
-		flag.StringSlice{
-			Name:        "volume",
-			Shorthand:   "v",
-			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
-		},
-		flag.Bool{
-			Name:        "lsvd",
-			Description: "Enable LSVD for this machine",
-			Hidden:      true,
-		},
+		runOrCreateFlags,
 		sharedFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
+}
+
+func newCreate() *cobra.Command {
+	const (
+		short = "Create, but don't start, a machine"
+		long  = short + "\n"
+
+		usage = "create <image> [command]"
+	)
+
+	cmd := command.New(usage, short, long, runMachineCreate,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(
+		cmd,
+		runOrCreateFlags,
+		sharedFlags,
+	)
+
+	cmd.Args = cobra.MinimumNArgs(1)
+
+	return cmd
+}
+
+type contextKey struct {
+	name string
+}
+
+var createCommandCtxKey = &contextKey{"createCommand"}
+
+func runMachineCreate(ctx context.Context) error {
+	return runMachineRun(context.WithValue(ctx, createCommandCtxKey, true))
 }
 
 func runMachineRun(ctx context.Context) error {
@@ -202,7 +240,12 @@ func runMachineRun(ctx context.Context) error {
 		colorize = io.ColorScheme()
 		err      error
 		app      *api.AppCompact
+		isCreate = false
 	)
+
+	if ctx.Value(createCommandCtxKey) != nil {
+		isCreate = true
+	}
 
 	if appName == "" {
 		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
@@ -291,12 +334,17 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", appName)
+	verb := "launched"
+	if isCreate {
+		verb = "created"
+	}
+
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully %s in app %s\n", verb, appName)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
 	fmt.Fprintf(io.Out, " State: %s\n", state)
 
-	if input.SkipLaunch {
+	if input.SkipLaunch || isCreate {
 		return nil
 	}
 
