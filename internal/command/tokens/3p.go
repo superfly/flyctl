@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/flyio"
 )
 
 func new3P() *cobra.Command {
@@ -45,7 +46,23 @@ func getRootToken(ctx context.Context) (*macaroon.Macaroon, error) {
 		return nil, err
 	}
 
-	return macaroon.Decode(toks[0])
+	// a "token" is actually a little bag full of tokens; we only care about the
+	// root "permissions" token, the one our API issued, and not any of the discharge
+	// tokens accompanying it
+
+	permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
+	if err != nil {
+		return nil, err
+	}
+
+	switch len(permMacs) {
+	case 0:
+		return nil, errors.New("not a fly.io token")
+	case 1:
+		return permMacs[0], nil
+	default:
+		return nil, errors.New("multiple fly.io permission tokens")
+	}
 }
 
 func get3PSharedSecret(ctx context.Context) ([]byte, error) {
@@ -224,8 +241,12 @@ func run3PAdd(ctx context.Context) error {
 		return err
 	}
 
-	// this is shady af but whatever
-	toks[0] = tok
+	_, _, _, disToks, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
+	if err != nil {
+		return err
+	}
+
+	toks = append(disToks, tok)
 
 	fmt.Println(macaroon.ToAuthorizationHeader(toks...))
 
@@ -246,6 +267,10 @@ func run3PTicket(ctx context.Context) error {
 	ticket, err := m.ThirdPartyCID(loc, nil)
 	if err != nil {
 		return err
+	}
+
+	if len(ticket) == 0 {
+		return errors.New("no 3p ticket in token")
 	}
 
 	fmt.Println(base64.StdEncoding.EncodeToString(ticket))
@@ -274,9 +299,12 @@ func run3PDischarge(ctx context.Context) error {
 		return err
 	}
 
-	_, dm, err := macaroon.DischargeCID(secret, loc, ticket)
+	cavs, dm, err := macaroon.DischargeCID(secret, loc, ticket)
 	if err != nil {
 		return err
+	}
+	if len(cavs) != 0 {
+		return errors.New("ticket contains caveats that must be checked; use API to discharge")
 	}
 
 	tok, err := dm.Encode()
