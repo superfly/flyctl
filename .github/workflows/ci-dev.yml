@@ -19,12 +19,12 @@ jobs:
     uses:
       ./.github/workflows/test.yml
 
-  # debug:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - run: echo "$GITHUB_CONTEXT"
-  #       env:
-  #         GITHUB_CONTEXT: ${{ toJSON(github) }}
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "$GITHUB_CONTEXT"
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
 
   # create a dev tag for every branch except master
   tag_version:

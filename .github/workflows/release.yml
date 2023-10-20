@@ -13,6 +13,13 @@ on:
 #   cancel-in-progress: true
 
 jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "$GITHUB_CONTEXT"
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
+
   meta:
     runs-on: ubuntu-latest
     outputs:
