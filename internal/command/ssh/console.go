@@ -187,14 +187,6 @@ func runConsole(ctx context.Context) error {
 }
 
 func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool) error {
-	sessIO := &ssh.SessionIO{
-		Stdin:    os.Stdin,
-		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
-		AllocPTY: allocPTY,
-		TermEnv:  determineTermEnv(),
-	}
-
 	currentStdin, currentStdout, currentStderr, err := setupConsole()
 	defer func() error {
 		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
@@ -202,6 +194,18 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		}
 		return nil
 	}()
+
+	sessIO := &ssh.SessionIO{
+		Stdin: os.Stdin,
+		// "colorable" package should be used after the console setup performed above.
+		// Otherwise, virtual terminal emulation provided by the package will break UTF-8 encoding.
+		// If flyctl targets Windows 10+ only then we can avoid using this package at all
+		// because Windows 10+ already provides virtual terminal support.
+		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
+		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
+		AllocPTY: allocPTY,
+		TermEnv:  determineTermEnv(),
+	}
 
 	if err := sshClient.Shell(ctx, sessIO, cmd); err != nil {
 		return errors.Wrap(err, "ssh shell")
