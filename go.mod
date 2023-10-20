@@ -174,7 +174,7 @@ require (
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
 	github.com/Microsoft/go-winio v0.6.1
-	github.com/PuerkitoBio/rehttp v1.2.0
+	github.com/PuerkitoBio/rehttp v1.3.0
 	github.com/buildpacks/lifecycle v0.17.0 // indirect
 	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
 	github.com/containerd/containerd v1.7.2 // indirect
