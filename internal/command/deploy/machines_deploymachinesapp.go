@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -23,6 +24,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
 )
+
+const rollingStrategyMaxConcurrentGroups = 10
 
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
@@ -142,7 +145,6 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 
 // Create machines for new process groups
 func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, processGroupMachineDiff ProcessGroupsDiff) (err error) {
-
 	groupsWithAutostopEnabled := make(map[string]bool)
 	groups := maps.Keys(processGroupMachineDiff.groupsNeedingMachines)
 	total := len(groups)
@@ -396,9 +398,7 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 			go func() {
 				defer wg.Done()
 				if err := md.updateMachine(ctx, e); err != nil {
-					if md.strategy == "immediate" {
-						fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
-					}
+					fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
 				}
 				<-pool
 			}()
@@ -407,58 +407,59 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 		return nil
 	}
 
-	var groupCount int
-	if mu := md.maxUnavailable; mu > 0 && mu < 1 {
-		groupCount = int(math.Floor(1.0 / mu))
-	} else if mu >= 1 {
-		groupCount = int(math.Ceil(float64(len(updateEntries)) / mu))
-	} else {
-		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
-	}
-
-	type batchJob struct {
-		lm         machine.LeasableMachine
-		statusLine statuslogger.StatusLine
-	}
-	b := batcher[batchJob]{
-		TotalJobs:  len(updateEntries),
-		GroupCount: groupCount,
-		SoloFirst:  true,
-	}
-
 	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
 	defer func() {
 		sl.Destroy(false)
 	}()
 
-	for i, e := range updateEntries {
-		ctx := statuslogger.NewContext(parentCtx, sl.Line(i))
+	// Rolling strategy
 
-		statuslogger.LogStatus(ctx, statuslogger.StatusRunning, "Updating")
+	// Group updates by process group
+	entriesByGroup := lo.GroupBy(updateEntries, func(e *machineUpdateEntry) string {
+		return e.launchInput.Config.ProcessGroup()
+	})
 
-		if err := md.updateMachine(ctx, e); err != nil {
-			if md.strategy == "immediate" {
-				statuslogger.Failed(ctx, err)
-				fmt.Fprintf(md.io.ErrOut,
-					" (%s) Continuing after error: %v\n",
-					md.colorize.Bold(e.leasableMachine.FormattedMachineId()),
-					err,
-				)
-				continue
-			}
-			return err
-		}
+	startIdx := 0
+	groupsPool := pool.New().WithErrors().WithMaxGoroutines(rollingStrategyMaxConcurrentGroups)
 
-		b.Add(batchJob{e.leasableMachine, statuslogger.FromContext(ctx)})
-		for _, job := range b.Batch() {
-			if err := md.waitForMachine(statuslogger.NewContext(parentCtx, job.statusLine), job.lm); err != nil {
-				return err
-			}
-		}
+	for _, entries := range entriesByGroup {
+		entries := entries
+		startIdx += len(entries)
+		groupsPool.Go(func() error {
+			return md.updateMachineEntries(parentCtx, entries, sl, startIdx-len(entries))
+		})
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
-	return nil
+	return groupsPool.Wait()
+}
+
+func (md *machineDeployment) updateMachineEntries(parentCtx context.Context, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
+	var poolSize int
+	switch mu := md.maxUnavailable; {
+	case mu >= 1:
+		poolSize = int(mu)
+	case mu > 0:
+		poolSize = int(math.Ceil(float64(len(entries)) * mu))
+	default:
+		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
+	}
+
+	updatePool := pool.New().WithErrors().WithMaxGoroutines(poolSize)
+
+	for i, e := range entries {
+		e := e
+		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+i))
+
+		updatePool.Go(func() error {
+			statuslogger.LogStatus(eCtx, statuslogger.StatusRunning, "Updating")
+			if err := md.updateMachine(eCtx, e); err != nil {
+				return err
+			}
+			return md.waitForMachine(eCtx, e.leasableMachine)
+		})
+	}
+
+	return updatePool.Wait()
 }
 
 func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry) error {
@@ -704,10 +705,9 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context, lm machine.LeasableMachine) {
 	group := lm.Machine().ProcessGroup()
 
-	if _, ok := md.listenAddressChecked[group]; ok {
+	if _, seen := md.listenAddressChecked.LoadOrStore(group, struct{}{}); seen {
 		return
 	}
-	md.listenAddressChecked[group] = struct{}{}
 
 	groupConfig, err := md.appConfig.Flatten(group)
 	if err != nil {
