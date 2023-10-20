@@ -203,7 +203,7 @@ func newCreate() *cobra.Command {
 		short = "Create, but don't start, a machine"
 		long  = short + "\n"
 
-		usage = "create <image>"
+		usage = "create <image> [command]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineCreate,
