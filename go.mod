@@ -38,7 +38,7 @@ require (
 	github.com/mattn/go-isatty v0.0.19
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
-	github.com/miekg/dns v1.1.55
+	github.com/miekg/dns v1.1.56
 	github.com/moby/buildkit v0.11.6
 	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
