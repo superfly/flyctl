@@ -380,11 +380,14 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 		for i, e := range updateEntries {
 			e := e
 			eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
-
 			fmtID := e.leasableMachine.FormattedMachineId()
-			statuslogger.LogfStatus(eCtx, statuslogger.StatusRunning, "Updating %s", md.colorize.Bold(fmtID))
 
 			updatesPool.Go(func(_ context.Context) error {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusRunning,
+					"Updating %s",
+					md.colorize.Bold(fmtID),
+				)
 				if err := md.updateMachine(eCtx, e); err != nil {
 					statuslogger.LogfStatus(eCtx,
 						statuslogger.StatusFailure,
@@ -457,49 +460,69 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 	for i, e := range entries {
 		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+i))
-
 		fmtID := e.leasableMachine.FormattedMachineId()
-		statuslogger.LogfStatus(eCtx, statuslogger.StatusRunning, "Updating %s", md.colorize.Bold(fmtID))
+
+		statusRunning := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusRunning,
+				"Updating %s",
+				md.colorize.Bold(fmtID),
+			)
+		}
+		statusFailure := func(err error) {
+			if errors.Is(err, context.Canceled) {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusFailure,
+					"Machine %s update %s",
+					md.colorize.Bold(fmtID),
+					md.colorize.Red("canceled while it was in progress"),
+				)
+			} else {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusFailure,
+					"Machine %s update %s: %s",
+					md.colorize.Bold(fmtID),
+					md.colorize.Red("failed"),
+					err.Error(),
+				)
+			}
+		}
+		statusSkipped := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusFailure,
+				"Machine %s update %s",
+				md.colorize.Bold(fmtID),
+				md.colorize.Yellow("canceled"),
+			)
+		}
+		statusSuccess := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusSuccess,
+				"Machine %s update %s",
+				md.colorize.Bold(fmtID),
+				md.colorize.Green("succeeded"),
+			)
+		}
 
 		updatePool.Go(func(poolCtx context.Context) error {
 			// If the pool context is done, it means some other machine update failed
 			select {
 			case <-poolCtx.Done():
-				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusFailure,
-					"Machine %s update failed: %s",
-					md.colorize.Bold(fmtID),
-					md.colorize.Yellow("skipped"),
-				)
+				statusSkipped()
 				return poolCtx.Err()
 			default:
-				// pass
+				statusRunning()
 			}
 
 			if err := md.updateMachine(eCtx, e); err != nil {
-				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusFailure,
-					"Machine %s update failed: %s",
-					md.colorize.Bold(fmtID),
-					md.colorize.Red(err.Error()),
-				)
+				statusFailure(err)
 				return err
 			}
 			if err := md.waitForMachine(eCtx, e); err != nil {
-				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusFailure,
-					"Machine %s update failed: %s",
-					md.colorize.Bold(fmtID),
-					md.colorize.Red(err.Error()),
-				)
+				statusFailure(err)
 				return err
 			}
-			statuslogger.LogfStatus(eCtx,
-				statuslogger.StatusSuccess,
-				"Machine %s update finished: %s",
-				md.colorize.Bold(fmtID),
-				md.colorize.Green("success"),
-			)
+			statusSuccess()
 			return nil
 		})
 	}
