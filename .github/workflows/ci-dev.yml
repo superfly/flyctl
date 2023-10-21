@@ -37,7 +37,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-tags: true
           fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
@@ -63,6 +62,7 @@ jobs:
               ref: `refs/tags/${TAG_NAME}`,
               sha: context.sha
             })
+          github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
 
   # # we can remove this workflow_call once the release.yml workflow file is
   # # merged into the default branch
