@@ -68,12 +68,12 @@ func (r *gitRepo) gitBranch() (string, error) {
 	if isDetached, err := r.isDetachedHead(); err != nil {
 		return "", errors.Wrap(err, "failed to check if git repo is detached")
 	} else if isDetached {
-		ref, err := r.gitRef()
+		sha, err := r.gitCommitSHA()
 		if err != nil {
-			return "", errors.Wrap(err, "failed to get current git ref")
+			return "", errors.Wrap(err, "failed to get current git sha")
 		}
-		if branch, err := r.branchFromRef(ref); err != nil {
-			return "", errors.Wrap(err, "failed to get branch from ref")
+		if branch, err := r.branchFromRef(sha); err != nil {
+			return "", errors.Wrap(err, "failed to get branch from sha")
 		} else {
 			return branch, nil
 		}
