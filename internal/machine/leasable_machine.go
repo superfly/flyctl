@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -64,9 +63,6 @@ func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineIn
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
 	input.ID = lm.machine.ID
-	if strings.Contains(input.ID, "683d") {
-		return fmt.Errorf("FAIL THIS UPDATE")
-	}
 	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
