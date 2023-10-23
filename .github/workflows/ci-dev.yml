@@ -60,7 +60,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag: TAG_NAME,
-              message: tagMessage,
+              message: TAG_NAME,
               object: context.sha,
               type: 'commit'
             });
