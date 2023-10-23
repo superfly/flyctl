@@ -56,7 +56,7 @@ jobs:
         with:
           script: |
             const { TAG_NAME } = process.env
-            await github.git.createTag({
+            await github.rest.git.createTag({
               owner: context.repo.owner,
               repo: context.repo.repo,
               tag: TAG_NAME,
@@ -64,7 +64,7 @@ jobs:
               object: context.sha,
               type: 'commit'
             });
-            await github.git.createRef({
+            await github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: `refs/tags/${TAG_NAME}`,
