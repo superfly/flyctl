@@ -52,6 +52,8 @@ func TestEncode(t *testing.T) {
 		"2023.10.5-some-branch+gitsha-dirty":     {2023, 10, 5, 0, "some-branch", "gitsha-dirty"},
 		"2023.10.5-some-branch+123-gitsha":       {2023, 10, 5, 0, "some-branch", "123-gitsha"},
 		"2023.10.5-some-branch+123-gitsha-dirty": {2023, 10, 5, 0, "some-branch", "123-gitsha-dirty"},
+
+		"2023.10.23-dependabot/go_modules/nhooyr.io/websocket-1.8.9.1698092436": {2023, 10, 23, 1698092436, "dependabot/go_modules/nhooyr.io/websocket-1.8.9", ""},
 	}
 
 	for vString, vStruct := range cases {
