@@ -8,7 +8,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ ubuntu-latest-m, macos-latest-xl, windows-latest-l ]
+        os:
+          - ubuntu-latest-m
+          - macos-latest-xl
+          # skip windows until actions/setup-go no longer takes ~5-6x longer than the others
+          # - windows-latest-l
         test:
           - workdir: "."
             target: "test"
