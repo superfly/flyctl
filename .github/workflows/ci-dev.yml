@@ -55,7 +55,7 @@ jobs:
           TAG_NAME: v${{ steps.version.outputs.next }}
         with:
           script: |
-            const { TAG_NAME } = process.env
+            const { TAG_NAME } = process.env;
             await github.rest.git.createTag({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -70,12 +70,6 @@ jobs:
               ref: `refs/tags/${TAG_NAME}`,
               sha: context.sha
             });
-            # await github.rest.git.createRef({
-            #   owner: context.repo.owner,
-            #   repo: context.repo.repo,
-            #   ref: `refs/tags/${TAG_NAME}`,
-            #   sha: context.sha
-            # })
 
           github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
 
