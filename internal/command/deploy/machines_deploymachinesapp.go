@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -9,10 +10,10 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -23,6 +24,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
 )
+
+const rollingStrategyMaxConcurrentGroups = 10
 
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
@@ -142,7 +145,6 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 
 // Create machines for new process groups
 func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, processGroupMachineDiff ProcessGroupsDiff) (err error) {
-
 	groupsWithAutostopEnabled := make(map[string]bool)
 	groups := maps.Keys(processGroupMachineDiff.groupsNeedingMachines)
 	total := len(groups)
@@ -310,20 +312,10 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 	return err
 }
 
-func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.LeasableMachine) error {
-	if md.strategy == "immediate" {
-		return nil
-	}
-
+func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry) error {
+	lm := e.leasableMachine
 	// Don't wait for Standby machines, they are updated but not started
 	if len(lm.Machine().Config.Standbys) > 0 {
-
-		statuslogger.LogfStatus(ctx,
-			statuslogger.StatusSuccess,
-			"Machine %s update finished: %s",
-			md.colorize.Bold(lm.FormattedMachineId()),
-			md.colorize.Green("success"),
-		)
 		return nil
 	}
 
@@ -339,18 +331,12 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, lm machine.Leas
 	}
 
 	if !md.skipHealthChecks {
+		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
 		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout); err != nil {
 			md.warnAboutIncorrectListenAddress(ctx, lm)
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return err
 		}
-		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-		statuslogger.LogfStatus(ctx,
-			statuslogger.StatusSuccess,
-			"Machine %s update finished: %s",
-			md.colorize.Bold(lm.FormattedMachineId()),
-			md.colorize.Green("success"),
-		)
 	}
 
 	md.warnAboutIncorrectListenAddress(ctx, lm)
@@ -386,44 +372,62 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 		defer func() {
 			sl.Destroy(false)
 		}()
-		var wg sync.WaitGroup
-		pool := make(chan struct{}, md.immediateMaxConcurrent)
-		for i, updateEntry := range updateEntries {
-			ctx := statuslogger.NewContext(parentCtx, sl.Line(i))
-			e := updateEntry
-			wg.Add(1)
-			pool <- struct{}{}
-			go func() {
-				defer wg.Done()
-				if err := md.updateMachine(ctx, e); err != nil {
-					if md.strategy == "immediate" {
-						fmt.Fprintf(md.io.ErrOut, "Continuing after error: %s\n", err)
-					}
-				}
-				<-pool
-			}()
+
+		updatesPool := pool.New().WithErrors().WithContext(parentCtx)
+		if md.immediateMaxConcurrent > 0 {
+			updatesPool = updatesPool.WithMaxGoroutines(md.immediateMaxConcurrent)
 		}
-		wg.Wait()
-		return nil
-	}
 
-	var groupCount int
-	if mu := md.maxUnavailable; mu > 0 && mu < 1 {
-		groupCount = int(math.Floor(1.0 / mu))
-	} else if mu >= 1 {
-		groupCount = int(math.Ceil(float64(len(updateEntries)) / mu))
-	} else {
-		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
-	}
+		for i, e := range updateEntries {
+			e := e
+			eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
+			fmtID := e.leasableMachine.FormattedMachineId()
+			statusRunning := func() {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusRunning,
+					"Updating %s",
+					md.colorize.Bold(fmtID),
+				)
+			}
+			statusFailure := func(err error) {
+				if errors.Is(err, context.Canceled) {
+					statuslogger.LogfStatus(eCtx,
+						statuslogger.StatusFailure,
+						"Machine %s update %s",
+						md.colorize.Bold(fmtID),
+						md.colorize.Red("canceled while it was in progress"),
+					)
+				} else {
+					statuslogger.LogfStatus(eCtx,
+						statuslogger.StatusFailure,
+						"Machine %s update %s: %s",
+						md.colorize.Bold(fmtID),
+						md.colorize.Red("failed"),
+						err.Error(),
+					)
+				}
+			}
+			statusSuccess := func() {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusSuccess,
+					"Machine %s update %s",
+					md.colorize.Bold(fmtID),
+					md.colorize.Green("succeeded"),
+				)
+			}
 
-	type batchJob struct {
-		lm         machine.LeasableMachine
-		statusLine statuslogger.StatusLine
-	}
-	b := batcher[batchJob]{
-		TotalJobs:  len(updateEntries),
-		GroupCount: groupCount,
-		SoloFirst:  true,
+			updatesPool.Go(func(_ context.Context) error {
+				statusRunning()
+				if err := md.updateMachine(eCtx, e); err != nil {
+					statusFailure(err)
+					return err
+				}
+				statusSuccess()
+				return nil
+			})
+		}
+
+		return updatesPool.Wait()
 	}
 
 	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
@@ -431,41 +435,151 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 		sl.Destroy(false)
 	}()
 
-	for i, e := range updateEntries {
-		ctx := statuslogger.NewContext(parentCtx, sl.Line(i))
+	// Rolling strategy
+	slices.SortFunc(updateEntries, func(a, b *machineUpdateEntry) int {
+		return cmp.Compare(a.leasableMachine.Machine().ID, b.leasableMachine.Machine().ID)
+	})
 
-		statuslogger.LogStatus(ctx, statuslogger.StatusRunning, "Updating")
+	// Group updates by process group
+	entriesByGroup := lo.GroupBy(updateEntries, func(e *machineUpdateEntry) string {
+		return e.launchInput.Config.ProcessGroup()
+	})
 
-		if err := md.updateMachine(ctx, e); err != nil {
-			if md.strategy == "immediate" {
-				statuslogger.Failed(ctx, err)
-				fmt.Fprintf(md.io.ErrOut,
-					" (%s) Continuing after error: %v\n",
-					md.colorize.Bold(e.leasableMachine.FormattedMachineId()),
-					err,
+	startIdx := 0
+	groupsPool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(rollingStrategyMaxConcurrentGroups).
+		WithContext(parentCtx).
+		WithCancelOnError()
+
+	for _, entries := range entriesByGroup {
+		entries := entries
+		startIdx += len(entries)
+		groupsPool.Go(func(ctx context.Context) error {
+			return md.updateEntriesGroup(ctx, entries, sl, startIdx-len(entries))
+		})
+	}
+
+	return groupsPool.Wait()
+}
+
+func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
+	var poolSize int
+	switch mu := md.maxUnavailable; {
+	case mu >= 1:
+		poolSize = int(mu)
+	case mu > 0:
+		poolSize = int(math.Ceil(float64(len(entries)) * mu))
+	default:
+		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
+	}
+
+	updatePool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(poolSize).
+		WithContext(parentCtx).
+		WithCancelOnError()
+
+	for idx, e := range entries {
+		e := e
+		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+idx))
+		fmtID := e.leasableMachine.FormattedMachineId()
+
+		statusRunning := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusRunning,
+				"Updating %s",
+				md.colorize.Bold(fmtID),
+			)
+		}
+		statusFailure := func(err error) {
+			if errors.Is(err, context.Canceled) {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusFailure,
+					"Machine %s update %s",
+					md.colorize.Bold(fmtID),
+					md.colorize.Red("canceled while it was in progress"),
 				)
-				continue
+			} else {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusFailure,
+					"Machine %s update %s: %s",
+					md.colorize.Bold(fmtID),
+					md.colorize.Red("failed"),
+					err.Error(),
+				)
 			}
-			return err
+		}
+		statusSkipped := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusFailure,
+				"Machine %s update %s",
+				md.colorize.Bold(fmtID),
+				md.colorize.Yellow("canceled"),
+			)
+		}
+		statusSuccess := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusSuccess,
+				"Machine %s update %s",
+				md.colorize.Bold(fmtID),
+				md.colorize.Green("succeeded"),
+			)
 		}
 
-		b.Add(batchJob{e.leasableMachine, statuslogger.FromContext(ctx)})
-		for _, job := range b.Batch() {
-			if err := md.waitForMachine(statuslogger.NewContext(parentCtx, job.statusLine), job.lm); err != nil {
+		updateFunc := func(poolCtx context.Context) error {
+			// If the pool context is done, it means some other machine update failed
+			select {
+			case <-poolCtx.Done():
+				statusSkipped()
+				return poolCtx.Err()
+			default:
+				statusRunning()
+			}
+
+			if err := md.updateMachine(eCtx, e); err != nil {
+				statusFailure(err)
 				return err
 			}
+			if err := md.waitForMachine(eCtx, e); err != nil {
+				statusFailure(err)
+				return err
+			}
+			statusSuccess()
+			return nil
+		}
+
+		// Slow start by updating one machine and then the rest in groups if the spearhead succeeded
+		if idx == 0 {
+			err := updateFunc(parentCtx)
+			if err != nil {
+				return err
+			}
+		} else {
+			updatePool.Go(updateFunc)
 		}
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "  Finished deploying\n")
-	return nil
+	return updatePool.Wait()
 }
 
 func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry) error {
-	if e.launchInput.RequiresReplacement {
-		return md.updateMachineByReplace(ctx, e)
+	fmtID := e.leasableMachine.FormattedMachineId()
+
+	replaceMachine := func() error {
+		statuslogger.Logf(ctx, "Replacing %s by new machine", md.colorize.Bold(fmtID))
+		if err := md.updateMachineByReplace(ctx, e); err != nil {
+			return err
+		}
+		statuslogger.Logf(ctx, "Created machine %s", md.colorize.Bold(fmtID))
+		return nil
 	}
 
+	if e.launchInput.RequiresReplacement {
+		return replaceMachine()
+	}
+
+	statuslogger.Logf(ctx, "Updating %s", md.colorize.Bold(fmtID))
 	if err := md.updateMachineInPlace(ctx, e); err != nil {
 		switch {
 		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
@@ -473,7 +587,7 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 			// dismissing the value of replacing it in case of lack of host capacity
 			return err
 		case strings.Contains(err.Error(), "could not reserve resource for machine"):
-			return md.updateMachineByReplace(ctx, e)
+			return replaceMachine()
 		default:
 			return err
 		}
@@ -485,7 +599,6 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	lm := e.leasableMachine
 	// If machine requires replacement, destroy old machine and launch a new one
 	// This can be the case for machines that changes its volumes.
-	statuslogger.Logf(ctx, "Replacing %s by new machine", md.colorize.Bold(lm.FormattedMachineId()))
 	if err := lm.Destroy(ctx, true); err != nil {
 		return err
 	}
@@ -500,7 +613,6 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
-	statuslogger.Logf(ctx, "Created machine %s", md.colorize.Bold(lm.FormattedMachineId()))
 	defer lm.ReleaseLease(ctx)
 	e.leasableMachine = lm
 	return nil
@@ -508,15 +620,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 
 func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
-	statuslogger.Logf(ctx, "Updating %s", md.colorize.Bold(lm.FormattedMachineId()))
-	if err := lm.Update(ctx, *e.launchInput); err != nil {
-		if md.strategy != "immediate" {
-			return err
-		}
-		statuslogger.Failed(ctx, err)
-		fmt.Fprintf(md.io.ErrOut, " (%s) Continuing after error: %v\n", md.colorize.Bold(lm.FormattedMachineId()), err)
-	}
-	return nil
+	return lm.Update(ctx, *e.launchInput)
 }
 
 type spawnOptions struct {
@@ -704,10 +808,9 @@ func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, d
 func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context, lm machine.LeasableMachine) {
 	group := lm.Machine().ProcessGroup()
 
-	if _, ok := md.listenAddressChecked[group]; ok {
+	if _, seen := md.listenAddressChecked.LoadOrStore(group, struct{}{}); seen {
 		return
 	}
-	md.listenAddressChecked[group] = struct{}{}
 
 	groupConfig, err := md.appConfig.Flatten(group)
 	if err != nil {
