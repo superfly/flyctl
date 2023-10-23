@@ -235,35 +235,6 @@ func (r *gitRepo) refParents(ref string) ([]string, error) {
 	return strings.Split(out, " "), nil
 }
 
-// func (r *gitRepo) branchFromRef(ref string) (string, error) {
-// 	out, err := r.runGit("branch", "-r", "--contains", ref)
-// 	if err != nil {
-// 		return "", errors.Wrap(err, "failed to get branches containing ref")
-// 	}
-
-// 	var branches []string
-// 	for _, line := range strings.Split(out, "\n") {
-// 		if strings.HasPrefix(line, "origin/") {
-// 			branches = append(branches, strings.TrimPrefix(line, "origin/"))
-// 		}
-// 	}
-
-// 	// prefer master/main branch if it contains this ref
-// 	if slices.Contains(branches, "master") {
-// 		return "master", nil
-// 	}
-// 	if slices.Contains(branches, "main") {
-// 		return "main", nil
-// 	}
-
-// 	// otherwise, return the first branch that contains this ref
-// 	if len(branches) > 0 {
-// 		return branches[0], nil
-// 	}
-
-// 	return "", fmt.Errorf("no branch found containing ref \"%s\"", ref)
-// }
-
 func channelFromRef(ref string) (string, error) {
 	// return "pr<num>" if the ref is a PR
 	if strings.HasPrefix(ref, "refs/pull/") {
