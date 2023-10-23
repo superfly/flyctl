@@ -8,7 +8,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: 
+        os:
           - ubuntu-latest-m
           - macos-latest-xl
           # skip windows until actions/setup-go no longer takes ~5-6x longer than the others
