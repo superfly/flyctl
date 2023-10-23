@@ -9,6 +9,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 func (m *v2PlatformMigrator) validateVolumes(ctx context.Context) error {
@@ -90,20 +91,29 @@ func (m *v2PlatformMigrator) migrateAppVolumes(ctx context.Context) error {
 			region = "bom"
 		}
 
-		newVol, err := m.flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
-			SourceVolumeID:      &vol.ID,
-			MachinesOnly:        api.Pointer(true),
-			Name:                vol.Name,
-			ComputeRequirements: m.machineGuests[processGroup],
-			Region:              region,
-		})
-		if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
-			return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
-		} else if err != nil {
-			return err
-		}
-		if m.verbose {
-			fmt.Fprintf(m.io.Out, "Forked volume %s[%s] into %s[%s]\n", vol.Name, vol.ID, newVol.Name, newVol.ID)
+		var newVol *api.Volume
+		if preexisting, ok := m.preexistingVolumes[vol.ID]; ok {
+			newVol = preexisting
+			if m.verbose {
+				fmt.Fprintf(m.io.Out, "Using preexisting volume for %s[%s]: %s[%s]\n", vol.Name, vol.ID, preexisting.Name, preexisting.ID)
+			}
+		} else {
+			var err error
+			newVol, err = m.flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
+				SourceVolumeID:      &vol.ID,
+				MachinesOnly:        api.Pointer(true),
+				Name:                vol.Name,
+				ComputeRequirements: m.machineGuests[processGroup],
+				Region:              region,
+			})
+			if err != nil && strings.HasSuffix(err.Error(), " is not a valid candidate") {
+				return fmt.Errorf("unfortunately the worker hosting your volume %s (%s) does not have capacity for another volume to support the migration; some other options: 1) try again later and there might be more space on the worker, 2) run a manual migration https://community.fly.io/t/manual-migration-to-apps-v2/11870, or 3) wait until we support volume migrations across workers (we're working on it!)", vol.ID, vol.Name)
+			} else if err != nil {
+				return err
+			}
+			if m.verbose {
+				fmt.Fprintf(m.io.Out, "Forked volume %s[%s] into %s[%s]\n", vol.Name, vol.ID, newVol.Name, newVol.ID)
+			}
 		}
 
 		m.createdVolumes = append(m.createdVolumes, &NewVolume{
@@ -168,4 +178,61 @@ func (m *v2PlatformMigrator) printReplacedVolumes() {
 		s := lo.Ternary(num == 1, "", "s")
 		fmt.Fprintf(m.io.Out, " * %d volume%s named '%s' with ids: %v\n", num, s, name, volIds)
 	}
+}
+
+// Allow users to specify already migrated volumes
+func (m *v2PlatformMigrator) resolvePreexistingVolumes(ctx context.Context) error {
+	existingVols := flag.GetStringArray(ctx, "existing-volumes")
+	if len(existingVols) == 0 {
+		return nil
+	}
+
+	seen := map[string]struct{}{}
+	getValidatedIds := func(arg string) (string, string, error) {
+		split := strings.Split(arg, ":")
+		if len(split) != 2 {
+			return "", "", fmt.Errorf("invalid volume mapping %q", arg)
+		}
+		if split[0] == "" {
+			return "", "", fmt.Errorf("invalid volume mapping %q: source cannot be empty", arg)
+		}
+		if split[1] == "" {
+			return "", "", fmt.Errorf("invalid volume mapping %q: destination cannot be empty", arg)
+		}
+		if _, ok := lo.Find(m.oldAttachedVolumes, func(item api.Volume) bool { return item.ID == split[0] }); !ok {
+			return "", "", fmt.Errorf("invalid volume mapping %q: source %q is not attached to any running allocs", arg, split[0])
+		}
+		if split[0] == split[1] {
+			return "", "", fmt.Errorf("invalid volume mapping %q: source and destination cannot be the same", arg)
+		}
+		if _, ok := seen[split[0]]; ok {
+			return "", "", fmt.Errorf("invalid volume mapping %q: source %q already mapped", arg, split[0])
+		}
+		if _, ok := seen[split[1]]; ok {
+			return "", "", fmt.Errorf("invalid volume mapping %q: destination %q already mapped", arg, split[1])
+		}
+		seen[split[0]] = struct{}{}
+		seen[split[1]] = struct{}{}
+		return split[0], split[1], nil
+	}
+
+	var globalErr error
+	mapping := lo.Associate(existingVols, func(arg string) (string, *api.Volume) {
+		src, dst, err := getValidatedIds(arg)
+		if err != nil {
+			globalErr = err
+			return "", nil
+		}
+		destVol, err := m.flapsClient.GetVolume(ctx, dst)
+		if err != nil {
+			globalErr = err
+			return "", nil
+		}
+		return src, destVol
+	})
+	if globalErr != nil {
+		return globalErr
+	}
+	m.preexistingVolumes = mapping
+	return nil
 }

@@ -153,30 +153,14 @@ import (
 // 	assert.Equal(t, &expectedVer, meta.Version)
 // }
 
-func TestIsStableBranch(t *testing.T) {
-	tests := map[string]bool{
-		"refs/heads/master":    true,
-		"refs/heads/main":      true,
-		"refs/heads/my-branch": false,
-		"HEAD":                 false,
-	}
-
-	for ref, expected := range tests {
-		t.Run(ref, func(t *testing.T) {
-			stable := isRefStableBranch(ref)
-			assert.Equal(t, expected, stable)
-		})
-	}
-}
-
-func TestTrackFromRef_CI(t *testing.T) {
+func TestChannelFromRef_CI(t *testing.T) {
 	tests := []struct {
 		ref             string
 		headRef         string
 		expectedChannel string
 	}{
-		{"refs/heads/master", "master", "stable"},
-		{"refs/heads/main", "main", "stable"},
+		{"refs/heads/master", "master", "master"},
+		{"refs/heads/main", "main", "main"},
 		{"refs/pull/5432/merge", "pr5432-branch", "pr5432"},
 		{"refs/pull/543/merge", "pr543-branch", "pr543"},
 		{"refs/pull/54/merge", "pr54-branch", "pr54"},
@@ -186,6 +170,12 @@ func TestTrackFromRef_CI(t *testing.T) {
 		{"refs/heads/feat/launch-v2/databases", "feat/launch-v2/databases", "feat/launch-v2/databases"},
 		{"refs/heads/fix/prompt-app-create-on-deploy", "fix/prompt-app-create-on-deploy", "fix/prompt-app-create-on-deploy"},
 		{"refs/heads/dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8", "dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8", "dependabot/go_modules/github.com/vektah/gqlparser/v2-2.5.8"},
+		{"refs/tags/v0.1.100", "", "stable"},
+		{"refs/tags/v2023.10.20-stable.1", "", "stable"},
+		{"refs/tags/v2023.10.20-pr1234.1", "", "pr1234"},
+		{"refs/tags/v2023.10.20-my-branch.1", "", "my-branch"},
+		{"refs/tags/v2023.10.20-master.1", "", "master"},
+		{"refs/tags/v2023.10.20-main.1", "", "main"},
 	}
 
 	for _, test := range tests {

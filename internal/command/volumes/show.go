@@ -20,9 +20,9 @@ import (
 
 func newShow() (cmd *cobra.Command) {
 	const (
-		long = `Show details of an app's volume`
+		short = "Show the details of the specified volume."
 
-		short = "Show details of an app's volume"
+		long = short
 	)
 
 	cmd = command.New("show [id]", short, long, runShow,

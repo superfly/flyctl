@@ -19,6 +19,8 @@ type AddOnData struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Status of the add-on
 	Status string `json:"status"`
+	// Optional error message when `status` is `error`
+	ErrorMessage string `json:"errorMessage"`
 	// Add-on metadata
 	Metadata interface{} `json:"metadata"`
 }
@@ -34,6 +36,9 @@ func (v *AddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
 
 // GetStatus returns AddOnData.Status, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetStatus() string { return v.Status }
+
+// GetErrorMessage returns AddOnData.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
 
 // GetMetadata returns AddOnData.Metadata, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetMetadata() interface{} { return v.Metadata }
@@ -1425,6 +1430,9 @@ func (v *GetAddOnAddOn) GetId() string { return v.AddOnData.Id }
 // GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 
+// GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
+
 // GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.AddOnData.Metadata }
 
@@ -1480,6 +1488,8 @@ type __premarshalGetAddOnAddOn struct {
 
 	Name string `json:"name"`
 
+	ErrorMessage string `json:"errorMessage"`
+
 	Metadata interface{} `json:"metadata"`
 }
 
@@ -1507,6 +1517,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.AddOnPlan = v.AddOnPlan
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
@@ -2042,6 +2053,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetStatus() string 
 	return v.AddOnData.Status
 }
 
+// GetErrorMessage returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() string {
+	return v.AddOnData.ErrorMessage
+}
+
 // GetMetadata returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
 	return v.AddOnData.Metadata
@@ -2081,6 +2097,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 
 	Status string `json:"status"`
 
+	ErrorMessage string `json:"errorMessage"`
+
 	Metadata interface{} `json:"metadata"`
 }
 
@@ -2099,6 +2117,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.Name = v.AddOnData.Name
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
@@ -4041,6 +4060,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 	metadata
 }
 fragment AppData on App {
@@ -4261,6 +4281,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 	metadata
 }
 fragment OrganizationData on Organization {

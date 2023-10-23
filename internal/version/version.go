@@ -98,6 +98,13 @@ func (v Version) Older(other Version) bool {
 	return Compare(v, other) == -1
 }
 
+func ChannelFromCalverOrSemver(v Version) string {
+	if IsCalVer(v) {
+		return v.Channel
+	}
+	return "stable"
+}
+
 // Compare returns
 //
 //	-1 if x is less than y,
