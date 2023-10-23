@@ -22,7 +22,7 @@ import (
 
 type Extension struct {
 	Data gql.ExtensionData
-	App  gql.AppData
+	App  *gql.AppData
 }
 
 type ExtensionParams struct {
@@ -177,7 +177,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	}
 
 	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
-	extension.App = targetApp
+	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
@@ -206,7 +206,9 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+	if extension.Data.Environment != nil {
+		SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+	}
 
 	return extension, nil
 }

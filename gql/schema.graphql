@@ -147,6 +147,11 @@ type AddOn implements Node {
   id: ID!
 
   """
+  Add-on metadata
+  """
+  metadata: JSON
+
+  """
   The service name according to the provider
   """
   name: String
@@ -308,6 +313,11 @@ type AddOnProvider {
 }
 
 enum AddOnType {
+  """
+  A Kubernetes cluster
+  """
+  kubernetes
+
   """
   A PlanetScale database
   """
