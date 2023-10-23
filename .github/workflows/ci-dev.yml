@@ -19,13 +19,6 @@ jobs:
     uses:
       ./.github/workflows/test.yml
 
-  debug:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "$GITHUB_CONTEXT"
-        env:
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-
   # create a dev tag for every branch except master
   tag_version:
     needs: test
@@ -35,6 +28,11 @@ jobs:
       version: ${{ steps.version.outputs.next }}
       tag: v${{ steps.version.outputs.next }}
     steps:
+      - name: Debug
+        if: runner.debug == "1"
+        run: echo "$GITHUB_CONTEXT"
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
