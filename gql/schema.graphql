@@ -141,10 +141,20 @@ type AddOn implements Node {
   environment: JSON
 
   """
+  Optional error message when `status` is `error`
+  """
+  errorMessage: String
+
+  """
   DNS hostname for the add-on
   """
   hostname: String
   id: ID!
+
+  """
+  Add-on metadata
+  """
+  metadata: JSON
 
   """
   The service name according to the provider
@@ -1569,7 +1579,7 @@ input BuildMachineInput {
   config: JSON!
 
   """
-  id of host dedication
+  [deprecated]
   """
   dedicationId: String
 
@@ -1680,7 +1690,7 @@ input BuildVolumeInput {
   computeRequirements: JSON
 
   """
-  id of host dedication
+  [deprecated]
   """
   dedicationId: String
 
@@ -10709,6 +10719,10 @@ type User implements Node & Principal {
   """
   email: String!
   emailVerified: Boolean!
+
+  """
+  Whether to create new organizations under Hobby plan
+  """
   enablePaidHobby: Boolean!
   featureFlags: [String!]!
   hasNodeproxyApps: Boolean!

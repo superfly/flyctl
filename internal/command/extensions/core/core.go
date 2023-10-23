@@ -273,9 +273,11 @@ func WaitForProvision(ctx context.Context, name string) error {
 		}
 
 		if resp.AddOn.Status == "error" {
-			// TODO: Update with `ErrorMessage` when
-			// https://github.com/superfly/web/pull/2428 lands.
-			return errors.New("provisioning failed")
+			if resp.AddOn.ErrorMessage != "" {
+				return errors.New(resp.AddOn.ErrorMessage)
+			} else {
+				return errors.New("provisioning failed")
+			}
 		}
 
 		if resp.AddOn.Status == "ready" {
