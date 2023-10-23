@@ -56,13 +56,28 @@ jobs:
         with:
           script: |
             const { TAG_NAME } = process.env
-            github.rest.git.createRef({
+            await github.git.createTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: TAG_NAME,
+              message: tagMessage,
+              object: context.sha,
+              type: 'commit'
+            });
+            await github.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: `refs/tags/${TAG_NAME}`,
               sha: context.sha
-            })
-          github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
+            });
+            # await github.rest.git.createRef({
+            #   owner: context.repo.owner,
+            #   repo: context.repo.repo,
+            #   ref: `refs/tags/${TAG_NAME}`,
+            #   sha: context.sha
+            # })
+
+          # github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
 
   # # we can remove this workflow_call once the release.yml workflow file is
   # # merged into the default branch
