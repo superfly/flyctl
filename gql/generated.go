@@ -19,6 +19,8 @@ type AddOnData struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Status of the add-on
 	Status string `json:"status"`
+	// Optional error message when `status` is `error`
+	ErrorMessage string `json:"errorMessage"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -32,6 +34,9 @@ func (v *AddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
 
 // GetStatus returns AddOnData.Status, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetStatus() string { return v.Status }
+
+// GetErrorMessage returns AddOnData.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
 
 type AddOnType string
 
@@ -1418,6 +1423,9 @@ func (v *GetAddOnAddOn) GetId() string { return v.AddOnData.Id }
 // GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 
+// GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
+
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1469,6 +1477,8 @@ type __premarshalGetAddOnAddOn struct {
 	Id string `json:"id"`
 
 	Name string `json:"name"`
+
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1495,6 +1505,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.AddOnPlan = v.AddOnPlan
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	return &retval, nil
 }
 
@@ -2029,6 +2040,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetStatus() string 
 	return v.AddOnData.Status
 }
 
+// GetErrorMessage returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() string {
+	return v.AddOnData.ErrorMessage
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2062,6 +2078,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	PrimaryRegion string `json:"primaryRegion"`
 
 	Status string `json:"status"`
+
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2079,6 +2097,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.Name = v.AddOnData.Name
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	return &retval, nil
 }
 
@@ -4020,6 +4039,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 }
 fragment AppData on App {
 	id
@@ -4239,6 +4259,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 }
 fragment OrganizationData on Organization {
 	id
