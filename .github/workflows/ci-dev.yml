@@ -77,7 +77,7 @@ jobs:
             #   sha: context.sha
             # })
 
-          # github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
+          github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
 
   # # we can remove this workflow_call once the release.yml workflow file is
   # # merged into the default branch
