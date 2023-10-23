@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -381,28 +382,47 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 			e := e
 			eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
 			fmtID := e.leasableMachine.FormattedMachineId()
-
-			updatesPool.Go(func(_ context.Context) error {
+			statusRunning := func() {
 				statuslogger.LogfStatus(eCtx,
 					statuslogger.StatusRunning,
 					"Updating %s",
 					md.colorize.Bold(fmtID),
 				)
-				if err := md.updateMachine(eCtx, e); err != nil {
+			}
+			statusFailure := func(err error) {
+				if errors.Is(err, context.Canceled) {
 					statuslogger.LogfStatus(eCtx,
 						statuslogger.StatusFailure,
-						"Machine %s update failed: %s",
+						"Machine %s update %s",
 						md.colorize.Bold(fmtID),
-						md.colorize.Red(err.Error()),
+						md.colorize.Red("canceled while it was in progress"),
 					)
-					return err
+				} else {
+					statuslogger.LogfStatus(eCtx,
+						statuslogger.StatusFailure,
+						"Machine %s update %s: %s",
+						md.colorize.Bold(fmtID),
+						md.colorize.Red("failed"),
+						err.Error(),
+					)
 				}
+			}
+			statusSuccess := func() {
 				statuslogger.LogfStatus(eCtx,
 					statuslogger.StatusSuccess,
-					"Machine %s update finished: %s",
+					"Machine %s update %s",
 					md.colorize.Bold(fmtID),
-					md.colorize.Green("success"),
+					md.colorize.Green("succeeded"),
 				)
+			}
+
+			updatesPool.Go(func(_ context.Context) error {
+				statusRunning()
+				if err := md.updateMachine(eCtx, e); err != nil {
+					statusFailure(err)
+					return err
+				}
+				statusSuccess()
 				return nil
 			})
 		}
@@ -416,6 +436,9 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 	}()
 
 	// Rolling strategy
+	slices.SortFunc(updateEntries, func(a, b *machineUpdateEntry) int {
+		return cmp.Compare(a.leasableMachine.Machine().ID, b.leasableMachine.Machine().ID)
+	})
 
 	// Group updates by process group
 	entriesByGroup := lo.GroupBy(updateEntries, func(e *machineUpdateEntry) string {
@@ -457,9 +480,9 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 		WithContext(parentCtx).
 		WithCancelOnError()
 
-	for i, e := range entries {
+	for idx, e := range entries {
 		e := e
-		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+i))
+		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+idx))
 		fmtID := e.leasableMachine.FormattedMachineId()
 
 		statusRunning := func() {
@@ -504,7 +527,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 			)
 		}
 
-		updatePool.Go(func(poolCtx context.Context) error {
+		updateFunc := func(poolCtx context.Context) error {
 			// If the pool context is done, it means some other machine update failed
 			select {
 			case <-poolCtx.Done():
@@ -524,7 +547,17 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 			}
 			statusSuccess()
 			return nil
-		})
+		}
+
+		// Slow start by updating one machine and then the rest in groups if the spearhead succeeded
+		if idx == 0 {
+			err := updateFunc(parentCtx)
+			if err != nil {
+				return err
+			}
+		} else {
+			updatePool.Go(updateFunc)
+		}
 	}
 
 	return updatePool.Wait()
