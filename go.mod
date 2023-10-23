@@ -73,7 +73,7 @@ require (
 	google.golang.org/grpc v1.58.3
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	nhooyr.io/websocket v1.8.7
+	nhooyr.io/websocket v1.8.9
 )
 
 require (
