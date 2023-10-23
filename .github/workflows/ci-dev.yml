@@ -21,7 +21,6 @@ jobs:
 
   debug:
     runs-on: ubuntu-latest
-    if: runner.debug == '1'
     steps:
       - run: echo "$GITHUB_CONTEXT"
         env:
