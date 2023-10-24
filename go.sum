@@ -106,8 +106,8 @@ github.com/agext/levenshtein v1.2.3/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
 github.com/agnivade/levenshtein v1.1.1 h1:QY8M92nrzkmr798gCo3kmMyqXFzdQVpxLlGPRBij0P8=
 github.com/agnivade/levenshtein v1.1.1/go.mod h1:veldBMzWxcCG2ZvUTKD2kJNRdCk5hVbJomOvKkmgYbo=
-github.com/alecthomas/assert/v2 v2.2.2 h1:Z/iVC0xZfWTaFNE6bA3z07T86hd45Xe2eLt6WVy2bbk=
-github.com/alecthomas/assert/v2 v2.2.2/go.mod h1:pXcQ2Asjp247dahGEmsZ6ru0UVwnkhktn7S0bBDLxvQ=
+github.com/alecthomas/assert/v2 v2.3.0 h1:mAsH2wmvjsuvyBvAmCtm7zFsBlb8mIHx5ySLVdDZXL0=
+github.com/alecthomas/assert/v2 v2.3.0/go.mod h1:pXcQ2Asjp247dahGEmsZ6ru0UVwnkhktn7S0bBDLxvQ=
 github.com/alecthomas/chroma v0.10.0 h1:7XDcGkCQopCNKjZHfYrNLraA+M7e0fMiJ/Mfikbfjek=
 github.com/alecthomas/chroma v0.10.0/go.mod h1:jtJATyUxlIORhUOFNA9NZDWGAQ8wpxQQqNSB4rjA/1s=
 github.com/alecthomas/repr v0.2.0 h1:HAzS41CIzNW5syS8Mf9UwXhNH1J9aix/BvDRf1Ml2Yk=
@@ -701,8 +701,8 @@ github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2
 github.com/superfly/lfsc-go v0.1.1/go.mod h1:zVb0VENz/Il8Nmvvd4XAsX2bWhQ+sr0nK8vv9PeezcE=
 github.com/superfly/ltx v0.3.12 h1:Z7z1sc4g34/jUi3XO84+zBlIsbaoh2RJ3b4zTQpBK/M=
 github.com/superfly/ltx v0.3.12/go.mod h1:ly+Dq7UVacQVEI5/b0r6j+PSNy9ibwx1yikcWAaSkhE=
-github.com/superfly/macaroon v0.0.5 h1:Rw48kdYc2k0PHccGnNWO0Byc5TQoJBjbQtzGZJPFKcU=
-github.com/superfly/macaroon v0.0.5/go.mod h1:5DZuLe1e3EiEDs9R7snKQJVslVjgBhlJ9jbnOmKasRg=
+github.com/superfly/macaroon v0.0.6 h1:kNTWasWTLcPF7Kn7gSgCvFsw1MbPSbLSzROsl5C5je8=
+github.com/superfly/macaroon v0.0.6/go.mod h1:07A9g4CDxtclmiL0OOTS+VT5g5Xtz1VwxrCEUB5PnBE=
 github.com/superfly/tokenizer v0.0.2 h1:gBREpm08sPWUHsqKHKHFy/AIKwrqpg+VBD/wtJ6x5Jk=
 github.com/superfly/tokenizer v0.0.2/go.mod h1:jO8bIWFsfcBghh7I6cFJHmJb5E3RQr0v4F0Rnev3Yj4=
 github.com/tj/assert v0.0.0-20171129193455-018094318fb0/go.mod h1:mZ9/Rh9oLWpLLDRpvE+3b7gP/C2YyLFYxNmcLnPTMe0=
