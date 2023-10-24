@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -68,24 +67,51 @@ func (r *gitRepo) gitBranch() (string, error) {
 	if isDetached, err := r.isDetachedHead(); err != nil {
 		return "", errors.Wrap(err, "failed to check if git repo is detached")
 	} else if isDetached {
-		ref, err := r.gitRef()
-		if err != nil {
-			return "", errors.Wrap(err, "failed to get current git ref")
-		}
-		if branch, err := r.branchFromRef(ref); err != nil {
-			return "", errors.Wrap(err, "failed to get branch from ref")
-		} else {
-			return branch, nil
-		}
+		return r.branchFromDetachedHEAD()
 	}
 
-	// find the branch from Git
+	return r.branchFromHEAD()
+}
+
+func (r *gitRepo) branchFromHEAD() (string, error) {
 	output, err := r.runGit("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get current git branch")
 	}
-
 	return strings.TrimSpace(output), nil
+}
+
+func (r *gitRepo) branchFromDetachedHEAD() (string, error) {
+	ref, err := r.gitRef()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get current git sha")
+	}
+
+	parents, err := r.refParents(ref)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get parents of current git ref")
+	}
+	// this is a merge commit, get last branch containing the second parent
+	if len(parents) == 3 {
+		branches, err := r.branchesPointingAt(parents[2])
+		if err != nil {
+			return "", errors.Wrap(err, "failed to get branches pointing at second parent")
+		}
+		if len(branches) > 0 {
+			return branches[len(branches)-1], nil
+		}
+	}
+
+	// if not a merge commit, get last branch containing first ref
+	branches, err := r.branchesPointingAt(parents[0])
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get branches pointing at first parent")
+	}
+	if len(branches) > 0 {
+		return branches[len(branches)-1], nil
+	}
+
+	return "", fmt.Errorf("no branch found containing ref %q", ref)
 }
 
 func (r *gitRepo) gitRef() (string, error) {
@@ -184,10 +210,10 @@ func (r *gitRepo) isDetachedHead() (bool, error) {
 	return strings.TrimSpace(out) == "HEAD", nil
 }
 
-func (r *gitRepo) branchFromRef(ref string) (string, error) {
+func (r *gitRepo) branchesPointingAt(ref string) ([]string, error) {
 	out, err := r.runGit("branch", "-r", "--contains", ref)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to get branches containing ref")
+		return nil, errors.Wrap(err, "failed to get branches containing ref")
 	}
 
 	var branches []string
@@ -197,20 +223,16 @@ func (r *gitRepo) branchFromRef(ref string) (string, error) {
 		}
 	}
 
-	// prefer master/main branch if it contains this ref
-	if slices.Contains(branches, "master") {
-		return "master", nil
-	}
-	if slices.Contains(branches, "main") {
-		return "main", nil
+	return branches, nil
+}
+
+func (r *gitRepo) refParents(ref string) ([]string, error) {
+	out, err := r.runGit("rev-list", "--parents", "-1", ref)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ref parents")
 	}
 
-	// otherwise, return the first branch that contains this ref
-	if len(branches) > 0 {
-		return branches[0], nil
-	}
-
-	return "", fmt.Errorf("no branch found containing ref \"%s\"", ref)
+	return strings.Split(out, " "), nil
 }
 
 func channelFromRef(ref string) (string, error) {
