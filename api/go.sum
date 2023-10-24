@@ -1,7 +1,7 @@
 github.com/Khan/genqlient v0.6.0 h1:Bwb1170ekuNIVIwTJEqvO8y7RxBxXu639VJOkKSrwAk=
 github.com/Khan/genqlient v0.6.0/go.mod h1:rvChwWVTqXhiapdhLDV4bp9tz/Xvtewwkon4DpWWCRM=
-github.com/PuerkitoBio/rehttp v1.2.0 h1:V8MGVcDwR+u/xwLlMrw5YZONDm3JISEKqwJTiIuJA+s=
-github.com/PuerkitoBio/rehttp v1.2.0/go.mod h1:LUwKPoDbDIA2RL5wYZCNsQ90cx4OJ4AWBmq6KzWZL1s=
+github.com/PuerkitoBio/rehttp v1.3.0 h1:w54Pb72MQn2eJrSdPsvGqXlAfiK1+NMTGDrOJJ4YvSU=
+github.com/PuerkitoBio/rehttp v1.3.0/go.mod h1:LUwKPoDbDIA2RL5wYZCNsQ90cx4OJ4AWBmq6KzWZL1s=
 github.com/agnivade/levenshtein v1.0.1/go.mod h1:CURSv5d9Uaml+FovSIICkLbAUZ9S4RqaHDIsdSBg7lM=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883 h1:bvNMNQO63//z+xNgfBlViaCIJKLlCJ6/fmUseuG0wVQ=
 github.com/andreyvit/diff v0.0.0-20170406064948-c7f18ee00883/go.mod h1:rCTlJbsFo29Kk6CurOXKm700vrz8f0KW0JNfpkRJY/8=
