@@ -338,6 +338,7 @@ func runMachineRun(ctx context.Context) error {
 		imageOrPath:        imageOrPath,
 		region:             input.Region,
 		updating:           false,
+		interact:           true,
 	})
 	if err != nil {
 		return err
@@ -544,9 +545,12 @@ type determineMachineConfigInput struct {
 	imageOrPath        string
 	region             string
 	updating           bool
+	interact           bool
 }
 
-func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
+func determineMachineConfig(
+	ctx context.Context,
+	input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	var err error
@@ -588,6 +592,10 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 	} else {
 		// Called from `run`. Command is specified by arguments.
 		machineConf.Init.Cmd = flag.Args(ctx)[1:]
+	}
+
+	if input.interact {
+		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
