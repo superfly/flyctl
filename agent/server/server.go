@@ -22,8 +22,13 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
+)
+
+var (
+	metricCheckInterval = 5 * time.Minute
 )
 
 type Options struct {
@@ -168,6 +173,37 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 			}
 
 			return
+		}
+	})
+
+	eg.Go(func() error {
+		ticker := time.NewTicker(metricCheckInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				// Load files to upload
+				entries, read, err := metrics.Load()
+				if err != nil {
+					s.printf("Error loading metrics files: %v", err)
+					continue
+				}
+
+				if len(entries) == 0 {
+					continue
+				}
+
+				// Upload files (replace with your actual upload function)
+
+				// Purge uploaded files
+				if err := metrics.Purge(read); err != nil {
+					s.printf("Error purging metrics files: %v", err)
+				}
+
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	})
 
