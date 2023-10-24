@@ -51,6 +51,18 @@ func (f *Client) CreateVolume(ctx context.Context, req api.CreateVolumeRequest) 
 	return out, nil
 }
 
+func (f *Client) UpdateVolume(ctx context.Context, volumeId string, req api.UpdateVolumeRequest) (*api.Volume, error) {
+	updateVolumeEndpoint := fmt.Sprintf("/%s", volumeId)
+
+	out := new(api.Volume)
+
+	err := f.sendRequestVolumes(ctx, http.MethodPut, updateVolumeEndpoint, req, out, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update volume: %w", err)
+	}
+	return out, nil
+}
+
 func (f *Client) GetVolume(ctx context.Context, volumeId string) (*api.Volume, error) {
 	getVolumeEndpoint := fmt.Sprintf("/%s", volumeId)
 
