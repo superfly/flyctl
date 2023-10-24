@@ -58,7 +58,7 @@ func (f *Client) UpdateVolume(ctx context.Context, volumeId string, req api.Upda
 
 	err := f.sendRequestVolumes(ctx, http.MethodPut, updateVolumeEndpoint, req, out, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create volume: %w", err)
+		return nil, fmt.Errorf("failed to update volume: %w", err)
 	}
 	return out, nil
 }

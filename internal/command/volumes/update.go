@@ -23,7 +23,7 @@ func newUpdate() *cobra.Command {
 		short = "Update a volume for an app."
 
 		long = short + ` Volumes are persistent storage for
-		Fly Machines. The default size is 3 GB. Learn how to add a volume to
+		Fly Machines. Learn how to add a volume to
 		your app: https://fly.io/docs/apps/volume-storage/`
 
 		usage = "update <volumename>"
@@ -54,7 +54,6 @@ func runUpdate(ctx context.Context) error {
 		cfg      = config.FromContext(ctx)
 		client   = client.FromContext(ctx).API()
 		volumeID = flag.FirstArg(ctx)
-		// count      = flag.GetInt(ctx, "count")
 	)
 
 	appName := appconfig.NameFromContext(ctx)
@@ -75,23 +74,6 @@ func runUpdate(ctx context.Context) error {
 		return err
 	}
 
-	var volume *api.Volume
-	if volumeID == "" {
-		app, err := client.GetApp(ctx, appName)
-		if err != nil {
-			return err
-		}
-		volume, err = selectVolume(ctx, flapsClient, app)
-		if err != nil {
-			return err
-		}
-	} else {
-		volume, err = flapsClient.GetVolume(ctx, volumeID)
-		if err != nil {
-			return fmt.Errorf("failed retrieving volume: %w", err)
-		}
-	}
-
 	var snapshotRetention *int
 	if flag.GetInt(ctx, "snapshot-retention") != 0 {
 		snapshotRetention = api.Pointer(flag.GetInt(ctx, "snapshot-retention"))
@@ -102,7 +84,7 @@ func runUpdate(ctx context.Context) error {
 		SnapshotRetention: snapshotRetention,
 	}
 
-	updatedVolume, err := flapsClient.UpdateVolume(ctx, volume.ID, input)
+	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)
 	if err != nil {
 		return fmt.Errorf("failed updating volume: %w", err)
 	}
