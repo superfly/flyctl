@@ -48,6 +48,11 @@ func newCreate() *cobra.Command {
 			Default:     3,
 			Description: "The size of volume in gigabytes. The default is 3.",
 		},
+		flag.Int{
+			Name:        "snapshot-retention",
+			Default:     5,
+			Description: "Snapshot retention in days (min 5)",
+		},
 		flag.Bool{
 			Name:        "no-encryption",
 			Description: "Do not encrypt the volume contents. Volume contents are encrypted by default.",
@@ -136,6 +141,7 @@ func runCreate(ctx context.Context) error {
 		RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
+		SnapshotRetention:   api.Pointer(flag.GetInt(ctx, "snapshot-retention")),
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {

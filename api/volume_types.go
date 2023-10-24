@@ -14,6 +14,7 @@ type Volume struct {
 	AttachedAllocation *string   `json:"attached_alloc_id"`
 	CreatedAt          time.Time `json:"created_at"`
 	HostDedicationID   string    `json:"host_dedication_id"`
+	SnapshotRetention  int       `json:"snapshot_retention"`
 }
 
 func (v Volume) IsAttached() bool {
@@ -27,6 +28,7 @@ type CreateVolumeRequest struct {
 	Encrypted         *bool  `json:"encrypted"`
 	RequireUniqueZone *bool  `json:"require_unique_zone"`
 	MachinesOnly      *bool  `json:"machines_only"`
+	SnapshotRetention *int   `json:"snapshot_retention"`
 
 	// restore from snapshot
 	SnapshotID *string `json:"snapshot_id"`
@@ -34,6 +36,10 @@ type CreateVolumeRequest struct {
 	SourceVolumeID *string `json:"source_volume_id"`
 
 	ComputeRequirements *MachineGuest `json:"compute"`
+}
+
+type UpdateVolumeRequest struct {
+	SnapshotRetention *int `json:"snapshot_retention"`
 }
 
 type VolumeSnapshot struct {
