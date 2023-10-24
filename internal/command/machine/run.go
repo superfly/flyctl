@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -140,6 +141,39 @@ var sharedFlags = flag.Set{
 	flag.VMSizeFlags,
 }
 
+func soManyErrors(args ...interface{}) error {
+	sb := &strings.Builder{}
+	errs := 0
+
+	for i := range args {
+		if i%2 == 0 {
+			var err error
+
+			kind := args[i].(string)
+			erri := args[i+1]
+
+			if erri != nil {
+				err = erri.(error)
+			}
+
+			if err != nil {
+				fmt.Fprintf(sb, "\t%s: %s\n", kind, err)
+				errs += 1
+			}
+		}
+	}
+
+	if errs == 0 {
+		return nil
+	}
+
+	if errs == 1 {
+		return errors.New(strings.ReplaceAll(strings.ReplaceAll(sb.String(), "\t", ""), "\n", ""))
+	}
+
+	return fmt.Errorf("Multiple errors:\n%s", sb.String())
+}
+
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
@@ -186,6 +220,23 @@ func newRun() *cobra.Command {
 			Description: "Enable LSVD for this machine",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "it",
+			Description: "Open a shell on the machine once run",
+			Hidden:      false,
+		},
+		flag.String{
+			Name:        "user",
+			Description: "Username, if we're shelling into the machine now.",
+			Default:     "root",
+			Hidden:      false,
+		},
+		flag.String{
+			Name:        "command",
+			Description: "Command to run, if we're shelling into the machine now (in case you don't have bash).",
+			Default:     "/bin/bash",
+			Hidden:      false,
+		},
 		sharedFlags,
 	)
 
@@ -196,15 +247,32 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName  = appconfig.NameFromContext(ctx)
-		client   = client.FromContext(ctx).API()
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		err      error
-		app      *api.AppCompact
+		appName   = appconfig.NameFromContext(ctx)
+		client    = client.FromContext(ctx).API()
+		io        = iostreams.FromContext(ctx)
+		colorize  = io.ColorScheme()
+		err       error
+		app       *api.AppCompact
+		interact  = flag.GetBool(ctx, "it")
+		ephemeral = true
 	)
 
-	if appName == "" {
+	switch {
+	case interact && appName != "":
+		app, err = client.GetAppCompact(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+		ephemeral = false
+
+	case interact && appName == "":
+		app, err = createEphemeralApp(ctx, client)
+		if err != nil {
+			return err
+		}
+
+	case appName == "":
 		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
@@ -214,11 +282,10 @@ func runMachineRun(ctx context.Context) error {
 			return nil
 		}
 
-	} else {
+	default:
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-
 			if err != nil {
 				return err
 			}
@@ -226,7 +293,6 @@ func runMachineRun(ctx context.Context) error {
 			if app == nil {
 				return nil
 			}
-
 		}
 		if err != nil {
 			return err
@@ -291,22 +357,79 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", appName)
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
-	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
-	fmt.Fprintf(io.Out, " State: %s\n", state)
+
+	if !interact {
+		fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
+		fmt.Fprintf(io.Out, " State: %s\n", state)
+	}
 
 	if input.SkipLaunch {
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	if !interact {
+		fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	}
+
 	s.Start()
 	// wait for machine to be started
 	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
 	s.Stop()
 	if err != nil {
 		return err
+	}
+
+	if interact {
+		var destroy = flag.GetBool(ctx, "rm")
+
+		_, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+		if err != nil {
+			return err
+		}
+
+		// the app handle we have from creating a new app, presuming that's what
+		// we did, doesn't have the ID set.
+		app, err = client.GetAppCompact(ctx, app.Name)
+		if err != nil {
+			return fmt.Errorf("failed to load app info for %s: %w", app.Name, err)
+		}
+
+		sshClient, err := ssh.Connect(&ssh.ConnectParams{
+			Ctx:            ctx,
+			Org:            app.Organization,
+			Dialer:         dialer,
+			Username:       flag.GetString(ctx, "user"),
+			DisableSpinner: false,
+		}, machine.PrivateIP)
+		if err != nil {
+			return err
+		}
+
+		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
+		if destroy {
+			var dErr, aErr error
+
+			dErr = Destroy(ctx, app, machine, true)
+
+			// we created this app just to run a shell (the common case), so kill
+			// the app while we're at it, so we don't leave a long trail of random
+			// app names in our wake
+			if ephemeral {
+				aErr = client.DeleteApp(ctx, app.Name)
+			}
+
+			err = soManyErrors("console", err, "destroy machine", dErr, "destroy app", aErr)
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if destroy {
+			return nil
+		}
 	}
 
 	if !flag.GetDetach(ctx) {
@@ -322,6 +445,29 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  %s\n", privateIP)
 
 	return nil
+}
+
+func createEphemeralApp(ctx context.Context, client *api.Client) (*api.AppCompact, error) {
+	// no prompt if --org, buried in the context code
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	appc, err := client.CreateApp(ctx, api.CreateAppInput{
+		OrganizationID: org.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// this app handle won't have all the metadata attached, so grab it
+	app, err := client.GetAppCompact(ctx, appc.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return app, nil
 }
 
 func createApp(ctx context.Context, message, name string, client *api.Client) (*api.AppCompact, error) {
