@@ -237,10 +237,16 @@ func newRun() *cobra.Command {
 			Default:     "/bin/bash",
 			Hidden:      false,
 		},
+		flag.Bool{
+			Name:        "shell",
+			Description: "Open a shell on the machine once run (implies --it --rm --org)",
+			Hidden:      false,
+		},
+
 		sharedFlags,
 	)
 
-	cmd.Args = cobra.MinimumNArgs(1)
+	cmd.Args = cobra.MinimumNArgs(0)
 
 	return cmd
 }
@@ -255,7 +261,15 @@ func runMachineRun(ctx context.Context) error {
 		app       *api.AppCompact
 		interact  = flag.GetBool(ctx, "it")
 		ephemeral = true
+		shell     = flag.GetBool(ctx, "shell")
+		destroy   = flag.GetBool(ctx, "rm")
 	)
+
+	if shell {
+		destroy = true
+		appName = ""
+		interact = true
+	}
 
 	switch {
 	case interact && appName != "":
@@ -300,7 +314,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	machineConf := &api.MachineConfig{
-		AutoDestroy: flag.GetBool(ctx, "rm"),
+		AutoDestroy: destroy,
 		DNS: &api.DNSConfig{
 			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
@@ -323,7 +337,9 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	imageOrPath := flag.FirstArg(ctx)
-	if imageOrPath == "" {
+	if imageOrPath == "" && shell {
+		imageOrPath = "ubuntu"
+	} else if imageOrPath == "" {
 		return fmt.Errorf("image argument can't be an empty string")
 	}
 
@@ -383,8 +399,6 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		var destroy = flag.GetBool(ctx, "rm")
-
 		_, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
 		if err != nil {
 			return err
@@ -591,7 +605,11 @@ func determineMachineConfig(
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
-		machineConf.Init.Cmd = flag.Args(ctx)[1:]
+		args := flag.Args(ctx)
+
+		if len(args) != 0 {
+			machineConf.Init.Cmd = args[1:]
+		}
 	}
 
 	if input.interact {
