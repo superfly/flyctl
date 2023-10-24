@@ -76,7 +76,7 @@ func persistMetricsToken(ctx context.Context, token string) error {
 	path := state.ConfigFile(ctx)
 
 	if err := config.SetMetricsToken(path, token); err != nil {
-		return fmt.Errorf("failed persisting %s in %s: %w\n",
+		return fmt.Errorf("failed persisting %s in %s: %w",
 			config.MetricsTokenFileKey, path, err)
 	}
 	return nil
