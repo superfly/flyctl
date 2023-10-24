@@ -222,7 +222,7 @@ func newRun() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "it",
-			Description: "Open a shell on the machine once run",
+			Description: "Open a shell on the machine once created",
 			Hidden:      false,
 		},
 		flag.String{
@@ -239,7 +239,7 @@ func newRun() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "shell",
-			Description: "Open a shell on the machine once run (implies --it --rm --org)",
+			Description: "Open a shell on the machine once created (implies --it --rm)",
 			Hidden:      false,
 		},
 
