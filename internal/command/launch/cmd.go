@@ -142,7 +142,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	requireUi := false
+	incompleteLaunchManifest := false
 	canEnterUi := !flag.GetBool(ctx, "manifest")
 
 	if launchManifest == nil {
@@ -152,7 +152,7 @@ func run(ctx context.Context) (err error) {
 			if errors.Is(err, recoverableInUiError{}) && canEnterUi {
 				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
 				fmt.Fprintln(io.ErrOut, err.Error())
-				requireUi = true
+				incompleteLaunchManifest = true
 				err = nil
 			} else {
 				return err
@@ -191,7 +191,7 @@ func run(ctx context.Context) (err error) {
 	confirm := false
 	prompt := &survey.Confirm{
 		Message: lo.Ternary(
-			requireUi,
+			incompleteLaunchManifest,
 			"Would you like to continue in the web UI?",
 			"Do you want to tweak these settings before proceeding?",
 		),
@@ -207,8 +207,8 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-	}
-	if requireUi {
+	} else if incompleteLaunchManifest {
+		// UI was required to reconcile launch issues, but user denied. Abort.
 		return errors.New("launch can not continue with errors present")
 	}
 
