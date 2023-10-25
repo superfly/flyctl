@@ -2,8 +2,11 @@ package kubernetes
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -32,12 +35,13 @@ func create() (cmd *cobra.Command) {
 }
 
 func runK8sCreate(ctx context.Context) (err error) {
+	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	targetOrg, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err
 	}
-	_, err = extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
+	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
 		AppName:      appName,
 		Provider:     "kubernetes",
 		Organization: targetOrg,
@@ -45,5 +49,13 @@ func runK8sCreate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	resp, err := gql.GetAddOn(ctx, client, extension.Data.Name)
+	if err != nil {
+		return err
+	}
+
+	metadata := resp.AddOn.Metadata.(map[string]interface{})
+	fmt.Println("Use the following kubeconfig to connect to your cluster:\n\n", metadata["kubeconfig"])
 	return
 }
