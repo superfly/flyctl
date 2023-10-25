@@ -495,7 +495,7 @@ func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scan
 
 	guest, err := flag.GetMachineGuest(ctx, helpers.Clone(def))
 	if err != nil {
-		return helpers.Clone(def), recoverableSpecifyInUi, err
+		return helpers.Clone(def), recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
