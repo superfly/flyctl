@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -253,16 +254,15 @@ func newRun() *cobra.Command {
 
 func runMachineRun(ctx context.Context) error {
 	var (
-		appName   = appconfig.NameFromContext(ctx)
-		client    = client.FromContext(ctx).API()
-		io        = iostreams.FromContext(ctx)
-		colorize  = io.ColorScheme()
-		err       error
-		app       *api.AppCompact
-		interact  = flag.GetBool(ctx, "it")
-		ephemeral = true
-		shell     = flag.GetBool(ctx, "shell")
-		destroy   = flag.GetBool(ctx, "rm")
+		appName  = appconfig.NameFromContext(ctx)
+		client   = client.FromContext(ctx).API()
+		io       = iostreams.FromContext(ctx)
+		colorize = io.ColorScheme()
+		err      error
+		app      *api.AppCompact
+		interact = flag.GetBool(ctx, "it")
+		shell    = flag.GetBool(ctx, "shell")
+		destroy  = flag.GetBool(ctx, "rm")
 	)
 
 	if shell {
@@ -278,10 +278,8 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 
-		ephemeral = false
-
 	case interact && appName == "":
-		app, err = createEphemeralApp(ctx, client)
+		app, err = getOrCreateEphemeralShellApp(ctx, client)
 		if err != nil {
 			return err
 		}
@@ -424,18 +422,7 @@ func runMachineRun(ctx context.Context) error {
 
 		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
 		if destroy {
-			var dErr, aErr error
-
-			dErr = Destroy(ctx, app, machine, true)
-
-			// we created this app just to run a shell (the common case), so kill
-			// the app while we're at it, so we don't leave a long trail of random
-			// app names in our wake
-			if ephemeral {
-				aErr = client.DeleteApp(ctx, app.Name)
-			}
-
-			err = soManyErrors("console", err, "destroy machine", dErr, "destroy app", aErr)
+			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
 		}
 
 		if err != nil {
@@ -462,18 +449,37 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func createEphemeralApp(ctx context.Context, client *api.Client) (*api.AppCompact, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api.AppCompact, error) {
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create interactive shell app: %w", err)
 	}
 
-	appc, err := client.CreateApp(ctx, api.CreateAppInput{
-		OrganizationID: org.ID,
-	})
+	apps, err := client.GetAppsForOrganization(ctx, org.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create interactive shell app: %w", err)
+	}
+
+	var appc *api.App
+
+	for appi, appt := range apps {
+		if strings.HasPrefix(appt.Name, "flyctl-interactive-shells-") {
+			appc = &apps[appi]
+			break
+		}
+	}
+
+	if appc == nil {
+		appc, err = client.CreateApp(ctx, api.CreateAppInput{
+			OrganizationID: org.ID,
+			// i'll never find love again like the kind you give like the kind you send
+			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", org.ID, rand.Intn(1_000_000)),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("create interactive shell app: %w", err)
+		}
 	}
 
 	// this app handle won't have all the metadata attached, so grab it
