@@ -46,6 +46,8 @@ func (e recoverableInUiError) Unwrap() error {
 	return e.base
 }
 
+const recoverableSpecifyInUi = "must be specified in UI"
+
 // Cache values between buildManifest and stateFromManifest
 // It's important that we feed the result of buildManifest into stateFromManifest,
 // because that prevents the launch-manifest -> edit/save -> launch-from-manifest
@@ -67,6 +69,14 @@ func appNameTakenErr(appName string) error {
 
 func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
 	var recoverableInUiErrors []recoverableInUiError
+	tryRecoverErr := func(e error) error {
+		var asRecoverableErr recoverableInUiError
+		if errors.As(e, &asRecoverableErr) && canEnterUi {
+			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
+			return nil
+		}
+		return e
+	}
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -77,12 +87,16 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if copiedConfig {
@@ -106,19 +120,16 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	appName, appNameExplanation, err := determineAppName(ctx, configPath)
 	if err != nil {
-		var asRecoverableErr recoverableInUiError
-		if errors.As(err, &asRecoverableErr) && canEnterUi {
-			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
-			appName = ""
-			appNameExplanation = "must be specified in UI"
-		} else {
+		if err := tryRecoverErr(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	guest, guestExplanation, err := determineGuest(ctx, appConfig, srcInfo)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
@@ -363,10 +374,10 @@ func determineAppName(ctx context.Context, configPath string) (string, string, e
 			Err:     "unable to determine app name",
 			Suggest: "You can specify the app name with the --name flag",
 		}
-		return "", "", recoverableInUiError{err}
+		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 	if err := validateAppName(appName); err != nil {
-		return "", "", recoverableInUiError{err}
+		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 	// If the app name is already taken, try to generate a unique suffix.
 	if taken, _ := appNameTaken(ctx, appName); taken {
@@ -381,7 +392,7 @@ func determineAppName(ctx context.Context, configPath string) (string, string, e
 			}
 		}
 		if !found {
-			return "", "", recoverableInUiError{appNameTakenErr(appName)}
+			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
 		}
 		appName = newName
 	}
@@ -422,7 +433,7 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 		return o.Slug == orgSlug
 	})
 	if !found {
-		return nil, "", fmt.Errorf("organization '%s' not found", orgSlug)
+		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
 	}
 	return &org, "specified on the command line", nil
 }
@@ -442,15 +453,21 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
-	if regionCode != "" {
-		region, err := getRegionByCode(ctx, regionCode)
-		return region, explanation, err
-	}
-
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	region, err := client.API().GetNearestRegion(ctx)
-	return region, "this is the fastest region for you", err
+	closestRegion, closestRegionErr := client.API().GetNearestRegion(ctx)
+
+	if regionCode != "" {
+		region, err := getRegionByCode(ctx, regionCode)
+		if err != nil {
+			// Check and see if this is recoverable
+			if closestRegionErr == nil {
+				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
+			}
+		}
+		return region, explanation, err
+	}
+	return closestRegion, "this is the fastest region for you", closestRegionErr
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
@@ -478,7 +495,7 @@ func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scan
 
 	guest, err := flag.GetMachineGuest(ctx, helpers.Clone(def))
 	if err != nil {
-		return nil, reason, err
+		return helpers.Clone(def), recoverableSpecifyInUi, err
 	}
 
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
