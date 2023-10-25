@@ -221,11 +221,6 @@ func newRun() *cobra.Command {
 			Description: "Enable LSVD for this machine",
 			Hidden:      true,
 		},
-		flag.Bool{
-			Name:        "it",
-			Description: "Open a shell on the machine once created",
-			Hidden:      false,
-		},
 		flag.String{
 			Name:        "user",
 			Description: "Username, if we're shelling into the machine now.",
@@ -260,14 +255,13 @@ func runMachineRun(ctx context.Context) error {
 		colorize = io.ColorScheme()
 		err      error
 		app      *api.AppCompact
-		interact = flag.GetBool(ctx, "it")
+		interact = false
 		shell    = flag.GetBool(ctx, "shell")
 		destroy  = flag.GetBool(ctx, "rm")
 	)
 
 	if shell {
 		destroy = true
-		appName = ""
 		interact = true
 	}
 
