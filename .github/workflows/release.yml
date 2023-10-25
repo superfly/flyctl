@@ -41,6 +41,7 @@ jobs:
       - name: Output release meta
         id: gen
         run: |
+          cat release.json | jq
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-artifact@v3

@@ -39,6 +39,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(
 		newCreate(),
+		newUpdate(),
 		newList(),
 		newDestroy(),
 		newExtend(),
@@ -54,14 +55,15 @@ func New() *cobra.Command {
 func printVolume(w io.Writer, vol *api.Volume, appName string) error {
 	var buf bytes.Buffer
 
-	fmt.Fprintf(&buf, "%10s: %s\n", "ID", vol.ID)
-	fmt.Fprintf(&buf, "%10s: %s\n", "Name", vol.Name)
-	fmt.Fprintf(&buf, "%10s: %s\n", "App", appName)
-	fmt.Fprintf(&buf, "%10s: %s\n", "Region", vol.Region)
-	fmt.Fprintf(&buf, "%10s: %s\n", "Zone", vol.Zone)
-	fmt.Fprintf(&buf, "%10s: %d\n", "Size GB", vol.SizeGb)
-	fmt.Fprintf(&buf, "%10s: %t\n", "Encrypted", vol.Encrypted)
-	fmt.Fprintf(&buf, "%10s: %s\n", "Created at", vol.CreatedAt.Format(time.RFC822))
+	fmt.Fprintf(&buf, "%20s: %s\n", "ID", vol.ID)
+	fmt.Fprintf(&buf, "%20s: %s\n", "Name", vol.Name)
+	fmt.Fprintf(&buf, "%20s: %s\n", "App", appName)
+	fmt.Fprintf(&buf, "%20s: %s\n", "Region", vol.Region)
+	fmt.Fprintf(&buf, "%20s: %s\n", "Zone", vol.Zone)
+	fmt.Fprintf(&buf, "%20s: %d\n", "Size GB", vol.SizeGb)
+	fmt.Fprintf(&buf, "%20s: %t\n", "Encrypted", vol.Encrypted)
+	fmt.Fprintf(&buf, "%20s: %s\n", "Created at", vol.CreatedAt.Format(time.RFC822))
+	fmt.Fprintf(&buf, "%20s: %d\n", "Snapshot retention", vol.SnapshotRetention)
 
 	_, err := buf.WriteTo(w)
 

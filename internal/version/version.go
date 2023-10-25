@@ -98,6 +98,13 @@ func (v Version) Older(other Version) bool {
 	return Compare(v, other) == -1
 }
 
+func ChannelFromCalverOrSemver(v Version) string {
+	if IsCalVer(v) {
+		return v.Channel
+	}
+	return "stable"
+}
+
 // Compare returns
 //
 //	-1 if x is less than y,
@@ -252,7 +259,11 @@ func Parse(version string) (Version, error) {
 			parts = strings.SplitN(suffixStr, "-", 2)
 		} else {
 			// handle new calver format, which separates channel and build with a dot
-			parts = strings.SplitN(suffixStr, ".", 2)
+			if pos := strings.LastIndex(suffixStr, "."); pos >= 0 {
+				parts = []string{suffixStr[:pos], suffixStr[pos+1:]}
+			} else {
+				parts = []string{suffixStr}
+			}
 		}
 
 		out.Channel = parts[0]

@@ -103,6 +103,11 @@ func newMigrateToV2() *cobra.Command {
 			Description: "Use the standard volume fork-based migration, even for apps using the Postgres image",
 			Default:     false,
 		},
+		flag.StringArray{
+			Name:        "existing-volumes",
+			Description: "Map from sourceVolId:destVolId",
+			Hidden:      true,
+		},
 	)
 
 	cmd.AddCommand(newTroubleshoot())
@@ -224,6 +229,7 @@ type v2PlatformMigrator struct {
 	usesForkedVolumes    bool
 	createdVolumes       []*NewVolume
 	replacedVolumes      map[string][]string
+	preexistingVolumes   map[string]*api.Volume
 	isPostgres           bool
 	pgConsulUrl          string
 	targetImg            string
@@ -347,6 +353,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		machineGuests:           machineGuests,
 		isPostgres:              isPostgres,
 		replacedVolumes:         map[string][]string{},
+		preexistingVolumes:      map[string]*api.Volume{},
 		verbose:                 flag.GetBool(ctx, "verbose"),
 		recovery: recoveryState{
 			platformVersion: appFull.PlatformVersion,
@@ -377,6 +384,10 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		return nil, err
 	}
 	err = migrator.validateVolumes(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = migrator.resolvePreexistingVolumes(ctx)
 	if err != nil {
 		return nil, err
 	}

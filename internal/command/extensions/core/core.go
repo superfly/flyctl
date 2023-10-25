@@ -272,6 +272,14 @@ func WaitForProvision(ctx context.Context, name string) error {
 			return err
 		}
 
+		if resp.AddOn.Status == "error" {
+			if resp.AddOn.ErrorMessage != "" {
+				return errors.New(resp.AddOn.ErrorMessage)
+			} else {
+				return errors.New("provisioning failed")
+			}
+		}
+
 		if resp.AddOn.Status == "ready" {
 			return nil
 		}
