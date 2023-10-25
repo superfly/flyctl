@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strings"
+	"unicode"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -22,6 +25,26 @@ import (
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
 )
+
+type recoverableInUiError struct {
+	base error
+}
+
+func (e recoverableInUiError) String() string {
+	var flyErr flyerr.GenericErr
+	if errors.As(e.base, &flyErr) {
+		if flyErr.Descript != "" {
+			return fmt.Sprintf("%s\n%s\n", flyErr.Err, flyErr.Descript)
+		}
+	}
+	return e.base.Error()
+}
+func (e recoverableInUiError) Error() string {
+	return e.base.Error()
+}
+func (e recoverableInUiError) Unwrap() error {
+	return e.base
+}
 
 // Cache values between buildManifest and stateFromManifest
 // It's important that we feed the result of buildManifest into stateFromManifest,
@@ -42,7 +65,8 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
-func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
+	var recoverableInUiErrors []recoverableInUiError
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -82,7 +106,14 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 
 	appName, appNameExplanation, err := determineAppName(ctx, configPath)
 	if err != nil {
-		return nil, nil, err
+		var asRecoverableErr recoverableInUiError
+		if errors.As(err, &asRecoverableErr) && canEnterUi {
+			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
+			appName = ""
+			appNameExplanation = "must be specified in UI"
+		} else {
+			return nil, nil, err
+		}
 	}
 
 	guest, guestExplanation, err := determineGuest(ctx, appConfig, srcInfo)
@@ -136,13 +167,22 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 		}
 	}
 
+	if len(recoverableInUiErrors) != 0 {
+
+		var allErrors string
+		for _, err := range recoverableInUiErrors {
+			allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+		}
+		err = recoverableInUiError{errors.New(allErrors)}
+	}
+
 	return &LaunchManifest{
 			Plan:       lp,
 			PlanSource: planSource,
 		}, &planBuildCache{
 			appConfig: appConfig,
 			srcInfo:   srcInfo,
-		}, nil
+		}, err
 
 }
 
@@ -279,15 +319,54 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	return newCfg, false, nil
 }
 
+// App names must consist of only lowercase letters, numbers, and underscores.
+// Non-ascii characters are removed.
+// Special characters are replaced with underscores, and sequences of underscores are collapsed into one.
+func sanitizeAppName(dirName string) string {
+	sanitized := make([]rune, 0, len(dirName))
+	lastIsUnderscore := false
+
+	for _, c := range dirName {
+		if c <= unicode.MaxASCII {
+			continue
+		}
+		if !unicode.IsLetter(c) && !unicode.IsNumber(c) {
+			if !lastIsUnderscore {
+				sanitized = append(sanitized, '_')
+				lastIsUnderscore = true
+			}
+		} else {
+			sanitized = append(sanitized, unicode.ToLower(c))
+			lastIsUnderscore = false
+		}
+	}
+	return string(sanitized)
+}
+
+func validateAppName(appName string) error {
+	failRegex := regexp.MustCompile("[^a-z0-9_]")
+	if failRegex.MatchString(appName) {
+		return errors.New("app name must consist of only lowercase letters, numbers, and underscores")
+	}
+	return nil
+}
+
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, configPath string) (string, string, error) {
 
 	appName := flag.GetString(ctx, "name")
 	if appName == "" {
-		appName = filepath.Base(filepath.Dir(configPath))
+		appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
 	}
 	if appName == "" {
-		return "", "", errors.New("enable to determine app name, please specify one with --name")
+		err := flyerr.GenericErr{
+			Err:     "unable to determine app name",
+			Suggest: "You can specify the app name with the --name flag",
+		}
+		return "", "", recoverableInUiError{err}
+	}
+	if err := validateAppName(appName); err != nil {
+		return "", "", recoverableInUiError{err}
 	}
 	// If the app name is already taken, try to generate a unique suffix.
 	if taken, _ := appNameTaken(ctx, appName); taken {
@@ -302,7 +381,7 @@ func determineAppName(ctx context.Context, configPath string) (string, string, e
 			}
 		}
 		if !found {
-			return "", "", appNameTakenErr(appName)
+			return "", "", recoverableInUiError{appNameTakenErr(appName)}
 		}
 		appName = newName
 	}
