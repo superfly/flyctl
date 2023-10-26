@@ -330,9 +330,9 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	return newCfg, false, nil
 }
 
-// App names must consist of only lowercase letters, numbers, and underscores.
+// App names must consist of only lowercase letters, numbers, and dashes.
 // Non-ascii characters are removed.
-// Special characters are replaced with underscores, and sequences of underscores are collapsed into one.
+// Special characters are replaced with dashes, and sequences of dashes are collapsed into one.
 func sanitizeAppName(dirName string) string {
 	sanitized := make([]rune, 0, len(dirName))
 	lastIsUnderscore := false
@@ -343,7 +343,7 @@ func sanitizeAppName(dirName string) string {
 		}
 		if !unicode.IsLetter(c) && !unicode.IsNumber(c) {
 			if !lastIsUnderscore {
-				sanitized = append(sanitized, '_')
+				sanitized = append(sanitized, '-')
 				lastIsUnderscore = true
 			}
 		} else {
@@ -351,13 +351,13 @@ func sanitizeAppName(dirName string) string {
 			lastIsUnderscore = false
 		}
 	}
-	return string(sanitized)
+	return strings.Trim(string(sanitized), "-")
 }
 
 func validateAppName(appName string) error {
-	failRegex := regexp.MustCompile("[^a-z0-9_]")
+	failRegex := regexp.MustCompile(`[^a-z0-9\-]`)
 	if failRegex.MatchString(appName) {
-		return errors.New("app name must consist of only lowercase letters, numbers, and underscores")
+		return errors.New("app name must consist of only lowercase letters, numbers, and dashes")
 	}
 	return nil
 }
