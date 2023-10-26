@@ -195,15 +195,19 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 				// Load files to upload
 				entries, read, err := metrics.Load()
 				if err != nil {
-					s.printf("Error loading metrics files: %v", err)
+					s.printf("Error loading metric files: %v", err)
 					continue
 				}
 
 				if len(entries) == 0 {
+					s.print("found no metrics to upload")
 					continue
 				}
 
-				// Upload files (replace with your actual upload function)
+				if !metrics.ShouldSendMetrics(ctx) {
+					s.print("metrics sending disabled")
+				}
+
 				for _, entry := range entries {
 					err := s.metricsClient.Send(ctx, &entry)
 					if err != nil {
@@ -211,7 +215,6 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 					}
 				}
 
-				// Purge uploaded files
 				if err := metrics.Purge(read); err != nil {
 					s.printf("Error purging metrics files: %v", err)
 				}

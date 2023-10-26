@@ -108,7 +108,7 @@ func handleErr(err error) {
 }
 
 func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessage) {
-	if !shouldSendMetrics(parentCtx) {
+	if !ShouldSendMetrics(parentCtx) {
 		return
 	}
 
@@ -119,7 +119,7 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 	}()
 }
 
-func shouldSendMetrics(ctx context.Context) bool {
+func ShouldSendMetrics(ctx context.Context) bool {
 	if !Enabled {
 		return false
 	}
