@@ -46,6 +46,9 @@ func (e recoverableInUiError) Unwrap() error {
 	return e.base
 }
 
+// state.go uses this as a sentinel value to indicate that a value was not specified,
+// and should therefore be displayed as <unspecified> in the plan display.
+// I'd like to move off this in the future, but this is the quick 'n dirty initial path
 const recoverableSpecifyInUi = "must be specified in UI"
 
 // Cache values between buildManifest and stateFromManifest
