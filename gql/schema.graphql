@@ -319,6 +319,11 @@ type AddOnProvider {
 
 enum AddOnType {
   """
+  A Kubernetes cluster
+  """
+  kubernetes
+
+  """
   A PlanetScale database
   """
   planetscale
