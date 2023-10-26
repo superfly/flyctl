@@ -23,7 +23,6 @@ func New() *cobra.Command {
 		newList(),
 		newDestroy(),
 		newRun(),
-		newCreate(),
 		newStart(),
 		newStop(),
 		newStatus(),
