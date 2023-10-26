@@ -201,7 +201,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}()
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			metrics.SendNoData(ctx, "remote_builder_failure")
+			metrics.SaveNoData(ctx, "remote_builder_failure")
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
@@ -224,7 +224,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
-				metrics.SendNoData(ctx, "remote_builder_failure")
+				metrics.SaveNoData(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
@@ -234,7 +234,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
-				metrics.SendNoData(ctx, "remote_builder_failure")
+				metrics.SaveNoData(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()

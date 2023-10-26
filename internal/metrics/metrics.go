@@ -85,7 +85,7 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	}
 }
 
-func Send[T any](ctx context.Context, metricSlug string, value T) {
+func Save[T any](ctx context.Context, metricSlug string, value T) {
 	var (
 		store  = StoreFromContext(ctx)
 		logger = logger.FromContext(ctx)
@@ -106,11 +106,11 @@ func Send[T any](ctx context.Context, metricSlug string, value T) {
 	}
 }
 
-func SendNoData(ctx context.Context, metricSlug string) {
-	SendJson(ctx, metricSlug, nil)
+func SaveNoData(ctx context.Context, metricSlug string) {
+	SaveJSON(ctx, metricSlug, nil)
 }
 
-func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
+func SaveJSON(ctx context.Context, metricSlug string, payload json.RawMessage) {
 	var (
 		store  = StoreFromContext(ctx)
 		logger = logger.FromContext(ctx)
@@ -130,7 +130,7 @@ func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
 func StartTiming(ctx context.Context, metricSlug string) func() {
 	start := time.Now()
 	return func() {
-		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
+		Save(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
 }
 

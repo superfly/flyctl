@@ -147,7 +147,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	// finally, build the image
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
-		metrics.SendNoData(ctx, "remote_builder_failure")
+		metrics.SaveNoData(ctx, "remote_builder_failure")
 		return nil, err
 	}
 	defer heartbeat.Stop()

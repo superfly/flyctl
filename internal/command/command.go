@@ -80,7 +80,7 @@ func sendOsMetric(ctx context.Context, state string) {
 	default:
 		osName = "other"
 	}
-	metrics.SendNoData(ctx, fmt.Sprintf("runs/%s/%s", osName, state))
+	metrics.SaveNoData(ctx, fmt.Sprintf("runs/%s/%s", osName, state))
 }
 
 func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []string) error {
