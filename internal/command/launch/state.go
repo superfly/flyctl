@@ -115,6 +115,12 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Redis", redisStr, state.PlanSource.redisSource},
 	}
 
+	for _, row := range rows {
+		if row[2] == recoverableSpecifyInUi {
+			row[1] = "<unspecified>"
+		}
+	}
+
 	colLengths := []int{0, 0, 0}
 	for _, row := range rows {
 		for i, col := range row {

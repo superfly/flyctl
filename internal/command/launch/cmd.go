@@ -149,9 +149,10 @@ func run(ctx context.Context) (err error) {
 
 		launchManifest, cache, err = buildManifest(ctx, canEnterUi)
 		if err != nil {
-			if errors.Is(err, recoverableInUiError{}) && canEnterUi {
+			var recoverableErr recoverableInUiError
+			if errors.As(err, &recoverableErr) && canEnterUi {
 				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
-				fmt.Fprintln(io.ErrOut, err.Error())
+				fmt.Fprintln(io.ErrOut, recoverableErr.Error())
 				incompleteLaunchManifest = true
 				err = nil
 			} else {
