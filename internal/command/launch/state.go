@@ -115,6 +115,15 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Redis", redisStr, state.PlanSource.redisSource},
 	}
 
+	for _, row := range rows {
+		// TODO: This is a hack. It'd be nice to not require a special sentinel value for the description,
+		//       but it works OK for now. I'd special-case on value=="" instead, but that isn't *necessarily*
+		//       a failure case for every field.
+		if row[2] == recoverableSpecifyInUi {
+			row[1] = "<unspecified>"
+		}
+	}
+
 	colLengths := []int{0, 0, 0}
 	for _, row := range rows {
 		for i, col := range row {

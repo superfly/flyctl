@@ -5,6 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
+	"strings"
+	"unicode"
 
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
@@ -22,6 +25,31 @@ import (
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
 )
+
+type recoverableInUiError struct {
+	base error
+}
+
+func (e recoverableInUiError) String() string {
+	var flyErr flyerr.GenericErr
+	if errors.As(e.base, &flyErr) {
+		if flyErr.Descript != "" {
+			return fmt.Sprintf("%s\n%s\n", flyErr.Err, flyErr.Descript)
+		}
+	}
+	return e.base.Error()
+}
+func (e recoverableInUiError) Error() string {
+	return e.base.Error()
+}
+func (e recoverableInUiError) Unwrap() error {
+	return e.base
+}
+
+// state.go uses this as a sentinel value to indicate that a value was not specified,
+// and should therefore be displayed as <unspecified> in the plan display.
+// I'd like to move off this in the future, but this is the quick 'n dirty initial path
+const recoverableSpecifyInUi = "must be specified in UI"
 
 // Cache values between buildManifest and stateFromManifest
 // It's important that we feed the result of buildManifest into stateFromManifest,
@@ -42,7 +70,16 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
-func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
+	var recoverableInUiErrors []recoverableInUiError
+	tryRecoverErr := func(e error) error {
+		var asRecoverableErr recoverableInUiError
+		if errors.As(e, &asRecoverableErr) && canEnterUi {
+			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
+			return nil
+		}
+		return e
+	}
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -53,12 +90,16 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 
 	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if copiedConfig {
@@ -82,12 +123,16 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 
 	appName, appNameExplanation, err := determineAppName(ctx, configPath)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	guest, guestExplanation, err := determineGuest(ctx, appConfig, srcInfo)
 	if err != nil {
-		return nil, nil, err
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
@@ -136,13 +181,22 @@ func buildManifest(ctx context.Context) (*LaunchManifest, *planBuildCache, error
 		}
 	}
 
+	if len(recoverableInUiErrors) != 0 {
+
+		var allErrors string
+		for _, err := range recoverableInUiErrors {
+			allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+		}
+		err = recoverableInUiError{errors.New(allErrors)}
+	}
+
 	return &LaunchManifest{
 			Plan:       lp,
 			PlanSource: planSource,
 		}, &planBuildCache{
 			appConfig: appConfig,
 			srcInfo:   srcInfo,
-		}, nil
+		}, err
 
 }
 
@@ -279,15 +333,54 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	return newCfg, false, nil
 }
 
+// App names must consist of only lowercase letters, numbers, and dashes.
+// Non-ascii characters are removed.
+// Special characters are replaced with dashes, and sequences of dashes are collapsed into one.
+func sanitizeAppName(dirName string) string {
+	sanitized := make([]rune, 0, len(dirName))
+	lastIsUnderscore := false
+
+	for _, c := range dirName {
+		if c <= unicode.MaxASCII {
+			continue
+		}
+		if !unicode.IsLetter(c) && !unicode.IsNumber(c) {
+			if !lastIsUnderscore {
+				sanitized = append(sanitized, '-')
+				lastIsUnderscore = true
+			}
+		} else {
+			sanitized = append(sanitized, unicode.ToLower(c))
+			lastIsUnderscore = false
+		}
+	}
+	return strings.Trim(string(sanitized), "-")
+}
+
+func validateAppName(appName string) error {
+	failRegex := regexp.MustCompile(`[^a-z0-9\-]`)
+	if failRegex.MatchString(appName) {
+		return errors.New("app name must consist of only lowercase letters, numbers, and dashes")
+	}
+	return nil
+}
+
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, configPath string) (string, string, error) {
 
 	appName := flag.GetString(ctx, "name")
 	if appName == "" {
-		appName = filepath.Base(filepath.Dir(configPath))
+		appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
 	}
 	if appName == "" {
-		return "", "", errors.New("enable to determine app name, please specify one with --name")
+		err := flyerr.GenericErr{
+			Err:     "unable to determine app name",
+			Suggest: "You can specify the app name with the --name flag",
+		}
+		return "", recoverableSpecifyInUi, recoverableInUiError{err}
+	}
+	if err := validateAppName(appName); err != nil {
+		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 	// If the app name is already taken, try to generate a unique suffix.
 	if taken, _ := appNameTaken(ctx, appName); taken {
@@ -302,7 +395,7 @@ func determineAppName(ctx context.Context, configPath string) (string, string, e
 			}
 		}
 		if !found {
-			return "", "", appNameTakenErr(appName)
+			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
 		}
 		appName = newName
 	}
@@ -343,7 +436,7 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 		return o.Slug == orgSlug
 	})
 	if !found {
-		return nil, "", fmt.Errorf("organization '%s' not found", orgSlug)
+		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
 	}
 	return &org, "specified on the command line", nil
 }
@@ -363,15 +456,21 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 		explanation = "from your fly.toml"
 	}
 
-	if regionCode != "" {
-		region, err := getRegionByCode(ctx, regionCode)
-		return region, explanation, err
-	}
-
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	region, err := client.API().GetNearestRegion(ctx)
-	return region, "this is the fastest region for you", err
+	closestRegion, closestRegionErr := client.API().GetNearestRegion(ctx)
+
+	if regionCode != "" {
+		region, err := getRegionByCode(ctx, regionCode)
+		if err != nil {
+			// Check and see if this is recoverable
+			if closestRegionErr == nil {
+				return closestRegion, recoverableSpecifyInUi, recoverableInUiError{err}
+			}
+		}
+		return region, explanation, err
+	}
+	return closestRegion, "this is the fastest region for you", closestRegionErr
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
@@ -394,12 +493,13 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 // determineGuest returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
 func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
-	def := api.MachinePresets["shared-cpu-1x"]
+	def := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+	def.MemoryMB = 1024
 	reason := "most apps need about 1GB of RAM"
 
 	guest, err := flag.GetMachineGuest(ctx, helpers.Clone(def))
 	if err != nil {
-		return nil, reason, err
+		return def, recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
