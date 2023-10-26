@@ -154,7 +154,6 @@ func run(ctx context.Context) (err error) {
 				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
 				fmt.Fprintln(io.ErrOut, recoverableErr.Error())
 				incompleteLaunchManifest = true
-				err = nil
 			} else {
 				return err
 			}
