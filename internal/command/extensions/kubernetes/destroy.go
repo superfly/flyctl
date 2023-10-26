@@ -27,6 +27,7 @@ func destroy() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runDestroy, command.RequireSession)
 
 	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Aliases = []string{"rm"}
 
 	flag.Add(cmd,
 		flag.Yes(),
