@@ -8,12 +8,12 @@ import (
 func New() (cmd *cobra.Command) {
 
 	const (
-		short = "Set up a Kubernetes cluster for this organization"
+		short = "Provision and manage Kubernetes clusters"
 		long  = short + "\n"
 	)
 
 	cmd = command.New("kubernetes", short, long, nil)
 	cmd.Aliases = []string{"k8s"}
-	cmd.AddCommand(create())
+	cmd.AddCommand(create(), destroy(), list())
 	return cmd
 }
