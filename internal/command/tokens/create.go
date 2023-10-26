@@ -70,7 +70,7 @@ func newOrgRead() *cobra.Command {
 	const (
 		short = "Create read-only org tokens"
 		long  = "Create an API token limited to reading a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
-		usage = "org-read"
+		usage = "readonly"
 	)
 
 	cmd := command.New(usage, short, long, runOrgRead,
@@ -79,6 +79,10 @@ func newOrgRead() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.JSONOutput(),
+		flag.Bool{
+			Name:        "from-existing",
+			Description: "Use an existing token as the basis for the read-only token",
+		},
 		flag.Duration{
 			Name:        "expiry",
 			Shorthand:   "x",
@@ -207,29 +211,54 @@ func runOrg(ctx context.Context) error {
 }
 
 func runOrgRead(ctx context.Context) error {
-	var token string
-	apiClient := client.FromContext(ctx).API()
+	var (
+		token          string
+		apiClient      = client.FromContext(ctx).API()
+		expiry         = ""
+		expiryDuration = flag.GetDuration(ctx, "expiry")
+		perm           []byte
+		diss           [][]byte
+	)
 
-	expiry := ""
-	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+	if expiryDuration != 0 {
 		expiry = expiryDuration.String()
 	}
 
-	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving org %w", err)
-	}
+	if !flag.GetBool(ctx, "from-existing") {
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+		if err != nil {
+			return fmt.Errorf("failed retrieving org %w", err)
+		}
 
-	resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
-	if err != nil {
-		return err
-	}
+		resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
+		if err != nil {
+			return err
+		}
 
-	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+		token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
 
-	perm, diss, err := macaroon.ParsePermissionAndDischargeTokens(token, flyio.LocationPermission)
-	if err != nil {
-		return err
+		perm, diss, err = macaroon.ParsePermissionAndDischargeTokens(token, flyio.LocationPermission)
+		if err != nil {
+			return err
+		}
+	} else { /* see also below: we add expiry explicitly if this branch is taken */
+		toks, err := getTokens(ctx)
+		if err != nil {
+			return err
+		}
+
+		var perms [][]byte
+
+		_, perms, _, diss, err = macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
+		if err != nil {
+			return err
+		}
+
+		if len(perms) > 1 {
+			return fmt.Errorf("the currently set token string has more than one permission token in it, can't proceed")
+		}
+
+		perm = perms[0]
 	}
 
 	mac, err := macaroon.Decode(perm)
@@ -250,6 +279,15 @@ func runOrgRead(ctx context.Context) error {
 	}
 	if err := mac.Add(&flyio.Organization{ID: *orgID, Mask: resset.ActionRead}); err != nil {
 		return err
+	}
+
+	if expiryDuration != 0 && flag.GetBool(ctx, "from-existing") {
+		if err := mac.Add(&macaroon.ValidityWindow{
+			NotBefore: time.Now().Unix(),
+			NotAfter:  time.Now().Add(expiryDuration).Unix(),
+		}); err != nil {
+			return err
+		}
 	}
 
 	if perm, err = mac.Encode(); err != nil {
