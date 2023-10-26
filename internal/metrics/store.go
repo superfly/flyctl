@@ -20,13 +20,13 @@ const (
 
 type Entry struct {
 	Metric    string          `json:"m"`
-	Payload   json.RawMessage `json:"p"`
+	Payload   json.RawMessage `json:"p,omitempty"`
 	Timestamp time.Time       `json:"t,omitempty"`
 }
 
 type Cache interface {
 	// Append appends the given entries to the store'c buffer.
-	Write(entry Entry) (int, error)
+	Write(entry *Entry) (int, error)
 	// Flush flushes the buffer to a file.
 	Flush() error
 }
@@ -41,17 +41,12 @@ type cache struct {
 func New() (Cache, error) {
 	c := &cache{}
 
-	dir, err := metricsDir()
-	if err != nil {
-		return nil, err
-	}
-
 	file, err := createMetricsFile()
 	if err != nil {
 		return nil, err
 	}
 
-	c.filePath = filepath.Join(dir, file.Name())
+	c.filePath = file.Name()
 
 	c.current = file
 
@@ -60,7 +55,7 @@ func New() (Cache, error) {
 	return c, nil
 }
 
-func (c *cache) Write(entry Entry) (int, error) {
+func (c *cache) Write(entry *Entry) (int, error) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
@@ -85,6 +80,7 @@ func (c *cache) Flush() error {
 
 	// Rename the file to remove the .tmp suffix
 	finalPath := strings.TrimSuffix(c.filePath, ".tmp")
+
 	return os.Rename(c.filePath, finalPath)
 }
 

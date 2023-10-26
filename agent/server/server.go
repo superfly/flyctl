@@ -28,7 +28,7 @@ import (
 )
 
 var (
-	metricCheckInterval = 5 * time.Minute
+	metricCheckInterval = 40 * time.Second
 )
 
 type Options struct {
@@ -57,9 +57,15 @@ func Run(ctx context.Context, opt Options) (err error) {
 		return
 	}
 
+	metrics, err := metrics.NewClient(ctx)
+	if err != nil {
+		opt.Logger.Print(err)
+	}
+
 	err = (&server{
 		Options:       opt,
 		listener:      l,
+		metricsClient: metrics,
 		currentChange: latestChangeAt,
 		tunnels:       make(map[string]*wg.Tunnel),
 	}).serve(ctx, l)
@@ -112,6 +118,8 @@ type server struct {
 	Options
 
 	listener net.Listener
+
+	metricsClient *metrics.Client
 
 	mu            sync.Mutex
 	currentChange time.Time
@@ -183,6 +191,7 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 		for {
 			select {
 			case <-ticker.C:
+				s.printf("uploading flyctl metrics")
 				// Load files to upload
 				entries, read, err := metrics.Load()
 				if err != nil {
@@ -195,6 +204,12 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 				}
 
 				// Upload files (replace with your actual upload function)
+				for _, entry := range entries {
+					err := s.metricsClient.Send(ctx, &entry)
+					if err != nil {
+						s.printf("Error sending metrics: %v", err)
+					}
+				}
 
 				// Purge uploaded files
 				if err := metrics.Purge(read); err != nil {
