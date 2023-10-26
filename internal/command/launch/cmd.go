@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -141,11 +142,21 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	incompleteLaunchManifest := false
+	canEnterUi := !flag.GetBool(ctx, "manifest")
+
 	if launchManifest == nil {
 
-		launchManifest, cache, err = buildManifest(ctx)
+		launchManifest, cache, err = buildManifest(ctx, canEnterUi)
 		if err != nil {
-			return err
+			if errors.Is(err, recoverableInUiError{}) && canEnterUi {
+				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
+				fmt.Fprintln(io.ErrOut, err.Error())
+				incompleteLaunchManifest = true
+				err = nil
+			} else {
+				return err
+			}
 		}
 
 		if flag.GetBool(ctx, "manifest") {
@@ -179,7 +190,11 @@ func run(ctx context.Context) (err error) {
 
 	confirm := false
 	prompt := &survey.Confirm{
-		Message: "Do you want to tweak these settings before proceeding?",
+		Message: lo.Ternary(
+			incompleteLaunchManifest,
+			"Would you like to continue in the web UI?",
+			"Do you want to tweak these settings before proceeding?",
+		),
 	}
 	err = survey.AskOne(prompt, &confirm)
 	if err != nil {
@@ -192,6 +207,9 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+	} else if incompleteLaunchManifest {
+		// UI was required to reconcile launch issues, but user denied. Abort.
+		return errors.New("launch can not continue with errors present")
 	}
 
 	err = state.Launch(ctx)
