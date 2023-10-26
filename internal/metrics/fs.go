@@ -55,5 +55,5 @@ func createMetricsFile() (*os.File, error) {
 }
 
 func formatMetricsName(fileTime time.Time) string {
-	return fmt.Sprintf("flyctl-metrics-%d.%s.tmp", os.Getegid(), fileTime.Format(timeSpec))
+	return fmt.Sprintf("flyctl-metrics-%d.%s.tmp", os.Getpid(), fileTime.Format(timeSpec))
 }

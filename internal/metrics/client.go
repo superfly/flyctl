@@ -100,7 +100,7 @@ func (c *Client) NewRequest(ctx context.Context, method, path string, in interfa
 }
 
 func (c *Client) Send(ctx context.Context, entry []Entry) error {
-	var path = "/v1/metrics_post"
+	var path = "/metrics_post"
 
 	return c.do(ctx, "POST", path, entry, nil, nil)
 }

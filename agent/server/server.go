@@ -210,6 +210,7 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 
 				if err := s.metricsClient.Send(ctx, entries); err != nil {
 					s.printf("Error sending metrics: %v", err)
+					continue
 				}
 
 				if err := metrics.Purge(read); err != nil {
