@@ -6,9 +6,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 )
+
+var Enabled = true
 
 var (
 	unmatchedStatusesMtx = sync.Mutex{}
@@ -128,4 +132,23 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 	return func() {
 		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
+}
+
+func ShouldSendMetrics(ctx context.Context) bool {
+	if !Enabled {
+		return false
+	}
+
+	cfg := config.FromContext(ctx)
+
+	if !cfg.SendMetrics {
+		return false
+	}
+
+	// never send metrics to the production collector from dev builds
+	if buildinfo.IsDev() && cfg.MetricsBaseURLIsProduction() {
+		return false
+	}
+
+	return true
 }

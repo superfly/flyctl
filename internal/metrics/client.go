@@ -21,7 +21,7 @@ type Client struct {
 }
 
 func NewClient(ctx context.Context) (*Client, error) {
-	token, err := queryMetricsToken(ctx)
+	token, err := getMetricsToken(ctx)
 	if err != nil {
 		return nil, err
 	}

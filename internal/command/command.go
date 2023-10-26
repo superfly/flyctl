@@ -146,12 +146,6 @@ func finalize(ctx context.Context) {
 				Warnf("failed saving cache to %s: %v", path, err)
 		}
 	}
-
-	store := metrics.StoreFromContext(ctx)
-	if err := store.Flush(); err != nil {
-		logger.FromContext(ctx).Warnf("failed to flush metrics %v", err)
-	}
-
 }
 
 func determineHostname(ctx context.Context) (context.Context, error) {
@@ -516,7 +510,12 @@ func startMetrics(ctx context.Context) (context.Context, error) {
 	metrics.RecordCommandContext(ctx)
 
 	task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
-		metrics.FlushPending()
+		logger.FromContext(ctx).Debug("flushing metrics")
+
+		store := metrics.StoreFromContext(ctx)
+		if err := store.Flush(); err != nil {
+			logger.FromContext(ctx).Warnf("failed to flush metrics %v", err)
+		}
 	})
 
 	return ctx, nil
