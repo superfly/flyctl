@@ -22,8 +22,13 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
+)
+
+var (
+	metricCheckInterval = 40 * time.Second
 )
 
 type Options struct {
@@ -52,9 +57,15 @@ func Run(ctx context.Context, opt Options) (err error) {
 		return
 	}
 
+	metrics, err := metrics.NewClient(ctx)
+	if err != nil {
+		opt.Logger.Print(err)
+	}
+
 	err = (&server{
 		Options:       opt,
 		listener:      l,
+		metricsClient: metrics,
 		currentChange: latestChangeAt,
 		tunnels:       make(map[string]*wg.Tunnel),
 	}).serve(ctx, l)
@@ -107,6 +118,8 @@ type server struct {
 	Options
 
 	listener net.Listener
+
+	metricsClient *metrics.Client
 
 	mu            sync.Mutex
 	currentChange time.Time
@@ -168,6 +181,47 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 			}
 
 			return
+		}
+	})
+
+	eg.Go(func() error {
+		ticker := time.NewTicker(metricCheckInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				s.printf("uploading flyctl metrics")
+				// Load files to upload
+				entries, read, err := metrics.Load()
+				if err != nil {
+					s.printf("Error loading metric files: %v", err)
+					continue
+				}
+
+				if len(entries) == 0 {
+					s.print("found no metrics to upload")
+					continue
+				}
+
+				if !metrics.ShouldSendMetrics(ctx) {
+					s.print("metrics sending disabled")
+				}
+
+				for _, entry := range entries {
+					err := s.metricsClient.Send(ctx, &entry)
+					if err != nil {
+						s.printf("Error sending metrics: %v", err)
+					}
+				}
+
+				if err := metrics.Purge(read); err != nil {
+					s.printf("Error purging metrics files: %v", err)
+				}
+
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 	})
 
