@@ -142,38 +142,6 @@ var sharedFlags = flag.Set{
 	flag.VMSizeFlags,
 }
 
-var runOrCreateFlags = flag.Set{
-	flag.Region(),
-	// deprecated in favor of `flyctl machine update`
-	flag.String{
-		Name:        "id",
-		Description: "Machine ID, if previously known",
-	},
-	flag.String{
-		Name:        "name",
-		Shorthand:   "n",
-		Description: "Machine name, will be generated if missing",
-	},
-	flag.String{
-		Name:        "org",
-		Description: `The organization that will own the app`,
-	},
-	flag.Bool{
-		Name:        "rm",
-		Description: "Automatically remove the machine when it exits",
-	},
-	flag.StringSlice{
-		Name:        "volume",
-		Shorthand:   "v",
-		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
-	},
-	flag.Bool{
-		Name:        "lsvd",
-		Description: "Enable LSVD for this machine",
-		Hidden:      true,
-	},
-}
-
 func soManyErrors(args ...interface{}) error {
 	sb := &strings.Builder{}
 	errs := 0
@@ -224,8 +192,35 @@ func newRun() *cobra.Command {
 
 	flag.Add(
 		cmd,
-		runOrCreateFlags,
-		sharedFlags,
+		flag.Region(),
+		// deprecated in favor of `flyctl machine update`
+		flag.String{
+			Name:        "id",
+			Description: "Machine ID, if previously known",
+		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Machine name, will be generated if missing",
+		},
+		flag.String{
+			Name:        "org",
+			Description: `The organization that will own the app`,
+		},
+		flag.Bool{
+			Name:        "rm",
+			Description: "Automatically remove the machine when it exits",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Shorthand:   "v",
+			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+		},
+		flag.Bool{
+			Name:        "lsvd",
+			Description: "Enable LSVD for this machine",
+			Hidden:      true,
+		},
 		flag.String{
 			Name:        "user",
 			Description: "Username, if we're shelling into the machine now.",
@@ -243,45 +238,13 @@ func newRun() *cobra.Command {
 			Description: "Open a shell on the machine once created (implies --it --rm)",
 			Hidden:      false,
 		},
+
+		sharedFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(0)
 
 	return cmd
-}
-
-func newCreate() *cobra.Command {
-	const (
-		short = "Create, but don't start, a machine"
-		long  = short + "\n"
-
-		usage = "create <image> [command]"
-	)
-
-	cmd := command.New(usage, short, long, runMachineCreate,
-		command.RequireSession,
-		command.LoadAppNameIfPresent,
-	)
-
-	flag.Add(
-		cmd,
-		runOrCreateFlags,
-		sharedFlags,
-	)
-
-	cmd.Args = cobra.MinimumNArgs(1)
-
-	return cmd
-}
-
-type contextKey struct {
-	name string
-}
-
-var createCommandCtxKey = &contextKey{"createCommand"}
-
-func runMachineCreate(ctx context.Context) error {
-	return runMachineRun(context.WithValue(ctx, createCommandCtxKey, true))
 }
 
 func runMachineRun(ctx context.Context) error {
@@ -292,7 +255,6 @@ func runMachineRun(ctx context.Context) error {
 		colorize = io.ColorScheme()
 		err      error
 		app      *api.AppCompact
-		isCreate = false
 		interact = false
 		shell    = flag.GetBool(ctx, "shell")
 		destroy  = flag.GetBool(ctx, "rm")
@@ -301,10 +263,6 @@ func runMachineRun(ctx context.Context) error {
 	if shell {
 		destroy = true
 		interact = true
-	}
-
-	if ctx.Value(createCommandCtxKey) != nil {
-		isCreate = true
 	}
 
 	switch {
@@ -408,12 +366,7 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	verb := "launched"
-	if isCreate {
-		verb = "created"
-	}
-
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully %s in app %s\n", verb, app.Name)
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 
 	if !interact {
@@ -421,7 +374,7 @@ func runMachineRun(ctx context.Context) error {
 		fmt.Fprintf(io.Out, " State: %s\n", state)
 	}
 
-	if input.SkipLaunch || isCreate {
+	if input.SkipLaunch {
 		return nil
 	}
 
