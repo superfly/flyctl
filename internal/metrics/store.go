@@ -107,6 +107,9 @@ func Load() ([]Entry, []string, error) {
 	var filesRead = make([]string, 0)
 
 	for _, entry := range dirEntries {
+		if entry.Name() == "metrics.lock" {
+			continue
+		}
 		if !entry.IsDir() && !strings.HasSuffix(entry.Name(), ".tmp") {
 			filePath := filepath.Join(dir, entry.Name())
 
@@ -136,11 +139,12 @@ func Load() ([]Entry, []string, error) {
 
 // Purge deletes specific metrics files from the list.
 func Purge(files []string) error {
-	// Path to the lock file
-	lockFilePath := filepath.Join(baseDir, lockFileName)
+	dir, err := metricsDir()
+	if err != nil {
+		return err
+	}
 
-	// Acquire an exclusive lock on the lock file to ensure no other process is reading/writing
-	unlock, err := filemu.Lock(context.Background(), lockFilePath)
+	unlock, err := filemu.RLock(context.Background(), filepath.Join(dir, lockFileName))
 	if err != nil {
 		return err
 	}
@@ -148,10 +152,8 @@ func Purge(files []string) error {
 
 	for _, file := range files {
 		if err := os.Remove(file); err != nil {
-			// Handle error or continue based on your preference
-			continue
+			return err
 		}
 	}
-
 	return nil
 }
