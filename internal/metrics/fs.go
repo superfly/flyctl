@@ -7,7 +7,10 @@ import (
 	"time"
 )
 
-const baseDir = "metrics"
+const (
+	baseDir  = "metrics"
+	timeSpec = time.RFC3339
+)
 
 func metricsDir() (string, error) {
 	homeDir, err := os.UserHomeDir()
@@ -40,7 +43,7 @@ func createMetricsFile() (*os.File, error) {
 		return nil, err
 	}
 
-	filename := fmt.Sprintf("flyctl-metrics.%d.%d.tmp", time.Now().Unix(), os.Getpid())
+	filename := formatMetricsName(time.Now())
 	filePath := filepath.Join(dir, filename)
 
 	file, err := os.Create(filePath)
@@ -49,4 +52,8 @@ func createMetricsFile() (*os.File, error) {
 	}
 
 	return file, nil
+}
+
+func formatMetricsName(fileTime time.Time) string {
+	return fmt.Sprintf("flyctl-metrics-%d.%s.tmp", os.Getegid(), fileTime.Format(timeSpec))
 }
