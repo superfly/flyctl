@@ -208,11 +208,8 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 					s.print("metrics sending disabled")
 				}
 
-				for _, entry := range entries {
-					err := s.metricsClient.Send(ctx, &entry)
-					if err != nil {
-						s.printf("Error sending metrics: %v", err)
-					}
+				if err := s.metricsClient.Send(ctx, entries); err != nil {
+					s.printf("Error sending metrics: %v", err)
 				}
 
 				if err := metrics.Purge(read); err != nil {

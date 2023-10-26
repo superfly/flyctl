@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -45,12 +44,7 @@ func (c *Client) do(ctx context.Context, method, endpoint string, in, out interf
 	if err != nil {
 		return err
 	}
-	defer func() {
-		err := resp.Body.Close()
-		if err != nil {
-			log.Printf("error closing response body: %v", err)
-		}
-	}()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode > 299 {
 		var buf bytes.Buffer
@@ -105,8 +99,8 @@ func (c *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	return req, nil
 }
 
-func (c *Client) Send(ctx context.Context, entry *Entry) error {
-	var path = fmt.Sprintf("/v1/%s", entry.Metric)
+func (c *Client) Send(ctx context.Context, entry []Entry) error {
+	var path = "/v1/metrics_post"
 
 	return c.do(ctx, "POST", path, entry, nil, nil)
 }
