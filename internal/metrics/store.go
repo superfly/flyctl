@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"sort"
 	"sync"
 
 	"os"
@@ -98,25 +99,22 @@ func Load() ([]Entry, []string, error) {
 	}
 	defer unlock()
 
-	dirEntries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	var entries = make([]Entry, 0)
 	var filesRead = make([]string, 0)
 
-	for _, entry := range dirEntries {
-		if entry.Name() == "metrics.lock" {
-			continue
+	err = filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
 		}
-		if !entry.IsDir() && !strings.HasSuffix(entry.Name(), ".tmp") {
-			filePath := filepath.Join(dir, entry.Name())
 
-			// Read and decode entries from the file
-			file, err := os.Open(filePath)
+		if info.IsDir() && path != dir {
+			return filepath.SkipDir
+		}
+
+		if strings.HasPrefix(info.Name(), "flyctl-metrics") && !strings.HasSuffix(info.Name(), ".tmp") {
+			file, err := os.Open(path)
 			if err != nil {
-				continue
+				return nil
 			}
 
 			scanner := bufio.NewScanner(file)
@@ -130,10 +128,20 @@ func Load() ([]Entry, []string, error) {
 			}
 			file.Close()
 
-			// Add the file path to the list of files read
-			filesRead = append(filesRead, filePath)
+			filesRead = append(filesRead, path)
 		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, nil, err
 	}
+
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].Timestamp.Before(entries[j].Timestamp)
+	})
+
 	return entries, filesRead, nil
 }
 
