@@ -58,6 +58,7 @@ var commonPreparers = []preparers.Preparer{
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
 	loadCache,
+	loadMetricsCache,
 	preparers.LoadConfig,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
@@ -145,6 +146,12 @@ func finalize(ctx context.Context) {
 				Warnf("failed saving cache to %s: %v", path, err)
 		}
 	}
+
+	store := metrics.StoreFromContext(ctx)
+	if err := store.Flush(); err != nil {
+		logger.FromContext(ctx).Warnf("failed to flush metrics %v", err)
+	}
+
 }
 
 func determineHostname(ctx context.Context) (context.Context, error) {
@@ -239,6 +246,20 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	logger.Debug("cache loaded.")
 
 	return cache.NewContext(ctx, c), nil
+}
+
+func loadMetricsCache(ctx context.Context) (context.Context, error) {
+	logger := logger.FromContext(ctx)
+
+	store, err := metrics.New()
+	if err != nil {
+		logger.Warnf("failed loading metrics cache: %v", err)
+		return ctx, nil
+	}
+
+	logger.Debug("metrics file created.")
+
+	return metrics.NewContext(ctx, store), nil
 }
 
 func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {

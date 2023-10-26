@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -21,6 +22,11 @@ func withUnmatchedStatuses[T any](cb func(map[string]struct{}) T) T {
 }
 
 func Started(ctx context.Context, metricSlug string) {
+	var (
+		store  = StoreFromContext(ctx)
+		logger = logger.FromContext(ctx)
+	)
+
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
 			return false
@@ -33,10 +39,21 @@ func Started(ctx context.Context, metricSlug string) {
 		return
 	}
 
-	SendNoData(ctx, metricSlug+"/started")
+	entry := &Entry{
+		Metric:    metricSlug + "/started",
+		Timestamp: time.Now(),
+	}
 
+	if _, err := store.Write(entry); err != nil {
+		logger.Debugf("failed to write metrics: %v", err)
+	}
 }
 func Status(ctx context.Context, metricSlug string, success bool) {
+	var (
+		store  = StoreFromContext(ctx)
+		logger = logger.FromContext(ctx)
+	)
+
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
 			delete(unmatchedStatuses, metricSlug)
@@ -49,16 +66,40 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 		return
 	}
 
-	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
+	data, err := json.Marshal(map[string]bool{"success": success})
+	if err != nil {
+		logger.Debugf("failed to encode data: %v", err)
+	}
+
+	entry := &Entry{
+		Metric:    metricSlug + "/status",
+		Payload:   data,
+		Timestamp: time.Now(),
+	}
+	if _, err := store.Write(entry); err != nil {
+		logger.Debugf("failed to write metrics: %v", err)
+	}
 }
 
 func Send[T any](ctx context.Context, metricSlug string, value T) {
+	var (
+		store  = StoreFromContext(ctx)
+		logger = logger.FromContext(ctx)
+	)
 
 	valJson, err := json.Marshal(value)
 	if err != nil {
 		return
 	}
-	SendJson(ctx, metricSlug, valJson)
+
+	entry := &Entry{
+		Metric:    metricSlug,
+		Payload:   valJson,
+		Timestamp: time.Now(),
+	}
+	if _, err := store.Write(entry); err != nil {
+		logger.Debugf("failed to write metrics: %v", err)
+	}
 }
 
 func SendNoData(ctx context.Context, metricSlug string) {
@@ -66,7 +107,20 @@ func SendNoData(ctx context.Context, metricSlug string) {
 }
 
 func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
-	rawSend(ctx, metricSlug, payload)
+	var (
+		store  = StoreFromContext(ctx)
+		logger = logger.FromContext(ctx)
+	)
+
+	entry := &Entry{
+		Metric:    metricSlug,
+		Payload:   payload,
+		Timestamp: time.Now(),
+	}
+
+	if _, err := store.Write(entry); err != nil {
+		logger.Debugf("failed to write metrics: %v", err)
+	}
 }
 
 func StartTiming(ctx context.Context, metricSlug string) func() {
