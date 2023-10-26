@@ -82,12 +82,24 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 }
 
 func Send[T any](ctx context.Context, metricSlug string, value T) {
+	var (
+		store  = StoreFromContext(ctx)
+		logger = logger.FromContext(ctx)
+	)
 
 	valJson, err := json.Marshal(value)
 	if err != nil {
 		return
 	}
-	SendJson(ctx, metricSlug, valJson)
+
+	entry := &Entry{
+		Metric:    metricSlug,
+		Payload:   valJson,
+		Timestamp: time.Now(),
+	}
+	if _, err := store.Write(entry); err != nil {
+		logger.Debugf("failed to write metrics: %v", err)
+	}
 }
 
 func SendNoData(ctx context.Context, metricSlug string) {
@@ -95,7 +107,20 @@ func SendNoData(ctx context.Context, metricSlug string) {
 }
 
 func SendJson(ctx context.Context, metricSlug string, payload json.RawMessage) {
-	rawSend(ctx, metricSlug, payload)
+	var (
+		store  = StoreFromContext(ctx)
+		logger = logger.FromContext(ctx)
+	)
+
+	entry := &Entry{
+		Metric:    metricSlug,
+		Payload:   payload,
+		Timestamp: time.Now(),
+	}
+
+	if _, err := store.Write(entry); err != nil {
+		logger.Debugf("failed to write metrics: %v", err)
+	}
 }
 
 func StartTiming(ctx context.Context, metricSlug string) func() {
