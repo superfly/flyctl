@@ -15,5 +15,6 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("kubernetes", short, long, nil)
 	cmd.Aliases = []string{"k8s"}
 	cmd.AddCommand(create(), destroy(), list())
+	cmd.Hidden = true
 	return cmd
 }
