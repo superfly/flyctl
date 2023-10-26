@@ -398,7 +398,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input.SkipLaunch = len(machineConf.Standbys) > 0
+	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
 	machine, err := flapsClient.Launch(ctx, input)
@@ -421,7 +421,7 @@ func runMachineRun(ctx context.Context) error {
 		fmt.Fprintf(io.Out, " State: %s\n", state)
 	}
 
-	if input.SkipLaunch || isCreate {
+	if input.SkipLaunch {
 		return nil
 	}
 
