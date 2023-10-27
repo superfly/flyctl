@@ -884,7 +884,7 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	input := deploy.MachineDeploymentArgs{
 		AppCompact:       m.appCompact,
 		RestartOnly:      true,
-		WaitTimeout:      waitTimeout,
+		WaitTimeout:      &waitTimeout,
 		SkipHealthChecks: m.skipHealthChecks,
 	}
 	if m.isPostgres {
