@@ -201,7 +201,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}()
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			metrics.SaveNoData(ctx, "remote_builder_failure")
+			metrics.RecordNone(ctx, "remote_builder_failure")
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
@@ -224,7 +224,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
-				metrics.SaveNoData(ctx, "remote_builder_failure")
+				metrics.RecordNone(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
@@ -234,7 +234,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
-				metrics.SaveNoData(ctx, "remote_builder_failure")
+				metrics.RecordNone(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
@@ -417,7 +417,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
 
 	metrics.Started(ctx, "image_push")
-	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
+	record := metrics.StartTiming(ctx, "image_push/duration")
 
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
 		RegistryAuth: flyRegistryAuth(config.FromContext(ctx).AccessToken),
@@ -428,7 +428,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 		return errors.Wrap(err, "error pushing image to registry")
 	}
 	defer pushResp.Close() // skipcq: GO-S2307
-	sendImgPushMetrics()
+	record()
 
 	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
 	if err != nil {

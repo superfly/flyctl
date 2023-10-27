@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/terminal"
 )
 
 var Enabled = true
@@ -39,7 +38,7 @@ func Started(ctx context.Context, metricSlug string) {
 		return true
 	})
 	if !ok {
-		terminal.Debugf("Metrics: Attempted to send start event for %s, but it was already started", metricSlug)
+		logger.Debugf("Metrics: Attempted to send start event for %s, but it was already started", metricSlug)
 		return
 	}
 
@@ -66,7 +65,7 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 		return false
 	})
 	if !ok {
-		terminal.Debugf("Metrics: Attempted to send status for %s, but no start event was sent", metricSlug)
+		logger.Debugf("Metrics: Attempted to send status for %s, but no start event was sent", metricSlug)
 		return
 	}
 
@@ -85,7 +84,7 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	}
 }
 
-func Save[T any](ctx context.Context, metricSlug string, value T) {
+func Record[T any](ctx context.Context, metricSlug string, value T) {
 	var (
 		store  = StoreFromContext(ctx)
 		logger = logger.FromContext(ctx)
@@ -106,11 +105,11 @@ func Save[T any](ctx context.Context, metricSlug string, value T) {
 	}
 }
 
-func SaveNoData(ctx context.Context, metricSlug string) {
-	SaveJSON(ctx, metricSlug, nil)
+func RecordNone(ctx context.Context, metricSlug string) {
+	RecordJSON(ctx, metricSlug, nil)
 }
 
-func SaveJSON(ctx context.Context, metricSlug string, payload json.RawMessage) {
+func RecordJSON(ctx context.Context, metricSlug string, payload json.RawMessage) {
 	var (
 		store  = StoreFromContext(ctx)
 		logger = logger.FromContext(ctx)
@@ -130,7 +129,7 @@ func SaveJSON(ctx context.Context, metricSlug string, payload json.RawMessage) {
 func StartTiming(ctx context.Context, metricSlug string) func() {
 	start := time.Now()
 	return func() {
-		Save(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
+		Record(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
 }
 

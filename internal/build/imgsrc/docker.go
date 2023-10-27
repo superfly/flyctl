@@ -178,7 +178,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 	defer func() {
 		if err != nil {
-			metrics.SaveNoData(ctx, "remote_builder_failure")
+			metrics.RecordNone(ctx, "remote_builder_failure")
 		}
 	}()
 

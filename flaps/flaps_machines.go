@@ -24,11 +24,11 @@ func (f *Client) sendRequestMachines(ctx context.Context, method, endpoint strin
 
 func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (out *api.Machine, err error) {
 	metrics.Started(ctx, "machine_launch")
-	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
+	record := metrics.StartTiming(ctx, "machine_launch/duration")
 	defer func() {
 		metrics.Status(ctx, "machine_launch", err == nil)
 		if err == nil {
-			sendUpdateMetrics()
+			record()
 		}
 	}()
 
@@ -47,11 +47,11 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	}
 
 	metrics.Started(ctx, "machine_update")
-	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update/duration")
+	record := metrics.StartTiming(ctx, "machine_update/duration")
 	defer func() {
 		metrics.Status(ctx, "machine_update", err == nil)
 		if err == nil {
-			sendUpdateMetrics()
+			record()
 		}
 	}()
 
@@ -367,11 +367,11 @@ func (f *Client) GetProcesses(ctx context.Context, machineID string) (api.Machin
 
 func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
 	metrics.Started(ctx, "machine_cordon")
-	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_cordon/duration")
+	record := metrics.StartTiming(ctx, "machine_cordon/duration")
 	defer func() {
 		metrics.Status(ctx, "machine_cordon", err == nil)
 		if err == nil {
-			sendUpdateMetrics()
+			record()
 		}
 	}()
 
@@ -384,11 +384,11 @@ func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
 
 func (f *Client) Uncordon(ctx context.Context, machineID string) (err error) {
 	metrics.Started(ctx, "machine_uncordon")
-	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_uncordon/duration")
+	record := metrics.StartTiming(ctx, "machine_uncordon/duration")
 	defer func() {
 		metrics.Status(ctx, "machine_uncordon", err == nil)
 		if err == nil {
-			sendUpdateMetrics()
+			record()
 		}
 	}()
 
