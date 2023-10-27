@@ -106,6 +106,14 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		task.FromContext(ctx).Start(ctx)
 
 		sendOsMetric(ctx, "started")
+		task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
+			err := metrics.FlushMetricsDB(ctx)
+			if err != nil {
+				// TODO(billy): Should this go to sentry?
+				fmt.Fprintln(os.Stderr, "Error sending metrics: ", err)
+			}
+		})
+
 		defer func() {
 			if err == nil {
 				sendOsMetric(ctx, "successful")
