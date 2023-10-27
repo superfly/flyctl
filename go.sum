@@ -455,6 +455,8 @@ github.com/hashicorp/go-version v1.6.0 h1:feTTfFNnjP967rlCxM/I9g701jU+RN74YKx2mO
 github.com/hashicorp/go-version v1.6.0/go.mod h1:fltr4n8CU8Ke44wwGCBoEymUuxUHl09ZGVZPK5anwXA=
 github.com/hashicorp/golang-lru v0.5.0/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
 github.com/hashicorp/golang-lru v0.5.1/go.mod h1:/m3WP610KZHVQ1SGc6re/UDhFvYD7pJ4Ao+sR/qLZy8=
+github.com/hashicorp/golang-lru/v2 v2.0.7 h1:a+bsQ5rvGLjzHuww6tVxozPZFVghXaHOwFs4luLUK2k=
+github.com/hashicorp/golang-lru/v2 v2.0.7/go.mod h1:QeFd9opnmA6QUJc5vARoKUSoFhyfM2/ZepoAG6RGpeM=
 github.com/hashicorp/hcl v1.0.0 h1:0Anlzjpi4vEasTeNFn2mLJgTSwt0+6sfsiTG8qcWGx4=
 github.com/hashicorp/hcl v1.0.0/go.mod h1:E5yfLk+7swimpb2L/Alb/PJmXilQ/rhwaUYs4T20WEQ=
 github.com/heroku/color v0.0.6 h1:UTFFMrmMLFcL3OweqP1lAdp8i1y/9oHqkeHjQ/b/Ny0=
@@ -695,8 +697,8 @@ github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2
 github.com/superfly/lfsc-go v0.1.1/go.mod h1:zVb0VENz/Il8Nmvvd4XAsX2bWhQ+sr0nK8vv9PeezcE=
 github.com/superfly/ltx v0.3.12 h1:Z7z1sc4g34/jUi3XO84+zBlIsbaoh2RJ3b4zTQpBK/M=
 github.com/superfly/ltx v0.3.12/go.mod h1:ly+Dq7UVacQVEI5/b0r6j+PSNy9ibwx1yikcWAaSkhE=
-github.com/superfly/macaroon v0.0.6 h1:kNTWasWTLcPF7Kn7gSgCvFsw1MbPSbLSzROsl5C5je8=
-github.com/superfly/macaroon v0.0.6/go.mod h1:07A9g4CDxtclmiL0OOTS+VT5g5Xtz1VwxrCEUB5PnBE=
+github.com/superfly/macaroon v0.0.7-0.20231027182116-093f7391f8b1 h1:ucliYB5zJ4teguP/nIkWCxFdZ5Fy6NrlIpow6yUS6n4=
+github.com/superfly/macaroon v0.0.7-0.20231027182116-093f7391f8b1/go.mod h1:Kt6/EdSYfFjR4GIe+erMwcJgU8iMu1noYVceQ5dNdKo=
 github.com/superfly/tokenizer v0.0.2 h1:gBREpm08sPWUHsqKHKHFy/AIKwrqpg+VBD/wtJ6x5Jk=
 github.com/superfly/tokenizer v0.0.2/go.mod h1:jO8bIWFsfcBghh7I6cFJHmJb5E3RQr0v4F0Rnev3Yj4=
 github.com/tj/assert v0.0.0-20171129193455-018094318fb0/go.mod h1:mZ9/Rh9oLWpLLDRpvE+3b7gP/C2YyLFYxNmcLnPTMe0=
