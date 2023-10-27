@@ -8,9 +8,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
+	"github.com/PuerkitoBio/rehttp"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 type Client struct {
@@ -26,16 +30,23 @@ func NewClient(ctx context.Context) (*Client, error) {
 	}
 
 	cfg := config.FromContext(ctx)
+	logger := logger.FromContext(ctx)
 
 	return &Client{
 		token:      token,
 		baseURL:    cfg.MetricsBaseURL,
-		httpClient: http.DefaultClient,
+		httpClient: newHttpClient(logger),
 	}, nil
 }
 
+func (c *Client) Send(ctx context.Context, entry []Entry) error {
+	var path = "/metrics_post"
+
+	return c.do(ctx, "POST", path, entry, nil, nil)
+}
+
 func (c *Client) do(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
-	req, err := c.NewRequest(ctx, method, endpoint, in, headers)
+	req, err := c.newRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
 	}
@@ -64,7 +75,7 @@ func (c *Client) do(ctx context.Context, method, endpoint string, in, out interf
 	return nil
 }
 
-func (c *Client) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
+func (c *Client) newRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
 	var (
 		body io.Reader
 		url  = c.baseURL + path
@@ -99,10 +110,25 @@ func (c *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	return req, nil
 }
 
-func (c *Client) Send(ctx context.Context, entry []Entry) error {
-	var path = "/metrics_post"
+func newHttpClient(logger *logger.Logger) *http.Client {
+	retry := rehttp.NewTransport(
+		http.DefaultTransport,
+		rehttp.RetryAll(
+			rehttp.RetryMaxRetries(3),
+			rehttp.RetryAny(
+				rehttp.RetryTemporaryErr(),
+				rehttp.RetryStatuses(502, 503, 500),
+			),
+		),
+		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
+	)
 
-	return c.do(ctx, "POST", path, entry, nil, nil)
+	logging := &api.LoggingTransport{
+		InnerTransport: retry,
+		Logger:         logger,
+	}
+
+	return &http.Client{Transport: logging}
 }
 
 func handleAPIError(statusCode int, responseBody []byte) error {

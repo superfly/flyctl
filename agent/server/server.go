@@ -206,6 +206,7 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 
 				if !metrics.ShouldSendMetrics(ctx) {
 					s.print("metrics sending disabled")
+					continue
 				}
 
 				if err := s.metricsClient.Send(ctx, entries); err != nil {
