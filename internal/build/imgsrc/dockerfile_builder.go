@@ -285,7 +285,7 @@ func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *
 	options := types.ImageBuildOptions{
 		Tags:        []string{opts.Tag},
 		BuildArgs:   buildArgs,
-		AuthConfigs: authConfigs(config.FromContext(ctx).AccessToken),
+		AuthConfigs: authConfigs(config.Tokens(ctx).Docker()),
 		Platform:    "linux/amd64",
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
@@ -397,7 +397,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 			options.Session,
 			// To pull images from local Docker Engine with Fly's access token,
 			// we need to pass the provider. Remote builders don't need that.
-			newBuildkitAuthProvider(config.FromContext(ctx).AccessToken),
+			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
 			secretsprovider.FromMap(secrets),
 		)
 
@@ -420,7 +420,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
 
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: flyRegistryAuth(config.FromContext(ctx).AccessToken),
+		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
 	})
 	metrics.Status(ctx, "image_push", err == nil)
 

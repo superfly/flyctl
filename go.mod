@@ -60,7 +60,7 @@ require (
 	github.com/superfly/flyctl/api v0.0.0-20230714194642-3abf5055f01a
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
-	github.com/superfly/macaroon v0.0.6
+	github.com/superfly/macaroon v0.1.0
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.6
@@ -135,6 +135,7 @@ require (
 	github.com/google/btree v1.0.1 // indirect
 	github.com/google/go-containerregistry v0.16.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.0 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/heroku/color v0.0.6 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
