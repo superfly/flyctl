@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/metrics"
 )
 
 type id uint64
@@ -34,10 +35,19 @@ func (id id) String() string {
 }
 
 type session struct {
-	srv    *server
-	conn   net.Conn
-	logger *log.Logger
-	id     id
+	srv     *server
+	conn    net.Conn
+	logger  *log.Logger
+	id      id
+	handler string
+}
+
+func (s *session) metricKeyDuration() string {
+	return fmt.Sprintf("agent/session/%s/duration", s.handler)
+}
+
+func (s *session) metricKeyStatus() string {
+	return fmt.Sprintf("agent/session/%s/status", s.handler)
 }
 
 var errUnsupportedCommand = errors.New("unsupported command")
@@ -103,6 +113,10 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 		return
 	}
 
+	s.handler = args[0]
+	metrics.Started(ctx, s.metricKeyStatus())
+	finishTiming := metrics.StartTiming(ctx, s.metricKeyDuration())
+	defer finishTiming()
 	fn(s, ctx, args[1:]...)
 }
 
@@ -500,10 +514,12 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 }
 
 func (s *session) error(err error) bool {
+	metrics.Status(context.TODO(), s.metricKeyStatus(), false)
 	return s.reply("err", err.Error())
 }
 
 func (s *session) ok(args ...string) bool {
+	metrics.Status(context.TODO(), s.metricKeyStatus(), true)
 	return s.reply("ok", args...)
 }
 
