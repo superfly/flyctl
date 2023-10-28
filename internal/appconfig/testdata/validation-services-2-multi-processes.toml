@@ -1,0 +1,15 @@
+app = "validation"
+
+[[services]]
+internal_port = 8080
+protocol = "tcp"
+processes = ["bash", "nano"]
+
+[[services]]
+internal_port = 8081
+protocol = "tcp"
+processes = ["bash", "nano"]
+
+[processes]
+bash = "bash"
+nano = "nano"

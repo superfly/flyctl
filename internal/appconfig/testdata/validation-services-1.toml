@@ -1,0 +1,9 @@
+app = "validation"
+
+[[services]]
+internal_port = 8080
+protocol = "tcp"
+processes = ["bash"]
+
+[processes]
+bash = "bash"
