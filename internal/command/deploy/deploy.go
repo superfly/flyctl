@@ -324,6 +324,10 @@ func deployToMachines(
 		}
 	}
 
+	if appConfig.Mounts != nil && appConfig.PrimaryRegion == "" {
+		return fmt.Errorf("no primary_region set on fly.toml")
+	}
+
 	excludeRegions := make(map[string]interface{})
 	for _, r := range flag.GetStringSlice(ctx, "exclude-regions") {
 		reg := strings.TrimSpace(r)
