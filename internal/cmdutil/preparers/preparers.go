@@ -51,7 +51,8 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 	return config.NewContext(ctx, cfg), nil
 }
 
-// prune any invalid/expired macaroons and fetch needed third party discharges
+// UpdateMacaroons prune any invalid/expired macaroons and fetch needed third
+// party discharges
 func UpdateMacaroons(ctx context.Context) (context.Context, error) {
 	log := logger.FromContext(ctx)
 

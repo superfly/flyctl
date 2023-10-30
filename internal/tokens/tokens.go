@@ -15,11 +15,21 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+// Tokens is a collection of tokens belonging to the user. This includes
+// macaroon tokens (per-org) and OAuth tokens (per-user).
+//
+// It is normal for this to include just macaroons, just oauth tokens, or a
+// combination of the two. The GraphQL API is the only service that accepts
+// macaroons and OAuth tokens in the same request. For other service, macaroons
+// are preferred.
 type Tokens struct {
 	macaroonTokens []string
 	userTokens     []string
 }
 
+// Parse extracts individual tokens from a token string. The input token may
+// include an authorization scheme (`Bearer` or `FlyV1`) and/or a set of
+// comma-separated macaroon and user tokens.
 func Parse(token string) *Tokens {
 	token = stripAuthorizationScheme(token)
 	ret := &Tokens{}
@@ -66,6 +76,10 @@ var tpClient = &tp.Client{
 	UserURLCallback:    tryOpenUserURL,
 }
 
+// DischargeThirdPartyCaveats attempts to fetch any necessary discharge tokens
+// for 3rd party caveats found within macaroon tokens.
+//
+// See https://github.com/superfly/macaroon/blob/main/tp/README.md
 func (t *Tokens) DischargeThirdPartyCaveats(ctx context.Context) (bool, error) {
 	macaroons := t.Macaroons()
 	if macaroons == "" {
@@ -92,7 +106,7 @@ func (t *Tokens) DischargeThirdPartyCaveats(ctx context.Context) (bool, error) {
 	return false, err
 }
 
-// removes expired and invalid macaroons
+// PruneBadMacaroons removes expired and invalid macaroon tokens.
 func (t *Tokens) PruneBadMacaroons() bool {
 	var updated bool
 
@@ -130,7 +144,7 @@ func (t *Tokens) normalized(macaroonsAndUserTokens bool) string {
 	return t.Macaroons()
 }
 
-// strip any FlyV1/Bearer schemes from token.
+// stripAuthorizationScheme strips any FlyV1/Bearer schemes from token.
 func stripAuthorizationScheme(token string) string {
 	token = strings.TrimSpace(token)
 
