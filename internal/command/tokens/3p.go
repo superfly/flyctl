@@ -262,7 +262,7 @@ func run3PTicket(ctx context.Context) error {
 		return err
 	}
 
-	ticket, err := m.ThirdPartyCID(loc, nil)
+	ticket, err := m.ThirdPartyTicket(loc, nil)
 	if err != nil {
 		return err
 	}
@@ -297,7 +297,7 @@ func run3PDischarge(ctx context.Context) error {
 		return err
 	}
 
-	cavs, dm, err := macaroon.DischargeCID(secret, loc, ticket)
+	cavs, dm, err := macaroon.DischargeTicket(secret, loc, ticket)
 	if err != nil {
 		return err
 	}

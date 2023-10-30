@@ -59,6 +59,7 @@ var commonPreparers = []preparers.Preparer{
 	ensureConfigDirPerms,
 	loadCache,
 	preparers.LoadConfig,
+	preparers.UpdateMacaroons,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
 	preparers.InitClient,
