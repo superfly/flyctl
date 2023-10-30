@@ -36,12 +36,7 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 		Payload: payload,
 	}
 
-	go func() {
-		defer done.Done()
-		handleErr(insertMetricToDB(message))
-	}()
-
-	done.Add(1)
+	insertMetric(message)
 }
 
 func shouldSendMetrics(ctx context.Context) bool {

@@ -43,7 +43,7 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
-func getMetricsToken(parentCtx context.Context) (token string, err error) {
+func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 	// Prevent metrics panics from bubbling up to the user.
 	defer func() {
 		if r := recover(); r != nil {
