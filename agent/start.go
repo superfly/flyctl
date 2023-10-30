@@ -43,7 +43,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	env := os.Environ()
 	env = append(env, "FLY_NO_UPDATE_CHECK=1")
-	env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.Tokens(ctx).API()))
+	env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.Tokens(ctx).GraphQL()))
 	cmd.Env = env
 
 	setSysProcAttributes(cmd)

@@ -49,7 +49,7 @@ func (t *Tokens) NATS() string {
 	return t.normalized(false)
 }
 
-func (t *Tokens) API() string {
+func (t *Tokens) GraphQL() string {
 	return t.normalized(true)
 }
 
