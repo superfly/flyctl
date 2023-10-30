@@ -23,6 +23,10 @@ func FlushMetricsDB(ctx context.Context) error {
 	}
 
 	flyctl, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
 	cmd := exec.Command(flyctl, "metrics", "send")
 
 	buffer := bytes.Buffer{}

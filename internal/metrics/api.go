@@ -7,7 +7,6 @@ import (
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/terminal"
 )
 
 var Enabled = true
@@ -16,14 +15,6 @@ var done sync.WaitGroup
 type metricsMessage struct {
 	Metric  string          `json:"m"`
 	Payload json.RawMessage `json:"p"`
-}
-
-func handleErr(err error) {
-	if err == nil {
-		return
-	}
-	// TODO(ali): Should this ping sentry when it fails?
-	terminal.Debugf("metrics error: %v\n", err)
 }
 
 func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessage) {
