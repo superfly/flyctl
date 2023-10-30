@@ -1,7 +1,7 @@
 package scanner
 
 func configureNuxt(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("nuxt.config.js")) {
+	if !checksPass(sourceDir, fileExists("nuxt.config.ts")) {
 		return nil, nil
 	}
 
