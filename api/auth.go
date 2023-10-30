@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 	"strings"
 )
 
@@ -28,19 +27,13 @@ func GetAccessTokenForCLISession(ctx context.Context, id string) (string, error)
 	return val.AccessToken, nil
 }
 
-const flyv1Scheme = "FlyV1"
-
 func AuthorizationHeader(token string) string {
-	token = strings.TrimSpace(token)
-
-	if scheme, _, ok := strings.Cut(token, " "); ok && scheme == flyv1Scheme {
-		return token
+	for _, tok := range strings.Split(token, ",") {
+		switch pfx, _, _ := strings.Cut(tok, "_"); pfx {
+		case "fm1r", "fm2":
+			return "FlyV1 " + token
+		}
 	}
 
-	// macaroon without scheme
-	if strings.HasPrefix(token, "fm1r_") {
-		return strings.Join([]string{flyv1Scheme, token}, " ")
-	}
-
-	return fmt.Sprintf("Bearer %s", token)
+	return "Bearer " + token
 }
