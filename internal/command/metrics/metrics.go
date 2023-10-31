@@ -18,7 +18,6 @@ import (
 )
 
 func New() (cmd *cobra.Command) {
-	// TODO: hide this command
 	const (
 		short = "Commands that handle sending any metrics to flyctl-metrics"
 		long  = short + "\n"
