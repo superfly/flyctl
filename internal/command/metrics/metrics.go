@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/PuerkitoBio/rehttp"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
@@ -68,8 +69,11 @@ func run(ctx context.Context) error {
 	request.Header.Set("Authorization", authToken)
 	request.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Info().Version))
 
-	client := &http.Client{
-		Timeout: time.Second * 60,
+	retryTransport := rehttp.NewTransport(http.DefaultTransport, rehttp.RetryAll(rehttp.RetryMaxRetries(3), rehttp.RetryTimeoutErr()), rehttp.ConstDelay(time.Second))
+
+	client := http.Client{
+		Transport: retryTransport,
+		Timeout:   time.Second * 30,
 	}
 
 	resp, err := client.Do(request)
