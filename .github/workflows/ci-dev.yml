@@ -19,13 +19,6 @@ jobs:
     uses:
       ./.github/workflows/test.yml
 
-  debug:
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo "$GITHUB_CONTEXT"
-        env:
-          GITHUB_CONTEXT: ${{ toJSON(github) }}
-
   # create a dev tag for every branch except master
   tag_version:
     needs: test
@@ -35,9 +28,13 @@ jobs:
       version: ${{ steps.version.outputs.next }}
       tag: v${{ steps.version.outputs.next }}
     steps:
+      - name: Debug
+        if: runner.debug == '1'
+        run: echo "$GITHUB_CONTEXT"
+        env:
+          GITHUB_CONTEXT: ${{ toJSON(github) }}
       - uses: actions/checkout@v4
         with:
-          fetch-tags: true
           fetch-depth: 0
       - uses: actions/setup-go@v4
         with:
@@ -56,13 +53,23 @@ jobs:
           TAG_NAME: v${{ steps.version.outputs.next }}
         with:
           script: |
-            const { TAG_NAME } = process.env
-            github.rest.git.createRef({
+            const { TAG_NAME } = process.env;
+            await github.rest.git.createTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: TAG_NAME,
+              message: TAG_NAME,
+              object: context.sha,
+              type: 'commit'
+            });
+            await github.rest.git.createRef({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: `refs/tags/${TAG_NAME}`,
               sha: context.sha
-            })
+            });
+
+          github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
 
   # # we can remove this workflow_call once the release.yml workflow file is
   # # merged into the default branch

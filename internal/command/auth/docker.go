@@ -92,7 +92,7 @@ func addFlyAuthToDockerConfig(cfg *config.Config, configJSON []byte) ([]byte, er
 	} else {
 		flyAuth = make(map[string]interface{})
 	}
-	flyAuth["auth"] = base64.URLEncoding.EncodeToString([]byte("x:" + cfg.AccessToken))
+	flyAuth["auth"] = base64.URLEncoding.EncodeToString([]byte("x:" + cfg.Tokens.Docker()))
 
 	b, err := json.Marshal(flyAuth)
 	if err != nil {
@@ -169,7 +169,7 @@ func runDocker(ctx context.Context) error {
 		return err
 	}
 
-	_, err = fmt.Fprint(in, cfg.AccessToken)
+	_, err = fmt.Fprint(in, cfg.Tokens.Docker())
 	if err != nil {
 		return err
 	}

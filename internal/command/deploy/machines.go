@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	DefaultWaitTimeout           = 2 * time.Minute
+	DefaultWaitTimeout           = 5 * time.Minute
 	DefaultReleaseCommandTimeout = 5 * time.Minute
 	DefaultLeaseTtl              = 13 * time.Second
 	DefaultMaxUnavailable        = 0.33
@@ -44,9 +44,9 @@ type MachineDeploymentArgs struct {
 	SkipHealthChecks       bool
 	MaxUnavailable         *float64
 	RestartOnly            bool
-	WaitTimeout            time.Duration
-	LeaseTimeout           time.Duration
-	ReleaseCmdTimeout      time.Duration
+	WaitTimeout            *time.Duration
+	LeaseTimeout           *time.Duration
+	ReleaseCmdTimeout      *time.Duration
 	Guest                  *api.MachineGuest
 	IncreasedAvailability  bool
 	AllocPublicIP          bool
@@ -120,24 +120,47 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+
 	if appConfig.Deploy != nil {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			return nil, err
 		}
 	}
-	waitTimeout := args.WaitTimeout
-	if waitTimeout == 0 {
+
+	var waitTimeout time.Duration
+	switch {
+	case args.WaitTimeout != nil:
+		waitTimeout = *args.WaitTimeout
+	case appConfig.Deploy != nil && appConfig.Deploy.WaitTimeout != nil:
+		waitTimeout = appConfig.Deploy.WaitTimeout.Duration
+	default:
 		waitTimeout = DefaultWaitTimeout
 	}
-	leaseTimeout := args.LeaseTimeout
-	if leaseTimeout == 0 {
+
+	var releaseCmdTimeout time.Duration
+	switch {
+	case args.ReleaseCmdTimeout != nil:
+		releaseCmdTimeout = *args.ReleaseCmdTimeout
+	case appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommandTimeout != nil:
+		releaseCmdTimeout = appConfig.Deploy.ReleaseCommandTimeout.Duration
+	default:
+		releaseCmdTimeout = DefaultReleaseCommandTimeout
+	}
+
+	var leaseTimeout time.Duration
+	switch {
+	case args.LeaseTimeout != nil:
+		leaseTimeout = *args.LeaseTimeout
+	default:
 		leaseTimeout = DefaultLeaseTtl
 	}
+
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
-	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
+	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl {
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
+
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 
@@ -171,7 +194,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		waitTimeout:            waitTimeout,
 		leaseTimeout:           leaseTimeout,
 		leaseDelayBetween:      leaseDelayBetween,
-		releaseCmdTimeout:      args.ReleaseCmdTimeout,
+		releaseCmdTimeout:      releaseCmdTimeout,
 		increasedAvailability:  args.IncreasedAvailability,
 		updateOnly:             args.UpdateOnly,
 		machineGuest:           args.Guest,
