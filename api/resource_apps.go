@@ -52,6 +52,7 @@ func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *stri
 				}
 				nodes {
 					id
+					internalNumericId
 					name
 					deployed
 					hostname
@@ -59,6 +60,7 @@ func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *stri
 					organization {
 						slug
 						name
+						internalNumericId
 					}
 					currentRelease {
 						createdAt
