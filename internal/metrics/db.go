@@ -14,7 +14,6 @@ func insertMetric(metric metricsMessage) {
 	metrics = append(metrics, metric)
 }
 
-// FIXME: make a subprocess fork run this
 func FlushMetricsDB(ctx context.Context) error {
 	json, err := json.Marshal(metrics)
 	if err != nil {
