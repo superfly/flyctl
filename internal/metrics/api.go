@@ -27,7 +27,7 @@ func rawSend(parentCtx context.Context, metricSlug string, payload json.RawMessa
 		Payload: payload,
 	}
 
-	insertMetric(message)
+	queueMetric(message)
 }
 
 func shouldSendMetrics(ctx context.Context) bool {

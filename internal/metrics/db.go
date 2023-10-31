@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -10,11 +9,12 @@ import (
 
 var metrics []metricsMessage = make([]metricsMessage, 0)
 
-func insertMetric(metric metricsMessage) {
+func queueMetric(metric metricsMessage) {
 	metrics = append(metrics, metric)
 }
 
-func FlushMetricsDB(ctx context.Context) error {
+// Spawns a forked `flyctl metrics send` process that sends metrics to the flyctl-metrics server
+func FlushMetrics() error {
 	json, err := json.Marshal(metrics)
 	if err != nil {
 		return err
