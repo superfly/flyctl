@@ -346,7 +346,7 @@ func runMachineRun(ctx context.Context) error {
 		imageOrPath:        imageOrPath,
 		region:             input.Region,
 		updating:           false,
-		interact:           true,
+		interact:           interact,
 	})
 	if err != nil {
 		return err
