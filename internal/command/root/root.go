@@ -40,6 +40,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/lfsc"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/migrate_to_v2"
 	"github.com/superfly/flyctl/internal/command/monitor"
 	"github.com/superfly/flyctl/internal/command/move"
@@ -139,6 +140,7 @@ func New() *cobra.Command {
 		group(console.New(), "upkeep"),
 		settings.New(),
 		group(mysql.New(), "dbs_and_extensions"),
+		metrics.New(),
 		curl.New(),       // TODO: deprecate
 		domains.New(),    // TODO: deprecate
 		open.New(),       // TODO: deprecate

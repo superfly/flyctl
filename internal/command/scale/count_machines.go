@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -17,6 +18,8 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+const maxConcurrentActions = 5
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
@@ -110,37 +113,49 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
+	updatePool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(maxConcurrentActions).
+		WithContext(ctx)
+
 	fmt.Fprintf(io.Out, "Executing scale plan\n")
 	for _, action := range actions {
+		action := action
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action, i)
-				if err != nil {
-					return err
-				}
+				updatePool.Go(func(ctx context.Context) error {
+					m, err := launchMachine(ctx, action, i)
+					if err != nil {
+						return err
+					}
 
-				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s",
-					m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize(),
-				)
-				if len(m.Config.Mounts) > 0 {
-					fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
-				}
-				fmt.Fprintln(io.Out)
+					fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s",
+						m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize(),
+					)
+					if len(m.Config.Mounts) > 0 {
+						fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
+					}
+					fmt.Fprintln(io.Out)
+					return nil
+				})
 			}
 		case action.Delta < 0:
 			for i := 0; i > action.Delta; i-- {
-				m := action.Machines[-i]
-				err := destroyMachine(ctx, m)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				updatePool.Go(func(ctx context.Context) error {
+					m := action.Machines[-i]
+					err := destroyMachine(ctx, m)
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+					return nil
+				})
 			}
 		}
 	}
 
-	return nil
+	return updatePool.Wait()
 }
 
 func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine, error) {
