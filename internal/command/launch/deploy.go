@@ -90,7 +90,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	if state.sourceInfo.DeployDocs != "" {
 		fmt.Fprintln(io.Out, state.sourceInfo.DeployDocs)
 	} else {
-		fmt.Fprintln(io.Out, "Your app is ready! Deploy with `flyctl deploy`")
+		fmt.Fprintln(io.Out, "Your app is ready! Deploy with `fly deploy`")
 	}
 
 	return nil

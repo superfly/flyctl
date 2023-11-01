@@ -139,7 +139,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 		}
 
 		fmt.Fprintln(out, colorize.Yellow(strings.Join(msgs, "")))
-		fmt.Fprintln(out, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
+		fmt.Fprintln(out, colorize.Yellow("Run `fly image update` to migrate to the latest image version."))
 	}
 
 	managed, unmanaged := []*api.Machine{}, []*api.Machine{}
@@ -320,7 +320,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 		}
 
 		fmt.Fprintln(out, colorize.Yellow(strings.Join(msgs, "")))
-		fmt.Fprintln(out, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
+		fmt.Fprintln(out, colorize.Yellow("Run `fly image update` to migrate to the latest image version."))
 	}
 
 	rows := [][]string{}

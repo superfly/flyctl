@@ -87,7 +87,7 @@ func runWireguardWebsockets(ctx context.Context) error {
 	// kill the agent if necessary, if that fails print manual instructions
 	if err := tryKillingAgent(); err != nil {
 		terminal.Debugf("error stopping the agent: %s", err)
-		fmt.Fprintf(io.Out, "Run `flyctl agent restart` to make changes take effect.\n")
+		fmt.Fprintf(io.Out, "Run `fly agent restart` to make changes take effect.\n")
 	}
 
 	return nil

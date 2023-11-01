@@ -111,7 +111,7 @@ func showNomadImage(ctx context.Context, app *api.AppCompact) error {
 		}
 
 		message := fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
-		message += "Run `flyctl image update` to migrate to the latest image version.\n"
+		message += "Run `fly image update` to migrate to the latest image version.\n"
 
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
 	}
@@ -270,7 +270,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 		}
 
 		fmt.Fprintln(io.ErrOut, colorize.Yellow(strings.Join(msgs, "")))
-		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
+		fmt.Fprintln(io.ErrOut, colorize.Yellow("Run `fly image update` to migrate to the latest image version."))
 	}
 
 	var rows [][]string
