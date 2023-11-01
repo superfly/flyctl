@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
@@ -15,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() (cmd *cobra.Command) {
@@ -25,6 +25,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New(usage, short, long, nil)
+	cmd.Hidden = true
 
 	cmd.AddCommand(
 		newSend(),
@@ -47,12 +48,15 @@ func newSend() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
-	stdin_bytes, err := io.ReadAll(os.Stdin)
+	iostream := iostreams.FromContext(ctx)
+	stdin := iostream.In
+
+	stdin_bytes, err := io.ReadAll(stdin)
 	if err != nil {
 		return err
 	}
 
-	stdin := string(stdin_bytes)
+	stdin_value := string(stdin_bytes)
 
 	authToken, err := metrics.GetMetricsToken(ctx)
 	if err != nil {
@@ -60,7 +64,7 @@ func run(ctx context.Context) error {
 	}
 
 	cfg := config.FromContext(ctx)
-	request, err := http.NewRequest("POST", cfg.MetricsBaseURL+"/metrics_post", bytes.NewBuffer([]byte(stdin)))
+	request, err := http.NewRequest("POST", cfg.MetricsBaseURL+"/metrics_post", bytes.NewBuffer([]byte(stdin_value)))
 	if err != nil {
 		return err
 	}
