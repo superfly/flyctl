@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"sync"
 	"syscall"
+
+	"github.com/superfly/flyctl/internal/metrics"
 )
 
 type Handle struct{ *boundSignal }
@@ -43,6 +45,7 @@ func Hook(event func()) Handle {
 			// most terminals print ^C, this makes things easier to read.
 			fmt.Fprintf(os.Stderr, "\n")
 		}
+		metrics.FlushMetrics()
 		event()
 	}()
 	return Handle{&boundSignal{sig: signalCh}}
