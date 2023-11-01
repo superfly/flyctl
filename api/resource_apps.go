@@ -324,6 +324,7 @@ func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasi
 				organization {
 					id
 					slug
+					rawSlug
 					paidPlan
 				}
 			}
