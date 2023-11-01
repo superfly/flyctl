@@ -16,7 +16,7 @@ import (
 func create() (cmd *cobra.Command) {
 
 	const (
-		short = "Provision a Supabase PostgreSQL database"
+		short = "Provision a Tigris object storage bucket"
 		long  = short + "\n"
 	)
 
