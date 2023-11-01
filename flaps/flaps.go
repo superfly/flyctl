@@ -15,10 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
-	"github.com/google/go-querystring/query"
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/internal/command_context"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 
 	"github.com/superfly/flyctl/agent"
