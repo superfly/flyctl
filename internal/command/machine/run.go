@@ -609,9 +609,7 @@ type determineMachineConfigInput struct {
 	interact           bool
 }
 
-func determineMachineConfig(
-	ctx context.Context,
-	input *determineMachineConfigInput) (*api.MachineConfig, error) {
+func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	var err error
@@ -643,12 +641,14 @@ func determineMachineConfig(
 
 	if input.updating {
 		// Called from `update`. Command is specified by flag.
-		if command := flag.GetString(ctx, "command"); command != "" {
+		if flag.IsSpecified(ctx, "command") {
+			command := flag.GetString(ctx, "command")
 			split, err := shlex.Split(command)
 			if err != nil {
-				return machineConf, errors.Wrap(err, "invalid command")
+				return machineConf, fmt.Errorf("--command '%s' is not valid: %w", command, err)
 			}
-			machineConf.Init.Cmd = split
+			// It is important to set `nil` instead of an empty array for the machine to use the CMD defined in Dockerfile
+			machineConf.Init.Cmd = lo.Ternary(len(split) > 0, split, nil)
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
