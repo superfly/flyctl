@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"os/exec"
+	"time"
 
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -52,6 +53,8 @@ func FlushMetrics(ctx context.Context) error {
 		if err := cmd.Wait(); err != nil {
 			return err
 		}
+
+		time.Sleep(time.Millisecond * 500)
 	}
 
 	return nil
