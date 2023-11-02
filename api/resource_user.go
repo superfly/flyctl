@@ -12,6 +12,9 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 						email
 						enablePaidHobby
 					}
+					... on Macaroon {
+						email
+					}
 				}
 		}
 	`
