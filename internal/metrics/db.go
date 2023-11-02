@@ -1,9 +1,9 @@
 package metrics
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 
@@ -31,16 +31,23 @@ func FlushMetrics(ctx context.Context) error {
 	}
 
 	cmd := exec.Command(flyctl, "metrics", "send")
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
 
-	buffer := bytes.Buffer{}
-	buffer.Write(json)
+	go func() {
+		defer stdin.Close()
+		io.WriteString(stdin, string(json))
+	}()
 
-	cmd.Stdin = &buffer
 	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "FLY_NO_UPDATE_CHECK=1")
+	cmd.Env = append(cmd.Env, "FLY_NO_METRICS=1")
 
 	agent.SetSysProcAttributes(cmd)
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
