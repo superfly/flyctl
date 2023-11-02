@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-func setSysProcAttributes(cmd *exec.Cmd) {
+func SetSysProcAttributes(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		HideWindow:    true,
 		CreationFlags: windows.DETACHED_PROCESS | windows.CREATE_NEW_PROCESS_GROUP,
