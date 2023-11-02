@@ -72,6 +72,7 @@ func FlushMetrics(ctx context.Context) error {
 	return nil
 }
 
+// / Spens up to 15 seconds sending all metrics collected so far to flyctl-metrics post endpoint
 func SendMetrics(ctx context.Context, json string) error {
 	authToken, err := GetMetricsToken(ctx)
 	if err != nil {
