@@ -86,6 +86,10 @@ func WithDisableFlushMetrics(ctx context.Context) context.Context {
 
 // IsFlushMetricsDisabled returns true if FlushMetrics should not be called after a command completes.
 func IsFlushMetricsDisabled(ctx context.Context) bool {
+	if _, ok := os.LookupEnv("FLY_NO_METRICS"); ok {
+		return false
+	}
+
 	val, ok := ctx.Value(disableFlushMetricsKey{}).(bool)
 	if !ok {
 		return false

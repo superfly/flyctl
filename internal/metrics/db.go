@@ -37,10 +37,12 @@ func FlushMetrics(ctx context.Context) error {
 
 	cmd.Stdin = &buffer
 	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "FLY_NO_UPDATE_CHECK=1")
+	cmd.Env = append(cmd.Env, "FLY_NO_METRICS=1")
 
 	agent.SetSysProcAttributes(cmd)
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
