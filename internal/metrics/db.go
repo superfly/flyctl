@@ -2,9 +2,13 @@ package metrics
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
+
+	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 var metrics []metricsMessage = make([]metricsMessage, 0)
@@ -14,7 +18,7 @@ func queueMetric(metric metricsMessage) {
 }
 
 // Spawns a forked `flyctl metrics send` process that sends metrics to the flyctl-metrics server
-func FlushMetrics() error {
+func FlushMetrics(ctx context.Context) error {
 	json, err := json.Marshal(metrics)
 	if err != nil {
 		return err
@@ -34,14 +38,23 @@ func FlushMetrics() error {
 	cmd.Stdin = &buffer
 	cmd.Env = os.Environ()
 
-	err = cmd.Start()
-	if err != nil {
+	agent.SetSysProcAttributes(cmd)
+
+	if err := cmd.Start(); err != nil {
 		return err
 	}
 
-	err = cmd.Process.Release()
-	if err != nil {
-		return err
+	io := iostreams.FromContext(ctx)
+
+	// On CI, always block on metrics send. This sucks, but the alternative is not getting metrics from CI at all. There are timeouts in place to prevent this from taking more than 15 seconds
+	if io.IsInteractive() {
+		if err := cmd.Process.Release(); err != nil {
+			return err
+		}
+	} else {
+		if err := cmd.Wait(); err != nil {
+			return err
+		}
 	}
 
 	return nil
