@@ -21,7 +21,6 @@ jobs:
 
   # create a dev tag for every branch except master
   tag_version:
-    needs: test
     if: ${{ github.ref_type == 'branch' && github.ref_name != 'master' }}
     runs-on: ubuntu-latest
     outputs:

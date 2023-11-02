@@ -46,7 +46,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.Tokens(ctx).GraphQL()))
 	cmd.Env = env
 
-	setSysProcAttributes(cmd)
+	SetSysProcAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		err = forkError{err}
