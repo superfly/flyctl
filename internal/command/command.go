@@ -111,7 +111,7 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 			io := iostreams.FromContext(ctx)
 
 			if !metrics.IsFlushMetricsDisabled(ctx) {
-				err := metrics.FlushMetrics()
+				err := metrics.FlushMetrics(ctx)
 				if err != nil {
 					fmt.Fprintln(io.ErrOut, "Error spawning metrics process: ", err)
 				}
