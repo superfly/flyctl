@@ -7,8 +7,6 @@ import (
 	"github.com/superfly/flyctl/internal/command_context"
 )
 
-type contextKey struct{}
-
 // NewContext derives a context that carries cmd from ctx.
 func NewContext(ctx context.Context, cmd *cobra.Command) context.Context {
 	// uses command_context.go so there isn't a dependency cycle with flaps
