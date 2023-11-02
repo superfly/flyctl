@@ -74,11 +74,11 @@ func run(ctx context.Context) error {
 	request.Header.Set("Authorization", authToken)
 	request.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Info().Version))
 
-	retryTransport := rehttp.NewTransport(http.DefaultTransport, rehttp.RetryAll(rehttp.RetryMaxRetries(3), rehttp.RetryTimeoutErr()), rehttp.ConstDelay(time.Second))
+	retryTransport := rehttp.NewTransport(http.DefaultTransport, rehttp.RetryAll(rehttp.RetryMaxRetries(3), rehttp.RetryTimeoutErr()), rehttp.ConstDelay(0))
 
 	client := http.Client{
 		Transport: retryTransport,
-		Timeout:   time.Second * 30,
+		Timeout:   time.Second * 5,
 	}
 
 	resp, err := client.Do(request)
