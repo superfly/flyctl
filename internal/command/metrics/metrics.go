@@ -40,7 +40,9 @@ func newSend() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("send", short, long, run)
+	cmd = command.New("send", short, long, run, func(ctx context.Context) (context.Context, error) {
+		return metrics.WithDisableFlushMetrics(ctx), nil
+	})
 	cmd.Hidden = true
 	cmd.Args = cobra.NoArgs
 
