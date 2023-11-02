@@ -40,7 +40,7 @@ func FlushMetrics(ctx context.Context) error {
 
 	agent.SetSysProcAttributes(cmd)
 
-	if err := cmd.Start(); err != nil {
+	if err := cmd.Run(); err != nil {
 		return err
 	}
 
