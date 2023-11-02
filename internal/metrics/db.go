@@ -49,8 +49,8 @@ func FlushMetrics(ctx context.Context) error {
 		}
 
 		go func() {
-			defer stdin.Close()
 			io.WriteString(stdin, string(json))
+			stdin.Close()
 		}()
 
 		cmd.Env = os.Environ()
