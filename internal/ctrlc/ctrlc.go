@@ -1,6 +1,7 @@
 package ctrlc
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -45,7 +46,8 @@ func Hook(event func()) Handle {
 			// most terminals print ^C, this makes things easier to read.
 			fmt.Fprintf(os.Stderr, "\n")
 		}
-		metrics.FlushMetrics()
+		ctx := context.Background()
+		metrics.FlushMetrics(ctx)
 		event()
 	}()
 	return Handle{&boundSignal{sig: signalCh}}
