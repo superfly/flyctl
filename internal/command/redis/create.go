@@ -171,10 +171,10 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		var planOptions []string
 
 		for _, plan := range result.AddOnPlans.Nodes {
-			planOptions = append(planOptions, fmt.Sprintf("%s: %s Max Data Size, ($%d / month)", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth))
+			planOptions = append(planOptions, plan.DisplayName)
 		}
 
-		err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan", "", planOptions...)
+		err = prompt.Select(ctx, &planIndex, "Select an Upstash Redis plan:", "", planOptions...)
 
 		if err != nil {
 			return nil, fmt.Errorf("failed to select a plan: %w", err)
@@ -198,9 +198,9 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		return
 	}
 
-	fmt.Fprintf(io.Out, "\nYour Upstash Redis database %s is ready.\n", colorize.Green(addOn.Name))
-	fmt.Fprintf(io.Out, "Apps in the %s org can connect to at %s\n", colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
-	fmt.Fprintf(io.Out, "If you have redis-cli installed, use %s to connect to your database.\n", colorize.Green("fly redis connect"))
+	fmt.Fprintf(io.Out, "\nYour Upstash Redis database %s is ready. Check the pricing details at https://upstash.com/pricing.\n", colorize.Green(addOn.Name))
+	fmt.Fprintf(io.Out, "Apps in the %s org can connect to Redis at %s\n", colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
+	fmt.Fprintf(io.Out, "If you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
 
 	return addOn, err
 }
