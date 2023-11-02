@@ -107,6 +107,17 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		task.FromContext(ctx).Start(ctx)
 
 		sendOsMetric(ctx, "started")
+		task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
+			io := iostreams.FromContext(ctx)
+
+			if !metrics.IsFlushMetricsDisabled(ctx) {
+				err := metrics.FlushMetrics()
+				if err != nil {
+					fmt.Fprintln(io.ErrOut, "Error spawning metrics process: ", err)
+				}
+			}
+		})
+
 		defer func() {
 			if err == nil {
 				sendOsMetric(ctx, "successful")

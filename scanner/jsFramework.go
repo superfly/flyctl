@@ -146,10 +146,14 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Bun"
 	}
 
-	// extract deps
+	// extract deps and devdeps
 	deps, ok := packageJson["dependencies"].(map[string]interface{})
 	if !ok || deps == nil {
 		deps = make(map[string]interface{})
+	}
+	devdeps, ok := packageJson["devDependencies"].(map[string]interface{})
+	if !ok || devdeps == nil {
+		devdeps = make(map[string]interface{})
 	}
 
 	// infer db from dependencies
@@ -200,6 +204,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Next.js"
 	} else if deps["nust"] != nil {
 		srcInfo.Family = "Nust"
+	} else if devdeps["nuxt"] != nil {
+		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
 	}

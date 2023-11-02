@@ -38,7 +38,7 @@ func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions)
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
-	nc, err := newNatsClient(ctx, dialer, app.Organization.Slug)
+	nc, err := newNatsClient(ctx, dialer, app.Organization.RawSlug)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating nats connection: %w", err)
 	}
