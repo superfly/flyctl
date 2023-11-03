@@ -36,6 +36,8 @@ func runLogout(ctx context.Context) (err error) {
 		resp, err := gql.LogOut(ctx, c.API().GenqClient)
 		if err != nil || !resp.LogOut.Ok {
 			log.Warnf("Unable to revoke token")
+		}
+		if err != nil {
 			log.Debug(err.Error())
 		}
 	}
