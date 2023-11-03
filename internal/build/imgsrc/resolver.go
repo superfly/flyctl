@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
+	"go.opentelemetry.io/otel/attribute"
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/superfly/flyctl/client"
@@ -19,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -55,11 +58,38 @@ type RefOptions struct {
 	Tag        string
 }
 
+func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.String("refoptions.appName", ro.AppName),
+		attribute.String("refoptions.workDir", ro.WorkingDir),
+		// todo(gwuah): find out from security if this is fine
+		attribute.String("refoptions.image.ref", ro.ImageRef),
+		attribute.String("refoptions.image.label", ro.ImageLabel),
+		attribute.Bool("refoptions.publish", ro.Publish),
+		attribute.String("refoptions.tag", ro.Tag),
+	}
+}
+
 type DeploymentImage struct {
 	ID     string
 	Tag    string
 	Size   int64
 	Labels map[string]string
+}
+
+func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("image.id", di.ID),
+		attribute.String("image.tag", di.Tag),
+		attribute.Int64("image.size", di.Size),
+	}
+
+	b, err := json.Marshal(di.Labels)
+	if err == nil {
+		attrs = append(attrs, attribute.String("image.labels", string(b)))
+	}
+
+	return attrs
 }
 
 type Resolver struct {
@@ -77,6 +107,9 @@ const logLimit int = 4096
 
 // ResolveReference returns an Image give an reference using either the local docker daemon or remote registry
 func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOStreams, opts RefOptions) (img *DeploymentImage, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "resolveReference")
+	defer span.End()
+
 	strategies := []imageResolver{
 		&localImageResolver{},
 		&remoteImageResolver{flyApi: r.apiClient},
@@ -84,30 +117,37 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 	bld, err := r.createImageBuild(ctx, strategies, opts)
 	if err != nil {
+		span.AddEvent(fmt.Sprintf("failed to create image build. err=%s", err.Error()))
 		terminal.Warnf("failed to create build in graphql: %v\n", err)
 	}
 
 	for _, s := range strategies {
+		span.SetAttributes(attribute.String("resolver.strategy", s.Name()))
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
 		bld.ResetTimings()
 		bld.BuildAndPushStart()
 		var note string
 		img, note, err = s.Run(ctx, r.dockerFactory, streams, opts, bld)
 		terminal.Debugf("result image:%+v error:%v\n", img, err)
+		span.AddEvent(note)
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
+			tracing.RecordError(span, err, "failed to resolve image")
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
 			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			span.SetAttributes(img.ToSpanAttributes()...)
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
 		bld.FinishImageStrategy(s, true /* failed */, nil, note)
+		span.AddEvent(fmt.Sprintf("failed to resolve image with strategy %s", s.Name()))
+
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
