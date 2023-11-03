@@ -160,7 +160,7 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(org, recycle)
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle)
 	if err != nil {
 		s.error(err)
 
