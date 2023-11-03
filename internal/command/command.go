@@ -59,7 +59,6 @@ var commonPreparers = []preparers.Preparer{
 	ensureConfigDirPerms,
 	loadCache,
 	preparers.LoadConfig,
-	preparers.UpdateMacaroons,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
 	preparers.InitClient,
@@ -522,6 +521,38 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 func RequireSession(ctx context.Context) (context.Context, error) {
 	if !client.FromContext(ctx).Authenticated() {
 		return nil, client.ErrNoAuthToken
+	}
+
+	return updateMacaroons(ctx)
+}
+
+// updateMacaroons prune any invalid/expired macaroons and fetch needed third
+// party discharges
+func updateMacaroons(ctx context.Context) (context.Context, error) {
+	log := logger.FromContext(ctx)
+
+	tokens := config.Tokens(ctx)
+
+	pruned := tokens.PruneBadMacaroons()
+	discharged, err := tokens.DischargeThirdPartyCaveats(ctx)
+
+	if err != nil {
+		log.Warn("Failed to upgrade authentication token. Command may fail.")
+		log.Debug(err)
+	}
+
+	if pruned || discharged {
+		ctx = client.NewContext(ctx, client.FromToken(tokens.GraphQL()))
+		log.Debug("client reinitialized.")
+
+		if tokens.FromConfigFile {
+			path := state.ConfigFile(ctx)
+
+			if err = config.SetAccessToken(path, tokens.All()); err != nil {
+				log.Warn("Failed to persist authentication token.")
+				log.Debug(err)
+			}
+		}
 	}
 
 	return ctx, nil
