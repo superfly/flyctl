@@ -337,7 +337,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			return m.ProcessGroup()
 		})
 
-	for _, groupName := range md.appConfig.ProcessNames() {
+	for _, groupName := range md.ProcessNames() {
 		groupConfig, err := md.appConfig.Flatten(groupName)
 		if err != nil {
 			return err
