@@ -147,6 +147,8 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.Tokens = tokens.Parse(w.AccessToken)
+		cfg.Tokens.FromConfigFile = true
+
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
