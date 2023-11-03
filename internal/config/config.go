@@ -14,27 +14,28 @@ const (
 	// FileName denotes the name of the config file.
 	FileName = "config.yml"
 
-	envKeyPrefix          = "FLY_"
-	apiBaseURLEnvKey      = envKeyPrefix + "API_BASE_URL"
-	flapsBaseURLEnvKey    = envKeyPrefix + "FLAPS_BASE_URL"
-	metricsBaseURLEnvKey  = envKeyPrefix + "METRICS_BASE_URL"
-	AccessTokenEnvKey     = envKeyPrefix + "ACCESS_TOKEN"
-	AccessTokenFileKey    = "access_token"
-	MetricsTokenEnvKey    = envKeyPrefix + "METRICS_TOKEN"
-	MetricsTokenFileKey   = "metrics_token"
-	SendMetricsEnvKey     = envKeyPrefix + "SEND_METRICS"
-	SendMetricsFileKey    = "send_metrics"
-	AutoUpdateFileKey     = "auto_update"
-	WireGuardStateFileKey = "wire_guard_state"
-	APITokenEnvKey        = envKeyPrefix + "API_TOKEN"
-	orgEnvKey             = envKeyPrefix + "ORG"
-	registryHostEnvKey    = envKeyPrefix + "REGISTRY_HOST"
-	organizationEnvKey    = envKeyPrefix + "ORGANIZATION"
-	regionEnvKey          = envKeyPrefix + "REGION"
-	verboseOutputEnvKey   = envKeyPrefix + "VERBOSE"
-	jsonOutputEnvKey      = envKeyPrefix + "JSON"
-	logGQLEnvKey          = envKeyPrefix + "LOG_GQL_ERRORS"
-	localOnlyEnvKey       = envKeyPrefix + "LOCAL_ONLY"
+	envKeyPrefix               = "FLY_"
+	apiBaseURLEnvKey           = envKeyPrefix + "API_BASE_URL"
+	flapsBaseURLEnvKey         = envKeyPrefix + "FLAPS_BASE_URL"
+	metricsBaseURLEnvKey       = envKeyPrefix + "METRICS_BASE_URL"
+	AccessTokenEnvKey          = envKeyPrefix + "ACCESS_TOKEN"
+	AccessTokenFileKey         = "access_token"
+	MetricsTokenEnvKey         = envKeyPrefix + "METRICS_TOKEN"
+	MetricsTokenFileKey        = "metrics_token"
+	SendMetricsEnvKey          = envKeyPrefix + "SEND_METRICS"
+	SendMetricsFileKey         = "send_metrics"
+	AutoUpdateFileKey          = "auto_update"
+	WireGuardStateFileKey      = "wire_guard_state"
+	WireGuardWebsocketsFileKey = "wire_guard_websockets"
+	APITokenEnvKey             = envKeyPrefix + "API_TOKEN"
+	orgEnvKey                  = envKeyPrefix + "ORG"
+	registryHostEnvKey         = envKeyPrefix + "REGISTRY_HOST"
+	organizationEnvKey         = envKeyPrefix + "ORGANIZATION"
+	regionEnvKey               = envKeyPrefix + "REGION"
+	verboseOutputEnvKey        = envKeyPrefix + "VERBOSE"
+	jsonOutputEnvKey           = envKeyPrefix + "JSON"
+	logGQLEnvKey               = envKeyPrefix + "LOG_GQL_ERRORS"
+	localOnlyEnvKey            = envKeyPrefix + "LOCAL_ONLY"
 
 	defaultAPIBaseURL     = "https://api.fly.io"
 	defaultFlapsBaseURL   = "https://api.machines.dev"
@@ -147,6 +148,8 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.Tokens = tokens.Parse(w.AccessToken)
+		cfg.Tokens.FromConfigFile = true
+
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate

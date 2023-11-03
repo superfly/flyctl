@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -58,18 +59,21 @@ func runWireguardList(ctx context.Context) error {
 func runWireguardWebsockets(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
+	var (
+		configPath = state.ConfigFile(ctx)
+		err        error
+	)
 	switch flag.FirstArg(ctx) {
 	case "enable":
 		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
-
+		err = config.SetWireGuardWebsocketsEnabled(configPath, true)
 	case "disable":
 		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
-
+		err = config.SetWireGuardWebsocketsEnabled(configPath, false)
 	default:
 		fmt.Fprintf(io.Out, "bad arg: flyctl wireguard websockets (enable|disable)\n")
 	}
-
-	if err := flyctl.SaveConfig(); err != nil {
+	if err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
 

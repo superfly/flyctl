@@ -66,7 +66,7 @@ func UpdateMacaroons(ctx context.Context) (context.Context, error) {
 		log.Debug(err)
 	}
 
-	if pruned || discharged {
+	if tokens.FromConfigFile && (pruned || discharged) {
 		path := state.ConfigFile(ctx)
 
 		if err = config.SetAccessToken(path, tokens.All()); err != nil {
