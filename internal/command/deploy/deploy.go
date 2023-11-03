@@ -13,7 +13,9 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -193,6 +195,9 @@ func run(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
+	ctx, span := tracing.GetCMDSpan(ctx, "deploy")
+	defer span.End()
+
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
 		if strings.Contains(err.Error(), "Could not find App") {
@@ -205,11 +210,14 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
+	span := trace.SpanFromContext(ctx)
+
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
+		tracing.RecordError(span, err, "get app compact")
 		return err
 	}
 
@@ -476,10 +484,13 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	appName := appconfig.NameFromContext(ctx)
+	ctx, span := tracing.GetTracer().Start(ctx, "getAppConfig")
+	defer span.End()
 
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
+			tracing.RecordError(span, err, "get config from remote")
 			return nil, err
 		}
 	}
@@ -487,6 +498,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
 		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
 		if err != nil {
+			tracing.RecordError(span, err, "parse env")
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
@@ -507,6 +519,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		fmt.Fprintf(io.Out, extraInfo)
 	}
 	if err != nil {
+		tracing.RecordError(span, err, "validate config")
 		return nil, err
 	}
 

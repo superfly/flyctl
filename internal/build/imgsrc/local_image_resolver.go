@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type localImageResolver struct{}
@@ -22,6 +23,8 @@ func (*localImageResolver) Name() string {
 }
 
 func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
+	span := trace.SpanFromContext(ctx)
+
 	build.BuildStart()
 	if !dockerFactory.IsLocal() {
 		note := "local docker daemon not available, skipping"
@@ -33,6 +36,8 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	if opts.Tag == "" {
 		opts.Tag = NewDeploymentTag(opts.AppName, opts.ImageLabel)
 	}
+
+	span.SetAttributes(opts.ToSpanAttributes()...)
 
 	build.BuilderInitStart()
 	docker, err := dockerFactory.buildFn(ctx, build)
