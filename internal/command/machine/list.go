@@ -80,7 +80,11 @@ func runMachineList(ctx context.Context) (err error) {
 	listOfMachinesLink := io.CreateLink("View them in the UI here", fmt.Sprintf("https://fly.io/apps/%s/machines/", appName))
 
 	if !silence {
-		fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
+		if len(machines) == 1 {
+			fmt.Fprintf(io.Out, "1 machine has been retrieved from app %s.\n%s\n\n", appName, listOfMachinesLink)
+		} else {
+			fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
+		}
 	}
 	if silence {
 		for _, machine := range machines {
