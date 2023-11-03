@@ -13,10 +13,10 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the Supabase database dashboard`
+		long = `Visit the Tigris dashboard`
 
 		short = long
-		usage = "dashboard [database_name]"
+		usage = "dashboard [bucket_name]"
 	)
 
 	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
