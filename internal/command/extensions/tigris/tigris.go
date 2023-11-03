@@ -13,7 +13,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("tigris", short, long, nil)
-	cmd.AddCommand(create(), list())
+	cmd.AddCommand(create(), list(), dashboard(), destroy())
 
 	return cmd
 }
