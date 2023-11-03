@@ -102,7 +102,7 @@ func loadConfig() error {
 
 	if os.IsNotExist(err) {
 		if migrateLegacyConfig() {
-			if err := SaveConfig(); err != nil {
+			if err := saveConfig(); err != nil {
 				terminal.Debug("error writing flyctl config", err)
 			}
 		}
@@ -114,7 +114,7 @@ func loadConfig() error {
 
 var writeableConfigKeys = []string{ConfigAPIToken, ConfigInstaller, ConfigWireGuardState, ConfigWireGuardWebsockets, BuildKitNodeID}
 
-func SaveConfig() error {
+func saveConfig() error {
 	out := map[string]interface{}{}
 
 	for key, val := range viper.AllSettings() {

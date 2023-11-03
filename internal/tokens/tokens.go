@@ -25,6 +25,7 @@ import (
 type Tokens struct {
 	macaroonTokens []string
 	userTokens     []string
+	FromConfigFile bool
 }
 
 // Parse extracts individual tokens from a token string. The input token may

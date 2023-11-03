@@ -14,6 +14,8 @@ import (
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/flyctl/wg"
 	"golang.org/x/crypto/curve25519"
@@ -38,7 +40,7 @@ func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error
 	return name, nil
 }
 
-func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient *api.Client, org *api.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
@@ -49,7 +51,6 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	ctx := context.TODO()
 	if name == "" {
 		n, err := generatePeerName(ctx, apiClient)
 		if err != nil {
@@ -64,7 +65,7 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 		return nil, err
 	}
 
-	if err := setWireGuardStateForOrg(org.Slug, stateb); err != nil {
+	if err := setWireGuardStateForOrg(ctx, org.Slug, stateb); err != nil {
 		return nil, err
 	}
 
@@ -159,16 +160,17 @@ func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
 	return states[orgSlug], nil
 }
 
-func setWireGuardState(s WireGuardStates) error {
+func setWireGuardState(ctx context.Context, s WireGuardStates) error {
 	viper.Set(flyctl.ConfigWireGuardState, s)
-	if err := flyctl.SaveConfig(); err != nil {
+	configPath := state.ConfigFile(ctx)
+	if err := config.SetWireGuardState(configPath, s); err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
 
 	return nil
 }
 
-func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
+func setWireGuardStateForOrg(ctx context.Context, orgSlug string, s *wg.WireGuardState) error {
 	states, err := GetWireGuardState()
 	if err != nil {
 		return err
@@ -176,7 +178,7 @@ func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
 
 	states[orgSlug] = s
 
-	return setWireGuardState(states)
+	return setWireGuardState(ctx, states)
 }
 
 func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
@@ -204,5 +206,5 @@ func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
 		}
 	}
 
-	return setWireGuardState(state)
+	return setWireGuardState(ctx, state)
 }
