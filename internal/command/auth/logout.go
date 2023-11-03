@@ -26,17 +26,20 @@ To continue interacting with Fly, the user will need to log in again.
 		short = "Logs out the currently logged in user"
 	)
 
-	return command.New("logout", short, long, runLogout,
-		command.RequireSession)
+	return command.New("logout", short, long, runLogout)
 }
 
 func runLogout(ctx context.Context) (err error) {
 	log := logger.FromContext(ctx)
 
-	resp, err := gql.LogOut(ctx, client.FromContext(ctx).API().GenqClient)
-	if err != nil || !resp.LogOut.Ok {
-		log.Warnf("Unable to revoke token")
-		log.Debug(err.Error())
+	if c := client.FromContext(ctx); c.Authenticated() {
+		resp, err := gql.LogOut(ctx, c.API().GenqClient)
+		if err != nil || !resp.LogOut.Ok {
+			log.Warnf("Unable to revoke token")
+		}
+		if err != nil {
+			log.Debug(err.Error())
+		}
 	}
 
 	var ac *agent.Client
