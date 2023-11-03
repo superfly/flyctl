@@ -541,12 +541,17 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		log.Debug(err)
 	}
 
-	if tokens.FromConfigFile && (pruned || discharged) {
-		path := state.ConfigFile(ctx)
+	if pruned || discharged {
+		ctx = client.NewContext(ctx, client.FromToken(tokens.GraphQL()))
+		log.Debug("client reinitialized.")
 
-		if err = config.SetAccessToken(path, tokens.All()); err != nil {
-			log.Warn("Failed to persist authentication token.")
-			log.Debug(err)
+		if tokens.FromConfigFile {
+			path := state.ConfigFile(ctx)
+
+			if err = config.SetAccessToken(path, tokens.All()); err != nil {
+				log.Warn("Failed to persist authentication token.")
+				log.Debug(err)
+			}
 		}
 	}
 
