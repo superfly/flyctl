@@ -39,7 +39,7 @@ require (
 	github.com/mattn/go-zglob v0.0.4
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.56
-	github.com/moby/buildkit v0.12.3
+	github.com/moby/buildkit v0.11.6
 	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.15.2
@@ -116,6 +116,7 @@ require (
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/cloudflare/circl v1.3.3 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.14.3 // indirect
+	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/containerd/typeurl/v2 v2.1.1 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.4 // indirect
 	github.com/dimchansky/utfbom v1.1.1 // indirect
