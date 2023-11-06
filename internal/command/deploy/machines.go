@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -23,7 +24,7 @@ import (
 )
 
 const (
-	DefaultWaitTimeout           = 2 * time.Minute
+	DefaultWaitTimeout           = 5 * time.Minute
 	DefaultReleaseCommandTimeout = 5 * time.Minute
 	DefaultLeaseTtl              = 13 * time.Second
 	DefaultMaxUnavailable        = 0.33
@@ -41,11 +42,11 @@ type MachineDeploymentArgs struct {
 	PrimaryRegionFlag      string
 	SkipSmokeChecks        bool
 	SkipHealthChecks       bool
-	MaxUnavailable         float64
+	MaxUnavailable         *float64
 	RestartOnly            bool
-	WaitTimeout            time.Duration
-	LeaseTimeout           time.Duration
-	ReleaseCmdTimeout      time.Duration
+	WaitTimeout            *time.Duration
+	LeaseTimeout           *time.Duration
+	ReleaseCmdTimeout      *time.Duration
 	Guest                  *api.MachineGuest
 	IncreasedAvailability  bool
 	AllocPublicIP          bool
@@ -54,6 +55,7 @@ type MachineDeploymentArgs struct {
 	ExcludeRegions         map[string]interface{}
 	OnlyRegions            map[string]interface{}
 	ImmediateMaxConcurrent int
+	VolumeInitialSize      int
 }
 
 type machineDeployment struct {
@@ -82,11 +84,12 @@ type machineDeployment struct {
 	isFirstDeploy          bool
 	machineGuest           *api.MachineGuest
 	increasedAvailability  bool
-	listenAddressChecked   map[string]struct{}
+	listenAddressChecked   sync.Map
 	updateOnly             bool
 	excludeRegions         map[string]interface{}
 	onlyRegions            map[string]interface{}
 	immediateMaxConcurrent int
+	volumeInitialSize      int
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -96,7 +99,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.RestartOnly && args.DeploymentImage != "" {
 		return nil, fmt.Errorf("BUG: restartOnly machines deployment created and specified an image")
 	}
-	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.Files)
+	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
 		return nil, err
 	}
@@ -117,35 +120,62 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if err != nil {
 		return nil, err
 	}
+
 	if appConfig.Deploy != nil {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			return nil, err
 		}
 	}
-	waitTimeout := args.WaitTimeout
-	if waitTimeout == 0 {
+
+	var waitTimeout time.Duration
+	switch {
+	case args.WaitTimeout != nil:
+		waitTimeout = *args.WaitTimeout
+	case appConfig.Deploy != nil && appConfig.Deploy.WaitTimeout != nil:
+		waitTimeout = appConfig.Deploy.WaitTimeout.Duration
+	default:
 		waitTimeout = DefaultWaitTimeout
 	}
-	leaseTimeout := args.LeaseTimeout
-	if leaseTimeout == 0 {
+
+	var releaseCmdTimeout time.Duration
+	switch {
+	case args.ReleaseCmdTimeout != nil:
+		releaseCmdTimeout = *args.ReleaseCmdTimeout
+	case appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommandTimeout != nil:
+		releaseCmdTimeout = appConfig.Deploy.ReleaseCommandTimeout.Duration
+	default:
+		releaseCmdTimeout = DefaultReleaseCommandTimeout
+	}
+
+	var leaseTimeout time.Duration
+	switch {
+	case args.LeaseTimeout != nil:
+		leaseTimeout = *args.LeaseTimeout
+	default:
 		leaseTimeout = DefaultLeaseTtl
 	}
+
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
-	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl || args.WaitTimeout == 0 || args.LeaseTimeout == 0 {
+	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl {
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
+
 	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 
 	maxUnavailable := DefaultMaxUnavailable
-	if mu := args.MaxUnavailable; mu > 0 {
-		maxUnavailable = mu
+	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
+		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
 	immedateMaxConcurrent := args.ImmediateMaxConcurrent
 	if immedateMaxConcurrent < 1 {
 		immedateMaxConcurrent = 1
+	}
+	volumeInitialSize := 1
+	if args.VolumeInitialSize > 0 {
+		volumeInitialSize = args.VolumeInitialSize
 	}
 
 	md := &machineDeployment{
@@ -164,14 +194,14 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		waitTimeout:            waitTimeout,
 		leaseTimeout:           leaseTimeout,
 		leaseDelayBetween:      leaseDelayBetween,
-		releaseCmdTimeout:      args.ReleaseCmdTimeout,
+		releaseCmdTimeout:      releaseCmdTimeout,
 		increasedAvailability:  args.IncreasedAvailability,
-		listenAddressChecked:   make(map[string]struct{}),
 		updateOnly:             args.UpdateOnly,
 		machineGuest:           args.Guest,
 		excludeRegions:         args.ExcludeRegions,
 		onlyRegions:            args.OnlyRegions,
 		immediateMaxConcurrent: immedateMaxConcurrent,
+		volumeInitialSize:      volumeInitialSize,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
@@ -377,7 +407,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 					// TODO: May change this by a prompt to create new volumes right away (?)
 					return fmt.Errorf(
 						"Process group '%s' needs volumes with name '%s' to fullfill mounts defined in fly.toml; "+
-							"Run `fly volume create %s -r REGION` for the following regions and counts: %s",
+							"Run `fly volume create %s -r REGION -n COUNT` for the following regions and counts: %s",
 						groupName, volSrc, volSrc, strings.Join(missing, " "),
 					)
 				}
@@ -500,7 +530,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, files []*api.File) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable *float64, files []*api.File) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -520,6 +550,12 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 			appConfig.Deploy = &appconfig.Deploy{}
 		}
 		appConfig.Deploy.Strategy = strategy
+	}
+	if maxUnavailable != nil {
+		if appConfig.Deploy == nil {
+			appConfig.Deploy = &appconfig.Deploy{}
+		}
+		appConfig.Deploy.MaxUnavailable = maxUnavailable
 	}
 
 	// deleting this block will result in machines not being deployed in the user selected region

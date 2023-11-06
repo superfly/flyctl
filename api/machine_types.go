@@ -38,14 +38,13 @@ type Machine struct {
 	InstanceID string `json:"instance_id,omitempty"`
 	Version    string `json:"version,omitempty"`
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP        string                `json:"private_ip,omitempty"`
-	CreatedAt        string                `json:"created_at,omitempty"`
-	UpdatedAt        string                `json:"updated_at,omitempty"`
-	Config           *MachineConfig        `json:"config,omitempty"`
-	Events           []*MachineEvent       `json:"events,omitempty"`
-	Checks           []*MachineCheckStatus `json:"checks,omitempty"`
-	LeaseNonce       string                `json:"nonce,omitempty"`
-	HostDedicationID string                `json:"host_dedication_id,omitempty"`
+	PrivateIP  string                `json:"private_ip,omitempty"`
+	CreatedAt  string                `json:"created_at,omitempty"`
+	UpdatedAt  string                `json:"updated_at,omitempty"`
+	Config     *MachineConfig        `json:"config,omitempty"`
+	Events     []*MachineEvent       `json:"events,omitempty"`
+	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
+	LeaseNonce string                `json:"nonce,omitempty"`
 }
 
 func (m *Machine) FullImageRef() string {
@@ -322,10 +321,11 @@ type MachineMount struct {
 }
 
 type MachineGuest struct {
-	CPUKind  string `json:"cpu_kind,omitempty"`
-	CPUs     int    `json:"cpus,omitempty"`
-	MemoryMB int    `json:"memory_mb,omitempty"`
-	GPUKind  string `json:"gpu_kind,omitempty"`
+	CPUKind          string `json:"cpu_kind,omitempty"`
+	CPUs             int    `json:"cpus,omitempty"`
+	MemoryMB         int    `json:"memory_mb,omitempty"`
+	GPUKind          string `json:"gpu_kind,omitempty"`
+	HostDedicationID string `json:"host_dedication_id,omitempty"`
 
 	KernelArgs []string `json:"kernel_args,omitempty"`
 }
@@ -550,6 +550,8 @@ type MachineServiceConcurrency struct {
 type MachineConfig struct {
 	// Fields managed from fly.toml
 	// If you add anything here, ensure appconfig.Config.ToMachine() is updated
+
+	// An object filled with key/value pairs to be set as environment variables
 	Env      map[string]string       `json:"env,omitempty"`
 	Init     MachineInit             `json:"init,omitempty"`
 	Metadata map[string]string       `json:"metadata,omitempty"`
@@ -560,12 +562,16 @@ type MachineConfig struct {
 	Statics  []*Static               `json:"statics,omitempty"`
 
 	// Set by fly deploy or fly machines commands
+
+	// The docker image to run
 	Image string  `json:"image,omitempty"`
 	Files []*File `json:"files,omitempty"`
 
 	// The following fields can only be set or updated by `fly machines run|update` commands
 	// "fly deploy" must preserve them, if you add anything here, ensure it is propagated on deploys
-	Schedule    string           `json:"schedule,omitempty"`
+
+	Schedule string `json:"schedule,omitempty"`
+	// Optional boolean telling the Machine to destroy itself once it’s complete (default false)
 	AutoDestroy bool             `json:"auto_destroy,omitempty"`
 	Restart     MachineRestart   `json:"restart,omitempty"`
 	Guest       *MachineGuest    `json:"guest,omitempty"`
@@ -582,8 +588,6 @@ type MachineConfig struct {
 	VMSize string `json:"size,omitempty"`
 	// Deprecated: use Service.Autostart instead
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
-
-	HostDedicationId string `json:"host_dedication_id,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {
@@ -668,7 +672,6 @@ type LaunchMachineInput struct {
 	Name                    string         `json:"name,omitempty"`
 	SkipLaunch              bool           `json:"skip_launch,omitempty"`
 	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
-	HostDedicationID        string         `json:"host_dedication_id,omitempty"`
 	LSVD                    bool           `json:"lsvd,omitempty"`
 
 	LeaseTTL int `json:"lease_ttl,omitempty"`

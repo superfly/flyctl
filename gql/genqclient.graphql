@@ -29,6 +29,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 }
 
 mutation CreateAddOn($input: CreateAddOnInput!) {
@@ -167,6 +168,12 @@ mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile
 		limitedAccessToken {
 			tokenHeader
 		}
+	}
+}
+
+mutation LogOut() {
+	logOut(input: {}) {
+		ok
 	}
 }
 

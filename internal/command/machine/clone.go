@@ -251,7 +251,6 @@ func runMachineClone(ctx context.Context) (err error) {
 				Encrypted:           &mnt.Encrypted,
 				SnapshotID:          snapshotID,
 				RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
-				HostDedicationId:    source.HostDedicationID,
 				ComputeRequirements: targetConfig.Guest,
 			}
 			vol, err = flapsClient.CreateVolume(ctx, volInput)
@@ -280,11 +279,10 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	input := api.LaunchMachineInput{
-		Name:             flag.GetString(ctx, "name"),
-		Region:           region,
-		Config:           targetConfig,
-		SkipLaunch:       len(targetConfig.Standbys) > 0,
-		HostDedicationID: source.HostDedicationID,
+		Name:       flag.GetString(ctx, "name"),
+		Region:     region,
+		Config:     targetConfig,
+		SkipLaunch: len(targetConfig.Standbys) > 0,
 	}
 
 	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)

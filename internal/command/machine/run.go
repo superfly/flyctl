@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -140,6 +142,71 @@ var sharedFlags = flag.Set{
 	flag.VMSizeFlags,
 }
 
+var runOrCreateFlags = flag.Set{
+	flag.Region(),
+	// deprecated in favor of `flyctl machine update`
+	flag.String{
+		Name:        "id",
+		Description: "Machine ID, if previously known",
+	},
+	flag.String{
+		Name:        "name",
+		Shorthand:   "n",
+		Description: "Machine name, will be generated if missing",
+	},
+	flag.String{
+		Name:        "org",
+		Description: `The organization that will own the app`,
+	},
+	flag.Bool{
+		Name:        "rm",
+		Description: "Automatically remove the machine when it exits",
+	},
+	flag.StringSlice{
+		Name:        "volume",
+		Shorthand:   "v",
+		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+	},
+	flag.Bool{
+		Name:        "lsvd",
+		Description: "Enable LSVD for this machine",
+		Hidden:      true,
+	},
+}
+
+func soManyErrors(args ...interface{}) error {
+	sb := &strings.Builder{}
+	errs := 0
+
+	for i := range args {
+		if i%2 == 0 {
+			var err error
+
+			kind := args[i].(string)
+			erri := args[i+1]
+
+			if erri != nil {
+				err = erri.(error)
+			}
+
+			if err != nil {
+				fmt.Fprintf(sb, "\t%s: %s\n", kind, err)
+				errs += 1
+			}
+		}
+	}
+
+	if errs == 0 {
+		return nil
+	}
+
+	if errs == 1 {
+		return errors.New(strings.ReplaceAll(strings.ReplaceAll(sb.String(), "\t", ""), "\n", ""))
+	}
+
+	return fmt.Errorf("Multiple errors:\n%s", sb.String())
+}
+
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
 
 func newRun() *cobra.Command {
@@ -157,44 +224,64 @@ func newRun() *cobra.Command {
 
 	flag.Add(
 		cmd,
-		flag.Region(),
-		// deprecated in favor of `flyctl machine update`
+		runOrCreateFlags,
+		sharedFlags,
 		flag.String{
-			Name:        "id",
-			Description: "Machine ID, if previously known",
+			Name:        "user",
+			Description: "Username, if we're shelling into the machine now.",
+			Default:     "root",
+			Hidden:      false,
 		},
 		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "Machine name, will be generated if missing",
-		},
-		flag.String{
-			Name:        "org",
-			Description: `The organization that will own the app`,
+			Name:        "command",
+			Description: "Command to run, if we're shelling into the machine now (in case you don't have bash).",
+			Default:     "/bin/bash",
+			Hidden:      false,
 		},
 		flag.Bool{
-			Name:        "rm",
-			Description: "Automatically remove the machine when it exits",
+			Name:        "shell",
+			Description: "Open a shell on the machine once created (implies --it --rm)",
+			Hidden:      false,
 		},
-		flag.StringSlice{
-			Name:        "volume",
-			Shorthand:   "v",
-			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
-		},
-		flag.String{
-			Name: "host-dedication-id",
-		},
-		flag.Bool{
-			Name:        "lsvd",
-			Description: "Enable LSVD for this machine",
-			Hidden:      true,
-		},
+	)
+
+	cmd.Args = cobra.MinimumNArgs(0)
+
+	return cmd
+}
+
+func newCreate() *cobra.Command {
+	const (
+		short = "Create, but don't start, a machine"
+		long  = short + "\n"
+
+		usage = "create <image> [command]"
+	)
+
+	cmd := command.New(usage, short, long, runMachineCreate,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(
+		cmd,
+		runOrCreateFlags,
 		sharedFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
+}
+
+type contextKey struct {
+	name string
+}
+
+var createCommandCtxKey = &contextKey{"createCommand"}
+
+func runMachineCreate(ctx context.Context) error {
+	return runMachineRun(context.WithValue(ctx, createCommandCtxKey, true))
 }
 
 func runMachineRun(ctx context.Context) error {
@@ -205,9 +292,35 @@ func runMachineRun(ctx context.Context) error {
 		colorize = io.ColorScheme()
 		err      error
 		app      *api.AppCompact
+		isCreate = false
+		interact = false
+		shell    = flag.GetBool(ctx, "shell")
+		destroy  = flag.GetBool(ctx, "rm")
 	)
 
-	if appName == "" {
+	if shell {
+		destroy = true
+		interact = true
+	}
+
+	if ctx.Value(createCommandCtxKey) != nil {
+		isCreate = true
+	}
+
+	switch {
+	case interact && appName != "":
+		app, err = client.GetAppCompact(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+	case interact && appName == "":
+		app, err = getOrCreateEphemeralShellApp(ctx, client)
+		if err != nil {
+			return err
+		}
+
+	case appName == "":
 		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
@@ -217,11 +330,10 @@ func runMachineRun(ctx context.Context) error {
 			return nil
 		}
 
-	} else {
+	default:
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-
 			if err != nil {
 				return err
 			}
@@ -229,7 +341,6 @@ func runMachineRun(ctx context.Context) error {
 			if app == nil {
 				return nil
 			}
-
 		}
 		if err != nil {
 			return err
@@ -237,17 +348,16 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	machineConf := &api.MachineConfig{
-		AutoDestroy: flag.GetBool(ctx, "rm"),
+		AutoDestroy: destroy,
 		DNS: &api.DNSConfig{
 			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
 	input := api.LaunchMachineInput{
-		Name:             flag.GetString(ctx, "name"),
-		Region:           flag.GetString(ctx, "region"),
-		HostDedicationID: flag.GetString(ctx, "host-dedication-id"),
-		LSVD:             flag.GetBool(ctx, "lsvd"),
+		Name:   flag.GetString(ctx, "name"),
+		Region: flag.GetString(ctx, "region"),
+		LSVD:   flag.GetBool(ctx, "lsvd"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -261,7 +371,9 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	imageOrPath := flag.FirstArg(ctx)
-	if imageOrPath == "" {
+	if imageOrPath == "" && shell {
+		imageOrPath = "ubuntu"
+	} else if imageOrPath == "" {
 		return fmt.Errorf("image argument can't be an empty string")
 	}
 
@@ -276,6 +388,7 @@ func runMachineRun(ctx context.Context) error {
 		imageOrPath:        imageOrPath,
 		region:             input.Region,
 		updating:           false,
+		interact:           interact,
 	})
 	if err != nil {
 		return err
@@ -285,7 +398,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input.SkipLaunch = len(machineConf.Standbys) > 0
+	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
 	machine, err := flapsClient.Launch(ctx, input)
@@ -295,22 +408,71 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", appName)
+	verb := "launched"
+	if isCreate {
+		verb = "created"
+	}
+
+	fmt.Fprintf(io.Out, "Success! A machine has been successfully %s in app %s\n", verb, app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
-	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
-	fmt.Fprintf(io.Out, " State: %s\n", state)
+
+	if !interact {
+		fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
+		fmt.Fprintf(io.Out, " State: %s\n", state)
+	}
 
 	if input.SkipLaunch {
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	if !interact {
+		fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	}
+
 	s.Start()
 	// wait for machine to be started
 	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
 	s.Stop()
 	if err != nil {
 		return err
+	}
+
+	if interact {
+		_, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+		if err != nil {
+			return err
+		}
+
+		// the app handle we have from creating a new app, presuming that's what
+		// we did, doesn't have the ID set.
+		app, err = client.GetAppCompact(ctx, app.Name)
+		if err != nil {
+			return fmt.Errorf("failed to load app info for %s: %w", app.Name, err)
+		}
+
+		sshClient, err := ssh.Connect(&ssh.ConnectParams{
+			Ctx:            ctx,
+			Org:            app.Organization,
+			Dialer:         dialer,
+			Username:       flag.GetString(ctx, "user"),
+			DisableSpinner: false,
+		}, machine.PrivateIP)
+		if err != nil {
+			return err
+		}
+
+		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
+		if destroy {
+			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if destroy {
+			return nil
+		}
 	}
 
 	if !flag.GetDetach(ctx) {
@@ -326,6 +488,48 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  %s\n", privateIP)
 
 	return nil
+}
+
+func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api.AppCompact, error) {
+	// no prompt if --org, buried in the context code
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("create interactive shell app: %w", err)
+	}
+
+	apps, err := client.GetAppsForOrganization(ctx, org.ID)
+	if err != nil {
+		return nil, fmt.Errorf("create interactive shell app: %w", err)
+	}
+
+	var appc *api.App
+
+	for appi, appt := range apps {
+		if strings.HasPrefix(appt.Name, "flyctl-interactive-shells-") {
+			appc = &apps[appi]
+			break
+		}
+	}
+
+	if appc == nil {
+		appc, err = client.CreateApp(ctx, api.CreateAppInput{
+			OrganizationID: org.ID,
+			// i'll never find love again like the kind you give like the kind you send
+			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", org.ID, rand.Intn(1_000_000)),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("create interactive shell app: %w", err)
+		}
+	}
+
+	// this app handle won't have all the metadata attached, so grab it
+	app, err := client.GetAppCompact(ctx, appc.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return app, nil
 }
 
 func createApp(ctx context.Context, message, name string, client *api.Client) (*api.AppCompact, error) {
@@ -402,9 +606,12 @@ type determineMachineConfigInput struct {
 	imageOrPath        string
 	region             string
 	updating           bool
+	interact           bool
 }
 
-func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
+func determineMachineConfig(
+	ctx context.Context,
+	input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	var err error
@@ -445,7 +652,15 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
-		machineConf.Init.Cmd = flag.Args(ctx)[1:]
+		args := flag.Args(ctx)
+
+		if len(args) != 0 {
+			machineConf.Init.Cmd = args[1:]
+		}
+	}
+
+	if input.interact {
+		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {

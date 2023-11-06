@@ -231,7 +231,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData,
 	}
 
 	// Prompt the user to agree to the provider ToS
-	confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To provision this %s, you must agree on behalf of your organization to the %s Terms Of Service at %s. Do you agree?", provider.ResourceName, provider.DisplayName, provider.TosUrl))
+	confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To provision %s %ss, you must agree on behalf of your organization to the %s Terms Of Service at %s. Do you agree?", provider.DisplayName, provider.ResourceName, provider.DisplayName, provider.TosUrl))
 
 	if err != nil {
 		return err
@@ -242,6 +242,8 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData,
 			AddOnProviderName: provider.Name,
 			OrganizationId:    org.Id,
 		})
+	} else {
+		return fmt.Errorf("%s provisioning stopped.", provider.DisplayName)
 	}
 
 	return err
@@ -268,6 +270,14 @@ func WaitForProvision(ctx context.Context, name string) error {
 
 		if err != nil {
 			return err
+		}
+
+		if resp.AddOn.Status == "error" {
+			if resp.AddOn.ErrorMessage != "" {
+				return errors.New(resp.AddOn.ErrorMessage)
+			} else {
+				return errors.New("provisioning failed")
+			}
 		}
 
 		if resp.AddOn.Status == "ready" {

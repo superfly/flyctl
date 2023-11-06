@@ -22,11 +22,9 @@ import (
 
 func newExtend() *cobra.Command {
 	const (
-		long = `Extends a target volume to the size specified. The instance is automatically restarted for Nomad (V1) apps.
-		Most Machines (V2 apps) don't require a restart. Older Machines get a message to manually restart the Machine
-		to increase the size of the FS.`
+		short = "Extend a volume to the specified size."
 
-		short = "Extend a target volume"
+		long = short + ` Most Machines don't require a restart. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
 
 		usage = "extend [id]"
 	)
@@ -132,9 +130,9 @@ func runExtend(ctx context.Context) error {
 
 	if app.PlatformVersion == "machines" {
 		if needsRestart {
-			fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your machine to increase the size of the FS"))
+			fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your Machine to increase the size of the file system"))
 		} else {
-			fmt.Fprintln(out, colorize.Green("Your machine got its volume size extended without needing a restart"))
+			fmt.Fprintln(out, colorize.Green("Your Machine got its volume size extended without needing a restart"))
 		}
 	}
 

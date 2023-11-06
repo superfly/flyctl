@@ -10,6 +10,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -56,20 +57,23 @@ var CommonFlags = flag.Set{
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
 	flag.Yes(),
-	flag.Int{
+	flag.String{
 		Name:        "wait-timeout",
-		Description: "Seconds to wait for individual machines to transition states and become healthy.",
-		Default:     int(DefaultWaitTimeout.Seconds()),
+		Description: "Time duration to wait for individual machines to transition states and become healthy.",
+		Default:     DefaultWaitTimeout.String(),
 	},
 	flag.String{
 		Name:        "release-command-timeout",
-		Description: "Seconds to wait for a release command finish running, or 'none' to disable.",
-		Default:     strconv.Itoa(int(DefaultReleaseCommandTimeout.Seconds())),
+		Description: "Time duration to wait for a release command finish running, or 'none' to disable.",
+		Default:     DefaultReleaseCommandTimeout.String(),
 	},
-	flag.Int{
-		Name:        "lease-timeout",
-		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
-		Default:     int(DefaultLeaseTtl.Seconds()),
+	flag.String{
+		Name: "lease-timeout",
+		Description: "Time duration to lease individual machines while running deployment." +
+			" All machines are leased at the beginning and released at the end." +
+			"The lease is refreshed periodically for this same time, which is why it is short." +
+			"flyctl releases leases in most cases.",
+		Default: DefaultLeaseTtl.String(),
 	},
 	flag.Bool{
 		Name:        "force-nomad",
@@ -96,7 +100,7 @@ var CommonFlags = flag.Set{
 	flag.Float64{
 		Name:        "max-unavailable",
 		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
-		Default:     0.33,
+		Default:     DefaultMaxUnavailable,
 	},
 	flag.Bool{
 		Name:        "no-public-ips",
@@ -130,6 +134,11 @@ var CommonFlags = flag.Set{
 		Name:        "immediate-max-concurrent",
 		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
 		Default:     16,
+	},
+	flag.Int{
+		Name:        "volume-initial-size",
+		Description: "The initial size in GB for volumes created on first deploy",
+		Default:     1,
 	},
 	flag.VMSizeFlags,
 }
@@ -245,15 +254,31 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	return err
 }
 
-func determineRelCmdTimeout(timeout string) (time.Duration, error) {
-	if timeout == "none" {
-		return 0, nil
+func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
+	if !flag.IsSpecified(ctx, flagName) {
+		return nil, nil
 	}
-	asInt, err := strconv.Atoi(timeout)
-	if err != nil {
-		return 0, fmt.Errorf("invalid release command timeout '%v': valid options are a number of seconds, or 'none'", timeout)
+
+	v := flag.GetString(ctx, flagName)
+	if v == "none" {
+		d := time.Duration(0)
+		return &d, nil
 	}
-	return time.Duration(asInt) * time.Second, nil
+
+	duration, err := time.ParseDuration(v)
+	if err == nil {
+		return &duration, nil
+	}
+
+	if strings.Contains(err.Error(), "missing unit in duration") {
+		asInt, err := strconv.Atoi(v)
+		if err == nil {
+			duration = time.Duration(asInt) * time.Second
+			return &duration, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid duration value %v used for --%s flag: valid options are a number of seconds, number with time unit (i.e.: 5m, 180s) or 'none'", v, flagName)
 }
 
 // in a rare twist, the guest param takes precedence over CLI flags!
@@ -272,7 +297,17 @@ func deployToMachines(
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
-	releaseCmdTimeout, err := determineRelCmdTimeout(flag.GetString(ctx, "release-command-timeout"))
+	releaseCmdTimeout, err := parseDurationFlag(ctx, "release-command-timeout")
+	if err != nil {
+		return err
+	}
+
+	waitTimeout, err := parseDurationFlag(ctx, "wait-timeout")
+	if err != nil {
+		return err
+	}
+
+	leaseTimeout, err := parseDurationFlag(ctx, "lease-timeout")
 	if err != nil {
 		return err
 	}
@@ -304,6 +339,18 @@ func deployToMachines(
 		}
 	}
 
+	// We default the flag to 0.33 so that --help can show the actual default value,
+	// but internally we want to differentiate between the flag being specified and not.
+	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
+	var maxUnavailable *float64 = nil
+	if flag.IsSpecified(ctx, "max-unavailable") {
+		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		// Validation to ensure that 0.0 is *purely* the "unspecified" value
+		if *maxUnavailable <= 0 {
+			return fmt.Errorf("the value for --max-unavailable must be > 0")
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:             appCompact,
 		DeploymentImage:        img.Tag,
@@ -312,10 +359,10 @@ func deployToMachines(
 		PrimaryRegionFlag:      appConfig.PrimaryRegion,
 		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:       flag.GetDetach(ctx),
-		WaitTimeout:            time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:           time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:         flag.GetFloat64(ctx, "max-unavailable"),
+		WaitTimeout:            waitTimeout,
 		ReleaseCmdTimeout:      releaseCmdTimeout,
+		LeaseTimeout:           leaseTimeout,
+		MaxUnavailable:         maxUnavailable,
 		Guest:                  guest,
 		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
 		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
@@ -324,6 +371,7 @@ func deployToMachines(
 		ExcludeRegions:         excludeRegions,
 		OnlyRegions:            onlyRegions,
 		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
+		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
@@ -441,6 +489,12 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+		if !config.FromContext(ctx).JSONOutput {
+			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
+		}
 	}
 
 	tb.Done("Verified app config")

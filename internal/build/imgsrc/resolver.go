@@ -516,7 +516,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		terminal.Warnf(errMsg, err)
 		return nil, nil
 	}
-	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.FromContext(ctx).AccessToken)
+	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.Tokens(ctx).Docker())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)

@@ -100,7 +100,6 @@ func (lm *leasableMachine) FormattedMachineId() string {
 }
 
 func (lm *leasableMachine) logStatusWaiting(ctx context.Context, desired string) {
-
 	statuslogger.Logf(ctx, "Waiting for %s to have state: %s", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(desired))
 }
 
@@ -182,7 +181,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for machine to %s %w", desiredState, err)
+			return fmt.Errorf("timed out waiting for machine to reach %s state: %w", desiredState, err)
 		case notFoundResponse && desiredState != api.MachineStateDestroyed:
 			return err
 		case !notFoundResponse && err != nil:
@@ -290,7 +289,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			return fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
+			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
@@ -327,7 +326,7 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 		case errors.Is(waitCtx.Err(), context.Canceled):
 			return nil, err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
-			return nil, fmt.Errorf("timeout reached waiting for healthchecks to pass for machine %s %w", lm.Machine().ID, err)
+			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
 		case err != nil:
 			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}

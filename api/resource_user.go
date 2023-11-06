@@ -7,9 +7,15 @@ import (
 func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 	query := `
 		query {
-			viewer {
-				email
-			}
+				viewer {
+					... on User {
+						email
+						enablePaidHobby
+					}
+					... on Macaroon {
+						email
+					}
+				}
 		}
 	`
 
