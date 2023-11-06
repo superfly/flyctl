@@ -24,19 +24,27 @@ func dashboard() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Org(),
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 	return cmd
 }
 
 func runDashboard(ctx context.Context) (err error) {
+	org := flag.GetOrg(ctx)
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
+	if org != "" {
+		extensions_core.OpenOrgDashboard(ctx, org, "supabase")
+	} else {
+		extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
+
+		err = extensions_core.OpenDashboard(ctx, extension.Name)
+
 	}
 
-	err = extensions_core.OpenDashboard(ctx, extension.Name)
 	return
 }

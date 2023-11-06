@@ -75,3 +75,21 @@ func StartTiming(ctx context.Context, metricSlug string) func() {
 		Send(ctx, metricSlug, map[string]float64{"duration_seconds": time.Since(start).Seconds()})
 	}
 }
+
+type disableFlushMetricsKey struct{}
+
+// WithDisableFlushMetrics returns a context with a flag that disables
+// FlushMetrics call after a command completes.
+func WithDisableFlushMetrics(ctx context.Context) context.Context {
+	return context.WithValue(ctx, disableFlushMetricsKey{}, true)
+}
+
+// IsFlushMetricsDisabled returns true if FlushMetrics should not be called after a command completes.
+func IsFlushMetricsDisabled(ctx context.Context) bool {
+	val, ok := ctx.Value(disableFlushMetricsKey{}).(bool)
+	if !ok {
+		return false
+	}
+
+	return val
+}

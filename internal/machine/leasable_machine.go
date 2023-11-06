@@ -100,7 +100,6 @@ func (lm *leasableMachine) FormattedMachineId() string {
 }
 
 func (lm *leasableMachine) logStatusWaiting(ctx context.Context, desired string) {
-
 	statuslogger.Logf(ctx, "Waiting for %s to have state: %s", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(desired))
 }
 

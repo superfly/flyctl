@@ -53,19 +53,65 @@ func (r *gitRepo) gitCommitTime(ref string) (time.Time, error) {
 }
 
 func (r *gitRepo) gitBranch() (string, error) {
+	// running in github actions, trigger event is a PR
 	if ref := os.Getenv("GITHUB_HEAD_REF"); ref != "" {
 		return ref, nil
 	}
-	if ref := os.Getenv("GITHUB_REF_NAME"); ref != "" {
-		return ref, nil
+	// running in github actions, trigger event is a branch push
+	if os.Getenv("GITHUB_REF_TYPE") == "branch" {
+		if ref := os.Getenv("GITHUB_REF_NAME"); ref != "" {
+			return ref, nil
+		}
 	}
 
+	if isDetached, err := r.isDetachedHead(); err != nil {
+		return "", errors.Wrap(err, "failed to check if git repo is detached")
+	} else if isDetached {
+		return r.branchFromDetachedHEAD()
+	}
+
+	return r.branchFromHEAD()
+}
+
+func (r *gitRepo) branchFromHEAD() (string, error) {
 	output, err := r.runGit("rev-parse", "--abbrev-ref", "HEAD")
 	if err != nil {
 		return "", errors.Wrap(err, "failed to get current git branch")
 	}
-
 	return strings.TrimSpace(output), nil
+}
+
+func (r *gitRepo) branchFromDetachedHEAD() (string, error) {
+	ref, err := r.gitRef()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get current git sha")
+	}
+
+	parents, err := r.refParents(ref)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get parents of current git ref")
+	}
+	// this is a merge commit, get last branch containing the second parent
+	if len(parents) == 3 {
+		branches, err := r.branchesPointingAt(parents[2])
+		if err != nil {
+			return "", errors.Wrap(err, "failed to get branches pointing at second parent")
+		}
+		if len(branches) > 0 {
+			return branches[len(branches)-1], nil
+		}
+	}
+
+	// if not a merge commit, get last branch containing first ref
+	branches, err := r.branchesPointingAt(parents[0])
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get branches pointing at first parent")
+	}
+	if len(branches) > 0 {
+		return branches[len(branches)-1], nil
+	}
+
+	return "", fmt.Errorf("no branch found containing ref %q", ref)
 }
 
 func (r *gitRepo) gitRef() (string, error) {
@@ -156,45 +202,64 @@ func (r *gitRepo) previousTag(currentTag string) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-func channelFromRef(ref string) (string, error) {
-	// track is always "dev" unless built on CI
-	// if !isCI() {
-	// 	return "dev", nil
-	// }
+func (r *gitRepo) isDetachedHead() (bool, error) {
+	out, err := r.runGit("rev-parse", "--abbrev-ref", "--symbolic-full-name", "HEAD")
+	if err != nil {
+		return false, err
+	}
+	return strings.TrimSpace(out) == "HEAD", nil
+}
 
+func (r *gitRepo) branchesPointingAt(ref string) ([]string, error) {
+	out, err := r.runGit("branch", "-r", "--contains", ref)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get branches containing ref")
+	}
+
+	var branches []string
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "origin/") {
+			branches = append(branches, strings.TrimPrefix(line, "origin/"))
+		}
+	}
+
+	return branches, nil
+}
+
+func (r *gitRepo) refParents(ref string) ([]string, error) {
+	out, err := r.runGit("rev-list", "--parents", "-1", ref)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get ref parents")
+	}
+
+	return strings.Split(out, " "), nil
+}
+
+func channelFromRef(ref string) (string, error) {
+	// return "pr<num>" if the ref is a PR
 	if strings.HasPrefix(ref, "refs/pull/") {
 		num, err := prNumber(ref)
 		if err != nil {
-			return "", errors.Wrapf(err, "failed to get PR number from ref \"%s\"", ref)
+			return "", errors.Wrapf(err, "failed to get PR number from ref %q", ref)
 		}
 		return fmt.Sprintf("pr%d", num), nil
 	}
 
-	if isRefStableBranch(ref) {
-		return "stable", nil
+	// return the version's channel if ref is a tag
+	if strings.HasPrefix(ref, "refs/tags/v") {
+		ver, err := version.Parse(strings.TrimPrefix(ref, "refs/tags/v"))
+		if err != nil {
+			return "", errors.Wrapf(err, "failed to parse version from ref %q", ref)
+		}
+		return version.ChannelFromCalverOrSemver(ver), nil
 	}
 
-	if headRef := os.Getenv("GITHUB_HEAD_REF"); headRef != "" {
-		return headRef, nil
-	}
-
-	branch, err := branchFromRef(ref)
-	if err != nil {
-		return "", errors.Wrapf(err, "unable to select track from ref \"%s\"", ref)
-	}
-
-	return branch, nil
-}
-
-func branchFromRef(ref string) (string, error) {
+	// return the branch name if ref is a branch
 	if strings.HasPrefix(ref, "refs/heads/") {
 		return strings.TrimPrefix(ref, "refs/heads/"), nil
 	}
-	return "", fmt.Errorf("invalid branch ref \"%s\"", ref)
-}
 
-func isRefStableBranch(ref string) bool {
-	return ref == "refs/heads/master" || ref == "refs/heads/main"
+	return "", fmt.Errorf("unable to determine channel from ref: %q", ref)
 }
 
 func prNumber(ref string) (int, error) {

@@ -20,8 +20,10 @@ import (
 
 func newFork() *cobra.Command {
 	const (
-		long  = `Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
-		short = "Forks the specified volume"
+		short = "Fork the specified volume."
+
+		long = short + ` Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
+
 		usage = "fork [id]"
 	)
 
@@ -38,17 +40,18 @@ func newFork() *cobra.Command {
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "Name of the new volume",
+			Description: "The name of the new volume",
 		},
 		flag.Bool{
 			Name:        "machines-only",
-			Description: "volume will be visible to machines platform only",
+			Description: "volume will be visible to Machines platform only",
 			Hidden:      true,
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
-			Description: "Require volume to be placed in separate hardware zone from existing volumes",
+			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 		},
+		flag.VMSizeFlags,
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -100,11 +103,26 @@ func runFork(ctx context.Context) error {
 		requireUniqueZone = api.Pointer(flag.GetBool(ctx, "require-unique-zone"))
 	}
 
+	var attachedMachineGuest *api.MachineGuest
+	if vol.AttachedMachine != nil {
+		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
+		if err != nil {
+			return err
+		}
+		attachedMachineGuest = m.Config.Guest
+	}
+
+	computeRequirements, err := flag.GetMachineGuest(ctx, attachedMachineGuest)
+	if err != nil {
+		return err
+	}
+
 	input := api.CreateVolumeRequest{
-		Name:              name,
-		MachinesOnly:      machinesOnly,
-		RequireUniqueZone: requireUniqueZone,
-		SourceVolumeID:    &vol.ID,
+		Name:                name,
+		MachinesOnly:        machinesOnly,
+		RequireUniqueZone:   requireUniqueZone,
+		SourceVolumeID:      &vol.ID,
+		ComputeRequirements: computeRequirements,
 	}
 
 	volume, err := flapsClient.CreateVolume(ctx, input)

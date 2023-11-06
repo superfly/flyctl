@@ -2,6 +2,7 @@ package tokens
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/flyio"
+	"github.com/superfly/macaroon/resset"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -31,6 +35,7 @@ func newCreate() *cobra.Command {
 	cmd.AddCommand(
 		newDeploy(),
 		newOrg(),
+		newOrgRead(),
 		newLiteFSCloud(),
 	)
 
@@ -50,6 +55,34 @@ func newOrg() *cobra.Command {
 
 	flag.Add(cmd,
 		flag.JSONOutput(),
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
+	)
+
+	return cmd
+}
+
+func newOrgRead() *cobra.Command {
+	const (
+		short = "Create read-only org tokens"
+		long  = "Create an API token limited to reading a single org and its resources. Tokens are valid for 20 years by default. We recommend using a shorter expiry if practical."
+		usage = "readonly"
+	)
+
+	cmd := command.New(usage, short, long, runOrgRead,
+		command.RequireSession,
+	)
+
+	flag.Add(cmd,
+		flag.JSONOutput(),
+		flag.Bool{
+			Name:        "from-existing",
+			Description: "Use an existing token as the basis for the read-only token",
+		},
 		flag.Duration{
 			Name:        "expiry",
 			Shorthand:   "x",
@@ -166,6 +199,102 @@ func runOrg(ctx context.Context) error {
 	}
 
 	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
+func runOrgRead(ctx context.Context) error {
+	var (
+		token          string
+		apiClient      = client.FromContext(ctx).API()
+		expiry         = ""
+		expiryDuration = flag.GetDuration(ctx, "expiry")
+		perm           []byte
+		diss           [][]byte
+	)
+
+	if expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	if !flag.GetBool(ctx, "from-existing") {
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+		if err != nil {
+			return fmt.Errorf("failed retrieving org %w", err)
+		}
+
+		resp, err := makeToken(ctx, apiClient, org.ID, expiry, "deploy_organization", &gql.LimitedAccessTokenOptions{})
+		if err != nil {
+			return err
+		}
+
+		token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+		perm, diss, err = macaroon.ParsePermissionAndDischargeTokens(token, flyio.LocationPermission)
+		if err != nil {
+			return err
+		}
+	} else { /* see also below: we add expiry explicitly if this branch is taken */
+		toks, err := getTokens(ctx)
+		if err != nil {
+			return err
+		}
+
+		var perms [][]byte
+
+		_, perms, _, diss, err = macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
+		if err != nil {
+			return err
+		}
+
+		if len(perms) > 1 {
+			return fmt.Errorf("the currently set token string has more than one permission token in it, can't proceed")
+		}
+
+		perm = perms[0]
+	}
+
+	mac, err := macaroon.Decode(perm)
+	if err != nil {
+		return err
+	}
+
+	// attenuate to read-only
+	var orgID *uint64
+	for _, cav := range macaroon.GetCaveats[*flyio.Organization](&mac.UnsafeCaveats) {
+		if orgID != nil {
+			return errors.New("multiple org caveats")
+		}
+		orgID = &cav.ID
+	}
+	if orgID == nil {
+		return errors.New("no org caveats")
+	}
+	if err := mac.Add(&flyio.Organization{ID: *orgID, Mask: resset.ActionRead}); err != nil {
+		return err
+	}
+
+	if expiryDuration != 0 && flag.GetBool(ctx, "from-existing") {
+		if err := mac.Add(&macaroon.ValidityWindow{
+			NotBefore: time.Now().Unix(),
+			NotAfter:  time.Now().Add(expiryDuration).Unix(),
+		}); err != nil {
+			return err
+		}
+	}
+
+	if perm, err = mac.Encode(); err != nil {
+		return err
+	}
+
+	token = macaroon.ToAuthorizationHeader(append([][]byte{perm}, diss...)...)
 
 	io := iostreams.FromContext(ctx)
 	if config.FromContext(ctx).JSONOutput {

@@ -3,6 +3,7 @@ package apps
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -64,11 +65,17 @@ func runList(ctx context.Context) (err error) {
 		return
 	}
 
+	var verbose = flag.GetBool(ctx, "verbose")
+
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {
 			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
+		}
+
+		if !verbose && strings.HasPrefix(app.Name, "flyctl-interactive-shells-") {
+			app.Name = "(interactive shells app)"
 		}
 
 		rows = append(rows, []string{

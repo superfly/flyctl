@@ -141,10 +141,20 @@ type AddOn implements Node {
   environment: JSON
 
   """
+  Optional error message when `status` is `error`
+  """
+  errorMessage: String
+
+  """
   DNS hostname for the add-on
   """
   hostname: String
   id: ID!
+
+  """
+  Add-on metadata
+  """
+  metadata: JSON
 
   """
   The service name according to the provider
@@ -309,6 +319,11 @@ type AddOnProvider {
 
 enum AddOnType {
   """
+  A Kubernetes cluster
+  """
+  kubernetes
+
+  """
   A PlanetScale database
   """
   planetscale
@@ -327,6 +342,11 @@ enum AddOnType {
   A Supabase database
   """
   supabase
+
+  """
+  A Tigris Data bucket
+  """
+  tigris
 
   """
   An Upstash Redis database
@@ -1569,7 +1589,7 @@ input BuildMachineInput {
   config: JSON!
 
   """
-  id of host dedication
+  [deprecated]
   """
   dedicationId: String
 
@@ -1680,7 +1700,7 @@ input BuildVolumeInput {
   computeRequirements: JSON
 
   """
-  id of host dedication
+  [deprecated]
   """
   dedicationId: String
 
@@ -7479,6 +7499,11 @@ type Organization implements Node {
     """
     last: Int
   ): DomainConnection!
+
+  """
+  Single sign-on link for the given extension type
+  """
+  extensionSsoLink(provider: String!): String
   healthCheckHandlers(
     """
     Returns the elements in the list that come after the specified cursor.
@@ -10709,6 +10734,10 @@ type User implements Node & Principal {
   """
   email: String!
   emailVerified: Boolean!
+
+  """
+  Whether to create new organizations under Hobby plan
+  """
   enablePaidHobby: Boolean!
   featureFlags: [String!]!
   hasNodeproxyApps: Boolean!

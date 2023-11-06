@@ -19,9 +19,9 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `Destroy a volume`
+		short = "Destroy a volume."
 
-		short = "Destroy a volume"
+		long = short + " When you destroy a volume, you permanently delete all its data."
 	)
 
 	cmd := command.New("destroy [id]", short, long, runDestroy,
@@ -89,7 +89,7 @@ func runDestroy(ctx context.Context) error {
 		return fmt.Errorf("failed destroying volume: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "Destroyed volume %s from %s\n", volID, data.Name)
+	fmt.Fprintf(io.Out, "Destroyed volume ID: %s name: %s\n", volID, data.Name)
 
 	return nil
 }
@@ -121,7 +121,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	var msg = "Deleting a volume is not reversible."
 	if matches <= 2 {
-		msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
+		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
 	}
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 

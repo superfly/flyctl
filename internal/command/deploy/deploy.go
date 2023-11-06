@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -57,20 +58,23 @@ var CommonFlags = flag.Set{
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
 	flag.Yes(),
-	flag.Int{
+	flag.String{
 		Name:        "wait-timeout",
-		Description: "Seconds to wait for individual machines to transition states and become healthy.",
-		Default:     int(DefaultWaitTimeout.Seconds()),
+		Description: "Time duration to wait for individual machines to transition states and become healthy.",
+		Default:     DefaultWaitTimeout.String(),
 	},
 	flag.String{
 		Name:        "release-command-timeout",
-		Description: "Seconds to wait for a release command finish running, or 'none' to disable.",
-		Default:     strconv.Itoa(int(DefaultReleaseCommandTimeout.Seconds())),
+		Description: "Time duration to wait for a release command finish running, or 'none' to disable.",
+		Default:     DefaultReleaseCommandTimeout.String(),
 	},
-	flag.Int{
-		Name:        "lease-timeout",
-		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
-		Default:     int(DefaultLeaseTtl.Seconds()),
+	flag.String{
+		Name: "lease-timeout",
+		Description: "Time duration to lease individual machines while running deployment." +
+			" All machines are leased at the beginning and released at the end." +
+			"The lease is refreshed periodically for this same time, which is why it is short." +
+			"flyctl releases leases in most cases.",
+		Default: DefaultLeaseTtl.String(),
 	},
 	flag.Bool{
 		Name:        "force-nomad",
@@ -177,6 +181,12 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	hook := ctrlc.Hook(func() {
+		metrics.FlushMetrics(ctx)
+	})
+
+	defer hook.Done()
+
 	appName := appconfig.NameFromContext(ctx)
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
@@ -255,15 +265,31 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	return err
 }
 
-func determineRelCmdTimeout(timeout string) (time.Duration, error) {
-	if timeout == "none" {
-		return 0, nil
+func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
+	if !flag.IsSpecified(ctx, flagName) {
+		return nil, nil
 	}
-	asInt, err := strconv.Atoi(timeout)
-	if err != nil {
-		return 0, fmt.Errorf("invalid release command timeout '%v': valid options are a number of seconds, or 'none'", timeout)
+
+	v := flag.GetString(ctx, flagName)
+	if v == "none" {
+		d := time.Duration(0)
+		return &d, nil
 	}
-	return time.Duration(asInt) * time.Second, nil
+
+	duration, err := time.ParseDuration(v)
+	if err == nil {
+		return &duration, nil
+	}
+
+	if strings.Contains(err.Error(), "missing unit in duration") {
+		asInt, err := strconv.Atoi(v)
+		if err == nil {
+			duration = time.Duration(asInt) * time.Second
+			return &duration, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid duration value %v used for --%s flag: valid options are a number of seconds, number with time unit (i.e.: 5m, 180s) or 'none'", v, flagName)
 }
 
 // in a rare twist, the guest param takes precedence over CLI flags!
@@ -282,7 +308,17 @@ func deployToMachines(
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
-	releaseCmdTimeout, err := determineRelCmdTimeout(flag.GetString(ctx, "release-command-timeout"))
+	releaseCmdTimeout, err := parseDurationFlag(ctx, "release-command-timeout")
+	if err != nil {
+		return err
+	}
+
+	waitTimeout, err := parseDurationFlag(ctx, "wait-timeout")
+	if err != nil {
+		return err
+	}
+
+	leaseTimeout, err := parseDurationFlag(ctx, "lease-timeout")
 	if err != nil {
 		return err
 	}
@@ -342,10 +378,10 @@ func deployToMachines(
 		PrimaryRegionFlag:      appConfig.PrimaryRegion,
 		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:       flag.GetDetach(ctx),
-		WaitTimeout:            time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:           time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:         maxUnavailable,
+		WaitTimeout:            waitTimeout,
 		ReleaseCmdTimeout:      releaseCmdTimeout,
+		LeaseTimeout:           leaseTimeout,
+		MaxUnavailable:         maxUnavailable,
 		Guest:                  guest,
 		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
 		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),

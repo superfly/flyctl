@@ -19,6 +19,8 @@ type AddOnData struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Status of the add-on
 	Status string `json:"status"`
+	// Optional error message when `status` is `error`
+	ErrorMessage string `json:"errorMessage"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -33,9 +35,14 @@ func (v *AddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
 // GetStatus returns AddOnData.Status, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetStatus() string { return v.Status }
 
+// GetErrorMessage returns AddOnData.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
+
 type AddOnType string
 
 const (
+	// A Kubernetes cluster
+	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
 	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
@@ -44,6 +51,8 @@ const (
 	AddOnTypeSentry AddOnType = "sentry"
 	// A Supabase database
 	AddOnTypeSupabase AddOnType = "supabase"
+	// A Tigris Data bucket
+	AddOnTypeTigris AddOnType = "tigris"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
@@ -1418,6 +1427,9 @@ func (v *GetAddOnAddOn) GetId() string { return v.AddOnData.Id }
 // GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 
+// GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
+
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1469,6 +1481,8 @@ type __premarshalGetAddOnAddOn struct {
 	Id string `json:"id"`
 
 	Name string `json:"name"`
+
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1495,6 +1509,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.AddOnPlan = v.AddOnPlan
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	return &retval, nil
 }
 
@@ -2029,6 +2044,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetStatus() string 
 	return v.AddOnData.Status
 }
 
+// GetErrorMessage returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() string {
+	return v.AddOnData.ErrorMessage
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2062,6 +2082,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	PrimaryRegion string `json:"primaryRegion"`
 
 	Status string `json:"status"`
+
+	ErrorMessage string `json:"errorMessage"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2079,6 +2101,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.Name = v.AddOnData.Name
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	return &retval, nil
 }
 
@@ -2193,6 +2216,26 @@ type GetAppsByRoleResponse struct {
 
 // GetApps returns GetAppsByRoleResponse.Apps, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleResponse) GetApps() GetAppsByRoleAppsAppConnection { return v.Apps }
+
+// GetExtensionSsoLinkOrganization includes the requested fields of the GraphQL type Organization.
+type GetExtensionSsoLinkOrganization struct {
+	// Single sign-on link for the given extension type
+	ExtensionSsoLink string `json:"extensionSsoLink"`
+}
+
+// GetExtensionSsoLink returns GetExtensionSsoLinkOrganization.ExtensionSsoLink, and is useful for accessing the field via an interface.
+func (v *GetExtensionSsoLinkOrganization) GetExtensionSsoLink() string { return v.ExtensionSsoLink }
+
+// GetExtensionSsoLinkResponse is returned by GetExtensionSsoLink on success.
+type GetExtensionSsoLinkResponse struct {
+	// Find an organization by ID
+	Organization GetExtensionSsoLinkOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetExtensionSsoLinkResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetExtensionSsoLinkResponse) GetOrganization() GetExtensionSsoLinkOrganization {
+	return v.Organization
+}
 
 // GetNearestRegionNearestRegion includes the requested fields of the GraphQL type Region.
 type GetNearestRegionNearestRegion struct {
@@ -2501,6 +2544,25 @@ type LockAppResponse struct {
 
 // GetLockApp returns LockAppResponse.LockApp, and is useful for accessing the field via an interface.
 func (v *LockAppResponse) GetLockApp() LockAppLockAppLockAppPayload { return v.LockApp }
+
+// LogOutLogOutLogOutPayload includes the requested fields of the GraphQL type LogOutPayload.
+// The GraphQL type's documentation follows.
+//
+// Autogenerated return type of LogOut.
+type LogOutLogOutLogOutPayload struct {
+	Ok bool `json:"ok"`
+}
+
+// GetOk returns LogOutLogOutLogOutPayload.Ok, and is useful for accessing the field via an interface.
+func (v *LogOutLogOutLogOutPayload) GetOk() bool { return v.Ok }
+
+// LogOutResponse is returned by LogOut on success.
+type LogOutResponse struct {
+	LogOut LogOutLogOutLogOutPayload `json:"logOut"`
+}
+
+// GetLogOut returns LogOutResponse.LogOut, and is useful for accessing the field via an interface.
+func (v *LogOutResponse) GetLogOut() LogOutLogOutLogOutPayload { return v.LogOut }
 
 // MachinesCreateReleaseCreateReleaseCreateReleasePayload includes the requested fields of the GraphQL type CreateReleasePayload.
 // The GraphQL type's documentation follows.
@@ -3373,6 +3435,18 @@ func (v *__GetAppsByRoleInput) GetRole() string { return v.Role }
 // GetOrganizationId returns __GetAppsByRoleInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *__GetAppsByRoleInput) GetOrganizationId() string { return v.OrganizationId }
 
+// __GetExtensionSsoLinkInput is used internally by genqlient
+type __GetExtensionSsoLinkInput struct {
+	OrgSlug  string `json:"orgSlug"`
+	Provider string `json:"provider"`
+}
+
+// GetOrgSlug returns __GetExtensionSsoLinkInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__GetExtensionSsoLinkInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetProvider returns __GetExtensionSsoLinkInput.Provider, and is useful for accessing the field via an interface.
+func (v *__GetExtensionSsoLinkInput) GetProvider() string { return v.Provider }
+
 // __GetOrganizationInput is used internally by genqlient
 type __GetOrganizationInput struct {
 	Slug string `json:"slug"`
@@ -4020,6 +4094,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 }
 fragment AppData on App {
 	id
@@ -4239,6 +4314,7 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
 }
 fragment OrganizationData on Organization {
 	id
@@ -4323,6 +4399,43 @@ func GetAppsByRole(
 	var err error
 
 	var data GetAppsByRoleResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by GetExtensionSsoLink.
+const GetExtensionSsoLink_Operation = `
+query GetExtensionSsoLink ($orgSlug: String!, $provider: String!) {
+	organization(slug: $orgSlug) {
+		extensionSsoLink(provider: $provider)
+	}
+}
+`
+
+func GetExtensionSsoLink(
+	ctx context.Context,
+	client graphql.Client,
+	orgSlug string,
+	provider string,
+) (*GetExtensionSsoLinkResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetExtensionSsoLink",
+		Query:  GetExtensionSsoLink_Operation,
+		Variables: &__GetExtensionSsoLinkInput{
+			OrgSlug:  orgSlug,
+			Provider: provider,
+		},
+	}
+	var err error
+
+	var data GetExtensionSsoLinkResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
@@ -4522,6 +4635,37 @@ func LockApp(
 	var err error
 
 	var data LockAppResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by LogOut.
+const LogOut_Operation = `
+mutation LogOut {
+	logOut(input: {}) {
+		ok
+	}
+}
+`
+
+func LogOut(
+	ctx context.Context,
+	client graphql.Client,
+) (*LogOutResponse, error) {
+	req := &graphql.Request{
+		OpName: "LogOut",
+		Query:  LogOut_Operation,
+	}
+	var err error
+
+	var data LogOutResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(

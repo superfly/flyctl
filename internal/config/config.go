@@ -1,40 +1,41 @@
 package config
 
 import (
-	"strings"
 	"sync"
 
 	"github.com/spf13/pflag"
 
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/tokens"
 )
 
 const (
 	// FileName denotes the name of the config file.
 	FileName = "config.yml"
 
-	envKeyPrefix          = "FLY_"
-	apiBaseURLEnvKey      = envKeyPrefix + "API_BASE_URL"
-	flapsBaseURLEnvKey    = envKeyPrefix + "FLAPS_BASE_URL"
-	metricsBaseURLEnvKey  = envKeyPrefix + "METRICS_BASE_URL"
-	AccessTokenEnvKey     = envKeyPrefix + "ACCESS_TOKEN"
-	AccessTokenFileKey    = "access_token"
-	MetricsTokenEnvKey    = envKeyPrefix + "METRICS_TOKEN"
-	MetricsTokenFileKey   = "metrics_token"
-	SendMetricsEnvKey     = envKeyPrefix + "SEND_METRICS"
-	SendMetricsFileKey    = "send_metrics"
-	AutoUpdateFileKey     = "auto_update"
-	WireGuardStateFileKey = "wire_guard_state"
-	APITokenEnvKey        = envKeyPrefix + "API_TOKEN"
-	orgEnvKey             = envKeyPrefix + "ORG"
-	registryHostEnvKey    = envKeyPrefix + "REGISTRY_HOST"
-	organizationEnvKey    = envKeyPrefix + "ORGANIZATION"
-	regionEnvKey          = envKeyPrefix + "REGION"
-	verboseOutputEnvKey   = envKeyPrefix + "VERBOSE"
-	jsonOutputEnvKey      = envKeyPrefix + "JSON"
-	logGQLEnvKey          = envKeyPrefix + "LOG_GQL_ERRORS"
-	localOnlyEnvKey       = envKeyPrefix + "LOCAL_ONLY"
+	envKeyPrefix               = "FLY_"
+	apiBaseURLEnvKey           = envKeyPrefix + "API_BASE_URL"
+	flapsBaseURLEnvKey         = envKeyPrefix + "FLAPS_BASE_URL"
+	metricsBaseURLEnvKey       = envKeyPrefix + "METRICS_BASE_URL"
+	AccessTokenEnvKey          = envKeyPrefix + "ACCESS_TOKEN"
+	AccessTokenFileKey         = "access_token"
+	MetricsTokenEnvKey         = envKeyPrefix + "METRICS_TOKEN"
+	MetricsTokenFileKey        = "metrics_token"
+	SendMetricsEnvKey          = envKeyPrefix + "SEND_METRICS"
+	SendMetricsFileKey         = "send_metrics"
+	AutoUpdateFileKey          = "auto_update"
+	WireGuardStateFileKey      = "wire_guard_state"
+	WireGuardWebsocketsFileKey = "wire_guard_websockets"
+	APITokenEnvKey             = envKeyPrefix + "API_TOKEN"
+	orgEnvKey                  = envKeyPrefix + "ORG"
+	registryHostEnvKey         = envKeyPrefix + "REGISTRY_HOST"
+	organizationEnvKey         = envKeyPrefix + "ORGANIZATION"
+	regionEnvKey               = envKeyPrefix + "REGION"
+	verboseOutputEnvKey        = envKeyPrefix + "VERBOSE"
+	jsonOutputEnvKey           = envKeyPrefix + "JSON"
+	logGQLEnvKey               = envKeyPrefix + "LOG_GQL_ERRORS"
+	localOnlyEnvKey            = envKeyPrefix + "LOCAL_ONLY"
 
 	defaultAPIBaseURL     = "https://api.fly.io"
 	defaultFlapsBaseURL   = "https://api.machines.dev"
@@ -84,8 +85,9 @@ type Config struct {
 	// LocalOnly denotes whether the user wants only local operations.
 	LocalOnly bool
 
-	// AccessToken denotes the user's access token.
-	AccessToken string
+	// Tokens is the user's authentication token(s). They are used differently
+	// depending on where they need to be sent.
+	Tokens *tokens.Tokens
 
 	// MetricsToken denotes the user's metrics token.
 	MetricsToken string
@@ -98,6 +100,7 @@ func New() *Config {
 		FlapsBaseURL:   defaultFlapsBaseURL,
 		RegistryHost:   defaultRegistryHost,
 		MetricsBaseURL: defaultMetricsBaseURL,
+		Tokens:         new(tokens.Tokens),
 	}
 }
 
@@ -109,11 +112,9 @@ func (cfg *Config) ApplyEnv() {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
-	cfg.AccessToken = env.FirstOrDefault(cfg.AccessToken,
-		AccessTokenEnvKey, APITokenEnvKey)
-
-	// trim whitespace since it causes http errors when passsed to Docker auth
-	cfg.AccessToken = strings.TrimSpace(cfg.AccessToken)
+	if token := env.First(AccessTokenEnvKey, APITokenEnvKey); token != "" {
+		cfg.Tokens = tokens.Parse(token)
+	}
 
 	cfg.VerboseOutput = env.IsTruthy(verboseOutputEnvKey) || cfg.VerboseOutput
 	cfg.JSONOutput = env.IsTruthy(jsonOutputEnvKey) || cfg.JSONOutput
@@ -146,7 +147,9 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 	w.AutoUpdate = true
 
 	if err = unmarshal(path, &w); err == nil {
-		cfg.AccessToken = w.AccessToken
+		cfg.Tokens = tokens.Parse(w.AccessToken)
+		cfg.Tokens.FromConfigFile = true
+
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
@@ -162,9 +165,8 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 	defer cfg.mu.Unlock()
 
 	applyStringFlags(fs, map[string]*string{
-		flagnames.AccessToken: &cfg.AccessToken,
-		flagnames.Org:         &cfg.Organization,
-		flagnames.Region:      &cfg.Region,
+		flagnames.Org:    &cfg.Organization,
+		flagnames.Region: &cfg.Region,
 	})
 
 	applyBoolFlags(fs, map[string]*bool{
@@ -172,6 +174,14 @@ func (cfg *Config) ApplyFlags(fs *pflag.FlagSet) {
 		flagnames.JSONOutput: &cfg.JSONOutput,
 		flagnames.LocalOnly:  &cfg.LocalOnly,
 	})
+
+	if fs.Changed(flagnames.AccessToken) {
+		if v, err := fs.GetString(flagnames.AccessToken); err != nil {
+			panic(err)
+		} else {
+			cfg.Tokens = tokens.Parse(v)
+		}
+	}
 }
 
 func (cfg *Config) MetricsBaseURLIsProduction() bool {

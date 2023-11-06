@@ -88,9 +88,11 @@ type Config struct {
 }
 
 type Deploy struct {
-	ReleaseCommand string   `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	Strategy       string   `toml:"strategy,omitempty" json:"strategy,omitempty"`
-	MaxUnavailable *float64 `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
+	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	ReleaseCommandTimeout *api.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
+	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
+	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
+	WaitTimeout           *api.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
 }
 
 type File struct {

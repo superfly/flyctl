@@ -18,7 +18,7 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	// We use this over the context API client because we're trying to
 	// authenticate the human user, not the specific credentials they're using.
 	cfg := config.FromContext(ctx)
-	apiClient := client.NewClient(cfg.AccessToken)
+	apiClient := client.NewClient(cfg.Tokens.GraphQL())
 
 	personal, _, err := apiClient.GetCurrentOrganizations(ctx)
 	if err != nil {
@@ -43,7 +43,7 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
-func getMetricsToken(parentCtx context.Context) (token string, err error) {
+func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 	// Prevent metrics panics from bubbling up to the user.
 	defer func() {
 		if r := recover(); r != nil {
@@ -57,7 +57,7 @@ func getMetricsToken(parentCtx context.Context) (token string, err error) {
 		return cfg.MetricsToken, nil
 	}
 
-	if cfg.MetricsToken == "" && cfg.AccessToken != "" {
+	if cfg.MetricsToken == "" && cfg.Tokens.GraphQL() != "" {
 		terminal.Debugf("Querying metrics token from web\n")
 		token, err := queryMetricsToken(parentCtx)
 		if err != nil {

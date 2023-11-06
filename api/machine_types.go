@@ -310,11 +310,14 @@ type MachineRestart struct {
 }
 
 type MachineMount struct {
-	Encrypted bool   `json:"encrypted,omitempty"`
-	Path      string `json:"path,omitempty"`
-	SizeGb    int    `json:"size_gb,omitempty"`
-	Volume    string `json:"volume,omitempty"`
-	Name      string `json:"name,omitempty"`
+	Encrypted              bool   `json:"encrypted,omitempty"`
+	Path                   string `json:"path,omitempty"`
+	SizeGb                 int    `json:"size_gb,omitempty"`
+	Volume                 string `json:"volume,omitempty"`
+	Name                   string `json:"name,omitempty"`
+	ExtendThresholdPercent int    `json:"extend_threshold_percent,omitempty"`
+	AddSizeGb              int    `json:"add_size_gb,omitempty"`
+	SizeGbLimit            int    `json:"size_gb_limit,omitempty"`
 }
 
 type MachineGuest struct {
@@ -547,6 +550,8 @@ type MachineServiceConcurrency struct {
 type MachineConfig struct {
 	// Fields managed from fly.toml
 	// If you add anything here, ensure appconfig.Config.ToMachine() is updated
+
+	// An object filled with key/value pairs to be set as environment variables
 	Env      map[string]string       `json:"env,omitempty"`
 	Init     MachineInit             `json:"init,omitempty"`
 	Metadata map[string]string       `json:"metadata,omitempty"`
@@ -557,12 +562,16 @@ type MachineConfig struct {
 	Statics  []*Static               `json:"statics,omitempty"`
 
 	// Set by fly deploy or fly machines commands
+
+	// The docker image to run
 	Image string  `json:"image,omitempty"`
 	Files []*File `json:"files,omitempty"`
 
 	// The following fields can only be set or updated by `fly machines run|update` commands
 	// "fly deploy" must preserve them, if you add anything here, ensure it is propagated on deploys
-	Schedule    string           `json:"schedule,omitempty"`
+
+	Schedule string `json:"schedule,omitempty"`
+	// Optional boolean telling the Machine to destroy itself once it’s complete (default false)
 	AutoDestroy bool             `json:"auto_destroy,omitempty"`
 	Restart     MachineRestart   `json:"restart,omitempty"`
 	Guest       *MachineGuest    `json:"guest,omitempty"`
