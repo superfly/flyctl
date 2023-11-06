@@ -13,13 +13,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/superfly/flyctl/internal/command_context"
+	"github.com/superfly/flyctl/internal/metrics"
+
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/httptracing"
-	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -159,14 +161,11 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
+	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil, nil)
 	return
 }
 
-func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
-	timing := instrument.Flaps.Begin()
-	defer timing.End()
-
+func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string, statusCode *int) error {
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
@@ -181,6 +180,12 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		err := resp.Body.Close()
 		if err != nil {
 			terminal.Debugf("error closing response body: %v\n", err)
+		}
+	}()
+
+	defer func() {
+		if statusCode != nil {
+			*statusCode = resp.StatusCode
 		}
 	}()
 
@@ -202,6 +207,36 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		}
 	}
 	return nil
+}
+
+type flapsCall struct {
+	Call       string `json:"c"`
+	Command    string `json:"co"`
+	StatusCode int    `json:"s"`
+}
+
+func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode int) {
+	cmdCtx := command_context.FromContext(ctx)
+
+	// Iterate backwards through the command name to figure out the command being run.
+	// For example, `fly m run` becomes `machine-run`, `deploy --flags` becomes `deploy`
+	// TODO(billy): Unit test this
+	var nameParts []string
+	for cmdCtx != nil {
+		// Don't include the binary name in the nameParts
+		if cmdCtx.Name() == "flyctl" {
+			break
+		}
+		nameParts = append([]string{cmdCtx.Name()}, nameParts...)
+		cmdCtx = cmdCtx.Parent()
+	}
+	commandName := strings.Join(nameParts, "-")
+
+	metrics.Send(ctx, "flaps_call", flapsCall{
+		Call:       endpoint.String(),
+		Command:    commandName,
+		StatusCode: statusCode,
+	})
 }
 
 func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
