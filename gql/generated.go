@@ -41,6 +41,8 @@ func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
 type AddOnType string
 
 const (
+	// A Kubernetes cluster
+	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
 	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
@@ -49,6 +51,8 @@ const (
 	AddOnTypeSentry AddOnType = "sentry"
 	// A Supabase database
 	AddOnTypeSupabase AddOnType = "supabase"
+	// A Tigris Data bucket
+	AddOnTypeTigris AddOnType = "tigris"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
@@ -2213,6 +2217,26 @@ type GetAppsByRoleResponse struct {
 // GetApps returns GetAppsByRoleResponse.Apps, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleResponse) GetApps() GetAppsByRoleAppsAppConnection { return v.Apps }
 
+// GetExtensionSsoLinkOrganization includes the requested fields of the GraphQL type Organization.
+type GetExtensionSsoLinkOrganization struct {
+	// Single sign-on link for the given extension type
+	ExtensionSsoLink string `json:"extensionSsoLink"`
+}
+
+// GetExtensionSsoLink returns GetExtensionSsoLinkOrganization.ExtensionSsoLink, and is useful for accessing the field via an interface.
+func (v *GetExtensionSsoLinkOrganization) GetExtensionSsoLink() string { return v.ExtensionSsoLink }
+
+// GetExtensionSsoLinkResponse is returned by GetExtensionSsoLink on success.
+type GetExtensionSsoLinkResponse struct {
+	// Find an organization by ID
+	Organization GetExtensionSsoLinkOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetExtensionSsoLinkResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetExtensionSsoLinkResponse) GetOrganization() GetExtensionSsoLinkOrganization {
+	return v.Organization
+}
+
 // GetNearestRegionNearestRegion includes the requested fields of the GraphQL type Region.
 type GetNearestRegionNearestRegion struct {
 	// The IATA airport code for this region
@@ -3411,6 +3435,18 @@ func (v *__GetAppsByRoleInput) GetRole() string { return v.Role }
 // GetOrganizationId returns __GetAppsByRoleInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *__GetAppsByRoleInput) GetOrganizationId() string { return v.OrganizationId }
 
+// __GetExtensionSsoLinkInput is used internally by genqlient
+type __GetExtensionSsoLinkInput struct {
+	OrgSlug  string `json:"orgSlug"`
+	Provider string `json:"provider"`
+}
+
+// GetOrgSlug returns __GetExtensionSsoLinkInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__GetExtensionSsoLinkInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetProvider returns __GetExtensionSsoLinkInput.Provider, and is useful for accessing the field via an interface.
+func (v *__GetExtensionSsoLinkInput) GetProvider() string { return v.Provider }
+
 // __GetOrganizationInput is used internally by genqlient
 type __GetOrganizationInput struct {
 	Slug string `json:"slug"`
@@ -4363,6 +4399,43 @@ func GetAppsByRole(
 	var err error
 
 	var data GetAppsByRoleResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by GetExtensionSsoLink.
+const GetExtensionSsoLink_Operation = `
+query GetExtensionSsoLink ($orgSlug: String!, $provider: String!) {
+	organization(slug: $orgSlug) {
+		extensionSsoLink(provider: $provider)
+	}
+}
+`
+
+func GetExtensionSsoLink(
+	ctx context.Context,
+	client graphql.Client,
+	orgSlug string,
+	provider string,
+) (*GetExtensionSsoLinkResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetExtensionSsoLink",
+		Query:  GetExtensionSsoLink_Operation,
+		Variables: &__GetExtensionSsoLinkInput{
+			OrgSlug:  orgSlug,
+			Provider: provider,
+		},
+	}
+	var err error
+
+	var data GetExtensionSsoLinkResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
