@@ -22,13 +22,13 @@ type CallMetrics struct {
 }
 
 type CallTimer struct {
-	start   time.Time
+	Start   time.Time
 	metrics *CallMetrics
 }
 
 func (i *CallInstrumenter) Begin() CallTimer {
 	return CallTimer{
-		start:   time.Now(),
+		Start:   time.Now(),
 		metrics: &i.metrics,
 	}
 }
@@ -44,7 +44,7 @@ func (t *CallTimer) End() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	duration := time.Since(t.start).Seconds()
+	duration := time.Since(t.Start).Seconds()
 
 	t.metrics.Calls += 1
 	t.metrics.Duration += duration
