@@ -61,11 +61,10 @@ func (a *flapsAction) String() string {
 	case uncordon:
 		return "uncordon"
 	default:
-		return "Unknown action"
+		return "unknownAction"
 	}
 }
 
-// FIXME: should this be an iota, and use a different function to get the real flaps endpoint?
 const (
 	launch flapsAction = iota
 	update
@@ -87,7 +86,7 @@ const (
 	uncordon
 )
 
-// The flaps API endpoint that
+// The mapping from a flaps action to the API endpoint being hit
 var flapsActionToEndpoint = map[flapsAction]string{
 	launch:       "",
 	update:       "",
@@ -133,37 +132,44 @@ func queryParamsToString(params map[string]string) string {
 	return strings.TrimSuffix(queryParams, "&")
 }
 
-func (f *Client) sendRequestMachines(ctx context.Context, method string, trueEndpoint flapsActionInfo, in, out interface{}, headers map[string][]string) error {
+func flapsActionInfoToEndpoint(actionInfo flapsActionInfo, appName string) (string, error) {
 	var endpoint string
 
-	if callEndpoint, ok := flapsActionToEndpoint[trueEndpoint.action]; ok {
-		if trueEndpoint.machineID != "" {
-			endpoint = fmt.Sprintf("/%s", trueEndpoint.machineID)
+	if callEndpoint, ok := flapsActionToEndpoint[actionInfo.action]; ok {
+		if actionInfo.machineID != "" {
+			endpoint = fmt.Sprintf("/%s", actionInfo.machineID)
 		}
 		if callEndpoint != "" {
 			endpoint += fmt.Sprintf("/%s", callEndpoint)
 		}
 
-		queryParams := queryParamsToString(trueEndpoint.queryParameters)
+		queryParams := queryParamsToString(actionInfo.queryParameters)
 
 		endpoint = fmt.Sprintf("%s%s", endpoint, queryParams)
+		endpoint = fmt.Sprintf("/apps/%s/machines%s", appName, endpoint)
 
 	} else {
-		return fmt.Errorf("flaps action %s (%d) does not exist", &trueEndpoint.action, trueEndpoint.action)
+		return "", fmt.Errorf("flaps action %s (%d) does not exist", &actionInfo.action, actionInfo.action)
 	}
 
-	endpoint = fmt.Sprintf("/apps/%s/machines%s", f.appName, endpoint)
 
-	err := f._sendRequest(ctx, method, endpoint, in, out, headers)
-	statusCode := 200
+	return endpoint, nil
+}
+
+func (f *Client) sendRequestMachines(ctx context.Context, method string, actionInfo flapsActionInfo, in, out interface{}, headers map[string][]string) error {
+	endpoint, err := flapsActionInfoToEndpoint(actionInfo, f.appName)
 	if err != nil {
-		if err, ok := err.(*FlapsError); ok {
-			statusCode = err.ResponseStatusCode
-		}
+		return err
+	}
+
+	var statusCode int
+	err = f._sendRequest(ctx, method, endpoint, in, out, headers, &statusCode)
+	if err != nil {
+		return err
 	}
 
 	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
-	defer sendFlapsCallMetric(ctx, trueEndpoint.action, statusCode)
+	defer sendFlapsCallMetric(ctx, actionInfo.action, statusCode)
 
 	return err
 }

@@ -161,11 +161,11 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
+	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil, nil)
 	return
 }
 
-func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string, statusCode *int) error {
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
@@ -180,6 +180,12 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		err := resp.Body.Close()
 		if err != nil {
 			terminal.Debugf("error closing response body: %v\n", err)
+		}
+	}()
+
+	defer func() {
+		if statusCode != nil {
+			*statusCode = resp.StatusCode
 		}
 	}()
 
