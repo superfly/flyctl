@@ -211,8 +211,13 @@ type flapsCall struct {
 
 func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode int) {
 	cmdCtx := command_context.FromContext(ctx)
+
+	// Iterate backwards through the command name to figure out the command being run.
+	// For example, `fly m run` becomes `machine-run`, `deploy --flags` becomes `deploy`
+	// TODO(billy): Unit test this
 	var nameParts []string
 	for cmdCtx != nil {
+		// Don't include the binary name in the nameParts
 		if cmdCtx.Name() == "flyctl" {
 			break
 		}
