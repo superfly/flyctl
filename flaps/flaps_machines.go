@@ -152,7 +152,6 @@ func flapsActionInfoToEndpoint(actionInfo flapsActionInfo, appName string) (stri
 		return "", fmt.Errorf("flaps action %s (%d) does not exist", &actionInfo.action, actionInfo.action)
 	}
 
-
 	return endpoint, nil
 }
 
