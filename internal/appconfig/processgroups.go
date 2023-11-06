@@ -180,11 +180,3 @@ func (c *Config) InitCmd(groupName string) ([]string, error) {
 	}
 	return cmd, nil
 }
-
-// GroupConfigs returns a slice of flattened configs for the specified process groups.
-func (c *Config) GroupConfigs(groups []string) []*Config {
-	return lo.Compact(lo.Map(groups, func(group string, _ int) *Config {
-		g, _ := c.Flatten(group)
-		return g
-	}))
-}
