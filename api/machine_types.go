@@ -310,11 +310,14 @@ type MachineRestart struct {
 }
 
 type MachineMount struct {
-	Encrypted bool   `json:"encrypted,omitempty"`
-	Path      string `json:"path,omitempty"`
-	SizeGb    int    `json:"size_gb,omitempty"`
-	Volume    string `json:"volume,omitempty"`
-	Name      string `json:"name,omitempty"`
+	Encrypted              bool   `json:"encrypted,omitempty"`
+	Path                   string `json:"path,omitempty"`
+	SizeGb                 int    `json:"size_gb,omitempty"`
+	Volume                 string `json:"volume,omitempty"`
+	Name                   string `json:"name,omitempty"`
+	ExtendThresholdPercent int    `json:"extend_threshold_percent,omitempty"`
+	AddSizeGb              int    `json:"add_size_gb,omitempty"`
+	SizeGbLimit            int    `json:"size_gb_limit,omitempty"`
 }
 
 type MachineGuest struct {
