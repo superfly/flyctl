@@ -1,15 +1,12 @@
 package ctrlc
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/signal"
 	"runtime"
 	"sync"
 	"syscall"
-
-	"github.com/superfly/flyctl/internal/metrics"
 )
 
 type Handle struct{ *boundSignal }
@@ -46,8 +43,6 @@ func Hook(event func()) Handle {
 			// most terminals print ^C, this makes things easier to read.
 			fmt.Fprintf(os.Stderr, "\n")
 		}
-		ctx := context.Background()
-		metrics.FlushMetrics(ctx)
 		event()
 	}()
 	return Handle{&boundSignal{sig: signalCh}}

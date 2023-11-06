@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -176,6 +177,12 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	hook := ctrlc.Hook(func() {
+		metrics.FlushMetrics(ctx)
+	})
+
+	defer hook.Done()
+
 	appName := appconfig.NameFromContext(ctx)
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
