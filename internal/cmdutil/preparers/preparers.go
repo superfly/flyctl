@@ -51,33 +51,6 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 	return config.NewContext(ctx, cfg), nil
 }
 
-// UpdateMacaroons prune any invalid/expired macaroons and fetch needed third
-// party discharges
-func UpdateMacaroons(ctx context.Context) (context.Context, error) {
-	log := logger.FromContext(ctx)
-
-	tokens := config.Tokens(ctx)
-
-	pruned := tokens.PruneBadMacaroons()
-	discharged, err := tokens.DischargeThirdPartyCaveats(ctx)
-
-	if err != nil {
-		log.Warn("Failed to upgrade authentication token. Command may fail.")
-		log.Debug(err)
-	}
-
-	if pruned || discharged {
-		path := state.ConfigFile(ctx)
-
-		if err = config.SetAccessToken(path, tokens.All()); err != nil {
-			log.Warn("Failed to persist authentication token.")
-			log.Debug(err)
-		}
-	}
-
-	return ctx, nil
-}
-
 func InitClient(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 	cfg := config.FromContext(ctx)
