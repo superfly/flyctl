@@ -1,4 +1,3 @@
-// FIXME: how do we handle flaps calls timing out. We still need to send metrics for it
 package flaps
 
 import (
