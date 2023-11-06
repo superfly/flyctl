@@ -2,6 +2,7 @@ package plan
 
 import (
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/version"
 )
 
 const descriptionNone = "<none>"
@@ -24,7 +25,8 @@ type LaunchPlan struct {
 
 	Redis RedisPlan `json:"redis"`
 
-	ScannerFamily string `json:"scanner_family"`
+	ScannerFamily string          `json:"scanner_family"`
+	FlyctlVersion version.Version `json:"flyctl_version"`
 }
 
 func (p *LaunchPlan) Guest() *api.MachineGuest {
