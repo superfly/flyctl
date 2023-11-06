@@ -124,6 +124,24 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 	return nil, extra_info
 }
 
+func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extra_info string) {
+	if len(groups) == 0 {
+		return cfg.Validate(ctx)
+	}
+	var config *Config
+	for _, group := range groups {
+		config, err = cfg.Flatten(group)
+		if err != nil {
+			return
+		}
+		err, extra_info = config.Validate(ctx)
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
 func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
 	buildStrats := cfg.BuildStrategies()
 	if len(buildStrats) > 1 {
