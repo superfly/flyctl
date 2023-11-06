@@ -118,6 +118,12 @@ query GetAppsByRole($role: String!, $organizationId: ID!) {
 	}
 }
 
+query GetExtensionSsoLink($orgSlug: String!, $provider: String!) {
+	organization(slug: $orgSlug) {
+		extensionSsoLink(provider: $provider)
+	}
+}
+
 fragment OrganizationData on Organization {
 	id
 	slug

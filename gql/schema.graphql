@@ -319,6 +319,11 @@ type AddOnProvider {
 
 enum AddOnType {
   """
+  A Kubernetes cluster
+  """
+  kubernetes
+
+  """
   A PlanetScale database
   """
   planetscale
@@ -337,6 +342,11 @@ enum AddOnType {
   A Supabase database
   """
   supabase
+
+  """
+  A Tigris Data bucket
+  """
+  tigris
 
   """
   An Upstash Redis database
@@ -7489,6 +7499,11 @@ type Organization implements Node {
     """
     last: Int
   ): DomainConnection!
+
+  """
+  Single sign-on link for the given extension type
+  """
+  extensionSsoLink(provider: String!): String
   healthCheckHandlers(
     """
     Returns the elements in the list that come after the specified cursor.

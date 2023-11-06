@@ -303,9 +303,35 @@ func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData)
 	return
 }
 
+func OpenOrgDashboard(ctx context.Context, orgSlug string, provider string) (err error) {
+	var (
+		client = client.FromContext(ctx).API().GenqClient
+	)
+
+	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, provider)
+
+	if err != nil {
+		return err
+	}
+
+	err = openUrl(ctx, result.Organization.ExtensionSsoLink)
+
+	return
+}
+
+func openUrl(ctx context.Context, url string) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
+
+	if err := open.Run(url); err != nil {
+		return fmt.Errorf("failed opening %s: %w", url, err)
+	}
+	return
+}
+
 func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
@@ -316,11 +342,7 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 	}
 
 	url := result.AddOn.SsoLink
-	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
-
-	if err := open.Run(url); err != nil {
-		return fmt.Errorf("failed opening %s: %w", url, err)
-	}
+	openUrl(ctx, url)
 
 	return
 }
