@@ -308,7 +308,7 @@ type MachineRestart struct {
 	// * no - Never try to restart a Machine automatically when its main process exits, whether that’s on purpose or on a crash.
 	// * always - Always restart a Machine automatically and never let it enter a stopped state, even when the main process exits cleanly.
 	// * on-failure - Try up to MaxRetries times to automatically restart the Machine if it exits with a non-zero exit code. Default when no explicit policy is set, and for Machines with schedules.
-	Policy MachineRestartPolicy `json:"policy,omitempty"`
+	Policy MachineRestartPolicy `json:"policy,omitempty" enums:"no,always,on-failure"`
 	// When policy is on-failure, the maximum number of times to attempt to restart the Machine before letting it stop.
 	MaxRetries int `json:"max_retries,omitempty"`
 }
