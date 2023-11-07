@@ -71,6 +71,14 @@ func newConfigUpdate() (cmd *cobra.Command) {
 			Name:        "shared-preload-libraries",
 			Description: "Sets the shared libraries to preload. (comma separated string)",
 		},
+		flag.String{
+			Name:        "work-mem",
+			Description: "Sets the maximum amount of memory each Postgres query can use",
+		},
+		flag.String{
+			Name:        "maintenance-work-mem",
+			Description: "Sets the maximum amount of memory used for maintenance operations like ALTER TABLE, CREATE INDEX, and VACUUM",
+		},
 		flag.Bool{
 			Name:        "force",
 			Description: "Skips pg-setting value verification.",
