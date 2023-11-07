@@ -314,8 +314,8 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 
 func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
-	// Don't wait for Standby machines, they are updated but not started
-	if len(lm.Machine().Config.Standbys) > 0 {
+	// Don't wait for SkipLaunch machines, they are updated but not started
+	if e.launchInput.SkipLaunch {
 		return nil
 	}
 
