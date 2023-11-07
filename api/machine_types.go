@@ -418,7 +418,7 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path,omitempty"`
 }
 
-//@description An optional object that defines one or more named checks. The key for each check is the check name. 
+//@description An optional object that defines one or more named checks. The key for each check is the check name.
 type MachineCheck struct {
 	// The port to connect to, often the same as internal_port
 	Port              *int                `json:"port,omitempty"`
