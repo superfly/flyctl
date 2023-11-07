@@ -56,6 +56,7 @@ type MachineDeploymentArgs struct {
 	OnlyRegions            map[string]interface{}
 	ImmediateMaxConcurrent int
 	VolumeInitialSize      int
+	ProcessGroups          map[string]interface{}
 }
 
 type machineDeployment struct {
@@ -90,6 +91,7 @@ type machineDeployment struct {
 	onlyRegions            map[string]interface{}
 	immediateMaxConcurrent int
 	volumeInitialSize      int
+	processGroups          map[string]interface{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -105,14 +107,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	// TODO: Blend extraInfo into ValidationError and remove this hack
-	if err, extraInfo := appConfig.Validate(ctx); err != nil {
+	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
 		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
 		return nil, err
 	}
 
-	if err != nil {
-		return nil, err
-	}
 	if args.AppCompact == nil {
 		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
 	}
@@ -202,6 +201,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		onlyRegions:            args.OnlyRegions,
 		immediateMaxConcurrent: immedateMaxConcurrent,
 		volumeInitialSize:      volumeInitialSize,
+		processGroups:          args.ProcessGroups,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
@@ -288,6 +288,16 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		fmt.Fprintf(md.io.ErrOut, "--exclude-regions filter applied, deploying to %d/%d machines\n", len(excludeRegionMachines), len(machines))
 		machines = excludeRegionMachines
 	}
+	if len(md.processGroups) > 0 {
+		var processGroupMachines []*api.Machine
+		for _, m := range machines {
+			if _, present := md.processGroups[m.ProcessGroup()]; present {
+				processGroupMachines = append(processGroupMachines, m)
+			}
+		}
+		fmt.Fprintf(md.io.ErrOut, "--process-groups filter applied, deploying to %d/%d machines\n", len(processGroupMachines), len(machines))
+		machines = processGroupMachines
+	}
 
 	for _, m := range machines {
 		if m.Config != nil && m.Config.Metadata != nil {
@@ -347,7 +357,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			return m.ProcessGroup()
 		})
 
-	for _, groupName := range md.appConfig.ProcessNames() {
+	for _, groupName := range md.ProcessNames() {
 		groupConfig, err := md.appConfig.Flatten(groupName)
 		if err != nil {
 			return err
@@ -575,4 +585,14 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 	}
 
 	return appConfig, nil
+}
+
+func (md *machineDeployment) ProcessNames() (names []string) {
+	names = md.appConfig.ProcessNames()
+	if len(md.processGroups) > 0 {
+		names = lo.Filter(names, func(name string, _ int) bool {
+			return md.processGroups[name] != nil
+		})
+	}
+	return
 }
