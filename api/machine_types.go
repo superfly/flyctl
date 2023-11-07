@@ -520,8 +520,9 @@ type TLSOptions struct {
 }
 
 type HTTPOptions struct {
-	Compress *bool                `json:"compress,omitempty" toml:"compress,omitempty"`
-	Response *HTTPResponseOptions `json:"response,omitempty" toml:"response,omitempty"`
+	Compress  *bool                `json:"compress,omitempty" toml:"compress,omitempty"`
+	Response  *HTTPResponseOptions `json:"response,omitempty" toml:"response,omitempty"`
+	H2Backend *bool                `json:"h2_backend,omitempty" toml:"h2_backend,omitempty"`
 }
 
 type HTTPResponseOptions struct {
