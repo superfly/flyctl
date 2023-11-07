@@ -129,35 +129,53 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	}
 
 	// [checks]
-	dst.Checks = lo.PickBy(c.Checks, func(_ string, check *ToplevelCheck) bool {
+	dst.Checks = lo.PickBy(dst.Checks, func(_ string, check *ToplevelCheck) bool {
 		return matchesGroups(check.Processes)
 	})
+	for i := range dst.Checks {
+		dst.Checks[i].Processes = []string{groupName}
+	}
 
 	// [[http_service]]
-	dst.HTTPService = nil
-	if c.HTTPService != nil && matchesGroups(c.HTTPService.Processes) {
-		dst.HTTPService = c.HTTPService
+	if dst.HTTPService != nil {
+		if matchesGroups(dst.HTTPService.Processes) {
+			dst.HTTPService.Processes = []string{groupName}
+		} else {
+			dst.HTTPService = nil
+		}
 	}
 
 	// [[services]]
-	dst.Services = lo.Filter(c.Services, func(s Service, _ int) bool {
+	dst.Services = lo.Filter(dst.Services, func(s Service, _ int) bool {
 		return matchesGroups(s.Processes)
 	})
+	for i := range dst.Services {
+		dst.Services[i].Processes = []string{groupName}
+	}
 
 	// [[Mounts]]
-	dst.Mounts = lo.Filter(c.Mounts, func(x Mount, _ int) bool {
+	dst.Mounts = lo.Filter(dst.Mounts, func(x Mount, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
+	for i := range dst.Mounts {
+		dst.Mounts[i].Processes = []string{groupName}
+	}
 
 	// [[Files]]
-	dst.Files = lo.Filter(c.Files, func(x File, _ int) bool {
+	dst.Files = lo.Filter(dst.Files, func(x File, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
+	for i := range dst.Files {
+		dst.Files[i].Processes = []string{groupName}
+	}
 
 	// [[metrics]]
-	dst.Metrics = lo.Filter(c.Metrics, func(x *Metrics, _ int) bool {
+	dst.Metrics = lo.Filter(dst.Metrics, func(x *Metrics, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
+	for i := range dst.Metrics {
+		dst.Metrics[i].Processes = []string{groupName}
+	}
 
 	return dst, nil
 }
