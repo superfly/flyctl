@@ -107,18 +107,24 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 
 	var updatable []*api.Machine
 
+	unknownRepos := map[string]bool{}
+
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-
-		latestImage, err := client.GetLatestImageDetails(ctx, image)
-		if err != nil {
-			if strings.Contains(err.Error(), "Unknown repository") {
-				continue
-			}
-			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
+		// Skip API call for already-seen unknown repos, or default deploy-label prefix.
+		if unknownRepos[image] || strings.HasPrefix(machine.ImageRef.Tag, "deployment-") {
+			continue
 		}
 
 		if latest == nil {
+			latestImage, err := client.GetLatestImageDetails(ctx, image)
+			if err != nil {
+				if strings.Contains(err.Error(), "Unknown repository") {
+					unknownRepos[image] = true
+					continue
+				}
+				return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
+			}
 			latest = latestImage
 		}
 
