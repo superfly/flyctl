@@ -54,7 +54,5 @@ func FlushPending() {
 		return
 	}
 
-	// this just waits for metrics to hit write(2) on the websocket connection
-	// there is no need to wait on a response from the collector
 	done.Wait()
 }
