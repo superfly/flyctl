@@ -164,10 +164,14 @@ func (f *Client) sendRequestMachines(ctx context.Context, method string, actionI
 	var statusCode int
 
 	err = f._sendRequest(ctx, method, endpoint, in, out, headers, &statusCode)
-
 	time := time.Since(startTimer)
 
-	defer sendFlapsCallMetric(ctx, actionInfo.action, statusCode, time)
+	defer func() {
+		// If the status code is 0, then we bumped into an error that doesn't involve sending data
+		if statusCode != 0 {
+			sendFlapsCallMetric(ctx, actionInfo.action, statusCode, time)
+		}
+	}()
 
 	if err != nil {
 		return err
