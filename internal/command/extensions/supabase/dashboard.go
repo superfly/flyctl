@@ -30,21 +30,17 @@ func dashboard() (cmd *cobra.Command) {
 	return cmd
 }
 
-func runDashboard(ctx context.Context) (err error) {
+func runDashboard(ctx context.Context) error {
 	org := flag.GetOrg(ctx)
 
 	if org != "" {
-		extensions_core.OpenOrgDashboard(ctx, org, "supabase")
-	} else {
-		extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
-
-		if err != nil {
-			return err
-		}
-
-		err = extensions_core.OpenDashboard(ctx, extension.Name)
-
+		return extensions_core.OpenOrgDashboard(ctx, org, "supabase")
 	}
 
-	return
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
+	if err != nil {
+		return err
+	}
+
+	return extensions_core.OpenDashboard(ctx, extension.Name)
 }
