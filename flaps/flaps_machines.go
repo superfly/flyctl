@@ -160,14 +160,18 @@ func (f *Client) sendRequestMachines(ctx context.Context, method string, actionI
 		return err
 	}
 
+	startTimer := time.Now()
 	var statusCode int
+
 	err = f._sendRequest(ctx, method, endpoint, in, out, headers, &statusCode)
+
+	time := time.Since(startTimer)
+
+	defer sendFlapsCallMetric(ctx, actionInfo.action, statusCode, time)
+
 	if err != nil {
 		return err
 	}
-
-	// This tries to find the specific flaps call (using a regex) being made, and then sends it up as a metric
-	defer sendFlapsCallMetric(ctx, actionInfo.action, statusCode)
 
 	return err
 }

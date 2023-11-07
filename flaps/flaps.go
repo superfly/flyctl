@@ -12,8 +12,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/superfly/flyctl/internal/command_context"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/agent"
@@ -166,6 +168,9 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 }
 
 func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string, statusCode *int) error {
+	timing := instrument.Flaps.Begin()
+	defer timing.End()
+
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
 		return err
@@ -210,12 +215,13 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 }
 
 type flapsCall struct {
-	Call       string `json:"c"`
-	Command    string `json:"co"`
-	StatusCode int    `json:"s"`
+	Call       string  `json:"c"`
+	Command    string  `json:"co"`
+	StatusCode int     `json:"s"`
+	Duration   float64 `json:"d"`
 }
 
-func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode int) {
+func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode int, duration time.Duration) {
 	cmdCtx := command_context.FromContext(ctx)
 
 	// Iterate backwards through the command name to figure out the command being run.
@@ -236,6 +242,7 @@ func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode i
 		Call:       endpoint.String(),
 		Command:    commandName,
 		StatusCode: statusCode,
+		Duration:   duration.Seconds(),
 	})
 }
 
