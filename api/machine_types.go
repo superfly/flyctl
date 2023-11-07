@@ -423,23 +423,23 @@ type MachineMetrics struct {
 // @description An optional object that defines one or more named checks. The key for each check is the check name.
 type MachineCheck struct {
 	// The port to connect to, often the same as internal_port
-	Port              *int                `json:"port,omitempty"`
+	Port *int `json:"port,omitempty"`
 	// tcp or http
-	Type              *string             `json:"type,omitempty"`
+	Type *string `json:"type,omitempty"`
 	// The time between connectivity checks
-	Interval          *Duration           `json:"interval,omitempty"`
+	Interval *Duration `json:"interval,omitempty"`
 	// The maximum time a connection can take before being reported as failing its health check
-	Timeout           *Duration           `json:"timeout,omitempty"`
+	Timeout *Duration `json:"timeout,omitempty"`
 	// The time to wait after a VM starts before checking its health
-	GracePeriod       *Duration           `json:"grace_period,omitempty"`
+	GracePeriod *Duration `json:"grace_period,omitempty"`
 	// For http checks, the HTTP method to use to when making the request
-	HTTPMethod        *string             `json:"method,omitempty"`
+	HTTPMethod *string `json:"method,omitempty"`
 	// For http checks, the path to send the request to
-	HTTPPath          *string             `json:"path,omitempty"`
+	HTTPPath *string `json:"path,omitempty"`
 	// For http checks, whether to use http or https
-	HTTPProtocol      *string             `json:"protocol,omitempty"`
+	HTTPProtocol *string `json:"protocol,omitempty"`
 	//For http checks with https protocol, whether or not to verify the TLS certificate
-	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
+	HTTPSkipTLSVerify *bool `json:"tls_skip_verify,omitempty"`
 	// If the protocol is https, the hostname to use for TLS certificate validation
 	HTTPTLSServerName *string             `json:"tls_server_name,omitempty"`
 	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
@@ -448,7 +448,7 @@ type MachineCheck struct {
 // @description For http checks, an array of objects with string field Name and array of strings field Values. The key/value pairs specify header and header values that will get passed with the check call.
 type MachineHTTPHeader struct {
 	// The header name
-	Name   string   `json:"name,omitempty"`
+	Name string `json:"name,omitempty"`
 	// The header value
 	Values []string `json:"values,omitempty"`
 }
