@@ -43,7 +43,9 @@ func runDashboard(ctx context.Context) (err error) {
 		}
 
 		err = extensions_core.OpenDashboard(ctx, extension.Name)
-
+		if err != nil {
+			return err
+		}
 	}
 
 	return
