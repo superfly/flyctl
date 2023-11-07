@@ -305,7 +305,9 @@ var (
 
 // @description The Machine restart policy defines whether and how flyd restarts a Machine after its main process exits. See https://fly.io/docs/machines/guides-examples/machine-restart-policy/.
 type MachineRestart struct {
-	// no: Never try to restart a Machine automatically when its main process exits, whether that’s on purpose or on a crash; always: Always restart a Machine automatically and never let it enter a stopped state, even when the main process exits cleanly; on-failure: Try up to MaxRetries times to automatically restart the Machine if it exits with a non-zero exit code. Default when no explicit policy is set and for Machines with schedules.
+	// * no - Never try to restart a Machine automatically when its main process exits, whether that’s on purpose or on a crash.
+	// * always - Always restart a Machine automatically and never let it enter a stopped state, even when the main process exits cleanly.
+	// * on-failure - Try up to MaxRetries times to automatically restart the Machine if it exits with a non-zero exit code. Default when no explicit policy is set, and for Machines with schedules.
 	Policy MachineRestartPolicy `json:"policy,omitempty"`
 	// When policy is on-failure, the maximum number of times to attempt to restart the Machine before letting it stop.
 	MaxRetries int `json:"max_retries,omitempty"`
@@ -418,7 +420,7 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path,omitempty"`
 }
 
-//@description An optional object that defines one or more named checks. The key for each check is the check name.
+// @description An optional object that defines one or more named checks. The key for each check is the check name.
 type MachineCheck struct {
 	// The port to connect to, often the same as internal_port
 	Port              *int                `json:"port,omitempty"`
@@ -443,7 +445,7 @@ type MachineCheck struct {
 	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
 }
 
-//@description For http checks, an array of objects with string field Name and array of strings field Values. The key/value pairs specify header and header values that will get passed with the check call.
+// @description For http checks, an array of objects with string field Name and array of strings field Values. The key/value pairs specify header and header values that will get passed with the check call.
 type MachineHTTPHeader struct {
 	// The header name
 	Name   string   `json:"name,omitempty"`
