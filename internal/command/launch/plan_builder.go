@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
@@ -149,6 +150,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		HttpServicePort:  8080,
 		Postgres:         plan.PostgresPlan{},
 		Redis:            plan.RedisPlan{},
+		FlyctlVersion:    buildinfo.Info().Version,
 	}
 
 	planSource := &launchPlanSource{
