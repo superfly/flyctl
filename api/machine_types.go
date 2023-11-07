@@ -303,9 +303,13 @@ var (
 	MachineRestartPolicyAlways    MachineRestartPolicy = "always"
 )
 
+// @description The Machine restart policy defines whether and how flyd restarts a Machine after its main process exits. See https://fly.io/docs/machines/guides-examples/machine-restart-policy/.
 type MachineRestart struct {
-	Policy MachineRestartPolicy `json:"policy,omitempty"`
-	// MaxRetries is only relevant with the on-failure policy.
+	// * no - Never try to restart a Machine automatically when its main process exits, whether that’s on purpose or on a crash.
+	// * always - Always restart a Machine automatically and never let it enter a stopped state, even when the main process exits cleanly.
+	// * on-failure - Try up to MaxRetries times to automatically restart the Machine if it exits with a non-zero exit code. Default when no explicit policy is set, and for Machines with schedules.
+	Policy MachineRestartPolicy `json:"policy,omitempty" enums:"no,always,on-failure"`
+	// When policy is on-failure, the maximum number of times to attempt to restart the Machine before letting it stop.
 	MaxRetries int `json:"max_retries,omitempty"`
 }
 
@@ -416,22 +420,36 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path,omitempty"`
 }
 
+// @description An optional object that defines one or more named checks. The key for each check is the check name.
 type MachineCheck struct {
-	Port              *int                `json:"port,omitempty"`
-	Type              *string             `json:"type,omitempty"`
-	Interval          *Duration           `json:"interval,omitempty"`
-	Timeout           *Duration           `json:"timeout,omitempty"`
-	GracePeriod       *Duration           `json:"grace_period,omitempty"`
-	HTTPMethod        *string             `json:"method,omitempty"`
-	HTTPPath          *string             `json:"path,omitempty"`
-	HTTPProtocol      *string             `json:"protocol,omitempty"`
-	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
+	// The port to connect to, often the same as internal_port
+	Port *int `json:"port,omitempty"`
+	// tcp or http
+	Type *string `json:"type,omitempty"`
+	// The time between connectivity checks
+	Interval *Duration `json:"interval,omitempty"`
+	// The maximum time a connection can take before being reported as failing its health check
+	Timeout *Duration `json:"timeout,omitempty"`
+	// The time to wait after a VM starts before checking its health
+	GracePeriod *Duration `json:"grace_period,omitempty"`
+	// For http checks, the HTTP method to use to when making the request
+	HTTPMethod *string `json:"method,omitempty"`
+	// For http checks, the path to send the request to
+	HTTPPath *string `json:"path,omitempty"`
+	// For http checks, whether to use http or https
+	HTTPProtocol *string `json:"protocol,omitempty"`
+	//For http checks with https protocol, whether or not to verify the TLS certificate
+	HTTPSkipTLSVerify *bool `json:"tls_skip_verify,omitempty"`
+	// If the protocol is https, the hostname to use for TLS certificate validation
 	HTTPTLSServerName *string             `json:"tls_server_name,omitempty"`
 	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
 }
 
+// @description For http checks, an array of objects with string field Name and array of strings field Values. The key/value pairs specify header and header values that will get passed with the check call.
 type MachineHTTPHeader struct {
-	Name   string   `json:"name,omitempty"`
+	// The header name
+	Name string `json:"name,omitempty"`
+	// The header value
 	Values []string `json:"values,omitempty"`
 }
 
@@ -635,16 +653,16 @@ type StopConfig struct {
 	Signal  *string   `json:"signal,omitempty"`
 }
 
-// File represents a file that will be written to the machine. One of RawValue or SecretName must be set.
+// @description A file that will be written to the Machine. One of RawValue or SecretName must be set.
 type File struct {
 	// GuestPath is the path on the machine where the file will be written and must be an absolute path.
-	// i.e. /full/path/to/file.json
+	// For example: /full/path/to/file.json
 	GuestPath string `json:"guest_path,omitempty"`
 
-	// RawValue containts the base64 encoded string of the file contents.
+	// The base64 encoded string of the file contents.
 	RawValue *string `json:"raw_value,omitempty"`
 
-	// SecretName is the name of the secret that contains the base64 encoded file contents.
+	// The name of the secret that contains the base64 encoded file contents.
 	SecretName *string `json:"secret_name,omitempty"`
 }
 
