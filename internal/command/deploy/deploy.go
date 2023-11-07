@@ -142,6 +142,10 @@ var CommonFlags = flag.Set{
 		Default:     1,
 	},
 	flag.VMSizeFlags,
+	flag.Bool{
+		Name:        "skip-stopped",
+		Description: "Don't start any stopped machines, only update app config. Defaults to true for standby machines or services with autostop/start enabled",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -358,6 +362,11 @@ func deployToMachines(
 		}
 	}
 
+	var skipStopped *bool = nil
+	if flag.IsSpecified(ctx, "skip-stopped") {
+		skipStopped = api.BoolPointer(flag.GetBool(ctx, "skip-stopped"))
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:             appCompact,
 		DeploymentImage:        img.Tag,
@@ -379,6 +388,7 @@ func deployToMachines(
 		OnlyRegions:            onlyRegions,
 		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
 		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
+		SkipStopped:            skipStopped,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)

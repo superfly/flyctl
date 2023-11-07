@@ -93,6 +93,7 @@ type Deploy struct {
 	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
 	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 	WaitTimeout           *api.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
+	SkipStopped           *bool         `toml:"skip_stopped,omitempty" json:"skip_stopped,omitempty"`
 }
 
 type File struct {

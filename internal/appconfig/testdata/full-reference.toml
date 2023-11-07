@@ -36,6 +36,7 @@ host_dedication_id = "06031957"
   release_command = "release command"
   strategy = "rolling-eyes"
   max_unavailable = 0.2
+  skip_stopped = false
 
 [env]
   FOO = "BAR"
