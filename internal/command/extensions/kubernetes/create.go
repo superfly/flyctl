@@ -12,6 +12,7 @@ import (
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func create() (cmd *cobra.Command) {
@@ -35,6 +36,7 @@ func create() (cmd *cobra.Command) {
 }
 
 func runK8sCreate(ctx context.Context) (err error) {
+	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	targetOrg, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
@@ -56,6 +58,7 @@ func runK8sCreate(ctx context.Context) (err error) {
 	}
 
 	metadata := resp.AddOn.Metadata.(map[string]interface{})
-	fmt.Println("Use the following kubeconfig to connect to your cluster:\n\n", metadata["kubeconfig"])
+
+	fmt.Fprintf(io.Out, "Use the following kubeconfig to connect to your cluster:\n\n%s", metadata["kubeconfig"])
 	return
 }
