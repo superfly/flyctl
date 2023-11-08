@@ -220,10 +220,11 @@ func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode i
 
 	// Iterate backwards through the command name to figure out the command being run.
 	// For example, `fly m run` becomes `machine-run`, `deploy --flags` becomes `deploy`
+	//
+	// We check if the parent is nil so we don't include the binary name in the nameParts
 	// TODO(billy): Unit test this
 	var nameParts []string
-	for cmdCtx != nil {
-		// Don't include the binary name in the nameParts
+	for cmdCtx != nil && cmdCtx.Parent() != nil {
 		if cmdCtx.Parent() == nil {
 			break
 		}
