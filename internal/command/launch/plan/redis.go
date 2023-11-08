@@ -5,13 +5,12 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/command/redis"
 )
 
 type RedisProvider interface {
-	Describe(ctx context.Context) (string, error)
+	Describe(ctx context.Context, org *api.Organization) (string, error)
 }
 
 type RedisPlan struct {
@@ -28,9 +27,9 @@ func (p *RedisPlan) Provider() RedisProvider {
 	return nil
 }
 
-func (p *RedisPlan) Describe(ctx context.Context) (string, error) {
+func (p *RedisPlan) Describe(ctx context.Context, org *api.Organization) (string, error) {
 	if provider := p.Provider(); provider != nil {
-		return provider.Describe(ctx)
+		return provider.Describe(ctx, org)
 	}
 	return descriptionNone, nil
 }
@@ -38,36 +37,23 @@ func (p *RedisPlan) Describe(ctx context.Context) (string, error) {
 func DefaultRedis(plan *LaunchPlan) RedisPlan {
 	return RedisPlan{
 		UpstashRedis: &UpstashRedisPlan{
-			AppName:  fmt.Sprintf("%s-redis", plan.AppName),
-			PlanId:   "upstash-redis-1",
 			Eviction: false,
 		},
 	}
 }
 
 type UpstashRedisPlan struct {
-	AppName      string   `json:"app_name"`
-	PlanId       string   `json:"plan_id"`
 	Eviction     bool     `json:"eviction"`
 	ReadReplicas []string `json:"read_replicas"`
 }
 
-func (p *UpstashRedisPlan) Describe(ctx context.Context) (string, error) {
+func (p *UpstashRedisPlan) Describe(ctx context.Context, org *api.Organization) (string, error) {
 
-	apiClient := client.FromContext(ctx).API()
-
-	result, err := gql.ListAddOnPlans(ctx, apiClient.GenqClient)
+	plan, err := redis.DeterminePlan(ctx, org)
 	if err != nil {
-		terminal.Debugf("Failed to list addon plans: %s\n", err)
-		return "<internal error>", err
+		return "<plan not found, this is an error>", fmt.Errorf("redis plan not found: %w", err)
 	}
 
-	for _, plan := range result.AddOnPlans.Nodes {
-		if plan.Id == p.PlanId {
-			evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
-			return fmt.Sprintf("%s: %s Max Data Size, ($%d / month), eviction %s", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth, evictionStatus), nil
-		}
-	}
-
-	return "<plan not found, this is an error>", fmt.Errorf("plan not found: %s", p.PlanId)
+	evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
+	return fmt.Sprintf("%s Plan: %s Max Data Size, eviction %s", plan.DisplayName, plan.MaxDataSize, evictionStatus), nil
 }
