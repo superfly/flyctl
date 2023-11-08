@@ -230,7 +230,7 @@ func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode i
 	var nameParts []string
 	for cmdCtx != nil {
 		// Don't include the binary name in the nameParts
-		if cmdCtx.Name() == "flyctl" {
+		if cmdCtx.Parent() == nil {
 			break
 		}
 		nameParts = append([]string{cmdCtx.Name()}, nameParts...)
