@@ -10,7 +10,7 @@ import (
 )
 
 type PostgresProvider interface {
-	Describe(ctx context.Context) (string, error)
+	Describe(ctx context.Context, org *api.Organization) (string, error)
 }
 
 type PostgresPlan struct {
@@ -27,9 +27,9 @@ func (p *PostgresPlan) Provider() PostgresProvider {
 	return nil
 }
 
-func (p *PostgresPlan) Describe(ctx context.Context) (string, error) {
+func (p *PostgresPlan) Describe(ctx context.Context, org *api.Organization) (string, error) {
 	if provider := p.Provider(); provider != nil {
-		return provider.Describe(ctx)
+		return provider.Describe(ctx, org)
 	}
 	return descriptionNone, nil
 }
@@ -68,7 +68,7 @@ func (p *FlyPostgresPlan) Guest() *api.MachineGuest {
 	return &guest
 }
 
-func (p *FlyPostgresPlan) Describe(ctx context.Context) (string, error) {
+func (p *FlyPostgresPlan) Describe(ctx context.Context, org *api.Organization) (string, error) {
 
 	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
 	nodesStr := fmt.Sprintf("%d Node%s", p.Nodes, nodePlural)
