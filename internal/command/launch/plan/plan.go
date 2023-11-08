@@ -5,8 +5,6 @@ import (
 	"github.com/superfly/flyctl/internal/version"
 )
 
-const descriptionNone = "<none>"
-
 type LaunchPlan struct {
 	AppName string `json:"name"`
 	OrgSlug string `json:"org"`

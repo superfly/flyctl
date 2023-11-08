@@ -96,12 +96,12 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	postgresStr, err := state.Plan.Postgres.Describe(ctx, org)
+	postgresStr, err := describePostgresPlan(ctx, state.Plan.Postgres, org)
 	if err != nil {
 		return "", err
 	}
 
-	redisStr, err := state.Plan.Redis.Describe(ctx, org)
+	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis, org)
 	if err != nil {
 		return "", err
 	}
