@@ -142,6 +142,10 @@ var CommonFlags = flag.Set{
 		Default:     1,
 	},
 	flag.VMSizeFlags,
+	flag.StringSlice{
+		Name:        "process-groups",
+		Description: "Deploy to machines only in these process groups",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -358,6 +362,14 @@ func deployToMachines(
 		}
 	}
 
+	processGroups := make(map[string]interface{})
+	for _, r := range flag.GetStringSlice(ctx, "process-groups") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			processGroups[reg] = struct{}{}
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:             appCompact,
 		DeploymentImage:        img.Tag,
@@ -379,6 +391,7 @@ func deployToMachines(
 		OnlyRegions:            onlyRegions,
 		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
 		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
+		ProcessGroups:          processGroups,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)

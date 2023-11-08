@@ -108,7 +108,7 @@ func (md *machineDeployment) inferCanaryGuest(name string) *api.MachineGuest {
 
 func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err error) {
 	canaryMachines := []machine.LeasableMachine{}
-	groupsInConfig := md.appConfig.ProcessNames()
+	groupsInConfig := md.ProcessNames()
 	total := len(groupsInConfig)
 	sl := statuslogger.Create(ctx, total, true)
 	defer func() {
@@ -741,7 +741,7 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 		groupsNeedingMachines: map[string]bool{},
 	}
 
-	groupsInConfig := md.appConfig.ProcessNames()
+	groupsInConfig := md.ProcessNames()
 	groupHasMachine := map[string]bool{}
 
 	for _, leasableMachine := range md.machineSet.GetMachines() {
