@@ -13,9 +13,6 @@ query GetAddOn($name: String) {
 			slug
 			paidPlan
 		}
-		app {
-			...AppData
-		}
 		addOnPlan {
 			id
 			name
@@ -30,6 +27,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 
 mutation CreateAddOn($input: CreateAddOnInput!) {
