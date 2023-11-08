@@ -472,6 +472,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			ReleaseCommand: "release command",
 			Strategy:       "rolling-eyes",
 			MaxUnavailable: api.Pointer(0.2),
+			SkipStopped:    new(bool),
 		},
 
 		Env: map[string]string{

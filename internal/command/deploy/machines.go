@@ -56,6 +56,7 @@ type MachineDeploymentArgs struct {
 	OnlyRegions            map[string]interface{}
 	ImmediateMaxConcurrent int
 	VolumeInitialSize      int
+	SkipStopped            *bool
 }
 
 type machineDeployment struct {
@@ -90,6 +91,7 @@ type machineDeployment struct {
 	onlyRegions            map[string]interface{}
 	immediateMaxConcurrent int
 	volumeInitialSize      int
+	skipStopped            *bool
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -178,6 +180,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		volumeInitialSize = args.VolumeInitialSize
 	}
 
+	skipStopped := args.SkipStopped
+	if skipStopped == nil && appConfig.Deploy != nil {
+		skipStopped = appConfig.Deploy.SkipStopped
+	}
+
 	md := &machineDeployment{
 		apiClient:              apiClient,
 		gqlClient:              apiClient.GenqClient,
@@ -202,6 +209,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		onlyRegions:            args.OnlyRegions,
 		immediateMaxConcurrent: immedateMaxConcurrent,
 		volumeInitialSize:      volumeInitialSize,
+		skipStopped:            args.SkipStopped,
 	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
