@@ -49,6 +49,52 @@ type ImageOptions struct {
 	Label           map[string]string
 }
 
+func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("imageoptions.appName", io.AppName),
+		attribute.String("imageoptions.workDir", io.WorkingDir),
+		attribute.String("imageoptions.dockerfilePath", io.DockerfilePath),
+		attribute.String("imageoptions.ignorefilePath", io.IgnorefilePath),
+		// todo(gwuah): find out from security if this is fine
+		attribute.String("imageoptions.image.ref", io.ImageRef),
+		attribute.String("imageoptions.image.label", io.ImageLabel),
+		attribute.Bool("imageoptions.publish", io.Publish),
+		attribute.String("imageoptions.tag", io.Tag),
+		attribute.Bool("imageoptions.nocache", io.NoCache),
+		attribute.String("imageoptions.builtin", io.BuiltIn),
+		attribute.String("imageoptions.builder", io.BuiltIn),
+		attribute.StringSlice("imageoptions.buildpacks", io.Buildpacks),
+	}
+
+	b, err := json.Marshal(io.BuildArgs)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.buildArgs", string(b)))
+	}
+
+	b, err = json.Marshal(io.ExtraBuildArgs)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.extraBuildArgs", string(b)))
+	}
+
+	b, err = json.Marshal(io.BuildSecrets)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.buildSecrets", string(b)))
+	}
+
+	b, err = json.Marshal(io.BuiltInSettings)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.builtInSettings", string(b)))
+	}
+
+	b, err = json.Marshal(io.Label)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.labels", string(b)))
+	}
+
+	return attrs
+
+}
+
 type RefOptions struct {
 	AppName    string
 	WorkingDir string
@@ -122,26 +168,22 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 	}
 
 	for _, s := range strategies {
-		span.SetAttributes(attribute.String("resolver.strategy", s.Name()))
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
 		bld.ResetTimings()
 		bld.BuildAndPushStart()
 		var note string
 		img, note, err = s.Run(ctx, r.dockerFactory, streams, opts, bld)
 		terminal.Debugf("result image:%+v error:%v\n", img, err)
-		span.AddEvent(note)
 		if err != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, true /* failed */, err, note)
 			r.finishBuild(ctx, bld, true /* failed */, err.Error(), nil)
-			tracing.RecordError(span, err, "failed to resolve image")
 			return nil, err
 		}
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
 			r.finishBuild(ctx, bld, false /* completed */, "", img)
-			span.SetAttributes(img.ToSpanAttributes()...)
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -151,7 +193,9 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
-	return nil, fmt.Errorf("could not find image \"%s\"", opts.ImageRef)
+	err = fmt.Errorf("could not find image \"%s\"", opts.ImageRef)
+	tracing.RecordError(span, err, "failed to resolve image")
+	return nil, err
 }
 
 // BuildImage converts source code to an image using a Dockerfile, buildpacks, or builtins.
