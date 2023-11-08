@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -19,116 +17,11 @@ import (
 
 var NonceHeader = "fly-machine-lease-nonce"
 
-type flapsAction int
-
-func (a *flapsAction) String() string {
-	switch *a {
-	case launch:
-		return "launch"
-	case update:
-		return "update"
-	case start:
-		return "start"
-	case wait:
-		return "wait"
-	case stop:
-		return "stop"
-	case restart:
-		return "restart"
-	case get:
-		return "get"
-	case list:
-		return "list"
-	case destroy:
-		return "destroy"
-	case kill:
-		return "kill"
-	case findLease:
-		return "findLease"
-	case acquireLease:
-		return "acquireLease"
-	case refreshLease:
-		return "refreshLease"
-	case releaseLease:
-		return "releaseLease"
-	case exec:
-		return "exec"
-	case ps:
-		return "ps"
-	case cordon:
-		return "cordon"
-	case uncordon:
-		return "uncordon"
-	default:
-		return "unknownAction"
-	}
-}
-
-const (
-	launch flapsAction = iota
-	update
-	start
-	wait
-	stop
-	restart
-	get
-	list
-	destroy
-	kill
-	findLease
-	acquireLease
-	refreshLease
-	releaseLease
-	exec
-	ps
-	cordon
-	uncordon
-)
-
-// The mapping from a flaps action to the API endpoint being hit
-var flapsActionToEndpoint = map[flapsAction]string{
-	launch:       "",
-	update:       "",
-	start:        "start",
-	wait:         "wait",
-	stop:         "stop",
-	restart:      "restart",
-	get:          "",
-	list:         "",
-	destroy:      "",
-	kill:         "signal",
-	findLease:    "lease",
-	acquireLease: "lease",
-	refreshLease: "lease",
-	releaseLease: "lease",
-	exec:         "exec",
-	ps:           "ps",
-	cordon:       "cordon",
-	uncordon:     "uncordon",
-}
-
-// FIXME: rename this, bad name.
 type flapsActionInfo struct {
 	action          flapsAction
 	machineID       string
 	queryParameters url.Values
-}
-
-func queryParamsToString(params map[string]string) string {
-	var queryParams string
-
-	if len(params) > 0 {
-		queryParams = "?"
-	}
-	for param, value := range params {
-		queryParams += param
-		if value != "" {
-			queryParams = fmt.Sprintf("%s=%s", queryParams, value)
-		}
-		queryParams += "&"
-	}
-
-	return strings.TrimSuffix(queryParams, "&")
+	headers         map[string][]string
 }
 
 func flapsActionInfoToEndpoint(actionInfo flapsActionInfo, appName string) (string, error) {
@@ -154,14 +47,20 @@ func flapsActionInfoToEndpoint(actionInfo flapsActionInfo, appName string) (stri
 	return endpoint, nil
 }
 
-func (f *Client) sendRequestMachines(ctx context.Context, method string, actionInfo flapsActionInfo, in, out interface{}, headers map[string][]string) error {
+func (f *Client) sendRequestMachines(ctx context.Context, actionInfo flapsActionInfo, in, out interface{}) error {
 	endpoint, err := flapsActionInfoToEndpoint(actionInfo, f.appName)
 	if err != nil {
 		return err
 	}
 
+	var method string
+	var ok bool
+	if method, ok = flapsActionToMethod[actionInfo.action]; !ok {
+		return fmt.Errorf("method not found for action %s (%d)", actionInfo.action.String(), actionInfo.action)
+	}
+
 	startTimer := time.Now()
-	statusCode, err := f._sendRequest(ctx, method, endpoint, in, out, headers)
+	statusCode, err := f._sendRequest(ctx, method, endpoint, in, out, actionInfo.headers)
 	time := time.Since(startTimer)
 
 	defer func() {
@@ -189,7 +88,7 @@ func (f *Client) Launch(ctx context.Context, builder api.LaunchMachineInput) (ou
 	}()
 
 	out = new(api.Machine)
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: launch}, builder, out, nil); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: launch}, builder, out); err != nil {
 		return nil, fmt.Errorf("failed to launch VM: %w", err)
 	}
 
@@ -212,7 +111,7 @@ func (f *Client) Update(ctx context.Context, builder api.LaunchMachineInput, non
 	}()
 
 	out = new(api.Machine)
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: update, machineID: builder.ID}, builder, out, headers); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: update, machineID: builder.ID, headers: headers}, builder, out); err != nil {
 		return nil, fmt.Errorf("failed to update VM %s: %w", builder.ID, err)
 	}
 	return out, nil
@@ -231,7 +130,7 @@ func (f *Client) Start(ctx context.Context, machineID string, nonce string) (out
 		metrics.Status(ctx, "machine_start", err == nil)
 	}()
 
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: start, machineID: machineID}, nil, out, headers); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: start, machineID: machineID, headers: headers}, nil, out); err != nil {
 		return nil, fmt.Errorf("failed to start VM %s: %w", machineID, err)
 	}
 	return out, nil
@@ -270,7 +169,7 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string, t
 		return fmt.Errorf("error making query string for wait request: %w", err)
 	}
 
-	if err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: wait, machineID: machine.ID, queryParameters: qsVals}, nil, nil, nil); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: wait, machineID: machine.ID, queryParameters: qsVals}, nil, nil); err != nil {
 		return fmt.Errorf("failed to wait for VM %s in %s state: %w", machine.ID, state, err)
 	}
 	return
@@ -282,7 +181,7 @@ func (f *Client) Stop(ctx context.Context, in api.StopMachineInput, nonce string
 		headers[NonceHeader] = []string{nonce}
 	}
 
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: stop, machineID: in.ID}, in, nil, headers); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: stop, machineID: in.ID, headers: headers}, in, nil); err != nil {
 		return fmt.Errorf("failed to stop VM %s: %w", in.ID, err)
 	}
 	return
@@ -303,7 +202,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 		queryParams.Add("signal", fmt.Sprint(in.Signal))
 	}
 
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: restart, queryParameters: queryParams, machineID: in.ID}, nil, nil, headers); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: restart, queryParameters: queryParams, machineID: in.ID, headers: headers}, nil, nil); err != nil {
 		return fmt.Errorf("failed to restart VM %s: %w", in.ID, err)
 	}
 	return
@@ -312,7 +211,7 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 func (f *Client) Get(ctx context.Context, machineID string) (*api.Machine, error) {
 	out := new(api.Machine)
 
-	err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: get, machineID: machineID}, nil, out, nil)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: get, machineID: machineID}, nil, out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get VM %s: %w", machineID, err)
 	}
@@ -339,7 +238,7 @@ func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error)
 
 	out := make([]*api.Machine, 0)
 
-	err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: list, queryParameters: queryParameters}, nil, &out, nil)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: list, queryParameters: queryParameters}, nil, &out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list VMs: %w", err)
 	}
@@ -404,7 +303,7 @@ func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput, nonc
 	queryParameters := url.Values{}
 	queryParameters.Add("kill", fmt.Sprint(input.Kill))
 
-	if err := f.sendRequestMachines(ctx, http.MethodDelete, flapsActionInfo{action: destroy, machineID: input.ID, queryParameters: queryParameters}, nil, nil, headers); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: destroy, machineID: input.ID, queryParameters: queryParameters, headers: headers}, nil, nil); err != nil {
 		return fmt.Errorf("failed to destroy VM %s: %w", input.ID, err)
 	}
 
@@ -415,7 +314,7 @@ func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 	in := map[string]interface{}{
 		"signal": 9,
 	}
-	err = f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: kill, machineID: machineID}, in, nil, nil)
+	err = f.sendRequestMachines(ctx, flapsActionInfo{action: kill, machineID: machineID}, in, nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to kill VM %s: %w", machineID, err)
@@ -425,7 +324,7 @@ func (f *Client) Kill(ctx context.Context, machineID string) (err error) {
 
 func (f *Client) FindLease(ctx context.Context, machineID string) (*api.MachineLease, error) {
 	out := new(api.MachineLease)
-	err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: findLease, machineID: machineID}, nil, out, nil)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: findLease, machineID: machineID}, nil, out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
@@ -439,7 +338,7 @@ func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (
 	}
 
 	out := new(api.MachineLease)
-	err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: acquireLease, machineID: machineID, queryParameters: queryParameters}, nil, out, nil)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: acquireLease, machineID: machineID, queryParameters: queryParameters}, nil, out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
@@ -456,7 +355,7 @@ func (f *Client) RefreshLease(ctx context.Context, machineID string, ttl *int, n
 	headers := make(map[string][]string)
 	headers[NonceHeader] = []string{nonce}
 	out := new(api.MachineLease)
-	err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: refreshLease, machineID: machineID, queryParameters: queryParameters}, nil, out, headers)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: refreshLease, machineID: machineID, queryParameters: queryParameters, headers: headers}, nil, out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get lease on VM %s: %w", machineID, err)
 	}
@@ -471,13 +370,13 @@ func (f *Client) ReleaseLease(ctx context.Context, machineID, nonce string) erro
 		headers[NonceHeader] = []string{nonce}
 	}
 
-	return f.sendRequestMachines(ctx, http.MethodDelete, flapsActionInfo{action: releaseLease, machineID: machineID}, nil, nil, headers)
+	return f.sendRequestMachines(ctx, flapsActionInfo{action: releaseLease, machineID: machineID, headers: headers}, nil, nil)
 }
 
 func (f *Client) Exec(ctx context.Context, machineID string, in *api.MachineExecRequest) (*api.MachineExecResponse, error) {
 	out := new(api.MachineExecResponse)
 
-	err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: exec, machineID: machineID}, in, out, nil)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: exec, machineID: machineID}, in, out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to exec on VM %s: %w", machineID, err)
 	}
@@ -487,7 +386,7 @@ func (f *Client) Exec(ctx context.Context, machineID string, in *api.MachineExec
 func (f *Client) GetProcesses(ctx context.Context, machineID string) (api.MachinePsResponse, error) {
 	var out api.MachinePsResponse
 
-	err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: ps, machineID: machineID}, nil, &out, nil)
+	err := f.sendRequestMachines(ctx, flapsActionInfo{action: ps, machineID: machineID}, nil, &out)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get processes from VM %s: %w", machineID, err)
 	}
@@ -505,7 +404,7 @@ func (f *Client) Cordon(ctx context.Context, machineID string) (err error) {
 		}
 	}()
 
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: cordon, machineID: machineID}, nil, nil, nil); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: cordon, machineID: machineID}, nil, nil); err != nil {
 		return fmt.Errorf("failed to cordon VM: %w", err)
 	}
 
@@ -522,7 +421,7 @@ func (f *Client) Uncordon(ctx context.Context, machineID string) (err error) {
 		}
 	}()
 
-	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: uncordon, machineID: machineID}, nil, nil, nil); err != nil {
+	if err := f.sendRequestMachines(ctx, flapsActionInfo{action: uncordon, machineID: machineID}, nil, nil); err != nil {
 		return fmt.Errorf("failed to uncordon VM: %w", err)
 	}
 
