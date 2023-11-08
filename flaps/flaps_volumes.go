@@ -14,7 +14,8 @@ var destroyedVolumeStates = []string{"scheduling_destroy", "fork_cleanup", "wait
 
 func (f *Client) sendRequestVolumes(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	endpoint = fmt.Sprintf("/apps/%s/volumes%s", f.appName, endpoint)
-	return f._sendRequest(ctx, method, endpoint, in, out, headers, nil)
+	_, err := f._sendRequest(ctx, method, endpoint, in, out, headers)
+	return err
 }
 
 func (f *Client) GetAllVolumes(ctx context.Context) ([]api.Volume, error) {

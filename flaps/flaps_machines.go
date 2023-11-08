@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
+	"net/url"
 	"strings"
 	"time"
 
@@ -111,7 +111,7 @@ var flapsActionToEndpoint = map[flapsAction]string{
 type flapsActionInfo struct {
 	action          flapsAction
 	machineID       string
-	queryParameters map[string]string
+	queryParameters url.Values
 }
 
 func queryParamsToString(params map[string]string) string {
@@ -142,9 +142,9 @@ func flapsActionInfoToEndpoint(actionInfo flapsActionInfo, appName string) (stri
 			endpoint += fmt.Sprintf("/%s", callEndpoint)
 		}
 
-		queryParams := queryParamsToString(actionInfo.queryParameters)
+		queryParams := actionInfo.queryParameters.Encode()
 
-		endpoint = fmt.Sprintf("%s%s", endpoint, queryParams)
+		endpoint = fmt.Sprintf("%s?%s", endpoint, queryParams)
 		endpoint = fmt.Sprintf("/apps/%s/machines%s", appName, endpoint)
 
 	} else {
@@ -161,9 +161,7 @@ func (f *Client) sendRequestMachines(ctx context.Context, method string, actionI
 	}
 
 	startTimer := time.Now()
-	var statusCode int
-
-	err = f._sendRequest(ctx, method, endpoint, in, out, headers, &statusCode)
+	statusCode, err := f._sendRequest(ctx, method, endpoint, in, out, headers)
 	time := time.Since(startTimer)
 
 	defer func() {
@@ -271,12 +269,8 @@ func (f *Client) Wait(ctx context.Context, machine *api.Machine, state string, t
 	if err != nil {
 		return fmt.Errorf("error making query string for wait request: %w", err)
 	}
-	queryParameters := make(map[string]string)
-	for key, vals := range qsVals {
-		queryParameters[key] = vals[0]
-	}
 
-	if err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: wait, machineID: machine.ID, queryParameters: queryParameters}, nil, nil, nil); err != nil {
+	if err := f.sendRequestMachines(ctx, http.MethodGet, flapsActionInfo{action: wait, machineID: machine.ID, queryParameters: qsVals}, nil, nil, nil); err != nil {
 		return fmt.Errorf("failed to wait for VM %s in %s state: %w", machine.ID, state, err)
 	}
 	return
@@ -300,16 +294,13 @@ func (f *Client) Restart(ctx context.Context, in api.RestartMachineInput, nonce 
 		headers[NonceHeader] = []string{nonce}
 	}
 
-	var queryParams map[string]string = make(map[string]string)
-
-	queryParams["force_stop"] = strconv.FormatBool(in.ForceStop)
-
+	queryParams := url.Values{}
+	queryParams.Add("force_stop", fmt.Sprint(in.ForceStop))
 	if in.Timeout != 0 {
-		queryParams["timeout"] = fmt.Sprint(in.Timeout)
+		queryParams.Add("timeout", fmt.Sprint(in.Timeout))
 	}
-
 	if in.Signal != "" {
-		queryParams["signal"] = in.Signal
+		queryParams.Add("signal", fmt.Sprint(in.Signal))
 	}
 
 	if err := f.sendRequestMachines(ctx, http.MethodPost, flapsActionInfo{action: restart, queryParameters: queryParams, machineID: in.ID}, nil, nil, headers); err != nil {
@@ -341,9 +332,9 @@ func (f *Client) GetMany(ctx context.Context, machineIDs []string) ([]*api.Machi
 }
 
 func (f *Client) List(ctx context.Context, state string) ([]*api.Machine, error) {
-	var queryParameters map[string]string = make(map[string]string)
+	queryParameters := url.Values{}
 	if state != "" {
-		queryParameters[state] = ""
+		queryParameters.Add(state, "")
 	}
 
 	out := make([]*api.Machine, 0)
@@ -410,9 +401,8 @@ func (f *Client) Destroy(ctx context.Context, input api.RemoveMachineInput, nonc
 		headers[NonceHeader] = []string{nonce}
 	}
 
-	queryParameters := map[string]string{
-		"kill": strconv.FormatBool(input.Kill),
-	}
+	queryParameters := url.Values{}
+	queryParameters.Add("kill", fmt.Sprint(input.Kill))
 
 	if err := f.sendRequestMachines(ctx, http.MethodDelete, flapsActionInfo{action: destroy, machineID: input.ID, queryParameters: queryParameters}, nil, nil, headers); err != nil {
 		return fmt.Errorf("failed to destroy VM %s: %w", input.ID, err)
@@ -443,9 +433,9 @@ func (f *Client) FindLease(ctx context.Context, machineID string) (*api.MachineL
 }
 
 func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (*api.MachineLease, error) {
-	var queryParameters map[string]string = make(map[string]string)
+	queryParameters := url.Values{}
 	if ttl != nil {
-		queryParameters["ttl"] = fmt.Sprint(*ttl)
+		queryParameters.Add("ttl", fmt.Sprint(*ttl))
 	}
 
 	out := new(api.MachineLease)
@@ -458,9 +448,9 @@ func (f *Client) AcquireLease(ctx context.Context, machineID string, ttl *int) (
 }
 
 func (f *Client) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*api.MachineLease, error) {
-	var queryParameters map[string]string = make(map[string]string)
+	queryParameters := url.Values{}
 	if ttl != nil {
-		queryParameters["ttl"] = fmt.Sprint(*ttl)
+		queryParameters.Add("ttl", fmt.Sprint(*ttl))
 	}
 
 	headers := make(map[string][]string)

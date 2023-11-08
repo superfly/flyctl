@@ -163,23 +163,23 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil, nil)
+	_, err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
 	return
 }
 
-func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string, statusCode *int) error {
+func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) (int, error) {
 	timing := instrument.Flaps.Begin()
 	defer timing.End()
 
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer func() {
 		err := resp.Body.Close()
@@ -188,18 +188,12 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		}
 	}()
 
-	defer func() {
-		if statusCode != nil {
-			*statusCode = resp.StatusCode
-		}
-	}()
-
 	if resp.StatusCode > 299 {
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			responseBody = make([]byte, 0)
 		}
-		return &FlapsError{
+		return resp.StatusCode, &FlapsError{
 			OriginalError:      handleAPIError(resp.StatusCode, responseBody),
 			ResponseStatusCode: resp.StatusCode,
 			ResponseBody:       responseBody,
@@ -208,10 +202,10 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return err
+			return resp.StatusCode, err
 		}
 	}
-	return nil
+	return resp.StatusCode, nil
 }
 
 type flapsCall struct {
