@@ -34,6 +34,6 @@ func runSentryCreate(ctx context.Context) (err error) {
 		AppName:  appName,
 		Provider: "sentry",
 	})
-	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
+	secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
 	return
 }
