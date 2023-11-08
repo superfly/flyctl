@@ -22,6 +22,6 @@ func New() (cmd *cobra.Command) {
 
 	cmd.Args = cobra.NoArgs
 
-	cmd.AddCommand(sentry_ext.New(), planetscale.New(), supabase.New(), tigris.New())
+	cmd.AddCommand(sentry_ext.New(), planetscale.New(), supabase.New(), tigris.New(), kubernetes.New())
 	return
 }
