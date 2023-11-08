@@ -21,6 +21,8 @@ type AddOnData struct {
 	Status string `json:"status"`
 	// Optional error message when `status` is `error`
 	ErrorMessage string `json:"errorMessage"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -37,6 +39,9 @@ func (v *AddOnData) GetStatus() string { return v.Status }
 
 // GetErrorMessage returns AddOnData.ErrorMessage, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
+
+// GetMetadata returns AddOnData.Metadata, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetMetadata() interface{} { return v.Metadata }
 
 type AddOnType string
 
@@ -1430,6 +1435,9 @@ func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 // GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
 
+// GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.AddOnData.Metadata }
+
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1483,6 +1491,8 @@ type __premarshalGetAddOnAddOn struct {
 	Name string `json:"name"`
 
 	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1510,6 +1520,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
 	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -2049,6 +2060,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() s
 	return v.AddOnData.ErrorMessage
 }
 
+// GetMetadata returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.AddOnData.Metadata
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2084,6 +2100,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	Status string `json:"status"`
 
 	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2102,6 +2120,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
 	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -2350,14 +2369,6 @@ func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrgani
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
 	return &retval, nil
 }
-
-// GetProvisionsBetaExtensions returns GetOrganizationOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
-	return v.ProvisionsBetaExtensions
-}
-
-// GetPaidPlan returns GetOrganizationOrganization.PaidPlan, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetPaidPlan() bool { return v.PaidPlan }
 
 // GetOrganizationResponse is returned by GetOrganization on success.
 type GetOrganizationResponse struct {
@@ -4103,6 +4114,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 fragment AppData on App {
 	id
@@ -4323,6 +4335,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 fragment OrganizationData on Organization {
 	id
