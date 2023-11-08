@@ -48,15 +48,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 			mode:   daemonType,
 			remote: true,
 			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				if cachedDocker != nil {
-					return cachedDocker, nil
-				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams, build)
-				if err != nil {
-					return nil, err
-				}
-				cachedDocker = c
-				return cachedDocker, nil
+				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -192,9 +184,14 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (c *dockerclient.Client, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "initRemoteDockerClient")
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client) (c *dockerclient.Client, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "buildRemoteDockerClient")
 	defer span.End()
+
+	if cachedClient != nil {
+		span.AddEvent("using cached docker client")
+		return cachedClient, nil
+	}
 
 	startedAt := time.Now()
 
@@ -331,7 +328,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		}
 	}
 
-	return client, nil
+	cachedClient = client
+	return cachedClient, nil
 }
 
 func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {

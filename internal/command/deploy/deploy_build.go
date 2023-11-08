@@ -166,6 +166,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		opts.Target = target
 	}
 
+	span.SetAttributes(opts.ToSpanAttributes()...)
+
 	// finally, build the image
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {

@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -18,15 +19,20 @@ func (*remoteImageResolver) Name() string {
 }
 
 func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "resolveImageRemotely")
+	defer span.End()
+
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
 
 	build.BuildStart()
 	img, err := s.flyApi.ResolveImageForApp(ctx, opts.AppName, opts.ImageRef)
 	build.BuildFinish()
 	if err != nil {
+		tracing.RecordError(span, err, "failed to resolve image")
 		return nil, "", err
 	}
 	if img == nil {
+		span.AddEvent("no image found and no error occurred")
 		return nil, "no image found and no error occurred", nil
 	}
 
@@ -34,6 +40,7 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 
 	size, err := strconv.ParseUint(img.CompressedSize, 10, 64)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to parse size")
 		return nil, "", err
 	}
 
@@ -42,6 +49,8 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 		Tag:  img.Ref,
 		Size: int64(size),
 	}
+
+	span.SetAttributes(di.ToSpanAttributes()...)
 
 	return di, "", nil
 }
