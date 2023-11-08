@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -54,6 +55,12 @@ func runOpen(ctx context.Context) error {
 	if !app.Deployed && app.PlatformVersion != "machines" {
 		return errors.New("app has not been deployed yet. Please try deploying your app first")
 	}
+
+	flapsClient, err := flaps.New(ctx, app)
+	if err != nil {
+		return fmt.Errorf("could not create flaps client: %w", err)
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
