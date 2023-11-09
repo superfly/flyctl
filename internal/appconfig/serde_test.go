@@ -443,7 +443,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Compute: []*Compute{
 			{
 				MachineGuest: &api.MachineGuest{
-					GPUKind: "a100-pcie-40gb",
+					CPUKind:    "performance",
+					CPUs:       8,
+					MemoryMB:   8192,
+					GPUKind:    "a100-pcie-40gb",
+					KernelArgs: []string{"quiet"},
 				},
 				Processes: []string{"app"},
 			},
