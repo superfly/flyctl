@@ -66,7 +66,7 @@ func runShow(ctx context.Context) error {
 
 	var volume *api.Volume
 	if volumeID == "" {
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}

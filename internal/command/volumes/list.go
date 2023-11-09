@@ -45,7 +45,7 @@ func runList(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetApp(ctx, appName)
+	app, err := apiClient.GetAppBasic(ctx, appName)
 	if err != nil {
 		return err
 	}
