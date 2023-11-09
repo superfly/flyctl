@@ -40,6 +40,10 @@ host_dedication_id = "06031957"
 [env]
   FOO = "BAR"
 
+[[compute]]
+  gpu_kind = "a100-pcie-40gb"
+  processes = ["app"]
+
 [[metrics]]
   port = 9999
   path = "/metrics"

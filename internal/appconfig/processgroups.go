@@ -177,6 +177,16 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		dst.Metrics[i].Processes = []string{groupName}
 	}
 
+	// [[compute]]
+	// TODO: An empty process list should apply to all groups, and a more specific
+	//       compute section should overrode general compute section
+	dst.Compute = lo.Filter(dst.Compute, func(x *Compute, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+	for i := range dst.Compute {
+		dst.Compute[i].Processes = []string{groupName}
+	}
+
 	return dst, nil
 }
 
