@@ -63,7 +63,7 @@ require (
 	github.com/superfly/macaroon v0.1.0
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
-	github.com/vektah/gqlparser/v2 v2.5.6
+	github.com/vektah/gqlparser/v2 v2.5.10
 	golang.org/x/crypto v0.15.0
 	golang.org/x/exp v0.0.0-20230905200255-921286631fa9
 	golang.org/x/net v0.18.0
