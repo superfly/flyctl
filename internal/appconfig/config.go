@@ -62,8 +62,8 @@ type Config struct {
 	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
-	// MergedFiles is a list of files that have been merged from the app config and flags.
-	MergedFiles []*api.File `toml:"-" json:"-"`
+
+	Compute []*Compute `toml:"compute,omitempty" json:"compute,omitempty"`
 
 	// Others, less important.
 	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`
@@ -72,6 +72,9 @@ type Config struct {
 	// RawDefinition contains fly.toml parsed as-is
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
 	RawDefinition map[string]any `toml:"-" json:"-"`
+
+	// MergedFiles is a list of files that have been merged from the app config and flags.
+	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Path to application configuration file, usually fly.toml.
 	configFilePath string
@@ -150,6 +153,11 @@ type Experimental struct {
 	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
 	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+}
+
+type Compute struct {
+	*api.MachineGuest `toml:",inline" json:",inline"`
+	Processes         []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func (c *Config) ConfigFilePath() string {

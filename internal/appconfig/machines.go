@@ -11,6 +11,15 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 )
 
+func (c *Config) ToMachineGuest() (*api.MachineGuest, error) {
+	// XXX: This is meant to run on flatten config
+	// TODO: Add support for VMSize
+	for _, compute := range c.Compute {
+		return compute.MachineGuest, nil
+	}
+	return nil, nil
+}
+
 func (c *Config) ToMachineConfig(processGroup string, src *api.MachineConfig) (*api.MachineConfig, error) {
 	fc, err := c.Flatten(processGroup)
 	if err != nil {
@@ -193,6 +202,14 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	// Files
 	mConfig.Files = nil
 	machine.MergeFiles(mConfig, c.MergedFiles)
+
+	// Guest
+	switch guest, err := c.ToMachineGuest(); {
+	case err != nil:
+		return nil, err
+	case guest != nil:
+		mConfig.Guest = guest
+	}
 
 	return mConfig, nil
 }
