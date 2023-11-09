@@ -92,7 +92,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []api.Volume, app *api.App, out io.Writer) error {
+func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, out io.Writer) error {
 	apiClient := client.FromContext(ctx).API()
 	rows := make([][]string, 0, len(volumes))
 	for _, volume := range volumes {
@@ -135,7 +135,7 @@ func renderTable(ctx context.Context, volumes []api.Volume, app *api.App, out io
 	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
 }
 
-func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *api.App) (*api.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *api.AppBasic) (*api.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}

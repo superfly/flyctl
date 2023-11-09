@@ -73,7 +73,7 @@ func runFork(ctx context.Context) error {
 
 	var vol *api.Volume
 	if volID == "" {
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}

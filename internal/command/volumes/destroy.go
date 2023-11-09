@@ -67,7 +67,7 @@ func runDestroy(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, flapsClient)
 
 	if volID == "" {
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}
