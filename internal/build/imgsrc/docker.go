@@ -287,8 +287,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 		err = fmt.Errorf("failed building options: %w", err)
 		captureError(err)
-		tracing.RecordError(span, err, "failed to build remote client opts")
-
 		return nil, err
 	}
 
@@ -333,7 +331,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 }
 
 func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "initRemoteDockerClient")
+	ctx, span := tracing.GetTracer().Start(ctx, "buildRemoteClientOpts")
 	defer span.End()
 
 	opts = []dockerclient.Opt{
