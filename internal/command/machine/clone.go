@@ -83,6 +83,7 @@ func newClone() *cobra.Command {
 			Default:     false,
 		},
 		flag.Detach(),
+		flag.VMSizeFlags,
 	)
 
 	return cmd
@@ -162,6 +163,11 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Init.Cmd = mConfig.Init.Cmd
 		targetConfig.Services = mConfig.Services
 		targetConfig.Checks = mConfig.Checks
+	}
+
+	targetConfig.Guest, err = flag.GetMachineGuest(ctx, targetConfig.Guest)
+	if err != nil {
+		return err
 	}
 
 	targetConfig.Image = source.FullImageRef()
