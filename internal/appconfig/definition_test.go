@@ -169,6 +169,12 @@ func TestToDefinition(t *testing.T) {
 		"swap_size_mb":       int64(512),
 		"console_command":    "/bin/bash",
 		"host_dedication_id": "06031957",
+		"compute": []map[string]any{
+			{
+				"gpu_kind":  "a100-pcie-40gb",
+				"processes": []any{"app"},
+			},
+		},
 		"build": map[string]any{
 			"builder":      "dockerfile",
 			"image":        "foo/fighter",
