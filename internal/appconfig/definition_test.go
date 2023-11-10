@@ -171,6 +171,8 @@ func TestToDefinition(t *testing.T) {
 		"host_dedication_id": "06031957",
 		"compute": []map[string]any{
 			{
+				"size":               "shared-cpu-1x",
+				"memory":             "8gb",
 				"cpu_kind":           "performance",
 				"cpus":               int64(8),
 				"gpu_kind":           "a100-pcie-40gb",

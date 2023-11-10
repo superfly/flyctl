@@ -419,7 +419,7 @@ func TestToMachineConfig_compute(t *testing.T) {
 			want: &api.MachineGuest{
 				CPUKind:  "performance",
 				CPUs:     8,
-				MemoryMB: 16384,
+				MemoryMB: 65536,
 				GPUKind:  "a100-pcie-40gb",
 			},
 		},

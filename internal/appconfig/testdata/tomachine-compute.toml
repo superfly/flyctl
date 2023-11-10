@@ -8,6 +8,7 @@ isolated = "/must-run-alone"
 
 # A section that applies to a specific group
 [[compute]]
+memory = "64gb"
 gpu_kind = "a100-pcie-40gb"
 processes = ["whisper"]
 

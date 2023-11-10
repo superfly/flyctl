@@ -3,6 +3,7 @@ package appconfig
 import (
 	"fmt"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
@@ -245,8 +246,21 @@ func (c *Config) toMachineGuest() (*api.MachineGuest, error) {
 	if err := guest.SetSize(size); err != nil {
 		return nil, err
 	}
+
 	if c.HostDedicationID != "" {
 		guest.HostDedicationID = c.HostDedicationID
+	}
+
+	if compute.Memory != "" {
+		mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+		switch {
+		case err != nil:
+			return nil, err
+		case mb == 0:
+			return nil, fmt.Errorf("memory cannot be zero")
+		default:
+			guest.MemoryMB = mb
+		}
 	}
 
 	if compute.MachineGuest != nil {

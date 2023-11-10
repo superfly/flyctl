@@ -442,6 +442,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		HostDedicationID: "06031957",
 		Compute: []*Compute{
 			{
+				Size:   "shared-cpu-1x",
+				Memory: "8gb",
 				MachineGuest: &api.MachineGuest{
 					CPUKind:          "performance",
 					CPUs:             8,

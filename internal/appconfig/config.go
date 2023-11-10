@@ -157,6 +157,7 @@ type Experimental struct {
 
 type Compute struct {
 	Size              string `json:"size,omitempty" toml:"size,omitempty"`
+	Memory            string `json:"memory,omitempty" toml:"memory,omitempty"`
 	*api.MachineGuest `toml:",inline" json:",inline"`
 	Processes         []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
