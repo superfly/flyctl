@@ -371,7 +371,6 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			if len(groupConfig.Mounts) > 0 {
 				mntSrc = groupConfig.Mounts[0].Source
 				mntDst = groupConfig.Mounts[0].Destination
-				mntDst = groupConfig.Mounts[0].Destination
 
 				extendThresholdPercent = groupConfig.Mounts[0].ExtendThresholdPercent
 				addSizeGb = groupConfig.Mounts[0].AddSizeGb
