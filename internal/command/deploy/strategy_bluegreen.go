@@ -34,8 +34,8 @@ var (
 )
 
 type blueGreen struct {
-	greenMachines       []machine.LeasableMachine
-	blueMachines        []*machineUpdateEntry
+	greenMachines       machineUpdateEntries
+	blueMachines        machineUpdateEntries
 	flaps               *flaps.Client
 	apiClient           *api.Client
 	io                  *iostreams.IOStreams
@@ -52,7 +52,7 @@ type blueGreen struct {
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
 	bg := &blueGreen{
-		greenMachines:       []machine.LeasableMachine{},
+		greenMachines:       machineUpdateEntries{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
 		apiClient:           md.apiClient,
@@ -77,7 +77,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
-	var greenMachines []machine.LeasableMachine
+	var greenMachines machineUpdateEntries
 
 	for _, mach := range bg.blueMachines {
 		launchInput := mach.launchInput
@@ -91,7 +91,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 		greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
 		defer greenMachine.ReleaseLease(ctx)
 
-		greenMachines = append(greenMachines, greenMachine)
+		greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
 
 		fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
 	}
@@ -152,14 +152,14 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 	render := bg.renderMachineStates(machineIDToState)
 	errChan := make(chan error)
 
-	for _, gm := range bg.greenMachines {
+	for _, gm := range bg.greenMachines.machines() {
 		machineIDToState[gm.FormattedMachineId()] = 0
 	}
 
 	for _, gm := range bg.greenMachines {
-		id := gm.FormattedMachineId()
+		id := gm.leasableMachine.FormattedMachineId()
 
-		if len(gm.Machine().Config.Standbys) > 0 {
+		if gm.launchInput.SkipLaunch {
 			machineIDToState[id] = 1
 			continue
 		}
@@ -174,7 +174,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 			bg.stateLock.Lock()
 			machineIDToState[id] = 1
 			bg.stateLock.Unlock()
-		}(gm)
+		}(gm.leasableMachine)
 	}
 
 	for {
@@ -268,7 +268,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	errChan := make(chan error)
 	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
 
-	for _, gm := range bg.greenMachines {
+	for _, gm := range bg.greenMachines.machines() {
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
@@ -279,7 +279,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		machineIDToHealthStatus[gm.FormattedMachineId()] = &api.HealthCheckStatus{}
 	}
 
-	for _, gm := range bg.greenMachines {
+	for _, gm := range bg.greenMachines.machines() {
 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
@@ -347,7 +347,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 }
 
 func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) error {
-	for _, gm := range bg.greenMachines {
+	for _, gm := range bg.greenMachines.machines() {
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
@@ -503,7 +503,7 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 		return nil
 	}
 
-	for _, mach := range bg.greenMachines {
+	for _, mach := range bg.greenMachines.machines() {
 		err := mach.Destroy(ctx, true)
 		if err != nil {
 			return err
