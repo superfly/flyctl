@@ -79,12 +79,10 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	//   * The other option is to force a machine replacement to remove or attach a different volume
 	mMounts := mConfig.Mounts
 	oMounts := origMachineRaw.Config.Mounts
-
-	latestExtendThresholdPercent := mMounts[0].ExtendThresholdPercent
-	latestAddSizeGb := mMounts[0].AddSizeGb
-	latestSizeGbLimit := mMounts[0].SizeGbLimit
-
 	if len(oMounts) != 0 {
+		latestExtendThresholdPercent := mMounts[0].ExtendThresholdPercent
+		latestAddSizeGb := mMounts[0].AddSizeGb
+		latestSizeGbLimit := mMounts[0].SizeGbLimit
 		switch {
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
