@@ -13,7 +13,6 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/scanner"
 )
 
 type ConfigFormat string
@@ -449,14 +448,6 @@ func (ac *AppConfig) SetProcess(name, value string) {
 	processes[name] = value
 
 	ac.Definition["processes"] = processes
-}
-
-func (ac *AppConfig) SetStatics(statics []scanner.Static) {
-	ac.Definition["statics"] = statics
-}
-
-func (ac *AppConfig) SetVolumes(volumes []scanner.Volume) {
-	ac.Definition["mounts"] = volumes
 }
 
 const defaultConfigFileName = "fly.toml"
