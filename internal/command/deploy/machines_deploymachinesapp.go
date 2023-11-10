@@ -281,6 +281,12 @@ type machineUpdateEntry struct {
 	launchInput     *api.LaunchMachineInput
 }
 
+type machineUpdateEntries []*machineUpdateEntry
+
+func (m machineUpdateEntries) machines() []machine.LeasableMachine {
+	return lo.Map(m, func(i *machineUpdateEntry, _ int) machine.LeasableMachine { return i.leasableMachine })
+}
+
 func errorIsTimeout(err error) bool {
 	// Trying to match the errors in a typed way is incredibly difficult and makes this function massive.
 	if strings.Contains(err.Error(), "net/http: request canceled") {
@@ -693,8 +699,8 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
 	defer lm.ReleaseLease(ctx)
 
-	// Don't wait for Standby machines, they are created but not started
-	if len(launchInput.Config.Standbys) > 0 {
+	// Don't wait for SkipLaunch machines, they are created but not started
+	if launchInput.SkipLaunch {
 		return lm, nil
 	}
 
