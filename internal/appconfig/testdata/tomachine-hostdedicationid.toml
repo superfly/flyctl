@@ -1,0 +1,15 @@
+app = "foo"
+host_dedication_id = "toplevel"
+
+[processes]
+front = ""
+back = ""
+other = ""
+
+[[compute]]
+size = "shared-cpu-4x"
+processes = ["other"]
+
+[[compute]]
+host_dedication_id = "specific"
+processes = ["back"]

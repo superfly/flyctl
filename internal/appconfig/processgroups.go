@@ -105,12 +105,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		if len(xs) == 0 {
 			return matchesGroup("")
 		}
-		for _, x := range xs {
-			if matchesGroup(x) {
-				return true
-			}
-		}
-		return false
+		return lo.SomeBy(xs, matchesGroup)
 	}
 
 	dst := helpers.Clone(c)
@@ -119,14 +114,9 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	dst.defaultGroupName = groupName
 
 	// [processes]
-	dst.Processes = nil
-	for name, cmdStr := range c.Processes {
-		if !matchesGroup(name) {
-			continue
-		}
-		dst.Processes = map[string]string{dst.defaultGroupName: cmdStr}
-		break
-	}
+	dst.Processes = lo.PickBy(dst.Processes, func(k, v string) bool {
+		return matchesGroup(k)
+	})
 
 	// [checks]
 	dst.Checks = lo.PickBy(dst.Checks, func(_ string, check *ToplevelCheck) bool {
@@ -175,6 +165,33 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	})
 	for i := range dst.Metrics {
 		dst.Metrics[i].Processes = []string{groupName}
+	}
+
+	// [[compute]]
+	// Find the most specific compute for this process group
+	// In reality there are only four valid cases:
+	//   1. No [[compute]] section
+	//   2. One [[compute]] section with `processes = [groupname]`
+	//   3. Previous case plus global [[compute]] without processes
+	//   4. Only a [[compute]] section without processes set which applies to all groups
+	compute := lo.MaxBy(
+		// grab only the compute that matches or have no processes set
+		lo.Filter(dst.Compute, func(x *Compute, _ int) bool {
+			return len(x.Processes) == 0 || matchesGroups(x.Processes)
+		}),
+		// Next find the most specific
+		func(item *Compute, _ *Compute) bool {
+			return slices.Contains(item.Processes, groupName)
+		})
+
+	dst.Compute = nil
+	if compute != nil {
+		// Sync top level host_dedication_id if set within compute
+		if compute.MachineGuest != nil && compute.MachineGuest.HostDedicationID != "" {
+			dst.HostDedicationID = compute.MachineGuest.HostDedicationID
+		}
+		compute.Processes = []string{groupName}
+		dst.Compute = append(dst.Compute, compute)
 	}
 
 	return dst, nil
