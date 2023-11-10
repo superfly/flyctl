@@ -38,6 +38,9 @@ func (c *Config) ToMachineGuest() (*api.MachineGuest, error) {
 	if err := guest.SetSize(size); err != nil {
 		return nil, err
 	}
+	if c.HostDedicationID != "" {
+		guest.HostDedicationID = c.HostDedicationID
+	}
 
 	if compute.MachineGuest != nil {
 		opts := copier.Option{IgnoreEmpty: true, DeepCopy: true}
