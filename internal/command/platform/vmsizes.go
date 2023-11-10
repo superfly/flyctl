@@ -9,9 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -24,7 +22,7 @@ func newVMSizes() (cmd *cobra.Command) {
 		short = "List VM Sizes"
 	)
 
-	cmd = command.New("vm-sizes", short, long, runVMSizes,
+	cmd = command.New("vm-sizes", short, long, runMachineVMSizes,
 		command.RequireSession,
 	)
 
@@ -32,33 +30,6 @@ func newVMSizes() (cmd *cobra.Command) {
 
 	flag.Add(cmd, flag.JSONOutput())
 	return
-}
-
-func runVMSizes(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-
-	sizes, err := client.PlatformVMSizes(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving sizes: %w", err)
-	}
-
-	out := iostreams.FromContext(ctx).Out
-	if config.FromContext(ctx).JSONOutput {
-		return render.JSON(out, sizes)
-	}
-
-	var rows [][]string
-	for _, size := range sizes {
-		rows = append(rows, []string{
-			size.Name,
-			cores(int(size.CPUCores)),
-			memory(size.MemoryMB),
-		})
-	}
-
-	render.Table(out, "Nomad platform", rows, "Name", "CPU Cores", "Memory")
-
-	return runMachineVMSizes(ctx)
 }
 
 func runMachineVMSizes(ctx context.Context) error {
