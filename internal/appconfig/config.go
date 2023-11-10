@@ -12,7 +12,6 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/scanner"
 )
 
 const (
@@ -132,7 +131,11 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
 }
 
-type Mount = scanner.Volume
+type Mount struct {
+	Source      string   `toml:"source" json:"source,omitempty"`
+	Destination string   `toml:"destination" json:"destination,omitempty"`
+	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
 
 type Build struct {
 	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`
