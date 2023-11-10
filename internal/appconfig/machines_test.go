@@ -385,3 +385,100 @@ func TestToMachineConfig_services(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, want, got.Services)
 }
+
+func TestToMachineConfig_compute(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-compute.toml")
+	require.NoError(t, err)
+
+	testcases := []struct {
+		name      string
+		groupName string
+		want      *api.MachineGuest
+	}{
+		{
+			name:      "app gets compute without processes set",
+			groupName: "app",
+			want: &api.MachineGuest{
+				CPUKind:  "shared",
+				CPUs:     2,
+				MemoryMB: 512,
+			},
+		},
+		{
+			name:      "worker gets compute without processes set",
+			groupName: "worker",
+			want: &api.MachineGuest{
+				CPUKind:  "shared",
+				CPUs:     2,
+				MemoryMB: 512,
+			},
+		},
+		{
+			name:      "whisper gets gpu and performance-8x",
+			groupName: "whisper",
+			want: &api.MachineGuest{
+				CPUKind:  "performance",
+				CPUs:     8,
+				MemoryMB: 16384,
+				GPUKind:  "a100-pcie-40gb",
+			},
+		},
+		{
+			name:      "isolated gets dedication id and shared-cpu-1x",
+			groupName: "isolated",
+			want: &api.MachineGuest{
+				CPUKind:          "shared",
+				CPUs:             1,
+				MemoryMB:         256,
+				HostDedicationID: "lookma-iamsolo",
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := cfg.ToMachineConfig(tc.groupName, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.Guest)
+		})
+	}
+}
+
+func TestToMachineConfig_compute_none(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-compute-nodefault.toml")
+	require.NoError(t, err)
+
+	testcases := []struct {
+		name      string
+		groupName string
+		want      *api.MachineGuest
+	}{
+		{
+			name:      "app group has no default guest set",
+			groupName: "app",
+			want:      nil,
+		},
+		{
+			name:      "woo group has no default guest set",
+			groupName: "woo",
+			want:      nil,
+		},
+		{
+			name:      "bar gets performance-4x",
+			groupName: "bar",
+			want: &api.MachineGuest{
+				CPUKind:  "performance",
+				CPUs:     4,
+				MemoryMB: 8192,
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := cfg.ToMachineConfig(tc.groupName, nil)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.Guest)
+		})
+	}
+}

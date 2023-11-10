@@ -28,7 +28,12 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	if err != nil {
 		return nil, err
 	}
-	mConfig.Guest = guest
+
+	// Obey the Guest if already set from [[compute]] section
+	if mConfig.Guest == nil {
+		mConfig.Guest = guest
+	}
+
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
