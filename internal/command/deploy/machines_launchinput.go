@@ -28,7 +28,12 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 	if err != nil {
 		return nil, err
 	}
-	mConfig.Guest = guest
+
+	// Obey the Guest if already set from [[compute]] section
+	if mConfig.Guest == nil {
+		mConfig.Guest = guest
+	}
+
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
@@ -133,9 +138,18 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mConfig.Standbys = nil
 	}
 
-	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != mConfig.Guest.HostDedicationID {
-		mConfig.Guest.HostDedicationID = md.appConfig.HostDedicationID
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != origMachineRaw.Config.Guest.HostDedicationID {
+		if len(oMounts) > 0 && len(mMounts) > 0 {
+			// Attempting to rellocate a machine with a volume attached to a different host
+			return nil, fmt.Errorf("can't rellocate machine '%s' to dedication id '%s' because it has an attached volume."+
+				" Retry after forking the volume with `fly volume fork --host-dedication-id %s %s`", mID, hdid, hdid, mMounts[0].Volume)
+		}
 		machineShouldBeReplaced = true
+		// Set HostDedicationID here for the apps that doesn't have a [[compute]] section in fly.toml
+		// but sets it as a top level directive.
+		// This also works when top level HDID is different than [compute.host_dedication_id]
+		// because a flatten config also overrides the top level directive
+		mConfig.Guest.HostDedicationID = hdid
 	}
 
 	return &api.LaunchMachineInput{

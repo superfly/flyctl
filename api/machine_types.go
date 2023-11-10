@@ -325,13 +325,13 @@ type MachineMount struct {
 }
 
 type MachineGuest struct {
-	CPUKind          string `json:"cpu_kind,omitempty"`
-	CPUs             int    `json:"cpus,omitempty"`
-	MemoryMB         int    `json:"memory_mb,omitempty"`
-	GPUKind          string `json:"gpu_kind,omitempty"`
-	HostDedicationID string `json:"host_dedication_id,omitempty"`
+	CPUKind          string `json:"cpu_kind,omitempty" toml:"cpu_kind,omitempty"`
+	CPUs             int    `json:"cpus,omitempty" toml:"cpus,omitempty"`
+	MemoryMB         int    `json:"memory_mb,omitempty" toml:"memory_mb,omitempty"`
+	GPUKind          string `json:"gpu_kind,omitempty" toml:"gpu_kind,omitempty"`
+	HostDedicationID string `json:"host_dedication_id,omitempty" toml:"host_dedication_id,omitempty"`
 
-	KernelArgs []string `json:"kernel_args,omitempty"`
+	KernelArgs []string `json:"kernel_args,omitempty" toml:"kernel_args,omitempty"`
 }
 
 func (mg *MachineGuest) SetSize(size string) error {
@@ -438,7 +438,7 @@ type MachineCheck struct {
 	HTTPPath *string `json:"path,omitempty"`
 	// For http checks, whether to use http or https
 	HTTPProtocol *string `json:"protocol,omitempty"`
-	//For http checks with https protocol, whether or not to verify the TLS certificate
+	// For http checks with https protocol, whether or not to verify the TLS certificate
 	HTTPSkipTLSVerify *bool `json:"tls_skip_verify,omitempty"`
 	// If the protocol is https, the hostname to use for TLS certificate validation
 	HTTPTLSServerName *string             `json:"tls_server_name,omitempty"`
@@ -573,6 +573,7 @@ type MachineConfig struct {
 	// An object filled with key/value pairs to be set as environment variables
 	Env      map[string]string       `json:"env,omitempty"`
 	Init     MachineInit             `json:"init,omitempty"`
+	Guest    *MachineGuest           `json:"guest,omitempty"`
 	Metadata map[string]string       `json:"metadata,omitempty"`
 	Mounts   []MachineMount          `json:"mounts,omitempty"`
 	Services []MachineService        `json:"services,omitempty"`
@@ -593,7 +594,6 @@ type MachineConfig struct {
 	// Optional boolean telling the Machine to destroy itself once it’s complete (default false)
 	AutoDestroy bool             `json:"auto_destroy,omitempty"`
 	Restart     MachineRestart   `json:"restart,omitempty"`
-	Guest       *MachineGuest    `json:"guest,omitempty"`
 	DNS         *DNSConfig       `json:"dns,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 
