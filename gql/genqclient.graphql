@@ -81,9 +81,11 @@ mutation CreateTosAgreement($input: CreateExtensionTosAgreementInput!) {
 	}
 }
 
-query AgreedToProviderTos($addOnProviderName: String!, $organizationId: ID!) {
-	organization(id: $organizationId) {
-		agreedToProviderTos(providerName: $addOnProviderName)
+query AgreedToProviderTos($addOnProviderName: String!) {
+	viewer {
+		... on User {
+			agreedToProviderTos(providerName: $addOnProviderName)
+		}
 	}
 }
 
