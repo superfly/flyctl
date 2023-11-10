@@ -312,6 +312,11 @@ func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
 }
 
 func (cfg *Config) validateMounts() (extraInfo string, err error) {
+	if cfg.configFilePath == "--flatten--" && len(cfg.Mounts) > 1 {
+		extraInfo += fmt.Sprintf("group '%s' has more than one [[mounts]] section defined\n", cfg.defaultGroupName)
+		err = ValidationError
+	}
+
 	for _, m := range cfg.Mounts {
 		if m.InitialSize != "" {
 			v, vErr := helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
