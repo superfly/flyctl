@@ -4,12 +4,54 @@ import (
 	"fmt"
 
 	"github.com/google/shlex"
+	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
 )
+
+func (c *Config) ToMachineGuest() (*api.MachineGuest, error) {
+	// Don't be smart here, we want to retain backwards compability
+	// with apps that doesn't have a [[compute]] section and relies
+	// on `fly deploy` to respect whatever was set by `fly scale`, first deploy
+	// with --vm-* family flags
+	if len(c.Compute) == 0 {
+		return nil, nil
+	} else if len(c.Compute) > 2 {
+		return nil, fmt.Errorf("2+ compute sections for group %s", c.DefaultProcessName())
+	}
+
+	// Must be at most one compute after group flattening
+	compute := c.Compute[0]
+
+	size := api.DefaultVMSize
+	switch {
+	case compute.Size != "":
+		size = compute.Size
+	case compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "":
+		size = api.DefaultGPUVMSize
+	}
+
+	guest := &api.MachineGuest{}
+	if err := guest.SetSize(size); err != nil {
+		return nil, err
+	}
+	if c.HostDedicationID != "" {
+		guest.HostDedicationID = c.HostDedicationID
+	}
+
+	if compute.MachineGuest != nil {
+		opts := copier.Option{IgnoreEmpty: true, DeepCopy: true}
+		err := copier.CopyWithOption(guest, compute.MachineGuest, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return guest, nil
+}
 
 func (c *Config) ToMachineConfig(processGroup string, src *api.MachineConfig) (*api.MachineConfig, error) {
 	fc, err := c.Flatten(processGroup)
@@ -193,6 +235,14 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	// Files
 	mConfig.Files = nil
 	machine.MergeFiles(mConfig, c.MergedFiles)
+
+	// Guest
+	switch guest, err := c.ToMachineGuest(); {
+	case err != nil:
+		return nil, err
+	case guest != nil:
+		mConfig.Guest = guest
+	}
 
 	return mConfig, nil
 }
