@@ -132,9 +132,10 @@ type Static struct {
 }
 
 type Mount struct {
-	Source      string   `toml:"source" json:"source,omitempty"`
-	Destination string   `toml:"destination" json:"destination,omitempty"`
-	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
+	Source      string   `toml:"source,omitempty" json:"source,omitempty"`
+	Destination string   `toml:"destination,omitempty" json:"destination,omitempty"`
+	InitialSize string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
+	Processes   []string `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
 type Build struct {
