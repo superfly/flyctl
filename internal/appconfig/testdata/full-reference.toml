@@ -114,6 +114,7 @@ host_dedication_id = "06031957"
   memory_mb = 8192
   gpu_kind = "a100-pcie-40gb"
   kernel_args = ["quiet"]
+  host_dedication_id = "isolated-xxx"
   processes = ["app"]
 
 [processes]

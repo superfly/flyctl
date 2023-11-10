@@ -186,6 +186,14 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	dst.Compute = nil
 	if compute != nil {
+		// Sync what is the top level host_dedication_id with the more specific compute
+		if compute.MachineGuest != nil {
+			if compute.HostDedicationID != "" {
+				c.HostDedicationID = compute.HostDedicationID
+			} else if c.HostDedicationID != "" {
+				compute.HostDedicationID = c.HostDedicationID
+			}
+		}
 		compute.Processes = []string{groupName}
 		dst.Compute = append(dst.Compute, compute)
 	}

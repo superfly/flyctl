@@ -171,12 +171,13 @@ func TestToDefinition(t *testing.T) {
 		"host_dedication_id": "06031957",
 		"compute": []map[string]any{
 			{
-				"cpu_kind":    "performance",
-				"cpus":        int64(8),
-				"gpu_kind":    "a100-pcie-40gb",
-				"memory_mb":   int64(8192),
-				"kernel_args": []any{"quiet"},
-				"processes":   []any{"app"},
+				"cpu_kind":           "performance",
+				"cpus":               int64(8),
+				"gpu_kind":           "a100-pcie-40gb",
+				"host_dedication_id": "isolated-xxx",
+				"memory_mb":          int64(8192),
+				"kernel_args":        []any{"quiet"},
+				"processes":          []any{"app"},
 			},
 		},
 		"build": map[string]any{
