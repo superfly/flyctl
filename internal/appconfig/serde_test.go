@@ -578,6 +578,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Mounts: []Mount{{
 			Source:      "data",
 			Destination: "/data",
+			InitialSize: "30gb",
 		}},
 
 		Processes: map[string]string{
