@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/google/shlex"
+	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
@@ -12,12 +13,41 @@ import (
 )
 
 func (c *Config) ToMachineGuest() (*api.MachineGuest, error) {
-	// XXX: This is meant to run on flatten config
-	// TODO: Add support for VMSize
-	for _, compute := range c.Compute {
-		return compute.MachineGuest, nil
+	// Don't be smart here, we want to retain backwards compability
+	// with apps that doesn't have a [[compute]] section and relies
+	// on `fly deploy` to respect whatever was set by `fly scale`, first deploy
+	// with --vm-* family flags
+	if len(c.Compute) == 0 {
+		return nil, nil
+	} else if len(c.Compute) > 2 {
+		return nil, fmt.Errorf("2+ compute sections for group %s", c.DefaultProcessName())
 	}
-	return nil, nil
+
+	// Must be at most one compute after group flattening
+	compute := c.Compute[0]
+
+	size := api.DefaultVMSize
+	switch {
+	case compute.Size != "":
+		size = compute.Size
+	case compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "":
+		size = api.DefaultGPUVMSize
+	}
+
+	guest := &api.MachineGuest{}
+	if err := guest.SetSize(size); err != nil {
+		return nil, err
+	}
+
+	if compute.MachineGuest != nil {
+		opts := copier.Option{IgnoreEmpty: true, DeepCopy: true}
+		err := copier.CopyWithOption(guest, compute.MachineGuest, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return guest, nil
 }
 
 func (c *Config) ToMachineConfig(processGroup string, src *api.MachineConfig) (*api.MachineConfig, error) {

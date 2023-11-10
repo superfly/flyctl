@@ -101,16 +101,11 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 			return false
 		}
 	}
-	matchesGroups := func(xs []string) bool {
+	matchesGroups := func(xs []string, emptyMatchesAll bool) bool {
 		if len(xs) == 0 {
-			return matchesGroup("")
+			return emptyMatchesAll || matchesGroup(defaultGroupName)
 		}
-		for _, x := range xs {
-			if matchesGroup(x) {
-				return true
-			}
-		}
-		return false
+		return lo.SomeBy(xs, matchesGroup)
 	}
 
 	dst := helpers.Clone(c)
@@ -119,18 +114,13 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	dst.defaultGroupName = groupName
 
 	// [processes]
-	dst.Processes = nil
-	for name, cmdStr := range c.Processes {
-		if !matchesGroup(name) {
-			continue
-		}
-		dst.Processes = map[string]string{dst.defaultGroupName: cmdStr}
-		break
-	}
+	dst.Processes = lo.PickBy(dst.Processes, func(k, v string) bool {
+		return matchesGroup(k)
+	})
 
 	// [checks]
 	dst.Checks = lo.PickBy(dst.Checks, func(_ string, check *ToplevelCheck) bool {
-		return matchesGroups(check.Processes)
+		return matchesGroups(check.Processes, false)
 	})
 	for i := range dst.Checks {
 		dst.Checks[i].Processes = []string{groupName}
@@ -138,7 +128,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[http_service]]
 	if dst.HTTPService != nil {
-		if matchesGroups(dst.HTTPService.Processes) {
+		if matchesGroups(dst.HTTPService.Processes, false) {
 			dst.HTTPService.Processes = []string{groupName}
 		} else {
 			dst.HTTPService = nil
@@ -147,7 +137,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[services]]
 	dst.Services = lo.Filter(dst.Services, func(s Service, _ int) bool {
-		return matchesGroups(s.Processes)
+		return matchesGroups(s.Processes, false)
 	})
 	for i := range dst.Services {
 		dst.Services[i].Processes = []string{groupName}
@@ -155,7 +145,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[Mounts]]
 	dst.Mounts = lo.Filter(dst.Mounts, func(x Mount, _ int) bool {
-		return matchesGroups(x.Processes)
+		return matchesGroups(x.Processes, false)
 	})
 	for i := range dst.Mounts {
 		dst.Mounts[i].Processes = []string{groupName}
@@ -163,7 +153,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[Files]]
 	dst.Files = lo.Filter(dst.Files, func(x File, _ int) bool {
-		return matchesGroups(x.Processes)
+		return matchesGroups(x.Processes, false)
 	})
 	for i := range dst.Files {
 		dst.Files[i].Processes = []string{groupName}
@@ -171,20 +161,33 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [[metrics]]
 	dst.Metrics = lo.Filter(dst.Metrics, func(x *Metrics, _ int) bool {
-		return matchesGroups(x.Processes)
+		return matchesGroups(x.Processes, false)
 	})
 	for i := range dst.Metrics {
 		dst.Metrics[i].Processes = []string{groupName}
 	}
 
 	// [[compute]]
-	// TODO: An empty process list should apply to all groups, and a more specific
-	//       compute section should overrode general compute section
-	dst.Compute = lo.Filter(dst.Compute, func(x *Compute, _ int) bool {
-		return matchesGroups(x.Processes)
-	})
-	for i := range dst.Compute {
-		dst.Compute[i].Processes = []string{groupName}
+	// Find the most specific compute for this process group
+	// In reality there are only four valid cases:
+	//   1. No [[compute]] section
+	//   2. One [[compute]] section with `processes = [groupname]`
+	//   3. Previous case plus global [[compute]] without processes
+	//   4. Only a [[compute]] section without processes set which applies to all groups
+	compute := lo.MaxBy(
+		// grab only the compute that matches or have no processes set
+		lo.Filter(dst.Compute, func(x *Compute, _ int) bool {
+			return matchesGroups(x.Processes, true)
+		}),
+		// Next find the most specific
+		func(item *Compute, _ *Compute) bool {
+			return slices.Contains(item.Processes, groupName)
+		})
+
+	dst.Compute = nil
+	if compute != nil {
+		compute.Processes = []string{groupName}
+		dst.Compute = append(dst.Compute, compute)
 	}
 
 	return dst, nil
