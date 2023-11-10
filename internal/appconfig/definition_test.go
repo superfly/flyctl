@@ -299,8 +299,9 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 		"mounts": []map[string]any{{
-			"source":      "data",
-			"destination": "/data",
+			"source":       "data",
+			"destination":  "/data",
+			"initial_size": "30gb",
 		}},
 		"processes": map[string]any{
 			"web":  "run web",

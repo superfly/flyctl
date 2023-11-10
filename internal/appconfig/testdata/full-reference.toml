@@ -106,6 +106,7 @@ host_dedication_id = "06031957"
 
 [mounts]
   source = "data"
+  initial_size = "30gb"
   destination = "/data"
 
 [[compute]]
