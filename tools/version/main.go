@@ -47,9 +47,11 @@ func main() {
 func runShow(cmd *cobra.Command, args []string) error {
 	cmd.PrintErrln("Git dir:", gitDir)
 
+    /*
 	if err := relmeta.RefreshTags(gitDir); err != nil {
 		return err
 	}
+    */
 
 	meta, err := relmeta.GenerateReleaseMeta(gitDir, stableChannelStillOnSemver)
 	if err != nil {
