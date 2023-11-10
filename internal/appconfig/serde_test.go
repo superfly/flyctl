@@ -440,6 +440,19 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
 		HostDedicationID: "06031957",
+		Compute: []*Compute{
+			{
+				MachineGuest: &api.MachineGuest{
+					CPUKind:          "performance",
+					CPUs:             8,
+					MemoryMB:         8192,
+					GPUKind:          "a100-pcie-40gb",
+					HostDedicationID: "isolated-xxx",
+					KernelArgs:       []string{"quiet"},
+				},
+				Processes: []string{"app"},
+			},
+		},
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},
