@@ -268,23 +268,30 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	errChan := make(chan error)
 	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
 
-	for _, gm := range bg.greenMachines.machines() {
-		// in some cases, not all processes have healthchecks setup
-		// eg. processes that run background workers, etc.
-		// there's no point checking for health, a started state is enough
-		if len(gm.Machine().Checks) == 0 {
+	for _, gm := range bg.greenMachines {
+		if gm.launchInput.SkipLaunch {
 			continue
 		}
 
-		machineIDToHealthStatus[gm.FormattedMachineId()] = &api.HealthCheckStatus{}
+		// in some cases, not all processes have healthchecks setup
+		// eg. processes that run background workers, etc.
+		// there's no point checking for health, a started state is enough
+		if len(gm.leasableMachine.Machine().Checks) == 0 {
+			continue
+		}
+
+		machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &api.HealthCheckStatus{}
 	}
 
-	for _, gm := range bg.greenMachines.machines() {
+	for _, gm := range bg.greenMachines {
+		if gm.launchInput.SkipLaunch {
+			continue
+		}
 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
-		if len(gm.Machine().Checks) == 0 {
+		if len(gm.leasableMachine.Machine().Checks) == 0 {
 			continue
 		}
 
@@ -319,7 +326,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				time.Sleep(interval)
 			}
-		}(gm)
+		}(gm.leasableMachine)
 	}
 
 	for {
