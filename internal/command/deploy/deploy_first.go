@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/go-units"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -107,17 +109,23 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				continue
 			}
 
+			initialSize := md.volumeInitialSize
+			if m.InitialSize != "" {
+				// Ignore the error because invalid values are caught at config validation time
+				initialSize, _ = helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			}
+
 			fmt.Fprintf(
 				md.io.Out,
 				"Creating a %d GB volume named '%s' for process group '%s'. "+
 					"Use 'fly vol extend' to increase its size\n",
-				md.volumeInitialSize, m.Source, groupName,
+				initialSize, m.Source, groupName,
 			)
 
 			input := api.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              api.Pointer(md.volumeInitialSize),
+				SizeGb:              api.Pointer(initialSize),
 				Encrypted:           api.Pointer(true),
 				ComputeRequirements: md.machineGuest,
 			}

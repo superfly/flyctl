@@ -8,10 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
@@ -101,6 +103,7 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		cfg.validateProcessesSection,
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
+		cfg.validateMounts,
 	}
 
 	for _, vFunc := range validators {
@@ -304,6 +307,23 @@ func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
 	if _, vErr := shlex.Split(cfg.ConsoleCommand); vErr != nil {
 		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", cfg.ConsoleCommand)
 		err = ValidationError
+	}
+	return
+}
+
+func (cfg *Config) validateMounts() (extraInfo string, err error) {
+	for _, m := range cfg.Mounts {
+		if m.InitialSize != "" {
+			v, vErr := helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with initial_size '%s' will fail because of: %s\n", m.Source, m.InitialSize, vErr)
+				err = ValidationError
+			case v < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an initial_size '%s' value which is smaller than 1GB\n", m.Source, m.InitialSize)
+				err = ValidationError
+			}
+		}
 	}
 	return
 }
