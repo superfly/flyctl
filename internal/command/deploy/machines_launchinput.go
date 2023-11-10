@@ -80,9 +80,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	mMounts := mConfig.Mounts
 	oMounts := origMachineRaw.Config.Mounts
 	if len(oMounts) != 0 {
-		latestExtendThresholdPercent := mMounts[0].ExtendThresholdPercent
-		latestAddSizeGb := mMounts[0].AddSizeGb
-		latestSizeGbLimit := mMounts[0].SizeGbLimit
+		var latestExtendThresholdPercent, latestAddSizeGb, latestSizeGbLimit int
+		if len(mMounts) > 0 {
+			latestExtendThresholdPercent = mMounts[0].ExtendThresholdPercent
+			latestAddSizeGb = mMounts[0].AddSizeGb
+			latestSizeGbLimit = mMounts[0].SizeGbLimit
+		}
 		switch {
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
@@ -118,9 +121,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			mMounts[0] = oMounts[0]
 		}
 
-		mMounts[0].ExtendThresholdPercent = latestExtendThresholdPercent
-		mMounts[0].AddSizeGb = latestAddSizeGb
-		mMounts[0].SizeGbLimit = latestSizeGbLimit
+		if len(mMounts) > 0 {
+			mMounts[0].ExtendThresholdPercent = latestExtendThresholdPercent
+			mMounts[0].AddSizeGb = latestAddSizeGb
+			mMounts[0].SizeGbLimit = latestSizeGbLimit
+		}
 	} else if len(mMounts) != 0 {
 		// Replace the machine because [mounts] section was added to fly.toml
 		// and it is not possible to attach a volume to an existing machine.
