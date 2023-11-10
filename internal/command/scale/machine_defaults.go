@@ -87,9 +87,12 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	if err != nil {
 		return nil, err
 	}
+	// Respect Guest if set by fly.toml
+	if mc.Guest == nil {
+		mc.Guest = lo.ValueOr(d.guestPerGroup, groupName, d.guest)
+	}
 
 	mc.Image = d.image
-	mc.Guest = lo.ValueOr(d.guestPerGroup, groupName, d.guest)
 	mc.Mounts = lo.Map(mc.Mounts, func(mount api.MachineMount, _ int) api.MachineMount {
 		mount.SizeGb = lo.ValueOr(d.volsizeByName, mount.Name, d.volsize)
 		mount.Encrypted = true
