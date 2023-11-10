@@ -71,8 +71,8 @@ func New() (cmd *cobra.Command) {
 		},
 		// Launch V2
 		flag.Bool{
-			Name:        "ui",
-			Description: "Use the Launch V2 interface",
+			Name:        "no-ui",
+			Description: "Use the legacy CLI interface (deprecated)",
 			Hidden:      true,
 		},
 		flag.Bool{
@@ -120,7 +120,7 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 
 func run(ctx context.Context) (err error) {
 
-	if !flag.GetBool(ctx, "ui") {
+	if flag.GetBool(ctx, "no-ui") {
 		return legacy.Run(ctx)
 	}
 
