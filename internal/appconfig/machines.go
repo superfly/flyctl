@@ -12,18 +12,17 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 )
 
-func (c *Config) ToMachineGuest() (*api.MachineGuest, error) {
-	// Don't be smart here, we want to retain backwards compability
-	// with apps that doesn't have a [[compute]] section and relies
-	// on `fly deploy` to respect whatever was set by `fly scale`, first deploy
-	// with --vm-* family flags
+func (c *Config) toMachineGuest() (*api.MachineGuest, error) {
+	// XXX: Don't be extra smart here, keep it backwards compatible with apps that don't have a [[compute]] section.
+	// Think about apps that counts on `fly deploy` to respect whatever was set by `fly scale` or the --vm-* family flags.
+	// It is important to return a `nil` guest when fly.toml doesn't contain a [[compute]] section for the process group.
 	if len(c.Compute) == 0 {
 		return nil, nil
 	} else if len(c.Compute) > 2 {
 		return nil, fmt.Errorf("2+ compute sections for group %s", c.DefaultProcessName())
 	}
 
-	// Must be at most one compute after group flattening
+	// At most one compute after group flattening
 	compute := c.Compute[0]
 
 	size := api.DefaultVMSize
@@ -237,7 +236,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	machine.MergeFiles(mConfig, c.MergedFiles)
 
 	// Guest
-	switch guest, err := c.ToMachineGuest(); {
+	switch guest, err := c.toMachineGuest(); {
 	case err != nil:
 		return nil, err
 	case guest != nil:
