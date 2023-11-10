@@ -16,10 +16,9 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	md.setMachineReleaseData(Config)
 
 	return &api.LaunchMachineInput{
-		ID:         origMachineRaw.ID,
-		Config:     Config,
-		Region:     origMachineRaw.Region,
-		SkipLaunch: skipStopped(origMachineRaw, Config),
+		ID:     origMachineRaw.ID,
+		Config: Config,
+		Region: origMachineRaw.Region,
 	}
 }
 
@@ -142,7 +141,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          len(mConfig.Standbys) > 0 || skipStopped(origMachineRaw, mConfig),
+		SkipLaunch:          len(mConfig.Standbys) > 0,
 		RequiresReplacement: machineShouldBeReplaced,
 	}, nil
 }
@@ -171,13 +170,4 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
 	} else {
 		delete(mConfig.Metadata, api.MachineConfigMetadataKeyFlyManagedPostgres)
 	}
-}
-
-// Skip launching currently-stopped machines if any services
-// use autoscaling (autostop or autostart).
-func skipStopped(origMachineRaw *api.Machine, mConfig *api.MachineConfig) bool {
-	return origMachineRaw.State == api.MachineStateStopped &&
-		lo.SomeBy(mConfig.Services, func(s api.MachineService) bool {
-			return (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart)
-		})
 }
