@@ -377,6 +377,8 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				addSizeGb = groupConfig.Mounts[0].AddSizeGb
 				sizeGbLimit = groupConfig.Mounts[0].SizeGbLimit
 				switch {
+				case extendThresholdPercent == 0 && addSizeGb == 0 && sizeGbLimit == 0:
+					// not using this feature
 				case extendThresholdPercent != 0 && addSizeGb == 0 && sizeGbLimit == 0:
 					return fmt.Errorf("mounts extend_threshold_percent, add_size_gb and size_gb_limit must be all defined or none")
 				case extendThresholdPercent < 50, extendThresholdPercent > 99:
