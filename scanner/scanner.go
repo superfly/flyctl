@@ -89,9 +89,12 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
 }
 type Volume struct {
-	Source      string   `toml:"source" json:"source,omitempty"`
-	Destination string   `toml:"destination" json:"destination,omitempty"`
-	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
+	Source                 string   `toml:"source" json:"source,omitempty"`
+	Destination            string   `toml:"destination" json:"destination,omitempty"`
+	Processes              []string `json:"processes,omitempty" toml:"processes,omitempty"`
+	ExtendThresholdPercent int      `toml:"extend_threshold_percent,omitempty" json:"extend_threshold_percent,omitempty"`
+	AddSizeGb              int      `toml:"add_size_gb,omitempty" json:"add_size_gb,omitempty"`
+	SizeGbLimit            int      `toml:"size_gb_limit,omitempty" json:"size_gb_limit,omitempty"`
 }
 type ScannerConfig struct {
 	Mode         string

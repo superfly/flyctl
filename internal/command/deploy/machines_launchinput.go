@@ -79,6 +79,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	//   * The other option is to force a machine replacement to remove or attach a different volume
 	mMounts := mConfig.Mounts
 	oMounts := origMachineRaw.Config.Mounts
+
+	latestExtendThresholdPercent := mMounts[0].ExtendThresholdPercent
+	latestAddSizeGb := mMounts[0].AddSizeGb
+	latestSizeGbLimit := mMounts[0].SizeGbLimit
+
 	if len(oMounts) != 0 {
 		switch {
 		case len(mMounts) == 0:
@@ -114,6 +119,10 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			// In any other case retain the existing machine mounts
 			mMounts[0] = oMounts[0]
 		}
+
+		mMounts[0].ExtendThresholdPercent = latestExtendThresholdPercent
+		mMounts[0].AddSizeGb = latestAddSizeGb
+		mMounts[0].SizeGbLimit = latestSizeGbLimit
 	} else if len(mMounts) != 0 {
 		// Replace the machine because [mounts] section was added to fly.toml
 		// and it is not possible to attach a volume to an existing machine.
