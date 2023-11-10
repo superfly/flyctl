@@ -166,6 +166,157 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 	assert.Empty(t, li.Config.Mounts)
 }
 
+// test mounts with auto volume resize
+func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		Mounts: []appconfig.Mount{{
+			Source:                 "data",
+			Destination:            "/data",
+			ExtendThresholdPercent: 80,
+			AddSizeGb:              3,
+			SizeGbLimit:            100,
+		}},
+	})
+	assert.NoError(t, err)
+	md.volumes = map[string][]api.Volume{
+		"data": {
+			{ID: "vol_10001", Name: "data"},
+			{ID: "vol_10002", Name: "data"},
+			{ID: "vol_10003", Name: "data"},
+		},
+	}
+
+	// New machine must get a volume attached
+	li, err := md.launchInputForLaunch("", nil, nil)
+	require.NoError(t, err)
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, api.MachineMount{
+		Volume:                 "vol_10001",
+		Path:                   "/data",
+		Name:                   "data",
+		ExtendThresholdPercent: 80,
+		AddSizeGb:              3,
+		SizeGbLimit:            100,
+	}, li.Config.Mounts[0])
+
+	// The machine already has a volume that matches fly.toml [mounts] section
+	// confirm new extend configs will be added
+	li, err = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{
+				Volume:                 "vol_attached",
+				Path:                   "/data",
+				Name:                   "data",
+				ExtendThresholdPercent: 90,
+				AddSizeGb:              5,
+				SizeGbLimit:            200,
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, api.MachineMount{
+		Volume:                 "vol_attached",
+		Path:                   "/data",
+		Name:                   "data",
+		ExtendThresholdPercent: 80,
+		AddSizeGb:              3,
+		SizeGbLimit:            100,
+	}, li.Config.Mounts[0])
+
+	// Update a machine with volume attached on a different path
+	li, err = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{
+				Volume:                 "vol_attached",
+				Path:                   "/update-me",
+				Name:                   "data",
+				ExtendThresholdPercent: 90,
+				AddSizeGb:              5,
+				SizeGbLimit:            200,
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, api.MachineMount{
+		Volume:                 "vol_attached",
+		Path:                   "/data",
+		Name:                   "data",
+		ExtendThresholdPercent: 80,
+		AddSizeGb:              3,
+		SizeGbLimit:            100,
+	}, li.Config.Mounts[0])
+
+	// Updating a machine with an existing unnamed mount must keep the original mount as much as possible
+	li, err = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{
+				Volume:                 "vol_attached",
+				Path:                   "/keep-me",
+				ExtendThresholdPercent: 90,
+				AddSizeGb:              5,
+				SizeGbLimit:            200,
+			}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.Equal(t, api.MachineMount{
+		Volume:                 "vol_attached",
+		Path:                   "/keep-me",
+		ExtendThresholdPercent: 80,
+		AddSizeGb:              3,
+		SizeGbLimit:            100,
+	}, li.Config.Mounts[0])
+
+	// Updating a machine whose volume name doesn't match fly.toml's mount section must replace the machine altogether
+	li, err = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, li.Config.Mounts)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.True(t, li.RequiresReplacement)
+	assert.Equal(t, api.MachineMount{
+		Volume:                 "vol_10002",
+		Path:                   "/data",
+		Name:                   "data",
+		ExtendThresholdPercent: 80,
+		AddSizeGb:              3,
+		SizeGbLimit:            100,
+	}, li.Config.Mounts[0])
+
+	// Updating a machine with an attached volume should trigger a replacement if fly.toml doesn't define one.
+	md.appConfig.Mounts = nil
+	li, err = md.launchInputForUpdate(&api.Machine{
+		ID: "ab1234567890",
+		Config: &api.MachineConfig{
+			Mounts: []api.MachineMount{{
+				Volume:                 "vol_attached",
+				Path:                   "/replace-me",
+				Name:                   "replace-me",
+				ExtendThresholdPercent: 90,
+				AddSizeGb:              5,
+				SizeGbLimit:            200,
+			}},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "ab1234567890", li.ID)
+	assert.True(t, li.RequiresReplacement)
+	assert.Empty(t, li.Config.Mounts)
+}
+
 // Test restart or updating a machine propagates fields not under fly.toml control
 func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
