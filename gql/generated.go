@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -201,25 +202,170 @@ type AgentGetInstancesResponse struct {
 // GetApp returns AgentGetInstancesResponse.App, and is useful for accessing the field via an interface.
 func (v *AgentGetInstancesResponse) GetApp() AgentGetInstancesApp { return v.App }
 
-// AgreedToProviderTosOrganization includes the requested fields of the GraphQL type Organization.
-type AgreedToProviderTosOrganization struct {
+// AgreedToProviderTosResponse is returned by AgreedToProviderTos on success.
+type AgreedToProviderTosResponse struct {
+	Viewer AgreedToProviderTosViewerPrincipal `json:"-"`
+}
+
+// GetViewer returns AgreedToProviderTosResponse.Viewer, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosResponse) GetViewer() AgreedToProviderTosViewerPrincipal { return v.Viewer }
+
+func (v *AgreedToProviderTosResponse) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*AgreedToProviderTosResponse
+		Viewer json.RawMessage `json:"viewer"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.AgreedToProviderTosResponse = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Viewer
+		src := firstPass.Viewer
+		if len(src) != 0 && string(src) != "null" {
+			err = __unmarshalAgreedToProviderTosViewerPrincipal(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal AgreedToProviderTosResponse.Viewer: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalAgreedToProviderTosResponse struct {
+	Viewer json.RawMessage `json:"viewer"`
+}
+
+func (v *AgreedToProviderTosResponse) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *AgreedToProviderTosResponse) __premarshalJSON() (*__premarshalAgreedToProviderTosResponse, error) {
+	var retval __premarshalAgreedToProviderTosResponse
+
+	{
+
+		dst := &retval.Viewer
+		src := v.Viewer
+		var err error
+		*dst, err = __marshalAgreedToProviderTosViewerPrincipal(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal AgreedToProviderTosResponse.Viewer: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// AgreedToProviderTosViewerMacaroon includes the requested fields of the GraphQL type Macaroon.
+type AgreedToProviderTosViewerMacaroon struct {
+	Typename string `json:"__typename"`
+}
+
+// GetTypename returns AgreedToProviderTosViewerMacaroon.Typename, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosViewerMacaroon) GetTypename() string { return v.Typename }
+
+// AgreedToProviderTosViewerPrincipal includes the requested fields of the GraphQL interface Principal.
+//
+// AgreedToProviderTosViewerPrincipal is implemented by the following types:
+// AgreedToProviderTosViewerMacaroon
+// AgreedToProviderTosViewerUser
+type AgreedToProviderTosViewerPrincipal interface {
+	implementsGraphQLInterfaceAgreedToProviderTosViewerPrincipal()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() string
+}
+
+func (v *AgreedToProviderTosViewerMacaroon) implementsGraphQLInterfaceAgreedToProviderTosViewerPrincipal() {
+}
+func (v *AgreedToProviderTosViewerUser) implementsGraphQLInterfaceAgreedToProviderTosViewerPrincipal() {
+}
+
+func __unmarshalAgreedToProviderTosViewerPrincipal(b []byte, v *AgreedToProviderTosViewerPrincipal) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "Macaroon":
+		*v = new(AgreedToProviderTosViewerMacaroon)
+		return json.Unmarshal(b, *v)
+	case "User":
+		*v = new(AgreedToProviderTosViewerUser)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing Principal.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for AgreedToProviderTosViewerPrincipal: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalAgreedToProviderTosViewerPrincipal(v *AgreedToProviderTosViewerPrincipal) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *AgreedToProviderTosViewerMacaroon:
+		typename = "Macaroon"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*AgreedToProviderTosViewerMacaroon
+		}{typename, v}
+		return json.Marshal(result)
+	case *AgreedToProviderTosViewerUser:
+		typename = "User"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*AgreedToProviderTosViewerUser
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for AgreedToProviderTosViewerPrincipal: "%T"`, v)
+	}
+}
+
+// AgreedToProviderTosViewerUser includes the requested fields of the GraphQL type User.
+type AgreedToProviderTosViewerUser struct {
+	Typename string `json:"__typename"`
 	// Check if the organization has agreed to the extension provider terms of service
 	AgreedToProviderTos bool `json:"agreedToProviderTos"`
 }
 
-// GetAgreedToProviderTos returns AgreedToProviderTosOrganization.AgreedToProviderTos, and is useful for accessing the field via an interface.
-func (v *AgreedToProviderTosOrganization) GetAgreedToProviderTos() bool { return v.AgreedToProviderTos }
+// GetTypename returns AgreedToProviderTosViewerUser.Typename, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosViewerUser) GetTypename() string { return v.Typename }
 
-// AgreedToProviderTosResponse is returned by AgreedToProviderTos on success.
-type AgreedToProviderTosResponse struct {
-	// Find an organization by ID
-	Organization AgreedToProviderTosOrganization `json:"organization"`
-}
-
-// GetOrganization returns AgreedToProviderTosResponse.Organization, and is useful for accessing the field via an interface.
-func (v *AgreedToProviderTosResponse) GetOrganization() AgreedToProviderTosOrganization {
-	return v.Organization
-}
+// GetAgreedToProviderTos returns AgreedToProviderTosViewerUser.AgreedToProviderTos, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosViewerUser) GetAgreedToProviderTos() bool { return v.AgreedToProviderTos }
 
 // AllAppsOrganization includes the requested fields of the GraphQL type Organization.
 type AllAppsOrganization struct {
@@ -978,25 +1124,6 @@ type CreateExtensionResponse struct {
 func (v *CreateExtensionResponse) GetCreateAddOn() CreateExtensionCreateAddOnCreateAddOnPayload {
 	return v.CreateAddOn
 }
-
-// Autogenerated input type of CreateExtensionTosAgreement
-type CreateExtensionTosAgreementInput struct {
-	// The add-on provider name
-	AddOnProviderName string `json:"addOnProviderName"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// The organization that agrees to the ToS
-	OrganizationId string `json:"organizationId"`
-}
-
-// GetAddOnProviderName returns CreateExtensionTosAgreementInput.AddOnProviderName, and is useful for accessing the field via an interface.
-func (v *CreateExtensionTosAgreementInput) GetAddOnProviderName() string { return v.AddOnProviderName }
-
-// GetClientMutationId returns CreateExtensionTosAgreementInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *CreateExtensionTosAgreementInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetOrganizationId returns CreateExtensionTosAgreementInput.OrganizationId, and is useful for accessing the field via an interface.
-func (v *CreateExtensionTosAgreementInput) GetOrganizationId() string { return v.OrganizationId }
 
 // CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayload includes the requested fields of the GraphQL type CreateLimitedAccessTokenPayload.
 // The GraphQL type's documentation follows.
@@ -3282,14 +3409,10 @@ func (v *__AgentGetInstancesInput) GetAppName() string { return v.AppName }
 // __AgreedToProviderTosInput is used internally by genqlient
 type __AgreedToProviderTosInput struct {
 	AddOnProviderName string `json:"addOnProviderName"`
-	OrganizationId    string `json:"organizationId"`
 }
 
 // GetAddOnProviderName returns __AgreedToProviderTosInput.AddOnProviderName, and is useful for accessing the field via an interface.
 func (v *__AgreedToProviderTosInput) GetAddOnProviderName() string { return v.AddOnProviderName }
-
-// GetOrganizationId returns __AgreedToProviderTosInput.OrganizationId, and is useful for accessing the field via an interface.
-func (v *__AgreedToProviderTosInput) GetOrganizationId() string { return v.OrganizationId }
 
 // __AllAppsInput is used internally by genqlient
 type __AllAppsInput struct {
@@ -3349,11 +3472,11 @@ func (v *__CreateLimitedAccessTokenInput) GetExpiry() string { return v.Expiry }
 
 // __CreateTosAgreementInput is used internally by genqlient
 type __CreateTosAgreementInput struct {
-	Input CreateExtensionTosAgreementInput `json:"input"`
+	ProviderName string `json:"providerName"`
 }
 
-// GetInput returns __CreateTosAgreementInput.Input, and is useful for accessing the field via an interface.
-func (v *__CreateTosAgreementInput) GetInput() CreateExtensionTosAgreementInput { return v.Input }
+// GetProviderName returns __CreateTosAgreementInput.ProviderName, and is useful for accessing the field via an interface.
+func (v *__CreateTosAgreementInput) GetProviderName() string { return v.ProviderName }
 
 // __DeleteAddOnInput is used internally by genqlient
 type __DeleteAddOnInput struct {
@@ -3647,9 +3770,12 @@ func AgentGetInstances(
 
 // The query or mutation executed by AgreedToProviderTos.
 const AgreedToProviderTos_Operation = `
-query AgreedToProviderTos ($addOnProviderName: String!, $organizationId: ID!) {
-	organization(id: $organizationId) {
-		agreedToProviderTos(providerName: $addOnProviderName)
+query AgreedToProviderTos ($addOnProviderName: String!) {
+	viewer {
+		__typename
+		... on User {
+			agreedToProviderTos(providerName: $addOnProviderName)
+		}
 	}
 }
 `
@@ -3658,14 +3784,12 @@ func AgreedToProviderTos(
 	ctx context.Context,
 	client graphql.Client,
 	addOnProviderName string,
-	organizationId string,
 ) (*AgreedToProviderTosResponse, error) {
 	req := &graphql.Request{
 		OpName: "AgreedToProviderTos",
 		Query:  AgreedToProviderTos_Operation,
 		Variables: &__AgreedToProviderTosInput{
 			AddOnProviderName: addOnProviderName,
-			OrganizationId:    organizationId,
 		},
 	}
 	var err error
@@ -3914,8 +4038,8 @@ func CreateLimitedAccessToken(
 
 // The query or mutation executed by CreateTosAgreement.
 const CreateTosAgreement_Operation = `
-mutation CreateTosAgreement ($input: CreateExtensionTosAgreementInput!) {
-	createExtensionTosAgreement(input: $input) {
+mutation CreateTosAgreement ($providerName: String!) {
+	createExtensionTosAgreement(input: {addOnProviderName:$providerName}) {
 		clientMutationId
 	}
 }
@@ -3924,13 +4048,13 @@ mutation CreateTosAgreement ($input: CreateExtensionTosAgreementInput!) {
 func CreateTosAgreement(
 	ctx context.Context,
 	client graphql.Client,
-	input CreateExtensionTosAgreementInput,
+	providerName string,
 ) (*CreateTosAgreementResponse, error) {
 	req := &graphql.Request{
 		OpName: "CreateTosAgreement",
 		Query:  CreateTosAgreement_Operation,
 		Variables: &__CreateTosAgreementInput{
-			Input: input,
+			ProviderName: providerName,
 		},
 	}
 	var err error
