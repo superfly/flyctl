@@ -55,11 +55,6 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
-			Name:        "reuse-app",
-			Description: "Continue even if app name clashes with an existent app",
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "dockerignore-from-gitignore",
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
@@ -69,12 +64,6 @@ func New() (cmd *cobra.Command) {
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
 		},
-		// Launch V2
-		flag.Bool{
-			Name:        "ui",
-			Description: "Use the Launch V2 interface",
-			Hidden:      true,
-		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -83,6 +72,18 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "from-manifest",
 			Description: "Path to a manifest file for Launch ('-' reads from stdin)",
+			Hidden:      true,
+		},
+		// legacy launch flags (deprecated)
+		flag.Bool{
+			Name:        "no-ui",
+			Description: "Use the legacy CLI interface (deprecated)",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "reuse-app",
+			Description: "Continue even if app name clashes with an existent app",
+			Default:     false,
 			Hidden:      true,
 		},
 	)
@@ -120,7 +121,9 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 
 func run(ctx context.Context) (err error) {
 
-	if !flag.GetBool(ctx, "ui") {
+	// NOTE: We depend on legacy launcher behavior for Nomad support, which is needed for the MigrateToV2 tests
+	//       Once we rip out those tests, this can go with them.
+	if flag.GetBool(ctx, "no-ui") || flag.GetBool(ctx, "force-nomad") {
 		return legacy.Run(ctx)
 	}
 
@@ -188,21 +191,23 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: lo.Ternary(
-			incompleteLaunchManifest,
-			"Would you like to continue in the web UI?",
-			"Do you want to tweak these settings before proceeding?",
-		),
-	}
-	err = survey.AskOne(prompt, &confirm)
-	if err != nil {
-		// TODO(allison): This should probably not just return the error
-		return err
+	editInUi := false
+	if io.IsInteractive() {
+		prompt := &survey.Confirm{
+			Message: lo.Ternary(
+				incompleteLaunchManifest,
+				"Would you like to continue in the web UI?",
+				"Do you want to tweak these settings before proceeding?",
+			),
+		}
+		err = survey.AskOne(prompt, &editInUi)
+		if err != nil {
+			// TODO(allison): This should probably not just return the error
+			return err
+		}
 	}
 
-	if confirm {
+	if editInUi {
 		err = state.EditInWebUi(ctx)
 		if err != nil {
 			return err
