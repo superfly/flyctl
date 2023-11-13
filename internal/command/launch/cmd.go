@@ -120,7 +120,9 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 
 func run(ctx context.Context) (err error) {
 
-	if flag.GetBool(ctx, "no-ui") {
+	// NOTE: We depend on legacy launcher behavior for Nomad support, which is needed for the MigrateToV2 tests
+	//       Once we rip out those tests, this can go with them.
+	if flag.GetBool(ctx, "no-ui") || flag.GetBool(ctx, "force-nomad") {
 		return legacy.Run(ctx)
 	}
 
