@@ -145,7 +145,7 @@ app = "foo"
 	`)
 
 	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErrString(), `Can not use configuration for Apps V2, check fly.toml`)
+	require.Contains(f, x.StdErrString(), `can not use configuration for Fly Launch, check fly.toml`)
 }
 
 // test --generate-name, --name and reuse imported name
