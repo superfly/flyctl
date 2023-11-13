@@ -108,6 +108,12 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		if err := appConfig.SetMachinesPlatform(); err != nil {
 			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
 		}
+		if flag.GetBool(ctx, "manifest") {
+			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut,
+				"Warning: --manifest does not serialize an entire app configuration.\n"+
+					"Creating a manifest from an existing fly.toml may be a lossy process!",
+			)
+		}
 	}
 
 	workingDir := flag.GetString(ctx, "path")
