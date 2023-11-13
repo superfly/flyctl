@@ -368,10 +368,14 @@ func (mg *MachineGuest) ToSize() string {
 	if mg == nil {
 		return ""
 	}
-	switch mg.CPUKind {
-	case "shared":
+	switch {
+	case mg.GPUKind == "a100-pcie-40gb":
+		return "a100-40gb"
+	case mg.GPUKind == "a100-sxm4-80gb":
+		return "a100-80gb"
+	case mg.CPUKind == "shared":
 		return fmt.Sprintf("shared-cpu-%dx", mg.CPUs)
-	case "performance":
+	case mg.CPUKind == "performance":
 		return fmt.Sprintf("performance-%dx", mg.CPUs)
 	default:
 		return "unknown"
