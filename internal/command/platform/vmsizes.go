@@ -39,18 +39,24 @@ func runMachineVMSizes(ctx context.Context) error {
 		guest   *api.MachineGuest
 		strings []string
 	}
+
 	sortedPresets := lo.MapToSlice(api.MachinePresets, func(key string, value *api.MachineGuest) preset {
 		arr := []string{
 			key,
 			cores(value.CPUs),
 			memory(value.MemoryMB),
+			value.GPUKind,
 		}
 		return preset{value, arr}
 	})
+
 	sort.Slice(sortedPresets, func(i, j int) bool {
 		a := sortedPresets[i].guest
 		b := sortedPresets[j].guest
 		if a.CPUs == b.CPUs {
+			if a.MemoryMB == b.MemoryMB {
+				return a.GPUKind < b.GPUKind
+			}
 			return a.MemoryMB < b.MemoryMB
 		}
 		return a.CPUs < b.CPUs
@@ -58,24 +64,25 @@ func runMachineVMSizes(ctx context.Context) error {
 
 	// Filter and display shared cpu sizes.
 	shared := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		if p.guest.CPUKind == "shared" {
-			return p.strings, true
-		}
-		return nil, false
+		return p.strings, p.guest.CPUKind == "shared" && p.guest.GPUKind == ""
 	})
-	err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory")
-	if err != nil {
-		return fmt.Errorf("failed to render shared vm-sizes: %s", err)
+	if err := render.Table(out, "Machines platform", shared, "Name", "CPU Cores", "Memory"); err != nil {
+		return err
 	}
 
 	// Filter and display performance cpu sizes.
 	performance := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
-		if p.guest.CPUKind == "performance" {
-			return p.strings, true
-		}
-		return nil, false
+		return p.strings, p.guest.CPUKind == "performance" && p.guest.GPUKind == ""
 	})
-	return render.Table(out, "", performance, "Name", "CPU Cores", "Memory")
+	if err := render.Table(out, "", performance, "Name", "CPU Cores", "Memory"); err != nil {
+		return err
+	}
+
+	// Filter and display gpu sizes.
+	gpus := lo.FilterMap(sortedPresets, func(p preset, _ int) ([]string, bool) {
+		return p.strings, p.guest.GPUKind != ""
+	})
+	return render.Table(out, "", gpus, "Name", "CPU Cores", "Memory", "GPU model")
 }
 
 func cores(cores int) string {
