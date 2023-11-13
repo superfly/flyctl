@@ -238,9 +238,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 	}
 
 	if confirmTos {
-		_, err = gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
-			AddOnProviderName: provider.Name,
-		})
+		_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
 	} else {
 		return fmt.Errorf("%s provisioning stopped.", provider.DisplayName)
 	}
@@ -417,8 +415,7 @@ func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error)
 	if err != nil {
 		return false, err
 	}
-
-	return tosResp.Viewer, nil
+	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
 }
 
 // Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py

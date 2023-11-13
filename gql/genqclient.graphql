@@ -75,8 +75,8 @@ mutation CreateApp($input: CreateAppInput!) {
 	}
 }
 
-mutation CreateTosAgreement($input: CreateExtensionTosAgreementInput!) {
-	createExtensionTosAgreement(input: $input) {
+mutation CreateTosAgreement($providerName: String!) {
+	createExtensionTosAgreement(input: {addOnProviderName: $providerName}) {
 		clientMutationId
 	}
 }
