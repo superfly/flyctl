@@ -188,21 +188,23 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: lo.Ternary(
-			incompleteLaunchManifest,
-			"Would you like to continue in the web UI?",
-			"Do you want to tweak these settings before proceeding?",
-		),
-	}
-	err = survey.AskOne(prompt, &confirm)
-	if err != nil {
-		// TODO(allison): This should probably not just return the error
-		return err
+	editInUi := false
+	if io.IsInteractive() {
+		prompt := &survey.Confirm{
+			Message: lo.Ternary(
+				incompleteLaunchManifest,
+				"Would you like to continue in the web UI?",
+				"Do you want to tweak these settings before proceeding?",
+			),
+		}
+		err = survey.AskOne(prompt, &editInUi)
+		if err != nil {
+			// TODO(allison): This should probably not just return the error
+			return err
+		}
 	}
 
-	if confirm {
+	if editInUi {
 		err = state.EditInWebUi(ctx)
 		if err != nil {
 			return err
