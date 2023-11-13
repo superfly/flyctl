@@ -54,6 +54,9 @@ func runMachineVMSizes(ctx context.Context) error {
 		a := sortedPresets[i].guest
 		b := sortedPresets[j].guest
 		if a.CPUs == b.CPUs {
+			if a.MemoryMB == b.MemoryMB {
+				return a.GPUKind < b.GPUKind
+			}
 			return a.MemoryMB < b.MemoryMB
 		}
 		return a.CPUs < b.CPUs
