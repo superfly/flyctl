@@ -418,8 +418,8 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 	"performance-8x":  {CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
 	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
 
-	"a100-40gb": {GPUKind: "a100-pcie-40gb", CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
-	"a100-80gb": {GPUKind: "a100-sxm4-80gb", CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
+	"a100-40gb": {GPUKind: "a100-pcie-40gb", CPUKind: "performance", CPUs: 8, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
+	"a100-80gb": {GPUKind: "a100-sxm4-80gb", CPUKind: "performance", CPUs: 8, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
 }
 
 type MachineMetrics struct {
