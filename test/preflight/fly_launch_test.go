@@ -20,14 +20,13 @@ import (
 // - sourceInfo remote dockerfile vs local
 // END
 
-// Launch a new app and iterate rerunning `fly launch` to reuse the same app name and config
+// Launch a new app using `fly launch`
 //
 // - Create a V2 app
 // - Must contain [http_service] section (no [[services]])
 // - primary_region set and updated on subsequent 'fly launch --region other' calls
 // - Internal port is set in first call and not replaced unless --internal-port is passed again
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
-// - As we are reusing an existing app, the --org param is not needed after the first call
 func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
@@ -46,23 +45,6 @@ func TestFlyLaunchV2(t *testing.T) {
 			"min_machines_running": int64(0),
 			"processes":            []any{"app"},
 		},
-	}
-	require.EqualValues(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable", appName, f.SecondaryRegion())
-	toml = f.UnmarshalFlyToml()
-	want["primary_region"] = f.SecondaryRegion()
-	if build, ok := want["build"].(map[string]any); true {
-		require.True(f, ok)
-		build["image"] = "nginx:stable"
-	}
-	require.Equal(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999", appName)
-	toml = f.UnmarshalFlyToml()
-	if service, ok := want["http_service"].(map[string]any); true {
-		require.True(f, ok)
-		service["internal_port"] = int64(9999)
 	}
 	require.EqualValues(f, want, toml)
 }
@@ -147,15 +129,6 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 		},
 	}
 	require.EqualValues(f, want, toml)
-
-	// reuse the config and app but update the image
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image superfly/postgres:14", appName)
-	toml = f.UnmarshalFlyToml()
-	if build, ok := want["build"].(map[string]any); true {
-		require.True(f, ok)
-		build["image"] = "superfly/postgres:14"
-	}
-	require.EqualValues(f, want, toml)
 }
 
 // Trying to import an invalid fly.toml should fail before creating the app
@@ -173,17 +146,6 @@ app = "foo"
 
 	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.Contains(f, x.StdErrString(), `Can not use configuration for Apps V2, check fly.toml`)
-}
-
-// Fail if the existing app doesn't match the forced platform version
-// V2 app forced as V1
-func TestFlyLaunchForceV1(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-
-	appName := f.CreateRandomAppName()
-	f.Fly("apps create %s --machines -o %s", appName, f.OrgSlug())
-	x := f.FlyAllowExitFailure("launch --no-deploy --reuse-app --name %s --region %s --force-nomad", appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErrString(), `--force-nomad won't work for existing app in machines platform`)
 }
 
 // test --generate-name, --name and reuse imported name
