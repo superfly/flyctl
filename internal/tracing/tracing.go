@@ -2,10 +2,16 @@ package tracing
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cmdutil/preparers"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -45,7 +51,32 @@ func GetCMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOpt
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
 
+func prepareCtxWithConfig(ctx context.Context) (context.Context, error) {
+	ctx = flagctx.NewContext(ctx, (&cobra.Command{}).Flags())
+
+	ctx, err := preparers.DetermineUserHomeDir(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ctx, err = preparers.DetermineConfigDir(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, err = preparers.LoadConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return ctx, nil
+}
+
 func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
+	ctx, err := prepareCtxWithConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	var exporter sdktrace.SpanExporter
 	switch {
 	case os.Getenv("LOG_LEVEL") == "trace":
@@ -57,15 +88,21 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 	case os.Getenv("FLY_TRACE_COLLECTOR_URL") != "":
 		grpcExpOpt := []otlptracegrpc.Option{
 			otlptracegrpc.WithEndpoint(os.Getenv("FLY_TRACE_COLLECTOR_URL")),
+			otlptracegrpc.WithHeaders(map[string]string{
+				"authorization": config.Tokens(ctx).Flaps(),
+			}),
 			otlptracegrpc.WithDialOption(
 				grpc.WithBlock(),
 			),
 		}
 		grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithInsecure())
 
-		grpcExporter, err := otlptracegrpc.New(context.Background(), grpcExpOpt...)
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+
+		grpcExporter, err := otlptracegrpc.New(ctx, grpcExpOpt...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to connect to telemetry collector")
 		}
 
 		exporter = grpcExporter
