@@ -71,8 +71,8 @@ func New() (cmd *cobra.Command) {
 		},
 		// Launch V2
 		flag.Bool{
-			Name:        "ui",
-			Description: "Use the Launch V2 interface",
+			Name:        "no-ui",
+			Description: "Use the legacy CLI interface (deprecated)",
 			Hidden:      true,
 		},
 		flag.Bool{
@@ -120,7 +120,7 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 
 func run(ctx context.Context) (err error) {
 
-	if !flag.GetBool(ctx, "ui") {
+	if flag.GetBool(ctx, "no-ui") {
 		return legacy.Run(ctx)
 	}
 
@@ -188,21 +188,23 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: lo.Ternary(
-			incompleteLaunchManifest,
-			"Would you like to continue in the web UI?",
-			"Do you want to tweak these settings before proceeding?",
-		),
-	}
-	err = survey.AskOne(prompt, &confirm)
-	if err != nil {
-		// TODO(allison): This should probably not just return the error
-		return err
+	editInUi := false
+	if io.IsInteractive() {
+		prompt := &survey.Confirm{
+			Message: lo.Ternary(
+				incompleteLaunchManifest,
+				"Would you like to continue in the web UI?",
+				"Do you want to tweak these settings before proceeding?",
+			),
+		}
+		err = survey.AskOne(prompt, &editInUi)
+		if err != nil {
+			// TODO(allison): This should probably not just return the error
+			return err
+		}
 	}
 
-	if confirm {
+	if editInUi {
 		err = state.EditInWebUi(ctx)
 		if err != nil {
 			return err
