@@ -80,7 +80,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 			ForceHTTPS:         true,
 			AutoStartMachines:  api.Pointer(true),
 			AutoStopMachines:   api.Pointer(true),
-			MinMachinesRunning: api.Pointer(1),
+			MinMachinesRunning: api.Pointer(0),
 			Processes:          []string{"app"},
 		}
 	} else {
