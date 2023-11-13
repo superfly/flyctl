@@ -53,10 +53,14 @@ func runMachineVMSizes(ctx context.Context) error {
 	sort.Slice(sortedPresets, func(i, j int) bool {
 		a := sortedPresets[i].guest
 		b := sortedPresets[j].guest
-		if a.CPUs == b.CPUs {
+		switch {
+		case a.CPUs != b.CPUs:
+			return a.CPUs < b.CPUs
+		case a.MemoryMB != b.MemoryMB:
 			return a.MemoryMB < b.MemoryMB
+		default:
+			return a.GPUKind < b.GPUKind
 		}
-		return a.CPUs < b.CPUs
 	})
 
 	// Filter and display shared cpu sizes.
