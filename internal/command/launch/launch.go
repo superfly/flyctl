@@ -75,14 +75,16 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		state.appConfig.SetEnvVariables(state.env)
 	}
 	if state.Plan.HttpServicePort != 0 {
-		state.appConfig.HTTPService = &appconfig.HTTPService{
-			InternalPort:       state.Plan.HttpServicePort,
-			ForceHTTPS:         true,
-			AutoStartMachines:  api.Pointer(true),
-			AutoStopMachines:   api.Pointer(true),
-			MinMachinesRunning: api.Pointer(0),
-			Processes:          []string{"app"},
+		if state.appConfig.HTTPService == nil {
+			state.appConfig.HTTPService = &appconfig.HTTPService{
+				ForceHTTPS:         true,
+				AutoStartMachines:  api.Pointer(true),
+				AutoStopMachines:   api.Pointer(true),
+				MinMachinesRunning: api.Pointer(0),
+				Processes:          []string{"app"},
+			}
 		}
+		state.appConfig.HTTPService.InternalPort = state.Plan.HttpServicePort
 	} else {
 		state.appConfig.HTTPService = nil
 	}

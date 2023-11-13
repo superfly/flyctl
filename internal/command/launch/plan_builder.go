@@ -103,6 +103,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
+	httpServicePort := 8080
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
@@ -113,6 +114,11 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 				"Warning: --manifest does not serialize an entire app configuration.\n"+
 					"Creating a manifest from an existing fly.toml may be a lossy process!",
 			)
+		}
+		if service := appConfig.HTTPService; service != nil {
+			httpServicePort = service.InternalPort
+		} else {
+			httpServicePort = 0
 		}
 	}
 
@@ -153,7 +159,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		CPUs:             guest.CPUs,
 		MemoryMB:         guest.MemoryMB,
 		VmSize:           guest.ToSize(),
-		HttpServicePort:  8080,
+		HttpServicePort:  httpServicePort,
 		Postgres:         plan.PostgresPlan{},
 		Redis:            plan.RedisPlan{},
 		FlyctlVersion:    buildinfo.Info().Version,
