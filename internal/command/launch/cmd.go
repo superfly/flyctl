@@ -55,11 +55,6 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
-			Name:        "reuse-app",
-			Description: "Continue even if app name clashes with an existent app",
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "dockerignore-from-gitignore",
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
@@ -69,12 +64,6 @@ func New() (cmd *cobra.Command) {
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
 		},
-		// Launch V2
-		flag.Bool{
-			Name:        "no-ui",
-			Description: "Use the legacy CLI interface (deprecated)",
-			Hidden:      true,
-		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -83,6 +72,18 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "from-manifest",
 			Description: "Path to a manifest file for Launch ('-' reads from stdin)",
+			Hidden:      true,
+		},
+		// legacy launch flags (deprecated)
+		flag.Bool{
+			Name:        "no-ui",
+			Description: "Use the legacy CLI interface (deprecated)",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "reuse-app",
+			Description: "Continue even if app name clashes with an existent app",
+			Default:     false,
 			Hidden:      true,
 		},
 	)
