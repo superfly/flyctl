@@ -122,7 +122,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		return nil, nil, err
 	}
 
-	appName, appNameExplanation, err := determineAppName(ctx, configPath)
+	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
 	if err != nil {
 		if err := tryRecoverErr(err); err != nil {
 			return nil, nil, err
@@ -250,8 +250,8 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
-	if taken, _ := appNameTaken(ctx, appConfig.AppName); taken {
-		return nil, appNameTakenErr(appConfig.AppName)
+	if taken, _ := appNameTaken(ctx, m.Plan.AppName); taken {
+		return nil, appNameTakenErr(m.Plan.AppName)
 	}
 
 	workingDir := flag.GetString(ctx, "path")
@@ -368,44 +368,72 @@ func validateAppName(appName string) error {
 }
 
 // determineAppName determines the app name from the config file or directory name
-func determineAppName(ctx context.Context, configPath string) (string, string, error) {
+func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
+
+	delimiter := "-"
+	findUniqueAppName := func(prefix string) (string, bool) {
+		if prefix != "" {
+			prefix += delimiter
+		}
+		for i := 1; i < 10; i++ {
+			outName := prefix + haikunator.Haikunator().Delimiter(delimiter).String()
+			if taken, _ := appNameTaken(ctx, outName); !taken {
+				return outName, true
+			}
+		}
+		return "", false
+	}
+
+	// This logic is a little overcomplicated. Essentially, just waterfall down options until one returns a valid name.
+	//
+	// Get initial name:
+	//  1. If we've specified --name, use that name.
+	//  2. If we've specified --generate-name, generate a unique name (meaning, jump over step 3)
+	//  3. If we've provided an existing config file, use the app name from that.
+	//  4. Use the directory name.
+	//  5. If none of those sanitize into valid app names, generate one with Haikunator.
+	// Ensure valid name:
+	//  If the name is already taken, try to generate a unique suffix using Haikunator.
+	//  If this fails, return a recoverable error.
 
 	appName := flag.GetString(ctx, "name")
+	if !flag.GetBool(ctx, "generate-name") && appName == "" {
+		appName = appConfig.AppName
+	}
 	if appName == "" {
 		appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
 	}
 	if appName == "" {
-		err := flyerr.GenericErr{
-			Err:     "unable to determine app name",
-			Suggest: "You can specify the app name with the --name flag",
+
+		var found bool
+		appName, found = findUniqueAppName("")
+
+		if !found {
+			return "", recoverableSpecifyInUi, recoverableInUiError{flyerr.GenericErr{
+				Err:     "unable to determine app name",
+				Suggest: "You can specify the app name with the --name flag",
+			}}
 		}
-		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 	if err := validateAppName(appName); err != nil {
 		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 	// If the app name is already taken, try to generate a unique suffix.
 	if taken, _ := appNameTaken(ctx, appName); taken {
-		delimiter := "-"
-		var newName string
-		found := false
-		for i := 1; i < 10; i++ {
-			newName = fmt.Sprintf("%s%s%s", appName, delimiter, haikunator.Haikunator().Delimiter(delimiter))
-			if taken, _ := appNameTaken(ctx, newName); !taken {
-				found = true
-				break
-			}
-		}
+
+		var found bool
+		appName, found = findUniqueAppName(appName)
 		if !found {
 			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
 		}
-		appName = newName
 	}
 	return appName, "derived from your directory name", nil
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
 	client := client.FromContext(ctx).API()
+	// TODO: I believe this will only check apps that are visible to you.
+	//       We should probably expose a global uniqueness check.
 	_, err := client.GetAppBasic(ctx, name)
 	if err != nil {
 		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
