@@ -118,21 +118,21 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				continue
 			}
 
-			initialSize := md.volumeInitialSize
-			if m.InitialSize != "" {
+			var initialSize int
+			switch {
+			case m.InitialSize != "":
 				// Ignore the error because invalid values are caught at config validation time
 				initialSize, _ = helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
-			} else if initialSize == DefaultVolumeInitialSizeGB {
-				switch {
-				case initialSize != DefaultVolumeInitialSizeGB:
-					// keep it that way
-				case guest == nil:
-					// keep it that way
-				case guest.GPUKind != "":
-					initialSize = DefaultGPUVolumeInitialSizeGB
-				case guest.CPUKind != "shared" || guest.CPUs != 1:
-					initialSize = DefaultNonFreeVolumeInitialSizeGB
-				}
+			case md.volumeInitialSize > 0:
+				initialSize = md.volumeInitialSize
+			case guest == nil:
+				initialSize = DefaultVolumeInitialSizeGB
+			case guest.GPUKind != "":
+				initialSize = DefaultGPUVolumeInitialSizeGB
+			case guest.CPUKind != "shared" || guest.CPUs != 1:
+				initialSize = DefaultNonFreeVolumeInitialSizeGB
+			default:
+				initialSize = DefaultVolumeInitialSizeGB
 			}
 
 			fmt.Fprintf(
