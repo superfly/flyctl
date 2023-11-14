@@ -360,6 +360,7 @@ func (mg *MachineGuest) SetSize(size string) error {
 	mg.CPUs = guest.CPUs
 	mg.CPUKind = guest.CPUKind
 	mg.MemoryMB = guest.MemoryMB
+	mg.GPUKind = guest.GPUKind
 	return nil
 }
 
