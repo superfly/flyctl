@@ -63,6 +63,7 @@ var commonPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
 	startMetrics,
+	preparers.SetOtelAuthenticationKey,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
