@@ -236,6 +236,28 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 	}, cfg)
 }
 
+func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
+	const path = "./testdata/format-quirks.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	// Nullify cfg.RawDefinition because Compute section is apps v2 only
+	cfg.RawDefinition = nil
+
+	assert.Equal(t, &Config{
+		configFilePath:   "./testdata/format-quirks.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
+		Compute: []*Compute{{
+			Memory: "2",
+		}},
+		Mounts: []Mount{{
+			Source:      "data",
+			Destination: "/data",
+			InitialSize: "3",
+		}},
+	}, cfg)
+}
+
 func TestLoadTOMLAppConfigEnvList(t *testing.T) {
 	const path = "./testdata/env-list.toml"
 	cfg, err := LoadConfig(path)
