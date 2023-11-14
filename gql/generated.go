@@ -1513,6 +1513,8 @@ type GetAddOnAddOn struct {
 	SsoLink string `json:"ssoLink"`
 	// Organization that owns this service
 	Organization GetAddOnAddOnOrganization `json:"organization"`
+	// The add-on provider
+	AddOnProvider GetAddOnAddOnAddOnProvider `json:"addOnProvider"`
 	// An app associated with this add-on
 	App GetAddOnAddOnApp `json:"app"`
 	// The add-on plan
@@ -1545,6 +1547,9 @@ func (v *GetAddOnAddOn) GetSsoLink() string { return v.SsoLink }
 
 // GetOrganization returns GetAddOnAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOrganization() GetAddOnAddOnOrganization { return v.Organization }
+
+// GetAddOnProvider returns GetAddOnAddOn.AddOnProvider, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetAddOnProvider() GetAddOnAddOnAddOnProvider { return v.AddOnProvider }
 
 // GetApp returns GetAddOnAddOn.App, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetApp() GetAddOnAddOnApp { return v.App }
@@ -1605,6 +1610,8 @@ type __premarshalGetAddOnAddOn struct {
 
 	Organization GetAddOnAddOnOrganization `json:"organization"`
 
+	AddOnProvider GetAddOnAddOnAddOnProvider `json:"addOnProvider"`
+
 	App GetAddOnAddOnApp `json:"app"`
 
 	AddOnPlan GetAddOnAddOnAddOnPlan `json:"addOnPlan"`
@@ -1636,6 +1643,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.Options = v.Options
 	retval.SsoLink = v.SsoLink
 	retval.Organization = v.Organization
+	retval.AddOnProvider = v.AddOnProvider
 	retval.App = v.App
 	retval.AddOnPlan = v.AddOnPlan
 	retval.Id = v.AddOnData.Id
@@ -1659,6 +1667,176 @@ func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
 
 // GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
+
+// GetAddOnAddOnAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
+type GetAddOnAddOnAddOnProvider struct {
+	ExtensionProviderData `json:"-"`
+}
+
+// GetId returns GetAddOnAddOnAddOnProvider.Id, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetId() string { return v.ExtensionProviderData.Id }
+
+// GetName returns GetAddOnAddOnAddOnProvider.Name, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetName() string { return v.ExtensionProviderData.Name }
+
+// GetDisplayName returns GetAddOnAddOnAddOnProvider.DisplayName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetDisplayName() string {
+	return v.ExtensionProviderData.DisplayName
+}
+
+// GetTosUrl returns GetAddOnAddOnAddOnProvider.TosUrl, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetTosUrl() string { return v.ExtensionProviderData.TosUrl }
+
+// GetAsyncProvisioning returns GetAddOnAddOnAddOnProvider.AsyncProvisioning, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetAsyncProvisioning() bool {
+	return v.ExtensionProviderData.AsyncProvisioning
+}
+
+// GetAutoProvision returns GetAddOnAddOnAddOnProvider.AutoProvision, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetAutoProvision() bool {
+	return v.ExtensionProviderData.AutoProvision
+}
+
+// GetSelectName returns GetAddOnAddOnAddOnProvider.SelectName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetSelectName() bool { return v.ExtensionProviderData.SelectName }
+
+// GetSelectRegion returns GetAddOnAddOnAddOnProvider.SelectRegion, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetSelectRegion() bool {
+	return v.ExtensionProviderData.SelectRegion
+}
+
+// GetSelectReplicaRegions returns GetAddOnAddOnAddOnProvider.SelectReplicaRegions, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetSelectReplicaRegions() bool {
+	return v.ExtensionProviderData.SelectReplicaRegions
+}
+
+// GetDetectPlatform returns GetAddOnAddOnAddOnProvider.DetectPlatform, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetDetectPlatform() bool {
+	return v.ExtensionProviderData.DetectPlatform
+}
+
+// GetResourceName returns GetAddOnAddOnAddOnProvider.ResourceName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetResourceName() string {
+	return v.ExtensionProviderData.ResourceName
+}
+
+// GetNameSuffix returns GetAddOnAddOnAddOnProvider.NameSuffix, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetNameSuffix() string {
+	return v.ExtensionProviderData.NameSuffix
+}
+
+// GetBeta returns GetAddOnAddOnAddOnProvider.Beta, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetBeta() bool { return v.ExtensionProviderData.Beta }
+
+// GetTosAgreement returns GetAddOnAddOnAddOnProvider.TosAgreement, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetTosAgreement() string {
+	return v.ExtensionProviderData.TosAgreement
+}
+
+// GetInternal returns GetAddOnAddOnAddOnProvider.Internal, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetInternal() bool { return v.ExtensionProviderData.Internal }
+
+// GetProvisioningInstructions returns GetAddOnAddOnAddOnProvider.ProvisioningInstructions, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetProvisioningInstructions() string {
+	return v.ExtensionProviderData.ProvisioningInstructions
+}
+
+// GetExcludedRegions returns GetAddOnAddOnAddOnProvider.ExcludedRegions, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetExcludedRegions() []ExtensionProviderDataExcludedRegionsRegion {
+	return v.ExtensionProviderData.ExcludedRegions
+}
+
+func (v *GetAddOnAddOnAddOnProvider) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetAddOnAddOnAddOnProvider
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetAddOnAddOnAddOnProvider = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.ExtensionProviderData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetAddOnAddOnAddOnProvider struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	DisplayName string `json:"displayName"`
+
+	TosUrl string `json:"tosUrl"`
+
+	AsyncProvisioning bool `json:"asyncProvisioning"`
+
+	AutoProvision bool `json:"autoProvision"`
+
+	SelectName bool `json:"selectName"`
+
+	SelectRegion bool `json:"selectRegion"`
+
+	SelectReplicaRegions bool `json:"selectReplicaRegions"`
+
+	DetectPlatform bool `json:"detectPlatform"`
+
+	ResourceName string `json:"resourceName"`
+
+	NameSuffix string `json:"nameSuffix"`
+
+	Beta bool `json:"beta"`
+
+	TosAgreement string `json:"tosAgreement"`
+
+	Internal bool `json:"internal"`
+
+	ProvisioningInstructions string `json:"provisioningInstructions"`
+
+	ExcludedRegions []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
+}
+
+func (v *GetAddOnAddOnAddOnProvider) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetAddOnAddOnAddOnProvider) __premarshalJSON() (*__premarshalGetAddOnAddOnAddOnProvider, error) {
+	var retval __premarshalGetAddOnAddOnAddOnProvider
+
+	retval.Id = v.ExtensionProviderData.Id
+	retval.Name = v.ExtensionProviderData.Name
+	retval.DisplayName = v.ExtensionProviderData.DisplayName
+	retval.TosUrl = v.ExtensionProviderData.TosUrl
+	retval.AsyncProvisioning = v.ExtensionProviderData.AsyncProvisioning
+	retval.AutoProvision = v.ExtensionProviderData.AutoProvision
+	retval.SelectName = v.ExtensionProviderData.SelectName
+	retval.SelectRegion = v.ExtensionProviderData.SelectRegion
+	retval.SelectReplicaRegions = v.ExtensionProviderData.SelectReplicaRegions
+	retval.DetectPlatform = v.ExtensionProviderData.DetectPlatform
+	retval.ResourceName = v.ExtensionProviderData.ResourceName
+	retval.NameSuffix = v.ExtensionProviderData.NameSuffix
+	retval.Beta = v.ExtensionProviderData.Beta
+	retval.TosAgreement = v.ExtensionProviderData.TosAgreement
+	retval.Internal = v.ExtensionProviderData.Internal
+	retval.ProvisioningInstructions = v.ExtensionProviderData.ProvisioningInstructions
+	retval.ExcludedRegions = v.ExtensionProviderData.ExcludedRegions
+	return &retval, nil
+}
 
 // GetAddOnAddOnApp includes the requested fields of the GraphQL type App.
 type GetAddOnAddOnApp struct {
@@ -4209,6 +4387,9 @@ query GetAddOn ($name: String) {
 			slug
 			paidPlan
 		}
+		addOnProvider {
+			... ExtensionProviderData
+		}
 		app {
 			... AppData
 		}
@@ -4225,6 +4406,27 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+}
+fragment ExtensionProviderData on AddOnProvider {
+	id
+	name
+	displayName
+	tosUrl
+	asyncProvisioning
+	autoProvision
+	selectName
+	selectRegion
+	selectReplicaRegions
+	detectPlatform
+	resourceName
+	nameSuffix
+	beta
+	tosAgreement
+	internal
+	provisioningInstructions
+	excludedRegions {
+		code
+	}
 }
 fragment AppData on App {
 	id

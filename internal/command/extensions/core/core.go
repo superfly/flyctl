@@ -231,7 +231,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 		return nil
 	}
 
-	fmt.Fprint(out, provider.TosAgreement+"\n\n")
+	fmt.Fprint(out, "\n"+provider.TosAgreement+"\n\n")
 	// Prompt the user to agree to the provider ToS
 	confirmTos, err := prompt.Confirm(ctx, "Do you agree?")
 
@@ -242,7 +242,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 	if confirmTos {
 		_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
 	} else {
-		return fmt.Errorf("%s provisioning stopped.", provider.DisplayName)
+		return errors.New("You must agree to continue.")
 	}
 
 	return err
@@ -302,12 +302,26 @@ func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData)
 	return
 }
 
-func OpenOrgDashboard(ctx context.Context, orgSlug string, provider string) (err error) {
+func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) (err error) {
 	var (
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
-	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, provider)
+	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
+
+	if err != nil {
+		return
+	}
+
+	provider := resp.AddOnProvider.ExtensionProviderData
+
+	err = AgreeToProviderTos(ctx, provider)
+
+	if err != nil {
+		return err
+	}
+
+	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, providerName)
 
 	if err != nil {
 		return err
@@ -335,6 +349,12 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 	)
 
 	result, err := gql.GetAddOn(ctx, client, extensionName)
+
+	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
+
+	if err != nil {
+		return err
+	}
 
 	if err != nil {
 		return err

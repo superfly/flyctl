@@ -13,6 +13,9 @@ query GetAddOn($name: String) {
 			slug
 			paidPlan
 		}
+		addOnProvider {
+			...ExtensionProviderData
+		}
 		app {
 			...AppData
 		}
