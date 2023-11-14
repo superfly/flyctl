@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/command/launch/legacy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -242,7 +243,11 @@ func warnLegacyBehavior(ctx context.Context) error {
 	// TODO(Allison): We probably want to support re-configuring an existing app, but
 	// that is different from the launch-into behavior of reuse-app, which basically just deployed.
 	if flag.IsSpecified(ctx, "reuse-app") {
-		return errors.New("the --reuse-app flag is no longer supported. you are likely looking for 'fly deploy'")
+
+		return flyerr.GenericErr{
+			Err:     "the --reuse-app flag is no longer supported. you are likely looking for 'fly deploy'",
+			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
+		}
 	}
 	return nil
 }
