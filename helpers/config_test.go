@@ -2,7 +2,7 @@ package helpers
 
 import (
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,7 +39,7 @@ func TestGetConfigDirectoryDefault(t *testing.T) {
 	homeDir, err := os.UserHomeDir()
 	assert.NoError(t, err)
 
-	assert.Equal(t, path.Join(homeDir, ".fly"), value)
+	assert.Equal(t, filepath.Join(homeDir, ".fly"), value)
 
 	if previousEnv != "" {
 		os.Setenv("FLY_CONFIG_DIR", previousEnv)
