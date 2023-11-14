@@ -305,6 +305,7 @@ type AddOnProvider {
   displayName: String
   excludedRegions: [Region!]
   id: ID!
+  internal: Boolean!
   name: String
   nameSuffix: String
   provisioningInstructions: String

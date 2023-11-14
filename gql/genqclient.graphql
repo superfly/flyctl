@@ -216,6 +216,7 @@ fragment ExtensionProviderData on AddOnProvider {
 	nameSuffix
 	beta
 	tosAgreement
+	internal
 	provisioningInstructions
 	excludedRegions {
 		code

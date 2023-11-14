@@ -48,6 +48,13 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
+	// Ensure users have agreed to the provider terms of service
+	err = AgreeToProviderTos(ctx, provider)
+
+	if err != nil {
+		return extension, err
+	}
+
 	if params.AppName != "" {
 		appResponse, err := gql.GetAppWithAddons(ctx, client, params.AppName, gql.AddOnType(params.Provider))
 		if err != nil {
@@ -71,13 +78,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		}
 
 		targetOrg = resp.Organization.OrganizationData
-	}
-
-	// Ensure users have agreed to the provider terms of service
-	err = AgreeToProviderTos(ctx, provider)
-
-	if err != nil {
-		return extension, err
 	}
 
 	var name string
@@ -213,9 +213,10 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
 	client := client.FromContext(ctx).API().GenqClient
+	out := iostreams.FromContext(ctx).Out
 
 	// Internal providers like kubernetes don't need ToS agreement
-	if provider.TosAgreement == "" {
+	if provider.Internal {
 		return nil
 	}
 
@@ -230,8 +231,9 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 		return nil
 	}
 
+	fmt.Fprint(out, provider.TosAgreement+"\n\n")
 	// Prompt the user to agree to the provider ToS
-	confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To provision %s %ss, you must agree on behalf of your organization to the %s Terms Of Service at %s. Do you agree?", provider.DisplayName, provider.ResourceName, provider.DisplayName, provider.TosUrl))
+	confirmTos, err := prompt.Confirm(ctx, "Do you agree?")
 
 	if err != nil {
 		return err
