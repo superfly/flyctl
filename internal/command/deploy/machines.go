@@ -202,6 +202,9 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		volumeInitialSize:      args.VolumeInitialSize,
 		processGroups:          args.ProcessGroups,
 	}
+	if err := md.checkForDownWorkers(ctx); err != nil {
+		return nil, err
+	}
 	if err := md.setStrategy(); err != nil {
 		return nil, err
 	}
@@ -231,6 +234,22 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		return nil, err
 	}
 	return md, nil
+}
+
+func (md *machineDeployment) checkForDownWorkers(ctx context.Context) error {
+	machines, err := md.flapsClient.List(ctx, "")
+	if err != nil {
+		return err
+	}
+	// If a flyd is down/unreachable, machines will have a creation date in 1970
+	// due to flaps resetting it in corrosion. This is obviously not possible,
+	// so surface it as an error.
+	for _, m := range machines {
+		if strings.HasPrefix(m.CreatedAt, "1970") {
+			return fmt.Errorf("worker for %s is down, please try your deploy again later.", m.ID)
+		}
+	}
+	return nil
 }
 
 func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
