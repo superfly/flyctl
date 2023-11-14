@@ -1,0 +1,9 @@
+app = "foo"
+
+[compute]
+memory = 512
+
+[mount]
+source = "data"
+destination = "/data"
+initial_size = 200
