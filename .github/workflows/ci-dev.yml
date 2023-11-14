@@ -47,7 +47,7 @@ jobs:
           echo "### Release Info :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "Version: ${{ steps.version.outputs.next }}" >> $GITHUB_STEP_SUMMARY
       - name: Create tag
-        uses: actions/github-script@v6
+        uses: actions/github-script@v7
         env:
           TAG_NAME: v${{ steps.version.outputs.next }}
         with:
