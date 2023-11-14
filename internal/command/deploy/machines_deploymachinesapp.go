@@ -111,9 +111,8 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	groupsInConfig := md.ProcessNames()
 	total := len(groupsInConfig)
 	sl := statuslogger.Create(ctx, total, true)
-	defer func() {
-		sl.Destroy(false)
-	}()
+	defer sl.Destroy(false)
+
 	for idx, name := range groupsInConfig {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
 		statuslogger.LogfStatus(ctx,
@@ -151,9 +150,8 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 	slices.Sort(groups)
 
 	sl := statuslogger.Create(ctx, total, true)
-	defer func() {
-		sl.Destroy(false)
-	}()
+	defer sl.Destroy(false)
+
 	for idx, name := range groups {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
 		statuslogger.LogStatus(ctx, statuslogger.StatusRunning, "Launching new machine")
@@ -349,6 +347,25 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	return nil
 }
 
+func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, updateEntries []*machineUpdateEntry) (err error) {
+	if len(updateEntries) == 0 {
+		return nil
+	}
+
+	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
+
+	switch md.strategy {
+	case "bluegreen":
+		return md.updateUsingBlueGreenStrategy(parentCtx, updateEntries)
+	case "immediate":
+		return md.updateUsingImmediateStrategy(parentCtx, updateEntries)
+	case "canary", "rolling":
+		fallthrough
+	default:
+		return md.updateUsingRollingStrategy(parentCtx, updateEntries)
+	}
+}
+
 func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	bg := BlueGreenStrategy(md, updateEntries)
 	if err := bg.Deploy(ctx); err != nil {
@@ -362,84 +379,70 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	return nil
 }
 
-func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, updateEntries []*machineUpdateEntry) (err error) {
-	if len(updateEntries) == 0 {
-		return nil
+func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Context, updateEntries []*machineUpdateEntry) error {
+	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
+	defer sl.Destroy(false)
+
+	updatesPool := pool.New().WithErrors().WithContext(parentCtx)
+	if md.immediateMaxConcurrent > 0 {
+		updatesPool = updatesPool.WithMaxGoroutines(md.immediateMaxConcurrent)
 	}
 
-	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
-
-	if md.strategy == "bluegreen" {
-		return md.updateUsingBlueGreenStrategy(parentCtx, updateEntries)
-	}
-
-	if md.strategy == "immediate" {
-		sl := statuslogger.Create(parentCtx, len(updateEntries), true)
-		defer func() {
-			sl.Destroy(false)
-		}()
-
-		updatesPool := pool.New().WithErrors().WithContext(parentCtx)
-		if md.immediateMaxConcurrent > 0 {
-			updatesPool = updatesPool.WithMaxGoroutines(md.immediateMaxConcurrent)
+	for i, e := range updateEntries {
+		e := e
+		eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
+		fmtID := e.leasableMachine.FormattedMachineId()
+		statusRunning := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusRunning,
+				"Updating %s",
+				md.colorize.Bold(fmtID),
+			)
 		}
-
-		for i, e := range updateEntries {
-			e := e
-			eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
-			fmtID := e.leasableMachine.FormattedMachineId()
-			statusRunning := func() {
+		statusFailure := func(err error) {
+			if errors.Is(err, context.Canceled) {
 				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusRunning,
-					"Updating %s",
-					md.colorize.Bold(fmtID),
-				)
-			}
-			statusFailure := func(err error) {
-				if errors.Is(err, context.Canceled) {
-					statuslogger.LogfStatus(eCtx,
-						statuslogger.StatusFailure,
-						"Machine %s update %s",
-						md.colorize.Bold(fmtID),
-						md.colorize.Red("canceled while it was in progress"),
-					)
-				} else {
-					statuslogger.LogfStatus(eCtx,
-						statuslogger.StatusFailure,
-						"Machine %s update %s: %s",
-						md.colorize.Bold(fmtID),
-						md.colorize.Red("failed"),
-						err.Error(),
-					)
-				}
-			}
-			statusSuccess := func() {
-				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusSuccess,
+					statuslogger.StatusFailure,
 					"Machine %s update %s",
 					md.colorize.Bold(fmtID),
-					md.colorize.Green("succeeded"),
+					md.colorize.Red("canceled while it was in progress"),
+				)
+			} else {
+				statuslogger.LogfStatus(eCtx,
+					statuslogger.StatusFailure,
+					"Machine %s update %s: %s",
+					md.colorize.Bold(fmtID),
+					md.colorize.Red("failed"),
+					err.Error(),
 				)
 			}
-
-			updatesPool.Go(func(_ context.Context) error {
-				statusRunning()
-				if err := md.updateMachine(eCtx, e); err != nil {
-					statusFailure(err)
-					return err
-				}
-				statusSuccess()
-				return nil
-			})
+		}
+		statusSuccess := func() {
+			statuslogger.LogfStatus(eCtx,
+				statuslogger.StatusSuccess,
+				"Machine %s update %s",
+				md.colorize.Bold(fmtID),
+				md.colorize.Green("succeeded"),
+			)
 		}
 
-		return updatesPool.Wait()
+		updatesPool.Go(func(_ context.Context) error {
+			statusRunning()
+			if err := md.updateMachine(eCtx, e); err != nil {
+				statusFailure(err)
+				return err
+			}
+			statusSuccess()
+			return nil
+		})
 	}
 
+	return updatesPool.Wait()
+}
+
+func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Context, updateEntries []*machineUpdateEntry) error {
 	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
-	defer func() {
-		sl.Destroy(false)
-	}()
+	defer sl.Destroy(false)
 
 	// Rolling strategy
 	slices.SortFunc(updateEntries, func(a, b *machineUpdateEntry) int {
