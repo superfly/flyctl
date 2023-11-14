@@ -53,7 +53,6 @@ var commonPreparers = []preparers.Preparer{
 	preparers.ApplyAliases,
 	determineHostname,
 	determineWorkingDir,
-	preparers.DetermineUserHomeDir,
 	preparers.DetermineConfigDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,

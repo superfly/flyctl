@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path"
-	"path/filepath"
 
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/api"
@@ -18,8 +17,19 @@ var configDir string
 
 // InitConfig - Initialises config file for Viper
 func InitConfig() {
-	if err := initConfigDir(); err != nil {
-		fmt.Println("Error accessing config directory at $HOME/.fly", err)
+	var dir string
+
+	dir, err := helpers.GetConfigDirectory()
+	if err != nil {
+		fmt.Println("Error accessing home directory", err)
+		return
+	}
+
+	if err = initConfigDir(dir); err != nil {
+		fmt.Println(
+			fmt.Sprintf("Error accessing config directory at %s", dir),
+			err,
+		)
 		return
 	}
 
@@ -36,14 +46,7 @@ func ConfigFilePath() string {
 	return path.Join(configDir, "config.yml")
 }
 
-func initConfigDir() error {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-
-	dir := filepath.Join(homeDir, ".fly")
-
+func initConfigDir(dir string) error {
 	if !helpers.DirectoryExists(dir) {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
