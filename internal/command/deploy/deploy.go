@@ -139,7 +139,7 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "volume-initial-size",
 		Description: "The initial size in GB for volumes created on first deploy",
-		Default:     1,
+		Default:     DefaultVolumeInitialSizeGB,
 	},
 	flag.VMSizeFlags,
 	flag.StringSlice{

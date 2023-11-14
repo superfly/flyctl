@@ -103,6 +103,15 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			return err
 		}
 
+		mConfig, err := md.appConfig.ToMachineConfig(groupName, nil)
+		if err != nil {
+			return err
+		}
+		guest := md.machineGuest
+		if mConfig.Guest != nil {
+			guest = mConfig.Guest
+		}
+
 		for _, m := range groupConfig.Mounts {
 			if v := existentVolumes[m.Source]; v > 0 {
 				existentVolumes[m.Source]--
@@ -113,6 +122,17 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			if m.InitialSize != "" {
 				// Ignore the error because invalid values are caught at config validation time
 				initialSize, _ = helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			} else if initialSize == DefaultVolumeInitialSizeGB {
+				switch {
+				case initialSize != DefaultVolumeInitialSizeGB:
+					// keep it that way
+				case guest == nil:
+					// keep it that way
+				case guest.GPUKind != "":
+					initialSize = DefaultGPUVolumeInitialSizeGB
+				case guest.CPUKind != "shared" || guest.CPUs != 1:
+					initialSize = DefaultNonFreeVolumeInitialSizeGB
+				}
 			}
 
 			fmt.Fprintf(
@@ -127,7 +147,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				Region:              groupConfig.PrimaryRegion,
 				SizeGb:              api.Pointer(initialSize),
 				Encrypted:           api.Pointer(true),
-				ComputeRequirements: md.machineGuest,
+				ComputeRequirements: guest,
 			}
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)

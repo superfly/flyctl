@@ -24,10 +24,13 @@ import (
 )
 
 const (
-	DefaultWaitTimeout           = 5 * time.Minute
-	DefaultReleaseCommandTimeout = 5 * time.Minute
-	DefaultLeaseTtl              = 13 * time.Second
-	DefaultMaxUnavailable        = 0.33
+	DefaultWaitTimeout                = 5 * time.Minute
+	DefaultReleaseCommandTimeout      = 5 * time.Minute
+	DefaultLeaseTtl                   = 13 * time.Second
+	DefaultMaxUnavailable             = 0.33
+	DefaultVolumeInitialSizeGB        = 1
+	DefaultGPUVolumeInitialSizeGB     = 100
+	DefaultNonFreeVolumeInitialSizeGB = 10
 )
 
 type MachineDeployment interface {
