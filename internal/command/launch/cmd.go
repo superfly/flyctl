@@ -76,7 +76,7 @@ func New() (cmd *cobra.Command) {
 		},
 		// legacy launch flags (deprecated)
 		flag.Bool{
-			Name:        "no-ui",
+			Name:        "legacy",
 			Description: "Use the legacy CLI interface (deprecated)",
 			Hidden:      true,
 		},
@@ -123,7 +123,7 @@ func run(ctx context.Context) (err error) {
 
 	// NOTE: We depend on legacy launcher behavior for Nomad support, which is needed for the MigrateToV2 tests
 	//       Once we rip out those tests, this can go with them.
-	if flag.GetBool(ctx, "no-ui") || flag.GetBool(ctx, "force-nomad") {
+	if flag.GetBool(ctx, "legacy") || flag.GetBool(ctx, "force-nomad") {
 		return legacy.Run(ctx)
 	}
 
