@@ -48,6 +48,13 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
+	// Ensure users have agreed to the provider terms of service
+	err = AgreeToProviderTos(ctx, provider)
+
+	if err != nil {
+		return extension, err
+	}
+
 	if params.AppName != "" {
 		appResponse, err := gql.GetAppWithAddons(ctx, client, params.AppName, gql.AddOnType(params.Provider))
 		if err != nil {
@@ -71,13 +78,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		}
 
 		targetOrg = resp.Organization.OrganizationData
-	}
-
-	// Ensure orgs have agreed to the provider terms of service
-	err = AgreeToProviderTos(ctx, provider, targetOrg)
-
-	if err != nil {
-		return extension, err
 	}
 
 	var name string
@@ -211,16 +211,17 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	return extension, nil
 }
 
-func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData, org gql.OrganizationData) error {
+func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
 	client := client.FromContext(ctx).API().GenqClient
+	out := iostreams.FromContext(ctx).Out
 
 	// Internal providers like kubernetes don't need ToS agreement
-	if provider.TosAgreement == "" {
+	if provider.Internal {
 		return nil
 	}
 
 	// Check if the provider ToS was agreed to already
-	agreed, err := AgreedToProviderTos(ctx, provider.Name, org.Id)
+	agreed, err := AgreedToProviderTos(ctx, provider.Name)
 
 	if err != nil {
 		return err
@@ -230,18 +231,16 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData,
 		return nil
 	}
 
+	fmt.Fprint(out, provider.TosAgreement+"\n\n")
 	// Prompt the user to agree to the provider ToS
-	confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To provision %s %ss, you must agree on behalf of your organization to the %s Terms Of Service at %s. Do you agree?", provider.DisplayName, provider.ResourceName, provider.DisplayName, provider.TosUrl))
+	confirmTos, err := prompt.Confirm(ctx, "Do you agree?")
 
 	if err != nil {
 		return err
 	}
 
 	if confirmTos {
-		_, err = gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
-			AddOnProviderName: provider.Name,
-			OrganizationId:    org.Id,
-		})
+		_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
 	} else {
 		return fmt.Errorf("%s provisioning stopped.", provider.DisplayName)
 	}
@@ -410,16 +409,15 @@ func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interf
 	return err
 }
 
-func AgreedToProviderTos(ctx context.Context, providerName string, orgId string) (bool, error) {
+func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error) {
 	client := client.FromContext(ctx).API().GenqClient
 
-	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName, orgId)
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName)
 
 	if err != nil {
 		return false, err
 	}
-
-	return tosResp.Organization.AgreedToProviderTos, nil
+	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
 }
 
 // Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py

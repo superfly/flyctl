@@ -75,15 +75,17 @@ mutation CreateApp($input: CreateAppInput!) {
 	}
 }
 
-mutation CreateTosAgreement($input: CreateExtensionTosAgreementInput!) {
-	createExtensionTosAgreement(input: $input) {
+mutation CreateTosAgreement($providerName: String!) {
+	createExtensionTosAgreement(input: {addOnProviderName: $providerName}) {
 		clientMutationId
 	}
 }
 
-query AgreedToProviderTos($addOnProviderName: String!, $organizationId: ID!) {
-	organization(id: $organizationId) {
-		agreedToProviderTos(providerName: $addOnProviderName)
+query AgreedToProviderTos($addOnProviderName: String!) {
+	viewer {
+		... on User {
+			agreedToProviderTos(providerName: $addOnProviderName)
+		}
 	}
 }
 
@@ -214,6 +216,7 @@ fragment ExtensionProviderData on AddOnProvider {
 	nameSuffix
 	beta
 	tosAgreement
+	internal
 	provisioningInstructions
 	excludedRegions {
 		code
