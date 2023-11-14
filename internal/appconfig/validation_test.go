@@ -15,9 +15,7 @@ import (
 func _getValidationContext(t *testing.T) context.Context {
 	ctx := logger.NewContext(context.Background(), logger.New(os.Stderr, logger.Info, false))
 	ctx = flag.NewContext(ctx, &pflag.FlagSet{})
-	ctx, err := preparers.DetermineUserHomeDir(ctx)
-	require.NoError(t, err)
-	ctx, err = preparers.DetermineConfigDir(ctx)
+	ctx, err := preparers.DetermineConfigDir(ctx)
 	require.NoError(t, err)
 	ctx, err = preparers.LoadConfig(ctx)
 	require.NoError(t, err)
