@@ -5,6 +5,6 @@ app = ""
 woo = ""
 bar = ""
 
-[[compute]]
+[[vm]]
 size = "performance-4x"
 processes = ["bar"]

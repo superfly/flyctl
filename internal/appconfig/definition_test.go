@@ -169,7 +169,7 @@ func TestToDefinition(t *testing.T) {
 		"swap_size_mb":       int64(512),
 		"console_command":    "/bin/bash",
 		"host_dedication_id": "06031957",
-		"compute": []map[string]any{
+		"vm": []map[string]any{
 			{
 				"size":               "shared-cpu-1x",
 				"memory":             "8gb",

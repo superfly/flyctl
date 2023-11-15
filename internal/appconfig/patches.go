@@ -224,7 +224,7 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 
 func patchCompute(cfg map[string]any) (map[string]any, error) {
 	var compute []map[string]any
-	for _, k := range []string{"compute", "computes"} {
+	for _, k := range []string{"compute", "computes", "vm"} {
 		if raw, ok := cfg[k]; ok {
 			cast, err := ensureArrayOfMap(raw)
 			if err != nil {
@@ -239,7 +239,7 @@ func patchCompute(cfg map[string]any) (map[string]any, error) {
 			compute[idx]["memory"] = castToString(v)
 		}
 	}
-	cfg["compute"] = compute
+	cfg["vm"] = compute
 	return cfg, nil
 }
 
