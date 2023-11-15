@@ -23,6 +23,7 @@ func create() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		extensions_core.SharedFlags,
 	)
 	return cmd
 }

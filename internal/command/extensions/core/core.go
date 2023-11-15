@@ -32,6 +32,11 @@ type ExtensionParams struct {
 	Options      map[string]interface{}
 }
 
+// Common flags that should be used for all extension commands
+var SharedFlags = flag.Set{
+	flag.Yes(),
+}
+
 func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
@@ -232,18 +237,26 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 	}
 
 	fmt.Fprint(out, "\n"+provider.TosAgreement+"\n\n")
-	// Prompt the user to agree to the provider ToS
-	confirmTos, err := prompt.Confirm(ctx, "Do you agree?")
 
-	if err != nil {
-		return err
-	}
-
-	if confirmTos {
-		_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
+	// Prompt the user to agree to the provider ToS, or display the ToS agreement copy
+	// for non-interactive sessions
+	if !flag.GetYes(ctx) {
+		switch confirmTos, err := prompt.Confirm(ctx, "Do you agree?"); {
+		case err == nil:
+			if !confirmTos {
+				return errors.New("You must agree to continue.")
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("To agree, the --yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
 	} else {
-		return errors.New("You must agree to continue.")
+		fmt.Fprintln(out, "By specifying the --yes flag, you have agreed to the terms displayed above.")
+		return nil
 	}
+
+	_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
 
 	return err
 }
