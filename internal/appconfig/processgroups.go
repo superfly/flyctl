@@ -167,13 +167,13 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		dst.Metrics[i].Processes = []string{groupName}
 	}
 
-	// [[compute]]
-	// Find the most specific compute for this process group
+	// [[vm]]
+	// Find the most specific VM compute requirements for this process group
 	// In reality there are only four valid cases:
-	//   1. No [[compute]] section
-	//   2. One [[compute]] section with `processes = [groupname]`
+	//   1. No [[vm]] section
+	//   2. One [[vm]] section with `processes = [groupname]`
 	//   3. Previous case plus global [[compute]] without processes
-	//   4. Only a [[compute]] section without processes set which applies to all groups
+	//   4. Only a [[vm]] section without processes set which applies to all groups
 	compute := lo.MaxBy(
 		// grab only the compute that matches or have no processes set
 		lo.Filter(dst.Compute, func(x *Compute, _ int) bool {
