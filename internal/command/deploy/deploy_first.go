@@ -125,12 +125,8 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				initialSize, _ = helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
 			case md.volumeInitialSize > 0:
 				initialSize = md.volumeInitialSize
-			case guest == nil:
-				initialSize = DefaultVolumeInitialSizeGB
-			case guest.GPUKind != "":
+			case guest != nil && guest.GPUKind != "":
 				initialSize = DefaultGPUVolumeInitialSizeGB
-			case guest.CPUKind != "shared" || guest.CPUs != 1:
-				initialSize = DefaultNonFreeVolumeInitialSizeGB
 			default:
 				initialSize = DefaultVolumeInitialSizeGB
 			}
