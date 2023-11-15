@@ -363,11 +363,11 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 
 	result, err := gql.GetAddOn(ctx, client, extensionName)
 
-	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
-
 	if err != nil {
 		return err
 	}
+
+	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
 
 	if err != nil {
 		return err
