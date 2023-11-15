@@ -160,16 +160,12 @@ func runCertificatesShow(ctx context.Context) error {
 		return err
 	}
 
+	printCertificate(ctx, cert)
+
 	if cert.ClientStatus == "Ready" {
-		if !flag.GetBool(ctx, "json") {
-			fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
-		}
-		printCertificate(ctx, cert)
 		return nil
 	}
-
-	fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
-	printCertificate(ctx, cert)
+	
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
 
@@ -185,14 +181,11 @@ func runCertificatesCheck(ctx context.Context) error {
 		return err
 	}
 
+	printCertificate(ctx, cert)
+	
 	if cert.ClientStatus == "Ready" {
-		// A certificate has been issued
-		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
-		printCertificate(ctx, cert)
 		return nil
 	}
-
-	fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
 
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
@@ -394,6 +387,12 @@ func printCertificate(ctx context.Context, cert *api.AppCertificate) {
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, cert)
 		return
+	}
+
+	if cert.ClientStatus == "Ready" {
+		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
+	} else {
+		fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
 	}
 
 	myprnt := func(label string, value string) {
