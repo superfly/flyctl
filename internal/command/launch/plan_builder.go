@@ -409,16 +409,20 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	//  If this fails, return a recoverable error.
 
 	appName := flag.GetString(ctx, "name")
+	cause := "specified on the command line"
 	if !flag.GetBool(ctx, "generate-name") && appName == "" {
 		appName = appConfig.AppName
+		cause = "from your fly.toml"
 	}
 	if appName == "" {
 		appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
+		cause = "derived from your directory name"
 	}
 	if appName == "" {
 
 		var found bool
 		appName, found = findUniqueAppName("")
+		cause = "generated"
 
 		if !found {
 			return "", recoverableSpecifyInUi, recoverableInUiError{flyerr.GenericErr{
@@ -439,7 +443,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
 		}
 	}
-	return appName, "derived from your directory name", nil
+	return appName, cause, nil
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
