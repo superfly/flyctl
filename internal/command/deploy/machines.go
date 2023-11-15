@@ -24,10 +24,13 @@ import (
 )
 
 const (
-	DefaultWaitTimeout           = 5 * time.Minute
-	DefaultReleaseCommandTimeout = 5 * time.Minute
-	DefaultLeaseTtl              = 13 * time.Second
-	DefaultMaxUnavailable        = 0.33
+	DefaultWaitTimeout                = 5 * time.Minute
+	DefaultReleaseCommandTimeout      = 5 * time.Minute
+	DefaultLeaseTtl                   = 13 * time.Second
+	DefaultMaxUnavailable             = 0.33
+	DefaultVolumeInitialSizeGB        = 1
+	DefaultGPUVolumeInitialSizeGB     = 100
+	DefaultNonFreeVolumeInitialSizeGB = 10
 )
 
 type MachineDeployment interface {
@@ -172,10 +175,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if immedateMaxConcurrent < 1 {
 		immedateMaxConcurrent = 1
 	}
-	volumeInitialSize := 1
-	if args.VolumeInitialSize > 0 {
-		volumeInitialSize = args.VolumeInitialSize
-	}
 
 	md := &machineDeployment{
 		apiClient:              apiClient,
@@ -200,7 +199,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		excludeRegions:         args.ExcludeRegions,
 		onlyRegions:            args.OnlyRegions,
 		immediateMaxConcurrent: immedateMaxConcurrent,
-		volumeInitialSize:      volumeInitialSize,
+		volumeInitialSize:      args.VolumeInitialSize,
 		processGroups:          args.ProcessGroups,
 	}
 	if err := md.setStrategy(); err != nil {

@@ -1,18 +1,19 @@
 package agent
 
 import (
-	"os"
 	"path/filepath"
+
+	"github.com/superfly/flyctl/helpers"
 )
 
 // TODO: deprecate
 func PathToSocket() string {
-	dir, err := os.UserHomeDir()
+	dir, err := helpers.GetConfigDirectory()
 	if err != nil {
 		panic(err)
 	}
 
-	return filepath.Join(dir, ".fly", "fly-agent.sock")
+	return filepath.Join(dir, "fly-agent.sock")
 }
 
 type Instances struct {
