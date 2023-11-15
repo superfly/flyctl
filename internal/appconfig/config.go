@@ -62,7 +62,7 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
-	Compute []*Compute `toml:"compute,omitempty" json:"compute,omitempty"`
+	Compute []*Compute `toml:"vm,omitempty" json:"vm,omitempty"`
 
 	// Others, less important.
 	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`

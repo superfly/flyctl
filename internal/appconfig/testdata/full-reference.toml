@@ -109,7 +109,7 @@ host_dedication_id = "06031957"
   initial_size = "30gb"
   destination = "/data"
 
-[[compute]]
+[[vm]]
   size = "shared-cpu-1x"
   cpu_kind = "performance"
   cpus = 8

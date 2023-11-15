@@ -6,10 +6,10 @@ front = ""
 back = ""
 other = ""
 
-[[compute]]
+[[vm]]
 size = "shared-cpu-4x"
 processes = ["other"]
 
-[[compute]]
+[[vm]]
 host_dedication_id = "specific"
 processes = ["back"]
