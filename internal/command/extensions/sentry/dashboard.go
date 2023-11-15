@@ -24,6 +24,7 @@ func Dashboard() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		extensions_core.SharedFlags,
 	)
 	cmd.Aliases = []string{"errors"}
 	cmd.Args = cobra.NoArgs
