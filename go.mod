@@ -12,7 +12,7 @@ require (
 	github.com/azazeal/pause v1.3.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.23.0
-	github.com/buildpacks/pack v0.32.0
+	github.com/buildpacks/pack v0.32.1
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/chzyer/readline v1.5.1
