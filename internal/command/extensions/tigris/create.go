@@ -25,6 +25,8 @@ func create() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Org(),
+		extensions_core.SharedFlags,
+
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
