@@ -355,7 +355,7 @@ func sanitizeAppName(dirName string) string {
 	lastIsUnderscore := false
 
 	for _, c := range dirName {
-		if c <= unicode.MaxASCII {
+		if c >= unicode.MaxASCII {
 			continue
 		}
 		if !unicode.IsLetter(c) && !unicode.IsNumber(c) {
