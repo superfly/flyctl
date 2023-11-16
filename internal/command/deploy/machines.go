@@ -367,26 +367,10 @@ func (md *machineDeployment) validateVolumeConfig() error {
 		case true:
 			// For groups with machines, check the attached volumes match expected mounts
 			var mntSrc, mntDst string
-			var extendThresholdPercent, addSizeGb, sizeGbLimit int
 			if len(groupConfig.Mounts) > 0 {
 				mntSrc = groupConfig.Mounts[0].Source
 				mntDst = groupConfig.Mounts[0].Destination
 
-				extendThresholdPercent = groupConfig.Mounts[0].ExtendThresholdPercent
-				addSizeGb = groupConfig.Mounts[0].AddSizeGb
-				sizeGbLimit = groupConfig.Mounts[0].SizeGbLimit
-				switch {
-				case extendThresholdPercent == 0 && addSizeGb == 0 && sizeGbLimit == 0:
-					// not using this feature
-				case extendThresholdPercent != 0 && addSizeGb == 0 && sizeGbLimit == 0:
-					return fmt.Errorf("mounts extend_threshold_percent, add_size_gb and size_gb_limit must be all defined or none")
-				case extendThresholdPercent < 50, extendThresholdPercent > 99:
-					return fmt.Errorf("mounts extend_threshold_percent must be between 50 and 99")
-				case addSizeGb < 1, addSizeGb > 100:
-					return fmt.Errorf("mounts add_size_gb must be between 1 and 100")
-				case sizeGbLimit != 0 && (sizeGbLimit < 1 || sizeGbLimit > 500):
-					return fmt.Errorf("mounts size_gb_limit must be between 1 and 500")
-				}
 			}
 
 			needsVol := map[string][]string{}

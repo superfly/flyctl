@@ -101,6 +101,7 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		cfg.validateProcessesSection,
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
+		cfg.validateMounts,
 	}
 
 	for _, vFunc := range validators {
@@ -305,5 +306,31 @@ func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
 		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", cfg.ConsoleCommand)
 		err = ValidationError
 	}
+	return
+}
+
+func (cfg *Config) validateMounts() (extraInfo string, err error) {
+	for _, mount := range cfg.Mounts {
+		extendThresholdPercent := mount.ExtendThresholdPercent
+		addSizeGb := mount.AddSizeGb
+		sizeGbLimit := mount.SizeGbLimit
+		switch {
+		case extendThresholdPercent == 0 && addSizeGb == 0 && sizeGbLimit == 0:
+			// not using this feature
+		case extendThresholdPercent != 0 && addSizeGb == 0 && sizeGbLimit == 0:
+			extraInfo += "mounts extend_threshold_percent, add_size_gb and size_gb_limit must be all defined or none"
+			err = ValidationError
+		case extendThresholdPercent < 50, extendThresholdPercent > 99:
+			extraInfo += "mounts extend_threshold_percent must be between 50 and 99"
+			err = ValidationError
+		case addSizeGb < 1, addSizeGb > 100:
+			extraInfo += "mounts add_size_gb must be between 1 and 100"
+			err = ValidationError
+		case sizeGbLimit != 0 && (sizeGbLimit < 1 || sizeGbLimit > 500):
+			extraInfo += "mounts size_gb_limit must be between 1 and 500"
+			err = ValidationError
+		}
+	}
+
 	return
 }
