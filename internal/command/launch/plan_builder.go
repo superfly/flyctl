@@ -400,7 +400,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	//
 	// Get initial name:
 	//  1. If we've specified --name, use that name.
-	//  2. If we've specified --generate-name, generate a unique name (meaning, jump over step 3)
+	//  2. If we've specified --generate-name, generate a unique name (meaning: jump to step 5)
 	//  3. If we've provided an existing config file, use the app name from that.
 	//  4. Use the directory name.
 	//  5. If none of those sanitize into valid app names, generate one with Haikunator.
@@ -410,13 +410,17 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 
 	appName := flag.GetString(ctx, "name")
 	cause := "specified on the command line"
-	if !flag.GetBool(ctx, "generate-name") && appName == "" {
-		appName = appConfig.AppName
-		cause = "from your fly.toml"
-	}
-	if appName == "" {
-		appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
-		cause = "derived from your directory name"
+
+	if !flag.GetBool(ctx, "generate-name") {
+		// --generate-name wasn't specified, so we try to get a name from the config file or directory name.
+		if appName == "" {
+			appName = appConfig.AppName
+			cause = "from your fly.toml"
+		}
+		if appName == "" {
+			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
+			cause = "derived from your directory name"
+		}
 	}
 	if appName == "" {
 
