@@ -331,9 +331,9 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 		}
 
 		var extendSizeIncrement, extendSizeLimit int
-
+		var vErr error
 		if m.ExtendSizeIncrement != "" {
-			extendSizeIncrement, vErr := helpers.ParseSize(m.ExtendSizeIncrement, units.FromHumanSize, units.GB)
+			extendSizeIncrement, vErr = helpers.ParseSize(m.ExtendSizeIncrement, units.FromHumanSize, units.GB)
 			switch {
 			case vErr != nil:
 				extraInfo += fmt.Sprintf("mount '%s' with extend_size_increment '%s' will fail because of: %s\n", m.Source, m.ExtendSizeIncrement, vErr)
@@ -344,7 +344,7 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 		if m.ExtendSizeLimit != "" {
-			extendSizeLimit, vErr := helpers.ParseSize(m.ExtendSizeLimit, units.FromHumanSize, units.GB)
+			extendSizeLimit, vErr = helpers.ParseSize(m.ExtendSizeLimit, units.FromHumanSize, units.GB)
 			switch {
 			case vErr != nil:
 				extraInfo += fmt.Sprintf("mount '%s' with extend_size_limit '%s' will fail because of: %s\n", m.Source, m.ExtendSizeLimit, vErr)
@@ -365,11 +365,11 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 				err = ValidationError
 			}
 			if extendSizeIncrement < 1 || extendSizeIncrement > 100 {
-				extraInfo += fmt.Sprintf("mount '%s' extend_size_increment must be between 1 and 100\n", m.Source)
+				extraInfo += fmt.Sprintf("mount '%s' extend_size_increment must be between 1GB and 100GB\n", m.Source)
 				err = ValidationError
 			}
 			if extendSizeLimit != 0 && (extendSizeLimit < 1 || extendSizeLimit > 500) {
-				extraInfo += fmt.Sprintf("mount '%s' extend_size_limit must be between 1 and 500\n", m.Source)
+				extraInfo += fmt.Sprintf("mount '%s' extend_size_limit must be between 1GB and 500GB\n", m.Source)
 				err = ValidationError
 			}
 		}
