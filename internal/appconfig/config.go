@@ -132,13 +132,13 @@ type Static struct {
 }
 
 type Mount struct {
-	Source                 string   `toml:"source,omitempty" json:"source,omitempty"`
-	Destination            string   `toml:"destination,omitempty" json:"destination,omitempty"`
-	InitialSize            string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
-	Processes              []string `toml:"processes,omitempty" json:"processes,omitempty"`
-	ExtendThresholdPercent int      `toml:"extend_threshold_percent,omitempty" json:"extend_threshold_percent,omitempty"`
-	AddSizeGb              int      `toml:"add_size_gb,omitempty" json:"add_size_gb,omitempty"`
-	SizeGbLimit            int      `toml:"size_gb_limit,omitempty" json:"size_gb_limit,omitempty"`
+	Source              string   `toml:"source,omitempty" json:"source,omitempty"`
+	Destination         string   `toml:"destination,omitempty" json:"destination,omitempty"`
+	InitialSize         string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
+	Processes           []string `toml:"processes,omitempty" json:"processes,omitempty"`
+	ExtendSizeThreshold int      `toml:"extend_size_threshold,omitempty" json:"extend_size_threshold,omitempty"`
+	ExtendSizeIncrement string   `toml:"extend_size_increment,omitempty" json:"extend_size_increment,omitempty"`
+	ExtendSizeLimit     string   `toml:"extend_size_limit,omitempty" json:"extend_size_limit,omitempty"`
 }
 
 type Build struct {
