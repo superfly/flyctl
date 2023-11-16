@@ -85,7 +85,6 @@ type SourceFile struct {
 	Path     string
 	Contents []byte
 }
-
 type Static = appconfig.Static
 
 type Volume = appconfig.Mount
