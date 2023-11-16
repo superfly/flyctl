@@ -12,7 +12,6 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/scanner"
 )
 
 const (
@@ -62,8 +61,8 @@ type Config struct {
 	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
-	// MergedFiles is a list of files that have been merged from the app config and flags.
-	MergedFiles []*api.File `toml:"-" json:"-"`
+
+	Compute []*Compute `toml:"vm,omitempty" json:"vm,omitempty"`
 
 	// Others, less important.
 	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`
@@ -72,6 +71,9 @@ type Config struct {
 	// RawDefinition contains fly.toml parsed as-is
 	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
 	RawDefinition map[string]any `toml:"-" json:"-"`
+
+	// MergedFiles is a list of files that have been merged from the app config and flags.
+	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Path to application configuration file, usually fly.toml.
 	configFilePath string
@@ -129,7 +131,12 @@ type Static struct {
 	UrlPrefix string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
 }
 
-type Mount = scanner.Volume
+type Mount struct {
+	Source      string   `toml:"source,omitempty" json:"source,omitempty"`
+	Destination string   `toml:"destination,omitempty" json:"destination,omitempty"`
+	InitialSize string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
+	Processes   []string `toml:"processes,omitempty" json:"processes,omitempty"`
+}
 
 type Build struct {
 	Builder           string            `toml:"builder,omitempty" json:"builder,omitempty"`
@@ -150,6 +157,13 @@ type Experimental struct {
 	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
 	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+}
+
+type Compute struct {
+	Size              string `json:"size,omitempty" toml:"size,omitempty"`
+	Memory            string `json:"memory,omitempty" toml:"memory,omitempty"`
+	*api.MachineGuest `toml:",inline" json:",inline"`
+	Processes         []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func (c *Config) ConfigFilePath() string {

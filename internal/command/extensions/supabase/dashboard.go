@@ -25,6 +25,7 @@ func dashboard() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Org(),
+		extensions_core.SharedFlags,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
 	return cmd

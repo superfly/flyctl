@@ -106,7 +106,19 @@ host_dedication_id = "06031957"
 
 [mounts]
   source = "data"
+  initial_size = "30gb"
   destination = "/data"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  cpu_kind = "performance"
+  cpus = 8
+  memory = "8gb"
+  memory_mb = 8192
+  gpu_kind = "a100-pcie-40gb"
+  kernel_args = ["quiet"]
+  host_dedication_id = "isolated-xxx"
+  processes = ["app"]
 
 [processes]
   web = "run web"

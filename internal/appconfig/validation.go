@@ -8,10 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
@@ -310,10 +312,27 @@ func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
 }
 
 func (cfg *Config) validateMounts() (extraInfo string, err error) {
-	for _, mount := range cfg.Mounts {
-		extendThresholdPercent := mount.ExtendThresholdPercent
-		addSizeGb := mount.AddSizeGb
-		sizeGbLimit := mount.SizeGbLimit
+	if cfg.configFilePath == "--flatten--" && len(cfg.Mounts) > 1 {
+		extraInfo += fmt.Sprintf("group '%s' has more than one [[mounts]] section defined\n", cfg.defaultGroupName)
+		err = ValidationError
+	}
+
+	for _, m := range cfg.Mounts {
+		if m.InitialSize != "" {
+			v, vErr := helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with initial_size '%s' will fail because of: %s\n", m.Source, m.InitialSize, vErr)
+				err = ValidationError
+			case v < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an initial_size '%s' value which is smaller than 1GB\n", m.Source, m.InitialSize)
+				err = ValidationError
+			}
+		}
+
+		extendThresholdPercent := m.ExtendThresholdPercent
+		addSizeGb := m.AddSizeGb
+		sizeGbLimit := m.SizeGbLimit
 		switch {
 		case extendThresholdPercent == 0 && addSizeGb == 0 && sizeGbLimit == 0:
 			// not using this feature
@@ -331,6 +350,5 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			err = ValidationError
 		}
 	}
-
 	return
 }

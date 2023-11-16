@@ -30,6 +30,7 @@ func create() (cmd *cobra.Command) {
 			Shorthand:   "n",
 			Description: "The name of your database",
 		},
+		extensions_core.SharedFlags,
 	)
 	return cmd
 }

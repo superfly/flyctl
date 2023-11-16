@@ -1,0 +1,22 @@
+app = "foo"
+
+[processes]
+app = ""
+worker = "/worker"
+whisper = "/whisperme"
+isolated = "/must-run-alone"
+
+# A section that applies to a specific group
+[[vm]]
+memory = "64gb"
+gpu_kind = "a100-pcie-40gb"
+processes = ["whisper"]
+
+# [[compute]] is an alias for [[vm]]
+[[compute]]
+host_dedication_id = "lookma-iamsolo"
+processes = ["isolated"]
+
+# A section without processes set must apply to all process groups
+[[vm]]
+size = "shared-cpu-2x"

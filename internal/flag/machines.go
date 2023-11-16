@@ -7,11 +7,18 @@ import (
 	"strings"
 
 	"github.com/docker/go-units"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
 )
 
-var validGPUKinds = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
+var (
+	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
+	gpuKindAliases = map[string]string{
+		"a100-40gb": "a100-pcie-40gb",
+		"a100-80gb": "a100-sxm4-80gb",
+	}
+)
 
 // Returns a MachineGuest based on the flags provided overwriting a default VM
 func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.MachineGuest, error) {
@@ -60,6 +67,7 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 
 	if IsSpecified(ctx, "vm-gpu-kind") {
 		m := GetString(ctx, "vm-gpu-kind")
+		m = lo.ValueOr(gpuKindAliases, m, m)
 		if !slices.Contains(validGPUKinds, m) {
 			return nil, fmt.Errorf("--vm-gpu-kind must be set to one of: %v", strings.Join(validGPUKinds, ", "))
 		}

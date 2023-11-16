@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/go-units"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -101,25 +103,47 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			return err
 		}
 
+		mConfig, err := md.appConfig.ToMachineConfig(groupName, nil)
+		if err != nil {
+			return err
+		}
+		guest := md.machineGuest
+		if mConfig.Guest != nil {
+			guest = mConfig.Guest
+		}
+
 		for _, m := range groupConfig.Mounts {
 			if v := existentVolumes[m.Source]; v > 0 {
 				existentVolumes[m.Source]--
 				continue
 			}
 
+			var initialSize int
+			switch {
+			case m.InitialSize != "":
+				// Ignore the error because invalid values are caught at config validation time
+				initialSize, _ = helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			case md.volumeInitialSize > 0:
+				initialSize = md.volumeInitialSize
+			case guest != nil && guest.GPUKind != "":
+				initialSize = DefaultGPUVolumeInitialSizeGB
+			default:
+				initialSize = DefaultVolumeInitialSizeGB
+			}
+
 			fmt.Fprintf(
 				md.io.Out,
 				"Creating a %d GB volume named '%s' for process group '%s'. "+
 					"Use 'fly vol extend' to increase its size\n",
-				md.volumeInitialSize, m.Source, groupName,
+				initialSize, m.Source, groupName,
 			)
 
 			input := api.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              api.Pointer(md.volumeInitialSize),
+				SizeGb:              api.Pointer(initialSize),
 				Encrypted:           api.Pointer(true),
-				ComputeRequirements: md.machineGuest,
+				ComputeRequirements: guest,
 			}
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)

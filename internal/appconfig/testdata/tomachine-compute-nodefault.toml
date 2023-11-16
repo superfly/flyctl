@@ -1,0 +1,10 @@
+app = "no-default-compute"
+
+[processes]
+app = ""
+woo = ""
+bar = ""
+
+[[vm]]
+size = "performance-4x"
+processes = ["bar"]

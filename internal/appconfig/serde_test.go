@@ -236,6 +236,28 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 	}, cfg)
 }
 
+func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
+	const path = "./testdata/format-quirks.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	// Nullify cfg.RawDefinition because Compute section is apps v2 only
+	cfg.RawDefinition = nil
+
+	assert.Equal(t, &Config{
+		configFilePath:   "./testdata/format-quirks.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
+		Compute: []*Compute{{
+			Memory: "512",
+		}},
+		Mounts: []Mount{{
+			Source:      "data",
+			Destination: "/data",
+			InitialSize: "200",
+		}},
+	}, cfg)
+}
+
 func TestLoadTOMLAppConfigEnvList(t *testing.T) {
 	const path = "./testdata/env-list.toml"
 	cfg, err := LoadConfig(path)
@@ -440,6 +462,21 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
 		HostDedicationID: "06031957",
+		Compute: []*Compute{
+			{
+				Size:   "shared-cpu-1x",
+				Memory: "8gb",
+				MachineGuest: &api.MachineGuest{
+					CPUKind:          "performance",
+					CPUs:             8,
+					MemoryMB:         8192,
+					GPUKind:          "a100-pcie-40gb",
+					HostDedicationID: "isolated-xxx",
+					KernelArgs:       []string{"quiet"},
+				},
+				Processes: []string{"app"},
+			},
+		},
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},
@@ -563,6 +600,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Mounts: []Mount{{
 			Source:      "data",
 			Destination: "/data",
+			InitialSize: "30gb",
 		}},
 
 		Processes: map[string]string{

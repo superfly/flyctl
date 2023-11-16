@@ -1,0 +1,29 @@
+app = "foo"
+primary_region = "ord"
+
+[processes]
+app = ""
+vpn = ""
+foo = ""
+
+[[mounts]]
+source = "data"
+destination = "/data"
+initial_size = "15Mb"
+processes = ["vpn"]
+
+[[mounts]]
+source = "data"
+destination = "/data"
+initial_size = "unparseable"
+processes = ["foo"]
+
+[[mounts]]
+source = "foo"
+destination = "bar"
+processes = ["app"]
+
+[[mounts]]
+source = "data"
+destination = "/data"
+processes = ["app"]

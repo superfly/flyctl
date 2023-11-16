@@ -515,7 +515,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 		appc, err = client.CreateApp(ctx, api.CreateAppInput{
 			OrganizationID: org.ID,
 			// i'll never find love again like the kind you give like the kind you send
-			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", org.ID, rand.Intn(1_000_000)),
+			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000)),
 		})
 
 		if err != nil {
