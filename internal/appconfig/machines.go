@@ -184,8 +184,11 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	mConfig.Mounts = nil
 	for _, m := range c.Mounts {
 		mConfig.Mounts = append(mConfig.Mounts, api.MachineMount{
-			Path: m.Destination,
-			Name: m.Source,
+			Path:                   m.Destination,
+			Name:                   m.Source,
+			ExtendThresholdPercent: m.ExtendThresholdPercent,
+			AddSizeGb:              m.AddSizeGb,
+			SizeGbLimit:            m.SizeGbLimit,
 		})
 	}
 
