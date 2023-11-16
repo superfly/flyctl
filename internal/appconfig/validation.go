@@ -333,21 +333,23 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 		extendThresholdPercent := m.ExtendThresholdPercent
 		addSizeGb := m.AddSizeGb
 		sizeGbLimit := m.SizeGbLimit
-		switch {
-		case extendThresholdPercent == 0 && addSizeGb == 0 && sizeGbLimit == 0:
-			// not using this feature
-		case extendThresholdPercent != 0 && addSizeGb == 0 && sizeGbLimit == 0:
-			extraInfo += "mounts extend_threshold_percent, add_size_gb and size_gb_limit must be all defined or none"
-			err = ValidationError
-		case extendThresholdPercent < 50, extendThresholdPercent > 99:
-			extraInfo += "mounts extend_threshold_percent must be between 50 and 99"
-			err = ValidationError
-		case addSizeGb < 1, addSizeGb > 100:
-			extraInfo += "mounts add_size_gb must be between 1 and 100"
-			err = ValidationError
-		case sizeGbLimit != 0 && (sizeGbLimit < 1 || sizeGbLimit > 500):
-			extraInfo += "mounts size_gb_limit must be between 1 and 500"
-			err = ValidationError
+		if extendThresholdPercent != 0 || addSizeGb != 0 || sizeGbLimit != 0 {
+			if extendThresholdPercent != 0 && addSizeGb == 0 && sizeGbLimit == 0 {
+				extraInfo += fmt.Sprintf("mount '%s' extend_threshold_percent, add_size_gb and size_gb_limit must be all defined or none\n", m.Source)
+				err = ValidationError
+			}
+			if extendThresholdPercent < 50 || extendThresholdPercent > 99 {
+				extraInfo += fmt.Sprintf("mount '%s' extend_threshold_percent must be between 50 and 99\n", m.Source)
+				err = ValidationError
+			}
+			if addSizeGb < 1 || addSizeGb > 100 {
+				extraInfo += fmt.Sprintf("mount '%s' add_size_gb must be between 1 and 100\n", m.Source)
+				err = ValidationError
+			}
+			if sizeGbLimit != 0 && (sizeGbLimit < 1 || sizeGbLimit > 500) {
+				extraInfo += fmt.Sprintf("mount '%s' size_gb_limit must be between 1 and 500\n", m.Source)
+				err = ValidationError
+			}
 		}
 	}
 	return
