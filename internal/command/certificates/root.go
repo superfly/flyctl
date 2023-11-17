@@ -163,7 +163,7 @@ func runCertificatesShow(ctx context.Context) error {
 	if cert.ClientStatus == "Ready" {
 		return nil
 	}
-	
+
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
 
@@ -178,7 +178,7 @@ func runCertificatesCheck(ctx context.Context) error {
 	}
 
 	printCertificate(ctx, cert)
-	
+
 	if cert.ClientStatus == "Ready" {
 		return nil
 	}
