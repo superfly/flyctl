@@ -267,8 +267,11 @@ func runMachineClone(ctx context.Context) (err error) {
 
 		targetConfig.Mounts = []api.MachineMount{
 			{
-				Volume: vol.ID,
-				Path:   mnt.Path,
+				Volume:                 vol.ID,
+				Path:                   mnt.Path,
+				ExtendThresholdPercent: mnt.ExtendThresholdPercent,
+				AddSizeGb:              mnt.AddSizeGb,
+				SizeGbLimit:            mnt.SizeGbLimit,
 			},
 		}
 	}
