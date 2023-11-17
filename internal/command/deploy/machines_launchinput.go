@@ -85,6 +85,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	mMounts := mConfig.Mounts
 	oMounts := origMachineRaw.Config.Mounts
 	if len(oMounts) != 0 {
+		var latestExtendThresholdPercent, latestAddSizeGb, latestSizeGbLimit int
+		if len(mMounts) > 0 {
+			latestExtendThresholdPercent = mMounts[0].ExtendThresholdPercent
+			latestAddSizeGb = mMounts[0].AddSizeGb
+			latestSizeGbLimit = mMounts[0].SizeGbLimit
+		}
 		switch {
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
@@ -118,6 +124,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		default:
 			// In any other case retain the existing machine mounts
 			mMounts[0] = oMounts[0]
+		}
+
+		if len(mMounts) > 0 {
+			mMounts[0].ExtendThresholdPercent = latestExtendThresholdPercent
+			mMounts[0].AddSizeGb = latestAddSizeGb
+			mMounts[0].SizeGbLimit = latestSizeGbLimit
 		}
 	} else if len(mMounts) != 0 {
 		// Replace the machine because [mounts] section was added to fly.toml
