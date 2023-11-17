@@ -149,7 +149,6 @@ func runCertificatesList(ctx context.Context) error {
 }
 
 func runCertificatesShow(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
@@ -169,7 +168,6 @@ func runCertificatesShow(ctx context.Context) error {
 }
 
 func runCertificatesCheck(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
