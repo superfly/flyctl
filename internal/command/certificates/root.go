@@ -149,8 +149,6 @@ func runCertificatesList(ctx context.Context) error {
 }
 
 func runCertificatesShow(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
@@ -160,20 +158,16 @@ func runCertificatesShow(ctx context.Context) error {
 		return err
 	}
 
+	printCertificate(ctx, cert)
+
 	if cert.ClientStatus == "Ready" {
-		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
-		printCertificate(ctx, cert)
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
-	printCertificate(ctx, cert)
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
 
 func runCertificatesCheck(ctx context.Context) error {
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
@@ -183,14 +177,11 @@ func runCertificatesCheck(ctx context.Context) error {
 		return err
 	}
 
+	printCertificate(ctx, cert)
+
 	if cert.ClientStatus == "Ready" {
-		// A certificate has been issued
-		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
-		printCertificate(ctx, cert)
 		return nil
 	}
-
-	fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
 
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
@@ -388,10 +379,18 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCerti
 
 func printCertificate(ctx context.Context, cert *api.AppCertificate) {
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	hostname := flag.FirstArg(ctx)
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, cert)
 		return
+	}
+
+	if cert.ClientStatus == "Ready" {
+		fmt.Fprintf(io.Out, "The certificate for %s has been issued.\n\n", colorize.Bold(hostname))
+	} else {
+		fmt.Fprintf(io.Out, "The certificate for %s has not been issued yet.\n\n", colorize.Yellow(hostname))
 	}
 
 	myprnt := func(label string, value string) {
