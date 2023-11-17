@@ -170,8 +170,8 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Mounts: []appconfig.Mount{{
-			Source:              "data",
-			Destination:         "/data",
+			Source:                  "data",
+			Destination:             "/data",
 			AutoExtendSizeThreshold: 80,
 			AutoExtendSizeIncrement: "3GB",
 			AutoExtendSizeLimit:     "100GB",
