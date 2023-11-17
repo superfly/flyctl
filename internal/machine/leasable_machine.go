@@ -427,7 +427,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 	if contextWasAlreadyCanceled {
 		var cancel context.CancelFunc
 		cancelTimeout := 500 * time.Millisecond
-		ctx, cancel = context.WithTimeout(context.TODO(), cancelTimeout)
+		ctx, cancel = context.WithTimeout(ctx, cancelTimeout)
 		terminal.Infof("detected canceled context and allowing %s to release machine %s lease\n", cancelTimeout, lm.FormattedMachineId())
 		defer cancel()
 	}
