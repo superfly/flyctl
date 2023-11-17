@@ -150,7 +150,6 @@ func runCertificatesList(ctx context.Context) error {
 
 func runCertificatesShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
@@ -171,7 +170,6 @@ func runCertificatesShow(ctx context.Context) error {
 
 func runCertificatesCheck(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
 	apiClient := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
@@ -383,6 +381,8 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCerti
 
 func printCertificate(ctx context.Context, cert *api.AppCertificate) {
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	hostname := flag.FirstArg(ctx)
 
 	if config.FromContext(ctx).JSONOutput {
 		render.JSON(io.Out, cert)
