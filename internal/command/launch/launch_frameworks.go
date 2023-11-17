@@ -11,9 +11,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -28,9 +26,6 @@ func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
 		return err
 	}
 	if err := state.scannerCreateSecrets(ctx); err != nil {
-		return err
-	}
-	if err := state.scannerCreateVolumes(ctx); err != nil {
 		return err
 	}
 	return nil
@@ -123,34 +118,6 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 			return err
 		}
 		fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", state.Plan.AppName, strings.Join(lo.Keys(secrets), ", "))
-	}
-	return nil
-}
-
-func (state *launchState) scannerCreateVolumes(ctx context.Context) error {
-	if state.sourceInfo == nil || len(state.sourceInfo.Volumes) == 0 {
-		return nil
-	}
-	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
-
-	computeRequirements := state.Plan.Guest()
-	if hdid := state.appConfig.HostDedicationID; hdid != "" {
-		computeRequirements.HostDedicationID = hdid
-	}
-
-	for _, vol := range state.sourceInfo.Volumes {
-		volume, err := flapsClient.CreateVolume(ctx, api.CreateVolumeRequest{
-			Name:                vol.Source,
-			Region:              state.Plan.RegionCode,
-			SizeGb:              api.Pointer(1),
-			Encrypted:           api.Pointer(true),
-			ComputeRequirements: computeRequirements,
-		})
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(io.Out, "Created a %dGB volume %s in the %s region\n", volume.SizeGb, volume.ID, state.Plan.RegionCode)
 	}
 	return nil
 }

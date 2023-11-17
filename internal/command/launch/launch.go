@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -87,6 +88,12 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		state.appConfig.HTTPService.InternalPort = state.Plan.HttpServicePort
 	} else {
 		state.appConfig.HTTPService = nil
+	}
+	state.appConfig.Compute = []*appconfig.Compute{
+		{
+			MachineGuest: state.Plan.Guest(),
+			Processes:    lo.Keys(state.appConfig.Processes),
+		},
 	}
 }
 
