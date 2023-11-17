@@ -106,7 +106,7 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	if contextWasAlreadyCanceled {
 		var cancel context.CancelFunc
 		cancelTimeout := 500 * time.Millisecond
-		ctx, cancel = context.WithTimeout(context.TODO(), cancelTimeout)
+		ctx, cancel = context.WithTimeout(ctx, cancelTimeout)
 		terminal.Infof("detected canceled context and allowing %s to release machine leases\n", cancelTimeout)
 		defer cancel()
 	}
