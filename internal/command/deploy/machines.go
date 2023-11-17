@@ -368,7 +368,6 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			if len(groupConfig.Mounts) > 0 {
 				mntSrc = groupConfig.Mounts[0].Source
 				mntDst = groupConfig.Mounts[0].Destination
-
 			}
 
 			needsVol := map[string][]string{}
