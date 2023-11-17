@@ -330,46 +330,46 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 
-		var extendSizeIncrement, extendSizeLimit int
+		var autoExtendSizeIncrement, autoExtendSizeLimit int
 		var vErr error
-		if m.ExtendSizeIncrement != "" {
-			extendSizeIncrement, vErr = helpers.ParseSize(m.ExtendSizeIncrement, units.FromHumanSize, units.GB)
+		if m.AutoExtendSizeIncrement != "" {
+			autoExtendSizeIncrement, vErr = helpers.ParseSize(m.AutoExtendSizeIncrement, units.FromHumanSize, units.GB)
 			switch {
 			case vErr != nil:
-				extraInfo += fmt.Sprintf("mount '%s' with extend_size_increment '%s' will fail because of: %s\n", m.Source, m.ExtendSizeIncrement, vErr)
+				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_increment '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeIncrement, vErr)
 				err = ValidationError
-			case extendSizeIncrement < 1:
-				extraInfo += fmt.Sprintf("mount '%s' has an extend_size_increment '%s' value which is smaller than 1GB\n", m.Source, m.ExtendSizeIncrement)
+			case autoExtendSizeIncrement < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_increment '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeIncrement)
 				err = ValidationError
 			}
 		}
-		if m.ExtendSizeLimit != "" {
-			extendSizeLimit, vErr = helpers.ParseSize(m.ExtendSizeLimit, units.FromHumanSize, units.GB)
+		if m.AutoExtendSizeLimit != "" {
+			autoExtendSizeLimit, vErr = helpers.ParseSize(m.AutoExtendSizeLimit, units.FromHumanSize, units.GB)
 			switch {
 			case vErr != nil:
-				extraInfo += fmt.Sprintf("mount '%s' with extend_size_limit '%s' will fail because of: %s\n", m.Source, m.ExtendSizeLimit, vErr)
+				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_limit '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeLimit, vErr)
 				err = ValidationError
-			case extendSizeLimit < 1:
-				extraInfo += fmt.Sprintf("mount '%s' has an extend_size_limit '%s' value which is smaller than 1GB\n", m.Source, m.ExtendSizeLimit)
+			case autoExtendSizeLimit < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_limit '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeLimit)
 				err = ValidationError
 			}
 		}
 
-		if m.ExtendSizeThreshold != 0 || extendSizeIncrement != 0 || extendSizeLimit != 0 {
-			if m.ExtendSizeThreshold != 0 && extendSizeIncrement == 0 && extendSizeLimit == 0 {
-				extraInfo += fmt.Sprintf("mount '%s' extend_size_threshold, extend_size_increment and extend_size_limit must be all defined or none\n", m.Source)
+		if m.AutoExtendSizeThreshold != 0 || autoExtendSizeIncrement != 0 || autoExtendSizeLimit != 0 {
+			if m.AutoExtendSizeThreshold != 0 && autoExtendSizeIncrement == 0 && autoExtendSizeLimit == 0 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold, auto_extend_size_increment and auto_extend_size_limit must be all defined or none\n", m.Source)
 				err = ValidationError
 			}
-			if m.ExtendSizeThreshold < 50 || m.ExtendSizeThreshold > 99 {
-				extraInfo += fmt.Sprintf("mount '%s' extend_size_threshold must be between 50 and 99\n", m.Source)
+			if m.AutoExtendSizeThreshold < 50 || m.AutoExtendSizeThreshold > 99 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold must be between 50 and 99\n", m.Source)
 				err = ValidationError
 			}
-			if extendSizeIncrement < 1 || extendSizeIncrement > 100 {
-				extraInfo += fmt.Sprintf("mount '%s' extend_size_increment must be between 1GB and 100GB\n", m.Source)
+			if autoExtendSizeIncrement < 1 || autoExtendSizeIncrement > 100 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_increment must be between 1GB and 100GB\n", m.Source)
 				err = ValidationError
 			}
-			if extendSizeLimit != 0 && (extendSizeLimit < 1 || extendSizeLimit > 500) {
-				extraInfo += fmt.Sprintf("mount '%s' extend_size_limit must be between 1GB and 500GB\n", m.Source)
+			if autoExtendSizeLimit != 0 && (autoExtendSizeLimit < 1 || autoExtendSizeLimit > 500) {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_limit must be between 1GB and 500GB\n", m.Source)
 				err = ValidationError
 			}
 		}

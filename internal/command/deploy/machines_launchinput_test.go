@@ -172,9 +172,9 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 		Mounts: []appconfig.Mount{{
 			Source:              "data",
 			Destination:         "/data",
-			ExtendSizeThreshold: 80,
-			ExtendSizeIncrement: "3GB",
-			ExtendSizeLimit:     "100GB",
+			AutoExtendSizeThreshold: 80,
+			AutoExtendSizeIncrement: "3GB",
+			AutoExtendSizeLimit:     "100GB",
 		}},
 	})
 	assert.NoError(t, err)
