@@ -183,9 +183,23 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	// Mounts
 	mConfig.Mounts = nil
 	for _, m := range c.Mounts {
+		var extendSizeIncrement, extendSizeLimit int
+
+		if m.AutoExtendSizeIncrement != "" {
+			// Ignore the error because invalid values are caught at config validation time
+			extendSizeIncrement, _ = helpers.ParseSize(m.AutoExtendSizeIncrement, units.FromHumanSize, units.GB)
+		}
+		if m.AutoExtendSizeLimit != "" {
+			// Ignore the error because invalid values are caught at config validation time
+			extendSizeLimit, _ = helpers.ParseSize(m.AutoExtendSizeLimit, units.FromHumanSize, units.GB)
+		}
+
 		mConfig.Mounts = append(mConfig.Mounts, api.MachineMount{
-			Path: m.Destination,
-			Name: m.Source,
+			Path:                   m.Destination,
+			Name:                   m.Source,
+			ExtendThresholdPercent: m.AutoExtendSizeThreshold,
+			AddSizeGb:              extendSizeIncrement,
+			SizeGbLimit:            extendSizeLimit,
 		})
 	}
 
