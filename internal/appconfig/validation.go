@@ -329,6 +329,50 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 				err = ValidationError
 			}
 		}
+
+		var autoExtendSizeIncrement, autoExtendSizeLimit int
+		var vErr error
+		if m.AutoExtendSizeIncrement != "" {
+			autoExtendSizeIncrement, vErr = helpers.ParseSize(m.AutoExtendSizeIncrement, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_increment '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeIncrement, vErr)
+				err = ValidationError
+			case autoExtendSizeIncrement < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_increment '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeIncrement)
+				err = ValidationError
+			}
+		}
+		if m.AutoExtendSizeLimit != "" {
+			autoExtendSizeLimit, vErr = helpers.ParseSize(m.AutoExtendSizeLimit, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_limit '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeLimit, vErr)
+				err = ValidationError
+			case autoExtendSizeLimit < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_limit '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeLimit)
+				err = ValidationError
+			}
+		}
+
+		if m.AutoExtendSizeThreshold != 0 || autoExtendSizeIncrement != 0 || autoExtendSizeLimit != 0 {
+			if m.AutoExtendSizeThreshold != 0 && autoExtendSizeIncrement == 0 && autoExtendSizeLimit == 0 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold, auto_extend_size_increment and auto_extend_size_limit must be all defined or none\n", m.Source)
+				err = ValidationError
+			}
+			if m.AutoExtendSizeThreshold < 50 || m.AutoExtendSizeThreshold > 99 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold must be between 50 and 99\n", m.Source)
+				err = ValidationError
+			}
+			if autoExtendSizeIncrement < 1 || autoExtendSizeIncrement > 100 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_increment must be between 1GB and 100GB\n", m.Source)
+				err = ValidationError
+			}
+			if autoExtendSizeLimit != 0 && (autoExtendSizeLimit < 1 || autoExtendSizeLimit > 500) {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_limit must be between 1GB and 500GB\n", m.Source)
+				err = ValidationError
+			}
+		}
 	}
 	return
 }

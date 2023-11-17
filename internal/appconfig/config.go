@@ -132,10 +132,13 @@ type Static struct {
 }
 
 type Mount struct {
-	Source      string   `toml:"source,omitempty" json:"source,omitempty"`
-	Destination string   `toml:"destination,omitempty" json:"destination,omitempty"`
-	InitialSize string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
-	Processes   []string `toml:"processes,omitempty" json:"processes,omitempty"`
+	Source                  string   `toml:"source,omitempty" json:"source,omitempty"`
+	Destination             string   `toml:"destination,omitempty" json:"destination,omitempty"`
+	InitialSize             string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
+	Processes               []string `toml:"processes,omitempty" json:"processes,omitempty"`
+	AutoExtendSizeThreshold int      `toml:"auto_extend_size_threshold,omitempty" json:"auto_extend_size_threshold,omitempty"`
+	AutoExtendSizeIncrement string   `toml:"auto_extend_size_increment,omitempty" json:"auto_extend_size_increment,omitempty"`
+	AutoExtendSizeLimit     string   `toml:"auto_extend_size_limit,omitempty" json:"auto_extend_size_limit,omitempty"`
 }
 
 type Build struct {
