@@ -195,7 +195,7 @@ func run(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	ctx, span := tracing.SpanFromContext(ctx, appName, "deploy")
+	ctx, span := tracing.SpanFromContext(ctx, appName, "cmd.deploy")
 	defer span.End()
 
 	appConfig, err := determineAppConfig(ctx)
@@ -484,7 +484,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	appName := appconfig.NameFromContext(ctx)
-	ctx, span := tracing.GetTracer().Start(ctx, "getAppConfig")
+	ctx, span := tracing.GetTracer().Start(ctx, "get_app_config")
 	defer span.End()
 
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {

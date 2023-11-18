@@ -19,7 +19,7 @@ func (*remoteImageResolver) Name() string {
 }
 
 func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "resolveImageRemotely")
+	ctx, span := tracing.GetTracer().Start(ctx, "resolve_image_remotely")
 	defer span.End()
 
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)

@@ -417,7 +417,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 }
 
 func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "pushImageToFly")
+	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_fly")
 	defer span.End()
 
 	defer func() {

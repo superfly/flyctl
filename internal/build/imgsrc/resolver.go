@@ -51,10 +51,10 @@ type ImageOptions struct {
 
 func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 	attrs := []attribute.KeyValue{
-		attribute.String("imageoptions.appName", io.AppName),
-		attribute.String("imageoptions.workDir", io.WorkingDir),
-		attribute.String("imageoptions.dockerfilePath", io.DockerfilePath),
-		attribute.String("imageoptions.ignorefilePath", io.IgnorefilePath),
+		attribute.String("imageoptions.app_name", io.AppName),
+		attribute.String("imageoptions.work_dir", io.WorkingDir),
+		attribute.String("imageoptions.dockerfile_path", io.DockerfilePath),
+		attribute.String("imageoptions.ignorefile_path", io.IgnorefilePath),
 		// todo(gwuah): find out from security if this is fine
 		attribute.String("imageoptions.image.ref", io.ImageRef),
 		attribute.String("imageoptions.image.label", io.ImageLabel),
@@ -106,8 +106,8 @@ type RefOptions struct {
 
 func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 	return []attribute.KeyValue{
-		attribute.String("refoptions.appName", ro.AppName),
-		attribute.String("refoptions.workDir", ro.WorkingDir),
+		attribute.String("refoptions.app_name", ro.AppName),
+		attribute.String("refoptions.work_dir", ro.WorkingDir),
 		// todo(gwuah): find out from security if this is fine
 		attribute.String("refoptions.image.ref", ro.ImageRef),
 		attribute.String("refoptions.image.label", ro.ImageLabel),
@@ -153,7 +153,7 @@ const logLimit int = 4096
 
 // ResolveReference returns an Image give an reference using either the local docker daemon or remote registry
 func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOStreams, opts RefOptions) (img *DeploymentImage, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "resolveReference")
+	ctx, span := tracing.GetTracer().Start(ctx, "resolve_reference")
 	defer span.End()
 
 	strategies := []imageResolver{

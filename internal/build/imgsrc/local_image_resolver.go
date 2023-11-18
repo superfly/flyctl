@@ -24,7 +24,7 @@ func (*localImageResolver) Name() string {
 }
 
 func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "resolveImageLocally")
+	ctx, span := tracing.GetTracer().Start(ctx, "resolve_image_locally")
 	defer span.End()
 
 	build.BuildStart()
@@ -58,7 +58,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	} else {
 		buildkitEnabled, err := buildkitEnabled(docker)
 		terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
-		span.SetAttributes(attribute.Bool("docker.buildkitEnabled", buildkitEnabled))
+		span.SetAttributes(attribute.Bool("docker.buildkit_enabled", buildkitEnabled))
 		if err == nil {
 			build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 		}

@@ -14,9 +14,10 @@ import (
 
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/flyctl/api/tokens"
-	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/graphql"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -179,7 +180,8 @@ func (c *Client) getErrorFromErrors(errors Errors) string {
 
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("web.%s", c.getAction(req)), trace.WithAttributes(
+	tracer := otel.GetTracerProvider().Tracer("github.com/superfly/flyctl/api")
+	ctx, span := tracer.Start(ctx, fmt.Sprintf("web.%s", c.getAction(req)), trace.WithAttributes(
 		attribute.String("request.action", c.getAction(req)),
 		attribute.String("request.type", c.getRequestType(req)),
 	))
@@ -196,7 +198,8 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 	err := c.client.Run(ctx, req, &resp)
 
 	if resp.Errors != nil {
-		tracing.RecordError(span, fmt.Errorf(c.getErrorFromErrors(resp.Errors)), "failed to do grapqhl request")
+		span.RecordError(fmt.Errorf(c.getErrorFromErrors(resp.Errors)))
+		span.SetStatus(codes.Error, "failed to do grapqhl request")
 	}
 
 	if resp.Errors != nil && errorLog {
