@@ -49,7 +49,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "determineImage")
+	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
 	tb := render.NewTextBlock(ctx, "Building image")
@@ -58,7 +58,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	span.SetAttributes(attribute.String("daemonType", daemonType.String()))
+	span.SetAttributes(attribute.String("daemon_type", daemonType.String()))
 
 	if err := multipleDockerfile(ctx, appConfig); err != nil {
 		span.AddEvent("found multiple dockerfiles")

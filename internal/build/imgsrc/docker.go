@@ -185,7 +185,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 }
 
 func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client) (c *dockerclient.Client, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "buildRemoteDockerClient")
+	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client")
 	defer span.End()
 
 	if cachedClient != nil {
@@ -273,7 +273,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		host = builderHostOverride
 
 		span.SetAttributes(
-			attribute.String("builder.oldHost", oldHost),
+			attribute.String("builder.old_host", oldHost),
 			attribute.String("builder.host", host),
 		)
 
@@ -331,7 +331,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 }
 
 func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "buildRemoteClientOpts")
+	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_client_ops")
 	defer span.End()
 
 	opts = []dockerclient.Opt{
