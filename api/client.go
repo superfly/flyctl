@@ -13,7 +13,10 @@ import (
 	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/graphql"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -121,8 +124,49 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 func (c *Client) Logger() Logger { return c.logger }
 
+func (c *Client) getAction(r *graphql.Request) string {
+	action, ok := r.Vars()["action"]
+	if !ok {
+		return "unknown"
+	}
+
+	actionString, ok := action.(string)
+	if !ok {
+		return "unknown"
+	}
+
+	return actionString
+}
+
+func (c *Client) getRequestType(r *graphql.Request) string {
+	query := r.Query()
+
+	if strings.Contains(query, "mutation") {
+		return "mutation"
+	}
+
+	if strings.Contains(query, "query") {
+		return "query"
+	}
+	return "unknown"
+}
+func (c *Client) getErrorFromErrors(errors Errors) string {
+	errs := []string{}
+	for _, err := range errors {
+		errs = append(errs, err.Message)
+	}
+
+	return strings.Join(errs, ",")
+}
+
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("web.%s", c.getAction(req)), trace.WithAttributes(
+		attribute.String("request.action", c.getAction(req)),
+		attribute.String("request.type", c.getRequestType(req)),
+	))
+	defer span.End()
+
 	if instrumenter != nil {
 		start := time.Now()
 		defer func() {
@@ -132,6 +176,10 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
+
+	if resp.Errors != nil {
+		tracing.RecordError(span, fmt.Errorf(c.getErrorFromErrors(resp.Errors)), "failed to do grapqhl request")
+	}
 
 	if resp.Errors != nil && errorLog {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)

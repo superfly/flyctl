@@ -20,6 +20,7 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 	`
 
 	req := c.NewRequest(query)
+	req.Var("action", "get_current_user")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
