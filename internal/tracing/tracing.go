@@ -26,6 +26,19 @@ const (
 	tracerName = "github.com/superfly/flyctl"
 )
 
+func getCollectorUrl() string {
+	url := os.Getenv("FLY_TRACE_COLLECTOR_URL")
+	if url != "" {
+		return url
+	}
+
+	if buildinfo.IsDev() {
+		url = "fly-otel-collector-dev.fly.dev:4317"
+	}
+
+	return "fly-otel-collector-prod.fly.dev:4317"
+}
+
 func GetTracer() trace.Tracer {
 	return otel.Tracer(tracerName)
 }
@@ -71,9 +84,8 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 		exporter = stdoutExp
 	case os.Getenv("FLY_TRACE_COLLECTOR_URL") != "":
 		grpcExpOpt := []otlptracegrpc.Option{
-			otlptracegrpc.WithEndpoint(os.Getenv("FLY_TRACE_COLLECTOR_URL")),
+			otlptracegrpc.WithEndpoint(getCollectorUrl()),
 			otlptracegrpc.WithDialOption(
-				grpc.WithBlock(),
 				grpc.WithUnaryInterceptor(attachToken),
 			),
 		}
