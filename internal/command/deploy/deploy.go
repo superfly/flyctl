@@ -195,7 +195,7 @@ func run(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	ctx, span := tracing.GetCMDSpan(ctx, "deploy")
+	ctx, span := tracing.SpanFromContext(ctx, appName, "deploy")
 	defer span.End()
 
 	appConfig, err := determineAppConfig(ctx)

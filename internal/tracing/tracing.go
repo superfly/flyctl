@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -20,6 +18,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 const (
@@ -48,9 +48,7 @@ func RecordError(span trace.Span, err error, description string) {
 	span.SetStatus(codes.Error, description)
 }
 
-// GetCMDSpan creates a new span with some defaults setup
-func GetCMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	appName := appconfig.NameFromContext(ctx)
+func SpanFromContext(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(
