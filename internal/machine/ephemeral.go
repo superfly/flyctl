@@ -40,7 +40,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*api.Machine, 
 	if input.What != "" {
 		creationMsg += " " + input.What
 	}
-	fmt.Fprintf(io.Out, "%s.\n", creationMsg)
+	fmt.Fprintf(io.ErrOut, "%s.\n", creationMsg)
 
 	sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", colorize.Bold(machine.ID)))
 	defer sp.Stop()
@@ -139,13 +139,13 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 			return
 		}
 
-		fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
+		fmt.Fprintf(io.ErrOut, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
 		if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
-			fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
+			fmt.Fprintf(io.ErrOut, " %s!\n", colorize.Red("failed"))
 			terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
 			terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
 		} else {
-			fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
+			fmt.Fprintf(io.ErrOut, " %s.\n", colorize.Green("done"))
 		}
 	}
 }
