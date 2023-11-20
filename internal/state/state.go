@@ -15,6 +15,8 @@ const (
 	hostnameKey
 	workDirKey
 	configDirKey
+	stateDirKey
+	runtimeDirKey
 )
 
 // WithHostname returns a copy of ctx that carries hostname.
@@ -56,6 +58,30 @@ func ConfigDirectory(ctx context.Context) string {
 // ctx carries no config directory.
 func ConfigFile(ctx context.Context) string {
 	return filepath.Join(ConfigDirectory(ctx), config.FileName)
+}
+
+// WithStateDir derives a Context that carries the given state directory from
+// ctx.
+func WithStateDirectory(ctx context.Context, cd string) context.Context {
+	return set(ctx, stateDirKey, cd)
+}
+
+// StateDirectory returns the state directory ctx carries. It panics in case
+// ctx carries no state directory.
+func StateDirectory(ctx context.Context) string {
+	return get(ctx, stateDirKey).(string)
+}
+
+// WithRuntimeDir derives a Context that carries the given runtime directory from
+// ctx.
+func WithRuntimeDirectory(ctx context.Context, cd string) context.Context {
+	return set(ctx, runtimeDirKey, cd)
+}
+
+// RuntimeDirectory returns the runtime directory ctx carries. It panics in case
+// ctx carries no runtime directory.
+func RuntimeDirectory(ctx context.Context) string {
+	return get(ctx, runtimeDirKey).(string)
 }
 
 func get(ctx context.Context, key contextKeyType) interface{} {
