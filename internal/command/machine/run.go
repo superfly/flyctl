@@ -102,7 +102,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "schedule",
-		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+		Description: `Schedule a Machine run at hourly, daily and monthly intervals`,
 	},
 	flag.Bool{
 		Name:        "skip-dns-registration",
@@ -110,12 +110,12 @@ var sharedFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "autostart",
-		Description: "Automatically start a stopped machine when a network request is received",
+		Description: "Automatically start a stopped Machine when a network request is received",
 		Default:     true,
 	},
 	flag.Bool{
 		Name:        "autostop",
-		Description: "Automatically stop a machine when there are no network requests for it",
+		Description: "Automatically stop a Machine when there are no network requests for it",
 		Default:     true,
 	},
 	flag.String{
@@ -133,7 +133,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringArray{
 		Name:        "file-literal",
-		Description: "Set of literals to write to the Machined, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64 encoded raw content. Can be specified multiple times.",
+		Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "file-secret",
@@ -165,7 +165,7 @@ var runOrCreateFlags = flag.Set{
 	flag.StringSlice{
 		Name:        "volume",
 		Shorthand:   "v",
-		Description: "Volumes to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+		Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 	},
 	flag.Bool{
 		Name:        "lsvd",
@@ -228,19 +228,19 @@ func newRun() *cobra.Command {
 		sharedFlags,
 		flag.String{
 			Name:        "user",
-			Description: "Used with --shell. The username, if we're shelling into the machine now.",
+			Description: "Used with --shell. The username, if we're shelling into the Machine now.",
 			Default:     "root",
 			Hidden:      false,
 		},
 		flag.String{
 			Name:        "command",
-			Description: "Used with --shell. The command to run, if we're shelling into the machine now (in case you don't have bash).",
+			Description: "Used with --shell. The command to run, if we're shelling into the Machine now (in case you don't have bash).",
 			Default:     "/bin/bash",
 			Hidden:      false,
 		},
 		flag.Bool{
 			Name:        "shell",
-			Description: "Open a shell on the machine once created (implies --it --rm). See also --command and --user.",
+			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
 			Hidden:      false,
 		},
 	)
@@ -321,7 +321,7 @@ func runMachineRun(ctx context.Context) error {
 		}
 
 	case appName == "":
-		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
+		app, err = createApp(ctx, "Running a Machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
 		}
@@ -367,7 +367,7 @@ func runMachineRun(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, flapsClient)
 
 	if app.PlatformVersion == "nomad" {
-		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
+		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support Machines", app.Name)
 	}
 
 	imageOrPath := flag.FirstArg(ctx)
@@ -413,7 +413,7 @@ func runMachineRun(ctx context.Context) error {
 		verb = "created"
 	}
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully %s in app %s\n", verb, app.Name)
+	fmt.Fprintf(io.Out, "Success! A Machine has been successfully %s in app %s\n", verb, app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 
 	if !interact {
