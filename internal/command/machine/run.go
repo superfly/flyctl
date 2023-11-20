@@ -35,9 +35,9 @@ var sharedFlags = flag.Set{
 	flag.StringSlice{
 		Name:      "port",
 		Shorthand: "p",
-		Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
-	i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
-	To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
+		Description: `The external ports and handlers for services, in the format: port[:machinePort][/protocol[:handler[:handler...]]])
+	For example: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
+	To remove a port mapping use '-' as handler. For example: --port 80/tcp:-`,
 	},
 	flag.StringArray{
 		Name:        "env",
@@ -46,7 +46,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "entrypoint",
-		Description: "ENTRYPOINT replacement",
+		Description: "The command to override the Docker ENTRYPOINT.",
 	},
 	flag.Bool{
 		Name:        "build-only",
@@ -69,7 +69,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		Description: "The path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
 	},
 	flag.StringArray{
 		Name:        "build-arg",
@@ -93,7 +93,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringArray{
 		Name:        "kernel-arg",
-		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
+		Description: "A list of kernel arguments to provide to the init. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "metadata",
@@ -102,7 +102,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "schedule",
-		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+		Description: `Schedule a Machine run at hourly, daily and monthly intervals`,
 	},
 	flag.Bool{
 		Name:        "skip-dns-registration",
@@ -110,12 +110,12 @@ var sharedFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "autostart",
-		Description: "Automatically start a stopped machine when a network request is received",
+		Description: "Automatically start a stopped Machine when a network request is received",
 		Default:     true,
 	},
 	flag.Bool{
 		Name:        "autostop",
-		Description: "Automatically stop a machine when there aren't network requests for it",
+		Description: "Automatically stop a Machine when there are no network requests for it",
 		Default:     true,
 	},
 	flag.String{
@@ -125,19 +125,19 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
-		Description: "Comma separated list of machine ids to watch for",
+		Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
 	},
 	flag.StringArray{
 		Name:        "file-local",
-		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		Description: "Set of files to write to the Machine, in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "file-literal",
-		Description: "Set of literals in the form of /path/inside/machine=VALUE pairs where VALUE is the content. Can be specified multiple times.",
+		Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "file-secret",
-		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
+		Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
 	},
 	flag.VMSizeFlags,
 }
@@ -152,7 +152,7 @@ var runOrCreateFlags = flag.Set{
 	flag.String{
 		Name:        "name",
 		Shorthand:   "n",
-		Description: "Machine name, will be generated if missing",
+		Description: "Machine name. Will be generated if omitted.",
 	},
 	flag.String{
 		Name:        "org",
@@ -160,12 +160,12 @@ var runOrCreateFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "rm",
-		Description: "Automatically remove the machine when it exits",
+		Description: "Automatically remove the Machine when it exits",
 	},
 	flag.StringSlice{
 		Name:        "volume",
 		Shorthand:   "v",
-		Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+		Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 	},
 	flag.Bool{
 		Name:        "lsvd",
@@ -228,19 +228,19 @@ func newRun() *cobra.Command {
 		sharedFlags,
 		flag.String{
 			Name:        "user",
-			Description: "Username, if we're shelling into the machine now.",
+			Description: "Used with --shell. The username, if we're shelling into the Machine now.",
 			Default:     "root",
 			Hidden:      false,
 		},
 		flag.String{
 			Name:        "command",
-			Description: "Command to run, if we're shelling into the machine now (in case you don't have bash).",
+			Description: "Used with --shell. The command to run, if we're shelling into the Machine now (in case you don't have bash).",
 			Default:     "/bin/bash",
 			Hidden:      false,
 		},
 		flag.Bool{
 			Name:        "shell",
-			Description: "Open a shell on the machine once created (implies --it --rm)",
+			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
 			Hidden:      false,
 		},
 	)
@@ -321,7 +321,7 @@ func runMachineRun(ctx context.Context) error {
 		}
 
 	case appName == "":
-		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
+		app, err = createApp(ctx, "Running a Machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
 		}
@@ -367,7 +367,7 @@ func runMachineRun(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, flapsClient)
 
 	if app.PlatformVersion == "nomad" {
-		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
+		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support Machines", app.Name)
 	}
 
 	imageOrPath := flag.FirstArg(ctx)
@@ -413,7 +413,7 @@ func runMachineRun(ctx context.Context) error {
 		verb = "created"
 	}
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully %s in app %s\n", verb, app.Name)
+	fmt.Fprintf(io.Out, "Success! A Machine has been successfully %s in app %s\n", verb, app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
 
 	if !interact {
