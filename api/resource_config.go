@@ -15,6 +15,7 @@ func (client *Client) GetConfig(ctx context.Context, appName string) (*AppConfig
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
+	req.Var("action", "get_config")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -42,6 +43,7 @@ func (client *Client) ParseConfig(ctx context.Context, appName string, definitio
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 	req.Var("definition", definition)
+	req.Var("action", "parse_config")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -64,6 +66,7 @@ func (client *Client) ValidateConfig(ctx context.Context, appName string, defini
 
 	req := client.NewRequest(query)
 	req.Var("definition", definition)
+	req.Var("action", "validate_config")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {

@@ -22,7 +22,7 @@ func (c *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*Do
 	`
 
 	req := c.NewRequest(query)
-
+	req.Var("action", "get_domains")
 	req.Var("slug", organizationSlug)
 
 	data, err := c.RunWithContext(ctx, req)
@@ -56,7 +56,7 @@ func (c *Client) GetDomain(ctx context.Context, name string) (*Domain, error) {
 	`
 
 	req := c.NewRequest(query)
-
+	req.Var("action", "get_domain")
 	req.Var("name", name)
 
 	data, err := c.RunWithContext(ctx, req)
@@ -85,7 +85,7 @@ func (c *Client) CreateDomain(organizationID string, name string) (*Domain, erro
 	`
 
 	req := c.NewRequest(query)
-
+	req.Var("action", "create_domain")
 	req.Var("input", map[string]interface{}{
 		"organizationId": organizationID,
 		"name":           name,
@@ -116,7 +116,7 @@ func (c *Client) CheckDomain(ctx context.Context, name string) (*CheckDomainResu
 	`
 
 	req := c.NewRequest(query)
-
+	req.Var("action", "check_domain")
 	req.Var("input", map[string]string{"domainName": name})
 
 	data, err := c.RunWithContext(ctx, req)
@@ -145,7 +145,7 @@ func (c *Client) CreateAndRegisterDomain(organizationID string, name string) (*D
 	`
 
 	req := c.NewRequest(query)
-
+	req.Var("action", "create_and_register_domain")
 	req.Var("input", map[string]interface{}{
 		"organizationId": organizationID,
 		"name":           name,

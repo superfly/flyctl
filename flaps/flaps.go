@@ -12,11 +12,6 @@ import (
 	"net/url"
 	"os"
 	"strings"
-	"time"
-
-	"github.com/superfly/flyctl/internal/command_context"
-	"github.com/superfly/flyctl/internal/instrument"
-	"github.com/superfly/flyctl/internal/metrics"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -24,8 +19,12 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/httptracing"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const headerFlyRequestId = "fly-request-id"
@@ -163,23 +162,32 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	_, err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
+	err = f._sendRequest(ctx, appCreate, http.MethodPost, "/apps", in, nil, nil)
 	return
 }
 
-func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) (int, error) {
+func (f *Client) _sendRequest(ctx context.Context, action flapsAction, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("flaps.%s", action.String()), trace.WithAttributes(
+		attribute.String("request.action", action.String()),
+		attribute.String("request.endpoint", endpoint),
+		attribute.String("request.method", method),
+	))
+	defer span.End()
+
 	timing := instrument.Flaps.Begin()
 	defer timing.End()
 
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
-		return 0, err
+		tracing.RecordError(span, err, "failed to prepare request")
+		return err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
-		return 0, err
+		tracing.RecordError(span, err, "failed to do request")
+		return err
 	}
 	defer func() {
 		err := resp.Body.Close()
@@ -188,12 +196,15 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 		}
 	}()
 
+	span.SetAttributes(attribute.Int("request.status_code", resp.StatusCode))
+	span.SetAttributes(attribute.String("request.id", resp.Header.Get(headerFlyRequestId)))
+
 	if resp.StatusCode > 299 {
 		responseBody, err := io.ReadAll(resp.Body)
 		if err != nil {
 			responseBody = make([]byte, 0)
 		}
-		return resp.StatusCode, &FlapsError{
+		return &FlapsError{
 			OriginalError:      handleAPIError(resp.StatusCode, responseBody),
 			ResponseStatusCode: resp.StatusCode,
 			ResponseBody:       responseBody,
@@ -202,43 +213,10 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 	}
 	if out != nil {
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-			return resp.StatusCode, err
+			return err
 		}
 	}
-	return resp.StatusCode, nil
-}
-
-type flapsCall struct {
-	Call       string  `json:"c"`
-	Command    string  `json:"co"`
-	StatusCode int     `json:"s"`
-	Duration   float64 `json:"d"`
-}
-
-func sendFlapsCallMetric(ctx context.Context, endpoint flapsAction, statusCode int, duration time.Duration) {
-	cmdCtx := command_context.FromContext(ctx)
-
-	// Iterate backwards through the command name to figure out the command being run.
-	// For example, `fly m run` becomes `machine-run`, `deploy --flags` becomes `deploy`
-	//
-	// We check if the parent is nil so we don't include the binary name in the nameParts
-	// TODO(billy): Unit test this
-	var nameParts []string
-	for cmdCtx != nil && cmdCtx.Parent() != nil {
-		if cmdCtx.Parent() == nil {
-			break
-		}
-		nameParts = append([]string{cmdCtx.Name()}, nameParts...)
-		cmdCtx = cmdCtx.Parent()
-	}
-	commandName := strings.Join(nameParts, "-")
-
-	metrics.Send(ctx, "flaps_call", flapsCall{
-		Call:       endpoint.String(),
-		Command:    commandName,
-		StatusCode: statusCode,
-		Duration:   duration.Seconds(),
-	})
+	return nil
 }
 
 func (f *Client) urlFromBaseUrl(pathAndQueryString string) (*url.URL, error) {
