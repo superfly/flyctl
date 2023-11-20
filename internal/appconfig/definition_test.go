@@ -19,6 +19,13 @@ var GetConfigJSON = []byte(`
   "kill_signal": "SIGINT",
   "kill_timeout": 5,
   "processes": [],
+  "restart" : {
+	"policy": "always",
+	"retries": 3,
+	"processes": [
+        "app"
+    ]
+  },
   "services": [
     {
       "concurrency": {
@@ -73,6 +80,11 @@ func TestFromDefinition(t *testing.T) {
 	assert.Equal(t, &Config{
 		KillSignal:  api.Pointer("SIGINT"),
 		KillTimeout: api.MustParseDuration("5s"),
+		Restart: &Restart{
+			Policy:     RestartPolicyAlways,
+			MaxRetries: 3,
+			Processes:  []string{"app"},
+		},
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},
@@ -117,6 +129,11 @@ func TestFromDefinition(t *testing.T) {
 			"kill_signal":  "SIGINT",
 			"kill_timeout": float64(5),
 			"processes":    []any{},
+			"restart": map[string]any{
+				"policy":    "always",
+				"retries":   float64(3),
+				"processes": []any{"app"},
+			},
 			"services": []any{
 				map[string]any{
 					"concurrency": map[string]any{
@@ -198,6 +215,12 @@ func TestToDefinition(t *testing.T) {
 				"param1": "value1",
 				"param2": "value2",
 			},
+		},
+
+		"restart": map[string]any{
+			"policy":    "always",
+			"retries":   int64(3),
+			"processes": []any{"web"},
 		},
 
 		"http_service": map[string]any{

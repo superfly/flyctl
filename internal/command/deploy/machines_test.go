@@ -167,7 +167,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_release_version":  "0",
 				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
-			Restart: api.MachineRestart{
+			Restart: &api.MachineRestart{
 				Policy: api.MachineRestartPolicyNo,
 			},
 			AutoDestroy: true,
@@ -185,7 +185,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"PRIMARY_REGION": "different-region",
 			},
 			AutoDestroy: false,
-			Restart: api.MachineRestart{
+			Restart: &api.MachineRestart{
 				Policy: api.MachineRestartPolicyOnFailure,
 			},
 			Init: api.MachineInit{
@@ -215,7 +215,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			Init: api.MachineInit{
 				Cmd: []string{"touch", "sky"},
 			},
-			Restart: api.MachineRestart{
+			Restart: &api.MachineRestart{
 				Policy: api.MachineRestartPolicyNo,
 			},
 			AutoDestroy: true,
