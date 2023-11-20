@@ -9,6 +9,7 @@ func (c *Client) GetCurrentUser(ctx context.Context) (*User, error) {
 		query {
 				viewer {
 					... on User {
+						id
 						email
 						enablePaidHobby
 					}

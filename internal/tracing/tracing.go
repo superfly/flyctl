@@ -56,6 +56,8 @@ func SpanFromContext(ctx context.Context, appName, spanName string, opts ...trac
 		),
 	}
 
+	startOpts = append(startOpts, opts...)
+
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
 
