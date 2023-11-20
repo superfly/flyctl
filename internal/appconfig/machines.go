@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/docker/go-units"
@@ -222,12 +223,29 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	mConfig.Restart = nil
 
 	if c.Restart != nil {
+		policy, err := parseRestartPolicy(c.Restart.Policy)
+		if err != nil {
+			return nil, err
+		}
 		mConfig.Restart = &api.MachineRestart{
-			Policy:     api.MachineRestartPolicy(c.Restart.Policy),
+			Policy:     policy,
 			MaxRetries: c.Restart.MaxRetries,
 		}
 	}
 	return mConfig, nil
+}
+
+func parseRestartPolicy(policy RestartPolicy) (api.MachineRestartPolicy, error) {
+	switch policy {
+	case RestartPolicyAlways:
+		return api.MachineRestartPolicyAlways, nil
+	case RestartPolicyOnFailure:
+		return api.MachineRestartPolicyOnFailure, nil
+	case RestartPolicyNever:
+		return api.MachineRestartPolicyNo, nil
+	default:
+		return "", errors.New("invalid restart policy")
+	}
 }
 
 func (c *Config) tomachineSetStopConfig(mConfig *api.MachineConfig) error {

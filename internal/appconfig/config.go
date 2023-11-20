@@ -28,7 +28,7 @@ type RestartPolicy string
 
 const (
 	RestartPolicyAlways    RestartPolicy = "always"
-	RestartPolicyNever     RestartPolicy = "no"
+	RestartPolicyNever     RestartPolicy = "never"
 	RestartPolicyOnFailure RestartPolicy = "on-failure"
 )
 
