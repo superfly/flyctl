@@ -173,7 +173,7 @@ type wrapper struct {
 }
 
 func lockPath() string {
-	return filepath.Join(flyctl.ConfigDir(), "flyctl.cache.lock")
+	return filepath.Join(flyctl.RuntimeDir(), "flyctl.cache.lock")
 }
 
 // Save writes the YAML-encoded representation of c to the named file path via

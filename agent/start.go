@@ -12,11 +12,11 @@ import (
 
 	"github.com/azazeal/pause"
 
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 type forkError struct{ error }
@@ -30,7 +30,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 	}
 	defer unlock()
 
-	logFile, err := createLogFile()
+	logFile, err := createLogFile(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -91,12 +91,12 @@ func (alreadyStartingError) Error() string {
 	return "another process is already starting the agent"
 }
 
-func lockPath() string {
-	return filepath.Join(flyctl.ConfigDir(), "flyctl.agent.start.lock")
+func lockPath(ctx context.Context) string {
+	return filepath.Join(state.RuntimeDirectory(ctx), "flyctl.agent.start.lock")
 }
 
 func lock(ctx context.Context) (unlock filemu.UnlockFunc, err error) {
-	switch unlock, err = filemu.Lock(ctx, lockPath()); {
+	switch unlock, err = filemu.Lock(ctx, lockPath(ctx)); {
 	case err == nil:
 		break // all done
 	case ctx.Err() != nil:
@@ -163,9 +163,9 @@ func waitForClient(ctx context.Context) (*Client, error) {
 	return nil, ctx.Err()
 }
 
-func createLogFile() (path string, err error) {
+func createLogFile(ctx context.Context) (path string, err error) {
 	var dir string
-	if dir, err = setupLogDirectory(); err != nil {
+	if dir, err = setupLogDirectory(ctx); err != nil {
 		return
 	}
 
@@ -181,8 +181,8 @@ func createLogFile() (path string, err error) {
 	return
 }
 
-func setupLogDirectory() (dir string, err error) {
-	dir = filepath.Join(flyctl.ConfigDir(), "agent-logs")
+func setupLogDirectory(ctx context.Context) (dir string, err error) {
+	dir = filepath.Join(state.StateDirectory(ctx), "agent-logs")
 
 	if err = os.MkdirAll(dir, 0o700); err != nil {
 		err = fmt.Errorf("failed creating agent log directory at %s: %w", dir, err)

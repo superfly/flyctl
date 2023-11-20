@@ -79,6 +79,30 @@ func DetermineConfigDir(ctx context.Context) (context.Context, error) {
 	return state.WithConfigDirectory(ctx, dir), nil
 }
 
+func DetermineStateDir(ctx context.Context) (context.Context, error) {
+	dir, err := helpers.GetStateDirectory()
+	if err != nil {
+		return ctx, err
+	}
+
+	logger.FromContext(ctx).
+		Debugf("determined state directory: %q", dir)
+
+	return state.WithStateDirectory(ctx, dir), nil
+}
+
+func DetermineRuntimeDir(ctx context.Context) (context.Context, error) {
+	dir, err := helpers.GetRuntimeDirectory()
+	if err != nil {
+		return ctx, err
+	}
+
+	logger.FromContext(ctx).
+		Debugf("determined runtime directory: %q", dir)
+
+	return state.WithRuntimeDirectory(ctx, dir), nil
+}
+
 // ApplyAliases consolidates flags with aliases into a single source-of-truth flag.
 // After calling this, the main flags will have their values set as follows:
 //   - If the main flag was already set, it will keep its value.
