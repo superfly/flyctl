@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/superfly/flyctl/api"
@@ -195,8 +196,17 @@ func run(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
+	client := client.FromContext(ctx).API()
+
 	ctx, span := tracing.SpanFromContext(ctx, appName, "cmd.deploy")
 	defer span.End()
+
+	user, err := client.GetCurrentUser(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving current user: %w", err)
+	}
+
+	span.SetAttributes(attribute.String("user.id", user.ID))
 
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
