@@ -360,6 +360,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Restart: &Restart{
 			Policy:     "always",
 			MaxRetries: 3,
+			Processes:  []string{"web"},
 		},
 
 		Build: &Build{
