@@ -37,6 +37,11 @@ func TestFlyLaunchV2(t *testing.T) {
 		"app":            appName,
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
+		"vm": []map[string]any{{
+			"cpu_kind":  "shared",
+			"cpus":      int64(1),
+			"memory_mb": int64(1024),
+		}},
 		"http_service": map[string]any{
 			"force_https":          true,
 			"internal_port":        int64(8080),
