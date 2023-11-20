@@ -66,5 +66,5 @@ func dial(ctx context.Context) (client *agent.Client, err error) {
 }
 
 func socketPath(ctx context.Context) string {
-	return filepath.Join(state.ConfigDirectory(ctx), "fly-agent.sock")
+	return filepath.Join(state.RuntimeDirectory(ctx), "fly-agent.sock")
 }
