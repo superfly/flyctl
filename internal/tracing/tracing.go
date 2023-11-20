@@ -33,7 +33,7 @@ func getCollectorUrl() string {
 	}
 
 	if buildinfo.IsDev() {
-		url = "fly-otel-collector-dev.fly.dev:4317"
+		return "fly-otel-collector-dev.fly.dev:4317"
 	}
 
 	return "fly-otel-collector-prod.fly.dev:4317"
