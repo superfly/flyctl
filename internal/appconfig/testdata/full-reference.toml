@@ -40,6 +40,11 @@ host_dedication_id = "06031957"
 [env]
   FOO = "BAR"
 
+
+[restart]
+  policy = "always"
+  retries = 3
+
 [[metrics]]
   port = 9999
   path = "/metrics"

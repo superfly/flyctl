@@ -191,7 +191,9 @@ func runBarmanCreate(ctx context.Context) error {
 	}
 
 	// Restart policy
-	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
+	machineConfig.Restart = &api.MachineRestart{
+		Policy: api.MachineRestartPolicyAlways,
+	}
 
 	imageRepo := "flyio/postgres-flex"
 
