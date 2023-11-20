@@ -21,10 +21,10 @@ var GetConfigJSON = []byte(`
   "processes": [],
   "restart" : {
 	"policy": "always",
-	"retries": 3
+	"retries": 3,
 	"processes": [
         "app"
-    ],
+    ]
   },
   "services": [
     {

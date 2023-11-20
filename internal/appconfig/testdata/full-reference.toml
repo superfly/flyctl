@@ -44,6 +44,7 @@ host_dedication_id = "06031957"
 [restart]
   policy = "always"
   retries = 3
+  processes = ["web"]
 
 [[metrics]]
   port = 9999
