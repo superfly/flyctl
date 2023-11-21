@@ -29,6 +29,7 @@ func (c *Client) GetAppChanges(ctx context.Context, appName string) ([]AppChange
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "get_app_changes")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
