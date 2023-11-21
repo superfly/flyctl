@@ -155,6 +155,10 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	if !ok || devdeps == nil {
 		devdeps = make(map[string]interface{})
 	}
+	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	if !ok || scripts == nil {
+		scripts = make(map[string]interface{})
+	}
 
 	// infer db from dependencies
 	if deps["pg"] != nil {
@@ -208,6 +212,9 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
+	} else if scripts["dev"] == "vite" {
+		srcInfo.Family = "Vite"
+		srcInfo.Port = 80
 	}
 
 	return srcInfo, nil
