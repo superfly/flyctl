@@ -135,7 +135,7 @@ func printError(v interface{}) {
 
 	fmt.Fprintln(&buf, aurora.Red("Oops, something went wrong! Could you try that again?"))
 
-	if buildinfo.IsDev() {
+	if buildinfo.IsDev() || os.Getenv("LOG_LEVEL") == "debug" {
 		fmt.Fprintln(&buf)
 		fmt.Fprintln(&buf, v)
 		fmt.Fprintln(&buf, string(debug.Stack()))
