@@ -3,6 +3,8 @@ package api
 import (
 	"fmt"
 	"time"
+
+	"github.com/superfly/flyctl/internal/sentry"
 )
 
 // Query - Master query which encapsulates all possible returned structures
@@ -393,6 +395,14 @@ type AppCompact struct {
 func (app *AppCompact) IsPostgresApp() bool {
 	// check app.PostgresAppRole.Name == "postgres_cluster"
 	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
+}
+
+func (app *AppCompact) SentryAppInfo() *sentry.AppInfo {
+	return &sentry.AppInfo{
+		Name:             app.Name,
+		PlatformVersion:  app.PlatformVersion,
+		OrganizationSlug: app.Organization.RawSlug,
+	}
 }
 
 type AppInfo struct {
