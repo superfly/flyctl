@@ -226,7 +226,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 // Destroyed machines and console machines are excluded.
 // Unlike other List functions, this function retries multiple times.
 func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
-	allMachines := make([]*api.Machine, 0)
+	var allMachines []*api.Machine
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 500 * time.Millisecond
 	b.MaxElapsedTime = 5 * time.Second

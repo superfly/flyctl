@@ -68,22 +68,22 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 
 	b, err := json.Marshal(io.BuildArgs)
 	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.buildArgs", string(b)))
+		attrs = append(attrs, attribute.String("imageoptions.build_args", string(b)))
 	}
 
 	b, err = json.Marshal(io.ExtraBuildArgs)
 	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.extraBuildArgs", string(b)))
+		attrs = append(attrs, attribute.String("imageoptions.extra_build_args", string(b)))
 	}
 
 	b, err = json.Marshal(io.BuildSecrets)
 	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.buildSecrets", string(b)))
+		attrs = append(attrs, attribute.String("imageoptions.build_secrets", string(b)))
 	}
 
 	b, err = json.Marshal(io.BuiltInSettings)
 	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.builtInSettings", string(b)))
+		attrs = append(attrs, attribute.String("imageoptions.built_in_settings", string(b)))
 	}
 
 	b, err = json.Marshal(io.Label)
@@ -193,7 +193,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
-	err = fmt.Errorf("could not find image \"%s\"", opts.ImageRef)
+	err = fmt.Errorf("could not find image %q", opts.ImageRef)
 	tracing.RecordError(span, err, "failed to resolve image")
 	return nil, err
 }
