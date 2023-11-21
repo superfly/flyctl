@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/sync/errgroup"
@@ -414,7 +415,15 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
-func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
+func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_registry")
+	defer span.End()
+
+	defer func() {
+		if err != nil {
+			tracing.RecordError(span, err, "failed to push to fly registry")
+		}
+	}()
 
 	metrics.Started(ctx, "image_push")
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")

@@ -49,6 +49,8 @@ func (client *Client) GetOrganizations(ctx context.Context, filters ...Organizat
 	req := client.NewRequest(q)
 	filter.apply(req)
 
+	ctx = ctxWithAction(ctx, "get_organizations")
+
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
@@ -78,7 +80,7 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 	`
 
 	req := client.NewRequest(q)
-
+	ctx = ctxWithAction(ctx, "get_organization_by_slug")
 	req.Var("slug", slug)
 
 	data, err := client.RunWithContext(ctx, req)
@@ -112,7 +114,7 @@ func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization
 	`
 
 	req := client.NewRequest(query)
-
+	ctx = ctxWithAction(ctx, "get_current_organization")
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return Organization{}, nil, err
@@ -151,7 +153,7 @@ func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug st
 
 	req := client.NewRequest(query)
 	req.Var("slug", slug)
-
+	ctx = ctxWithAction(ctx, "get_detailed_organization")
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
@@ -180,6 +182,7 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 	req.Var("input", map[string]string{
 		"name": organizationname,
 	})
+	ctx = ctxWithAction(ctx, "create_organization")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -210,6 +213,7 @@ func (c *Client) CreateOrganizationWithAppsV2DefaultOn(ctx context.Context, orga
 		"name":            organizationname,
 		"appsV2DefaultOn": true,
 	})
+	ctx = ctxWithAction(ctx, "create_organization_with_apps_v2_default_on")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -234,6 +238,8 @@ func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid s
 	req.Var("input", map[string]string{
 		"organizationId": id,
 	})
+
+	ctx = ctxWithAction(ctx, "delete_organization")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -266,6 +272,7 @@ func (c *Client) CreateOrganizationInvite(ctx context.Context, id, email string)
 		"organizationId": id,
 		"email":          email,
 	})
+	ctx = ctxWithAction(ctx, "create_organization_invite")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -296,6 +303,7 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 		"userId":         userId,
 		"organizationId": orgId,
 	})
+	ctx = ctxWithAction(ctx, "delete_organization")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -327,6 +335,7 @@ func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image 
 		"organizationId": org.ID,
 		"image":          image,
 	})
+	ctx = ctxWithAction(ctx, "update_remote_builder")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -348,6 +357,7 @@ func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (
 	`
 	req := c.NewRequest(query)
 	req.Var("slug", orgSlug)
+	ctx = ctxWithAction(ctx, "get_apps_v2_default_on_for_org")
 
 	resp, err := c.RunWithContext(ctx, req)
 	if err != nil {

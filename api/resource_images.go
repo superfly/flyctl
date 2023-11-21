@@ -27,6 +27,7 @@ func (client *Client) GetImageInfo(ctx context.Context, appName string) (*App, e
 	`
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "get_image_info")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -45,6 +46,7 @@ func (client *Client) GetLatestImageTag(ctx context.Context, repository string, 
 	req := client.NewRequest(query)
 	req.Var("repository", repository)
 	req.Var("snapshotId", snapshotId)
+	ctx = ctxWithAction(ctx, "get_latest_image_tag")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -69,7 +71,7 @@ func (client *Client) GetLatestImageDetails(ctx context.Context, image string) (
 	`
 
 	req := client.NewRequest(query)
-
+	ctx = ctxWithAction(ctx, "get_latest_image_details")
 	req.Var("image", image)
 
 	data, err := client.RunWithContext(ctx, req)
