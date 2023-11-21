@@ -49,23 +49,31 @@ func Parse(token string) *Tokens {
 }
 
 func (t *Tokens) Flaps() string {
-	return t.normalized(false)
+	return t.normalized(false, false)
+}
+
+func (t *Tokens) FlapsHeader() string {
+	return t.normalized(false, true)
 }
 
 func (t *Tokens) Docker() string {
-	return t.normalized(false)
+	return t.normalized(false, false)
 }
 
 func (t *Tokens) NATS() string {
-	return t.normalized(false)
+	return t.normalized(false, false)
 }
 
 func (t *Tokens) GraphQL() string {
-	return t.normalized(true)
+	return t.normalized(true, false)
+}
+
+func (t *Tokens) GraphQLHeader() string {
+	return t.normalized(true, true)
 }
 
 func (t *Tokens) All() string {
-	return t.normalized(true)
+	return t.normalized(true, false)
 }
 
 func (t *Tokens) Macaroons() string {
@@ -141,14 +149,22 @@ func (t *Tokens) PruneBadMacaroons() bool {
 	return updated
 }
 
-func (t *Tokens) normalized(macaroonsAndUserTokens bool) string {
+func (t *Tokens) normalized(macaroonsAndUserTokens, includeScheme bool) string {
+	scheme := ""
+	if includeScheme {
+		scheme = "Bearer "
+		if len(t.macaroonTokens) > 0 {
+			scheme = "FlyV1 "
+		}
+	}
+
 	if macaroonsAndUserTokens {
-		return strings.Join(append(t.macaroonTokens, t.userTokens...), ",")
+		return scheme + strings.Join(append(t.macaroonTokens, t.userTokens...), ",")
 	}
 	if len(t.macaroonTokens) == 0 {
-		return strings.Join(t.userTokens, ",")
+		return scheme + strings.Join(t.userTokens, ",")
 	}
-	return t.Macaroons()
+	return scheme + t.Macaroons()
 }
 
 // stripAuthorizationScheme strips any FlyV1/Bearer schemes from token.
