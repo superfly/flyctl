@@ -29,7 +29,7 @@ func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName st
 	`
 
 	req := client.NewRequest(query)
-	req.Var("action", "ensure_remote_builder")
+	ctx = ctxWithAction(ctx, "ensure_remote_builder")
 
 	if orgID != "" {
 		req.Var("input", EnsureRemoteBuilderInput{

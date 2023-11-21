@@ -71,7 +71,7 @@ func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *stri
 		`
 
 	req := client.NewRequest(query)
-	req.Var("action", "get_apps_page")
+	ctx = ctxWithAction(ctx, "get_apps_page")
 	if orgID != nil {
 		req.Var("org", *orgID)
 	}
@@ -101,7 +101,7 @@ func (client *Client) GetAppID(ctx context.Context, appName string) (string, err
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_id")
+	ctx = ctxWithAction(ctx, "get_app_id")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -201,7 +201,7 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app")
+	ctx = ctxWithAction(ctx, "get_app")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -240,7 +240,7 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_compact")
+	ctx = ctxWithAction(ctx, "get_app_compact")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -309,7 +309,7 @@ func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo,
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_info")
+	ctx = ctxWithAction(ctx, "get_app_info")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -338,7 +338,7 @@ func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasi
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_basic")
+	ctx = ctxWithAction(ctx, "get_app_basic")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -365,7 +365,7 @@ func (client *Client) GetAppMonitoring(ctx context.Context, appName string) (*Ap
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_monitoring")
+	ctx = ctxWithAction(ctx, "get_app_monitoring")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -400,7 +400,7 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_postgres")
+	ctx = ctxWithAction(ctx, "get_app_postgres")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -435,7 +435,7 @@ func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App
 	req := client.NewRequest(query)
 
 	req.Var("input", input)
-	req.Var("action", "create_app")
+	ctx = ctxWithAction(ctx, "create_app")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -459,7 +459,7 @@ func (client *Client) DeleteApp(ctx context.Context, appName string) error {
 	req := client.NewRequest(query)
 
 	req.Var("appId", appName)
-	req.Var("action", "delete_app")
+	ctx = ctxWithAction(ctx, "delete_app")
 
 	_, err := client.RunWithContext(ctx, req)
 	return err
@@ -486,7 +486,7 @@ func (client *Client) MoveApp(ctx context.Context, appName string, orgID string)
 		"appId":          appName,
 		"organizationId": orgID,
 	})
-	req.Var("action", "move_app")
+	ctx = ctxWithAction(ctx, "move_app")
 
 	data, err := client.RunWithContext(ctx, req)
 	return &data.App, err
@@ -513,7 +513,7 @@ func (client *Client) SuspendApp(ctx context.Context, appName string) (*App, err
 	req.Var("input", map[string]string{
 		"appId": appName,
 	})
-	req.Var("action", "suspend_app")
+	ctx = ctxWithAction(ctx, "suspend_app")
 
 	data, err := client.RunWithContext(ctx, req)
 	return &data.SuspendApp.App, err
@@ -541,7 +541,7 @@ func (client *Client) ResumeApp(ctx context.Context, appName string) (*AppCompac
 		"appId": appName,
 	})
 
-	req.Var("action", "resume_app")
+	ctx = ctxWithAction(ctx, "resume_app")
 
 	data, err := client.RunWithContext(ctx, req)
 	return &data.ResumeApp.App, err
@@ -565,7 +565,7 @@ func (client *Client) RestartApp(ctx context.Context, appName string) (*App, err
 	req.Var("input", map[string]string{
 		"appId": appName,
 	})
-	req.Var("action", "restart_app")
+	ctx = ctxWithAction(ctx, "restart_app")
 
 	data, err := client.RunWithContext(ctx, req)
 	return &data.RestartApp.App, err
@@ -589,7 +589,7 @@ func (client *Client) ResolveImageForApp(ctx context.Context, appName, imageRef 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 	req.Var("imageRef", imageRef)
-	req.Var("action", "resolve_image")
+	ctx = ctxWithAction(ctx, "resolve_image")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {

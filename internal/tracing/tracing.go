@@ -82,7 +82,7 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 			return nil, err
 		}
 		exporter = stdoutExp
-	case os.Getenv("FLY_TRACE_COLLECTOR_URL") != "":
+	default:
 		grpcExpOpt := []otlptracegrpc.Option{
 			otlptracegrpc.WithEndpoint(getCollectorUrl()),
 			otlptracegrpc.WithDialOption(

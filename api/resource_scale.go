@@ -22,7 +22,7 @@ func (c *Client) ScaleApp(ctx context.Context, appID string, regions []ScaleRegi
 	req := c.NewRequest(query)
 
 	req.Var("input", ScaleAppInput{AppID: appID, Regions: regions})
-	req.Var("action", "scale_app")
+	ctx = ctxWithAction(ctx, "scale_app")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -56,7 +56,7 @@ func (c *Client) UpdateAutoscaleConfig(ctx context.Context, input UpdateAutoscal
 	req := c.NewRequest(query)
 
 	req.Var("input", input)
-	req.Var("action", "update_autoscale_config")
+	ctx = ctxWithAction(ctx, "update_autoscale_config")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -88,7 +88,7 @@ func (c *Client) AppAutoscalingConfig(ctx context.Context, appName string) (*Aut
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
-	req.Var("action", "app_autoscaling_config")
+	ctx = ctxWithAction(ctx, "app_autoscaling_config")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -133,7 +133,7 @@ func (c *Client) AppVMResources(ctx context.Context, appName string) (VMSize, []
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
-	req.Var("action", "app_vm_resources")
+	ctx = ctxWithAction(ctx, "app_vm_resources")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -179,7 +179,7 @@ func (c *Client) SetAppVMSize(ctx context.Context, appID string, group string, s
 		MemoryMb: memoryMb,
 	})
 
-	req.Var("action", "set_vm_size")
+	ctx = ctxWithAction(ctx, "set_vm_size")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -211,7 +211,7 @@ func (c *Client) GetAppVMCount(ctx context.Context, appID string) ([]TaskGroupCo
 	req := c.NewRequest(query)
 
 	req.Var("appName", appID)
-	req.Var("action", "get_app_vm_count")
+	ctx = ctxWithAction(ctx, "get_app_vm_count")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -251,7 +251,7 @@ func (c *Client) SetAppVMCount(ctx context.Context, appID string, counts map[str
 		AppID:       appID,
 		GroupCounts: groups,
 	})
-	req.Var("action", "set_app_vm_count")
+	ctx = ctxWithAction(ctx, "set_app_vm_count")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

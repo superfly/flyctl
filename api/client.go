@@ -28,6 +28,20 @@ var (
 	defaultTransport http.RoundTripper = http.DefaultTransport
 )
 
+var contextKeyAction = &contextKey{"Action"}
+
+func ctxWithAction(ctx context.Context, action string) context.Context {
+	return context.WithValue(ctx, contextKeyAction, action)
+}
+
+func actionFromCtx(ctx context.Context) string {
+	action := ctx.Value(contextKeyAction)
+	if action != nil {
+		return action.(string)
+	}
+	return "unknown_actiom"
+}
+
 // SetBaseURL - Sets the base URL for the API
 func SetBaseURL(url string) {
 	baseURL = url
@@ -143,20 +157,6 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 func (c *Client) Logger() Logger { return c.logger }
 
-func (c *Client) getAction(r *graphql.Request) string {
-	action, ok := r.Vars()["action"]
-	if !ok {
-		return "unknown"
-	}
-
-	actionString, ok := action.(string)
-	if !ok {
-		return "unknown"
-	}
-
-	return actionString
-}
-
 func (c *Client) getRequestType(r *graphql.Request) string {
 	query := r.Query()
 
@@ -181,8 +181,8 @@ func (c *Client) getErrorFromErrors(errors Errors) string {
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
 	tracer := otel.GetTracerProvider().Tracer("github.com/superfly/flyctl/api")
-	ctx, span := tracer.Start(ctx, fmt.Sprintf("web.%s", c.getAction(req)), trace.WithAttributes(
-		attribute.String("request.action", c.getAction(req)),
+	ctx, span := tracer.Start(ctx, fmt.Sprintf("web.%s", actionFromCtx(ctx)), trace.WithAttributes(
+		attribute.String("request.action", actionFromCtx(ctx)),
 		attribute.String("request.type", c.getRequestType(req)),
 	))
 	defer span.End()

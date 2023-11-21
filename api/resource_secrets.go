@@ -31,7 +31,7 @@ func (c *Client) SetSecrets(ctx context.Context, appName string, secrets map[str
 	req := c.NewRequest(query)
 
 	req.Var("input", input)
-	req.Var("action", "set_secrets")
+	ctx = ctxWithAction(ctx, "set_secrets")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -65,7 +65,7 @@ func (c *Client) UnsetSecrets(ctx context.Context, appName string, keys []string
 	req := c.NewRequest(query)
 
 	req.Var("input", UnsetSecretsInput{AppID: appName, Keys: keys})
-	req.Var("action", "unset_secrets")
+	ctx = ctxWithAction(ctx, "unset_secrets")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -91,7 +91,7 @@ func (c *Client) GetAppSecrets(ctx context.Context, appName string) ([]Secret, e
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
-	req.Var("action", "get_app_secrets")
+	ctx = ctxWithAction(ctx, "get_app_secrets")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

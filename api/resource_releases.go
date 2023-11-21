@@ -31,7 +31,7 @@ func (c *Client) GetAppReleasesNomad(ctx context.Context, appName string, limit 
 
 	req.Var("appName", appName)
 	req.Var("limit", limit)
-	req.Var("action", "get_app_releases_nomad")
+	ctx = ctxWithAction(ctx, "get_app_releases_nomad")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -67,7 +67,7 @@ func (c *Client) GetAppReleasesMachines(ctx context.Context, appName, status str
 	`
 
 	req := c.NewRequest(query)
-	req.Var("action", "get_app_releases_machines")
+	ctx = ctxWithAction(ctx, "get_app_releases_machines")
 	req.Var("appName", appName)
 	req.Var("limit", limit)
 	if status != "" {
@@ -98,7 +98,7 @@ func (c *Client) GetAppReleaseNomad(ctx context.Context, appName string, id stri
 	`
 
 	req := c.NewRequest(query)
-	req.Var("action", "get_app_release_nomad")
+	ctx = ctxWithAction(ctx, "get_app_release_nomad")
 	req.Var("appName", appName)
 	req.Var("releaseId", id)
 
@@ -135,7 +135,7 @@ func (c *Client) GetAppCurrentReleaseMachines(ctx context.Context, appName strin
 
 	req := c.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("action", "get_app_current_release_machines")
+	ctx = ctxWithAction(ctx, "get_app_current_release_machines")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

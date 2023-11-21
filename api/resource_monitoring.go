@@ -60,7 +60,7 @@ func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted
 	req := c.NewRequest(query)
 	req.Var("appName", appName)
 	req.Var("showCompleted", showCompleted)
-	req.Var("action", "get_app_status")
+	ctx = ctxWithAction(ctx, "get_app_status")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *Client) GetAllocationStatus(ctx context.Context, appName string, allocI
 	req.Var("appName", appName)
 	req.Var("allocId", allocID)
 	req.Var("logLimit", logLimit)
-	req.Var("action", "get_allocation_status")
+	ctx = ctxWithAction(ctx, "get_allocation_status")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
