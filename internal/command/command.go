@@ -541,9 +541,6 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 	}
 
 	if pruned || discharged {
-		ctx = client.NewContext(ctx, client.FromToken(tokens.GraphQL()))
-		log.Debug("client reinitialized.")
-
 		if tokens.FromConfigFile {
 			path := state.ConfigFile(ctx)
 

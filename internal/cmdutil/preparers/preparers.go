@@ -61,7 +61,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	api.SetInstrumenter(instrument.ApiAdapter)
 	api.SetTransport(httptracing.NewTransport(http.DefaultTransport))
 
-	c := client.FromToken(cfg.Tokens.GraphQL())
+	c := client.FromTokens(cfg.Tokens)
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil
