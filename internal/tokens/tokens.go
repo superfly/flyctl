@@ -72,10 +72,9 @@ func (t *Tokens) Macaroons() string {
 	return strings.Join(t.macaroonTokens, ",")
 }
 
-var tpClient = &tp.Client{
-	FirstPartyLocation: flyio.LocationPermission,
-	UserURLCallback:    tryOpenUserURL,
-}
+var tpClient = flyio.DischargeClient(
+	tp.WithUserURLCallback(tryOpenUserURL),
+)
 
 // DischargeThirdPartyCaveats attempts to fetch any necessary discharge tokens
 // for 3rd party caveats found within macaroon tokens.
