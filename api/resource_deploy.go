@@ -32,6 +32,7 @@ func (client *Client) DeployImage(ctx context.Context, input DeployImageInput) (
 	req := client.NewRequest(query)
 
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "deploy_image")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -82,6 +83,7 @@ func (c *Client) GetDeploymentStatus(ctx context.Context, appName string, deploy
 	req.Var("appName", appName)
 	req.Var("deploymentId", deploymentID)
 	req.Var("evaluationId", evaluationID)
+	ctx = ctxWithAction(ctx, "get_deployment_status")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -113,6 +115,7 @@ func (c *Client) GetReleaseCommand(ctx context.Context, id string) (*ReleaseComm
 	req := c.NewRequest(query)
 
 	req.Var("id", id)
+	ctx = ctxWithAction(ctx, "get_release_command")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -132,6 +135,7 @@ func (c *Client) CanPerformBluegreenDeployment(ctx context.Context, appName stri
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "can_perform_bluegreen_deployment")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

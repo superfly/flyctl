@@ -3900,6 +3900,7 @@ func (v *__UpdateAddOnInput) GetOptions() interface{} { return v.Options }
 
 // The query or mutation executed by AgentGetInstances.
 const AgentGetInstances_Operation = `
+# @genqlient
 query AgentGetInstances ($appName: String!) {
 	app(name: $appName) {
 		organization {
@@ -3996,6 +3997,7 @@ func AgreedToProviderTos(
 
 // The query or mutation executed by AllApps.
 const AllApps_Operation = `
+# @genqlient
 query AllApps ($orgSlug: String!) {
 	organization(slug: $orgSlug) {
 		apps {
@@ -4296,6 +4298,7 @@ func DeleteAddOn(
 
 // The query or mutation executed by FlyctlConfigCurrentRelease.
 const FlyctlConfigCurrentRelease_Operation = `
+# @genqlient
 query FlyctlConfigCurrentRelease ($appName: String!) {
 	app(name: $appName) {
 		currentReleaseUnprocessed {
@@ -4333,6 +4336,7 @@ func FlyctlConfigCurrentRelease(
 
 // The query or mutation executed by FlyctlDeployGetLatestImage.
 const FlyctlDeployGetLatestImage_Operation = `
+# @genqlient
 query FlyctlDeployGetLatestImage ($appName: String!) {
 	app(name: $appName) {
 		currentReleaseUnprocessed {
@@ -4583,8 +4587,10 @@ func GetApp(
 
 // The query or mutation executed by GetAppLock.
 const GetAppLock_Operation = `
+# @genqlient
 query GetAppLock ($appName: String!) {
 	app(name: $appName) {
+		# @genqlient(pointer: true)
 		currentLock {
 			lockId
 			expiration
@@ -4856,6 +4862,7 @@ func GetOrganization(
 
 // The query or mutation executed by ListAddOnPlans.
 const ListAddOnPlans_Operation = `
+# @genqlient
 query ListAddOnPlans {
 	addOnPlans {
 		nodes {
@@ -4941,6 +4948,7 @@ func ListAddOns(
 
 // The query or mutation executed by LockApp.
 const LockApp_Operation = `
+# @genqlient
 mutation LockApp ($input: LockAppInput!) {
 	lockApp(input: $input) {
 		lockId
@@ -5008,6 +5016,7 @@ func LogOut(
 
 // The query or mutation executed by MachinesCreateRelease.
 const MachinesCreateRelease_Operation = `
+# @genqlient
 mutation MachinesCreateRelease ($input: CreateReleaseInput!) {
 	createRelease(input: $input) {
 		release {
@@ -5046,6 +5055,7 @@ func MachinesCreateRelease(
 
 // The query or mutation executed by MachinesUpdateRelease.
 const MachinesUpdateRelease_Operation = `
+# @genqlient
 mutation MachinesUpdateRelease ($input: UpdateReleaseInput!) {
 	updateRelease(input: $input) {
 		release {
@@ -5083,6 +5093,7 @@ func MachinesUpdateRelease(
 
 // The query or mutation executed by MigrateMachinesCreateRelease.
 const MigrateMachinesCreateRelease_Operation = `
+# @genqlient
 mutation MigrateMachinesCreateRelease ($input: CreateReleaseInput!) {
 	createRelease(input: $input) {
 		release {
@@ -5121,6 +5132,7 @@ func MigrateMachinesCreateRelease(
 
 // The query or mutation executed by ResetAddOnPassword.
 const ResetAddOnPassword_Operation = `
+# @genqlient
 mutation ResetAddOnPassword ($name: String!) {
 	resetAddOnPassword(input: {name:$name}) {
 		addOn {
@@ -5158,6 +5170,7 @@ func ResetAddOnPassword(
 
 // The query or mutation executed by ResolverCreateBuild.
 const ResolverCreateBuild_Operation = `
+# @genqlient
 mutation ResolverCreateBuild ($input: CreateBuildInput!) {
 	createBuild(input: $input) {
 		id
@@ -5194,6 +5207,7 @@ func ResolverCreateBuild(
 
 // The query or mutation executed by ResolverFinishBuild.
 const ResolverFinishBuild_Operation = `
+# @genqlient
 mutation ResolverFinishBuild ($input: FinishBuildInput!) {
 	finishBuild(input: $input) {
 		id
@@ -5231,6 +5245,7 @@ func ResolverFinishBuild(
 
 // The query or mutation executed by SelfServiceSetPlatformVersion.
 const SelfServiceSetPlatformVersion_Operation = `
+# @genqlient
 mutation SelfServiceSetPlatformVersion ($input: SetPlatformVersionInput!) {
 	setPlatformVersion(input: $input) {
 		app {
@@ -5307,6 +5322,7 @@ func SetNomadVMCount(
 
 // The query or mutation executed by SetOrgSettings.
 const SetOrgSettings_Operation = `
+# @genqlient
 mutation SetOrgSettings ($input: SetAppsv2DefaultOnInput!) {
 	setAppsV2DefaultOn(input: $input) {
 		organization {
@@ -5344,6 +5360,7 @@ func SetOrgSettings(
 
 // The query or mutation executed by SetPlatformVersion.
 const SetPlatformVersion_Operation = `
+# @genqlient
 mutation SetPlatformVersion ($input: SetPlatformVersionInput!) {
 	setPlatformVersion(input: $input) {
 		app {
@@ -5428,6 +5445,7 @@ func SetSecrets(
 
 // The query or mutation executed by UnlockApp.
 const UnlockApp_Operation = `
+# @genqlient
 mutation UnlockApp ($input: UnlockAppInput!) {
 	unlockApp(input: $input) {
 		app {
@@ -5465,6 +5483,7 @@ func UnlockApp(
 
 // The query or mutation executed by UpdateAddOn.
 const UpdateAddOn_Operation = `
+# @genqlient
 mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
 	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions,options:$options}) {
 		addOn {

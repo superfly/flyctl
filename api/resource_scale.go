@@ -22,6 +22,7 @@ func (c *Client) ScaleApp(ctx context.Context, appID string, regions []ScaleRegi
 	req := c.NewRequest(query)
 
 	req.Var("input", ScaleAppInput{AppID: appID, Regions: regions})
+	ctx = ctxWithAction(ctx, "scale_app")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -55,6 +56,7 @@ func (c *Client) UpdateAutoscaleConfig(ctx context.Context, input UpdateAutoscal
 	req := c.NewRequest(query)
 
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "update_autoscale_config")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -86,6 +88,7 @@ func (c *Client) AppAutoscalingConfig(ctx context.Context, appName string) (*Aut
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "app_autoscaling_config")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -130,6 +133,7 @@ func (c *Client) AppVMResources(ctx context.Context, appName string) (VMSize, []
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "app_vm_resources")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -175,6 +179,8 @@ func (c *Client) SetAppVMSize(ctx context.Context, appID string, group string, s
 		MemoryMb: memoryMb,
 	})
 
+	ctx = ctxWithAction(ctx, "set_vm_size")
+
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
 		return VMSize{}, err
@@ -205,6 +211,7 @@ func (c *Client) GetAppVMCount(ctx context.Context, appID string) ([]TaskGroupCo
 	req := c.NewRequest(query)
 
 	req.Var("appName", appID)
+	ctx = ctxWithAction(ctx, "get_app_vm_count")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -244,6 +251,7 @@ func (c *Client) SetAppVMCount(ctx context.Context, appID string, counts map[str
 		AppID:       appID,
 		GroupCounts: groups,
 	})
+	ctx = ctxWithAction(ctx, "set_app_vm_count")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

@@ -17,6 +17,7 @@ func (c *Client) RevokeLimitedAccessToken(ctx context.Context, id string) error 
 	req.Var("input", map[string]interface{}{
 		"id": id,
 	})
+	ctx = ctxWithAction(ctx, "revoke_limited_access_token")
 
 	_, err := c.RunWithContext(ctx, req)
 	if err != nil {

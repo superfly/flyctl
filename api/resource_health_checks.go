@@ -29,6 +29,7 @@ func (client *Client) GetAppHealthChecks(ctx context.Context, appName string, ch
 	req.Var("checkName", checkName)
 	req.Var("limitOutput", limitOutput)
 	req.Var("compactOutput", compactOutput)
+	ctx = ctxWithAction(ctx, "get_app_healthchecks")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
