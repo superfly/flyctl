@@ -65,7 +65,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		return 127
 	}
 
-	defer tp.Shutdown(context.Background())
+	defer tp.Shutdown(ctx)
 
 	cmd := root.New()
 	cmd.SetOut(io.Out)
