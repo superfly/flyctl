@@ -7,7 +7,7 @@ import (
 func TestAuthorizationHeader(t *testing.T) {
 	check := func(macaroonAndUserTokens bool, input, expectedOutput string) {
 		t.Helper()
-		if tok := Parse(input).normalized(macaroonAndUserTokens); tok != expectedOutput {
+		if tok := Parse(input).normalized(macaroonAndUserTokens, false); tok != expectedOutput {
 			t.Fatalf("expected token to be '%s', got '%s'", expectedOutput, tok)
 		}
 	}
