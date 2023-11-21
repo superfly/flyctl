@@ -22,7 +22,7 @@ query($slug: String!) {
 }
 `)
 	req.Var("slug", slug)
-	req.Var("action", "get_logged_certificates")
+	ctx = ctxWithAction(ctx, "get_logged_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -44,7 +44,7 @@ mutation($input: EstablishSSHKeyInput!) {
 		"organizationId": org.ID,
 		"override":       override,
 	})
-	req.Var("action", "establish_ssh_key")
+	ctx = ctxWithAction(ctx, "establish_ssh_key")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -90,7 +90,7 @@ mutation($input: IssueCertificateInput!) {
 	}
 
 	req.Var("input", inputs)
-	req.Var("action", "issue_ssh_certificates")
+	ctx = ctxWithAction(ctx, "issue_ssh_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

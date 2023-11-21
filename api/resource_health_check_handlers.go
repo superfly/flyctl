@@ -18,7 +18,7 @@ func (client *Client) GetHealthCheckHandlers(ctx context.Context, organizationSl
 
 	req := client.NewRequest(q)
 	req.Var("slug", organizationSlug)
-	req.Var("action", "get_healthcheck_and_handlers")
+	ctx = ctxWithAction(ctx, "get_healthcheck_and_handlers")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -42,7 +42,7 @@ func (client *Client) SetSlackHealthCheckHandler(ctx context.Context, input SetS
 
 	req := client.NewRequest(q)
 	req.Var("input", input)
-	req.Var("action", "set_slack_healthcheck_handler")
+	ctx = ctxWithAction(ctx, "set_slack_healthcheck_handler")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -66,7 +66,7 @@ func (client *Client) SetPagerdutyHealthCheckHandler(ctx context.Context, input 
 
 	req := client.NewRequest(q)
 	req.Var("input", input)
-	req.Var("action", "set_pagerduty_healthcheck_handler")
+	ctx = ctxWithAction(ctx, "set_pagerduty_healthcheck_handler")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -90,7 +90,7 @@ func (client *Client) DeleteHealthCheckHandler(ctx context.Context, orgID string
 		"organizationId": orgID,
 		"name":           handlerName,
 	})
-	req.Var("action", "delete_healthcheck_handler")
+	ctx = ctxWithAction(ctx, "delete_healthcheck_handler")
 
 	_, err := client.RunWithContext(ctx, req)
 

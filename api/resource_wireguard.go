@@ -22,7 +22,7 @@ query($slug: String!, $name: String!) {
 `)
 	req.Var("slug", slug)
 	req.Var("name", name)
-	req.Var("action", "get_wg_peer")
+	ctx = ctxWithAction(ctx, "get_wg_peer")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -50,7 +50,7 @@ query($slug: String!) {
 }
 `)
 	req.Var("slug", slug)
-	req.Var("action", "get_wg_peers")
+	ctx = ctxWithAction(ctx, "get_wg_peers")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -90,7 +90,7 @@ mutation($input: AddWireGuardPeerInput!) {
 	}
 
 	req.Var("input", inputs)
-	req.Var("action", "create_wg_peers")
+	ctx = ctxWithAction(ctx, "create_wg_peers")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -114,7 +114,7 @@ mutation($input: RemoveWireGuardPeerInput!) {
 		"organizationId": org.ID,
 		"name":           name,
 	})
-	req.Var("action", "remove_wg_peer")
+	ctx = ctxWithAction(ctx, "remove_wg_peer")
 
 	_, err := c.RunWithContext(ctx, req)
 
@@ -133,7 +133,7 @@ mutation($input: CreateDelegatedWireGuardTokenInput!) {
 		"organizationId": org.ID,
 		"name":           name,
 	})
-	req.Var("action", "create_deletegated_wg_token")
+	ctx = ctxWithAction(ctx, "create_deletegated_wg_token")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -166,7 +166,7 @@ mutation($input: DeleteDelegatedWireGuardTokenInput!) {
 
 	req := c.NewRequest(query)
 	req.Var("input", input)
-	req.Var("action", "delete_deletegated_wg_token")
+	ctx = ctxWithAction(ctx, "delete_deletegated_wg_token")
 
 	_, err := c.RunWithContext(ctx, req)
 
@@ -186,7 +186,7 @@ query($slug: String!) {
 }
 `)
 	req.Var("slug", slug)
-	req.Var("action", "get_deletegated_wg_tokens")
+	ctx = ctxWithAction(ctx, "get_deletegated_wg_tokens")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -206,7 +206,7 @@ func (c *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*Region, er
 			}
 		}
 `)
-	req.Var("action", "closest_wg_gateway_region")
+	ctx = ctxWithAction(ctx, "closest_wg_gateway_region")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -228,7 +228,7 @@ mutation($input: ValidateWireGuardPeersInput!) {
 	req.Var("input", map[string]interface{}{
 		"peerIps": peerIPs,
 	})
-	req.Var("action", "validate_wg_peers")
+	ctx = ctxWithAction(ctx, "validate_wg_peers")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

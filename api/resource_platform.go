@@ -20,7 +20,7 @@ func (c *Client) PlatformRegions(ctx context.Context) ([]Region, *Region, error)
 	`
 
 	req := c.NewRequest(query)
-	req.Var("action", "platform_regions")
+	ctx = ctxWithAction(ctx, "platform_regions")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -58,7 +58,7 @@ func (c *Client) PlatformRegionsAll(ctx context.Context) ([]Region, error) {
 	`
 
 	req := c.NewRequest(query)
-	req.Var("action", "platform_regions_all")
+	ctx = ctxWithAction(ctx, "platform_regions_all")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -85,7 +85,7 @@ func (c *Client) PlatformVMSizes(ctx context.Context) ([]VMSize, error) {
 	`
 
 	req := c.NewRequest(query)
-	req.Var("action", "platform_vm_sizes")
+	ctx = ctxWithAction(ctx, "platform_vm_sizes")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

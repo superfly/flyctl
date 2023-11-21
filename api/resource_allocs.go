@@ -38,7 +38,7 @@ func (c *Client) GetAllocations(ctx context.Context, appName string, showComplet
 	req := c.NewRequest(query)
 	req.Var("appName", appName)
 	req.Var("showCompleted", showCompleted)
-	req.Var("action", "get_allocations")
+	ctx = ctxWithAction(ctx, "get_allocations")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -63,7 +63,7 @@ func (c *Client) GetAllocationTaskNames(ctx context.Context, appName string) (ma
 	req := c.NewRequest(query)
 	req.Var("appName", appName)
 	req.Var("showCompleted", false)
-	req.Var("action", "get_allocations_task_names")
+	ctx = ctxWithAction(ctx, "get_allocations_task_names")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

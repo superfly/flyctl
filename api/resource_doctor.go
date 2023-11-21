@@ -12,7 +12,7 @@ func (c *Client) CreateDoctorUrl(ctx context.Context) (putUrl string, err error)
 	`
 
 	req := c.NewRequest(query)
-	req.Var("action", "create_doctor_url")
+	ctx = ctxWithAction(ctx, "create_doctor_url")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
