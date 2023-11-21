@@ -155,6 +155,10 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	if !ok || devdeps == nil {
 		devdeps = make(map[string]interface{})
 	}
+	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	if !ok || scripts == nil {
+		scripts = make(map[string]interface{})
+	}
 
 	// infer db from dependencies
 	if deps["pg"] != nil {
@@ -198,6 +202,9 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if scripts["dev"] == "vite" {
+		srcInfo.Family = "Vite"
+		srcInfo.Port = 80
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
