@@ -47,7 +47,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 func runScaleVM(ctx context.Context) error {
 	sizeName := flag.FirstArg(ctx)
 	memoryMB := flag.GetInt(ctx, "vm-memory")
-	group := flag.GetString(ctx, "process-group")
+	group := flag.GetProcessGroup(ctx)
 	return scaleVertically(ctx, group, sizeName, memoryMB)
 }
 

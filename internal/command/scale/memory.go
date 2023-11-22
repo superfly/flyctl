@@ -29,7 +29,7 @@ func newScaleMemory() *cobra.Command {
 }
 
 func runScaleMemory(ctx context.Context) error {
-	group := flag.GetString(ctx, "process-group")
+	group := flag.GetProcessGroup(ctx)
 
 	memoryMB, err := helpers.ParseSize(flag.FirstArg(ctx), units.RAMInBytes, units.MiB)
 	if err != nil {

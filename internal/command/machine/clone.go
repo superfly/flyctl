@@ -133,7 +133,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
 	targetConfig := source.Config
-	if targetProcessGroup := flag.GetString(ctx, "process-group"); targetProcessGroup != "" {
+	if targetProcessGroup := flag.GetProcessGroup(ctx); targetProcessGroup != "" {
 		appConfig, err := getAppConfig(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("failed to get app config: %w", err)

@@ -59,7 +59,7 @@ func runScaleCount(ctx context.Context) error {
 	args := flag.Args(ctx)
 
 	processNames := appConfig.ProcessNames()
-	groupName := flag.GetString(ctx, "process-group")
+	groupName := flag.GetProcessGroup(ctx)
 
 	if groupName == "" {
 		groupName = api.MachineProcessGroupApp
