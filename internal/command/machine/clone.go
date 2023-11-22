@@ -57,10 +57,7 @@ func newClone() *cobra.Command {
 			Name:        "attach-volume",
 			Description: "Existing volume to attach to the new machine in the form of <volume_id>[:/path/inside/machine]",
 		},
-		flag.String{
-			Name:        "process-group",
-			Description: "For machines that are part of Fly Apps v2 does a regular clone and changes the process group to what is specified here",
-		},
+		flag.ProcessGroup("Change the cloned machine process group to what is specified here"),
 		flag.String{
 			Name:        "override-cmd",
 			Description: "Set CMD on the new machine to this value",

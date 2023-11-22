@@ -23,11 +23,7 @@ func newScaleMemory() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.String{
-			Name:        "process-group",
-			Description: "The process group to apply the VM size to",
-			Aliases:     []string{"group"},
-		},
+		flag.ProcessGroup("The process group to apply the VM size to"),
 	)
 	return cmd
 }
