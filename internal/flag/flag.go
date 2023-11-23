@@ -539,6 +539,6 @@ func ProcessGroup(desc string) String {
 		Name:        flagnames.ProcessGroup,
 		Description: desc,
 		Shorthand:   "g",
-		Aliases:     []string{"process-group"},
+		Aliases:     []string{"group"},
 	}
 }
