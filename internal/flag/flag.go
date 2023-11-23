@@ -529,9 +529,16 @@ func JSONOutput() Bool {
 	}
 }
 
-func ProcessGroup() String {
+func ProcessGroup(desc string) String {
+
+	if desc == "" {
+		desc = "The target process group"
+	}
+
 	return String{
 		Name:        flagnames.ProcessGroup,
-		Description: "The target process group",
+		Description: desc,
+		Shorthand:   "g",
+		Aliases:     []string{"group"},
 	}
 }
