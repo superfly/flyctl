@@ -13,6 +13,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+
+	"github.com/jmespath/go-jmespath"
 )
 
 func newList() *cobra.Command {
@@ -41,6 +43,11 @@ func newList() *cobra.Command {
 			Shorthand:   "q",
 			Description: "Only list machine ids",
 		},
+		flag.String{
+			Name:        "filter",
+			Shorthand:   "f",
+			Description: "Only show machines matching (JMESPath) filter",
+		},
 	)
 
 	return cmd
@@ -48,11 +55,21 @@ func newList() *cobra.Command {
 
 func runMachineList(ctx context.Context) (err error) {
 	var (
-		appName = appconfig.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
-		silence = flag.GetBool(ctx, "quiet")
-		cfg     = config.FromContext(ctx)
+		appName        = appconfig.NameFromContext(ctx)
+		io             = iostreams.FromContext(ctx)
+		silence        = flag.GetBool(ctx, "quiet")
+		cfg            = config.FromContext(ctx)
+		filter         = flag.GetString(ctx, "filter")
+		compiledFilter *jmespath.JMESPath
 	)
+
+	if filter != "" {
+		var err error
+		compiledFilter, err = jmespath.Compile(filter)
+		if err != nil {
+			return fmt.Errorf("couldn't compile filter (it's JMESPath, which is like jq): %w", err)
+		}
+	}
 
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
@@ -89,6 +106,16 @@ func runMachineList(ctx context.Context) (err error) {
 		_ = render.Table(io.Out, "", rows)
 	} else {
 		for _, machine := range machines {
+			if compiledFilter != nil {
+				result, err := compiledFilter.Search(machine)
+
+				resultBool, ok := result.(bool)
+
+				if err == nil && ok && !resultBool {
+					continue
+				}
+			}
+
 			var volName string
 			if machine.Config != nil && len(machine.Config.Mounts) > 0 {
 				volName = machine.Config.Mounts[0].Volume
