@@ -297,7 +297,7 @@ func (d Duration) addTo(cmd *cobra.Command) {
 func Org() String {
 	return String{
 		Name:         flagnames.Org,
-		Description:  "The target Fly organization",
+		Description:  "The target Fly.io organization",
 		Shorthand:    "o",
 		CompletionFn: completion.CompleteOrgs,
 	}
@@ -371,7 +371,7 @@ func Now() Bool {
 func NoDeploy() Bool {
 	return Bool{
 		Name:        "no-deploy",
-		Description: "Do not prompt for deployment",
+		Description: "Do not deploy the new app after initial creation and configuration",
 	}
 }
 
