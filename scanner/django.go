@@ -191,7 +191,7 @@ Optionally, you can use django.core.management.utils.get_random_secret_key() to 
 		checksPass(sourceDir, dirContains("Pipfile", "psycopg")) ||
 		checksPass(sourceDir, dirContains("pyproject.toml", "psycopg")) {
 		vars["hasPostgres"] = true
-		s.ReleaseCmd = "python manage.py migrate"
+		s.ReleaseCmd = "python manage.py migrate --noinput"
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
 			s.DeployDocs = s.DeployDocs + `
