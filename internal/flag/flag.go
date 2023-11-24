@@ -371,7 +371,7 @@ func Now() Bool {
 func NoDeploy() Bool {
 	return Bool{
 		Name:        "no-deploy",
-		Description: "Do not deploy the new app after initial creation and configuration",
+		Description: "Do not immediately deploy the new app after fly launch creates and configures it",
 	}
 }
 
