@@ -47,9 +47,9 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	vars := make(map[string]interface{})
 
 	// keep `pythonLatestSupported` up to date: https://devguide.python.org/versions/#supported-versions
-	// Keep the default `pythonVersion` as "3.11"
+	// Keep the default `pythonVersion` as "3.12"
 	pythonLatestSupported := "3.8.0"
-	pythonVersion := "3.11"
+	pythonVersion := "3.12"
 
 	pythonFullVersion, pinned, err := extractPythonVersion()
 
@@ -64,9 +64,9 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 			supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
 
 			if userErr == nil && supportedErr == nil {
-				// if Python version is below 3.8.0, use Python 3.11 (default)
-				// it is required to have Major, Minor and Patch (e.g. 3.11.2) to be able to use GT
-				// but only Major and Minor (e.g. 3.11) is used in the Dockerfile
+				// if Python version is below 3.8.0, use Python 3.12 (default)
+				// it is required to have Major, Minor and Patch (e.g. 3.12.0) to be able to use GT
+				// but only Major and Minor (e.g. 3.12) is used in the Dockerfile
 				if userVersion.GTE(supportedVersion) {
 					v, err := semver.Parse(pythonFullVersion)
 					if err == nil {
@@ -110,7 +110,7 @@ Make sure to update the Dockerfile to use an image that is compatible with the P
 		for _, wsgiPath := range wsgiFiles {
 			// when using a virtual environment to manage the dependencies (e.g. venv), the 'site-packages/' folder is created within the virtual environment folder
 			// This folder contains all the (dependencies) packages installed within the virtual environment
-			// exclude dependencies matches that contain 'site-packages' in the path (e.g. .venv/lib/python3.11/site-packages/django/core/handlers/wsgi.py)
+			// exclude dependencies matches that contain 'site-packages' in the path (e.g. .venv/lib/python3.12/site-packages/django/core/handlers/wsgi.py)
 			if !strings.Contains(wsgiPath, "site-packages") {
 				wsgiFilesProject = append(wsgiFilesProject, wsgiPath)
 			}
@@ -220,7 +220,7 @@ func extractPythonVersion() (string, bool, error) {
 	   Python 3.11.2
 	   Python 3.12.0b4
 	*/
-	pythonVersionOutput := "Python 3.11.0" // Fallback to 3.11
+	pythonVersionOutput := "Python 3.12.0" // Fallback to 3.12
 
 	cmd := exec.Command("python3", "--version")
 	out, err := cmd.CombinedOutput()
