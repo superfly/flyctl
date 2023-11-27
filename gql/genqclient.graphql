@@ -143,6 +143,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		...OrganizationData
 	}
