@@ -39,11 +39,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 			Default:     0,
 			Aliases:     []string{"memory"},
 		},
-		flag.String{
-			Name:        "process-group",
-			Description: "The process group to apply the VM size to",
-			Aliases:     []string{"group"},
-		},
+		flag.ProcessGroup("The process group to apply the VM size to"),
 	)
 	return cmd
 }
@@ -51,7 +47,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 func runScaleVM(ctx context.Context) error {
 	sizeName := flag.FirstArg(ctx)
 	memoryMB := flag.GetInt(ctx, "vm-memory")
-	group := flag.GetString(ctx, "process-group")
+	group := flag.GetProcessGroup(ctx)
 	return scaleVertically(ctx, group, sizeName, memoryMB)
 }
 
