@@ -8,69 +8,69 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/wg"
 )
 
 // SetAccessToken sets the value of the access token at the configuration file
-// found at path.
-func SetAccessToken(path, token string) error {
-	return set(path, map[string]interface{}{
+// contained in ctx.
+func SetAccessToken(ctx context.Context, token string) error {
+	return set(ctx, map[string]interface{}{
 		AccessTokenFileKey: token,
 	})
 }
 
 // SetMetricsToken sets the value of the metrics token at the configuration file
-// found at path.
-func SetMetricsToken(path, token string) error {
-	return set(path, map[string]interface{}{
+// contained in ctx.
+func SetMetricsToken(ctx context.Context, token string) error {
+	return set(ctx, map[string]interface{}{
 		MetricsTokenFileKey: token,
 	})
 }
 
 // SetSendMetrics sets the value of the send metrics flag at the configuration file
-// found at path.
-func SetSendMetrics(path string, sendMetrics bool) error {
-	return set(path, map[string]interface{}{
+// contained in ctx.
+func SetSendMetrics(ctx context.Context, sendMetrics bool) error {
+	return set(ctx, map[string]interface{}{
 		SendMetricsFileKey: sendMetrics,
 	})
 }
 
 // SetAutoUpdate sets the value of the autoupdate flag at the configuration file
-// found at path.
-func SetAutoUpdate(path string, autoUpdate bool) error {
-	return set(path, map[string]interface{}{
+// contained in ctx.
+func SetAutoUpdate(ctx context.Context, autoUpdate bool) error {
+	return set(ctx, map[string]interface{}{
 		AutoUpdateFileKey: autoUpdate,
 	})
 }
 
-func SetWireGuardState(path string, state map[string]*wg.WireGuardState) error {
-	return set(path, map[string]interface{}{
+func SetWireGuardState(ctx context.Context, state map[string]*wg.WireGuardState) error {
+	return set(ctx, map[string]interface{}{
 		WireGuardStateFileKey: state,
 	})
 }
 
-func SetWireGuardWebsocketsEnabled(path string, enabled bool) error {
-	return set(path, map[string]interface{}{
+func SetWireGuardWebsocketsEnabled(ctx context.Context, enabled bool) error {
+	return set(ctx, map[string]interface{}{
 		WireGuardWebsocketsFileKey: enabled,
 	})
 }
 
 // Clear clears the access token, metrics token, and wireguard-related keys of the configuration
-// file found at path.
-func Clear(path string) (err error) {
-	return set(path, map[string]interface{}{
+// file contained in ctx.
+func Clear(ctx context.Context) (err error) {
+	return set(ctx, map[string]interface{}{
 		AccessTokenFileKey:    "",
 		MetricsTokenFileKey:   "",
 		WireGuardStateFileKey: map[string]interface{}{},
 	})
 }
 
-func set(path string, vals map[string]interface{}) error {
+func set(ctx context.Context, vals map[string]interface{}) error {
 	m := make(map[string]interface{})
 
-	switch err := unmarshal(path, &m); {
+	switch err := unmarshal(ctx, &m); {
 	case err == nil, os.IsNotExist(err):
 		break
 	default:
@@ -81,16 +81,17 @@ func set(path string, vals map[string]interface{}) error {
 		m[k] = v
 	}
 
-	return marshal(path, m)
+	return marshal(ctx, m)
 }
 
-func lockPath() string {
-	return filepath.Join(flyctl.RuntimeDir(), "flyctl.config.lock")
+func lockPath(ctx context.Context) string {
+	return filepath.Join(state.RuntimeDirectory(ctx), "flyctl.lock")
 }
 
-func unmarshal(path string, v interface{}) (err error) {
+func unmarshal(ctx context.Context, v interface{}) (err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.RLock(context.Background(), lockPath()); err != nil {
+	var path = filepath.Join(state.ConfigDirectory(ctx), FileName)
+	if unlock, err = filemu.RLock(context.Background(), lockPath(ctx)); err != nil {
 		return
 	}
 	defer func() {
@@ -120,9 +121,10 @@ func unmarshalUnlocked(path string, v interface{}) (err error) {
 	return
 }
 
-func marshal(path string, v interface{}) (err error) {
+func marshal(ctx context.Context, v interface{}) (err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.Lock(context.Background(), lockPath()); err != nil {
+	var path = filepath.Join(state.ConfigDirectory(ctx), FileName)
+	if unlock, err = filemu.Lock(context.Background(), lockPath(ctx)); err != nil {
 		return
 	}
 	defer func() {

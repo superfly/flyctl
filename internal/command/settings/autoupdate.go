@@ -3,6 +3,7 @@ package settings
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -50,9 +51,9 @@ func runAutoupdateStatus(ctx context.Context) error {
 }
 
 func setAutoupdateEnabled(ctx context.Context, enabled bool) error {
-	path := state.ConfigFile(ctx)
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
 
-	if err := config.SetAutoUpdate(path, enabled); err != nil {
+	if err := config.SetAutoUpdate(ctx, enabled); err != nil {
 		return fmt.Errorf("failed persisting %s in %s: %w\n",
 			config.AutoUpdateFileKey, path, err)
 	}

@@ -547,9 +547,8 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		log.Debug("client reinitialized.")
 
 		if tokens.FromConfigFile {
-			path := state.ConfigFile(ctx)
 
-			if err = config.SetAccessToken(path, tokens.All()); err != nil {
+			if err = config.SetAccessToken(ctx, tokens.All()); err != nil {
 				log.Warn("Failed to persist authentication token.")
 				log.Debug(err)
 			}

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -34,9 +33,7 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 
 	cfg := config.New()
 
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := cfg.ApplyFile(ctx); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 

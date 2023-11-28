@@ -17,6 +17,8 @@ func _getValidationContext(t *testing.T) context.Context {
 	ctx = flag.NewContext(ctx, &pflag.FlagSet{})
 	ctx, err := preparers.DetermineConfigDir(ctx)
 	require.NoError(t, err)
+	ctx, err = preparers.DetermineRuntimeDir(ctx)
+	require.NoError(t, err)
 	ctx, err = preparers.LoadConfig(ctx)
 	require.NoError(t, err)
 	ctx, err = preparers.InitClient(ctx)

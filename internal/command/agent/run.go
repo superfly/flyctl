@@ -14,6 +14,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
@@ -62,7 +63,7 @@ func run(ctx context.Context) error {
 		Logger:     logger,
 		Client:     apiClient.API(),
 		Background: logPath != "",
-		ConfigFile: state.ConfigFile(ctx),
+		ConfigFile: filepath.Join(state.ConfigDirectory(ctx), config.FileName),
 	}
 
 	return server.Run(ctx, opt)
