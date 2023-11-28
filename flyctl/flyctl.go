@@ -14,6 +14,7 @@ import (
 )
 
 var configDir string
+var runtimeDir string
 
 // InitConfig - Initialises config file for Viper
 func InitConfig() {
@@ -33,12 +34,19 @@ func InitConfig() {
 		return
 	}
 
+	dir, err = helpers.GetRuntimeDirectory()
+	if err != nil {
+		fmt.Println("Error accessing runtime directory", err)
+		return
+	}
+	runtimeDir = dir
+
 	initViper()
 }
 
-// ConfigDir - Returns Directory holding the Config file
-func ConfigDir() string {
-	return configDir
+// RuntimeDir - Returns Directory holding runtime files
+func RuntimeDir() string {
+	return runtimeDir
 }
 
 // ConfigFilePath - returns the path to the config file

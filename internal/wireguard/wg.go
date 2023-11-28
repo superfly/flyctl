@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/flyctl/wg"
 	"golang.org/x/crypto/curve25519"
@@ -162,8 +161,7 @@ func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
 
 func setWireGuardState(ctx context.Context, s WireGuardStates) error {
 	viper.Set(flyctl.ConfigWireGuardState, s)
-	configPath := state.ConfigFile(ctx)
-	if err := config.SetWireGuardState(configPath, s); err != nil {
+	if err := config.SetWireGuardState(ctx, s); err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
 

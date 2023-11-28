@@ -12,12 +12,12 @@ import (
 )
 
 func logDir() (string, error) {
-	configDir, err := helpers.GetConfigDirectory()
+	stateDir, err := helpers.GetStateDirectory()
 	if err != nil {
 		return "", err
 	}
 
-	dir := filepath.Join(configDir, "logs")
+	dir := filepath.Join(stateDir, "logs")
 
 	dirStat, err := os.Stat(dir)
 	if err == nil && !dirStat.IsDir() {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
@@ -73,9 +74,9 @@ func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 }
 
 func persistMetricsToken(ctx context.Context, token string) error {
-	path := state.ConfigFile(ctx)
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
 
-	if err := config.SetMetricsToken(path, token); err != nil {
+	if err := config.SetMetricsToken(ctx, token); err != nil {
 		return fmt.Errorf("failed persisting %s in %s: %w\n",
 			config.MetricsTokenFileKey, path, err)
 	}

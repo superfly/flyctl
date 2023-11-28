@@ -54,6 +54,8 @@ var commonPreparers = []preparers.Preparer{
 	determineHostname,
 	determineWorkingDir,
 	preparers.DetermineConfigDir,
+	preparers.DetermineStateDir,
+	preparers.DetermineRuntimeDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
 	loadCache,
@@ -148,7 +150,7 @@ func finalize(ctx context.Context) {
 	// todo[md] move this to a background task
 	// flush the cache to disk if required
 	if c := cache.FromContext(ctx); c.Dirty() {
-		path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
+		path := filepath.Join(state.StateDirectory(ctx), cache.FileName)
 
 		if err := c.Save(path); err != nil {
 			logger.FromContext(ctx).
@@ -235,7 +237,7 @@ func ensureConfigDirPerms(parent context.Context) (ctx context.Context, err erro
 func loadCache(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
-	path := filepath.Join(state.ConfigDirectory(ctx), cache.FileName)
+	path := filepath.Join(state.StateDirectory(ctx), cache.FileName)
 
 	c, err := cache.Load(path)
 	if err != nil {
@@ -452,7 +454,7 @@ func PromptToMigrate(ctx context.Context, app *api.AppCompact) {
 }
 
 func killOldAgent(ctx context.Context) (context.Context, error) {
-	path := filepath.Join(state.ConfigDirectory(ctx), "agent.pid")
+	path := filepath.Join(state.RuntimeDirectory(ctx), "agent.pid")
 
 	data, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -545,9 +547,8 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		log.Debug("client reinitialized.")
 
 		if tokens.FromConfigFile {
-			path := state.ConfigFile(ctx)
 
-			if err = config.SetAccessToken(path, tokens.All()); err != nil {
+			if err = config.SetAccessToken(ctx, tokens.All()); err != nil {
 				log.Warn("Failed to persist authentication token.")
 				log.Debug(err)
 			}
