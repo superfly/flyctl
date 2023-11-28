@@ -13,10 +13,10 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
-	"github.com/superfly/flyctl/internal/state"
 )
 
 const nixpackInstallerURL string = "https://raw.githubusercontent.com/railwayapp/nixpacks/master/install.sh"
