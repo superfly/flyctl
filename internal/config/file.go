@@ -85,7 +85,7 @@ func set(path string, vals map[string]interface{}) error {
 }
 
 func lockPath() string {
-	return filepath.Join(flyctl.ConfigDir(), "flyctl.config.lock")
+	return filepath.Join(flyctl.RuntimeDir(), "flyctl.config.lock")
 }
 
 func unmarshal(path string, v interface{}) (err error) {

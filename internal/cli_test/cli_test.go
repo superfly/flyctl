@@ -8,13 +8,22 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/cli"
+	"github.com/superfly/flyctl/internal/state"
 )
 
 func TestVersion(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	dir, err := helpers.GetStateDirectory()
+	assert.NoError(t, err)
+	ctx = state.WithStateDirectory(ctx, dir)
+	dir, err = helpers.GetRuntimeDirectory()
+	assert.NoError(t, err)
+	ctx = state.WithRuntimeDirectory(ctx, dir)
+
 	defer cancel()
 
 	stdout, stderr, code := capture(ctx, t, "version")

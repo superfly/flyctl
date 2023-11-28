@@ -7,14 +7,13 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -29,8 +28,9 @@ func (*nixpacksBuilder) Name() string {
 }
 
 func ensureNixpacksBinary(ctx context.Context, streams *iostreams.IOStreams) error {
-	confDir := flyctl.ConfigDir()
-	binDir := path.Join(confDir, "bin")
+	// TODO: While this is true now, with XDG base dirs "bin/" will not be
+	// inside the config directory.
+	binDir := filepath.Join(state.ConfigDirectory(ctx), "bin")
 
 	_, err := os.Stat(filepath.Join(binDir, "nixpacks"))
 	if err == nil {
@@ -196,7 +196,10 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	build.BuilderInitFinish()
 
 	build.ImageBuildStart()
-	confDir := flyctl.ConfigDir()
+
+	// TODO: While this is true now, with XDG base dirs "bin/" will not be
+	// inside the config directory.
+	confDir := state.ConfigDirectory(ctx)
 	nixpacksPath := filepath.Join(confDir, "bin", "nixpacks")
 
 	nixpacksArgs := []string{"build", "--name", opts.Tag, opts.WorkingDir}
