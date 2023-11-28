@@ -54,6 +54,8 @@ var commonPreparers = []preparers.Preparer{
 	determineHostname,
 	determineWorkingDir,
 	preparers.DetermineConfigDir,
+	preparers.DetermineStateDir,
+	preparers.DetermineRuntimeDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
 	loadCache,
