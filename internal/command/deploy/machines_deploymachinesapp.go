@@ -286,12 +286,19 @@ func (m machineUpdateEntries) machines() []machine.LeasableMachine {
 }
 
 func errorIsTimeout(err error) bool {
-	// Trying to match the errors in a typed way is incredibly difficult and makes this function massive.
+
+	// Match an error against various known timeout conditions.
+	// This is probably a sign that we need to standardize this better, but it works for now.
+
+	var timeoutErr machine.WaitTimeoutErr
+	if errors.As(err, &timeoutErr) {
+		return true
+	}
+
 	if strings.Contains(err.Error(), "net/http: request canceled") {
 		return true
 	}
 
-	// Look for an underlying context.DeadlineExceeded error
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}

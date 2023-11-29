@@ -75,7 +75,7 @@ func (e WaitTimeoutErr) Error() string {
 }
 
 func (e WaitTimeoutErr) Description() string {
-	return fmt.Sprintf("The machine %s took more than %s to %s", e.machineID, e.timeout, e.action)
+	return fmt.Sprintf("The machine %s took more than %s to reach \"%s\"", e.machineID, e.timeout, e.action)
 }
 
 var invalidAction flyerr.GenericErr = flyerr.GenericErr{
