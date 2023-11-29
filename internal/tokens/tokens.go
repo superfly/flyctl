@@ -64,6 +64,14 @@ func (t *Tokens) NATS() string {
 	return t.normalized(false, false)
 }
 
+func (t *Tokens) Bubblegum() string {
+	return t.normalized(false, false)
+}
+
+func (t *Tokens) BubblegumHeader() string {
+	return t.normalized(false, true)
+}
+
 func (t *Tokens) GraphQL() string {
 	return t.normalized(true, false)
 }
