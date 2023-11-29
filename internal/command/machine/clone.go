@@ -25,8 +25,9 @@ import (
 
 func newClone() *cobra.Command {
 	const (
-		short = "Clone a Fly machine"
-		long  = short + "\n"
+		short = "Clone a Fly Machine."
+		long  = short + ` The new Machine will be a copy of the specified Machine.
+If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine.`
 
 		usage = "clone [machine_id]"
 	)
@@ -47,36 +48,36 @@ func newClone() *cobra.Command {
 		flag.Region(),
 		flag.String{
 			Name:        "name",
-			Description: "Optional name for the new machine",
+			Description: "Optional name for the new Machine",
 		},
 		flag.String{
 			Name:        "from-snapshot",
-			Description: "Clone attached volumes and restore from snapshot, use 'last' for most recent snapshot. The default is an empty volume",
+			Description: "Clone attached volumes and restore from snapshot, use 'last' for most recent snapshot. The default is an empty volume.",
 		},
 		flag.String{
 			Name:        "attach-volume",
-			Description: "Existing volume to attach to the new machine in the form of <volume_id>[:/path/inside/machine]",
+			Description: "Existing volume to attach to the new Machine in the form of <volume_id>[:/path/inside/machine]",
 		},
-		flag.ProcessGroup("Change the cloned machine process group to what is specified here"),
+		flag.ProcessGroup("Change the cloned Machine process group to what is specified here"),
 		flag.String{
 			Name:        "override-cmd",
-			Description: "Set CMD on the new machine to this value",
+			Description: "Set CMD on the new Machine to this value",
 		},
 		flag.Bool{
 			Name:        "clear-cmd",
-			Description: "Set empty CMD on the new machine so it uses default CMD for the image",
+			Description: "Set empty CMD on the new Machine so it uses default CMD for the image",
 		},
 		flag.Bool{
 			Name:        "clear-auto-destroy",
-			Description: "Disable auto destroy setting on new machine",
+			Description: "Disable auto destroy setting on the new Machine",
 		},
 		flag.StringSlice{
 			Name:        "standby-for",
-			Description: "Comma separated list of machine ids to watch for. You can use '--standby-for=source' to create a standby for the cloned machine",
+			Description: "Comma separated list of Machine IDs to watch for. You can use '--standby-for=source' to create a standby for the cloned Machine.",
 		},
 		flag.Bool{
 			Name:        "volume-requires-unique-zone",
-			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default false",
+			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default false.",
 			Default:     false,
 		},
 		flag.Detach(),
@@ -130,7 +131,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		region = source.Region
 	}
 
-	fmt.Fprintf(out, "Cloning machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
+	fmt.Fprintf(out, "Cloning Machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
 	targetConfig := source.Config
 	if targetProcessGroup := flag.GetProcessGroup(ctx); targetProcessGroup != "" {
@@ -152,7 +153,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
 		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 
-		terminal.Infof("Setting process group to %s for new machine and updating cmd, services, and checks\n", targetProcessGroup)
+		terminal.Infof("Setting process group to %s for new Machine and updating cmd, services, and checks\n", targetProcessGroup)
 		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
 		if err != nil {
 			return fmt.Errorf("failed to get process group config: %w", err)
@@ -182,7 +183,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.AutoDestroy = false
 	}
 	if targetConfig.AutoDestroy {
-		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy machine on exit. Use --clear-auto-destroy to remove this setting.\n")
+		fmt.Fprintf(io.Out, "Auto destroy enabled and will destroy Machine on exit. Use --clear-auto-destroy to remove this setting.\n")
 	}
 
 	var volID string
@@ -191,7 +192,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		volID = splitVolumeInfo[0]
 
 		if len(source.Config.Mounts) > 1 {
-			return fmt.Errorf("Can't use --attach-volume for machines with more than 1 volume.")
+			return fmt.Errorf("Can't use --attach-volume for Machines with more than 1 volume.")
 		} else if len(source.Config.Mounts) == 0 && len(splitVolumeInfo) != 2 {
 			return fmt.Errorf("Please specify a mount path on '%s' using <volume_id>:/path/inside/machine", volumeInfo)
 		}
@@ -291,7 +292,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		SkipLaunch: len(targetConfig.Standbys) > 0,
 	}
 
-	fmt.Fprintf(out, "Provisioning a new machine with image %s...\n", source.Config.Image)
+	fmt.Fprintf(out, "Provisioning a new Machine with image %s...\n", source.Config.Image)
 
 	launchedMachine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
@@ -305,7 +306,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	if !input.SkipLaunch {
-		fmt.Fprintf(out, "  Waiting for machine %s to start...\n", colorize.Bold(launchedMachine.ID))
+		fmt.Fprintf(out, "  Waiting for Machine %s to start...\n", colorize.Bold(launchedMachine.ID))
 
 		// wait for a machine to be started
 		err = mach.WaitForStartOrStop(ctx, launchedMachine, "start", time.Minute*5)
