@@ -37,7 +37,7 @@ require (
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
-	github.com/superfly/macaroon v0.2.4 // indirect
+	github.com/superfly/macaroon v0.2.6 // indirect
 	github.com/vektah/gqlparser/v2 v2.5.10 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.3.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect

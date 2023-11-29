@@ -60,7 +60,7 @@ require (
 	github.com/superfly/flyctl/api v0.0.0
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
-	github.com/superfly/macaroon v0.2.4
+	github.com/superfly/macaroon v0.2.6
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.10
