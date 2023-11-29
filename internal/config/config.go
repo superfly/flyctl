@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/pflag"
 
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
-	"github.com/superfly/flyctl/internal/tokens"
 )
 
 const (

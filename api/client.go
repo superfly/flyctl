@@ -13,7 +13,7 @@ import (
 	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
-	"github.com/superfly/flyctl/internal/tokens"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/graphql"
 )
 

@@ -4,9 +4,9 @@ import (
 	"errors"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/tokens"
 	"github.com/superfly/flyctl/iostreams"
 )
 
