@@ -312,12 +312,13 @@ func errorIsTimeout(err error) bool {
 
 // suggestChangeWaitTimeout appends a suggestion to change the specified flag name
 // if and only if the error is caused by a timeout.
-// If the err is not a timeout, it's returned unchanged.
+// If the error is not a timeout, it's returned unchanged.
 func suggestChangeWaitTimeout(err error, flagName string) error {
 	if errorIsTimeout(err) {
 		err = flyerr.GenericErr{
-			Err:     err.Error(),
-			Suggest: fmt.Sprintf("You can increase the timeout with the --%s flag", flagName),
+			Err:      err.Error(),
+			Descript: "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue.",
+			Suggest:  fmt.Sprintf("You can try deploying to a different region,\nor you can try increasing the timeout with the --%s flag", flagName),
 		}
 	}
 	return err
