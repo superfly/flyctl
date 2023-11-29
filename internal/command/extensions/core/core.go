@@ -22,7 +22,7 @@ import (
 
 type Extension struct {
 	Data        gql.ExtensionData
-	App         gql.AppData
+	App         *gql.AppData
 	SetsSecrets bool
 }
 
