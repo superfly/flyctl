@@ -51,7 +51,7 @@ func runPlanetscaleCreate(ctx context.Context) error {
 		return err
 	}
 	if extension.SetsSecrets {
-		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
+		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
 	}
 
 	return err
