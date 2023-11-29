@@ -20,6 +20,7 @@ import (
 )
 
 const maxConcurrentActions = 5
+const maxLeasableMachineCount = 30
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
@@ -54,12 +55,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	volumes, err := flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return err
-	}
-
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
@@ -110,6 +105,19 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 			return prompt.NonInteractiveError("--yes flag must be specified when not running interactively")
 		default:
 			return err
+		}
+	}
+
+	if !flag.GetBool(ctx, "do-not-acquire-leases") {
+		if len(machines) > maxLeasableMachineCount {
+			fmt.Fprintf(io.Out, "WARNING: Leases won't be acquired because app has more than %d machines and the operation is too slow", maxLeasableMachineCount)
+		} else {
+			leased, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+			if err != nil {
+				return err
+			}
+			defer releaseFunc(ctx, leased)
+			copy(machines, leased)
 		}
 	}
 
