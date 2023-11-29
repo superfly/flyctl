@@ -11,10 +11,5 @@
     "go.buildFlags": [
         "-tags",
         "integration"
-    ],
-    "terminal.integrated.env.linux": {
-        "FLY_API_BASE_URL": "http://localhost:5001",
-        "FLY_FLAPS_BASE_URL": "http://localhost:4280",
-        "FLY_ACCESS_TOKEN": "local-dev-auth-token"
-    }
+    ]
 }
