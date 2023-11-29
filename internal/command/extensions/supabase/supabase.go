@@ -8,7 +8,7 @@ import (
 func New() (cmd *cobra.Command) {
 
 	const (
-		short = "Provision and manage Supabase Postgresql databases"
+		short = "Provision and manage Supabase PostgreSQL databases"
 		long  = short + "\n"
 	)
 
