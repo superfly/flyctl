@@ -19,7 +19,7 @@ import (
 
 func New() *cobra.Command {
 	var (
-		long  = strings.Trim(`Proxies connections to a Fly Machine through a WireGuard tunnel. By default,
+		long = strings.Trim(`Proxies connections to a Fly Machine through a WireGuard tunnel. By default,
 connects to the first Machine address returned by an internal DNS query on the app.`, "\n")
 		short = `Proxies connections to a Fly Machine.`
 	)
