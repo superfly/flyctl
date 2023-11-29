@@ -30,6 +30,8 @@ func (c *Client) GetAppLogs(ctx context.Context, appName, token, region, instanc
 
 	url := fmt.Sprintf("%s/api/v1/apps/%s/logs?%s", baseURL, appName, data.Encode())
 
+	ctx = WithAuthorizationHeader(ctx, c.tokens.BubblegumHeader())
+
 	var req *http.Request
 	if req, err = http.NewRequestWithContext(ctx, "GET", url, nil); err != nil {
 		return
