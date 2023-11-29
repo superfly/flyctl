@@ -14,10 +14,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/metrics"
-	"github.com/superfly/flyctl/internal/tokens"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
