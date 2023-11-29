@@ -6,6 +6,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/tokens"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -22,22 +23,33 @@ func (c *Client) API() *api.Client {
 }
 
 func (c *Client) Authenticated() bool {
-	return c.api != nil
+	return c.api.Authenticated()
 }
 
+func FromTokens(toks *tokens.Tokens) *Client {
+	return &Client{api: api.NewClientFromOptions(api.ClientOptions{
+		Name:    buildinfo.Name(),
+		Version: buildinfo.Version().String(),
+		Logger:  logger.FromEnv(iostreams.System().ErrOut).AndLogToFile(),
+		Tokens:  toks,
+	})}
+}
+
+// deprecated
 func FromToken(token string) *Client {
-	var ac *api.Client
-	if token != "" {
-		ac = NewClient(token)
-	}
-
 	return &Client{
-		api: ac,
+		api: NewClient(token),
 	}
 }
 
+// deprecated
 func NewClient(token string) *api.Client {
-	return api.NewClient(token, buildinfo.Name(), buildinfo.Version().String(), logger.FromEnv(iostreams.System().ErrOut).AndLogToFile())
+	return api.NewClient(
+		token,
+		buildinfo.Name(),
+		buildinfo.Version().String(),
+		logger.FromEnv(iostreams.System().ErrOut).AndLogToFile(),
+	)
 }
 
 type NewClientOpts struct {
@@ -63,11 +75,7 @@ func NewClientWithOptions(opts *NewClientOpts) *Client {
 	if opts.ClientVersion != "" {
 		clientVersion = opts.ClientVersion
 	}
-	var apiClient *api.Client
-	if opts.Token != "" {
-		apiClient = api.NewClient(opts.Token, clientName, clientVersion, log)
-	}
 	return &Client{
-		api: apiClient,
+		api: api.NewClient(opts.Token, clientName, clientVersion, log),
 	}
 }
