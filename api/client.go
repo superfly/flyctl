@@ -220,7 +220,8 @@ type Transport struct {
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", t.tokens().GraphQLHeader())
+	t.addAuthorization(req)
+
 	req.Header.Set("User-Agent", t.UserAgent)
 	if t.EnableDebugTrace {
 		req.Header.Set("Fly-Force-Trace", "true")
@@ -233,4 +234,12 @@ func (t *Transport) tokens() *tokens.Tokens {
 		t.Tokens = tokens.Parse(t.Token)
 	}
 	return t.Tokens
+}
+
+func (t *Transport) addAuthorization(req *http.Request) {
+	hdr, ok := req.Context().Value(contextKeyAuthorization).(string)
+	if !ok {
+		hdr = t.tokens().GraphQLHeader()
+	}
+	req.Header.Set("Authorization", hdr)
 }
