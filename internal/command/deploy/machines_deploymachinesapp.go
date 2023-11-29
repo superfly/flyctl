@@ -286,12 +286,19 @@ func (m machineUpdateEntries) machines() []machine.LeasableMachine {
 }
 
 func errorIsTimeout(err error) bool {
-	// Trying to match the errors in a typed way is incredibly difficult and makes this function massive.
+
+	// Match an error against various known timeout conditions.
+	// This is probably a sign that we need to standardize this better, but it works for now.
+
+	var timeoutErr machine.WaitTimeoutErr
+	if errors.As(err, &timeoutErr) {
+		return true
+	}
+
 	if strings.Contains(err.Error(), "net/http: request canceled") {
 		return true
 	}
 
-	// Look for an underlying context.DeadlineExceeded error
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
@@ -305,12 +312,36 @@ func errorIsTimeout(err error) bool {
 
 // suggestChangeWaitTimeout appends a suggestion to change the specified flag name
 // if and only if the error is caused by a timeout.
-// If the err is not a timeout, it's returned unchanged.
+// If the error is not a timeout, it's returned unchanged.
 func suggestChangeWaitTimeout(err error, flagName string) error {
 	if errorIsTimeout(err) {
+
+		suggestIncreaseTimeout := fmt.Sprintf("increasing the timeout with the --%s flag", flagName)
+
+		descript := ""
+		suggest := ""
+
+		// Both of these branches give the suggestion to change the timeout,
+		// but we only suggest changing region on machine start.
+
+		var timeoutErr machine.WaitTimeoutErr
+		if errors.As(err, &timeoutErr) && timeoutErr.DesiredState() == api.MachineStateStarted {
+			// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
+			// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
+			descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
+			suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
+		} else {
+			// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
+			// You can't really suggest changing regions in cases where you're not starting machines, so this is the
+			// best advice we can give.
+			descript = "Your machine never reached the state \"%s\"."
+			suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
+		}
+
 		err = flyerr.GenericErr{
-			Err:     err.Error(),
-			Suggest: fmt.Sprintf("You can increase the timeout with the --%s flag", flagName),
+			Err:      err.Error(),
+			Descript: descript,
+			Suggest:  suggest,
 		}
 	}
 	return err
