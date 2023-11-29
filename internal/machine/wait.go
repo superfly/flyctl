@@ -49,7 +49,7 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 			return WaitTimeoutErr{
 				machineID: machine.ID,
 				timeout:   timeout,
-				action:    action,
+				action:    waitOnAction,
 			}
 		default:
 			var flapsErr *flaps.FlapsError
