@@ -117,13 +117,13 @@ func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach 
 		SkipHealthChecks: detach,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		sentry.CaptureExceptionWithAppInfo(err, "secrets", app.SentryAppInfo())
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		sentry.CaptureExceptionWithAppInfo(err, "secrets", app.SentryAppInfo())
 	}
 	return err
 

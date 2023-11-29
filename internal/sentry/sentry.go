@@ -11,7 +11,6 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/logrusorgru/aurora"
 
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
@@ -96,8 +95,14 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 	})
 }
 
-func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.AppCompact) {
-	if appCompact == nil {
+type AppInfo struct {
+	OrganizationSlug string
+	PlatformVersion  string
+	Name             string
+}
+
+func CaptureExceptionWithAppInfo(err error, featureName string, app *AppInfo) {
+	if app == nil {
 		CaptureException(
 			err,
 			WithTag("feature", featureName),
@@ -107,13 +112,13 @@ func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.
 	CaptureException(
 		err,
 		WithTag("feature", featureName),
-		WithTag("app-platform-version", appCompact.PlatformVersion),
+		WithTag("app-platform-version", app.PlatformVersion),
 		WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
-				"name": appCompact.Name,
+				"name": app.Name,
 			},
 			"organization": map[string]interface{}{
-				"slug": appCompact.Organization.Slug,
+				"slug": app.OrganizationSlug,
 			},
 		}),
 	)

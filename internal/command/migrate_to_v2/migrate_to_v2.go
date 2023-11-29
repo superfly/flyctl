@@ -896,12 +896,12 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	ctx = appconfig.WithConfig(ctx, m.appConfig)
 	md, err := deploy.NewMachineDeployment(ctx, input)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
+		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact.SentryAppInfo())
 		return err
 	}
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
+		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact.SentryAppInfo())
 		return err
 	}
 	return nil
