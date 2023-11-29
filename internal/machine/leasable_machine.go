@@ -182,9 +182,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return WaitTimeoutErr{
-				machineID: lm.machine.ID,
-				timeout:   timeout,
-				action:    desiredState,
+				machineID:    lm.machine.ID,
+				timeout:      timeout,
+				desiredState: desiredState,
 			}
 		case notFoundResponse && desiredState != api.MachineStateDestroyed:
 			return err

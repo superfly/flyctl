@@ -47,9 +47,9 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return WaitTimeoutErr{
-				machineID: machine.ID,
-				timeout:   timeout,
-				action:    waitOnAction,
+				machineID:    machine.ID,
+				timeout:      timeout,
+				desiredState: waitOnAction,
 			}
 		default:
 			var flapsErr *flaps.FlapsError
@@ -65,9 +65,9 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 }
 
 type WaitTimeoutErr struct {
-	machineID string
-	timeout   time.Duration
-	action    string
+	machineID    string
+	timeout      time.Duration
+	desiredState string
 }
 
 func (e WaitTimeoutErr) Error() string {
@@ -75,7 +75,11 @@ func (e WaitTimeoutErr) Error() string {
 }
 
 func (e WaitTimeoutErr) Description() string {
-	return fmt.Sprintf("The machine %s took more than %s to reach \"%s\"", e.machineID, e.timeout, e.action)
+	return fmt.Sprintf("The machine %s took more than %s to reach \"%s\"", e.machineID, e.timeout, e.desiredState)
+}
+
+func (e WaitTimeoutErr) DesiredState() string {
+	return e.desiredState
 }
 
 var invalidAction flyerr.GenericErr = flyerr.GenericErr{
