@@ -104,7 +104,7 @@ If you do upgrade, you can run 'fly launch' again to get the required deployment
 If you don't want to upgrade, you'll need to add a few files and configuration options manually.
 We've placed a Dockerfile compatible with other Phoenix 1.6 apps in this directory. See
 https://hexdocs.pm/phoenix/fly.html for details, including instructions for setting up
-a Postgresql database.
+a PostgreSQL database.
 `
 	}
 
