@@ -61,6 +61,12 @@ func newOrg() *cobra.Command {
 			Description: "The duration that the token will be valid",
 			Default:     time.Hour * 24 * 365 * 20,
 		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "Org deploy token",
+		},
 	)
 
 	return cmd
@@ -88,6 +94,12 @@ func newOrgRead() *cobra.Command {
 			Shorthand:   "x",
 			Description: "The duration that the token will be valid",
 			Default:     time.Hour * 24 * 365 * 20,
+		},
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "Read-only org token",
 		},
 	)
 

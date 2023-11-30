@@ -8,13 +8,11 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func status() *cobra.Command {
 	const (
-		short = "Show details about a Supabase database"
+		short = "Show details about a Supabase Postgres database"
 		long  = short + "\n"
 
 		usage = "status [name]"
@@ -36,36 +34,5 @@ func status() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) (err error) {
-	var (
-		io = iostreams.FromContext(ctx)
-	)
-
-	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypeSupabase)
-
-	if err != nil {
-		return err
-	}
-
-	var appName string
-
-	if app != nil {
-		appName = app.Name
-	}
-
-	obj := [][]string{
-		{
-			extension.Name,
-			extension.PrimaryRegion,
-			extension.Status,
-			appName,
-		},
-	}
-
-	var cols []string = []string{"Name", "Primary Region", "Status", "App"}
-
-	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
-		return
-	}
-
-	return
+	return extensions_core.Status(ctx, gql.AddOnTypePlanetscale)
 }

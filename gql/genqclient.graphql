@@ -33,6 +33,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 
 mutation CreateAddOn($input: CreateAddOnInput!) {
