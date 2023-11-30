@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
@@ -482,6 +483,37 @@ func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error)
 		return false, err
 	}
 	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
+}
+
+func Status(ctx context.Context, provider gql.AddOnType) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	extension, app, err := Discover(ctx, provider)
+
+	if err != nil {
+		return err
+	}
+
+	obj := [][]string{
+		{
+			extension.Name,
+			extension.PrimaryRegion,
+			extension.Status,
+		},
+	}
+
+	var cols []string = []string{"Name", "Primary Region", "Status"}
+
+	if app != nil {
+		obj[0] = append(obj[0], app.Name)
+		cols = append(cols, "App")
+	}
+
+	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
+		return
+	}
+
+	return
 }
 
 // Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py
