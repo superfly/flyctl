@@ -168,7 +168,7 @@ func printGHAErrorAnnotation(cmd *cobra.Command, err error) {
 	//
 	errMsg = strings.ReplaceAll(errMsg, "\n", "⏎")
 
-	fmt.Printf("::error title=flyctl error output::%s\n", errMsg)
+	fmt.Printf("::error title=flyctl error::%s\n", errMsg)
 }
 
 // TODO: remove this once generation of the docs has been refactored.
