@@ -13,7 +13,7 @@ import (
 
 func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
 	machines, releaseFunc, err := AcquireAllLeases(ctx)
-	defer releaseFunc(ctx, machines)
+	defer releaseFunc()
 	if err != nil {
 		return err
 	}

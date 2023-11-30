@@ -95,7 +95,7 @@ func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err e
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}

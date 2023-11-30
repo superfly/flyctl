@@ -131,7 +131,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 	)
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved")
 	}
@@ -183,7 +183,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 		}
 
 		// Ensure leases are released before we issue restart.
-		releaseLeaseFunc(ctx, machines)
+		releaseLeaseFunc()
 		if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
 			return err
 		}

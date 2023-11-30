@@ -119,7 +119,7 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 	}
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}
