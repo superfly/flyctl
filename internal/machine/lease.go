@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+const maxConcurrentLeases = 20
 
 type releaseLeasesFunc func(ctx context.Context, machines []*api.Machine)
 type releaseLeaseFunc func(ctx context.Context, machine *api.Machine)
@@ -27,47 +30,52 @@ func AcquireAllLeases(ctx context.Context) ([]*api.Machine, releaseLeasesFunc, e
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
 func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, releaseLeasesFunc, error) {
-	var (
-		flapsClient = flaps.FromContext(ctx)
-		io          = iostreams.FromContext(ctx)
-	)
+	aPool := pool.NewWithResults[*api.Machine]().
+		WithErrors().
+		WithMaxGoroutines(maxConcurrentLeases).
+		WithContext(ctx)
 
-	releaseFunc := func(ctx context.Context, machines []*api.Machine) {
-		for _, m := range machines {
+	for _, m := range machines {
+		m := m
+		aPool.Go(func(ctx context.Context) (*api.Machine, error) {
+			m, _, err := AcquireLease(ctx, m)
+			return m, err
+		})
+	}
+
+	leaseHoldingMachines, err := aPool.Wait()
+	return leaseHoldingMachines, ReleaseLeases, err
+}
+
+func ReleaseLeases(ctx context.Context, machines []*api.Machine) {
+	io := iostreams.FromContext(ctx)
+	flapsClient := flaps.FromContext(ctx)
+	releasePool := pool.New()
+
+	for _, m := range machines {
+		m := m
+		if m == nil || m.LeaseNonce == "" {
+			continue
+		}
+		releasePool.Go(func() {
 			if err := flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce); err != nil {
 				if !strings.Contains(err.Error(), "lease not found") {
 					fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", m.ID, err.Error())
 				}
 			}
-		}
+		})
 	}
 
-	leaseHoldingMachines := []*api.Machine{}
-	for _, machine := range machines {
-		m, _, err := AcquireLease(ctx, machine)
-		if err != nil {
-			return leaseHoldingMachines, releaseFunc, err
-		}
-		leaseHoldingMachines = append(leaseHoldingMachines, m)
-	}
-
-	return leaseHoldingMachines, releaseFunc, nil
+	releasePool.Wait()
 }
 
 // AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
 func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, releaseLeaseFunc, error) {
-	var (
-		flapsClient = flaps.FromContext(ctx)
-		io          = iostreams.FromContext(ctx)
-	)
+	flapsClient := flaps.FromContext(ctx)
 
 	releaseFunc := func(ctx context.Context, machine *api.Machine) {
-		if machine != nil {
-			if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
-				fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s\n", machine.ID, err.Error())
-			}
-		}
+		ReleaseLeases(ctx, []*api.Machine{machine})
 	}
 
 	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(120))
