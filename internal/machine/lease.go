@@ -48,8 +48,6 @@ func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine
 }
 
 func ReleaseLeases(ctx context.Context, machines []*api.Machine) {
-	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
 	releasePool := pool.New()
 
 	for _, m := range machines {
@@ -58,15 +56,26 @@ func ReleaseLeases(ctx context.Context, machines []*api.Machine) {
 			continue
 		}
 		releasePool.Go(func() {
-			if err := flapsClient.ReleaseLease(ctx, m.ID, m.LeaseNonce); err != nil {
-				if !strings.Contains(err.Error(), "lease not found") {
-					fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", m.ID, err.Error())
-				}
-			}
+			ReleaseLease(ctx, m)
 		})
 	}
 
 	releasePool.Wait()
+}
+
+func ReleaseLease(ctx context.Context, machine *api.Machine) {
+	if machine == nil || machine.LeaseNonce == "" {
+		return
+	}
+
+	io := iostreams.FromContext(ctx)
+	flapsClient := flaps.FromContext(ctx)
+
+	if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+		if !strings.Contains(err.Error(), "lease not found") {
+			fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", machine.ID, err.Error())
+		}
+	}
 }
 
 // AcquireLease works to acquire/attach a lease for the specified machine.
