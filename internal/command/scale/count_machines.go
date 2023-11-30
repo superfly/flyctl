@@ -58,12 +58,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
-	if err != nil {
-		return err
-	}
-
 	defaultGuest, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return err
@@ -111,6 +105,12 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		default:
 			return err
 		}
+	}
+
+	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseFunc(ctx, machines)
+	if err != nil {
+		return err
 	}
 
 	updatePool := pool.New().
