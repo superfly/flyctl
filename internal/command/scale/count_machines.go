@@ -108,7 +108,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
+	defer releaseFunc() // It's important to call the release func even in case of errors
 	if err != nil {
 		return err
 	}

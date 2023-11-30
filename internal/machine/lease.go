@@ -13,23 +13,20 @@ import (
 
 const maxConcurrentLeases = 20
 
-type releaseLeasesFunc func(ctx context.Context, machines []*api.Machine)
-type releaseLeaseFunc func(ctx context.Context, machine *api.Machine)
+type releaseLeaseFunc func()
 
 // AcquireAllLeases works to acquire/attach a lease for each active machine.
-func AcquireAllLeases(ctx context.Context) ([]*api.Machine, releaseLeasesFunc, error) {
-	releaseFunc := func(ctx context.Context, machines []*api.Machine) {}
-
+func AcquireAllLeases(ctx context.Context) ([]*api.Machine, releaseLeaseFunc, error) {
 	machines, err := ListActive(ctx)
 	if err != nil {
-		return nil, releaseFunc, err
+		return nil, func() {}, err
 	}
 
 	return AcquireLeases(ctx, machines)
 }
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
-func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, releaseLeasesFunc, error) {
+func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, releaseLeaseFunc, error) {
 	aPool := pool.NewWithResults[*api.Machine]().
 		WithErrors().
 		WithMaxGoroutines(maxConcurrentLeases).
@@ -44,7 +41,9 @@ func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine
 	}
 
 	leaseHoldingMachines, err := aPool.Wait()
-	return leaseHoldingMachines, ReleaseLeases, err
+	releaseFunc := func() { ReleaseLeases(ctx, leaseHoldingMachines) }
+
+	return leaseHoldingMachines, releaseFunc, err
 }
 
 func ReleaseLeases(ctx context.Context, machines []*api.Machine) {
@@ -52,9 +51,6 @@ func ReleaseLeases(ctx context.Context, machines []*api.Machine) {
 
 	for _, m := range machines {
 		m := m
-		if m == nil || m.LeaseNonce == "" {
-			continue
-		}
 		releasePool.Go(func() {
 			ReleaseLease(ctx, m)
 		})
@@ -83,13 +79,9 @@ func ReleaseLease(ctx context.Context, machine *api.Machine) {
 func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, releaseLeaseFunc, error) {
 	flapsClient := flaps.FromContext(ctx)
 
-	releaseFunc := func(ctx context.Context, machine *api.Machine) {
-		ReleaseLeases(ctx, []*api.Machine{machine})
-	}
-
 	lease, err := flapsClient.AcquireLease(ctx, machine.ID, api.IntPointer(120))
 	if err != nil {
-		return nil, releaseFunc, fmt.Errorf("failed to obtain lease: %w", err)
+		return nil, func() {}, fmt.Errorf("failed to obtain lease: %w", err)
 	}
 
 	// Set lease nonce before we re-fetch the Machines latest configuration.
@@ -97,12 +89,11 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, rele
 	machine.LeaseNonce = lease.Data.Nonce
 
 	// Re-query machine post-lease acquisition to ensure we are working against the latest configuration.
-	machine, err = flapsClient.Get(ctx, machine.ID)
+	updatedMachine, err := flapsClient.Get(ctx, machine.ID)
 	if err != nil {
-		return machine, releaseFunc, err
+		return machine, func() { ReleaseLease(ctx, machine) }, err
 	}
 
-	machine.LeaseNonce = lease.Data.Nonce
-
-	return machine, releaseFunc, nil
+	updatedMachine.LeaseNonce = lease.Data.Nonce
+	return updatedMachine, func() { ReleaseLease(ctx, updatedMachine) }, nil
 }
