@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -33,7 +34,7 @@ const headerFlyRequestId = "fly-request-id"
 type Client struct {
 	appName    string
 	baseUrl    *url.URL
-	authToken  string
+	tokens     *tokens.Tokens
 	httpClient *http.Client
 	userAgent  string
 }
@@ -89,7 +90,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	return &Client{
 		appName:    opts.AppName,
 		baseUrl:    flapsUrl,
-		authToken:  config.Tokens(ctx).Flaps(),
+		tokens:     config.Tokens(ctx),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
@@ -151,7 +152,7 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 	return &Client{
 		appName:    params.appName,
 		baseUrl:    flapsBaseUrl,
-		authToken:  config.Tokens(ctx).Flaps(),
+		tokens:     config.Tokens(ctx),
 		httpClient: httpClient,
 		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
@@ -277,7 +278,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	}
 	req.Header = headers
 
-	req.Header.Add("Authorization", api.AuthorizationHeader(f.authToken))
+	req.Header.Add("Authorization", f.tokens.FlapsHeader())
 
 	return req, nil
 }

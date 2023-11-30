@@ -532,8 +532,8 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 
 	tokens := config.Tokens(ctx)
 
-	pruned := tokens.PruneBadMacaroons()
-	discharged, err := tokens.DischargeThirdPartyCaveats(ctx)
+	pruned := pruneBadMacaroons(tokens)
+	discharged, err := dischargeThirdPartyCaveats(ctx, tokens)
 
 	if err != nil {
 		log.Warn("Failed to upgrade authentication token. Command may fail.")
@@ -541,9 +541,6 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 	}
 
 	if pruned || discharged {
-		ctx = client.NewContext(ctx, client.FromToken(tokens.GraphQL()))
-		log.Debug("client reinitialized.")
-
 		if tokens.FromConfigFile {
 			path := state.ConfigFile(ctx)
 

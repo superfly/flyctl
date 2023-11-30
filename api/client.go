@@ -13,6 +13,7 @@ import (
 	"time"
 
 	genq "github.com/Khan/genqlient/graphql"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/graphql"
 )
 
@@ -47,11 +48,15 @@ type InstrumentationService interface {
 
 // Client - API client encapsulating the http and GraphQL clients
 type Client struct {
-	httpClient  *http.Client
-	client      *graphql.Client
-	GenqClient  genq.Client
-	accessToken string
-	logger      Logger
+	httpClient *http.Client
+	client     *graphql.Client
+	GenqClient genq.Client
+	tokens     *tokens.Tokens
+	logger     Logger
+}
+
+func (c *Client) Authenticated() bool {
+	return c.tokens.GraphQL() != ""
 }
 
 // NewClient - creates a new Client, takes an access token
@@ -67,6 +72,7 @@ func NewClient(accessToken, name, version string, logger Logger) *Client {
 
 type ClientOptions struct {
 	AccessToken      string
+	Tokens           *tokens.Tokens
 	Name             string
 	Version          string
 	BaseURL          string
@@ -75,12 +81,20 @@ type ClientOptions struct {
 	Transport        *Transport
 }
 
-func (t *Transport) setDefaults(opts ClientOptions) {
+func (opts ClientOptions) tokens() *tokens.Tokens {
+	if opts.Tokens == nil {
+		opts.Tokens = tokens.Parse(opts.AccessToken)
+	}
+
+	return opts.Tokens
+}
+
+func (t *Transport) setDefaults(opts *ClientOptions) {
 	if t.UnderlyingTransport == nil {
 		t.UnderlyingTransport = defaultTransport
 	}
-	if t.Token == "" {
-		t.Token = opts.AccessToken
+	if t.Tokens == nil && t.Token == "" {
+		t.Tokens = opts.tokens()
 	}
 	if t.UserAgent == "" {
 		t.UserAgent = fmt.Sprintf("%s/%s", opts.Name, opts.Version)
@@ -94,18 +108,22 @@ func (t *Transport) setDefaults(opts ClientOptions) {
 }
 
 func NewClientFromOptions(opts ClientOptions) *Client {
+	if opts.BaseURL == "" {
+		opts.BaseURL = baseURL
+	}
+
 	transport := opts.Transport
 	if transport == nil {
 		transport = &Transport{}
 	}
-	transport.setDefaults(opts)
+	transport.setDefaults(&opts)
 
 	httpClient, _ := NewHTTPClient(opts.Logger, transport)
 	url := fmt.Sprintf("%s/graphql", opts.BaseURL)
 	client := graphql.NewClient(url, graphql.WithHTTPClient(httpClient))
 	genqClient := genq.NewClient(url, httpClient)
 
-	return &Client{httpClient, client, genqClient, opts.AccessToken, opts.Logger}
+	return &Client{httpClient, client, genqClient, opts.tokens(), opts.Logger}
 }
 
 // NewRequest - creates a new GraphQL request
@@ -200,15 +218,32 @@ func GetAccessToken(ctx context.Context, email, password, otp string) (token str
 type Transport struct {
 	UnderlyingTransport http.RoundTripper
 	UserAgent           string
-	Token               string
+	Token               string // deprecated
+	Tokens              *tokens.Tokens
 	EnableDebugTrace    bool
 }
 
 func (t *Transport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Set("Authorization", AuthorizationHeader(t.Token))
+	t.addAuthorization(req)
+
 	req.Header.Set("User-Agent", t.UserAgent)
 	if t.EnableDebugTrace {
 		req.Header.Set("Fly-Force-Trace", "true")
 	}
 	return t.UnderlyingTransport.RoundTrip(req)
+}
+
+func (t *Transport) tokens() *tokens.Tokens {
+	if t.Tokens == nil {
+		t.Tokens = tokens.Parse(t.Token)
+	}
+	return t.Tokens
+}
+
+func (t *Transport) addAuthorization(req *http.Request) {
+	hdr, ok := req.Context().Value(contextKeyAuthorization).(string)
+	if !ok {
+		hdr = t.tokens().GraphQLHeader()
+	}
+	req.Header.Set("Authorization", hdr)
 }
