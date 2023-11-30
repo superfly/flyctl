@@ -76,7 +76,7 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	machines, releaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseFunc(ctx, machines)
+	defer releaseFunc()
 	if err != nil {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
