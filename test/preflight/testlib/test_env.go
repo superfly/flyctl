@@ -95,6 +95,7 @@ func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 
 	// annotate github actions output with cli errors
 	env.Setenv("FLY_GHA_ERROR_ANNOTATION", "1")
+	env.Setenv("GITHUB_ACTIONS", os.Getenv("GITHUB_ACTIONS"))
 
 	fmt.Println("workdir", env.workDir)
 	return env
