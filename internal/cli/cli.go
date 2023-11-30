@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -121,6 +122,10 @@ func isUnchangedError(err error) bool {
 }
 
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
+	if env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
+		printGHAErrorAnnotation(cmd, err)
+	}
+
 	var requestId string
 
 	if requestId = flaps.GetErrorRequestID(err); requestId != "" {
@@ -147,7 +152,23 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 	if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
 		fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
 	}
+}
 
+func printGHAErrorAnnotation(cmd *cobra.Command, err error) {
+	errMsg := err.Error()
+	if requestId := flaps.GetErrorRequestID(err); requestId != "" {
+		errMsg += " (Request ID: " + requestId + ")"
+	}
+
+	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
+		errMsg += "\n" + description
+	}
+
+	// GHA annotation messages don't support multiple lines. replace \n with a symbol to prevent losing output
+	//
+	errMsg = strings.ReplaceAll(errMsg, "\n", "⏎")
+
+	fmt.Printf("::error title=flyctl error output::%s\n", errMsg)
 }
 
 // TODO: remove this once generation of the docs has been refactored.
