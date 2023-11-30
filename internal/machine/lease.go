@@ -27,39 +27,32 @@ func AcquireAllLeases(ctx context.Context) ([]*api.Machine, releaseLeaseFunc, er
 
 // AcquireLeases works to acquire/attach a lease for each machine specified.
 func AcquireLeases(ctx context.Context, machines []*api.Machine) ([]*api.Machine, releaseLeaseFunc, error) {
-	aPool := pool.NewWithResults[*api.Machine]().
+	acquirePool := pool.NewWithResults[*api.Machine]().
 		WithErrors().
-		WithMaxGoroutines(maxConcurrentLeases).
-		WithContext(ctx)
+		WithMaxGoroutines(maxConcurrentLeases)
 
 	for _, m := range machines {
 		m := m
-		aPool.Go(func(ctx context.Context) (*api.Machine, error) {
+		acquirePool.Go(func() (*api.Machine, error) {
 			m, _, err := AcquireLease(ctx, m)
 			return m, err
 		})
 	}
 
-	leaseHoldingMachines, err := aPool.Wait()
-	releaseFunc := func() { ReleaseLeases(ctx, leaseHoldingMachines) }
+	leaseHoldingMachines, err := acquirePool.Wait()
+
+	releaseFunc := func() {
+		p := pool.New()
+		for _, m := range leaseHoldingMachines {
+			p.Go(func() { releaseLease(ctx, m) })
+		}
+		p.Wait()
+	}
 
 	return leaseHoldingMachines, releaseFunc, err
 }
 
-func ReleaseLeases(ctx context.Context, machines []*api.Machine) {
-	releasePool := pool.New()
-
-	for _, m := range machines {
-		m := m
-		releasePool.Go(func() {
-			ReleaseLease(ctx, m)
-		})
-	}
-
-	releasePool.Wait()
-}
-
-func ReleaseLease(ctx context.Context, machine *api.Machine) {
+func releaseLease(ctx context.Context, machine *api.Machine) {
 	if machine == nil || machine.LeaseNonce == "" {
 		return
 	}
@@ -91,9 +84,9 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, rele
 	// Re-query machine post-lease acquisition to ensure we are working against the latest configuration.
 	updatedMachine, err := flapsClient.Get(ctx, machine.ID)
 	if err != nil {
-		return machine, func() { ReleaseLease(ctx, machine) }, err
+		return machine, func() { releaseLease(ctx, machine) }, err
 	}
 
 	updatedMachine.LeaseNonce = lease.Data.Nonce
-	return updatedMachine, func() { ReleaseLease(ctx, updatedMachine) }, nil
+	return updatedMachine, func() { releaseLease(ctx, updatedMachine) }, nil
 }
