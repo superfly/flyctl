@@ -601,7 +601,7 @@ type MachineConfig struct {
 	Schedule string `json:"schedule,omitempty"`
 	// Optional boolean telling the Machine to destroy itself once it’s complete (default false)
 	AutoDestroy bool             `json:"auto_destroy,omitempty"`
-	Restart     MachineRestart   `json:"restart,omitempty"`
+	Restart     *MachineRestart  `json:"restart,omitempty"`
 	DNS         *DNSConfig       `json:"dns,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 

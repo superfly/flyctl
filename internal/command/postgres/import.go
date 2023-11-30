@@ -139,7 +139,7 @@ func runImport(ctx context.Context) error {
 		DNS: &api.DNSConfig{
 			SkipRegistration: true,
 		},
-		Restart: api.MachineRestart{
+		Restart: &api.MachineRestart{
 			Policy: api.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,

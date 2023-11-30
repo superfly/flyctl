@@ -701,21 +701,29 @@ func determineMachineConfig(
 	// default restart policy to always unless otherwise specified
 	switch flag.GetString(ctx, "restart") {
 	case "no":
-		machineConf.Restart.Policy = api.MachineRestartPolicyNo
+		machineConf.Restart = &api.MachineRestart{
+			Policy: api.MachineRestartPolicyNo,
+		}
 	case "on-fail":
-		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+		machineConf.Restart = &api.MachineRestart{
+			Policy: api.MachineRestartPolicyOnFailure,
+		}
 	case "always":
-		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		machineConf.Restart = &api.MachineRestart{
+			Policy: api.MachineRestartPolicyAlways,
+		}
 	case "":
 		if flag.IsSpecified(ctx, "restart") {
 			// An empty policy was explicitly requested.
-			machineConf.Restart.Policy = ""
+			machineConf.Restart = &api.MachineRestart{
+				Policy: "",
+			}
 		} else if !input.updating {
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
-				machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+				machineConf.Restart = &api.MachineRestart{Policy: api.MachineRestartPolicyOnFailure}
 			} else {
-				machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+				machineConf.Restart = &api.MachineRestart{Policy: api.MachineRestartPolicyAlways}
 			}
 		}
 	default:
