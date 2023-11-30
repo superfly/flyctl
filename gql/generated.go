@@ -22,6 +22,8 @@ type AddOnData struct {
 	Status string `json:"status"`
 	// Optional error message when `status` is `error`
 	ErrorMessage string `json:"errorMessage"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -38,6 +40,9 @@ func (v *AddOnData) GetStatus() string { return v.Status }
 
 // GetErrorMessage returns AddOnData.ErrorMessage, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
+
+// GetMetadata returns AddOnData.Metadata, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetMetadata() interface{} { return v.Metadata }
 
 type AddOnType string
 
@@ -420,6 +425,8 @@ type AppData struct {
 	Deployed bool   `json:"deployed"`
 	// Fly platform version
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+	// Secrets set on the application
+	Secrets []AppDataSecretsSecret `json:"secrets"`
 	// Organization that owns this app
 	Organization AppDataOrganization `json:"organization"`
 }
@@ -435,6 +442,9 @@ func (v *AppData) GetDeployed() bool { return v.Deployed }
 
 // GetPlatformVersion returns AppData.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *AppData) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
+
+// GetSecrets returns AppData.Secrets, and is useful for accessing the field via an interface.
+func (v *AppData) GetSecrets() []AppDataSecretsSecret { return v.Secrets }
 
 // GetOrganization returns AppData.Organization, and is useful for accessing the field via an interface.
 func (v *AppData) GetOrganization() AppDataOrganization { return v.Organization }
@@ -522,6 +532,15 @@ func (v *AppDataOrganization) __premarshalJSON() (*__premarshalAppDataOrganizati
 	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
 	return &retval, nil
 }
+
+// AppDataSecretsSecret includes the requested fields of the GraphQL type Secret.
+type AppDataSecretsSecret struct {
+	// The name of the secret
+	Name string `json:"name"`
+}
+
+// GetName returns AppDataSecretsSecret.Name, and is useful for accessing the field via an interface.
+func (v *AppDataSecretsSecret) GetName() string { return v.Name }
 
 type BuildFinalImageInput struct {
 	// Sha256 id of docker image
@@ -847,6 +866,11 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) GetPlatformVersion() PlatformVer
 	return v.AppData.PlatformVersion
 }
 
+// GetSecrets returns CreateAppCreateAppCreateAppPayloadApp.Secrets, and is useful for accessing the field via an interface.
+func (v *CreateAppCreateAppCreateAppPayloadApp) GetSecrets() []AppDataSecretsSecret {
+	return v.AppData.Secrets
+}
+
 // GetOrganization returns CreateAppCreateAppCreateAppPayloadApp.Organization, and is useful for accessing the field via an interface.
 func (v *CreateAppCreateAppCreateAppPayloadApp) GetOrganization() AppDataOrganization {
 	return v.AppData.Organization
@@ -890,6 +914,8 @@ type __premarshalCreateAppCreateAppCreateAppPayloadApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -910,6 +936,7 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) __premarshalJSON() (*__premarsha
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -1566,6 +1593,9 @@ func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 // GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
 
+// GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.AddOnData.Metadata }
+
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -1621,6 +1651,8 @@ type __premarshalGetAddOnAddOn struct {
 	Name string `json:"name"`
 
 	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1649,6 +1681,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
 	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -1855,6 +1888,9 @@ func (v *GetAddOnAddOnApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAddOnAddOnApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetSecrets returns GetAddOnAddOnApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
+
 // GetOrganization returns GetAddOnAddOnApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
 
@@ -1892,6 +1928,8 @@ type __premarshalGetAddOnAddOnApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -1910,6 +1948,7 @@ func (v *GetAddOnAddOnApp) __premarshalJSON() (*__premarshalGetAddOnAddOnApp, er
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -2135,6 +2174,9 @@ func (v *GetAppApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetSecrets returns GetAppApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
+
 // GetOrganization returns GetAppApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
 
@@ -2172,6 +2214,8 @@ type __premarshalGetAppApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -2190,6 +2234,7 @@ func (v *GetAppApp) __premarshalJSON() (*__premarshalGetAppApp, error) {
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -2260,6 +2305,9 @@ func (v *GetAppWithAddonsApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
 }
 
+// GetSecrets returns GetAppWithAddonsApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
+
 // GetOrganization returns GetAppWithAddonsApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
 
@@ -2299,6 +2347,8 @@ type __premarshalGetAppWithAddonsApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -2318,6 +2368,7 @@ func (v *GetAppWithAddonsApp) __premarshalJSON() (*__premarshalGetAppWithAddonsA
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -2364,6 +2415,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() s
 	return v.AddOnData.ErrorMessage
 }
 
+// GetMetadata returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.AddOnData.Metadata
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2399,6 +2455,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	Status string `json:"status"`
 
 	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2417,6 +2475,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
 	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -2462,6 +2521,11 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetPlatformVersion() PlatformVe
 	return v.AppData.PlatformVersion
 }
 
+// GetSecrets returns GetAppsByRoleAppsAppConnectionNodesApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetSecrets() []AppDataSecretsSecret {
+	return v.AppData.Secrets
+}
+
 // GetOrganization returns GetAppsByRoleAppsAppConnectionNodesApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetOrganization() AppDataOrganization {
 	return v.AppData.Organization
@@ -2501,6 +2565,8 @@ type __premarshalGetAppsByRoleAppsAppConnectionNodesApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -2519,6 +2585,7 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) __premarshalJSON() (*__premarsh
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -4096,6 +4163,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		... OrganizationData
 	}
@@ -4406,6 +4476,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 fragment ExtensionProviderData on AddOnProvider {
 	id
@@ -4433,6 +4504,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		... OrganizationData
 	}
@@ -4541,6 +4615,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		... OrganizationData
 	}
@@ -4636,6 +4713,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		... OrganizationData
 	}
@@ -4646,6 +4726,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 fragment OrganizationData on Organization {
 	id
@@ -4699,6 +4780,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		... OrganizationData
 	}

@@ -21,8 +21,9 @@ import (
 )
 
 type Extension struct {
-	Data gql.ExtensionData
-	App  gql.AppData
+	Data        gql.ExtensionData
+	App         *gql.AppData
+	SetsSecrets bool
 }
 
 type ExtensionParams struct {
@@ -182,7 +183,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	}
 
 	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
-	extension.App = targetApp
+	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
@@ -211,7 +212,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+	setSecretsFromExtension(ctx, &targetApp, &extension)
 
 	return extension, nil
 }
@@ -412,13 +413,40 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	return
 }
 
-func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interface{}) (err error) {
+func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API().GenqClient
+		io              = iostreams.FromContext(ctx)
+		client          = client.FromContext(ctx).API().GenqClient
+		setSecrets bool = true
+		secrets         = extension.Data.Environment.(map[string]interface{})
 	)
 
 	if app.Name != "" {
+		appResp, err := gql.GetApp(ctx, client, app.Name)
+
+		if err != nil {
+			return err
+		}
+
+		var matchingNames []string
+
+		for _, s := range appResp.App.Secrets {
+			if _, exists := secrets[s.Name]; exists {
+				matchingNames = append(matchingNames, s.Name)
+			}
+		}
+
+		if len(matchingNames) > 0 {
+			fmt.Fprintf(io.Out, "Secrets %v already exist on app %s. They won't be set automatically.\n\n", matchingNames, app.Name)
+			setSecrets = false
+		}
+
+	} else {
+		setSecrets = false
+	}
+
+	if setSecrets {
+		extension.SetsSecrets = true
 		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
 		input := gql.SetSecretsInput{
 			AppId: app.Id,
@@ -432,6 +460,9 @@ func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interf
 
 		_, err = gql.SetSecrets(ctx, client, input)
 
+		if err != nil {
+			return err
+		}
 	} else {
 		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
 		for key, value := range secrets {

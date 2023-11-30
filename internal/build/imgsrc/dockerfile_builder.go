@@ -408,6 +408,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 		return nil
 	})
 	err = eg.Wait()
+
 	if err != nil {
 		return "", err
 	}

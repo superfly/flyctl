@@ -37,6 +37,11 @@ func TestFlyLaunchV2(t *testing.T) {
 		"app":            appName,
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
+		"vm": []map[string]any{{
+			"cpu_kind":  "shared",
+			"cpus":      int64(1),
+			"memory_mb": int64(1024),
+		}},
 		"http_service": map[string]any{
 			"force_https":          true,
 			"internal_port":        int64(8080),
@@ -131,6 +136,11 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 		"checks": map[string]any{
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
+		"vm": []map[string]any{{
+			"cpu_kind":  "shared",
+			"cpus":      int64(1),
+			"memory_mb": int64(1024),
+		}},
 	}
 	require.EqualValues(f, want, toml)
 }

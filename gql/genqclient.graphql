@@ -33,6 +33,7 @@ fragment AddOnData on AddOn {
 	primaryRegion
 	status
 	errorMessage
+	metadata
 }
 
 mutation CreateAddOn($input: CreateAddOnInput!) {
@@ -143,6 +144,9 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
 		...OrganizationData
 	}

@@ -7,8 +7,10 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = "Commands that manage machines"
-		long  = short + "\n"
+		short = "Manage Fly Machines."
+		long  = short + ` Fly Machines are super-fast, lightweight VMs that can be created,
+and then quickly started and stopped as needed with flyctl commands or with the
+Machines REST API.`
 		usage = "machine <command>"
 	)
 
