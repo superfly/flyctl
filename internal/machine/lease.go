@@ -76,20 +76,24 @@ func AcquireLease(ctx context.Context, machine *api.Machine) (*api.Machine, rele
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to obtain lease: %w", err)
 	}
+	releaseFunc := func() { releaseLease(ctx, machine) }
 
 	// Set lease nonce before we re-fetch the Machines latest configuration.
 	// This will ensure the lease can still be released in the event the upcoming GET fails.
 	machine.LeaseNonce = lease.Data.Nonce
 
-	// TODO: Refetching the machine slow downs lease acquiring and shouldn't be necessary.
-	//       We can pass the machine version as part of the lease acquire call to confirm it is the latest and decide then.
+	// Return earlier if the lease's machine version matches the machine's version we have
+	if machine.InstanceID == lease.Data.Version {
+		return machine, releaseFunc, nil
+	}
 
 	// Re-query machine post-lease acquisition to ensure we are working against the latest configuration.
 	updatedMachine, err := flapsClient.Get(ctx, machine.ID)
 	if err != nil {
-		return machine, func() { releaseLease(ctx, machine) }, err
+		return machine, releaseFunc, err
 	}
 
 	updatedMachine.LeaseNonce = lease.Data.Nonce
-	return updatedMachine, func() { releaseLease(ctx, updatedMachine) }, nil
+	releaseFunc = func() { releaseLease(ctx, updatedMachine) }
+	return updatedMachine, releaseFunc, nil
 }
