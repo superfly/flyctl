@@ -243,7 +243,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 
 	// base generate command
 	args := []string{"./bin/rails", "generate", "dockerfile",
-		"--sentry", "--label=fly_launch_runtime:rails"}
+		"--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
