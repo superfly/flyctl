@@ -58,12 +58,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
-	if err != nil {
-		return err
-	}
-
 	defaultGuest, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return err
@@ -111,6 +105,15 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		default:
 			return err
 		}
+	}
+
+	// XXX: Don't acquire the leases until the user confirms it wants to execute any action
+	//      The downside is that AcquireLeases has the side effect of fetching an updated copy of machine config
+	//      that we don't use here, but it also updates the `LeaseNonce` field of the original machine which we rely on
+	_, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseFunc() // It's important to call the release func even in case of errors
+	if err != nil {
+		return err
 	}
 
 	updatePool := pool.New().
