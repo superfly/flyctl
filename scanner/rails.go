@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -246,7 +247,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 
 	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
-	if errors.Is(err, fs.ErrNotExist) {
+	if !errors.Is(err, fs.ErrNotExist) {
 		args = append(args, "--skip")
 	}
 
@@ -261,8 +262,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	}
 
 	// run command
+	fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 	cmd := exec.Command(ruby, args...)
-	cmd.Stdin = nil
+	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
