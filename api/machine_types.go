@@ -685,6 +685,7 @@ type MachineLeaseData struct {
 	Nonce     string `json:"nonce,omitempty"`
 	ExpiresAt int64  `json:"expires_at,omitempty"`
 	Owner     string `json:"owner,omitempty"`
+	Version   string `json:"version,omitempty"`
 }
 
 type MachineStartResponse struct {
