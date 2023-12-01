@@ -118,7 +118,7 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	machines, releaseFunc, err := machine.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
+	defer releaseFunc()
 	if err != nil {
 		return err
 	}
