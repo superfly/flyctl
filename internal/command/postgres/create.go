@@ -21,7 +21,7 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Create a new PostgreSQL cluster"
+		short = "Create a new Postgres cluster"
 		long  = short + "\n"
 	)
 

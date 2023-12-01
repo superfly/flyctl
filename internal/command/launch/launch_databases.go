@@ -129,7 +129,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		}
 
 		if err != nil {
-			const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
+			const msg = "Error creating Postgres database. Be warned that this may affect deploys"
 			fmt.Fprintln(io.Out, io.ColorScheme().Red(msg))
 		}
 
