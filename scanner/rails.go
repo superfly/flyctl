@@ -264,7 +264,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	// run command
         fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 	cmd := exec.Command(ruby, args...)
-	cmd.Stdin = nil
+	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
