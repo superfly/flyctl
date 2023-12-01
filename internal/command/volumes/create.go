@@ -35,7 +35,6 @@ func newCreate() *cobra.Command {
 		command.RequireSession,
 		command.RequireAppName,
 	)
-
 	cmd.Args = cobra.ExactArgs(1)
 
 	flag.Add(cmd,
