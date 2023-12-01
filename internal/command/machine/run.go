@@ -160,7 +160,7 @@ var runOrCreateFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "rm",
-		Description: "Automatically remove the Machine when it exits",
+		Description: "Automatically remove the Machine when it exits. Sets the restart-policy to 'never' if not otherwise specified.",
 	},
 	flag.StringSlice{
 		Name:        "volume",
@@ -710,9 +710,13 @@ func determineMachineConfig(
 		if flag.IsSpecified(ctx, "restart") {
 			// An empty policy was explicitly requested.
 			machineConf.Restart.Policy = ""
+		} else if machineConf.AutoDestroy {
 		} else if !input.updating {
 			// This is a new machine; apply the default.
-			if machineConf.Schedule != "" {
+			if machineConf.AutoDestroy {
+				// Autodestroy only works when the restart policy is set to no, so unless otherwise specified, we set the restart policy to no.
+				machineConf.Restart.Policy = api.MachineRestartPolicyNo
+			} else if machineConf.Schedule != "" {
 				machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
 			} else {
 				machineConf.Restart.Policy = api.MachineRestartPolicyAlways
