@@ -39,6 +39,11 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Default:     "",
 			Description: "command to run on SSH session",
 		},
+		flag.String{
+			Name:        "machine",
+			Default:     "",
+			Description: "Run the console in the existing machine with the specified ID",
+		},
 		flag.Bool{
 			Name:        "select",
 			Shorthand:   "s",
@@ -253,10 +258,15 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 
 	var namesWithRegion []string
+	machineID := flag.GetString(ctx, "machine")
 	var selectedMachine *api.Machine
 	multipleGroups := len(lo.UniqBy(machines, func(m *api.Machine) string { return m.ProcessGroup() })) > 1
 
 	for _, machine := range machines {
+		if machine.ID == machineID {
+			selectedMachine = machine
+		}
+
 		nameWithRegion := fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.PrivateIP, machine.Name)
 
 		role := ""
@@ -281,6 +291,9 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 
 	if flag.GetBool(ctx, "select") {
+		if flag.IsSpecified(ctx, "machine") {
+			return "", errors.New("--machine can't be used with -s/--select")
+		}
 
 		selected := 0
 
@@ -295,7 +308,9 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		}
 
 		selectedMachine = machines[selected]
+	}
 
+	if selectedMachine != nil {
 		if selectedMachine.State != "started" {
 			fmt.Fprintf(out, "Starting machine %s..", selectedMachine.ID)
 			_, err := flapsClient.Start(ctx, selectedMachine.ID, "")
