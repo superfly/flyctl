@@ -6,10 +6,15 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newLogin() *cobra.Command {
@@ -52,14 +57,40 @@ func runLogin(ctx context.Context) error {
 		email       = flag.GetString(ctx, "email")
 		password    = flag.GetString(ctx, "password")
 		otp         = flag.GetString(ctx, "otp")
+
+		err   error
+		token string
 	)
 
 	switch {
 	case interactive, email != "", password != "", otp != "":
-		return runShellLogin(ctx, email, password, otp)
+		token, err = runShellLogin(ctx, email, password, otp)
 	default:
-		return runWebLogin(ctx, false)
+		token, err = runWebLogin(ctx, false)
 	}
+	if err != nil {
+		return err
+	}
+
+	if ac, err := agent.DefaultClient(ctx); err == nil {
+		_ = ac.Kill(ctx)
+	}
+	config.Clear(state.ConfigFile(ctx))
+
+	if err := persistAccessToken(ctx, token); err != nil {
+		return err
+	}
+
+	user, err := client.FromToken(token).API().GetCurrentUser(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving current user: %w", err)
+	}
+
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	fmt.Fprintf(io.Out, "successfully logged in as %s\n", colorize.Bold(user.Email))
+
+	return nil
 }
 
 type requiredWhenNonInteractive string
@@ -68,48 +99,46 @@ func (r requiredWhenNonInteractive) Error() string {
 	return fmt.Sprintf("%s must be specified when not running interactively", string(r))
 }
 
-func runShellLogin(ctx context.Context, email, password, otp string) (err error) {
+func runShellLogin(ctx context.Context, email, password, otp string) (string, error) {
 	if email == "" {
-		switch err = prompt.String(ctx, &email, "Email:", "", true); {
+		switch err := prompt.String(ctx, &email, "Email:", "", true); {
 		case err == nil:
 			break
 		case prompt.IsNonInteractive(err):
-			return requiredWhenNonInteractive("email")
+			return "", requiredWhenNonInteractive("email")
 		default:
-			return
+			return "", err
 		}
 	}
 
 	if password == "" {
-		switch err = prompt.Password(ctx, &password, "Password:", true); {
+		switch err := prompt.Password(ctx, &password, "Password:", true); {
 		case err == nil:
 			break
 		case prompt.IsNonInteractive(err):
-			return requiredWhenNonInteractive("password")
+			return "", requiredWhenNonInteractive("password")
 		default:
-			return
+			return "", err
 		}
 	}
 
 	if otp == "" {
-		switch err = prompt.String(ctx, &otp, "One Time Password (if any):", "", false); {
+		switch err := prompt.String(ctx, &otp, "One Time Password (if any):", "", false); {
 		case err == nil:
 			break
 		case prompt.IsNonInteractive(err):
 			break
 		default:
-			return err
+			return "", err
 		}
 	}
 
-	var token string
-	if token, err = api.GetAccessToken(ctx, email, password, otp); err != nil {
+	token, err := api.GetAccessToken(ctx, email, password, otp)
+	if err != nil {
 		err = fmt.Errorf("failed retrieving access token: %w", err)
 
-		return
+		return "", err
 	}
 
-	err = persistAccessToken(ctx, token)
-
-	return
+	return token, nil
 }
