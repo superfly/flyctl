@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -25,6 +24,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		return nil, nil
 	}
 
+	fmt.Println( "Testing flyctl" )
 	files := templates("templates/laravel")
 
 	s := &SourceInfo{
@@ -35,7 +35,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 			"LOG_STDERR_FORMATTER":  "Monolog\\Formatter\\JsonFormatter",
 			"SESSION_DRIVER":        "cookie",
 			"SESSION_SECURE_COOKIE": "true",
-		},
+		}, 
 		Family: "Laravel",
 		Files:  files,
 		Port:   8080,
@@ -64,7 +64,26 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
-		"NODE_VERSION": "18",
+		"NODE_VERSION": "18", 
+	}
+
+	// Set DB
+	db, skipDB, err := extractDB()
+	if err == nil {
+		fmt.Println( "No errors! Setting DB" )
+		s.DatabaseDesired = db
+		s.SkipDatabase = skipDB
+	}else{
+		fmt.Println( "Unable to find DB!" )
+		s.SkipDatabase = false
+	}
+
+	// Enable REDIS?
+	if detectRedis(){
+		s.RedisDesired = true
+		s.SkipDatabase = false
+	}else{
+		s.RedisDesired = false
 	}
 
 	return s, nil
@@ -104,3 +123,24 @@ func extractPhpVersion() (string, error) {
 
 	return "", fmt.Errorf("could not find php version")
 }
+
+func extractDB() (DatabaseKind, bool, error){
+	
+	if fileContains( ".env", "DB_CONNECTION=mysql" ) {
+		return DatabaseKindMySQL,false,nil
+	}else if fileContains( ".env", "DB_CONNECTION=pgsql" ) {
+		return DatabaseKindPostgres,false,nil
+	}else if fileContains( ".env", "DB_CONNECTION=sqlite" ) {
+		return DatabaseKindSqlite,true,nil
+	}	
+	
+	return 0, false, fmt.Errorf("could not find database connection type")
+}
+
+func detectRedis( ) (bool){
+	if fileContains( ".env", "redis" ) {
+		return true
+	}else{
+		return false
+	}
+} 
