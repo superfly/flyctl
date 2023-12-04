@@ -50,7 +50,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.6
-	github.com/samber/lo v1.38.1
+	github.com/samber/lo v1.39.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
 	github.com/sourcegraph/conc v0.3.0
 	github.com/spf13/cobra v1.8.0
