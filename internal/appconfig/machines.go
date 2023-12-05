@@ -123,6 +123,9 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 		}
 		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
 		mConfig.Init.Exec = c.Experimental.Exec
+	} else {
+		mConfig.Init.Entrypoint = nil
+		mConfig.Init.Exec = nil
 	}
 	mConfig.Init.Cmd = cmd
 	mConfig.Init.SwapSizeMB = c.SwapSizeMB
