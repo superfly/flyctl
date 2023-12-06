@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
@@ -468,22 +467,36 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 		clientApi = client.API()
 	)
 
-	personal, others, err := clientApi.GetCurrentOrganizations(ctx)
+	orgs, err := clientApi.GetOrganizations(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
+	bySlug := make(map[string]api.Organization, len(orgs))
+	for _, o := range orgs {
+		bySlug[o.Slug] = o
+	}
+
+	personal, foundPersonal := bySlug["personal"]
+
 	orgSlug := flag.GetOrg(ctx)
 	if orgSlug == "" {
+		if !foundPersonal {
+			return nil, "", errors.New("no personal organization found")
+		}
+
 		return &personal, "fly launch defaults to the personal org", nil
 	}
 
-	org, found := lo.Find(others, func(o api.Organization) bool {
-		return o.Slug == orgSlug
-	})
-	if !found {
+	org, foundSlug := bySlug[orgSlug]
+	if !foundSlug {
+		if !foundPersonal {
+			return nil, "", errors.New("no personal organization found")
+		}
+
 		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
 	}
+
 	return &org, "specified on the command line", nil
 }
 

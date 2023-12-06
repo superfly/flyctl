@@ -20,11 +20,11 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	cfg := config.FromContext(ctx)
 	apiClient := client.FromTokens(cfg.Tokens).API()
 
-	personal, _, err := apiClient.GetCurrentOrganizations(ctx)
+	personal, err := apiClient.GetOrganizationBySlug(ctx, "personal")
 	if err != nil {
 		return "", err
 	}
-	if personal.ID == "" {
+	if personal == nil {
 		return "", errors.New("no personal organization found")
 	}
 
