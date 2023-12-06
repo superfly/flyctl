@@ -482,7 +482,7 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	orgSlug := flag.GetOrg(ctx)
 	if orgSlug == "" {
 		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
+			return nil, "", recoverableInUiError{errors.New("no personal organization found")}
 		}
 
 		return &personal, "fly launch defaults to the personal org", nil
@@ -491,7 +491,7 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	org, foundSlug := bySlug[orgSlug]
 	if !foundSlug {
 		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
+			return nil, "", recoverableInUiError{errors.New("no personal organization found")}
 		}
 
 		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
