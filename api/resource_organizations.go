@@ -36,6 +36,7 @@ func (client *Client) GetOrganizations(ctx context.Context, filters ...Organizat
 					name
 					type
 					paidPlan
+					viewerRole
 				}
 			}
 		}
@@ -87,37 +88,6 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 	}
 
 	return data.Organization, nil
-}
-
-func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization, []Organization, error) {
-	query := `
-	query {
-		personalOrganization {
-		  id
-		  slug
-		  name
-		  type
-		  viewerRole
-		}
-		organizations {
-		  nodes {
-			id
-			slug
-			name
-			type
-			viewerRole
-		  }
-		}
-	  }
-	`
-
-	req := client.NewRequest(query)
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return Organization{}, nil, err
-	}
-	return data.PersonalOrganization, data.Organizations.Nodes, nil
 }
 
 func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
