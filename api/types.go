@@ -16,23 +16,21 @@ type Query struct {
 		}
 		Nodes []App
 	}
-	App                  App
-	AppCompact           AppCompact
-	AppInfo              AppInfo
-	AppBasic             AppBasic
-	AppStatus            AppStatus
-	AppMonitoring        AppMonitoring
-	AppPostgres          AppPostgres
-	AppCertsCompact      AppCertsCompact
-	Viewer               User
-	PersonalOrganization Organization
-	GqlMachine           GqlMachine
-	Organizations        struct {
+	App             App
+	AppCompact      AppCompact
+	AppInfo         AppInfo
+	AppBasic        AppBasic
+	AppStatus       AppStatus
+	AppMonitoring   AppMonitoring
+	AppPostgres     AppPostgres
+	AppCertsCompact AppCertsCompact
+	Viewer          User
+	GqlMachine      GqlMachine
+	Organizations   struct {
 		Nodes []Organization
 	}
 
-	Organization *Organization
-	// PersonalOrganizations PersonalOrganizations
+	Organization        *Organization
 	OrganizationDetails OrganizationDetails
 	Build               Build
 	Volume              struct {
