@@ -17,10 +17,10 @@ import (
 const descriptionNone = "<none>"
 
 func describePostgresPlan(ctx context.Context, p plan.PostgresPlan, org *api.Organization) (string, error) {
-	
+
 	switch provider := p.Provider().(type) {
 	case *plan.FlyPostgresPlan:
-	  return describeFlyPostgresPlan(ctx, provider, org)
+		return describeFlyPostgresPlan(ctx, provider, org)
 	}
 	return descriptionNone, nil
 }
@@ -49,7 +49,7 @@ func describeFlyPostgresPlan(ctx context.Context, p *plan.FlyPostgresPlan, org *
 }
 
 func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *api.Organization) (string, error) {
-	
+
 	switch provider := p.Provider().(type) {
 	case *plan.UpstashRedisPlan:
 		return describeUpstashRedisPlan(ctx, provider, org)
