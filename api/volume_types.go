@@ -47,4 +47,5 @@ type VolumeSnapshot struct {
 	Size      int       `json:"size"`
 	Digest    string    `json:"digest"`
 	CreatedAt time.Time `json:"created_at"`
+	Status    string    `json:"status"`
 }
