@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb"}
+	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s"}
 	gpuKindAliases = map[string]string{
 		"a100-40gb": "a100-pcie-40gb",
 		"a100-80gb": "a100-sxm4-80gb",
