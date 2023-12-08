@@ -92,37 +92,6 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 	return data.Organization, nil
 }
 
-func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization, []Organization, error) {
-	query := `
-	query {
-		personalOrganization {
-		  id
-		  slug
-		  name
-		  type
-		  viewerRole
-		}
-		organizations {
-		  nodes {
-			id
-			slug
-			name
-			type
-			viewerRole
-		  }
-		}
-	  }
-	`
-
-	req := client.NewRequest(query)
-	ctx = ctxWithAction(ctx, "get_current_organization")
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return Organization{}, nil, err
-	}
-	return data.PersonalOrganization, data.Organizations.Nodes, nil
-}
-
 func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
 	query := `query($slug: String!) {
 		organizationdetails: organization(slug: $slug) {
