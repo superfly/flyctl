@@ -15,6 +15,10 @@ import (
 	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/graphql"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -23,6 +27,20 @@ var (
 	instrumenter     InstrumentationService
 	defaultTransport http.RoundTripper = http.DefaultTransport
 )
+
+var contextKeyAction = contextKey("gql_action")
+
+func ctxWithAction(ctx context.Context, action string) context.Context {
+	return context.WithValue(ctx, contextKeyAction, action)
+}
+
+func actionFromCtx(ctx context.Context) string {
+	action := ctx.Value(contextKeyAction)
+	if action != nil {
+		return action.(string)
+	}
+	return "unknown_actiom"
+}
 
 // SetBaseURL - Sets the base URL for the API
 func SetBaseURL(url string) {
@@ -139,8 +157,36 @@ func (c *Client) Run(req *graphql.Request) (Query, error) {
 
 func (c *Client) Logger() Logger { return c.logger }
 
+func (c *Client) getRequestType(r *graphql.Request) string {
+	query := r.Query()
+
+	if strings.Contains(query, "mutation") {
+		return "mutation"
+	}
+
+	if strings.Contains(query, "query") {
+		return "query"
+	}
+	return "unknown"
+}
+func (c *Client) getErrorFromErrors(errors Errors) string {
+	errs := []string{}
+	for _, err := range errors {
+		errs = append(errs, err.Message)
+	}
+
+	return strings.Join(errs, ",")
+}
+
 // RunWithContext - Runs a GraphQL request within a Go context
 func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Query, error) {
+	tracer := otel.GetTracerProvider().Tracer("github.com/superfly/flyctl/api")
+	ctx, span := tracer.Start(ctx, fmt.Sprintf("web.%s", actionFromCtx(ctx)), trace.WithAttributes(
+		attribute.String("request.action", actionFromCtx(ctx)),
+		attribute.String("request.type", c.getRequestType(req)),
+	))
+	defer span.End()
+
 	if instrumenter != nil {
 		start := time.Now()
 		defer func() {
@@ -150,6 +196,11 @@ func (c *Client) RunWithContext(ctx context.Context, req *graphql.Request) (Quer
 
 	var resp Query
 	err := c.client.Run(ctx, req, &resp)
+
+	if resp.Errors != nil {
+		span.RecordError(fmt.Errorf(c.getErrorFromErrors(resp.Errors)))
+		span.SetStatus(codes.Error, "failed to do grapqhl request")
+	}
 
 	if resp.Errors != nil && errorLog {
 		fmt.Fprintf(os.Stderr, "Error: %+v\n", resp.Errors)

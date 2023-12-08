@@ -28,6 +28,7 @@ func (c *Client) GetDNSRecords(ctx context.Context, domainName string) ([]*DNSRe
 	req := c.NewRequest(query)
 
 	req.Var("domainName", domainName)
+	ctx = ctxWithAction(ctx, "get_dns_records")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -55,6 +56,7 @@ func (c *Client) ExportDNSRecords(ctx context.Context, domainId string) (string,
 	req.Var("input", map[string]interface{}{
 		"domainId": domainId,
 	})
+	ctx = ctxWithAction(ctx, "export_dns_records")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -93,6 +95,7 @@ func (c *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile
 		"domainId": domainId,
 		"zonefile": zonefile,
 	})
+	ctx = ctxWithAction(ctx, "import_dns_records")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
