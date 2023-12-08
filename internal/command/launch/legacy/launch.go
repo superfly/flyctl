@@ -167,11 +167,21 @@ func Run(ctx context.Context) (err error) {
 			return err
 		}
 
-		if err := f.CreateApp(ctx, appConfig.AppName, org.RawSlug); err != nil {
-			return err
-		}
+		var createdApp *api.App
+		if shouldUseMachines {
+			if err := f.CreateApp(ctx, appConfig.AppName, org.RawSlug); err != nil {
+				return err
+			}
 
-		createdApp, err := client.GetApp(ctx, appConfig.AppName)
+			createdApp, err = client.GetApp(ctx, appConfig.AppName)
+		} else {
+			createdApp, err = client.CreateApp(ctx, api.CreateAppInput{
+				Name:            appConfig.AppName,
+				OrganizationID:  org.ID,
+				PreferredRegion: &appConfig.PrimaryRegion,
+				Machines:        shouldUseMachines,
+			})
+		}
 		if err != nil {
 			return err
 		}

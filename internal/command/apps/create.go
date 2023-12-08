@@ -6,10 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -73,11 +75,15 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
-		apiClient     = client.FromContext(ctx).API()
 	)
 
+	machines := true
 	if flag.GetBool(ctx, "nomad") {
-		return fmt.Errorf("creating new apps on the nomad platform is no longer supported")
+		if buildinfo.IsDev() {
+			machines = false
+		} else {
+			return fmt.Errorf("creating new apps on the nomad platform is no longer supported")
+		}
 	}
 
 	var name string
@@ -99,26 +105,12 @@ func RunCreate(ctx context.Context) (err error) {
 		}
 	}
 
-	org, err := prompt.Org(ctx)
-	if err != nil {
-		return
+	var app *api.App
+	if machines {
+		app, err = createMachinesApp(ctx, name)
+	} else {
+		app, err = createNomadApp(ctx, name)
 	}
-
-	opts := []flaps.CreateAppOption{}
-	if v := flag.GetString(ctx, "network"); v != "" {
-		opts = append(opts, flaps.WithNetwork(v))
-	}
-
-	f, err := flaps.NewFromAppName(ctx, name)
-	if err != nil {
-		return err
-	}
-
-	if err := f.CreateApp(ctx, name, org.RawSlug, opts...); err != nil {
-		return err
-	}
-
-	app, err := apiClient.GetApp(ctx, name)
 	if err != nil {
 		return err
 	}
@@ -129,4 +121,48 @@ func RunCreate(ctx context.Context) (err error) {
 
 	fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
 	return nil
+}
+
+func createMachinesApp(ctx context.Context, name string) (*api.App, error) {
+	apiClient := client.FromContext(ctx).API()
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	opts := []flaps.CreateAppOption{}
+	if v := flag.GetString(ctx, "network"); v != "" {
+		opts = append(opts, flaps.WithNetwork(v))
+	}
+
+	f, err := flaps.NewFromAppName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := f.CreateApp(ctx, name, org.RawSlug, opts...); err != nil {
+		return nil, err
+	}
+
+	return apiClient.GetApp(ctx, name)
+}
+
+func createNomadApp(ctx context.Context, name string) (*api.App, error) {
+	apiClient := client.FromContext(ctx).API()
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	input := api.CreateAppInput{
+		Name:           name,
+		OrganizationID: org.ID,
+		Machines:       false,
+	}
+
+	if v := flag.GetString(ctx, "network"); v != "" {
+		input.Network = api.StringPointer(v)
+	}
+
+	return apiClient.CreateApp(ctx, input)
 }
