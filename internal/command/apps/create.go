@@ -6,11 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -77,14 +76,8 @@ func RunCreate(ctx context.Context) (err error) {
 		apiClient     = client.FromContext(ctx).API()
 	)
 
-	machines := true
-
 	if flag.GetBool(ctx, "nomad") {
-		if buildinfo.IsDev() {
-			machines = false
-		} else {
-			return fmt.Errorf("creating new apps on the nomad platform is no longer supported")
-		}
+		return fmt.Errorf("creating new apps on the nomad platform is no longer supported")
 	}
 
 	var name string
@@ -111,24 +104,24 @@ func RunCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	input := api.CreateAppInput{
-		Name:           name,
-		OrganizationID: org.ID,
-		Machines:       machines,
-	}
-
+	opts := []flaps.CreateAppOption{}
 	if v := flag.GetString(ctx, "network"); v != "" {
-		input.Network = api.StringPointer(v)
+		opts = append(opts, flaps.WithNetwork(v))
 	}
 
-	app, err := apiClient.CreateApp(ctx, input)
-
-	if err == nil {
-		if cfg.JSONOutput {
-			return render.JSON(io.Out, app)
-		}
-		fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
+	if err := flaps.FromContext(ctx).CreateApp(ctx, name, org.ID, opts...); err != nil {
+		return err
 	}
 
-	return err
+	app, err := apiClient.GetApp(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, app)
+	}
+
+	fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
+	return nil
 }
