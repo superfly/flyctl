@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -104,10 +105,10 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return apiClient.CreateApp(ctx, api.CreateAppInput{
-		OrganizationID:  org.ID,
-		Name:            state.Plan.AppName,
-		PreferredRegion: &state.Plan.RegionCode,
-		Machines:        true,
-	})
+
+	if err := flaps.FromContext(ctx).CreateApp(ctx, state.Plan.AppName, org.ID); err != nil {
+		return nil, err
+	}
+
+	return apiClient.GetApp(ctx, state.Plan.AppName)
 }

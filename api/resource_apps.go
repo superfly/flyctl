@@ -402,40 +402,6 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 	return &data.AppPostgres, nil
 }
 
-func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App, error) {
-	query := `
-		mutation($input: CreateAppInput!) {
-			createApp(input: $input) {
-				app {
-					id
-					name
-					organization {
-						slug
-					}
-					config {
-						definition
-					}
-					regions {
-							name
-							code
-					}
-				}
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-
-	req.Var("input", input)
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.CreateApp.App, nil
-}
-
 func (client *Client) DeleteApp(ctx context.Context, appName string) error {
 	query := `
 			mutation($appId: ID!) {
