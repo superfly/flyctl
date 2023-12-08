@@ -106,7 +106,12 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	err = flaps.FromContext(ctx).CreateApp(ctx, flyAppName, org.ID)
+	f, err := flaps.NewFromAppName(ctx, flyAppName)
+	if err != nil {
+		return err
+	}
+
+	err = f.CreateApp(ctx, flyAppName, org.RawSlug)
 	switch isTakenError(err) {
 	case nil:
 		fmt.Printf("New app created: %s\n", flyAppName)

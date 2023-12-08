@@ -109,7 +109,12 @@ func RunCreate(ctx context.Context) (err error) {
 		opts = append(opts, flaps.WithNetwork(v))
 	}
 
-	if err := flaps.FromContext(ctx).CreateApp(ctx, name, org.ID, opts...); err != nil {
+	f, err := flaps.NewFromAppName(ctx, name)
+	if err != nil {
+		return err
+	}
+
+	if err := f.CreateApp(ctx, name, org.RawSlug, opts...); err != nil {
 		return err
 	}
 

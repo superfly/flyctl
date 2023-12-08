@@ -106,7 +106,12 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 		return nil, err
 	}
 
-	if err := flaps.FromContext(ctx).CreateApp(ctx, state.Plan.AppName, org.ID); err != nil {
+	f, err := flaps.NewFromAppName(ctx, state.Plan.AppName)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := f.CreateApp(ctx, state.Plan.AppName, org.RawSlug); err != nil {
 		return nil, err
 	}
 

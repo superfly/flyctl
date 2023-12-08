@@ -162,7 +162,12 @@ func Run(ctx context.Context) (err error) {
 		}
 	// App doesn't exist, just create a new app
 	case !launchIntoExistingApp:
-		if err := flaps.FromContext(ctx).CreateApp(ctx, appConfig.AppName, org.ID); err != nil {
+		f, err := flaps.NewFromAppName(ctx, appConfig.AppName)
+		if err != nil {
+			return err
+		}
+
+		if err := f.CreateApp(ctx, appConfig.AppName, org.RawSlug); err != nil {
 			return err
 		}
 

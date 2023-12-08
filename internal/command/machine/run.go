@@ -513,7 +513,13 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 
 	if appc == nil {
 		appName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
-		if err := flaps.FromContext(ctx).CreateApp(ctx, appName, org.ID); err != nil {
+
+		f, err := flaps.NewFromAppName(ctx, appName)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := f.CreateApp(ctx, appName, org.RawSlug); err != nil {
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
 
@@ -554,7 +560,12 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		}
 	}
 
-	if err := flaps.FromContext(ctx).CreateApp(ctx, name, org.ID); err != nil {
+	f, err := flaps.NewFromAppName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := f.CreateApp(ctx, name, org.RawSlug); err != nil {
 		return nil, err
 	}
 
