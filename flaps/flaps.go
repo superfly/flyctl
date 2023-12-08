@@ -158,14 +158,37 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 	}, nil
 }
 
-func (f *Client) CreateApp(ctx context.Context, name string, org string) (err error) {
-	in := map[string]interface{}{
-		"app_name": name,
-		"org_slug": org,
+type CreateAppInput struct {
+	AppName   string `json:"app_name"`
+	OrgSlug   string `json:"org_slug"`
+	AppRoleID string `json:"app_role_id,omitempty"`
+	Network   string `json:"network,omitempty"`
+}
+
+type CreateAppOption func(*CreateAppInput)
+
+func WithNetwork(network string) CreateAppOption {
+	return func(i *CreateAppInput) {
+		i.Network = network
+	}
+}
+
+func WithAppRoleID(appRoleID string) CreateAppOption {
+	return func(i *CreateAppInput) {
+		i.AppRoleID = appRoleID
+	}
+}
+
+func (f *Client) CreateApp(ctx context.Context, name string, orgSlug string, opts ...CreateAppOption) (err error) {
+	input := &CreateAppInput{AppName: name, OrgSlug: orgSlug}
+
+	for _, o := range opts {
+		o(input)
 	}
 
-	_, err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
-	return
+	_, err = f._sendRequest(ctx, http.MethodPost, "/apps", input, nil, nil)
+
+	return err
 }
 
 func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) (int, error) {
