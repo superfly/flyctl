@@ -193,10 +193,15 @@ func (v *AgentGetInstancesAppMachinesMachineConnectionNodesMachineIpsMachineIPCo
 type AgentGetInstancesAppOrganization struct {
 	// Unique organization slug
 	Slug string `json:"slug"`
+	// Unmodified unique org slug
+	RawSlug string `json:"rawSlug"`
 }
 
 // GetSlug returns AgentGetInstancesAppOrganization.Slug, and is useful for accessing the field via an interface.
 func (v *AgentGetInstancesAppOrganization) GetSlug() string { return v.Slug }
+
+// GetRawSlug returns AgentGetInstancesAppOrganization.RawSlug, and is useful for accessing the field via an interface.
+func (v *AgentGetInstancesAppOrganization) GetRawSlug() string { return v.RawSlug }
 
 // AgentGetInstancesResponse is returned by AgentGetInstances on success.
 type AgentGetInstancesResponse struct {
@@ -4456,7 +4461,6 @@ query GetAddOn ($name: String) {
 		ssoLink
 		organization {
 			slug
-			rawSlug
 			paidPlan
 		}
 		addOnProvider {
@@ -4993,7 +4997,6 @@ query ListAddOns ($addOnType: AddOnType) {
 			organization {
 				id
 				slug
-				rawSlug
 			}
 		}
 	}
