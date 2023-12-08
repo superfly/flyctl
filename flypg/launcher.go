@@ -449,7 +449,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 }
 
 func (l *Launcher) generateConsulURL(ctx context.Context, config *CreateClusterInput) (string, error) {
-	data, err := l.client.EnablePostgresConsul(ctx, config.AppName)
+	data, err := l.client.EnablePostgresConsul(ctx, config.AppName, config.Region)
 	if err != nil {
 		return "", err
 	}
