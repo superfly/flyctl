@@ -14,6 +14,8 @@ func New() *cobra.Command {
 
 	cmd := command.New(usage, short, long, nil)
 
+	cmd.Hidden = true
+
 	cmd.AddCommand(
 		newStatus(),
 		newStop(),

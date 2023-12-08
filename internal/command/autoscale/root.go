@@ -25,6 +25,7 @@ func New() *cobra.Command {
 		long  = `V1 APPS ONLY: Autoscaling application resources`
 	)
 	cmd := command.New("autoscale", short, long, nil)
+	cmd.Hidden = true
 	cmd.AddCommand(
 		newAutoscaleDisable(),
 		newAutoscaleSet(),

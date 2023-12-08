@@ -24,6 +24,7 @@ func New() *cobra.Command {
 		newRegionsBackup(),
 		newRegionsList(),
 	)
+	cmd.Hidden = true
 	return cmd
 }
 
