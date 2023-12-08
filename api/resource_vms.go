@@ -21,6 +21,7 @@ func (client *Client) RestartAllocation(ctx context.Context, appName string, all
 		"appId":   appName,
 		"allocId": allocId,
 	})
+	ctx = ctxWithAction(ctx, "restart_allocation")
 
 	_, err := client.RunWithContext(ctx, req)
 	return err
@@ -45,6 +46,7 @@ func (client *Client) StopAllocation(ctx context.Context, appName string, allocI
 		"appId":   appName,
 		"allocId": allocId,
 	})
+	ctx = ctxWithAction(ctx, "stop_allocation")
 
 	_, err := client.RunWithContext(ctx, req)
 	return err

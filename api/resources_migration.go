@@ -16,6 +16,7 @@ func (c *Client) MigrateNomadToMachines(ctx context.Context, input NomadToMachin
 	`
 	req := c.NewRequest(query)
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "migrate_nomad_to_machines")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -37,6 +38,7 @@ func (c *Client) MigrateNomadToMachinesPrep(ctx context.Context, input NomadToMa
 	`
 	req := c.NewRequest(query)
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "migrate_nomad_to_machines_prep")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
