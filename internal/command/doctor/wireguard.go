@@ -74,7 +74,7 @@ func getWireguardDialer(ctx context.Context) (agent.Dialer, error) {
 		return nil, fmt.Errorf("wireguard dialer: weird error: %w", err)
 	}
 
-	dialer, err := ac.ConnectToTunnel(ctx, org.Slug)
+	dialer, err := ac.ConnectToTunnel(ctx, org.Slug, true)
 	if err != nil {
 		return nil, fmt.Errorf("wireguard dialer: %w", err)
 	}
