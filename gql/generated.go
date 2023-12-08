@@ -3971,6 +3971,7 @@ query AgentGetInstances ($appName: String!) {
 	app(name: $appName) {
 		organization {
 			slug
+			rawSlug
 		}
 		id
 		name
@@ -4455,6 +4456,7 @@ query GetAddOn ($name: String) {
 		ssoLink
 		organization {
 			slug
+			rawSlug
 			paidPlan
 		}
 		addOnProvider {
@@ -4991,6 +4993,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			organization {
 				id
 				slug
+				rawSlug
 			}
 		}
 	}

@@ -481,6 +481,7 @@ func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResu
 		app(name: $appName) {
 			organization {
 				slug
+				rawSlug
 			}
 			id
 			name

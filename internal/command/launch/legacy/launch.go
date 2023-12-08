@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -161,12 +162,16 @@ func Run(ctx context.Context) (err error) {
 		}
 	// App doesn't exist, just create a new app
 	case !launchIntoExistingApp:
-		createdApp, err := client.CreateApp(ctx, api.CreateAppInput{
-			Name:            appConfig.AppName,
-			OrganizationID:  org.ID,
-			PreferredRegion: &appConfig.PrimaryRegion,
-			Machines:        shouldUseMachines,
-		})
+		f, err := flaps.NewFromAppName(ctx, appConfig.AppName)
+		if err != nil {
+			return err
+		}
+
+		if err := f.CreateApp(ctx, appConfig.AppName, org.RawSlug); err != nil {
+			return err
+		}
+
+		createdApp, err := client.GetApp(ctx, appConfig.AppName)
 		if err != nil {
 			return err
 		}
