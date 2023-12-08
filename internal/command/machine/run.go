@@ -512,7 +512,8 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 	}
 
 	if appc == nil {
-		appName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
+		randi := rand.Intn(1_000_000) // skipcq: GSC-G404
+		appName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), randi)
 
 		f, err := flaps.NewFromAppName(ctx, appName)
 		if err != nil {
