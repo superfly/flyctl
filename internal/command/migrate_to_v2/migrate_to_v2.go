@@ -581,17 +581,6 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 		return abortedErr
 	}
 
-	if !m.isPostgres && m.usesForkedVolumes {
-		tb.Detail("Making snapshots of volumes for the new machines")
-		err = m.migrateAppVolumes(ctx)
-		if err != nil {
-			return err
-		}
-		if cancelableCtx.Err() != nil {
-			return abortedErr
-		}
-	}
-
 	if m.requiresDowntime() {
 		tb.Detail("Scaling down to zero VMs. This will cause temporary downtime until new VMs come up.")
 
@@ -602,6 +591,17 @@ func (m *v2PlatformMigrator) Migrate(ctx context.Context) (err error) {
 	}
 	if cancelableCtx.Err() != nil {
 		return abortedErr
+	}
+
+	if !m.isPostgres && m.usesForkedVolumes {
+		tb.Detail("Making snapshots of volumes for the new machines")
+		err = m.migrateAppVolumes(ctx)
+		if err != nil {
+			return err
+		}
+		if cancelableCtx.Err() != nil {
+			return abortedErr
+		}
 	}
 
 	tb.Detail("Enabling machine creation on app")
