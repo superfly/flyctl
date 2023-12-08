@@ -55,7 +55,6 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 		attribute.String("imageoptions.work_dir", io.WorkingDir),
 		attribute.String("imageoptions.dockerfile_path", io.DockerfilePath),
 		attribute.String("imageoptions.ignorefile_path", io.IgnorefilePath),
-		// todo(gwuah): find out from security if this is fine
 		attribute.String("imageoptions.image.ref", io.ImageRef),
 		attribute.String("imageoptions.image.label", io.ImageLabel),
 		attribute.Bool("imageoptions.publish", io.Publish),
@@ -108,7 +107,6 @@ func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 	return []attribute.KeyValue{
 		attribute.String("refoptions.app_name", ro.AppName),
 		attribute.String("refoptions.work_dir", ro.WorkingDir),
-		// todo(gwuah): find out from security if this is fine
 		attribute.String("refoptions.image.ref", ro.ImageRef),
 		attribute.String("refoptions.image.label", ro.ImageLabel),
 		attribute.Bool("refoptions.publish", ro.Publish),
