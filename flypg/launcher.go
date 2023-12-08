@@ -348,14 +348,18 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*api.AppCompact, error) {
 	fmt.Println("Creating app...")
-	appInput := api.CreateAppInput{
-		OrganizationID:  config.Organization.ID,
-		Name:            config.AppName,
-		PreferredRegion: &config.Region,
-		AppRoleID:       "postgres_cluster",
+
+	f, err := flaps.NewFromAppName(ctx, config.AppName)
+	if err != nil {
+		return nil, err
 	}
 
-	app, err := l.client.CreateApp(ctx, appInput)
+	err = f.CreateApp(ctx, config.AppName, config.Organization.RawSlug, flaps.WithAppRoleID("postgres_cluster"))
+	if err != nil {
+		return nil, err
+	}
+
+	app, err := l.client.GetApp(ctx, config.AppName)
 	if err != nil {
 		return nil, err
 	}

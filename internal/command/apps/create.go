@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -74,11 +75,9 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
-		apiClient     = client.FromContext(ctx).API()
 	)
 
 	machines := true
-
 	if flag.GetBool(ctx, "nomad") {
 		if buildinfo.IsDev() {
 			machines = false
@@ -106,29 +105,64 @@ func RunCreate(ctx context.Context) (err error) {
 		}
 	}
 
+	var app *api.App
+	if machines {
+		app, err = createMachinesApp(ctx, name)
+	} else {
+		app, err = createNomadApp(ctx, name)
+	}
+	if err != nil {
+		return err
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, app)
+	}
+
+	fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
+	return nil
+}
+
+func createMachinesApp(ctx context.Context, name string) (*api.App, error) {
+	apiClient := client.FromContext(ctx).API()
 	org, err := prompt.Org(ctx)
 	if err != nil {
-		return
+		return nil, err
+	}
+
+	opts := []flaps.CreateAppOption{}
+	if v := flag.GetString(ctx, "network"); v != "" {
+		opts = append(opts, flaps.WithNetwork(v))
+	}
+
+	f, err := flaps.NewFromAppName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := f.CreateApp(ctx, name, org.RawSlug, opts...); err != nil {
+		return nil, err
+	}
+
+	return apiClient.GetApp(ctx, name)
+}
+
+func createNomadApp(ctx context.Context, name string) (*api.App, error) {
+	apiClient := client.FromContext(ctx).API()
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		return nil, err
 	}
 
 	input := api.CreateAppInput{
 		Name:           name,
 		OrganizationID: org.ID,
-		Machines:       machines,
+		Machines:       false,
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {
 		input.Network = api.StringPointer(v)
 	}
 
-	app, err := apiClient.CreateApp(ctx, input)
-
-	if err == nil {
-		if cfg.JSONOutput {
-			return render.JSON(io.Out, app)
-		}
-		fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
-	}
-
-	return err
+	return apiClient.CreateApp(ctx, input)
 }

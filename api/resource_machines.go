@@ -13,6 +13,7 @@ func (client *Client) GetMachine(ctx context.Context, machineId string) (*GqlMac
 					organization {
 						id
 						slug
+						rawSlug
 					}
 				}
 			}
