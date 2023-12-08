@@ -28,7 +28,7 @@ var (
 	defaultTransport http.RoundTripper = http.DefaultTransport
 )
 
-var contextKeyAction = &contextKey{"Action"}
+var contextKeyAction = contextKey("gql_action")
 
 func ctxWithAction(ctx context.Context, action string) context.Context {
 	return context.WithValue(ctx, contextKeyAction, action)

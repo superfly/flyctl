@@ -81,7 +81,6 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	build.BuildFinish()
 	fmt.Fprintf(streams.ErrOut, "image found: %s\n", img.ID)
 
-	// todo(@gwuah)
 	span.SetAttributes(attribute.String("image.id", img.ID))
 
 	if opts.Publish {
