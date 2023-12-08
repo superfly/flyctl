@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
+	"go.opentelemetry.io/otel/attribute"
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/superfly/flyctl/client"
@@ -19,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
@@ -46,6 +49,51 @@ type ImageOptions struct {
 	Label           map[string]string
 }
 
+func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("imageoptions.app_name", io.AppName),
+		attribute.String("imageoptions.work_dir", io.WorkingDir),
+		attribute.String("imageoptions.dockerfile_path", io.DockerfilePath),
+		attribute.String("imageoptions.ignorefile_path", io.IgnorefilePath),
+		attribute.String("imageoptions.image.ref", io.ImageRef),
+		attribute.String("imageoptions.image.label", io.ImageLabel),
+		attribute.Bool("imageoptions.publish", io.Publish),
+		attribute.String("imageoptions.tag", io.Tag),
+		attribute.Bool("imageoptions.nocache", io.NoCache),
+		attribute.String("imageoptions.builtin", io.BuiltIn),
+		attribute.String("imageoptions.builder", io.BuiltIn),
+		attribute.StringSlice("imageoptions.buildpacks", io.Buildpacks),
+	}
+
+	b, err := json.Marshal(io.BuildArgs)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.build_args", string(b)))
+	}
+
+	b, err = json.Marshal(io.ExtraBuildArgs)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.extra_build_args", string(b)))
+	}
+
+	b, err = json.Marshal(io.BuildSecrets)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.build_secrets", string(b)))
+	}
+
+	b, err = json.Marshal(io.BuiltInSettings)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.built_in_settings", string(b)))
+	}
+
+	b, err = json.Marshal(io.Label)
+	if err == nil {
+		attrs = append(attrs, attribute.String("imageoptions.labels", string(b)))
+	}
+
+	return attrs
+
+}
+
 type RefOptions struct {
 	AppName    string
 	WorkingDir string
@@ -55,11 +103,37 @@ type RefOptions struct {
 	Tag        string
 }
 
+func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
+	return []attribute.KeyValue{
+		attribute.String("refoptions.app_name", ro.AppName),
+		attribute.String("refoptions.work_dir", ro.WorkingDir),
+		attribute.String("refoptions.image.ref", ro.ImageRef),
+		attribute.String("refoptions.image.label", ro.ImageLabel),
+		attribute.Bool("refoptions.publish", ro.Publish),
+		attribute.String("refoptions.tag", ro.Tag),
+	}
+}
+
 type DeploymentImage struct {
 	ID     string
 	Tag    string
 	Size   int64
 	Labels map[string]string
+}
+
+func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("image.id", di.ID),
+		attribute.String("image.tag", di.Tag),
+		attribute.Int64("image.size", di.Size),
+	}
+
+	b, err := json.Marshal(di.Labels)
+	if err == nil {
+		attrs = append(attrs, attribute.String("image.labels", string(b)))
+	}
+
+	return attrs
 }
 
 type Resolver struct {
@@ -77,6 +151,9 @@ const logLimit int = 4096
 
 // ResolveReference returns an Image give an reference using either the local docker daemon or remote registry
 func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOStreams, opts RefOptions) (img *DeploymentImage, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "resolve_reference")
+	defer span.End()
+
 	strategies := []imageResolver{
 		&localImageResolver{},
 		&remoteImageResolver{flyApi: r.apiClient},
@@ -84,6 +161,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 
 	bld, err := r.createImageBuild(ctx, strategies, opts)
 	if err != nil {
+		span.AddEvent(fmt.Sprintf("failed to create image build. err=%s", err.Error()))
 		terminal.Warnf("failed to create build in graphql: %v\n", err)
 	}
 
@@ -108,10 +186,14 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		}
 		bld.BuildAndPushFinish()
 		bld.FinishImageStrategy(s, true /* failed */, nil, note)
+		span.AddEvent(fmt.Sprintf("failed to resolve image with strategy %s", s.Name()))
+
 	}
 
 	r.finishBuild(ctx, bld, true /* failed */, "no strategies resulted in an image", nil)
-	return nil, fmt.Errorf("could not find image \"%s\"", opts.ImageRef)
+	err = fmt.Errorf("could not find image %q", opts.ImageRef)
+	tracing.RecordError(span, err, "failed to resolve image")
+	return nil, err
 }
 
 // BuildImage converts source code to an image using a Dockerfile, buildpacks, or builtins.

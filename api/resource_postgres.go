@@ -19,6 +19,7 @@ func (client *Client) CreatePostgresCluster(ctx context.Context, input CreatePos
 
 	req := client.NewRequest(query)
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "create_postgres_cluster")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -49,6 +50,7 @@ func (client *Client) GetTemplateDeployment(ctx context.Context, id string) (*Te
 
 	req := client.NewRequest(query)
 	req.Var("id", id)
+	ctx = ctxWithAction(ctx, "get_template_deployment")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -77,6 +79,7 @@ func (client *Client) AttachPostgresCluster(ctx context.Context, input AttachPos
 
 	req := client.NewRequest(query)
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "attach_postgres_cluster")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -97,6 +100,7 @@ func (client *Client) DetachPostgresCluster(ctx context.Context, input DetachPos
 
 	req := client.NewRequest(query)
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "detach_postgres_cluster")
 
 	_, err := client.RunWithContext(ctx, req)
 	return err
@@ -121,6 +125,7 @@ func (client *Client) ListPostgresDatabases(ctx context.Context, appName string)
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "list_postgres_database")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -147,6 +152,7 @@ func (client *Client) ListPostgresClusterAttachments(ctx context.Context, appNam
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
 	req.Var("postgresAppName", postgresAppName)
+	ctx = ctxWithAction(ctx, "list_postgres_cluster_attachments")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -176,6 +182,7 @@ func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]
 
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "list_postgres_users")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -195,6 +202,7 @@ func (client *Client) EnablePostgresConsul(ctx context.Context, appName string) 
 	`
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "enable_postgres_consul")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
