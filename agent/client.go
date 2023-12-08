@@ -335,6 +335,32 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 	return
 }
 
+func (c *Client) LookupTxt(ctx context.Context, slug, host string) (records []string, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "lookupTxt", slug, host); err != nil {
+			return
+		}
+
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
+			err = unmarshal(&records, data)
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+
+	return
+}
+
 // WaitForTunnel waits for a tunnel to the given org slug to become available
 // in the next four minutes.
 func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) {
