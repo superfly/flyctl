@@ -112,14 +112,12 @@ func New() *cobra.Command {
 		group(image.New(), "configuring"),
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
-		group(monitor.New(), "apps_v1"),
 		group(postgres.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
 		group(secrets.New(), "configuring"),
 		group(ssh.New(), "upkeep"),
 		group(ssh.NewSFTP(), "upkeep"),
 		group(redis.New(), "dbs_and_extensions"),
-		group(vm.New(), "apps_v1"),
 		group(checks.New(), "upkeep"),
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),
@@ -128,15 +126,12 @@ func New() *cobra.Command {
 		group(services.New(), "upkeep"),
 		group(config.New(), "configuring"),
 		group(scale.New(), "configuring"),
-		group(migrate_to_v2.New(), "apps_v1"),
 		group(tokens.New(), "acl"),
 		group(extensions.New(), "dbs_and_extensions"),
 		group(consul.New(), "dbs_and_extensions"),
-		group(regions.New(), "apps_v1"),
 		group(certificates.New(), "configuring"),
 		group(dashboard.New(), "upkeep"),
 		group(wireguard.New(), "upkeep"),
-		group(autoscale.New(), "apps_v1"),
 		group(console.New(), "upkeep"),
 		settings.New(),
 		group(mysql.New(), "dbs_and_extensions"),
@@ -150,6 +145,12 @@ func New() *cobra.Command {
 		suspend.New(),    // TODO: deprecate
 		resume.New(),     // TODO: deprecate
 		dnsrecords.New(), // TODO: deprecate
+
+		monitor.New(),       // TODO: deprecate
+		vm.New(),            // TODO: deprecate
+		migrate_to_v2.New(), // TODO: deprecate
+		regions.New(),       // TODO: deprecate
+		autoscale.New(),     // TODO: deprecate
 	)
 
 	// if os.Getenv("DEV") != "" {
@@ -182,10 +183,6 @@ func New() *cobra.Command {
 	root.AddGroup(&cobra.Group{
 		ID:    "more_help",
 		Title: "Help & troubleshooting",
-	})
-	root.AddGroup(&cobra.Group{
-		ID:    "apps_v1",
-		Title: "Apps v1 (deprecated)",
 	})
 
 	return root

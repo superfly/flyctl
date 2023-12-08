@@ -69,6 +69,7 @@ func newMigrateToV2() *cobra.Command {
 		},
 	)
 	cmd.Args = cobra.NoArgs
+	cmd.Hidden = true
 	flag.Add(cmd,
 		flag.Yes(),
 		flag.AppConfig(),
