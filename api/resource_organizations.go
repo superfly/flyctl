@@ -66,6 +66,7 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 				id
 				internalNumericId
 				slug
+				rawSlug
 				name
 				type
                 limitedAccessTokens {
