@@ -4,8 +4,6 @@ package doctor
 import (
 	"context"
 	"fmt"
-	"net"
-	"time"
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
@@ -16,9 +14,7 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/doctor/diag"
-	"github.com/superfly/flyctl/internal/command/ping"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -88,6 +84,8 @@ func run(ctx context.Context) (err error) {
 		return true
 	}
 
+	// This JSON output is (unfortunately) depended on in production.
+	// Adding to it is perfectly safe, but double-check WGCI before changing or removing anything :)
 	defer func() {
 		if isJson {
 			render.JSON(iostreams.FromContext(ctx).Out, checks)
@@ -165,6 +163,51 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 	}
 
 	// ------------------------------------------------------------
+	// Check if we can access DNS and Flaps via WireGuard
+	// ------------------------------------------------------------
+
+	lprint(nil, "Creating WireGuard TCP Tunnel... ")
+	dialer, err := getWireguardDialer(ctx)
+	if !check("wgdialer", err) {
+		lprint(nil, `
+We can't create a WireGuard TCP tunnel for your personal organization.
+
+If this is the first time you've ever used 'flyctl' on this machine, you
+can try running 'flyctl doctor' again.
+
+If this was working before, you can ask 'flyctl' to create a new peer for
+you by running 'flyctl wireguard reset', or you can try restarting the 'flyctl' agent with
+'flyctl agent restart'.
+`)
+		return nil
+	}
+
+	lprint(nil, "Testing WireGuard DNS... ")
+	err = runPersonalOrgCheckDns(ctx, dialer)
+	if !check("wgdns", err) {
+		lprint(nil, `
+We can't resolve internal DNS for your personal organization.
+This is likely a platform issue, please contact support.
+`)
+		// Intentionally not returning yet, we want to also run the Flaps check.
+	}
+
+	lprint(nil, "Testing WireGuard Flaps... ")
+	err = runPersonalOrgCheckFlaps(ctx, dialer)
+	if !check("wgflaps", err) {
+		lprint(nil, `
+We can't access Flaps via a WireGuard tunnel into your personal organization.
+This is likely a platform issue, please contact support.
+`)
+		return nil
+	}
+
+	// Check if the DNS test failed. If so, *now* we return.
+	if checks["dns"] != "ok" {
+		return nil
+	}
+
+	// ------------------------------------------------------------
 	// App specific checks below here
 	// ------------------------------------------------------------
 
@@ -210,50 +253,6 @@ func runAgent(ctx context.Context) (err error) {
 	}
 
 	return
-}
-
-func runPersonalOrgPing(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
-
-	ac, err := agent.DefaultClient(ctx)
-	if err != nil {
-		// shouldn't happen, already tested agent
-		return fmt.Errorf("ping gateway: weird error: %w", err)
-	}
-
-	org, err := client.GetOrganizationBySlug(ctx, "personal")
-	if err != nil {
-		// shouldn't happen, already verified auth token
-		return fmt.Errorf("ping gateway: weird error: %w", err)
-	}
-
-	pinger, err := ac.Pinger(ctx, "personal")
-	if err != nil {
-		return fmt.Errorf("ping gateway: %w", err)
-	}
-
-	defer pinger.Close()
-
-	_, ns, err := dig.ResolverForOrg(ctx, ac, org.Slug)
-	if err != nil {
-		return fmt.Errorf("ping gateway: %w", err)
-	}
-
-	replyBuf := make([]byte, 1000)
-
-	for i := 0; i < 30; i++ {
-		_, err = pinger.WriteTo(ping.EchoRequest(0, i, time.Now(), 12), &net.IPAddr{IP: net.ParseIP(ns)})
-
-		pinger.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
-		_, _, err := pinger.ReadFrom(replyBuf)
-		if err != nil {
-			continue
-		}
-
-		return nil
-	}
-
-	return fmt.Errorf("ping gateway: no response from gateway received")
 }
 
 func runLocalDocker(ctx context.Context) (err error) {
