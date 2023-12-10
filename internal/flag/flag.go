@@ -530,7 +530,6 @@ func JSONOutput() Bool {
 }
 
 func ProcessGroup(desc string) String {
-
 	if desc == "" {
 		desc = "The target process group"
 	}
@@ -540,5 +539,19 @@ func ProcessGroup(desc string) String {
 		Description: desc,
 		Shorthand:   "g",
 		Aliases:     []string{"group"},
+	}
+}
+
+// BuildpacksDockerHost address to docker daemon that will be exposed to the buildpacks build container
+const buildpacksDockerHost = "buildpacks-docker-host"
+
+func BpDockerHost() String {
+	return String{
+		Name: buildpacksDockerHost,
+		Description: `Address to docker daemon that will be exposed to the build container.
+If not set (or set to empty string) the standard socket location will be used.
+Special value 'inherit' may be used in which case DOCKER_HOST environment variable will be used.
+This option may set DOCKER_HOST environment variable for the build container if needed.
+`,
 	}
 }

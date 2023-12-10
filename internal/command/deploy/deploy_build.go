@@ -86,15 +86,16 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	// We're building from source
 	opts := imgsrc.ImageOptions{
-		AppName:         appConfig.AppName,
-		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
-		ImageLabel:      flag.GetString(ctx, "image-label"),
-		NoCache:         flag.GetBool(ctx, "no-cache"),
-		BuiltIn:         build.Builtin,
-		BuiltInSettings: build.Settings,
-		Builder:         build.Builder,
-		Buildpacks:      build.Buildpacks,
+		AppName:              appConfig.AppName,
+		WorkingDir:           state.WorkingDirectory(ctx),
+		Publish:              flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
+		ImageLabel:           flag.GetString(ctx, "image-label"),
+		NoCache:              flag.GetBool(ctx, "no-cache"),
+		BuiltIn:              build.Builtin,
+		BuiltInSettings:      build.Settings,
+		Builder:              build.Builder,
+		Buildpacks:           build.Buildpacks,
+		BuildpacksDockerHost: flag.GetString(ctx, "buildpacks-docker-host"),
 	}
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.

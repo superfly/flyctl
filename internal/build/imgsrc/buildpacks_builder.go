@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	pack "github.com/buildpacks/pack/pkg/client"
+	packclient "github.com/buildpacks/pack/pkg/client"
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
@@ -55,7 +55,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	defer docker.Close() // skipcq: GO-S2307
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := pack.NewClient(pack.WithDockerClient(docker), pack.WithLogger(newPackLogger(streams.Out)))
+	packClient, err := packclient.NewClient(packclient.WithDockerClient(docker), packclient.WithLogger(newPackLogger(streams.Out)))
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
@@ -84,11 +84,12 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 	build.ContextBuildFinish()
 
-	err = packClient.Build(ctx, pack.BuildOptions{
+	err = packClient.Build(ctx, packclient.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
 		ClearCache:     opts.NoCache,
 		Image:          newCacheTag(opts.AppName),
+		DockerHost:     opts.BuildpacksDockerHost,
 		Buildpacks:     buildpacks,
 		Env:            normalizeBuildArgs(opts.BuildArgs),
 		TrustBuilder:   returnTrue,

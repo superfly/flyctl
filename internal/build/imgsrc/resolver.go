@@ -44,6 +44,7 @@ type ImageOptions struct {
 	Builder         string
 	Buildpacks      []string
 	Label           map[string]string
+	BuildpacksDockerHost string
 }
 
 type RefOptions struct {
