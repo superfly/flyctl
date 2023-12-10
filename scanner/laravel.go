@@ -129,19 +129,16 @@ func extractConnections( path string )  (DatabaseKind, bool, bool) {
 	}
 	defer file.Close()
 
-
 	// Set up Regex to match 
 	// -not commented out, with DB_CONNECTION
 	dbReg := regexp.MustCompile( "DB_CONNECTION *= *[a-zA-Z]+" )
 	// -not commented out with redis keyword
 	redisReg := regexp.MustCompile( "^[^#]*redis" )
 
-
 	// Default Return Variables
 	var db DatabaseKind = 0
 	redis := false 
 	skipDb := true
-
 
 	// Check each line for
 	// match on redis or db regex
