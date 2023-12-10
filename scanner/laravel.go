@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/base64"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
