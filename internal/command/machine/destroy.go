@@ -16,11 +16,11 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a Fly machine."
-		long  = `Destroy a Fly machine.
+		short = "Destroy Fly machines"
+		long  = `Destroy one or more Fly machines.
 This command requires a machine to be in a stopped state unless the force flag is used.
 `
-		usage = "destroy [id]"
+		usage = "destroy [flags] ID ID ..."
 	)
 
 	cmd := command.New(usage, short, long, runMachineDestroy,
@@ -42,23 +42,45 @@ This command requires a machine to be in a stopped state unless the force flag i
 		},
 	)
 
-	cmd.Args = cobra.RangeArgs(0, 1)
+	cmd.Args = cobra.ArbitraryArgs
 
 	return cmd
 }
 
 func runMachineDestroy(ctx context.Context) (err error) {
+	if len(flag.Args(ctx)) == 0 {
+		machine, ctx, err := selectOneMachine(ctx, nil, "", false)
+		if err != nil {
+			return err
+		}
+		err = singleDestroyRun(ctx, machine)
+		if err != nil {
+			return err
+		}
+	} else {
+		machines, ctx, err := selectManyMachines(ctx, flag.Args(ctx))
+		if err != nil {
+			return err
+		}
+
+		for _, machine := range machines {
+			err = singleDestroyRun(ctx, machine)
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func singleDestroyRun(ctx context.Context, machine *api.Machine) error {
 	var (
 		out   = iostreams.FromContext(ctx).Out
 		force = flag.GetBool(ctx, "force")
 	)
 
-	machineID := flag.FirstArg(ctx)
-	haveMachineID := len(flag.Args(ctx)) > 0
-	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
-	if err != nil {
-		return err
-	}
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
@@ -68,12 +90,12 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
 
-	err = Destroy(ctx, app, current, force)
+	err = Destroy(ctx, app, machine, force)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "%s has been destroyed\n", current.ID)
+	fmt.Fprintf(out, "%s has been destroyed\n", machine.ID)
 
 	return nil
 }

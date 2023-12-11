@@ -19,16 +19,16 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a volume."
+		short = "Destroy one or more volumes."
 
 		long = short + " When you destroy a volume, you permanently delete all its data."
 	)
 
-	cmd := command.New("destroy [id]", short, long, runDestroy,
+	cmd := command.New("destroy [flags] ID ID ...", short, long, runDestroy,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.ArbitraryArgs
 	cmd.Aliases = []string{"delete", "rm"}
 
 	flag.Add(cmd,
@@ -44,16 +44,16 @@ func runDestroy(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API()
-		volID  = flag.FirstArg(ctx)
+		volIDs = flag.Args(ctx)
 	)
 
 	appName := appconfig.NameFromContext(ctx)
-	if volID == "" && appName == "" {
+	if len(volIDs) == 0 && appName == "" {
 		return fmt.Errorf("volume ID or app required")
 	}
 
 	if appName == "" {
-		n, err := client.GetAppNameFromVolume(ctx, volID)
+		n, err := client.GetAppNameFromVolume(ctx, volIDs[0])
 		if err != nil {
 			return err
 		}
@@ -66,7 +66,7 @@ func runDestroy(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	if volID == "" {
+	if len(volIDs) == 0 {
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
@@ -75,21 +75,23 @@ func runDestroy(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		volID = volume.ID
+		volIDs = append(volIDs, volume.ID)
 	}
 
-	if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
-		return err
-	} else if !confirm {
-		return nil
-	}
+	for _, volID := range volIDs {
+		if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
+			return err
+		} else if !confirm {
+			return nil
+		}
 
-	data, err := flapsClient.DeleteVolume(ctx, volID)
-	if err != nil {
-		return fmt.Errorf("failed destroying volume: %w", err)
-	}
+		data, err := flapsClient.DeleteVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("failed destroying volume: %w", err)
+		}
 
-	fmt.Fprintf(io.Out, "Destroyed volume ID: %s name: %s\n", volID, data.Name)
+		fmt.Fprintf(io.Out, "Destroyed volume ID: %s name: %s\n", volID, data.Name)
+	}
 
 	return nil
 }
