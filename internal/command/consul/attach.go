@@ -41,7 +41,6 @@ func newAttach() *cobra.Command {
 func runAttach(ctx context.Context) error {
 	var (
 		apiClient  = client.FromContext(ctx).API()
-		cfg        = appconfig.ConfigFromContext(ctx)
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)
@@ -49,18 +48,7 @@ func runAttach(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	region := cfg.PrimaryRegion
-	if region == "" {
-		region = cfg.Env["PRIMARY_REGION"]
-	}
-	if region == "" {
-		if asc, err := apiClient.AppAutoscalingConfig(ctx, appName); err == nil && len(asc.Regions) > 0 {
-			region = asc.Regions[0].Code
-		}
-	}
-
-	consulPayload, err := apiClient.EnablePostgresConsul(ctx, appName, region)
+	consulPayload, err := apiClient.EnablePostgresConsul(ctx, appName)
 	if err != nil {
 		return nil
 	}

@@ -50,7 +50,6 @@ func (c *Client) GetDomain(ctx context.Context, name string) (*Domain, error) {
 					id
 					name
 					slug
-					rawSlug
 				}
 			}
 		}

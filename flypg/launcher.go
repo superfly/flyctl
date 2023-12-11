@@ -348,18 +348,14 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*api.AppCompact, error) {
 	fmt.Println("Creating app...")
-
-	f, err := flaps.NewFromAppName(ctx, config.AppName)
-	if err != nil {
-		return nil, err
+	appInput := api.CreateAppInput{
+		OrganizationID:  config.Organization.ID,
+		Name:            config.AppName,
+		PreferredRegion: &config.Region,
+		AppRoleID:       "postgres_cluster",
 	}
 
-	err = f.CreateApp(ctx, config.AppName, config.Organization.RawSlug, flaps.WithAppRoleID("postgres_cluster"))
-	if err != nil {
-		return nil, err
-	}
-
-	app, err := l.client.GetApp(ctx, config.AppName)
+	app, err := l.client.CreateApp(ctx, appInput)
 	if err != nil {
 		return nil, err
 	}
@@ -449,7 +445,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 }
 
 func (l *Launcher) generateConsulURL(ctx context.Context, config *CreateClusterInput) (string, error) {
-	data, err := l.client.EnablePostgresConsul(ctx, config.AppName, config.Region)
+	data, err := l.client.EnablePostgresConsul(ctx, config.AppName)
 	if err != nil {
 		return "", err
 	}
