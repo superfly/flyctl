@@ -22,7 +22,6 @@ func (client *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName st
 					organization {
 						id
 						slug
-						rawSlug
 					}
 				}
 			}

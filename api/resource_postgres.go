@@ -185,17 +185,16 @@ func (client *Client) ListPostgresUsers(ctx context.Context, appName string) ([]
 	return *data.AppPostgres.PostgresAppRole.Users, nil
 }
 
-func (client *Client) EnablePostgresConsul(ctx context.Context, appName, region string) (*PostgresEnableConsulPayload, error) {
+func (client *Client) EnablePostgresConsul(ctx context.Context, appName string) (*PostgresEnableConsulPayload, error) {
 	const query = `
-		mutation($appName: ID!, $region: String!) {
-			enablePostgresConsul(input: {appId: $appName, region: $region}) {
+		mutation($appName: ID!) {
+			enablePostgresConsul(input: {appId: $appName}) {
 				consulUrl
 			}
 		}
 	`
 	req := client.NewRequest(query)
 	req.Var("appName", appName)
-	req.Var("region", region)
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
