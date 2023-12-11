@@ -59,35 +59,33 @@ func runPersonalOrgPing(ctx context.Context) (err error) {
 	return fmt.Errorf("ping gateway: no response from gateway received")
 }
 
-func getWireguardDialer(ctx context.Context) (agent.Dialer, error) {
+func runPersonalOrgCheckDns(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
 		// shouldn't happen, already tested agent
-		return nil, fmt.Errorf("wireguard dialer: weird error: %w", err)
+		return fmt.Errorf("wireguard dialer: weird error: %w", err)
 	}
 
 	org, err := client.GetOrganizationBySlug(ctx, "personal")
 	if err != nil {
 		// shouldn't happen, already verified auth token
-		return nil, fmt.Errorf("wireguard dialer: weird error: %w", err)
+		return fmt.Errorf("wireguard dialer: weird error: %w", err)
 	}
 
-	dialer, err := ac.ConnectToTunnel(ctx, org.Slug, true)
+	records, err := ac.LookupTxt(ctx, org.Slug, "_peer.internal")
 	if err != nil {
-		return nil, fmt.Errorf("wireguard dialer: %w", err)
+		return fmt.Errorf("wireguard dialer: %w", err)
+	}
+	if len(records) == 0 {
+		return fmt.Errorf("wireguard dialer: no TXT records found for _peer.internal")
 	}
 
-	return dialer, nil
+	return nil
 }
 
-func runPersonalOrgCheckDns(ctx context.Context, dialer agent.Dialer) error {
-
-	panic("TODO: DNS check")
-}
-
-func runPersonalOrgCheckFlaps(ctx context.Context, dialer agent.Dialer) error {
+func runPersonalOrgCheckFlaps(ctx context.Context) error {
 
 	panic("TODO: HTTP/Flaps check")
 }

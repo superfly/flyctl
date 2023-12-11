@@ -166,24 +166,8 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 	// Check if we can access DNS and Flaps via WireGuard
 	// ------------------------------------------------------------
 
-	lprint(nil, "Creating WireGuard TCP Tunnel... ")
-	dialer, err := getWireguardDialer(ctx)
-	if !check("wgdialer", err) {
-		lprint(nil, `
-We can't create a WireGuard TCP tunnel for your personal organization.
-
-If this is the first time you've ever used 'flyctl' on this machine, you
-can try running 'flyctl doctor' again.
-
-If this was working before, you can ask 'flyctl' to create a new peer for
-you by running 'flyctl wireguard reset', or you can try restarting the 'flyctl' agent with
-'flyctl agent restart'.
-`)
-		return nil
-	}
-
 	lprint(nil, "Testing WireGuard DNS... ")
-	err = runPersonalOrgCheckDns(ctx, dialer)
+	err = runPersonalOrgCheckDns(ctx)
 	if !check("wgdns", err) {
 		lprint(nil, `
 We can't resolve internal DNS for your personal organization.
@@ -193,7 +177,7 @@ This is likely a platform issue, please contact support.
 	}
 
 	lprint(nil, "Testing WireGuard Flaps... ")
-	err = runPersonalOrgCheckFlaps(ctx, dialer)
+	err = runPersonalOrgCheckFlaps(ctx)
 	if !check("wgflaps", err) {
 		lprint(nil, `
 We can't access Flaps via a WireGuard tunnel into your personal organization.
