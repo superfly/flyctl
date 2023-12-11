@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/spf13/pflag"
@@ -34,9 +33,7 @@ func LoadConfig(ctx context.Context) (context.Context, error) {
 
 	cfg := config.New()
 
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	if err := cfg.ApplyFile(ctx); err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
 
@@ -77,6 +74,30 @@ func DetermineConfigDir(ctx context.Context) (context.Context, error) {
 		Debugf("determined config directory: %q", dir)
 
 	return state.WithConfigDirectory(ctx, dir), nil
+}
+
+func DetermineStateDir(ctx context.Context) (context.Context, error) {
+	dir, err := helpers.GetStateDirectory()
+	if err != nil {
+		return ctx, err
+	}
+
+	logger.FromContext(ctx).
+		Debugf("determined state directory: %q", dir)
+
+	return state.WithStateDirectory(ctx, dir), nil
+}
+
+func DetermineRuntimeDir(ctx context.Context) (context.Context, error) {
+	dir, err := helpers.GetRuntimeDirectory()
+	if err != nil {
+		return ctx, err
+	}
+
+	logger.FromContext(ctx).
+		Debugf("determined runtime directory: %q", dir)
+
+	return state.WithRuntimeDirectory(ctx, dir), nil
 }
 
 // ApplyAliases consolidates flags with aliases into a single source-of-truth flag.

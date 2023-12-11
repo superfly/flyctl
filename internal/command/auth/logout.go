@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -51,8 +52,8 @@ func runLogout(ctx context.Context) (err error) {
 		}
 	}
 
-	path := state.ConfigFile(ctx)
-	if err = config.Clear(path); err != nil {
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
+	if err = config.Clear(ctx); err != nil {
 		err = fmt.Errorf("failed clearing config file at %s: %w\n", path, err)
 
 		return

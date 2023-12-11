@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"path/filepath"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -109,9 +110,9 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 }
 
 func persistAccessToken(ctx context.Context, token string) (err error) {
-	path := state.ConfigFile(ctx)
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
 
-	if err = config.SetAccessToken(path, token); err != nil {
+	if err = config.SetAccessToken(ctx, token); err != nil {
 		err = fmt.Errorf("failed persisting %s in %s: %w\n",
 			config.AccessTokenFileKey, path, err)
 	}

@@ -8,7 +8,7 @@ import (
 
 // TODO: deprecate
 func PathToSocket() string {
-	dir, err := helpers.GetConfigDirectory()
+	dir, err := helpers.GetRuntimeDirectory()
 	if err != nil {
 		panic(err)
 	}

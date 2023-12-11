@@ -25,6 +25,14 @@ func prepareInitialCtx(cmd *cobra.Command) (context.Context, error) {
 	if err != nil {
 		return nil, err
 	}
+	ctx, err = preparers.DetermineStateDir(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ctx, err = preparers.DetermineRuntimeDir(ctx)
+	if err != nil {
+		return nil, err
+	}
 	ctx = iostreams.NewContext(ctx, io)
 	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut))
 	ctx, err = preparers.LoadConfig(ctx)

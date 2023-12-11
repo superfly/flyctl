@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/agent/server"
-	"github.com/superfly/flyctl/flyctl"
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
@@ -63,7 +63,7 @@ func run(ctx context.Context) error {
 		Logger:     logger,
 		Client:     apiClient.API(),
 		Background: logPath != "",
-		ConfigFile: state.ConfigFile(ctx),
+		ConfigFile: filepath.Join(state.ConfigDirectory(ctx), config.FileName),
 	}
 
 	return server.Run(ctx, opt)
@@ -107,12 +107,12 @@ func (*dupInstanceError) Description() string {
 
 var errDupInstance = new(dupInstanceError)
 
-func lockPath() string {
-	return filepath.Join(flyctl.ConfigDir(), "flyctl.agent.lock")
+func lockPath(ctx context.Context) string {
+	return filepath.Join(state.RuntimeDirectory(ctx), "flyctl.agent.lock")
 }
 
 func lock(ctx context.Context, logger *log.Logger) (unlock filemu.UnlockFunc, err error) {
-	switch unlock, err = filemu.Lock(ctx, lockPath()); {
+	switch unlock, err = filemu.Lock(ctx, lockPath(ctx)); {
 	case err == nil:
 		break // all done
 	case ctx.Err() != nil:

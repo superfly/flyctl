@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"sync"
 
 	"github.com/spf13/pflag"
@@ -132,8 +133,8 @@ func (cfg *Config) ApplyEnv() {
 }
 
 // ApplyFile sets the properties of cfg which may be set via configuration file
-// to the values the file at the given path contains.
-func (cfg *Config) ApplyFile(path string) (err error) {
+// to the values of the config file contained in the given context.
+func (cfg *Config) ApplyFile(ctx context.Context) (err error) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 
@@ -146,7 +147,7 @@ func (cfg *Config) ApplyFile(path string) (err error) {
 	w.SendMetrics = true
 	w.AutoUpdate = true
 
-	if err = unmarshal(path, &w); err == nil {
+	if err = unmarshal(ctx, &w); err == nil {
 		cfg.Tokens = tokens.Parse(w.AccessToken)
 		cfg.Tokens.FromConfigFile = true
 

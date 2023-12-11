@@ -3,6 +3,7 @@ package version
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -57,8 +58,8 @@ func saveInstall(ctx context.Context, channel string, autoUpdateEnabled bool) er
 
 	// TODO[md]: This was copied from internal/command/settings/autoupdate.go... move it to a helper
 	// so we're not doing it twice
-	path := state.ConfigFile(ctx)
-	if err := config.SetAutoUpdate(path, autoUpdateEnabled); err != nil {
+	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
+	if err := config.SetAutoUpdate(ctx, autoUpdateEnabled); err != nil {
 		return fmt.Errorf("failed persisting %s in %s: %w", config.AutoUpdateFileKey, path, err)
 	}
 	return nil
