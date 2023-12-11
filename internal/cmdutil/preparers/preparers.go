@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/tracing"
 )
 
 // Preparers are split between here and `command/command.go` because
@@ -60,7 +61,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
 	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(httptracing.NewTransport(http.DefaultTransport))
+	api.SetTransport(tracing.NewTransport(httptracing.NewTransport(http.DefaultTransport)))
 
 	c := client.FromTokens(cfg.Tokens)
 	logger.Debug("client initialized.")
