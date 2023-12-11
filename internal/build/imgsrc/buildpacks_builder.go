@@ -88,6 +88,14 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 	build.ContextBuildFinish()
 
+	if opts.BuildpacksDockerHost != "" {
+		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("BuildpacksDockerHost=%v", opts.BuildpacksDockerHost))
+	}
+
+	if len(opts.BuildpacksVolumes) > 0 {
+		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("BuildpacksVolumes=%v", opts.BuildpacksVolumes))
+	}
+
 	err = packClient.Build(ctx, packclient.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
@@ -102,6 +110,9 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			Build: projectTypes.Build{
 				Exclude: excludes,
 			},
+		},
+		ContainerConfig: packclient.ContainerConfig{
+			Volumes: opts.BuildpacksVolumes,
 		},
 	})
 	build.ImageBuildFinish()
