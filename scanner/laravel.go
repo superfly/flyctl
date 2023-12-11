@@ -127,11 +127,11 @@ func extractConnections(path string) (DatabaseKind, bool, bool) {
 	if err != nil {
 		return 0, false, true
 	}
-	defer file.Close()
+	defer file.Close() //skipcq: GO-S2307
 
 	// Set up Regex to match
 	// -not commented out, with DB_CONNECTION
-	dbReg := regexp.MustCompile("DB_CONNECTION *= *[a-zA-Z]+")
+	dbReg := regexp.MustCompile("^ *DB_CONNECTION *= *[a-zA-Z]+")
 	// -not commented out with redis keyword
 	redisReg := regexp.MustCompile("^[^#]*redis")
 
