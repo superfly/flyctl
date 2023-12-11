@@ -78,12 +78,9 @@ func runPersonalOrgCheckDns(ctx context.Context) error {
 		return fmt.Errorf("wireguard dialer: weird error: %w", err)
 	}
 
-	records, err := ac.LookupTxt(ctx, org.Slug, "_peer.internal")
+	_, err = ac.Resolve(ctx, org.Slug, "_api.internal")
 	if err != nil {
-		return fmt.Errorf("wireguard dialer: %w", err)
-	}
-	if len(records) == 0 {
-		return fmt.Errorf("wireguard dialer: no TXT records found for _peer.internal")
+		return fmt.Errorf("wireguard dialer: failed to lookup _api.internal: %w", err)
 	}
 
 	return nil
