@@ -21,6 +21,7 @@ func (c *Client) ConfigureRegions(ctx context.Context, input ConfigureRegionsInp
 	req := c.NewRequest(query)
 
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "configure_regions")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -49,6 +50,7 @@ func (c *Client) ListAppRegions(ctx context.Context, appName string) ([]Region, 
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "list_app_regions")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -68,6 +70,8 @@ func (c *Client) GetNearestRegion(ctx context.Context) (*Region, error) {
 			}
 		}
 `)
+
+	ctx = ctxWithAction(ctx, "get_nearest_regions")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
