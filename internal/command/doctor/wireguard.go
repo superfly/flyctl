@@ -10,10 +10,8 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/ping"
-	"github.com/superfly/flyctl/internal/flag"
 )
 
 // TODO: These probably shouldn't be hardcoded to use the "personal" org,
@@ -108,10 +106,6 @@ func runPersonalOrgCheckFlaps(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: %w", err)
 	}
-
-	// HACK: Set the quiet flag to true so that the agent client doesn't print out progress indicators
-	quietCtx := flag.NewContext(ctx, helpers.Clone(flag.FromContext(ctx)))
-	_ = flag.FromContext(quietCtx).BoolP("quiet", "q", true, "suppress output")
 
 	// Resolve the IP address of _api.internal
 	ip, err := ac.Resolve(ctx, org.Slug, "_api.internal:4280")
