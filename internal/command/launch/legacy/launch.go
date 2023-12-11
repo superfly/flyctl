@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -168,6 +169,10 @@ func Run(ctx context.Context) (err error) {
 			Machines:        shouldUseMachines,
 		})
 		if err != nil {
+			return err
+		}
+
+		if err := flaps.WaitForApp(ctx, createdApp.Name); err != nil {
 			return err
 		}
 
