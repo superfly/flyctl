@@ -7,6 +7,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -18,6 +19,16 @@ import (
 func runRegionsAdd(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
+
+	// regions add is not supported for machines
+	isMachine, err := command.IsMachinesPlatform(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	}
 
 	input := api.ConfigureRegionsInput{
 		AppID:        appName,
@@ -39,6 +50,16 @@ func runRegionsRemove(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
 
+	// regions remove is not supported for machines
+	isMachine, err := command.IsMachinesPlatform(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	}
+
 	input := api.ConfigureRegionsInput{
 		AppID:       appName,
 		Group:       flag.GetString(ctx, "group"),
@@ -58,6 +79,16 @@ func runRegionsRemove(ctx context.Context) error {
 func runRegionsSet(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
+
+	// regions set is not supported for machines
+	isMachine, err := command.IsMachinesPlatform(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	}
 
 	// Get the Region List
 	regions, _, err := apiClient.ListAppRegions(ctx, appName)
@@ -108,6 +139,16 @@ func v1RunRegionsList(ctx context.Context) error {
 func runRegionsBackup(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
+
+	// regions backup is not supported for machines
+	isMachine, err := command.IsMachinesPlatform(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed to check platform version %w", err)
+	}
+
+	if isMachine {
+		return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	}
 
 	input := api.ConfigureRegionsInput{
 		AppID:         appName,
