@@ -360,6 +360,10 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 		return nil, err
 	}
 
+	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
+		return nil, err
+	}
+
 	return &api.AppCompact{
 		ID:       app.ID,
 		Name:     app.Name,
