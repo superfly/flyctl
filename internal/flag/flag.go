@@ -557,11 +557,11 @@ This option may set DOCKER_HOST environment variable for the build container if 
 }
 
 // BuildpacksVolume the host volume that will be mounted to the buildpacks build container
-const buildpacksVolume = "buildpacks-volume"
+const BuildpacksVolume = "buildpacks-volume"
 
 func BpVolume() StringSlice {
 	return StringSlice{
-		Name: buildpacksVolume,
+		Name: BuildpacksVolume,
 		Description: `Mount host volume into the build container, in the form '<host path>:<target path>[:<options>]'.
 - 'host path': Name of the volume or absolute directory path to mount.
 - 'target path': The path where the file or directory is available in the container.

@@ -49,7 +49,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 			Target:               flag.GetString(ctx, "build-target"),
 			NoCache:              flag.GetBool(ctx, "no-build-cache"),
 			BuildpacksDockerHost: flag.GetString(ctx, flag.BuildpacksDockerHost),
-			BuildpacksVolumes:    flag.GetStringSlice(ctx, "buildpacks-volume"),
+			BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
 		}
 
 		dockerfilePath := cfg.Dockerfile()
