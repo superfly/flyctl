@@ -109,8 +109,8 @@ func newRegionsBackup() *cobra.Command {
 
 func newRegionsList() *cobra.Command {
 	const (
-		short = `Shows the list of regions the app is allowed to run in`
-		long  = `Shows the list of regions the app is allowed to run in`
+		short = `V2 APPS: A list of regions where the app has Machines. V1 APPS: The list of regions the app is allowed to run in.`
+		long  = `V2 APPS: A list of regions where the app has Machines. V1 APPS: The list of regions the app is allowed to run in.`
 	)
 	cmd := command.New("list", short, long, runRegionsList,
 		command.RequireSession,
