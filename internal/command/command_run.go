@@ -48,7 +48,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 			ImageLabel:           flag.GetString(ctx, "image-label"),
 			Target:               flag.GetString(ctx, "build-target"),
 			NoCache:              flag.GetBool(ctx, "no-build-cache"),
-			BuildpacksDockerHost: flag.GetString(ctx, "buildpacks-docker-host"),
+			BuildpacksDockerHost: flag.GetString(ctx, flag.BuildpacksDockerHost),
 			BuildpacksVolumes:    flag.GetStringSlice(ctx, "buildpacks-volume"),
 		}
 

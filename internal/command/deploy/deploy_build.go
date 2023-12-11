@@ -95,7 +95,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		BuiltInSettings:      build.Settings,
 		Builder:              build.Builder,
 		Buildpacks:           build.Buildpacks,
-		BuildpacksDockerHost: flag.GetString(ctx, "buildpacks-docker-host"),
+		BuildpacksDockerHost: flag.GetString(ctx, flag.BuildpacksDockerHost),
 		BuildpacksVolumes:    flag.GetStringSlice(ctx, "buildpacks-volume"),
 	}
 

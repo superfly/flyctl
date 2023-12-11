@@ -543,11 +543,11 @@ func ProcessGroup(desc string) String {
 }
 
 // BuildpacksDockerHost address to docker daemon that will be exposed to the buildpacks build container
-const buildpacksDockerHost = "buildpacks-docker-host"
+const BuildpacksDockerHost = "buildpacks-docker-host"
 
 func BpDockerHost() String {
 	return String{
-		Name: buildpacksDockerHost,
+		Name: BuildpacksDockerHost,
 		Description: `Address to docker daemon that will be exposed to the build container.
 If not set (or set to empty string) the standard socket location will be used.
 Special value 'inherit' may be used in which case DOCKER_HOST environment variable will be used.
