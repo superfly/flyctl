@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"time"
 
 	"github.com/superfly/flyctl/agent"
@@ -87,5 +88,47 @@ func runPersonalOrgCheckDns(ctx context.Context) error {
 
 func runPersonalOrgCheckFlaps(ctx context.Context) error {
 
-	panic("TODO: HTTP/Flaps check")
+	apiClient := client.FromContext(ctx).API()
+
+	ac, err := agent.DefaultClient(ctx)
+	if err != nil {
+		// shouldn't happen, already tested agent
+		return fmt.Errorf("wireguard dialer: weird error: %w", err)
+	}
+
+	org, err := apiClient.GetOrganizationBySlug(ctx, "personal")
+	if err != nil {
+		// shouldn't happen, already verified auth token
+		return fmt.Errorf("wireguard dialer: weird error: %w", err)
+	}
+
+	wgDialer, err := ac.ConnectToTunnel(ctx, org.Slug, true)
+	if err != nil {
+		return fmt.Errorf("wireguard dialer: %w", err)
+	}
+
+	dialer := &net.Dialer{
+		Timeout: 10 * time.Second,
+		Resolver: &net.Resolver{
+			PreferGo: true,
+			Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+				return wgDialer.DialContext(ctx, network, address)
+			},
+		},
+	}
+
+	httpClient := http.Client{Transport: &http.Transport{DialContext: dialer.DialContext}}
+
+	// Make an HTTP request to _api.internal:4280.
+	// It should 404. This is a success.
+
+	resp, err := httpClient.Get("http://_api.internal:4280")
+	if err != nil {
+		return fmt.Errorf("wireguard dialer: failed to make HTTP request: %w", err)
+	}
+	if resp.StatusCode != 404 {
+		return fmt.Errorf("wireguard dialer: expected 404, got %d", resp.StatusCode)
+	}
+
+	return nil
 }
