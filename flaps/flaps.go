@@ -12,7 +12,10 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
+	"github.com/azazeal/pause"
+	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/api/tokens"
@@ -169,6 +172,36 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 
 	err = f._sendRequest(ctx, appCreate, http.MethodPost, "/apps", in, nil, nil)
 	return
+}
+
+func WaitForApp(ctx context.Context, name string) error {
+	f, err := NewFromAppName(ctx, name)
+	if err != nil {
+		return err
+	}
+	bo := &backoff.Backoff{
+		Min:    100 * time.Millisecond,
+		Max:    500 * time.Millisecond,
+		Jitter: true,
+	}
+
+waiting:
+	for {
+		err := f._sendRequest(ctx, machineGet, http.MethodGet, "/apps/"+url.PathEscape(name), nil, nil, nil)
+		if err == nil {
+			return nil
+		}
+
+		if ferr, ok := err.(*FlapsError); ok {
+			switch ferr.ResponseStatusCode {
+			case 404, 401:
+				pause.For(ctx, bo.Duration())
+				continue waiting
+			}
+		}
+
+		return err
+	}
 }
 
 func (f *Client) _sendRequest(ctx context.Context, action flapsAction, method, endpoint string, in, out interface{}, headers map[string][]string) error {

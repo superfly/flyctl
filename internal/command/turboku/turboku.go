@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -117,6 +118,10 @@ func run(ctx context.Context) error {
 	switch isTakenError(err) {
 
 	case nil:
+		if err := flaps.WaitForApp(ctx, createdApp.Name); err != nil {
+			return err
+		}
+
 		fmt.Printf("New app created: %s\n", createdApp.Name)
 
 	case errAppNameTaken:
