@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/tracing"
 	"golang.org/x/term"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -58,6 +59,14 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	httptracing.Init()
 	defer httptracing.Finish()
+
+	tp, err := tracing.InitTraceProvider(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return 127
+	}
+
+	defer tp.Shutdown(ctx)
 
 	cmd := root.New()
 	cmd.SetOut(io.Out)

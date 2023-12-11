@@ -18,6 +18,7 @@ query($id: ID!) {
 	req := c.NewRequest(query)
 
 	req.Var("id", volID)
+	ctx = ctxWithAction(ctx, "get_app_name_from_volume")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
