@@ -14,6 +14,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/azazeal/pause"
+	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/instrument"
@@ -166,6 +168,30 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 
 	_, err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
 	return
+}
+
+func WaitForApp(ctx context.Context, name string) error {
+	f, err := NewFromAppName(ctx, name)
+	if err != nil {
+		return err
+	}
+	bo := &backoff.Backoff{
+		Min:    100 * time.Millisecond,
+		Max:    500 * time.Millisecond,
+		Jitter: true,
+	}
+
+	for {
+		status, err := f._sendRequest(ctx, http.MethodGet, "/apps/"+url.PathEscape(name), nil, nil, nil)
+		switch status {
+		case 200:
+			return nil
+		case 404, 401:
+			pause.For(ctx, bo.Duration())
+		default:
+			return err
+		}
+	}
 }
 
 func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) (int, error) {
