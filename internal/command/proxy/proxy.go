@@ -103,7 +103,7 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug)
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, flag.GetBool(ctx, "quiet"))
 	if err != nil {
 		return err
 	}
