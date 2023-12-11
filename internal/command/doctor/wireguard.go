@@ -109,15 +109,9 @@ func runPersonalOrgCheckFlaps(ctx context.Context) error {
 		return fmt.Errorf("wireguard dialer: %w", err)
 	}
 
-	// HACK: Set the quiet flag to true so that the agent doesn't print out progress indicators
+	// HACK: Set the quiet flag to true so that the agent client doesn't print out progress indicators
 	quietCtx := flag.NewContext(ctx, helpers.Clone(flag.FromContext(ctx)))
 	_ = flag.FromContext(quietCtx).BoolP("quiet", "q", true, "suppress output")
-
-	// Wait for the connection to be established
-	err = ac.WaitForDNS(quietCtx, wgDialer, org.Slug, "_api.internal")
-	if err != nil {
-		return fmt.Errorf("wireguard dialer: failed to wait for DNS to resolve: %w", err)
-	}
 
 	// Resolve the IP address of _api.internal
 	ip, err := ac.Resolve(ctx, org.Slug, "_api.internal:4280")
@@ -148,9 +142,6 @@ func runPersonalOrgCheckFlaps(ctx context.Context) error {
 		return fmt.Errorf("wireguard dialer: failed to read HTTP response: %w", err)
 	}
 
-	if err != nil {
-		return fmt.Errorf("wireguard dialer: failed to make HTTP request: %w", err)
-	}
 	if resp.StatusCode != 404 {
 		return fmt.Errorf("wireguard dialer: expected 404, got %d", resp.StatusCode)
 	}
