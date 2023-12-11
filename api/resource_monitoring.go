@@ -15,7 +15,6 @@ func (c *Client) GetAppStatus(ctx context.Context, appName string, showCompleted
 				appUrl
 				organization {
 					slug
-					rawSlug
 				}
 				deploymentStatus {
 					id

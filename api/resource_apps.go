@@ -58,7 +58,6 @@ func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *stri
 					platformVersion
 					organization {
 						slug
-						rawSlug
 						name
 					}
 					currentRelease {
@@ -134,7 +133,6 @@ func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) 
 				organization {
 					id
 					slug
-					rawSlug
 					paidPlan
 				}
 				services {
@@ -224,7 +222,6 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 				organization {
 					id
 					slug
-					rawSlug
 					paidPlan
 				}
 				postgresAppRole: role {
@@ -279,7 +276,6 @@ func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo,
 				organization {
 					id
 					slug
-					rawSlug
 					paidPlan
 				}
 				services {
@@ -381,7 +377,6 @@ func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppP
 				organization {
 					id
 					slug
-					rawSlug
 					paidPlan
 				}
 				imageDetails {
@@ -469,7 +464,6 @@ func (client *Client) MoveApp(ctx context.Context, appName string, orgID string)
 					networkId
 					organization {
 						slug
-						rawSlug
 					}
 				}
 			}

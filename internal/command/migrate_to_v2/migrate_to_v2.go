@@ -322,6 +322,16 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
 
 	isPostgres := appCompact.IsPostgresApp()
+
+	pgConsulUrl := ""
+	if isPostgres {
+		consul, err := apiClient.EnablePostgresConsul(ctx, appCompact.Name)
+		if err != nil {
+			return nil, err
+		}
+		pgConsulUrl = consul.ConsulURL
+	}
+
 	if flag.GetBool(ctx, "force-standard-migration") || appFull.ImageDetails.Repository != "flyio/postgres" {
 		isPostgres = false
 	}
@@ -352,6 +362,7 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 		backupMachines:     map[string]int{},
 		machineWaitTimeout: flag.GetDuration(ctx, "wait-timeout"),
 		skipHealthChecks:   flag.GetBool(ctx, "skip-health-checks"),
+		pgConsulUrl:        pgConsulUrl,
 	}
 
 	migrator.applyHacks(ctx)
@@ -362,10 +373,6 @@ func NewV2PlatformMigrator(ctx context.Context, appName string) (V2PlatformMigra
 	}
 	migrator.resolveProcessGroups(ctx)
 	err = migrator.determinePrimaryRegion(ctx)
-	if err != nil {
-		return nil, err
-	}
-	err = migrator.determineConsulURL(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -939,17 +946,6 @@ func (m *v2PlatformMigrator) determinePrimaryRegion(ctx context.Context) error {
 		return errors.New("no region provided")
 	}
 	m.appConfig.PrimaryRegion = region.Code
-	return nil
-}
-
-func (m *v2PlatformMigrator) determineConsulURL(ctx context.Context) error {
-	if m.appCompact.IsPostgresApp() {
-		consul, err := m.apiClient.EnablePostgresConsul(ctx, m.appConfig.AppName, m.appConfig.PrimaryRegion)
-		if err != nil {
-			return err
-		}
-		m.pgConsulUrl = consul.ConsulURL
-	}
 	return nil
 }
 
