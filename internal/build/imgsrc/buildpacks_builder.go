@@ -75,10 +75,6 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
-	if opts.BuildpacksDockerHost != "" {
-		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks docker host: %v", opts.BuildpacksDockerHost))
-	}
-
 	build.ContextBuildStart()
 	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, "")
 	if err != nil {
@@ -89,11 +85,10 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ContextBuildFinish()
 
 	if opts.BuildpacksDockerHost != "" {
-		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("BuildpacksDockerHost=%v", opts.BuildpacksDockerHost))
+		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks docker host: %v", opts.BuildpacksDockerHost))
 	}
-
 	if len(opts.BuildpacksVolumes) > 0 {
-		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("BuildpacksVolumes=%v", opts.BuildpacksVolumes))
+		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks volumes: %+v", opts.BuildpacksVolumes))
 	}
 
 	err = packClient.Build(ctx, packclient.BuildOptions{
