@@ -26,24 +26,25 @@ import (
 )
 
 type ImageOptions struct {
-	AppName         string
-	WorkingDir      string
-	DockerfilePath  string
-	IgnorefilePath  string
-	ImageRef        string
-	BuildArgs       map[string]string
-	ExtraBuildArgs  map[string]string
-	BuildSecrets    map[string]string
-	ImageLabel      string
-	Publish         bool
-	Tag             string
-	Target          string
-	NoCache         bool
-	BuiltIn         string
-	BuiltInSettings map[string]interface{}
-	Builder         string
-	Buildpacks      []string
-	Label           map[string]string
+	AppName              string
+	WorkingDir           string
+	DockerfilePath       string
+	IgnorefilePath       string
+	ImageRef             string
+	BuildArgs            map[string]string
+	ExtraBuildArgs       map[string]string
+	BuildSecrets         map[string]string
+	ImageLabel           string
+	Publish              bool
+	Tag                  string
+	Target               string
+	NoCache              bool
+	BuiltIn              string
+	BuiltInSettings      map[string]interface{}
+	Builder              string
+	Buildpacks           []string
+	Label                map[string]string
+	BuildpacksDockerHost string
 }
 
 type RefOptions struct {

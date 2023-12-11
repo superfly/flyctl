@@ -42,12 +42,13 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
-			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
-			Publish:    !flag.GetBuildOnly(ctx),
-			ImageLabel: flag.GetString(ctx, "image-label"),
-			Target:     flag.GetString(ctx, "build-target"),
-			NoCache:    flag.GetBool(ctx, "no-build-cache"),
+			AppName:              appName,
+			WorkingDir:           path.Join(state.WorkingDirectory(ctx)),
+			Publish:              !flag.GetBuildOnly(ctx),
+			ImageLabel:           flag.GetString(ctx, "image-label"),
+			Target:               flag.GetString(ctx, "build-target"),
+			NoCache:              flag.GetBool(ctx, "no-build-cache"),
+			BuildpacksDockerHost: flag.GetString(ctx, "buildpacks-docker-host"),
 		}
 
 		dockerfilePath := cfg.Dockerfile()

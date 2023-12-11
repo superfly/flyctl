@@ -48,6 +48,7 @@ var CommonFlags = flag.Set{
 	flag.NoCache(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
+	flag.BpDockerHost(),
 	flag.Bool{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
