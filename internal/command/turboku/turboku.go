@@ -8,8 +8,8 @@ import (
 
 	hero "github.com/heroku/heroku-go/v5"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -106,27 +106,23 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	input := api.CreateAppInput{
-		Name:            flyAppName,
-		OrganizationID:  org.ID,
-		PreferredRegion: api.StringPointer(regionCode),
+	f, err := flaps.NewFromAppName(ctx, flyAppName)
+	if err != nil {
+		return err
 	}
 
-	createdApp, err := client.CreateApp(ctx, input)
-
+	err = f.CreateApp(ctx, flyAppName, org.RawSlug)
 	switch isTakenError(err) {
-
 	case nil:
-		fmt.Printf("New app created: %s\n", createdApp.Name)
-
+		fmt.Printf("New app created: %s\n", flyAppName)
 	case errAppNameTaken:
 		fmt.Printf("App %s already exists\n", flyAppName)
-
-		createdApp, err = client.GetApp(ctx, flyAppName)
-		if err != nil {
-			return err
-		}
 	default:
+		return err
+	}
+
+	createdApp, err := client.GetApp(ctx, flyAppName)
+	if err != nil {
 		return err
 	}
 
