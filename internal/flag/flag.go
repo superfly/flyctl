@@ -543,15 +543,33 @@ func ProcessGroup(desc string) String {
 }
 
 // BuildpacksDockerHost address to docker daemon that will be exposed to the buildpacks build container
-const buildpacksDockerHost = "buildpacks-docker-host"
+const BuildpacksDockerHost = "buildpacks-docker-host"
 
 func BpDockerHost() String {
 	return String{
-		Name: buildpacksDockerHost,
+		Name: BuildpacksDockerHost,
 		Description: `Address to docker daemon that will be exposed to the build container.
 If not set (or set to empty string) the standard socket location will be used.
 Special value 'inherit' may be used in which case DOCKER_HOST environment variable will be used.
 This option may set DOCKER_HOST environment variable for the build container if needed.
+`,
+	}
+}
+
+// BuildpacksVolume the host volume that will be mounted to the buildpacks build container
+const BuildpacksVolume = "buildpacks-volume"
+
+func BpVolume() StringSlice {
+	return StringSlice{
+		Name: BuildpacksVolume,
+		Description: `Mount host volume into the build container, in the form '<host path>:<target path>[:<options>]'.
+- 'host path': Name of the volume or absolute directory path to mount.
+- 'target path': The path where the file or directory is available in the container.
+- 'options' (default "ro"): An optional comma separated list of mount options.
+    - "ro", volume contents are read-only.
+    - "rw", volume contents are readable and writeable.
+    - "volume-opt=<key>=<value>", can be specified more than once, takes a key-value pair consisting of the option name and its value.
+Repeat for each volume in order (comma-separated lists not accepted)
 `,
 	}
 }
