@@ -173,7 +173,7 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 We can't resolve internal DNS for your personal organization.
 This is likely a platform issue, please contact support.
 `)
-		// Intentionally not returning yet, we want to also run the Flaps check.
+		return nil
 	}
 
 	lprint(nil, "Testing WireGuard Flaps... ")
@@ -183,11 +183,6 @@ This is likely a platform issue, please contact support.
 We can't access Flaps via a WireGuard tunnel into your personal organization.
 This is likely a platform issue, please contact support.
 `)
-		return nil
-	}
-
-	// Check if the DNS test failed. If so, *now* we return.
-	if checks["dns"] != "ok" {
 		return nil
 	}
 
