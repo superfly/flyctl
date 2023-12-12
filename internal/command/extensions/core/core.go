@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"time"
 
@@ -419,8 +420,14 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		io              = iostreams.FromContext(ctx)
 		client          = client.FromContext(ctx).API().GenqClient
 		setSecrets bool = true
-		secrets         = extension.Data.Environment.(map[string]interface{})
 	)
+
+	environment := extension.Data.Environment
+	if environment == nil || reflect.ValueOf(environment).IsNil() {
+		return nil
+	}
+
+	secrets := extension.Data.Environment.(map[string]interface{})
 
 	if app.Name != "" {
 		appResp, err := gql.GetApp(ctx, client, app.Name)
