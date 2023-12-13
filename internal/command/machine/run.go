@@ -456,6 +456,7 @@ func runMachineRun(ctx context.Context) error {
 			Dialer:         dialer,
 			Username:       flag.GetString(ctx, "user"),
 			DisableSpinner: false,
+			AppNames:       []string{app.Name},
 		}, machine.PrivateIP)
 		if err != nil {
 			return err

@@ -196,6 +196,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
+		AppNames:       []string{app.Name},
 	}
 	sshClient, err := ssh.Connect(params, machine.PrivateIP)
 	if err != nil {
