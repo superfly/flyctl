@@ -472,6 +472,7 @@ func runConsole(ctx context.Context, cmd string) error {
 		Dialer:         dialer,
 		Username:       "root",
 		DisableSpinner: false,
+		AppNames:       []string{app.Name},
 	}
 	sshc, err := ssh.Connect(params, addr)
 	if err != nil {

@@ -63,9 +63,14 @@ func RunSSHCommand(ctx context.Context, app *api.AppCompact, dialer agent.Dialer
 }
 
 func SSHConnect(p *SSHParams, addr string) error {
-	terminal.Debugf("Fetching certificate for %s\n", addr)
+	terminal.Debugf("Fetching certificate for %s at %s\n", p.App, addr)
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
+	var appNames []string
+	if p.App != "" {
+		appNames = append(appNames, p.App)
+	}
+
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, appNames)
 	if err != nil {
 		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}

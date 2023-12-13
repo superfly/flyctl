@@ -111,6 +111,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		Dialer:         dialer,
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,
+		AppNames:       []string{app.Name},
 	}
 
 	conn, err := Connect(params, addr)

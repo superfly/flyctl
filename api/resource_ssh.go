@@ -54,7 +54,7 @@ mutation($input: EstablishSSHKeyInput!) {
 	return &data.EstablishSSHKey, nil
 }
 
-func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, principals []string, apps []App, valid_hours *int, publicKey ed25519.PublicKey) (*IssuedCertificate, error) {
+func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: IssueCertificateInput!) {
   issueCertificate(input: $input) {
@@ -62,12 +62,6 @@ mutation($input: IssueCertificateInput!) {
   }
 }
 `)
-
-	appNames := make([]string, 0, len(apps))
-	for _, app := range apps {
-		appNames = append(appNames, app.Name)
-	}
-
 	var pubStr string
 	if len(publicKey) > 0 {
 		sshPub, err := ssh.NewPublicKey(publicKey)
