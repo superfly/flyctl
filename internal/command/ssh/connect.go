@@ -56,12 +56,13 @@ type ConnectParams struct {
 	Username       string
 	Dialer         agent.Dialer
 	DisableSpinner bool
+	AppNames       []string
 }
 
 func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, p.AppNames)
 	if err != nil {
 		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
@@ -100,7 +101,7 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	return sshClient, nil
 }
 
-func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
+func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl, appNames []string) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
 	client := client.FromContext(ctx).API()
 	hours := 1
 
@@ -109,7 +110,7 @@ func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*ap
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, nil, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, appNames, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}

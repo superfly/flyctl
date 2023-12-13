@@ -176,6 +176,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),
+		AppNames:       []string{app.Name},
 	}
 	sshc, err := Connect(params, addr)
 	if err != nil {
