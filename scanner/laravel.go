@@ -115,13 +115,15 @@ func extractPhpVersion() (string, error) {
 	return "", fmt.Errorf("could not find php version")
 }
 
-func extractConnections(path string) (DatabaseKind, bool, bool) {
-	/*
-		Determine the default db
-		Determine whether redis connection is desired
-			returns ( db, redis, skipDB )
-	*/
-
+// extractConnections detects the database connection of a laravel fly app
+// By checking the .env file in the project's base directory for connection keywords.
+// This ignores commented out lines and prioritizes the first connection occurance over others
+// 
+// Returns three variables:
+// 		db - DatabaseKind of the connection extracted
+//		redis - reports whether redis was detected
+//		skipDb - reports whether a connection or redis was detected
+func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) {
 	// Get File Content
 	file, err := os.Open(path)
 	if err != nil {
@@ -136,9 +138,9 @@ func extractConnections(path string) (DatabaseKind, bool, bool) {
 	redisReg := regexp.MustCompile("^[^#]*redis")
 
 	// Default Return Variables
-	var db DatabaseKind = 0
-	redis := false
-	skipDb := true
+	db = 0
+	redis = false
+	skipDb = true
 
 	// Check each line for
 	// match on redis or db regex
@@ -161,7 +163,7 @@ func extractConnections(path string) (DatabaseKind, bool, bool) {
 				skipDb = false
 			}
 		}
-	}
+	}	
 
 	return db, redis, skipDb
 }
