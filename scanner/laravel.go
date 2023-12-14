@@ -1,13 +1,15 @@
 package scanner
 
 import (
+	"bufio"
 	"encoding/base64"
 	"fmt"
+	"github.com/superfly/flyctl/helpers"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
-
-	"github.com/superfly/flyctl/helpers"
+	"strings"
 )
 
 type ComposerLock struct {
@@ -67,6 +69,14 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		"NODE_VERSION": "18",
 	}
 
+	// Extract DB, Redis config from dotenv
+	db, redis, skipDB := extractConnections(".env")
+	s.SkipDatabase = skipDB
+	s.RedisDesired = redis
+	if db != 0 {
+		s.DatabaseDesired = db
+	}
+
 	return s, nil
 }
 
@@ -103,4 +113,61 @@ func extractPhpVersion() (string, error) {
 	}
 
 	return "", fmt.Errorf("could not find php version")
+}
+
+var dbRegStr = "^ *DB_CONNECTION *= *[a-zA-Z]+"
+var redisRegStr = "^[^#]*redis"
+
+// extractConnections detects the database connection of a laravel fly app
+// By checking the .env file in the project's base directory for connection keywords.
+// This ignores commented out lines and prioritizes the first connection occurance over others
+//
+// Returns three variables:
+//
+//	db - DatabaseKind of the connection extracted
+//	redis - reports whether redis was detected
+//	skipDb - reports whether a connection or redis was detected
+func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) {
+	// Get File Content
+	file, err := os.Open(path)
+	if err != nil {
+		return 0, false, true
+	}
+	defer file.Close() //skipcq: GO-S2307
+
+	// Set up Regex to match
+	// -not commented out, with DB_CONNECTION
+	dbReg := regexp.MustCompile(dbRegStr)
+	// -not commented out with redis keyword
+	redisReg := regexp.MustCompile(redisRegStr)
+
+	// Default Return Variables
+	db = 0
+	redis = false
+	skipDb = true
+
+	// Check each line for
+	// match on redis or db regex
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		text := scanner.Text()
+
+		if redisReg.MatchString(text) {
+			redis = true
+			skipDb = false
+		} else if db == 0 && dbReg.MatchString(text) {
+			if strings.Contains(text, "mysql") {
+				db = DatabaseKindMySQL
+				skipDb = false
+			} else if strings.Contains(text, "pgsql") {
+				db = DatabaseKindPostgres
+				skipDb = false
+			} else if strings.Contains(text, "sqlite") {
+				db = DatabaseKindSqlite
+				skipDb = false
+			}
+		}
+	}
+
+	return db, redis, skipDb
 }
