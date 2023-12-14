@@ -115,6 +115,9 @@ func extractPhpVersion() (string, error) {
 	return "", fmt.Errorf("could not find php version")
 }
 
+
+var dbRegStr = "^ *DB_CONNECTION *= *[a-zA-Z]+"
+var redisRegStr = "^[^#]*redis"
 // extractConnections detects the database connection of a laravel fly app
 // By checking the .env file in the project's base directory for connection keywords.
 // This ignores commented out lines and prioritizes the first connection occurance over others
@@ -133,9 +136,9 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 
 	// Set up Regex to match
 	// -not commented out, with DB_CONNECTION
-	dbReg := regexp.MustCompile("^ *DB_CONNECTION *= *[a-zA-Z]+")
+	dbReg := regexp.MustCompile( dbRegStr )
 	// -not commented out with redis keyword
-	redisReg := regexp.MustCompile("^[^#]*redis")
+	redisReg := regexp.MustCompile( redisRegStr )
 
 	// Default Return Variables
 	db = 0
