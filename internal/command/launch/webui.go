@@ -15,6 +15,7 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/logger"
 	state2 "github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -54,6 +55,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 
 	oldPlan := helpers.Clone(state.Plan)
+	state.Plan = &plan.LaunchPlan{}
 
 	// TODO(Ali): Remove me.
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
