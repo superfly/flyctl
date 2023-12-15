@@ -77,5 +77,5 @@ func runRegions(ctx context.Context) error {
 		})
 	}
 
-	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Paid-Only", "GPUs")
+	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Launch Plan + Only", "GPUs")
 }
