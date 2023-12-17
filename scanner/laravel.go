@@ -160,7 +160,7 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 			if strings.Contains(text, "mysql") {
 				db = DatabaseKindMySQL
 				skipDb = false
-			} else if strings.Contains(text, "pgsql") ||  strings.Contains(text, "postgres") {
+			} else if strings.Contains(text, "pgsql") || strings.Contains(text, "postgres") {
 				db = DatabaseKindPostgres
 				skipDb = false
 			} else if strings.Contains(text, "sqlite") {
