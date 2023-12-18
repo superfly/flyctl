@@ -115,7 +115,7 @@ func extractPhpVersion() (string, error) {
 	return "", fmt.Errorf("could not find php version")
 }
 
-var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *=(\"|')? *[a-zA-Z]+(\"|')?"
+var dbRegStr = "^ *(DB_CONNECTION|DATABASE_URL) *= *(\"|')? *[a-zA-Z]+(\"|')?"
 var redisRegStr = "^[^#]*redis"
 
 // extractConnections detects the database connection of a laravel fly app
@@ -158,17 +158,21 @@ func extractConnections(path string) (db DatabaseKind, redis bool, skipDb bool) 
 			skipDb = false
 		} else if db == 0 && dbReg.MatchString(text) {
 			if strings.Contains(text, "mysql") {
+				fmt.Println( "mysql" )
 				db = DatabaseKindMySQL
 				skipDb = false
 			} else if strings.Contains(text, "pgsql") || strings.Contains(text, "postgres") {
+				fmt.Println( "pgsql" )
 				db = DatabaseKindPostgres
 				skipDb = false
 			} else if strings.Contains(text, "sqlite") {
+				fmt.Println( "sqlite" )
 				db = DatabaseKindSqlite
 				skipDb = false
 			}
 		}
 	}
+	os.Exit( 1 )
 
 	return db, redis, skipDb
 }
