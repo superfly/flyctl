@@ -193,7 +193,7 @@ func run(ctx context.Context) (err error) {
 	)
 
 	editInUi := false
-	if io.IsInteractive() {
+	if io.IsInteractive() && !flag.GetBool(ctx, "yes") {
 		prompt := &survey.Confirm{
 			Message: lo.Ternary(
 				incompleteLaunchManifest,
