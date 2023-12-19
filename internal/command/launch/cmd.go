@@ -17,7 +17,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/scanner"
 )
 
 func New() (cmd *cobra.Command) {
@@ -138,9 +137,8 @@ func run(ctx context.Context) (err error) {
 	// TODO: Metrics
 
 	var (
-		launchManifest     *LaunchManifest
-		cache              *planBuildCache
-		hasPrintedPreamble bool // "We're about to launch your [xyz] app on Fly.io"
+		launchManifest *LaunchManifest
+		cache          *planBuildCache
 	)
 
 	launchManifest, err = getManifestArgument(ctx)
@@ -153,7 +151,7 @@ func run(ctx context.Context) (err error) {
 
 	if launchManifest == nil {
 
-		launchManifest, cache, err = buildManifest(ctx, canEnterUi, &hasPrintedPreamble)
+		launchManifest, cache, err = buildManifest(ctx, canEnterUi)
 		if err != nil {
 			var recoverableErr recoverableInUiError
 			if errors.As(err, &recoverableErr) && canEnterUi {
@@ -186,16 +184,15 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if !hasPrintedPreamble {
-		printLaunchPreamble(ctx, state.sourceInfo)
-	} else if !incompleteLaunchManifest {
-		// If we've already printed the preamble, interject "ok" so it's more clear that we're done with setup.
-		// We don't want to print "ok" if there's a problem with the launch manifest, because that would be misleading.
-		fmt.Fprintf(io.Out, "Ok! ")
+	family := ""
+	if state.sourceInfo != nil {
+		family = state.sourceInfo.Family
 	}
+
 	fmt.Fprintf(
 		io.Out,
-		"Here's what you're getting:\n\n%s\n",
+		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+		familyToAppType(family),
 		summary,
 	)
 
@@ -243,17 +240,6 @@ func familyToAppType(family string) string {
 		return "app"
 	}
 	return fmt.Sprintf("%s app", family)
-}
-
-func printLaunchPreamble(ctx context.Context, sourceInfo *scanner.SourceInfo) {
-	io := iostreams.FromContext(ctx)
-
-	family := ""
-	if sourceInfo != nil {
-		family = sourceInfo.Family
-	}
-
-	fmt.Fprintf(io.Out, "We're about to launch your %s on Fly.io. ", familyToAppType(family))
 }
 
 // warnLegacyBehavior warns the user if they are using a legacy flag

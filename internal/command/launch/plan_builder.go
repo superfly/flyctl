@@ -72,7 +72,7 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
-func buildManifest(ctx context.Context, canEnterUi bool, hasPrintedPreamble *bool) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
 	var recoverableInUiErrors []recoverableInUiError
 	tryRecoverErr := func(e error) error {
 		var asRecoverableErr recoverableInUiError
@@ -119,7 +119,7 @@ func buildManifest(ctx context.Context, canEnterUi bool, hasPrintedPreamble *boo
 		return nil, nil, err
 	}
 
-	org, orgExplanation, err := determineOrg(ctx, srcInfo, hasPrintedPreamble)
+	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
 		if err := tryRecoverErr(err); err != nil {
 			return nil, nil, err
@@ -479,7 +479,7 @@ func tryFindFallbackOrg(ctx context.Context) *api.Organization {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context, sourceInfo *scanner.SourceInfo, hasPrintedPreamble *bool) (*api.Organization, string, error) {
+func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	var (
 		io        = iostreams.FromContext(ctx)
 		client    = client.FromContext(ctx)
@@ -505,10 +505,6 @@ func determineOrg(ctx context.Context, sourceInfo *scanner.SourceInfo, hasPrinte
 	}
 
 	// Since there was no override, let's have the user pick an org.
-	if !*hasPrintedPreamble {
-		printLaunchPreamble(ctx, sourceInfo)
-		*hasPrintedPreamble = true
-	}
 	fmt.Fprintf(io.Out, "Please select an organization:\n")
 	org, err := prompt.Org(ctx)
 	if err != nil {
