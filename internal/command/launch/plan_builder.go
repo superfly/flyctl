@@ -86,8 +86,6 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		return nil, nil, err
 	}
 
-	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
-
 	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
 		if err := tryRecoverErr(err); err != nil {
