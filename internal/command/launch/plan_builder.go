@@ -9,6 +9,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
@@ -21,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/sort"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
@@ -70,7 +72,7 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
-func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, canEnterUi bool, hasPrintedPreamble *bool) (*LaunchManifest, *planBuildCache, error) {
 	var recoverableInUiErrors []recoverableInUiError
 	tryRecoverErr := func(e error) error {
 		var asRecoverableErr recoverableInUiError
@@ -84,20 +86,6 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	org, orgExplanation, err := determineOrg(ctx)
-	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
-	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
-			return nil, nil, err
-		}
 	}
 
 	httpServicePort := 8080
@@ -129,6 +117,20 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	org, orgExplanation, err := determineOrg(ctx, srcInfo, hasPrintedPreamble)
+	if err != nil {
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
+	if err != nil {
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
@@ -458,44 +460,62 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 	return true, nil
 }
 
+// tryFindFallbackOrg attempts to find the personal org, or if one does not exist, tries to find *any* org.
+func tryFindFallbackOrg(ctx context.Context) *api.Organization {
+	orgs, err := client.FromContext(ctx).API().GetOrganizations(ctx)
+	if err != nil {
+		return nil
+	}
+	if personal, found := lo.Find(orgs, func(o api.Organization) bool {
+		return o.Slug == "personal"
+	}); found {
+		return &personal
+	}
+	if len(orgs) > 0 {
+		sort.OrganizationsByTypeAndName(orgs)
+		return &orgs[0]
+	}
+	return nil
+}
+
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context) (*api.Organization, string, error) {
+func determineOrg(ctx context.Context, sourceInfo *scanner.SourceInfo, hasPrintedPreamble *bool) (*api.Organization, string, error) {
 	var (
+		io        = iostreams.FromContext(ctx)
 		client    = client.FromContext(ctx)
 		clientApi = client.API()
 	)
 
-	orgs, err := clientApi.GetOrganizations(ctx)
-	if err != nil {
-		return nil, "", err
-	}
+	// TODO: Ensure callers can handle recoverable errors with nil org
 
-	bySlug := make(map[string]api.Organization, len(orgs))
-	for _, o := range orgs {
-		bySlug[o.Slug] = o
-	}
-
-	personal, foundPersonal := bySlug["personal"]
-
+	// First, check and see if we passed the --org argument.
 	orgSlug := flag.GetOrg(ctx)
-	if orgSlug == "" {
-		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
+	if orgSlug != "" {
+		org, err := clientApi.GetOrganizationBySlug(ctx, orgSlug)
+		if err != nil {
+			fallbackOrg := tryFindFallbackOrg(ctx)
+			return fallbackOrg, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
 		}
-
-		return &personal, "fly launch defaults to the personal org", nil
+		return org, "specified on the command line", nil
 	}
 
-	org, foundSlug := bySlug[orgSlug]
-	if !foundSlug {
-		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
-		}
-
-		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
+	// Now, check and see if we're interactive. If not, we can't proceed.
+	if !io.IsInteractive() {
+		return nil, "", errors.New("no organization specified")
 	}
 
-	return &org, "specified on the command line", nil
+	// Since there was no override, let's have the user pick an org.
+	if !*hasPrintedPreamble {
+		printLaunchPreamble(ctx, sourceInfo)
+		*hasPrintedPreamble = true
+	}
+	fmt.Fprintf(io.Out, "Please select an organization:\n")
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		fallbackOrg := tryFindFallbackOrg(ctx)
+		return fallbackOrg, recoverableSpecifyInUi, recoverableInUiError{err}
+	}
+	return org, "selected during setup", nil
 }
 
 // determineRegion returns the region to use for a new app. In order, it tries:
