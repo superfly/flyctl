@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
@@ -22,7 +21,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/sort"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 	"github.com/superfly/graphql"
@@ -460,24 +458,6 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 	return true, nil
 }
 
-// tryFindFallbackOrg attempts to find the personal org, or if one does not exist, tries to find *any* org.
-func tryFindFallbackOrg(ctx context.Context) *api.Organization {
-	orgs, err := client.FromContext(ctx).API().GetOrganizations(ctx)
-	if err != nil {
-		return nil
-	}
-	if personal, found := lo.Find(orgs, func(o api.Organization) bool {
-		return o.Slug == "personal"
-	}); found {
-		return &personal
-	}
-	if len(orgs) > 0 {
-		sort.OrganizationsByTypeAndName(orgs)
-		return &orgs[0]
-	}
-	return nil
-}
-
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	var (
@@ -490,13 +470,19 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 
 	// First, check and see if we passed the --org argument.
 	orgSlug := flag.GetOrg(ctx)
+
 	if orgSlug != "" {
 		org, err := clientApi.GetOrganizationBySlug(ctx, orgSlug)
-		if err != nil {
-			fallbackOrg := tryFindFallbackOrg(ctx)
-			return fallbackOrg, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
+		if err == nil {
+			return org, "specified on the command line", nil
+		} else {
+			if !io.IsInteractive() {
+				return nil, "", fmt.Errorf("organization '%s' not found", orgSlug)
+			} else {
+				// We can recover from this error by prompting the user to select an org.
+				fmt.Fprintf(io.ErrOut, "The organization '%s' was not found.\n", orgSlug)
+			}
 		}
-		return org, "specified on the command line", nil
 	}
 
 	// Now, check and see if we're interactive. If not, we can't proceed.
@@ -508,8 +494,7 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	fmt.Fprintf(io.Out, "Please select an organization:\n")
 	org, err := prompt.Org(ctx)
 	if err != nil {
-		fallbackOrg := tryFindFallbackOrg(ctx)
-		return fallbackOrg, recoverableSpecifyInUi, recoverableInUiError{err}
+		return nil, "", err
 	}
 	return org, "selected during setup", nil
 }
