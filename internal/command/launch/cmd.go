@@ -191,7 +191,7 @@ func run(ctx context.Context) (err error) {
 
 	fmt.Fprintf(
 		io.Out,
-		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+		"\nWe're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
 		familyToAppType(family),
 		summary,
 	)
