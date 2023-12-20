@@ -466,8 +466,6 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 		clientApi = client.API()
 	)
 
-	// TODO: Ensure callers can handle recoverable errors with nil org
-
 	// First, check and see if we passed the --org argument.
 	orgSlug := flag.GetOrg(ctx)
 
