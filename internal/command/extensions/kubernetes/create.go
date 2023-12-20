@@ -20,17 +20,18 @@ func create() (cmd *cobra.Command) {
 	const (
 		short = "Provision a Kubernetes cluster for an organization"
 		long  = short + "\n"
-		usage = "create [organization slug]"
+		usage = "create [flags]"
 	)
 
 	cmd = command.New(usage, short, long, runK8sCreate, command.RequireSession)
-	cmd.Args = cobra.MaximumNArgs(1)
 	flag.Add(cmd,
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "The name of your cluster",
 		},
+		flag.Org(),
+		flag.Region(),
 	)
 	return cmd
 }
@@ -39,7 +40,7 @@ func runK8sCreate(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	client := client.FromContext(ctx).API().GenqClient
 	appName := appconfig.NameFromContext(ctx)
-	targetOrg, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+	targetOrg, err := orgs.OrgFromFlagOrSelect(ctx)
 	if err != nil {
 		return err
 	}
