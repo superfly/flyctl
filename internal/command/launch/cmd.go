@@ -164,6 +164,10 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if flag.GetBool(ctx, "manifest") {
+			if incompleteLaunchManifest {
+				return errors.New("manifest generation incomplete")
+			}
+
 			jsonEncoder := json.NewEncoder(io.Out)
 			jsonEncoder.SetIndent("", "  ")
 			return jsonEncoder.Encode(launchManifest)

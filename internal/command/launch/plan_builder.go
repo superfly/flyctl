@@ -86,22 +86,6 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		return nil, nil, err
 	}
 
-	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
-
-	org, orgExplanation, err := determineOrg(ctx)
-	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
-	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
 	httpServicePort := 8080
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
@@ -131,6 +115,20 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	org, orgExplanation, err := determineOrg(ctx)
+	if err != nil {
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
+	if err != nil {
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
@@ -463,41 +461,42 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	var (
+		io        = iostreams.FromContext(ctx)
 		client    = client.FromContext(ctx)
 		clientApi = client.API()
 	)
 
-	orgs, err := clientApi.GetOrganizations(ctx)
+	// TODO: Ensure callers can handle recoverable errors with nil org
+
+	// First, check and see if we passed the --org argument.
+	orgSlug := flag.GetOrg(ctx)
+
+	if orgSlug != "" {
+		org, err := clientApi.GetOrganizationBySlug(ctx, orgSlug)
+		if err == nil {
+			return org, "specified on the command line", nil
+		} else {
+			if !io.IsInteractive() {
+				return nil, "", fmt.Errorf("organization '%s' not found", orgSlug)
+			} else {
+				// We can recover from this error by prompting the user to select an org.
+				fmt.Fprintf(io.ErrOut, "The organization '%s' was not found.\n", orgSlug)
+			}
+		}
+	}
+
+	// Now, check and see if we're interactive. If not, we can't proceed.
+	if !io.IsInteractive() {
+		return nil, "", errors.New("no organization specified")
+	}
+
+	// Since there was no override, let's have the user pick an org.
+	fmt.Fprintf(io.Out, "Please select an organization:\n")
+	org, err := prompt.Org(ctx)
 	if err != nil {
 		return nil, "", err
 	}
-
-	bySlug := make(map[string]api.Organization, len(orgs))
-	for _, o := range orgs {
-		bySlug[o.Slug] = o
-	}
-
-	personal, foundPersonal := bySlug["personal"]
-
-	orgSlug := flag.GetOrg(ctx)
-	if orgSlug == "" {
-		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
-		}
-
-		return &personal, "fly launch defaults to the personal org", nil
-	}
-
-	org, foundSlug := bySlug[orgSlug]
-	if !foundSlug {
-		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
-		}
-
-		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
-	}
-
-	return &org, "specified on the command line", nil
+	return org, "selected during setup", nil
 }
 
 // determineRegion returns the region to use for a new app. In order, it tries:
