@@ -335,6 +335,32 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 	return
 }
 
+func (c *Client) LookupTxt(ctx context.Context, slug, host string) (records []string, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "lookupTxt", slug, host); err != nil {
+			return
+		}
+
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
+			err = unmarshal(&records, data)
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+
+	return
+}
+
 // WaitForTunnel waits for a tunnel to the given org slug to become available
 // in the next four minutes.
 func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) {
@@ -575,18 +601,20 @@ func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) 
 
 // ConnectToTunnel is a convenience method for connect to a wireguard tunnel
 // and returning a Dialer. Only suitable for use in the new CLI commands.
-func (c *Client) ConnectToTunnel(ctx context.Context, slug string) (d Dialer, err error) {
+func (c *Client) ConnectToTunnel(ctx context.Context, slug string, silent bool) (d Dialer, err error) {
 	io := iostreams.FromContext(ctx)
 
 	dialer, err := c.Dialer(ctx, slug)
 	if err != nil {
 		return nil, err
 	}
-	io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
+	if !silent {
+		io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
+		defer io.StopProgressIndicator()
+	}
 	if err := c.WaitForTunnel(ctx, slug); err != nil {
 		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}
-	io.StopProgressIndicator()
 	return dialer, err
 }
 
