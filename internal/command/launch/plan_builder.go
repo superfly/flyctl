@@ -86,6 +86,20 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		return nil, nil, err
 	}
 
+	org, orgExplanation, err := determineOrg(ctx)
+	if err != nil {
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
+	}
+
+	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
+	if err != nil {
+		if err := tryRecoverErr(err); err != nil {
+			return nil, nil, err
+		}
+	}
+
 	httpServicePort := 8080
 	if copiedConfig {
 		// Check imported fly.toml is a valid V2 config before creating the app
@@ -115,20 +129,6 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	org, orgExplanation, err := determineOrg(ctx)
-	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
-	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
-			return nil, nil, err
-		}
 	}
 
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
