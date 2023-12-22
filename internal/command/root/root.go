@@ -61,6 +61,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/settings"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/command/status"
+	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/turboku"
@@ -135,6 +136,7 @@ func New() *cobra.Command {
 		group(console.New(), "upkeep"),
 		settings.New(),
 		group(mysql.New(), "dbs_and_extensions"),
+		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
 		curl.New(),       // TODO: deprecate
 		domains.New(),    // TODO: deprecate
