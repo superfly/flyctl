@@ -12,7 +12,8 @@ func New() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("tigris", short, long, nil)
+	cmd = command.New("storage", short, long, nil)
+	cmd.Aliases = []string{"tigris"}
 	cmd.AddCommand(create(), list(), dashboard(), destroy())
 
 	return cmd
