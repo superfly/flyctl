@@ -108,14 +108,14 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	pgAppFull, err := client.GetApp(ctx, pgAppName)
+	ips, err := client.GetIPAddresses(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range pgAppFull.IPAddresses.Nodes {
+	for _, ip := range ips {
 		if ip.Type == "private_v6" {
 			flycast = &ip.Address
 		}
@@ -155,19 +155,19 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetApp(ctx, appName)
+	_, err = client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	pgAppFull, err := client.GetApp(ctx, pgAppName)
+	ips, err := client.GetIPAddresses(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range pgAppFull.IPAddresses.Nodes {
+	for _, ip := range ips {
 		if ip.Type == "private_v6" {
 			flycast = &ip.Address
 		}
