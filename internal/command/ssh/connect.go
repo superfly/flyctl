@@ -26,13 +26,13 @@ func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, 
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, nil, errors.Wrap(err, "can't establish agent")
 	}
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, nil, fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
@@ -40,7 +40,7 @@ func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, 
 		io.StartProgressIndicatorMsg("Connecting to tunnel")
 	}
 	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
 	}
 	if !quiet {

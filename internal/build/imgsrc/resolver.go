@@ -314,6 +314,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		isAppNotFoundErr := errors.As(err, &gqlErr) && gqlErr.Path.String() == "createBuild" && gqlErr.Message == "Could not find App"
 		if !isAppNotFoundErr {
 			sentry.CaptureException(err,
+				sentry.WithTraceID(ctx),
 				sentry.WithTag("feature", "build-api-create-build"),
 				sentry.WithContexts(map[string]sentry.Context{
 					"app": map[string]interface{}{
@@ -523,6 +524,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	if err != nil {
 		terminal.Warnf("failed to finish build in graphql: %v\n", err)
 		sentry.CaptureException(err,
+			sentry.WithTraceID(ctx),
 			sentry.WithTag("feature", "build-api-finish-build"),
 			sentry.WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
