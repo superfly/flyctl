@@ -41,7 +41,7 @@ func RelativeTime(t time.Time) string {
 		}
 	}
 
-	return Time(t)
+	return t.Format("Jan 2 2006 15:04")
 }
 
 // Time is shorthand for t.Format(time.RFC3339).
