@@ -116,7 +116,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 
 	conn, err := Connect(params, addr)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, err
 	}
 

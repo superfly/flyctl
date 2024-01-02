@@ -169,6 +169,7 @@ func runMigrateToV2(ctx context.Context) (err error) {
 	err = migrator.Migrate(ctx)
 	if err != nil {
 		sentry.CaptureException(err,
+			sentry.WithTraceID(ctx),
 			sentry.WithTag("feature", "migrate-to-v2"),
 			sentry.WithContexts(map[string]sentry.Context{
 				"app": {
@@ -897,12 +898,12 @@ func (m *v2PlatformMigrator) deployApp(ctx context.Context) error {
 	ctx = appconfig.WithConfig(ctx, m.appConfig)
 	md, err := deploy.NewMachineDeployment(ctx, input)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "migrate-to-v2", m.appCompact)
 		return err
 	}
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "migrate-to-v2", m.appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "migrate-to-v2", m.appCompact)
 		return err
 	}
 	return nil
