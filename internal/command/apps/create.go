@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -122,13 +123,18 @@ func RunCreate(ctx context.Context) (err error) {
 	}
 
 	app, err := apiClient.CreateApp(ctx, input)
-
-	if err == nil {
-		if cfg.JSONOutput {
-			return render.JSON(io.Out, app)
-		}
-		fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
+	if err != nil {
+		return err
 	}
 
-	return err
+	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
+		return err
+	}
+
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, app)
+	}
+
+	fmt.Fprintf(io.Out, "New app created: %s\n", app.Name)
+	return nil
 }

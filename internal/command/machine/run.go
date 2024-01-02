@@ -522,6 +522,10 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 		if err != nil {
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
+
+		if err := flaps.WaitForApp(ctx, appc.Name); err != nil {
+			return nil, err
+		}
 	}
 
 	// this app handle won't have all the metadata attached, so grab it
@@ -562,6 +566,10 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 
 	app, err := client.CreateApp(ctx, input)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
