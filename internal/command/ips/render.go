@@ -22,17 +22,19 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 			ipType = "public"
 		}
 
+		createdAt := format.RelativeTime(ipAddr.CreatedAt)
+
 		switch {
 		case ipAddr.Type == "v4":
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated)", ipAddr.Region, ""})
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated, $2/mo)", ipAddr.Region, createdAt})
 		case ipAddr.Type == "shared_v4":
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, ""})
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, createdAt})
 		case ipAddr.Type == "v6":
-			rows = append(rows, []string{"v6", ipAddr.Address, "public", ipAddr.Region, ""})
+			rows = append(rows, []string{"v6", ipAddr.Address, "public (dedicated)", ipAddr.Region, createdAt})
 		case ipAddr.Type == "private_v6":
-			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, ""})
+			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, createdAt})
 		default:
-			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, format.RelativeTime(ipAddr.CreatedAt)})
+			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, createdAt})
 		}
 	}
 
