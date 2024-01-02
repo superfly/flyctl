@@ -441,7 +441,7 @@ func (c *Client) Instances(ctx context.Context, org, app string) (instances Inst
 	go func() {
 		gqlChan <- gqlGetInstances(ctx, org, app)
 	}()
-	r, err := compareAndChooseResults(<-gqlChan, &agentInstances, <-agentChan, org, app)
+	r, err := compareAndChooseResults(ctx, <-gqlChan, &agentInstances, <-agentChan, org, app)
 	instances = *r
 	return
 }
@@ -451,16 +451,16 @@ type instancesResult struct {
 	Err       error
 }
 
-func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, agentErr error, orgSlug, appName string) (*Instances, error) {
+func compareAndChooseResults(ctx context.Context, gqlResult instancesResult, agentResult *Instances, agentErr error, orgSlug, appName string) (*Instances, error) {
 	terminal.Debugf("gqlErr: %v agentErr: %v\n", gqlResult.Err, agentErr)
 	if gqlResult.Err != nil && agentErr != nil {
-		captureError(fmt.Errorf("two errors looking up: %s %s: gqlErr: %v agentErr: %v", orgSlug, appName, gqlResult.Err.Error(), agentErr), "agentclient-instances", orgSlug, appName)
+		captureError(ctx, fmt.Errorf("two errors looking up: %s %s: gqlErr: %v agentErr: %v", orgSlug, appName, gqlResult.Err.Error(), agentErr), "agentclient-instances", orgSlug, appName)
 		return nil, gqlResult.Err
 	} else if gqlResult.Err != nil {
-		captureError(fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
+		captureError(ctx, fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
 		return agentResult, nil
 	} else if agentErr != nil {
-		captureError(fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
+		captureError(ctx, fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
 		return gqlResult.Instances, nil
 	} else if !arrayEqual(gqlResult.Instances.Addresses, agentResult.Addresses) {
 		return gqlResult.Instances, nil
@@ -469,12 +469,13 @@ func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, 
 	}
 }
 
-func captureError(err error, feature, orgSlug, appName string) {
+func captureError(ctx context.Context, err error, feature, orgSlug, appName string) {
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 	terminal.Debugf("error: %v\n", err)
 	sentry.CaptureException(err,
+		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", feature),
 		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{

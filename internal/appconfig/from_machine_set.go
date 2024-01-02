@@ -22,13 +22,13 @@ func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machi
 		io                        = iostreams.FromContext(ctx)
 		colorize                  = io.ColorScheme()
 		tomlCounter               = newFreqCounter[*machineConfigPair]()
-		processGroups, warningMsg = processGroupsFromMachineSet(machines)
+		processGroups, warningMsg = processGroupsFromMachineSet(ctx, machines)
 	)
 	if warningMsg != "" {
 		warnings = append(warnings, warningMsg)
 	}
 	for _, m := range machines.GetMachines() {
-		appConfig, machineWarning := fromAppAndOneMachine(appCompact, m, processGroups)
+		appConfig, machineWarning := fromAppAndOneMachine(ctx, appCompact, m, processGroups)
 		warnings = append(warnings, machineWarning)
 		tomlString, err := appConfig.marshalTOML()
 		if err != nil {
@@ -87,7 +87,7 @@ func prettyDiff(original, new string, colorize *iostreams.ColorScheme) string {
 	return ""
 }
 
-func fromAppAndOneMachine(appCompact *api.AppCompact, m machine.LeasableMachine, processGroups *processGroupInfo) (*Config, string) {
+func fromAppAndOneMachine(ctx context.Context, appCompact *api.AppCompact, m machine.LeasableMachine, processGroups *processGroupInfo) (*Config, string) {
 	var (
 		warningMsg     string
 		primaryRegion  string
@@ -125,7 +125,7 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	if len(m.Machine().Config.Checks) > 0 {
 		topLevelChecks = make(map[string]*ToplevelCheck)
 		for checkName, machineCheck := range m.Machine().Config.Checks {
-			topLevelChecks[checkName] = topLevelCheckFromMachineCheck(machineCheck)
+			topLevelChecks[checkName] = topLevelCheckFromMachineCheck(ctx, machineCheck)
 		}
 	}
 	cfg := NewConfig()
@@ -176,7 +176,7 @@ func quotePosixWords(words []string) []string {
 	return quoted
 }
 
-func processGroupsFromMachineSet(ms machine.MachineSet) (*processGroupInfo, string) {
+func processGroupsFromMachineSet(ctx context.Context, ms machine.MachineSet) (*processGroupInfo, string) {
 	var (
 		warningMsg     string
 		processGroups  = &processGroupInfo{}
@@ -225,7 +225,7 @@ Commands they are running:
 	serviceReport := serviceCounter.Report()
 	processes := lo.Keys(processGroups.processes)
 	for _, service := range serviceReport.mostCommonValues[0].Machine().Config.Services {
-		processGroups.services = append(processGroups.services, *serviceFromMachineService(service, processes))
+		processGroups.services = append(processGroups.services, *serviceFromMachineService(ctx, service, processes))
 	}
 	if len(serviceReport.otherValues) > 0 {
 		var otherMachineIds []string

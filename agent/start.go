@@ -50,7 +50,7 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	if err := cmd.Start(); err != nil {
 		err = forkError{err}
-		sentry.CaptureException(err)
+		sentry.CaptureException(err, sentry.WithTraceID(ctx))
 
 		return nil, fmt.Errorf("failed starting agent process: %w", err)
 	}
@@ -74,9 +74,9 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		}
 
 		if log != "" {
-			sentry.CaptureException(err, sentry.WithExtra("log", log))
+			sentry.CaptureException(err, sentry.WithExtra("log", log), sentry.WithTraceID(ctx))
 		} else {
-			sentry.CaptureException(err)
+			sentry.CaptureException(err, sentry.WithTraceID(ctx))
 		}
 
 		return nil, err

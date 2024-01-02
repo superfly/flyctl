@@ -93,7 +93,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
-			captureError(err, app)
+			captureError(ctx, err, app)
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}
@@ -117,13 +117,14 @@ func newConsole() *cobra.Command {
 	return cmd
 }
 
-func captureError(err error, app *api.AppCompact) {
+func captureError(ctx context.Context, err error, app *api.AppCompact) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 
 	sentry.CaptureException(err,
+		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
@@ -180,12 +181,12 @@ func runConsole(ctx context.Context) error {
 	}
 	sshc, err := Connect(params, addr)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return err
 	}
 
 	if err := Console(ctx, sshc, cmd, allocPTY); err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return err
 	}
 

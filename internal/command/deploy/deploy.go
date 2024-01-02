@@ -409,13 +409,13 @@ func deployToMachines(
 		ProcessGroups:          processGroups,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
 	}
 	return err
 }

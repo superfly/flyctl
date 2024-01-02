@@ -3,6 +3,7 @@ package sentry
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/logrusorgru/aurora"
+	"go.opentelemetry.io/otel/trace"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -68,6 +70,15 @@ func WithTag(key, value string) CaptureOption {
 	}
 }
 
+func WithTraceID(ctx context.Context) CaptureOption {
+	return func(scope *sentry.Scope) {
+		currentSpan := trace.SpanFromContext(ctx)
+		if currentSpan.SpanContext().HasTraceID() {
+			scope.SetTag("trace_id", currentSpan.SpanContext().TraceID().String())
+		}
+	}
+}
+
 func CaptureException(err error, opts ...CaptureOption) {
 	if !isInitialized() {
 		return
@@ -96,7 +107,7 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 	})
 }
 
-func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.AppCompact) {
+func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *api.AppCompact) {
 	if appCompact == nil {
 		CaptureException(
 			err,
@@ -116,6 +127,7 @@ func CaptureExceptionWithAppInfo(err error, featureName string, appCompact *api.
 				"slug": appCompact.Organization.Slug,
 			},
 		}),
+		WithTraceID(ctx),
 	)
 }
 
