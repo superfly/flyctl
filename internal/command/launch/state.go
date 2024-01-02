@@ -75,7 +75,7 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 		return r.Code == state.Plan.RegionCode
 	})
 	if !ok {
-		return region, fmt.Errorf("region %s not found", state.Plan.RegionCode)
+		return region, fmt.Errorf("region %s not found. Is %s a valid region according to `fly platform regions`?", state.Plan.RegionCode)
 	}
 	return region, nil
 }
