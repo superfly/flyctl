@@ -232,6 +232,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 		sentry.CaptureException(err,
 			sentry.WithTag("feature", "remote-build"),
+			sentry.WithTraceID(ctx),
 			sentry.WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
 					"name": appName,
