@@ -22,9 +22,16 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 			ipType = "public"
 		}
 
-		if ipAddr.Type == "shared_v4" {
+		switch {
+		case ipAddr.Type == "v4":
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated)", ipAddr.Region, ""})
+		case ipAddr.Type == "shared_v4":
 			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, ""})
-		} else {
+		case ipAddr.Type == "v6":
+			rows = append(rows, []string{"v6", ipAddr.Address, "public", ipAddr.Region, ""})
+		case ipAddr.Type == "private_v6":
+			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, ""})
+		default:
 			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, format.RelativeTime(ipAddr.CreatedAt)})
 		}
 	}
