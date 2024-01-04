@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/hashicorp/go-cleanhttp"
 	"github.com/spf13/pflag"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -60,7 +60,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
 	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(otelhttp.NewTransport(cleanhttp.DefaultTransport()))
+	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
 	c := client.FromTokens(cfg.Tokens)
 	logger.Debug("client initialized.")

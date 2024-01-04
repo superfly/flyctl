@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/hashicorp/go-cleanhttp"
 	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -87,7 +86,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		logger = opts.Logger
 	}
 
-	transport := otelhttp.NewTransport(cleanhttp.DefaultTransport())
+	transport := otelhttp.NewTransport(http.DefaultTransport)
 	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
@@ -137,9 +136,10 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 		return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", params.orgSlug, err)
 	}
 
-	transport := cleanhttp.DefaultTransport()
-	transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
-		return dialer.DialContext(ctx, network, addr)
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.DialContext(ctx, network, addr)
+		},
 	}
 	instrumentedTransport := otelhttp.NewTransport(transport)
 
