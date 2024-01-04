@@ -26,6 +26,7 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
+	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
 	github.com/heroku/heroku-go/v5 v5.5.0
@@ -64,6 +65,7 @@ require (
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.10
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.46.1
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.21.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.21.0
 	golang.org/x/crypto v0.17.0
@@ -127,6 +129,7 @@ require (
 	github.com/docker/docker-credential-helpers v0.7.0 // indirect
 	github.com/elazarl/goproxy v0.0.0-20230808193330-2592e75ae04a // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
+	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/gdamore/tcell/v2 v2.6.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
