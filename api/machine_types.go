@@ -656,7 +656,15 @@ type MachineInit struct {
 }
 
 type DNSConfig struct {
-	SkipRegistration bool `json:"skip_registration,omitempty"`
+	SkipRegistration bool        `json:"skip_registration,omitempty"`
+	Nameservers      []string    `json:"nameservers,omitempty"`
+	Searches         []string    `json:"searches,omitempty"`
+	Options          []dnsOption `json:"options,omitempty"`
+}
+
+type dnsOption struct {
+	Name  string  `json:"name,omitempty"`
+	Value *string `json:"value,omitempty"`
 }
 
 type StopConfig struct {
