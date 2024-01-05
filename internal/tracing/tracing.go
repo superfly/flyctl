@@ -3,6 +3,7 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -23,7 +24,9 @@ import (
 )
 
 const (
-	tracerName = "github.com/superfly/flyctl"
+	tracerName       = "github.com/superfly/flyctl"
+	headerFlyTraceId = "fly-trace-id"
+	headerFlySpanId  = "fly-span-id"
 )
 
 func getCollectorUrl() string {
@@ -46,6 +49,19 @@ func GetTracer() trace.Tracer {
 func RecordError(span trace.Span, err error, description string) {
 	span.RecordError(err)
 	span.SetStatus(codes.Error, description)
+}
+
+func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
+	traceIDstr := res.Header.Get(headerFlyTraceId)
+	spanIDstr := res.Header.Get(headerFlySpanId)
+
+	traceID, _ := trace.TraceIDFromHex(traceIDstr)
+	spanID, _ := trace.SpanIDFromHex(spanIDstr)
+
+	return trace.NewSpanContext(trace.SpanContextConfig{
+		TraceID: traceID,
+		SpanID:  spanID,
+	})
 }
 
 func SpanFromContext(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
