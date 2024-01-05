@@ -213,13 +213,14 @@ func (s *server) buildTunnel(ctx context.Context, org *api.Organization, recycle
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// not checking the region is intentional, it's static during the lifetime of the agent
 	if tunnel = s.tunnels[org.Slug]; tunnel != nil && !recycle {
 		// tunnel already exists
 		return
 	}
 
 	var state *wg.WireGuardState
-	if state, err = wireguard.StateForOrg(ctx, s.Client, org, "", "", recycle); err != nil {
+	if state, err = wireguard.StateForOrg(ctx, s.Client, org, os.Getenv("FLY_AGENT_WG_REGION"), "", recycle); err != nil {
 		return
 	}
 

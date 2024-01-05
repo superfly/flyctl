@@ -45,7 +45,7 @@ func StateForOrg(ctx context.Context, apiClient *api.Client, org *api.Organizati
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !recycle {
+	if state != nil && !recycle && state.Region == regionCode {
 		return state, nil
 	}
 
