@@ -233,6 +233,9 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	if err != nil {
 		return nil, "", err
 	}
+	if img == nil {
+		return nil, "", fmt.Errorf("no image found")
+	}
 
 	return &DeploymentImage{
 		ID:   img.ID,
