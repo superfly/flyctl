@@ -7,6 +7,7 @@ import (
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
@@ -43,6 +44,13 @@ func New() (cmd *cobra.Command) {
 			Shorthand:   "v",
 			Default:     false,
 			Description: "Print extra diagnostic information.",
+		},
+		flag.String{
+			Name:         "org",
+			Shorthand:    "o",
+			Description:  "The name of the organization to use for WireGuard tests.",
+			Default:      "personal",
+			CompletionFn: completion.CompleteOrgs,
 		},
 	)
 
@@ -142,8 +150,10 @@ Run 'flyctl agent restart'.
 
 	// ------------------------------------------------------------
 
+	wgOrgSlug := flag.GetString(ctx, "org")
+
 	lprint(nil, "Pinging WireGuard gateway (give us a sec)... ")
-	err = runPersonalOrgPing(ctx)
+	err = runPersonalOrgPing(ctx, wgOrgSlug)
 	if !check("ping", err) {
 		lprint(nil, `
 We can't establish connectivity with WireGuard for your personal organization.
@@ -167,7 +177,7 @@ followed by 'flyctl agent restart', and we'll run WireGuard over HTTPS.
 	// ------------------------------------------------------------
 
 	lprint(nil, "Testing WireGuard DNS... ")
-	err = runPersonalOrgCheckDns(ctx)
+	err = runPersonalOrgCheckDns(ctx, wgOrgSlug)
 	if !check("wgdns", err) {
 		lprint(nil, `
 We can't resolve internal DNS for your personal organization.
@@ -177,7 +187,7 @@ This is likely a platform issue, please contact support.
 	}
 
 	lprint(nil, "Testing WireGuard Flaps... ")
-	err = runPersonalOrgCheckFlaps(ctx)
+	err = runPersonalOrgCheckFlaps(ctx, wgOrgSlug)
 	if !check("wgflaps", err) {
 		lprint(nil, `
 We can't access Flaps via a WireGuard tunnel into your personal organization.
