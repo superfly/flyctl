@@ -16,11 +16,10 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
-	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
-	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Preparers are split between here and `command/command.go` because
@@ -61,7 +60,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	api.SetBaseURL(cfg.APIBaseURL)
 	api.SetErrorLog(cfg.LogGQLErrors)
 	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(tracing.NewTransport(httptracing.NewTransport(http.DefaultTransport)))
+	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
 	c := client.FromTokens(cfg.Tokens)
 	logger.Debug("client initialized.")
