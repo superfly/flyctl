@@ -22,11 +22,11 @@ import (
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -86,7 +86,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		logger = opts.Logger
 	}
 
-	transport := tracing.NewTransport(httptracing.NewTransport(http.DefaultTransport))
+	transport := otelhttp.NewTransport(http.DefaultTransport)
 	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
@@ -141,8 +141,7 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 			return dialer.DialContext(ctx, network, addr)
 		},
 	}
-
-	instrumentedTransport := tracing.NewTransport(httptracing.NewTransport(transport))
+	instrumentedTransport := otelhttp.NewTransport(transport)
 
 	httpClient, err := api.NewHTTPClient(logger, instrumentedTransport)
 	if err != nil {
