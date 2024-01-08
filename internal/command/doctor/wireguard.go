@@ -14,25 +14,22 @@ import (
 	"github.com/superfly/flyctl/internal/command/ping"
 )
 
-// TODO: These probably shouldn't be hardcoded to use the "personal" org,
-//       as it's completely valid to use flyctl with a token that doesn't have access to a personal org.
-
-func runPersonalOrgPing(ctx context.Context) (err error) {
+func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 	client := client.FromContext(ctx).API()
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
 		// shouldn't happen, already tested agent
-		return fmt.Errorf("wireguard ping gateway: weird error: %w", err)
+		return fmt.Errorf("wireguard ping gateway: can't establish agent client: %w", err)
 	}
 
-	org, err := client.GetOrganizationBySlug(ctx, "personal")
+	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		// shouldn't happen, already verified auth token
-		return fmt.Errorf("wireguard ping gateway: weird error: %w", err)
+		return fmt.Errorf("wireguard ping gateway: can't get org %s: %w", orgSlug, err)
 	}
 
-	pinger, err := ac.Pinger(ctx, "personal")
+	pinger, err := ac.Pinger(ctx, orgSlug)
 	if err != nil {
 		return fmt.Errorf("wireguard ping gateway: %w", err)
 	}
@@ -61,19 +58,19 @@ func runPersonalOrgPing(ctx context.Context) (err error) {
 	return fmt.Errorf("ping gateway: no response from gateway received")
 }
 
-func runPersonalOrgCheckDns(ctx context.Context) error {
+func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 	client := client.FromContext(ctx).API()
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
 		// shouldn't happen, already tested agent
-		return fmt.Errorf("wireguard dialer: weird error: %w", err)
+		return fmt.Errorf("wireguard dialer: can't establish agent client: %w", err)
 	}
 
-	org, err := client.GetOrganizationBySlug(ctx, "personal")
+	org, err := client.GetOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		// shouldn't happen, already verified auth token
-		return fmt.Errorf("wireguard dialer: weird error: %w", err)
+		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
 	}
 
 	_, err = ac.Resolve(ctx, org.Slug, "_api.internal")
@@ -84,7 +81,7 @@ func runPersonalOrgCheckDns(ctx context.Context) error {
 	return nil
 }
 
-func runPersonalOrgCheckFlaps(ctx context.Context) error {
+func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 
 	apiClient := client.FromContext(ctx).API()
 
@@ -92,14 +89,14 @@ func runPersonalOrgCheckFlaps(ctx context.Context) error {
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
 		// shouldn't happen, already tested agent
-		return fmt.Errorf("wireguard dialer: weird error: %w", err)
+		return fmt.Errorf("wireguard dialer: can't establish agent client: %w", err)
 	}
 
 	// Connect to the personal org via WireGuard
 	org, err := apiClient.GetOrganizationBySlug(ctx, "personal")
 	if err != nil {
 		// shouldn't happen, already verified auth token
-		return fmt.Errorf("wireguard dialer: weird error: %w", err)
+		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
 	}
 
 	wgDialer, err := ac.ConnectToTunnel(ctx, org.Slug, true)
