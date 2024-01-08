@@ -93,7 +93,7 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 	}
 
 	// Connect to the personal org via WireGuard
-	org, err := apiClient.GetOrganizationBySlug(ctx, "personal")
+	org, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
 	if err != nil {
 		// shouldn't happen, already verified auth token
 		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
