@@ -117,7 +117,7 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 	}
 
 	// Make an HTTP request to _api.internal:4280. This should return a 404.
-	req, err := http.NewRequest("GET", "http://_api.internal:4280", nil)
+	req, err := http.NewRequest("GET", "http://_api.internal:4280", http.NoBody) // skipcq: GO-S1028
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: failed to create HTTP request: %w", err)
 	}
