@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/blang/semver"
@@ -192,6 +193,23 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 
 	// default to port 3000
 	srcInfo.Port = 3000
+
+	// etract port from EXPOSE statement in dockerfile
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err == nil {
+		m := portRegex.FindStringSubmatch(string(dockerfile))
+
+		for i, name := range portRegex.SubexpNames() {
+			if len(m) > 0 && name == "port" {
+				portFromDockerfile, err := strconv.Atoi(m[i])
+				if err == nil {
+					fmt.Printf("got port\n")
+					srcInfo.Port = portFromDockerfile
+					continue
+				}
+			}
+		}
+	}
 
 	// While redundant and requires dual matenance, it has been a point of
 	// confusion for many when the framework detected is listed as "NodeJS"
