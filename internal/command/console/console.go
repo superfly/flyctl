@@ -218,7 +218,7 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	} else if flag.IsSpecified(ctx, "machine") {
 		return getMachineByID(ctx)
 	} else {
-		guest, err := determineEphemeralConsoleMachineGuest(ctx)
+		guest, err := determineEphemeralConsoleMachineGuest(ctx, appConfig)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -240,7 +240,7 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 		return machine.State == api.MachineStateStarted
 	})
 
-	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx)
+	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx, appConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -374,7 +374,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	return machine.LaunchEphemeral(ctx, input)
 }
 
-func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
+func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*api.MachineGuest, error) {
 	desiredGuest, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -391,6 +391,15 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGue
 			maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_CPU
 		default:
 			return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", desiredGuest.CPUKind)
+		}
+
+		// use vm.memory_mb from fly.toml (if present) as a lower bound
+		appConfig.Flatten("console")
+		if appConfig.Compute != nil && len(appConfig.Compute) == 1 {
+			compute := appConfig.Compute[0]
+			if compute.MemoryMB != 0 {
+				minMemory = compute.MemoryMB
+			}
 		}
 
 		adjusted := lo.Clamp(desiredGuest.MemoryMB, minMemory, maxMemory)
