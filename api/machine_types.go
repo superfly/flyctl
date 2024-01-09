@@ -663,8 +663,8 @@ type DNSConfig struct {
 }
 
 type dnsOption struct {
-	Name  string  `json:"name,omitempty"`
-	Value *string `json:"value,omitempty"`
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
 type StopConfig struct {
