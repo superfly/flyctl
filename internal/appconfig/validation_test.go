@@ -25,7 +25,7 @@ func _getValidationContext(t *testing.T) context.Context {
 }
 
 func TestConfig_ValidateGroups(t *testing.T) {
-	cfg, err := LoadConfig("./testdata/validategroups.toml")
+	cfg, err := LoadConfig("./testdata/validate-groups.toml")
 	require.NoError(t, err)
 	require.NoError(t, cfg.SetMachinesPlatform())
 	cfg.Deploy = &Deploy{Strategy: "canary"}
@@ -38,8 +38,8 @@ func TestConfig_ValidateGroups(t *testing.T) {
 	err, x = cfg.ValidateGroups(ctx, []string{"app"})
 	require.Error(t, err, x)
 
-	err, _ = cfg.ValidateGroups(ctx, []string{"foo"})
-	require.NoError(t, err)
+	err, x = cfg.ValidateGroups(ctx, []string{"foo"})
+	require.NoErrorf(t, err, x)
 }
 
 func TestConfig_ValidateMounts(t *testing.T) {
@@ -55,4 +55,19 @@ func TestConfig_ValidateMounts(t *testing.T) {
 	err, x = cfg.ValidateGroups(ctx, []string{"app"})
 	require.Error(t, err, x)
 	require.Contains(t, x, "group 'app' has more than one [[mounts]] section defined")
+}
+
+func TestConfig_ValidateServices(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/validate-services.toml")
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	ctx := _getValidationContext(t)
+	err, x := cfg.Validate(ctx)
+	require.Error(t, err, x)
+	require.Contains(t, x, "Service has no processes set")
+	require.Contains(t, x, "Service must expose at least one port")
+
+	err, x = cfg.ValidateGroups(ctx, []string{"success"})
+	require.NoErrorf(t, err, x)
 }
