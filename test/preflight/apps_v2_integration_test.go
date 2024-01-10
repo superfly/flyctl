@@ -255,6 +255,9 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
+
+		[[services.ports]]
+		port = 80
 `)
 	require.Contains(t, deployOut.StdOutString(), `create 1 "app" machine`)
 
@@ -279,6 +282,9 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
+
+		[[services.ports]]
+		port = 80
 `)
 	require.Contains(t, deployOut.StdOutString(), `destroy 1 "app" machine`)
 	require.Contains(t, deployOut.StdOutString(), `create 1 "web" machine`)
@@ -329,6 +335,9 @@ web = "nginx -g 'daemon off;'"
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
+
+		[[services.ports]]
+		port = 80
 `)
 	require.Contains(t, deployOut.StdOutString(), `destroy 2 "bar_web" machines`)
 	machines = f.MachinesList(appName)
