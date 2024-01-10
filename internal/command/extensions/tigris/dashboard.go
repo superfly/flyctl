@@ -24,6 +24,7 @@ func dashboard() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Org(),
 		extensions_core.SharedFlags,
 	)
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -31,6 +32,12 @@ func dashboard() (cmd *cobra.Command) {
 }
 
 func runDashboard(ctx context.Context) (err error) {
+
+	org := flag.GetOrg(ctx)
+
+	if org != "" {
+		return extensions_core.OpenOrgDashboard(ctx, org, "tigris")
+	}
 
 	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeTigris)
 

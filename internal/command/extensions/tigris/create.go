@@ -32,6 +32,11 @@ func create() (cmd *cobra.Command) {
 			Shorthand:   "n",
 			Description: "The name of your bucket",
 		},
+		flag.Bool{
+			Name:        "public",
+			Shorthand:   "p",
+			Description: "Objects in the bucket should be publicly accessible",
+		},
 	)
 	return cmd
 }
@@ -52,6 +57,11 @@ func runCreate(ctx context.Context) (err error) {
 		params.Organization = org
 	}
 
+	if flag.GetBool(ctx, "public") {
+		params.Options = gql.AddOnOptions{
+			"public": true,
+		}
+	}
 	params.Provider = "tigris"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 
