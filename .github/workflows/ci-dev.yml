@@ -21,7 +21,7 @@ jobs:
 
   # create a dev tag for every branch except master
   tag_version:
-    if: ${{ github.ref_type == 'branch' && github.ref_name != 'master' && github.repository_owner == 'superfly' }}
+    if: ${{ github.ref_type == 'branch' && github.ref_name != 'master' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.next }}
