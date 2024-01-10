@@ -15,10 +15,16 @@ internal_port = 9999
 protocol = "udp"
 processes = ["vpn"]
 
+[[services.ports]]
+port = 80
+
 [[services]]
 internal_port = 1111
 protocol = "tcp"
 processes = ["vpn", "app", "foo"]
+
+[[services.ports]]
+port = 81
 
 [checks.listening]
 port = 8080
