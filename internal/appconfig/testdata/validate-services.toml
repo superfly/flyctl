@@ -1,0 +1,20 @@
+app = "foo"
+primary_region = "ord"
+
+[processes]
+app = ""
+foo = ""
+success = ""
+
+# Check:
+# * missing [[services.ports]]
+# * no processes specified
+[[services]]
+internal_port = 8080
+
+[[services]]
+internal_port = 8080
+processes = ["success"]
+
+[[services.ports]]
+port = 80

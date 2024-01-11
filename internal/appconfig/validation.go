@@ -233,6 +233,14 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 			}
 		}
 
+		if len(service.Ports) == 0 {
+			extraInfo += fmt.Sprintf(
+				"Service must expose at least one port. Add a [[services.ports]] section to fly.toml; " +
+					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n",
+			)
+			err = ValidationError
+		}
+
 		for _, check := range service.TCPChecks {
 			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "TCP")
 		}
