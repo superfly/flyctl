@@ -15,7 +15,7 @@ import (
 
 func newScaleVm() *cobra.Command {
 	const (
-		short = "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
+		short = "Change an app's VM to a named size (eg. shared-cpu-1x, performance-1x, performance-2x...)"
 		long  = `Change an application's VM size to one of the named VM sizes.
 
 For a full list of supported sizes use the command 'flyctl platform vm-sizes'
