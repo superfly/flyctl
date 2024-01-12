@@ -26,7 +26,8 @@ const (
 	volumeCreate
 	volumetUpdate
 	volumeGet
-	volumeSnapshot
+	volumeSnapshotCreate
+	volumeSnapshotList
 	volumeExtend
 	volumeDelete
 )
@@ -79,8 +80,10 @@ func (a *flapsAction) String() string {
 		return "volume_list"
 	case volumetUpdate:
 		return "volume_update"
-	case volumeSnapshot:
-		return "volume_snapshot"
+	case volumeSnapshotCreate:
+		return "volume_snapshot_create"
+	case volumeSnapshotList:
+		return "volume_snapshot_list"
 	case volumeExtend:
 		return "volume_extend"
 	case volumeDelete:
