@@ -87,6 +87,17 @@ func (f *Client) GetVolumeSnapshots(ctx context.Context, volumeId string) ([]api
 	return out, nil
 }
 
+func (f *Client) CreateVolumeSnapshot(ctx context.Context, volumeId string) error {
+	err := f.sendRequestVolumes(
+		ctx, http.MethodPost, fmt.Sprintf("/%s/snapshots", volumeId),
+		nil, nil, nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot %s: %w", volumeId, err)
+	}
+	return nil
+}
+
 type ExtendVolumeRequest struct {
 	SizeGB int `json:"size_gb"`
 }
