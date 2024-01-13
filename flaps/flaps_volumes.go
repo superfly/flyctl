@@ -80,11 +80,22 @@ func (f *Client) GetVolumeSnapshots(ctx context.Context, volumeId string) ([]api
 
 	out := make([]api.VolumeSnapshot, 0)
 
-	err := f.sendRequestVolumes(ctx, volumeSnapshot, http.MethodGet, getVolumeSnapshotsEndpoint, nil, &out, nil)
+	err := f.sendRequestVolumes(ctx, volumeSnapshotList, http.MethodGet, getVolumeSnapshotsEndpoint, nil, &out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get volume %s snapshots: %w", volumeId, err)
 	}
 	return out, nil
+}
+
+func (f *Client) CreateVolumeSnapshot(ctx context.Context, volumeId string) error {
+	err := f.sendRequestVolumes(
+		ctx, volumeSnapshotCreate, http.MethodPost, fmt.Sprintf("/%s/snapshots", volumeId),
+		nil, nil, nil,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to snapshot %s: %w", volumeId, err)
+	}
+	return nil
 }
 
 type ExtendVolumeRequest struct {
