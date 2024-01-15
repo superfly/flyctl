@@ -67,6 +67,7 @@ func newOrg() *cobra.Command {
 			Description: "Token name",
 			Default:     "Org deploy token",
 		},
+		flag.Org(),
 	)
 
 	return cmd
