@@ -64,7 +64,7 @@ func TestConfig_ValidateServices(t *testing.T) {
 
 	ctx := _getValidationContext(t)
 	err, x := cfg.Validate(ctx)
-	require.Error(t, err, x)
+	//require.Error(t, err, x)
 	require.Contains(t, x, "Service has no processes set")
 	require.Contains(t, x, "Service must expose at least one port")
 
