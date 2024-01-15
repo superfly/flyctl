@@ -29,7 +29,7 @@ jobs:
           version: latest
           args: build --clean --snapshot --verbose
       - name: Upload flyctl for preflight
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl
