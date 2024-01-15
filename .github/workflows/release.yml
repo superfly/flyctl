@@ -44,7 +44,7 @@ jobs:
           cat release.json | jq
           echo "sha_short=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
           echo "json=$(cat release.json)" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |
@@ -108,7 +108,7 @@ jobs:
         env:
           RELEASE_JSON: ${{ needs.meta.outputs.json }}
         run: echo "$RELEASE_JSON" > ./dist/release.json
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
           path: |

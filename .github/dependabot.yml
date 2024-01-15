@@ -23,3 +23,8 @@ updates:
       - "actions"
     schedule:
       interval: "daily"
+    groups:
+      artifacts:
+        patterns:
+          - "action/upload-artifact"
+          - "action/download-artifact"
