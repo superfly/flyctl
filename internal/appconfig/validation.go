@@ -234,11 +234,14 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 		}
 
 		if len(service.Ports) == 0 {
+			// XXX: Warn about services without ports instead of hard failing so users have time to
+			//      fix fly.toml configuration -- 2024-01-15
 			extraInfo += fmt.Sprintf(
-				"Service must expose at least one port. Add a [[services.ports]] section to fly.toml; " +
-					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n",
+				"WARNING: Service must expose at least one port. Add a [[services.ports]] section to fly.toml; " +
+					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n " +
+					"Validation for _services without ports_ will hard fail after February 15, 2024.",
 			)
-			err = ValidationError
+			//err = ValidationError
 		}
 
 		for _, check := range service.TCPChecks {
