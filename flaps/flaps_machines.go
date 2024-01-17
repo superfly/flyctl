@@ -222,7 +222,7 @@ func (f *Client) ListActive(ctx context.Context) ([]*api.Machine, error) {
 	return machines, nil
 }
 
-// ListFlyAppsMachines returns apps that are part of the Fly apps platform.
+// ListFlyAppsMachines returns apps that are part of Fly Launch.
 // Destroyed machines and console machines are excluded.
 // Unlike other List functions, this function retries multiple times.
 func (f *Client) ListFlyAppsMachines(ctx context.Context) ([]*api.Machine, *api.Machine, error) {
