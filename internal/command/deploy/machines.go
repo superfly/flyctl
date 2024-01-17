@@ -237,7 +237,7 @@ func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
 	// by checking for any existent machine.
 	// This is not exaustive as the app could still be scaled down to zero but the
 	// workaround works better for now until it is fixed
-	md.isFirstDeploy = !md.app.Deployed && md.machineSet.IsEmpty()
+	md.isFirstDeploy = md.isFirstDeploy || (!md.app.Deployed && md.machineSet.IsEmpty())
 	return nil
 }
 
@@ -254,15 +254,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 			return err
 		}
 		if len(activeMachines) > 0 {
-			return fmt.Errorf(
-				"found %d machines that are unmanaged. `fly deploy` only updates machines with %s=%s in their metadata. Use `fly machine list` to list machines and `fly machine update --metadata %s=%s <machine id>` to update individual machines with the metadata. Once done, `fly deploy` will update machines with the metadata based on your %s app configuration",
-				len(activeMachines),
-				api.MachineConfigMetadataKeyFlyPlatformVersion,
-				api.MachineFlyPlatformVersion2,
-				api.MachineConfigMetadataKeyFlyPlatformVersion,
-				api.MachineFlyPlatformVersion2,
-				appconfig.DefaultConfigFileName,
-			)
+			md.isFirstDeploy = true
 		}
 	}
 
