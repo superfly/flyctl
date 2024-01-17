@@ -208,7 +208,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	}
 
 	if len(unmanaged) > 0 {
-		msg := fmt.Sprintf("Found machines that aren't part of the Fly Apps Platform, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
+		msg := fmt.Sprintf("Found machines that aren't part of Fly Launch, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
 		fmt.Fprint(out, msg)
 	}
 
