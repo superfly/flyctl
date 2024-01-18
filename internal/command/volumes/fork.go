@@ -51,6 +51,11 @@ func newFork() *cobra.Command {
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 		},
+		flag.String{
+			Name:        "region",
+			Shorthand:   "r",
+			Description: "The target region. By default, the new volume will be created in the source volume's region.",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -103,6 +108,8 @@ func runFork(ctx context.Context) error {
 		requireUniqueZone = api.Pointer(flag.GetBool(ctx, "require-unique-zone"))
 	}
 
+	region := flag.GetString(ctx, "region")
+
 	var attachedMachineGuest *api.MachineGuest
 	if vol.AttachedMachine != nil {
 		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
@@ -123,6 +130,7 @@ func runFork(ctx context.Context) error {
 		RequireUniqueZone:   requireUniqueZone,
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
+		Region:              region,
 	}
 
 	volume, err := flapsClient.CreateVolume(ctx, input)
