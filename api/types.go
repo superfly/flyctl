@@ -469,6 +469,7 @@ type Organization struct {
 	RawSlug            string
 	Type               string
 	PaidPlan           bool
+	Billable           bool
 	Settings           map[string]any
 
 	Domains struct {
