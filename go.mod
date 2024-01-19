@@ -185,7 +185,7 @@ require (
 	github.com/Microsoft/go-winio v0.6.1
 	github.com/PuerkitoBio/rehttp v1.3.0
 	github.com/buildpacks/lifecycle v0.17.2 // indirect
-	github.com/cenkalti/backoff v2.2.1+incompatible // indirect
+	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/containerd/containerd v1.7.11 // indirect
 	github.com/containerd/continuity v0.4.2 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
