@@ -36,6 +36,7 @@ func (client *Client) GetOrganizations(ctx context.Context, filters ...Organizat
 					name
 					type
 					paidPlan
+					billable
 					viewerRole
 				}
 			}
