@@ -149,11 +149,17 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
+	highAvailability := flag.GetBool(ctx, "ha")
+	if !org.Billable && highAvailability {
+		highAvailability = false
+		fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: No payment method, turning off high availability")
+	}
+
 	lp := &plan.LaunchPlan{
 		AppName:          appName,
 		OrgSlug:          org.Slug,
 		RegionCode:       region.Code,
-		HighAvailability: flag.GetBool(ctx, "ha"),
+		HighAvailability: highAvailability,
 		CPUKind:          guest.CPUKind,
 		CPUs:             guest.CPUs,
 		MemoryMB:         guest.MemoryMB,
