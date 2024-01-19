@@ -45,6 +45,7 @@ type MachineDeploymentArgs struct {
 	PrimaryRegionFlag      string
 	SkipSmokeChecks        bool
 	SkipHealthChecks       bool
+	SkipDNSChecks          bool
 	MaxUnavailable         *float64
 	RestartOnly            bool
 	WaitTimeout            *time.Duration
@@ -79,6 +80,7 @@ type machineDeployment struct {
 	releaseVersion         int
 	skipSmokeChecks        bool
 	skipHealthChecks       bool
+	skipDNSChecks          bool
 	maxUnavailable         float64
 	restartOnly            bool
 	waitTimeout            time.Duration

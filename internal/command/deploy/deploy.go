@@ -102,6 +102,11 @@ var CommonFlags = flag.Set{
 		Description: "Perform smoke checks during deployment",
 		Default:     true,
 	},
+	flag.Bool{
+		Name:        "dns-checks",
+		Description: "Perform DNS checks during deployment",
+		Default:     true,
+	},
 	flag.Float64{
 		Name:        "max-unavailable",
 		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
@@ -393,6 +398,7 @@ func deployToMachines(
 		PrimaryRegionFlag:      appConfig.PrimaryRegion,
 		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:       flag.GetDetach(ctx),
+		SkipDNSChecks:          flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
 		WaitTimeout:            waitTimeout,
 		ReleaseCmdTimeout:      releaseCmdTimeout,
 		LeaseTimeout:           leaseTimeout,
