@@ -70,8 +70,10 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if err := md.checkDNS(ctx); err != nil {
-		return err
+	if !md.skipDNSChecks {
+		if err := md.checkDNS(ctx); err != nil {
+			return err
+		}
 	}
 
 	return err
