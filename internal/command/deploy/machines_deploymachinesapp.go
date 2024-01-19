@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
@@ -68,6 +69,11 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
 		}
 	}
+
+	if err := md.checkDNS(ctx); err != nil {
+		return err
+	}
+
 	return err
 }
 
@@ -961,4 +967,33 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 	}
 
 	return fmt.Errorf("smoke checks for %s failed: %v", lm.Machine().ID, err)
+}
+
+func (md *machineDeployment) checkDNS(ctx context.Context) error {
+	if url := md.appConfig.URL(); url != nil {
+		m := new(dns.Msg)
+		fqdn := dns.Fqdn(url.Host)
+
+		m.SetQuestion(fqdn, dns.TypeA)
+
+		c := dns.Client{
+			Dialer:       &net.Dialer{Timeout: time.Minute},
+			Timeout:      time.Minute,
+			DialTimeout:  time.Minute,
+			ReadTimeout:  time.Minute,
+			WriteTimeout: time.Minute,
+		}
+		in, _, err := c.Exchange(m, "8.8.8.8:53")
+		if err != nil {
+			return err
+		}
+
+		if len(in.Answer) == 0 {
+			return fmt.Errorf("no answer for resolving address %s", url)
+		}
+
+	} else {
+		fmt.Println("No URL to check :(")
+	}
+	return nil
 }
