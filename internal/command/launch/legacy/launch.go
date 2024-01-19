@@ -420,6 +420,15 @@ func buildPlanFromLegacyOptions(
 	// Sensible default, but not necessarily what's about to be launched.
 	// Should work fine though, at least until we (hopefully soon) rip this legacy code out.
 	guest := api.MachinePresets["shared-cpu-1x"]
+	if len(appConfig.Compute) > 0 {
+		// We purposely don't copy GPU since there's no way to configure that in the web UI as of 01/19/2024
+		vm := appConfig.Compute[0]
+		guest.CPUKind = vm.CPUKind
+		guest.CPUs = vm.CPUs
+		guest.MemoryMB = vm.MemoryMB
+	}
+
+	fmt.Println("guest: ", guest)
 
 	launchPlan := &plan.LaunchPlan{
 		AppName:    appConfig.AppName,

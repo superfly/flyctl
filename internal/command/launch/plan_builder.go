@@ -567,6 +567,14 @@ func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scan
 		return def, recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 
+	if len(config.Compute) > 0 {
+		// We purposely don't copy GPU since there's no way to configure that in the web UI as of 01/19/2024
+		vm := config.Compute[0]
+		guest.CPUKind = vm.CPUKind
+		guest.CPUs = vm.CPUs
+		guest.MemoryMB = vm.MemoryMB
+	}
+
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
 		reason = "specified on the command line"
 	}
