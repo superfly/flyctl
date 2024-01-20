@@ -328,6 +328,7 @@ type MachineGuest struct {
 	CPUKind          string `json:"cpu_kind,omitempty" toml:"cpu_kind,omitempty"`
 	CPUs             int    `json:"cpus,omitempty" toml:"cpus,omitempty"`
 	MemoryMB         int    `json:"memory_mb,omitempty" toml:"memory_mb,omitempty"`
+	GPUs             int    `json:"gpus,omitempty" toml:"gpus,omitempty"`
 	GPUKind          string `json:"gpu_kind,omitempty" toml:"gpu_kind,omitempty"`
 	HostDedicationID string `json:"host_dedication_id,omitempty" toml:"host_dedication_id,omitempty"`
 
