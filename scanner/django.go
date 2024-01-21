@@ -15,7 +15,10 @@ import (
 
 // setup django with a postgres database
 func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, dirContains("requirements.txt", "(?i)Django")) && !checksPass(sourceDir, dirContains("Pipfile", "(?i)Django")) && !checksPass(sourceDir, dirContains("pyproject.toml", "(?i)Django")) {
+	if !checksPass(sourceDir, dirContains("requirements.txt", "(?i)Django")) &&
+		!checksPass(sourceDir, dirContains("*/requirements.txt", "(?i)Django")) &&
+		!checksPass(sourceDir, dirContains("Pipfile", "(?i)Django")) &&
+		!checksPass(sourceDir, dirContains("pyproject.toml", "(?i)Django")) {
 		return nil, nil
 	}
 
