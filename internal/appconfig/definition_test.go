@@ -117,8 +117,8 @@ func TestFromDefinition(t *testing.T) {
 			"kill_signal":  "SIGINT",
 			"kill_timeout": float64(5),
 			"processes":    []any{},
-			"services": []any{
-				map[string]any{
+			"services": []map[string]any{
+				{
 					"concurrency": map[string]any{
 						"hard_limit": float64(25),
 						"soft_limit": float64(20),
@@ -126,13 +126,13 @@ func TestFromDefinition(t *testing.T) {
 					},
 					"http_checks":   []any{},
 					"internal_port": float64(8080),
-					"ports": []any{
-						map[string]any{
+					"ports": []map[string]any{
+						{
 							"force_https": true,
 							"handlers":    []any{"http"},
 							"port":        float64(80),
 						},
-						map[string]any{
+						{
 							"handlers": []any{"tls", "http"},
 							"port":     float64(443),
 						},
@@ -140,8 +140,8 @@ func TestFromDefinition(t *testing.T) {
 					"processes":     []any{"app"},
 					"protocol":      "tcp",
 					"script_checks": []any{},
-					"tcp_checks": []any{
-						map[string]any{
+					"tcp_checks": []map[string]any{
+						{
 							"grace_period":  "1s",
 							"interval":      "15s",
 							"restart_limit": float64(0),
