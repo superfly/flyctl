@@ -117,13 +117,11 @@ func patchProcesses(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["processes"]; ok {
 		switch cast := raw.(type) {
 		case []any:
-			processes := []map[string]any{}
-			for _, item := range cast {
-				if v, ok := item.(map[string]any); ok {
-					processes = append(processes, v)
-				}
+			var err error
+			cfg["processes"], err = ensureArrayOfMap(cast)
+			if err != nil {
+				return nil, err
 			}
-			cfg["processes"] = processes
 			return patchProcesses(cfg)
 
 		case []map[string]any:
@@ -295,18 +293,20 @@ func patchTopLevelChecks(cfg map[string]any) (map[string]any, error) {
 			return nil, err
 		}
 	case []any:
-		for _, raw2 := range cast {
-			cast2, ok := raw2.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("check item of unknown type: %T", raw2)
-			}
-
-			name, ok := cast2["name"].(string)
+		var err error
+		cfg["checks"], err = ensureArrayOfMap(cast)
+		if err != nil {
+			return nil, err
+		}
+		return patchTopLevelChecks(cfg)
+	case []map[string]any:
+		for _, rawCheck := range cast {
+			name, ok := rawCheck["name"].(string)
 			if !ok {
 				return nil, fmt.Errorf("check item name not a string")
 			}
 
-			subChecks, err := _patchTopLevelChecks(map[string]any{name: raw2})
+			subChecks, err := _patchTopLevelChecks(map[string]any{name: rawCheck})
 			if err != nil {
 				return nil, err
 			}

@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/google/shlex"
 	"github.com/oklog/ulid/v2"
+	"github.com/pelletier/go-toml"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 )
