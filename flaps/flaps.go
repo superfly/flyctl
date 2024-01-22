@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -203,9 +204,18 @@ waiting:
 	}
 }
 
+func snakeCase(s string) string {
+	pat := regexp.MustCompile("[A-Z]")
+	return pat.ReplaceAllStringFunc(s, func(m string) string {
+		return "_" + strings.ToLower(m)
+	})
+}
+
 func (f *Client) _sendRequest(ctx context.Context, action flapsAction, method, endpoint string, in, out interface{}, headers map[string][]string) error {
-	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("flaps.%s", action.String()), trace.WithAttributes(
-		attribute.String("request.action", action.String()),
+	actionName := snakeCase(action.String())
+
+	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("flaps.%s", actionName), trace.WithAttributes(
+		attribute.String("request.action", actionName),
 		attribute.String("request.endpoint", endpoint),
 		attribute.String("request.method", method),
 	))
