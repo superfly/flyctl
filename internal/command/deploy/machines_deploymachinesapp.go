@@ -12,15 +12,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff"
+	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
 )
@@ -68,6 +72,13 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
 		}
 	}
+
+	if !md.skipDNSChecks {
+		if err := md.checkDNS(ctx); err != nil {
+			return err
+		}
+	}
+
 	return err
 }
 
@@ -961,4 +972,65 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 	}
 
 	return fmt.Errorf("smoke checks for %s failed: %v", lm.Machine().ID, err)
+}
+
+func (md *machineDeployment) checkDNS(ctx context.Context) error {
+	client := client.FromContext(ctx).API()
+	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)
+	if err != nil {
+		return err
+	}
+
+	if appURL := md.appConfig.URL(); appURL != nil && len(ipAddrs) > 0 {
+		iostreams := iostreams.FromContext(ctx)
+		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(appURL.Host))
+
+		fqdn := dns.Fqdn(appURL.Host)
+		c := dns.Client{
+			Dialer:       &net.Dialer{Timeout: time.Minute},
+			Timeout:      time.Minute,
+			DialTimeout:  time.Minute,
+			ReadTimeout:  time.Minute,
+			WriteTimeout: time.Minute,
+		}
+
+		b := backoff.NewExponentialBackOff()
+		b.InitialInterval = 1 * time.Second
+		b.MaxElapsedTime = 30 * time.Second
+
+		return backoff.Retry(func() error {
+			m := new(dns.Msg)
+
+			var numIPv4, numIPv6 int
+			for _, ipAddr := range ipAddrs {
+				ip := net.ParseIP(ipAddr.Address)
+				if ip.To4() != nil {
+					numIPv4 += 1
+				} else {
+					numIPv6 += 1
+				}
+			}
+
+			m.SetQuestion(fqdn, dns.TypeA)
+			answerv4, _, err := c.Exchange(m, "9.9.9.9:53")
+			if err != nil {
+				return err
+			} else if len(answerv4.Answer) != numIPv4 {
+				return fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
+			}
+
+			m.SetQuestion(fqdn, dns.TypeAAAA)
+			answerv6, _, err := c.Exchange(m, "9.9.9.9:53")
+			if err != nil {
+				return err
+			} else if len(answerv6.Answer) != numIPv6 {
+				return fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
+			}
+
+			return nil
+		}, backoff.WithContext(b, ctx))
+
+	} else {
+		return nil
+	}
 }
