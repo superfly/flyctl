@@ -40,8 +40,8 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 
 	if IsSpecified(ctx, "vm-cpus") {
 		guest.CPUs = GetInt(ctx, "vm-cpus")
-		if guest.CPUs == 0 {
-			return nil, fmt.Errorf("--vm-cpus cannot be zero")
+		if guest.CPUs <= 0 {
+			return nil, fmt.Errorf("--vm-cpus must be greater than zero, got: %d", guest.CPUs)
 		}
 	}
 
@@ -72,6 +72,22 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 			return nil, fmt.Errorf("--vm-gpu-kind must be set to one of: %v", strings.Join(validGPUKinds, ", "))
 		}
 		guest.GPUKind = m
+
+		if guest.GPUs == 0 {
+			guest.GPUs = 1
+		}
+	}
+
+	if IsSpecified(ctx, "vm-gpus") {
+		guest.GPUs = GetInt(ctx, "vm-gpus")
+		switch {
+		case guest.GPUKind != "" && guest.GPUs == 0:
+			return nil, fmt.Errorf("--vm-gpus must be greater than zero, got: %d", guest.GPUs)
+		case guest.GPUKind == "" && guest.GPUs > 0:
+			return nil, fmt.Errorf("A GPU model must be set with --vm-gpu-kind flag")
+		case guest.GPUs < 0:
+			return nil, fmt.Errorf("--vm-gpus must be greater than or equal to zero, got: %d", guest.CPUs)
+		}
 	}
 
 	if IsSpecified(ctx, "host-dedication-id") {
@@ -100,6 +116,10 @@ var VMSizeFlags = Set{
 		Name:        "vm-memory",
 		Description: "Memory (in megabytes) to attribute to the VM",
 		Aliases:     []string{"memory"},
+	},
+	Int{
+		Name:        "vm-gpus",
+		Description: "Number of GPUs. Must also choose the GPU model with --vm-gpu-kind flag",
 	},
 	String{
 		Name:        "vm-gpu-kind",
