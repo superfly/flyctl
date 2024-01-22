@@ -1012,7 +1012,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			}
 
 			m.SetQuestion(fqdn, dns.TypeA)
-			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
+			answerv4, _, err := c.Exchange(m, "9.9.9.9:53")
 			if err != nil {
 				return err
 			} else if len(answerv4.Answer) != numIPv4 {
@@ -1020,7 +1020,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			}
 
 			m.SetQuestion(fqdn, dns.TypeAAAA)
-			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
+			answerv6, _, err := c.Exchange(m, "9.9.9.9:53")
 			if err != nil {
 				return err
 			} else if len(answerv6.Answer) != numIPv6 {
