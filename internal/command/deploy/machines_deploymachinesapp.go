@@ -981,11 +981,11 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		return err
 	}
 
-	if url := md.appConfig.URL(); url != nil && len(ipAddrs) > 0 {
+	if appURL := md.appConfig.URL(); appURL != nil && len(ipAddrs) > 0 {
 		iostreams := iostreams.FromContext(ctx)
-		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(url.Host))
+		fmt.Fprintf(iostreams.ErrOut, "Checking DNS configuration for %s\n", md.colorize.Bold(appURL.Host))
 
-		fqdn := dns.Fqdn(url.Host)
+		fqdn := dns.Fqdn(appURL.Host)
 		c := dns.Client{
 			Dialer:       &net.Dialer{Timeout: time.Minute},
 			Timeout:      time.Minute,
