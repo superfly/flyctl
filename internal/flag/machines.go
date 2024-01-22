@@ -84,9 +84,9 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 		case guest.GPUKind != "" && guest.GPUs == 0:
 			return nil, fmt.Errorf("--vm-gpus must be greater than zero, got: %d", guest.GPUs)
 		case guest.GPUKind == "" && guest.GPUs > 0:
-			return nil, fmt.Errorf("A GPU model must be set with --vm-gpu-kind flag")
+			return nil, fmt.Errorf("--vm-gpus requires a GPU Model to be set, pass --vm-gpu-kind=X where X is one of: %v", strings.Join(validGPUKinds, ", "))
 		case guest.GPUs < 0:
-			return nil, fmt.Errorf("--vm-gpus must be greater than or equal to zero, got: %d", guest.CPUs)
+			return nil, fmt.Errorf("--vm-gpus must be greater than or equal to zero, got: %d", guest.GPUs)
 		}
 	}
 
