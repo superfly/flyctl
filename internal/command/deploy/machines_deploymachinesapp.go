@@ -996,7 +996,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
-		b.MaxElapsedTime = 10 * time.Second
+		b.MaxElapsedTime = 30 * time.Second
 
 		return backoff.Retry(func() error {
 			m := new(dns.Msg)
