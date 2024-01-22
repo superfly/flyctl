@@ -470,6 +470,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					CPUKind:          "performance",
 					CPUs:             8,
 					MemoryMB:         8192,
+					GPUs:             2,
 					GPUKind:          "a100-pcie-40gb",
 					HostDedicationID: "isolated-xxx",
 					KernelArgs:       []string{"quiet"},
