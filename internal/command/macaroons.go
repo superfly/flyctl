@@ -3,6 +3,8 @@ package command
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/cookiejar"
 	"strings"
 	"time"
 
@@ -26,7 +28,15 @@ func dischargeThirdPartyCaveats(ctx context.Context, t *tokens.Tokens) (bool, er
 		return false, nil
 	}
 
-	opts := []tp.ClientOption{tp.WithUserURLCallback(tryOpenUserURL)}
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return false, err
+	}
+
+	opts := []tp.ClientOption{
+		tp.WithUserURLCallback(tryOpenUserURL),
+		tp.WithHTTP(&http.Client{Jar: jar}),
+	}
 	if len(t.UserTokens) != 0 {
 		opts = append(opts, tp.WithBearerAuthentication(
 			"auth.fly.io",
