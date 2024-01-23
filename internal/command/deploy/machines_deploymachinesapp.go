@@ -297,7 +297,6 @@ func (m machineUpdateEntries) machines() []machine.LeasableMachine {
 }
 
 func errorIsTimeout(err error) bool {
-
 	// Match an error against various known timeout conditions.
 	// This is probably a sign that we need to standardize this better, but it works for now.
 
@@ -996,7 +995,8 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
-		b.MaxElapsedTime = 30 * time.Second
+		b.MaxInterval = 5 * time.Second
+		b.MaxElapsedTime = 60 * time.Second
 
 		return backoff.Retry(func() error {
 			m := new(dns.Msg)
