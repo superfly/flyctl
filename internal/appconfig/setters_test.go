@@ -34,9 +34,9 @@ func TestSettersWithService(t *testing.T) {
 			HTTPTLSSkipVerify: api.Pointer(false),
 		}},
 	}})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
+	assert.Equal(t, map[string]any{
 		"app": "setters",
-		"services": []map[string]any{{
+		"services": []any{map[string]any{
 			"internal_port": 1234,
 			"protocol":      "tcp",
 			"concurrency": map[string]any{
@@ -55,7 +55,7 @@ func TestSettersWithService(t *testing.T) {
 				"tls_skip_verify": false,
 			}},
 		}},
-	})
+	}, cfg.RawDefinition)
 }
 
 func TestSettersWithHTTPService(t *testing.T) {

@@ -98,10 +98,10 @@ type Deploy struct {
 }
 
 type File struct {
-	GuestPath  string   `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
-	LocalPath  string   `toml:"local_path" json:"local_path,omitempty"`
-	SecretName string   `toml:"secret_name" json:"secret_name,omitempty"`
-	RawValue   string   `toml:"raw_value" json:"raw_value,omitempty"`
+	GuestPath  string   `toml:"guest_path,omitempty" json:"guest_path,omitempty" validate:"required"`
+	LocalPath  string   `toml:"local_path,omitempty" json:"local_path,omitempty"`
+	SecretName string   `toml:"secret_name,omitempty" json:"secret_name,omitempty"`
+	RawValue   string   `toml:"raw_value,omitempty" json:"raw_value,omitempty"`
 	Processes  []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
@@ -135,10 +135,10 @@ type Mount struct {
 	Source                  string   `toml:"source,omitempty" json:"source,omitempty"`
 	Destination             string   `toml:"destination,omitempty" json:"destination,omitempty"`
 	InitialSize             string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
-	Processes               []string `toml:"processes,omitempty" json:"processes,omitempty"`
 	AutoExtendSizeThreshold int      `toml:"auto_extend_size_threshold,omitempty" json:"auto_extend_size_threshold,omitempty"`
 	AutoExtendSizeIncrement string   `toml:"auto_extend_size_increment,omitempty" json:"auto_extend_size_increment,omitempty"`
 	AutoExtendSizeLimit     string   `toml:"auto_extend_size_limit,omitempty" json:"auto_extend_size_limit,omitempty"`
+	Processes               []string `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
 type Build struct {
