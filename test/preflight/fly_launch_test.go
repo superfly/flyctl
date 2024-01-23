@@ -31,7 +31,7 @@ func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	toml := f.UnmarshalFlyToml()
 	want := map[string]any{
 		"app":            appName,
@@ -117,7 +117,7 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 	port = 5500
 	`)
 
-	f.Fly("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --no-deploy --org %s --name %s --region %s --ha=false --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
 	toml := f.UnmarshalFlyToml()
 	want := map[string]any{
 		"app":            appName,
@@ -148,7 +148,7 @@ app = "foo"
 	protocol = "tcp"
 	`)
 
-	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
+	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --ha=false --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.Contains(f, x.StdErrString(), `can not use configuration for Fly Launch, check fly.toml`)
 }
 
@@ -208,7 +208,7 @@ func TestFlyLaunchWithVolumes(t *testing.T) {
 	processes = ["other"]
 `)
 
-	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
 }
 
 // test --vm-size sets the machine guest on first deploy
@@ -217,7 +217,7 @@ func TestFlyLaunchWithSize(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"launch --ha=false --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		"launch --ha=false --now -o %s --name %s --region %s --ha=false --image nginx --vm-size shared-cpu-4x",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
@@ -252,7 +252,7 @@ func TestFlyLaunchHA(t *testing.T) {
 	processes = ["app"]
 `)
 
-	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	var ml []*api.Machine
 
@@ -302,7 +302,7 @@ func TestFlyLaunchSingleMount(t *testing.T) {
 	processes = ["app", "task"]
 `)
 
-	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml := f.MachinesList(appName)
 		assert.Equal(c, 2, len(ml))
@@ -324,7 +324,7 @@ func TestFlyLaunchWithBuildSecrets(t *testing.T) {
 RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 `)
 
-	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
