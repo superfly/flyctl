@@ -119,7 +119,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err = os.ReadFile(configFilePath)
 	require.NoError(t, err, "error trying to read %s after running fly config save", configFilePath)
-	require.Contains(f, string(configFileBytes), `BAR = "QUX"`)
+	require.Contains(f, string(configFileBytes), `BAR = 'QUX'`)
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
@@ -138,7 +138,7 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 	}
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
 	require.Contains(f, configFileContent, `app = "nginx -g 'daemon off;'"`)
 	require.Contains(f, result.StdErr().String(), "Found these additional commands on some machines")
@@ -161,9 +161,9 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
-	require.Contains(f, configFileContent, `app = "tail -F /dev/null"`)
+	require.Contains(f, configFileContent, `app = 'tail -F /dev/null'`)
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
@@ -498,8 +498,9 @@ func TestLaunchCpusMem(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
-	firstMachineGuest := machines[0].Config.Guest
+	require.GreaterOrEqual(f, len(machines), 1)
 
+	firstMachineGuest := machines[0].Config.Guest
 	require.Equal(f, 4, firstMachineGuest.CPUs)
 	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
 	require.Equal(f, "performance", firstMachineGuest.CPUKind)
