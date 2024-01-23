@@ -244,7 +244,7 @@ replace github.com/superfly/flyctl/api => ./api
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 
-// Waiting for https://github.com/pelletier/go-toml/pull/923
+// Waiting for:
+// * https://github.com/pelletier/go-toml/pull/923
+// * https://github.com/pelletier/go-toml/pull/924
 replace github.com/pelletier/go-toml/v2 => github.com/dangra/go-toml/v2 v2.0.0-20240123153141-fee2f0c34a72
-
-//replace github.com/pelletier/go-toml/v2 => ../go-toml/
