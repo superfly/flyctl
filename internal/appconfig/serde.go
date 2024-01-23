@@ -39,17 +39,16 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return cfg, nil
 }
 
-func (c *Config) WriteTo(w io.Writer) error {
+func (c *Config) WriteTo(w io.Writer) (int64, error) {
 	b, err := c.marshalTOML()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	_, err = fmt.Fprintf(w, flytomlHeader, c.AppName, time.Now().Format(time.RFC3339))
 	if err != nil {
-		return err
+		return 0, err
 	}
-	_, err = bytes.NewBuffer(b).WriteTo(w)
-	return err
+	return bytes.NewBuffer(b).WriteTo(w)
 }
 
 func (c *Config) WriteToFile(filename string) (err error) {
@@ -67,7 +66,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 		}
 	}()
 
-	err = c.WriteTo(file)
+	_, err = c.WriteTo(file)
 	return
 }
 

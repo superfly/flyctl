@@ -2,6 +2,7 @@ package appconfig
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -476,6 +477,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				},
 				Processes: []string{"app"},
 			},
+			{
+				MachineGuest: &api.MachineGuest{
+					MemoryMB: 4096,
+				},
+			},
 		},
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
@@ -684,4 +690,22 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 	}, cfg)
+}
+
+func TestIsSameTOMLAppConfigReferenceFormat(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	flyToml := filepath.Join(t.TempDir(), "fly.toml")
+	cfg.WriteToFile(flyToml)
+
+	actual, err := LoadConfig(flyToml)
+	require.NoError(t, err)
+	require.NoError(t, actual.SetMachinesPlatform())
+
+	cfg.configFilePath = ""
+	actual.configFilePath = ""
+	require.Equal(t, cfg, actual)
 }
