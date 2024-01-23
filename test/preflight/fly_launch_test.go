@@ -70,18 +70,18 @@ func TestFlyLaunchV1(t *testing.T) {
 		"kill_timeout":   int64(5),
 		"primary_region": f.PrimaryRegion(),
 		"processes":      []any{},
-		"services": []map[string]any{{
+		"services": []any{map[string]any{
 			"concurrency":   map[string]any{"hard_limit": int64(25), "soft_limit": int64(20), "type": "connections"},
 			"http_checks":   []any{},
 			"internal_port": int64(80),
-			"ports": []map[string]any{
-				{"force_https": true, "handlers": []any{"http"}, "port": int64(80)},
-				{"handlers": []any{"tls", "http"}, "port": int64(443)},
+			"ports": []any{
+				map[string]any{"force_https": true, "handlers": []any{"http"}, "port": int64(80)},
+				map[string]any{"handlers": []any{"tls", "http"}, "port": int64(443)},
 			},
 			"processes":     []any{"app"},
 			"protocol":      "tcp",
 			"script_checks": []any{},
-			"tcp_checks": []map[string]any{{
+			"tcp_checks": []any{map[string]any{
 				"grace_period":  "1s",
 				"interval":      "15s",
 				"timeout":       "2s",
@@ -94,18 +94,12 @@ func TestFlyLaunchV1(t *testing.T) {
 	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable --force-nomad", appName, f.SecondaryRegion())
 	toml = f.UnmarshalFlyToml()
 	want["primary_region"] = f.SecondaryRegion()
-	if build, ok := want["build"].(map[string]any); true {
-		require.True(f, ok)
-		build["image"] = "nginx:stable"
-	}
+	want["build"].(map[string]any)["image"] = "nginx:stable"
 	require.EqualValues(f, want, toml)
 
 	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999 --force-nomad", appName)
 	toml = f.UnmarshalFlyToml()
-	if services, ok := want["services"].([]map[string]any); true {
-		require.True(f, ok)
-		services[0]["internal_port"] = int64(9999)
-	}
+	want["services"].([]any)[0].(map[string]any)["internal_port"] = int64(9999)
 	require.EqualValues(f, want, toml)
 }
 
