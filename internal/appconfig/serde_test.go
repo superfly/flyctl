@@ -173,7 +173,7 @@ func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 					"other": int64(2),
 				},
 			},
-			"services": []map[string]any{{
+			"services": []any{map[string]any{
 				"concurrency":   int64(20),
 				"internal_port": "8080",
 			}},
@@ -229,7 +229,7 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 		}},
 		RawDefinition: map[string]any{
 			"app": "foo",
-			"mounts": []map[string]any{{
+			"mounts": []any{map[string]any{
 				"source":      "pg_data",
 				"destination": "/data",
 			}},
@@ -359,26 +359,26 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 				"port": int64(9999),
 				"path": "/metrics",
 			},
-			"processes": []map[string]any{{}},
-			"services": []map[string]any{{
+			"processes": []any{map[string]any{}},
+			"services": []any{map[string]any{
 				"internal_port": "8080",
-				"ports": []map[string]any{
-					{"port": "80", "handlers": []any{"http"}},
+				"ports": []any{
+					map[string]any{"port": "80", "handlers": []any{"http"}},
 				},
 				"concurrency": "12,23",
-				"tcp_checks": []map[string]any{
-					{"interval": int64(10000), "timeout": int64(2000)},
-					{"interval": "20s", "timeout": "3s"},
+				"tcp_checks": []any{
+					map[string]any{"interval": int64(10000), "timeout": int64(2000)},
+					map[string]any{"interval": "20s", "timeout": "3s"},
 				},
-				"http_checks": []map[string]any{
-					{
+				"http_checks": []any{
+					map[string]any{
 						"interval": int64(30000),
 						"timeout":  int64(4000),
-						"headers": []map[string]any{
-							{"name": "origin", "value": "http://localhost:8000"},
+						"headers": []any{
+							map[string]any{"name": "origin", "value": "http://localhost:8000"},
 						},
 					},
-					{
+					map[string]any{
 						"interval":     "20s",
 						"timeout":      "3s",
 						"grace_period": "",
@@ -402,12 +402,12 @@ func TestLoadTOMLAppConfigOldProcesses(t *testing.T) {
 			"worker": "./worker",
 		},
 		RawDefinition: map[string]any{
-			"processes": []map[string]any{
-				{
+			"processes": []any{
+				map[string]any{
 					"name":    "web",
 					"command": "./web",
 				},
-				{
+				map[string]any{
 					"name":    "worker",
 					"command": "./worker",
 				},
