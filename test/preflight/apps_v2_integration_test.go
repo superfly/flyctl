@@ -138,7 +138,7 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 	}
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
 	require.Contains(f, configFileContent, `app = "nginx -g 'daemon off;'"`)
 	require.Contains(f, result.StdErr().String(), "Found these additional commands on some machines")
@@ -161,9 +161,9 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
-	require.Contains(f, configFileContent, `app = "tail -F /dev/null"`)
+	require.Contains(f, configFileContent, `app = 'tail -F /dev/null'`)
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
