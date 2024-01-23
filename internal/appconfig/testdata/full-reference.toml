@@ -26,7 +26,7 @@ host_dedication_id = "06031957"
 
   [build.settings]
     foo = "bar"
-    other = 2
+    other = 2.0
 
   [build.args]
     param1 = "value1"
@@ -104,7 +104,7 @@ host_dedication_id = "06031957"
   local_path = "/local/path/config.yaml"
   processes = ["web"]
 
-[mounts]
+[[mounts]]
   source = "data"
   initial_size = "30gb"
   destination = "/data"
@@ -119,6 +119,12 @@ host_dedication_id = "06031957"
   kernel_args = ["quiet"]
   host_dedication_id = "isolated-xxx"
   processes = ["app"]
+
+[[vm]]
+  # Don't add more fields to this section.
+  # It is used to test zero values for `cpus`, `gpus` and others
+  # are omitted when serialized back to toml
+  memory_mb = 4096
 
 [processes]
   web = "run web"
