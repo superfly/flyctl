@@ -10,7 +10,7 @@ type Duration struct {
 	time.Duration
 }
 
-func (d *Duration) MarshalJSON() ([]byte, error) {
+func (d Duration) MarshalJSON() ([]byte, error) {
 	return json.Marshal(d.String())
 }
 
@@ -26,7 +26,7 @@ func (d *Duration) UnmarshalTOML(v any) error {
 	return d.ParseDuration(v)
 }
 
-func (d *Duration) MarshalTOML() ([]byte, error) {
+func (d Duration) MarshalTOML() ([]byte, error) {
 	v := fmt.Sprintf("\"%s\"", d.Duration.String())
 	return []byte(v), nil
 }
