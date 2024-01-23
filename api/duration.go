@@ -31,6 +31,14 @@ func (d Duration) MarshalTOML() ([]byte, error) {
 	return []byte(v), nil
 }
 
+func (d *Duration) MarshalText() ([]byte, error) {
+	return []byte(d.Duration.String()), nil
+}
+
+func (d *Duration) UnmarshalText(text []byte) error {
+	return d.ParseDuration(text)
+}
+
 func (d *Duration) ParseDuration(v any) error {
 	if v == nil {
 		d.Duration = 0

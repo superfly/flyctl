@@ -22,7 +22,7 @@ func TestFlyDeployHA(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false",
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 	f.Fly("scale count 1 --region %s --yes", f.SecondaryRegion())
@@ -45,7 +45,7 @@ func TestFlyDeployHA(t *testing.T) {
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
-	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
 	f.Fly("deploy")
 }
@@ -53,7 +53,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
-	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
 	appConfig += `
 [experimental]
@@ -70,7 +70,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
-	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
 	appConfig += `
 [deploy]
@@ -89,7 +89,7 @@ func TestFlyDeploy_Dockerfile(t *testing.T) {
 	appName := f.CreateRandomAppName()
 	f.WriteFile("Dockerfile", `FROM nginx
 ENV PREFLIGHT_TEST=true`)
-	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --force-machines --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		sshResult := f.Fly("ssh console -C 'printenv PREFLIGHT_TEST'")
@@ -107,7 +107,7 @@ func TestFlyDeploySlowMetrics(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --force-machines --ha=false",
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 

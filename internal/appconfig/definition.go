@@ -1,7 +1,7 @@
 package appconfig
 
 import (
-	"github.com/pelletier/go-toml"
+	"github.com/pelletier/go-toml/v2"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 )
