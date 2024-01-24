@@ -247,8 +247,9 @@ func setAppconfigFromSrcinfo(ctx context.Context, srcInfo *scanner.SourceInfo, a
 		var appStatics []appconfig.Static
 		for _, s := range srcInfo.Statics {
 			appStatics = append(appStatics, appconfig.Static{
-				GuestPath: s.GuestPath,
-				UrlPrefix: s.UrlPrefix,
+				GuestPath:    s.GuestPath,
+				UrlPrefix:    s.UrlPrefix,
+				TigrisBucket: s.TigrisBucket,
 			})
 		}
 		appConfig.SetStatics(appStatics)

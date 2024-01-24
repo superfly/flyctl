@@ -103,8 +103,9 @@ func fromAppAndOneMachine(ctx context.Context, appCompact *api.AppCompact, m mac
 	}
 	for _, s := range m.Machine().Config.Statics {
 		statics = append(statics, Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
+			GuestPath:    s.GuestPath,
+			UrlPrefix:    s.UrlPrefix,
+			TigrisBucket: s.TigrisBucket,
 		})
 	}
 	if len(m.Machine().Config.Mounts) > 0 {

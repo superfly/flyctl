@@ -178,8 +178,9 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	mConfig.Statics = nil
 	for _, s := range c.Statics {
 		mConfig.Statics = append(mConfig.Statics, &api.Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
+			GuestPath:    s.GuestPath,
+			UrlPrefix:    s.UrlPrefix,
+			TigrisBucket: s.TigrisBucket,
 		})
 	}
 
