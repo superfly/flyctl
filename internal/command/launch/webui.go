@@ -74,6 +74,13 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 		return err
 	}
 
+	// Patch in some fields that we keep in the plan that aren't persisted by the UI.
+	// Technically, we should probably just be persisting this, but there's
+	// no clear value to the UI having these fields currently.
+	if _, ok := finalSession.Metadata["ha"]; !ok {
+		state.Plan.HighAvailability = oldPlan.HighAvailability
+	}
+	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	return nil

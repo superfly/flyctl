@@ -71,6 +71,9 @@ func appNameTakenErr(appName string) error {
 }
 
 func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
+
+	io := iostreams.FromContext(ctx)
+
 	var recoverableInUiErrors []recoverableInUiError
 	tryRecoverErr := func(e error) error {
 		var asRecoverableErr recoverableInUiError
@@ -109,7 +112,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
 		}
 		if flag.GetBool(ctx, "manifest") {
-			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut,
+			fmt.Fprintln(io.ErrOut,
 				"Warning: --manifest does not serialize an entire app configuration.\n"+
 					"Creating a manifest from an existing fly.toml may be a lossy process!",
 			)
@@ -152,7 +155,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 	highAvailability := flag.GetBool(ctx, "ha")
 	if !org.Billable && highAvailability {
 		highAvailability = false
-		fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: No payment method, turning off high availability")
+		fmt.Fprintln(io.ErrOut, "Warning: This organization has no payment method, turning off high availability")
 	}
 
 	lp := &plan.LaunchPlan{
