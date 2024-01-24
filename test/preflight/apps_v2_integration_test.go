@@ -32,7 +32,7 @@ func TestAppsV2Example(t *testing.T) {
 	appUrl := fmt.Sprintf("https://%s.fly.dev", appName)
 
 	result := f.Fly(
-		"launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm --ha=false",
+		"launch --org %s --name %s --region %s --image nginx --internal-port 80 --now --auto-confirm --ha=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 	require.Contains(f, result.StdOutString(), "Using image nginx")
@@ -99,7 +99,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
 	f.Fly(
-		"launch --org %s --name %s --region %s --image nginx --internal-port 8080 --force-machines --now --env FOO=BAR",
+		"launch --org %s --name %s --region %s --image nginx --internal-port 8080 --ha=false --now --env FOO=BAR",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
@@ -107,7 +107,9 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	configFileBytes, err := os.ReadFile(configFilePath)
 	require.NoError(t, err, "error trying to read %s after running fly config save", configFilePath)
 
-	newConfigFile := strings.Replace(string(configFileBytes), `FOO = "BAR"`, `BAR = "QUX"`, 1)
+	newConfigFile := strings.Replace(string(configFileBytes), `FOO = 'BAR'`, `BAR = "QUX"`, 1)
+	require.Contains(f, newConfigFile, `BAR = "QUX"`)
+
 	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
 	require.NoError(t, err)
 
@@ -119,7 +121,7 @@ func TestAppsV2ConfigChanges(t *testing.T) {
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err = os.ReadFile(configFilePath)
 	require.NoError(t, err, "error trying to read %s after running fly config save", configFilePath)
-	require.Contains(f, string(configFileBytes), `BAR = "QUX"`)
+	require.Contains(f, string(configFileBytes), `BAR = 'QUX'`)
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
@@ -138,7 +140,7 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 	}
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
 	require.Contains(f, configFileContent, `app = "nginx -g 'daemon off;'"`)
 	require.Contains(f, result.StdErr().String(), "Found these additional commands on some machines")
@@ -161,9 +163,9 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
-	require.Contains(f, configFileContent, `app = "tail -F /dev/null"`)
+	require.Contains(f, configFileContent, `app = 'tail -F /dev/null'`)
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
@@ -179,7 +181,7 @@ func TestAppsV2Config_ParseExperimental(t *testing.T) {
 	err := os.WriteFile(configFilePath, []byte(config), 0644)
 	require.NoError(t, err, "error trying to write %s", configFilePath)
 
-	result := f.Fly("launch --no-deploy --force-machines --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
+	result := f.Fly("launch --no-deploy --ha=false --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
 	require.Contains(f, result.StdOutString(), "Created app")
 	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 }
@@ -486,7 +488,7 @@ func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
 func TestNoPublicIPDeployMachines(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-machines --image nginx --auto-confirm --no-public-ips", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --ha=false --image nginx --auto-confirm --no-public-ips", f.OrgSlug(), appName, f.PrimaryRegion())
 	result := f.Fly("ips list --json")
 	// There should be no ips allocated
 	require.Equal(f, "[]\n", result.StdOutString())
@@ -498,8 +500,9 @@ func TestLaunchCpusMem(t *testing.T) {
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
-	firstMachineGuest := machines[0].Config.Guest
+	require.GreaterOrEqual(f, len(machines), 1)
 
+	firstMachineGuest := machines[0].Config.Guest
 	require.Equal(f, 4, firstMachineGuest.CPUs)
 	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
 	require.Equal(f, "performance", firstMachineGuest.CPUKind)
