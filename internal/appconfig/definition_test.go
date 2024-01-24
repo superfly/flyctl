@@ -175,6 +175,7 @@ func TestToDefinition(t *testing.T) {
 				"memory":             "8gb",
 				"cpu_kind":           "performance",
 				"cpus":               int64(8),
+				"gpus":               int64(2),
 				"gpu_kind":           "a100-pcie-40gb",
 				"host_dedication_id": "isolated-xxx",
 				"memory_mb":          int64(8192),
