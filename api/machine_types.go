@@ -642,8 +642,9 @@ func (c *MachineConfig) ProcessGroup() string {
 }
 
 type Static struct {
-	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
-	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+	GuestPath    string `toml:"guest_path" json:"guest_path" validate:"required"`
+	UrlPrefix    string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+	TigrisBucket string `toml:"tigris_bucket" json:"tigris_bucket"`
 }
 
 type MachineInit struct {
