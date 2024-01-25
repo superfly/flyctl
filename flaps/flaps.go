@@ -204,9 +204,10 @@ waiting:
 	}
 }
 
+var snakeCasePattern = regexp.MustCompile("[A-Z]")
+
 func snakeCase(s string) string {
-	pat := regexp.MustCompile("[A-Z]")
-	return pat.ReplaceAllStringFunc(s, func(m string) string {
+	return snakeCasePattern.ReplaceAllStringFunc(s, func(m string) string {
 		return "_" + strings.ToLower(m)
 	})
 }
