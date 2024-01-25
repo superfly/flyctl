@@ -46,6 +46,7 @@ type MachineDeploymentArgs struct {
 	SkipSmokeChecks        bool
 	SkipHealthChecks       bool
 	SkipDNSChecks          bool
+	DNSCheckTimeout        time.Duration
 	MaxUnavailable         *float64
 	RestartOnly            bool
 	WaitTimeout            *time.Duration
@@ -81,6 +82,7 @@ type machineDeployment struct {
 	skipSmokeChecks        bool
 	skipHealthChecks       bool
 	skipDNSChecks          bool
+	dnsCheckTimeout        time.Duration
 	maxUnavailable         float64
 	restartOnly            bool
 	waitTimeout            time.Duration
