@@ -996,7 +996,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
 		b.MaxInterval = 5 * time.Second
-		b.MaxElapsedTime = 60 * time.Second
+		b.MaxElapsedTime = md.dnsCheckTimeout
 
 		return backoff.Retry(func() error {
 			m := new(dns.Msg)
@@ -1008,7 +1008,6 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 				} else if ipAddr.Type == "v6" {
 					numIPv6 += 1
 				}
-
 			}
 
 			m.SetQuestion(fqdn, dns.TypeA)
