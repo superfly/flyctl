@@ -14,6 +14,7 @@ type LogOptions struct {
 	AppName    string
 	VMID       string
 	RegionCode string
+	NoTail     bool
 }
 
 func (opts *LogOptions) toNatsSubject() (subject string) {

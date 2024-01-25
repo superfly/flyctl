@@ -91,6 +91,10 @@ func Poll(ctx context.Context, out chan<- LogEntry, client *api.Client, opts *Lo
 				Meta:      entry.Meta,
 			}
 		}
+
+		if opts.NoTail {
+			return nil
+		}
 	}
 }
 
