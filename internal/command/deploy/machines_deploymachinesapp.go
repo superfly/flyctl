@@ -1003,12 +1003,12 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			var numIPv4, numIPv6 int
 			for _, ipAddr := range ipAddrs {
-				ip := net.ParseIP(ipAddr.Address)
-				if ip.To4() != nil {
+				if ipAddr.Type == "v4" || ipAddr.Type == "shared_v4" {
 					numIPv4 += 1
-				} else {
+				} else if ipAddr.Type == "v6" {
 					numIPv6 += 1
 				}
+
 			}
 
 			m.SetQuestion(fqdn, dns.TypeA)
