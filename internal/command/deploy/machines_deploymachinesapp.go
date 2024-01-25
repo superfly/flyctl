@@ -996,9 +996,10 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
 		b.MaxInterval = 5 * time.Second
-		b.MaxElapsedTime = 60 * time.Second
+		b.MaxElapsedTime = md.dnsCheckTimeout
 
-		return backoff.Retry(func() error {
+		startTime := time.Now()
+		if err := backoff.Retry(func() error {
 			m := new(dns.Msg)
 
 			var numIPv4, numIPv6 int
@@ -1008,7 +1009,6 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 				} else if ipAddr.Type == "v6" {
 					numIPv6 += 1
 				}
-
 			}
 
 			m.SetQuestion(fqdn, dns.TypeA)
@@ -1028,7 +1028,10 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			}
 
 			return nil
-		}, backoff.WithContext(b, ctx))
+		}, backoff.WithContext(b, ctx)); err != nil {
+			return fmt.Errorf("failed after %s: %w", time.Since(startTime), err)
+		}
+		return nil
 
 	} else {
 		return nil
