@@ -397,6 +397,42 @@ func (sc *sftpContext) chmod(args ...string) error {
 	return nil
 }
 
+func (sc *sftpContext) rm(args ...string) error {
+	if len(args) < 2 {
+		sc.out("rm <file>")
+		return nil
+	}
+
+	rpath := sc.wd
+
+	rarg := args[1]
+	if rarg[0] == '/' {
+		rpath = rarg
+	} else {
+		rpath = sc.wd + rarg
+	}
+
+	if rarg := args[1]; rarg != "" {
+		if rarg[0] == '/' {
+			rpath = rarg
+		} else {
+			rpath = sc.wd + rarg
+		}
+	}
+
+	if _, err := sc.ftp.Stat(rpath); err != nil {
+		sc.out("rm %s: %s does not exist on VM", rpath, rpath)
+		return nil
+	}
+
+	if err := sc.ftp.Remove(rpath); err != nil {
+		sc.out("rm %s: could not delete file", rpath)
+		return nil
+	}
+
+	return nil
+}
+
 func (sc *sftpContext) uploadFile(lpath string, rpath string, permbits int64) {
 	if _, err := sc.ftp.Stat(rpath); err == nil {
 		sc.out("put %s -> %s: file exists on VM", lpath, rpath)
@@ -660,8 +696,13 @@ func runShell(ctx context.Context) error {
 				return err
 			}
 
+		case "rm":
+			if err = sc.rm(args...); err != nil {
+				return err
+			}
+
 		default:
-			out("unrecognized command; try 'cd', 'ls', 'get', 'put', or 'chmod'")
+			out("unrecognized command; try 'cd', 'ls', 'get', 'put', 'chmod' or 'rm'")
 		}
 	}
 
