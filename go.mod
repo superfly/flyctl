@@ -46,7 +46,7 @@ require (
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/olekukonko/tablewriter v0.0.5
-	github.com/pelletier/go-toml/v2 v2.1.0
+	github.com/pelletier/go-toml/v2 v2.1.2-0.20240125232133-05bedf36d8d1
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.6
 	github.com/samber/lo v1.39.0
@@ -243,8 +243,3 @@ replace github.com/superfly/flyctl/api => ./api
 // replace github.com/superfly/lfsc-go => ../lfsc-go
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
-
-// Waiting for:
-// * https://github.com/pelletier/go-toml/pull/923
-// * https://github.com/pelletier/go-toml/pull/924
-replace github.com/pelletier/go-toml/v2 => github.com/dangra/go-toml/v2 v2.0.0-20240123153141-fee2f0c34a72
