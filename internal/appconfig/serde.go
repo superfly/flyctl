@@ -102,6 +102,7 @@ func (c *Config) marshalTOML() ([]byte, error) {
 	var b bytes.Buffer
 	encoder := toml.NewEncoder(&b)
 	encoder.SetIndentTables(true)
+	encoder.SetMarshalJsonNumbers(true)
 
 	switch {
 	case c == nil:
