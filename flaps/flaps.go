@@ -233,6 +233,7 @@ func (f *Client) _sendRequest(ctx context.Context, action flapsAction, method, e
 		}
 	}()
 
+	tracing.CreateLinkSpan(ctx, resp)
 	span.SetAttributes(attribute.Int("request.status_code", resp.StatusCode))
 	span.SetAttributes(attribute.String("request.id", resp.Header.Get(headerFlyRequestId)))
 
