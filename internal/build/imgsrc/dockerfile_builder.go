@@ -99,6 +99,9 @@ func makeBuildContext(dockerfile string, opts ImageOptions, isRemote bool) (io.R
 }
 
 func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "dockerfile.run")
+	defer span.End()
+
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		// Where should debug messages be sent?
