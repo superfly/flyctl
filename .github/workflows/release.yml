@@ -66,7 +66,7 @@ jobs:
       - name: Place wintun.dll
         run: cp -r deps/wintun/bin/amd64/wintun.dll ./
       - id: cache
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: dist/${{ matrix.GOOS }}
           key: ${{ matrix.GOOS }}-${{ needs.meta.outputs.sha_short }}
@@ -92,15 +92,15 @@ jobs:
         with:
           go-version-file: "go.mod"
       # copy the caches from prepare
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: dist/linux
           key: linux-${{ needs.meta.outputs.sha_short }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: dist/darwin
           key: darwin-${{ needs.meta.outputs.sha_short }}
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         with:
           path: dist/windows
           key: windows-${{ needs.meta.outputs.sha_short }}
