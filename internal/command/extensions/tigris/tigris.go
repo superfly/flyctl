@@ -54,4 +54,9 @@ var SharedFlags = flag.Set{
 		Description: "Domain name for website",
 		Hidden:      true,
 	},
+	flag.Bool{
+		Name:        "public",
+		Shorthand:   "p",
+		Description: "Objects in the bucket should be publicly accessible",
+	},
 }

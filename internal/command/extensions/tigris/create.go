@@ -32,11 +32,6 @@ func create() (cmd *cobra.Command) {
 			Shorthand:   "n",
 			Description: "The name of your bucket",
 		},
-		flag.Bool{
-			Name:        "public",
-			Shorthand:   "p",
-			Description: "Objects in the bucket should be publicly accessible",
-		},
 	)
 	return cmd
 }

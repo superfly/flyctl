@@ -30,6 +30,10 @@ func update() (cmd *cobra.Command) {
 			Description: "Remove an existing shadow bucket",
 		},
 
+		flag.Bool{
+			Name:        "private",
+			Description: "Set a public bucket to be private",
+		},
 		SharedFlags,
 	)
 	return cmd
@@ -48,10 +52,6 @@ func runUpdate(ctx context.Context) (err error) {
 	options, _ := addOn.Options.(map[string]interface{})
 	if options == nil {
 		options = make(map[string]interface{})
-	}
-
-	if flag.IsSpecified(ctx, "accelerate") {
-		options["accelerate"] = flag.GetBool(ctx, "accelerate")
 	}
 
 	accessKey := flag.GetString(ctx, "shadow-access-key")
@@ -85,10 +85,23 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
+	if flag.IsSpecified(ctx, "private") {
+		options["public"] = false
+	} else if flag.IsSpecified(ctx, "public") {
+		options["public"] = flag.GetBool(ctx, "public")
+	}
+
+	if flag.IsSpecified(ctx, "no-accelerate") {
+		options["accelerate"] = false
+	} else if flag.IsSpecified(ctx, "accelerate") {
+		options["accelerate"] = flag.GetBool(ctx, "accelerate")
+	}
+
 	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
 	if err != nil {
 		return
 	}
 
+	err = runStatus(ctx)
 	return err
 }
