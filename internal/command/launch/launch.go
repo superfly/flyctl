@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -20,6 +21,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO(Allison): are we still supporting the launch-into usecase?
 	// I'm assuming *not* for now, because it's confusing UX and this
 	// is the perfect time to remove it.
+
+	if err := state.updateComputeFromDeprecatedGuestFields(ctx); err != nil {
+		return err
+	}
 
 	state.updateConfig(ctx)
 
@@ -71,6 +76,59 @@ func (state *launchState) Launch(ctx context.Context) error {
 	if state.sourceInfo != nil {
 		if err := state.firstDeploy(ctx); err != nil {
 			return err
+		}
+	}
+
+	return nil
+}
+
+// Apply the freestanding Guest fields to the appConfig's Compute field
+// This is temporary, but allows us to start using Compute-based plans in flyctl *now* while the UI catches up in time.
+func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Context) error {
+
+	if len(state.Plan.Compute) != 0 {
+		// If the UI returns a compute field, then we don't need to do any forward-compat patching.
+		return nil
+	}
+	defer func() {
+		// Set the plan's compute field to the calculated compute field.
+		// This makes sure that code expecting a compute definition in the plan is able to find it
+		// (and that it's up-to-date)
+		state.Plan.Compute = state.appConfig.Compute
+	}()
+
+	// Fallback for versions of the UI that don't support a Compute field in the Plan.
+	var (
+		io                   = iostreams.FromContext(ctx)
+		defaultGroup         = state.appConfig.DefaultProcessName()
+		matchedComputeStrong *appconfig.Compute
+		matchedComputeWeak   *appconfig.Compute
+	)
+
+	{ // Temporary: set the appconfig Compute configuration based on the plan
+		for _, compute := range state.appConfig.Compute {
+			if slices.Contains(compute.Processes, defaultGroup) {
+				if matchedComputeStrong != nil {
+					fmt.Fprintf(io.Out, "Warning: multiple compute configurations match the default process group %s\n", defaultGroup)
+				}
+				matchedComputeStrong = compute
+			} else if len(compute.Processes) == 0 {
+				if matchedComputeWeak != nil {
+					fmt.Fprintf(io.Out, "Warning: multiple compute configurations exist that match all processes\n")
+				}
+				matchedComputeWeak = compute
+			}
+		}
+		// NOTE: the calls to applyGuestToCompute here will *still* clobbers guest config like kernel or gpu,
+		//       even though we're trying to be good citizens and modifying instead of overwriting the compute config.
+		//       The only real solution to this is updating the UI to return a Compute field.
+		switch {
+		case matchedComputeStrong != nil:
+			applyGuestToCompute(matchedComputeStrong, state.Plan.Guest())
+		case matchedComputeWeak != nil:
+			applyGuestToCompute(matchedComputeWeak, state.Plan.Guest())
+		default:
+			state.appConfig.Compute = append(state.appConfig.Compute, guestToCompute(state.Plan.Guest()))
 		}
 	}
 
