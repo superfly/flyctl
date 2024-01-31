@@ -148,6 +148,16 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
+	// HACK: This is a temporary solution to work around the fact that the UI doesn't
+	//       understand the "compute" field. We want to move towards supporting the
+	//       full compute definition at some point.
+	appConfig.Compute = compute
+	fakeDefaultMachine, err := appConfig.ToMachineConfig(appConfig.DefaultProcessName(), nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	guest := fakeDefaultMachine.Guest
+
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
 	highAvailability := flag.GetBool(ctx, "ha")
@@ -162,6 +172,10 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		RegionCode:       region.Code,
 		HighAvailability: highAvailability,
 		Compute:          compute,
+		CPUKind:          guest.CPUKind,
+		CPUs:             guest.CPUs,
+		MemoryMB:         guest.MemoryMB,
+		VmSize:           guest.ToSize(),
 		HttpServicePort:  httpServicePort,
 		Postgres:         plan.PostgresPlan{},
 		Redis:            plan.RedisPlan{},
@@ -553,12 +567,13 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
 }
 
-func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
+func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
 	for k, v := range api.MachinePresets {
 		if reflect.DeepEqual(*v, *g) {
-			return &appconfig.Compute{
-				Size: k,
-			}
+			c.MachineGuest = nil
+			c.Memory = ""
+			c.Size = k
+			return
 		}
 	}
 	var memStr string
@@ -568,12 +583,15 @@ func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
 		memStr = fmt.Sprintf("%dmb", g.MemoryMB)
 	}
 	clonedGuest := helpers.Clone(g)
-	clonedGuest.MemoryMB = 0
-	return &appconfig.Compute{
-		MachineGuest: clonedGuest,
-		Memory:       memStr,
-		Processes:    nil,
-	}
+	c.MachineGuest = clonedGuest
+	c.Memory = memStr
+	c.MemoryMB = 0
+}
+
+func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
+	var c appconfig.Compute
+	applyGuestToCompute(&c, g)
+	return &c
 }
 
 // determineCompute returns the guest type to use for a new app.

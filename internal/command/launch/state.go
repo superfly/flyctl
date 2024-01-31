@@ -84,15 +84,19 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 // Used to confirm the plan before executing it.
 func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 
-	// Expensive but should accurately simulate the whole path
+	// It feels wrong to modify the appConfig here, but in well-formed states these should be identical anyway.
+	state.appConfig.Compute = state.Plan.Compute
+
+	// Expensive but should accurately simulate the whole machine building path, meaning we end up with the same
+	// guest description that will be deployed down the road :)
 	fakeMachine, err := state.appConfig.ToMachineConfig(state.appConfig.DefaultProcessName(), nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to resolve machine guest config: %w", err)
 	}
 	guestStr := fakeMachine.Guest.String()
 
-	if len(state.Plan.Compute) > 1 {
-		guestStr += fmt.Sprintf(", %d more", len(state.Plan.Compute)-1)
+	if len(state.appConfig.Compute) > 1 {
+		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
 	}
 
 	org, err := state.Org(ctx)
