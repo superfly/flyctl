@@ -434,10 +434,7 @@ func buildPlanFromLegacyOptions(
 		AppName:    appConfig.AppName,
 		RegionCode: region.Code,
 		OrgSlug:    org.Slug,
-		CPUKind:    guest.CPUKind,
-		CPUs:       guest.CPUs,
-		MemoryMB:   guest.MemoryMB,
-		VmSize:     guest.ToSize(),
+		Compute:    []*appconfig.Compute{{MachineGuest: guest}},
 	}
 	if sourceInfo != nil {
 		launchPlan.ScannerFamily = sourceInfo.Family

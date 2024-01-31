@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -90,12 +89,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	} else {
 		state.appConfig.HTTPService = nil
 	}
-	state.appConfig.Compute = []*appconfig.Compute{
-		{
-			MachineGuest: state.Plan.Guest(),
-			Processes:    lo.Keys(state.appConfig.Processes),
-		},
-	}
+	state.appConfig.Compute = state.Plan.Compute
 }
 
 // createApp creates the fly.io app for the plan

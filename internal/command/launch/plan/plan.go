@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/version"
 )
 
@@ -12,10 +12,7 @@ type LaunchPlan struct {
 	RegionCode       string `json:"region"`
 	HighAvailability bool   `json:"ha"`
 
-	CPUKind  string `json:"vm_cpukind,omitempty"`
-	CPUs     int    `json:"vm_cpus,omitempty"`
-	MemoryMB int    `json:"vm_memory,omitempty"`
-	VmSize   string `json:"vm_size,omitempty"`
+	Compute []*appconfig.Compute `json:"compute"`
 
 	HttpServicePort int `json:"http_service_port,omitempty"`
 
@@ -25,24 +22,4 @@ type LaunchPlan struct {
 
 	ScannerFamily string          `json:"scanner_family"`
 	FlyctlVersion version.Version `json:"flyctl_version"`
-}
-
-func (p *LaunchPlan) Guest() *api.MachineGuest {
-	// TODO(Allison): Determine whether we should use VmSize or CPUKind/CPUs
-	guest := api.MachineGuest{
-		CPUs:    p.CPUs,
-		CPUKind: p.CPUKind,
-	}
-	if false {
-		guest.SetSize(p.VmSize)
-	}
-	guest.MemoryMB = p.MemoryMB
-	return &guest
-}
-
-func (p *LaunchPlan) SetGuestFields(guest *api.MachineGuest) {
-	p.CPUs = guest.CPUs
-	p.CPUKind = guest.CPUKind
-	p.MemoryMB = guest.MemoryMB
-	p.VmSize = guest.ToSize()
 }
