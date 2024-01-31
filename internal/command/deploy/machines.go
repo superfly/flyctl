@@ -505,7 +505,7 @@ func (md *machineDeployment) setStrategy() error {
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release", trace.WithAttributes(attribute.String("strategy", md.strategy)))
+	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
 	defer span.End()
 
 	_ = `# @genqlient
