@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
@@ -722,4 +723,31 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func ParseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
+	if !flag.IsSpecified(ctx, flagName) {
+		return nil, nil
+	}
+
+	v := flag.GetString(ctx, flagName)
+	if v == "none" {
+		d := time.Duration(0)
+		return &d, nil
+	}
+
+	duration, err := time.ParseDuration(v)
+	if err == nil {
+		return &duration, nil
+	}
+
+	if strings.Contains(err.Error(), "missing unit in duration") {
+		asInt, err := strconv.Atoi(v)
+		if err == nil {
+			duration = time.Duration(asInt) * time.Second
+			return &duration, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid duration value %v used for --%s flag: valid options are a number of seconds, number with time unit (i.e.: 5m, 180s) or 'none'", v, flagName)
 }
