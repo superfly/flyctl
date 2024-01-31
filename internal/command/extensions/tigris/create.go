@@ -26,7 +26,7 @@ func create() (cmd *cobra.Command) {
 		flag.AppConfig(),
 		flag.Org(),
 		extensions_core.SharedFlags,
-
+		SharedFlags,
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -36,41 +36,6 @@ func create() (cmd *cobra.Command) {
 			Name:        "public",
 			Shorthand:   "p",
 			Description: "Objects in the bucket should be publicly accessible",
-		},
-		flag.String{
-			Name:        "shadow-access-key",
-			Description: "Shadow bucket access key",
-		},
-
-		flag.String{
-			Name:        "shadow-secret-key",
-			Description: "Shadow bucket secret key",
-		},
-		flag.String{
-			Name:        "shadow-region",
-			Description: "Shadow bucket region",
-		},
-		flag.String{
-			Name:        "shadow-endpoint",
-			Description: "Shadow bucket endpoint",
-		},
-		flag.String{
-			Name:        "shadow-name",
-			Description: "Shadow bucket name",
-		},
-		flag.Bool{
-			Name:        "shadow-write-through",
-			Description: "Write objects through to the shadow bucket",
-		},
-		flag.Bool{
-			Name:        "accelerate",
-			Hidden:      true,
-			Description: "Cache objects on write in all regions",
-		},
-		flag.String{
-			Name:        "website-domain-name",
-			Description: "Domain name for website",
-			Hidden:      true,
 		},
 	)
 	return cmd

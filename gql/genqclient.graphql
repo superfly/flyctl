@@ -254,3 +254,11 @@ query ListAddOns($addOnType: AddOnType) {
 		}
 	}
 }
+
+ mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
+		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
+			addOn {
+				id
+			}
+		}
+  }

@@ -102,16 +102,6 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	_ = `# @genqlient
-  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
-		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
-			addOn {
-				id
-			}
-		}
-  }
-	`
-
 	readRegionCodes := []string{}
 
 	for _, region := range *readRegions {
