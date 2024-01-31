@@ -50,7 +50,6 @@ func runUpdate(ctx context.Context) (err error) {
 	addOn := response.AddOn
 
 	excludedRegions, err := GetExcludedRegions(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -95,7 +94,6 @@ func runUpdate(ctx context.Context) (err error) {
 		if disableEviction, err := prompt.Confirm(ctx, " Would you like to disable eviction?"); disableEviction || err != nil {
 			options["eviction"] = false
 		}
-
 	} else {
 		options["eviction"], err = prompt.Confirm(ctx, " Would you like to enable eviction?")
 	}
@@ -103,16 +101,6 @@ func runUpdate(ctx context.Context) (err error) {
 	if err != nil {
 		return
 	}
-
-	_ = `# @genqlient
-  mutation UpdateAddOn($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
-		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
-			addOn {
-				id
-			}
-		}
-  }
-	`
 
 	readRegionCodes := []string{}
 
