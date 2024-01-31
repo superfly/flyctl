@@ -43,6 +43,11 @@ func newStop() *cobra.Command {
 			Name:        "timeout",
 			Description: "Seconds to wait before sending SIGKILL to the machine",
 		},
+		flag.String{
+			Name:        "wait-timeout",
+			Description: "Time duration to wait for individual machines to transition states and become stopped.",
+			Default:     (0 * time.Second).String(),
+		},
 	)
 
 	return cmd
@@ -82,12 +87,29 @@ func Stop(ctx context.Context, machineID string, signal string, timeout int) (er
 		machineStopInput.Timeout = api.Duration{Duration: time.Duration(timeout) * time.Second}
 	}
 
-	err = flaps.FromContext(ctx).Stop(ctx, machineStopInput, "")
+	waitTimeout, err := command.ParseDurationFlag(ctx, "wait-timeout")
+	if err != nil {
+		return err
+	}
+
+	client := flaps.FromContext(ctx)
+	err = client.Stop(ctx, machineStopInput, "")
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
 			return err
 		}
 		return fmt.Errorf("could not stop machine %s: %w", machineID, err)
+	}
+
+	if waitTimeout.Seconds() != 0 {
+		machine, err := client.Get(ctx, machineID)
+		if err != nil {
+			return fmt.Errorf("could not get machine %s to wait for stop: %w", machineID, err)
+		}
+		err = client.Wait(ctx, machine, "stopped", *waitTimeout)
+		if err != nil {
+			return fmt.Errorf("machine %s did not stop within the wait timeout: %w", machineID, err)
+		}
 	}
 
 	return

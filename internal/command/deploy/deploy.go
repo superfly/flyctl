@@ -3,9 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
@@ -285,33 +283,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	return err
 }
 
-func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
-	if !flag.IsSpecified(ctx, flagName) {
-		return nil, nil
-	}
-
-	v := flag.GetString(ctx, flagName)
-	if v == "none" {
-		d := time.Duration(0)
-		return &d, nil
-	}
-
-	duration, err := time.ParseDuration(v)
-	if err == nil {
-		return &duration, nil
-	}
-
-	if strings.Contains(err.Error(), "missing unit in duration") {
-		asInt, err := strconv.Atoi(v)
-		if err == nil {
-			duration = time.Duration(asInt) * time.Second
-			return &duration, nil
-		}
-	}
-
-	return nil, fmt.Errorf("invalid duration value %v used for --%s flag: valid options are a number of seconds, number with time unit (i.e.: 5m, 180s) or 'none'", v, flagName)
-}
-
 // in a rare twist, the guest param takes precedence over CLI flags!
 func deployToMachines(
 	ctx context.Context,
@@ -328,17 +299,17 @@ func deployToMachines(
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
-	releaseCmdTimeout, err := parseDurationFlag(ctx, "release-command-timeout")
+	releaseCmdTimeout, err := command.ParseDurationFlag(ctx, "release-command-timeout")
 	if err != nil {
 		return err
 	}
 
-	waitTimeout, err := parseDurationFlag(ctx, "wait-timeout")
+	waitTimeout, err := command.ParseDurationFlag(ctx, "wait-timeout")
 	if err != nil {
 		return err
 	}
 
-	leaseTimeout, err := parseDurationFlag(ctx, "lease-timeout")
+	leaseTimeout, err := command.ParseDurationFlag(ctx, "lease-timeout")
 	if err != nil {
 		return err
 	}
