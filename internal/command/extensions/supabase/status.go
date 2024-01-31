@@ -34,5 +34,5 @@ func status() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) (err error) {
-	return extensions_core.Status(ctx, gql.AddOnTypePlanetscale)
+	return extensions_core.Status(ctx, gql.AddOnTypeSupabase)
 }

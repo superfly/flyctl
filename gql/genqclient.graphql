@@ -1,3 +1,13 @@
+fragment AddOnData on AddOn {
+	id
+	name
+	primaryRegion
+	status
+	errorMessage
+	metadata
+	options
+}
+
 query GetAddOn($name: String) {
 	addOn(name: $name) {
 		...AddOnData
@@ -25,15 +35,6 @@ query GetAddOn($name: String) {
 			displayName
 		}
 	}
-}
-
-fragment AddOnData on AddOn {
-	id
-	name
-	primaryRegion
-	status
-	errorMessage
-	metadata
 }
 
 mutation CreateAddOn($input: CreateAddOnInput!) {
