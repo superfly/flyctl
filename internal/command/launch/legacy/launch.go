@@ -302,7 +302,7 @@ func Run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "now"), nil)
+		return deploy.DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "now"))
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
