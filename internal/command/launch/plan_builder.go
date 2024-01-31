@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"unicode"
@@ -144,7 +145,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
-	guest, guestExplanation, err := determineGuest(ctx, appConfig, srcInfo)
+	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
 		if err := tryRecoverErr(err); err != nil {
 			return nil, nil, err
@@ -158,10 +159,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		OrgSlug:          org.Slug,
 		RegionCode:       region.Code,
 		HighAvailability: flag.GetBool(ctx, "ha"),
-		CPUKind:          guest.CPUKind,
-		CPUs:             guest.CPUs,
-		MemoryMB:         guest.MemoryMB,
-		VmSize:           guest.ToSize(),
+		Compute:          compute,
 		HttpServicePort:  httpServicePort,
 		Postgres:         plan.PostgresPlan{},
 		Redis:            plan.RedisPlan{},
@@ -172,7 +170,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		appNameSource:  appNameExplanation,
 		regionSource:   regionExplanation,
 		orgSource:      orgExplanation,
-		guestSource:    guestExplanation,
+		computeSource:  computeExplanation,
 		postgresSource: "not requested",
 		redisSource:    "not requested",
 	}
@@ -565,30 +563,50 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
 }
 
-// determineGuest returns the guest type to use for a new app.
+func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
+	for k, v := range api.MachinePresets {
+		if reflect.DeepEqual(*v, *g) {
+			return &appconfig.Compute{
+				Size: k,
+			}
+		}
+	}
+	var memStr string
+	if g.MemoryMB%1024 == 0 {
+		memStr = fmt.Sprintf("%dgb", g.MemoryMB/1024)
+	} else {
+		memStr = fmt.Sprintf("%dmb", g.MemoryMB)
+	}
+	clonedGuest := helpers.Clone(g)
+	clonedGuest.MemoryMB = 0
+	return &appconfig.Compute{
+		MachineGuest: clonedGuest,
+		Memory:       memStr,
+		Processes:    nil,
+	}
+}
+
+// determineCompute returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
-func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
+func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) ([]*appconfig.Compute, string, error) {
+
+	if len(config.Compute) > 0 {
+		return config.Compute, "from your fly.toml", nil
+	}
+
 	def := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
 	def.MemoryMB = 1024
 	reason := "most apps need about 1GB of RAM"
 
 	guest, err := flag.GetMachineGuest(ctx, helpers.Clone(def))
 	if err != nil {
-		return def, recoverableSpecifyInUi, recoverableInUiError{err}
-	}
-
-	if len(config.Compute) > 0 {
-		// We purposely don't copy GPU since there's no way to configure that in the web UI as of 01/19/2024
-		vm := config.Compute[0]
-		guest.CPUKind = vm.CPUKind
-		guest.CPUs = vm.CPUs
-		guest.MemoryMB = vm.MemoryMB
+		return []*appconfig.Compute{guestToCompute(def)}, recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
 		reason = "specified on the command line"
 	}
-	return guest, reason, nil
+	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *api.Organization, print bool) bool {
