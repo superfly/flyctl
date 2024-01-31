@@ -720,12 +720,11 @@ func determineMachineConfig(
 			// An empty policy was explicitly requested.
 			machineConf.Restart.Policy = ""
 		} else if machineConf.AutoDestroy {
+			// Autodestroy only works when the restart policy is set to no, so unless otherwise specified, we set the restart policy to no.
+			machineConf.Restart.Policy = api.MachineRestartPolicyNo
 		} else if !input.updating {
 			// This is a new machine; apply the default.
-			if machineConf.AutoDestroy {
-				// Autodestroy only works when the restart policy is set to no, so unless otherwise specified, we set the restart policy to no.
-				machineConf.Restart.Policy = api.MachineRestartPolicyNo
-			} else if machineConf.Schedule != "" {
+			if machineConf.Schedule != "" {
 				machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
 			} else {
 				machineConf.Restart.Policy = api.MachineRestartPolicyAlways
