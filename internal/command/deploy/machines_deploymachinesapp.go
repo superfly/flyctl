@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/maps"
@@ -38,9 +39,13 @@ type ProcessGroupsDiff struct {
 }
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
+	defer span.End()
+
 	ctx = flaps.NewContext(ctx, md.flapsClient)
 
 	if err := md.updateReleaseInBackend(ctx, "running"); err != nil {
+		tracing.RecordError(span, err, "failed to update release")
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
 
@@ -79,12 +84,19 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
+	if err != nil {
+		tracing.RecordError(span, err, "failed to deploy machines")
+	}
 	return err
 }
 
 // restartMachinesApp only restarts existing machines but updates their release metadata
 func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "restart_machines")
+	defer span.End()
+
 	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
+		tracing.RecordError(span, err, "failed to acquire lease")
 		return err
 	}
 	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
