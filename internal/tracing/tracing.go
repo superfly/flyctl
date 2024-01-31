@@ -70,7 +70,7 @@ func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 	})
 }
 
-func SpanFromContext(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(
