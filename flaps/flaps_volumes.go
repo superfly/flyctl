@@ -12,17 +12,18 @@ import (
 
 var destroyedVolumeStates = []string{"scheduling_destroy", "fork_cleanup", "waiting_for_detach", "pending_destroy", "destroying"}
 
-func (f *Client) sendRequestVolumes(ctx context.Context, action flapsAction, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+func (f *Client) sendRequestVolumes(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
 	endpoint = fmt.Sprintf("/apps/%s/volumes%s", f.appName, endpoint)
-	return f._sendRequest(ctx, action, method, endpoint, in, out, headers)
+	return f._sendRequest(ctx, method, endpoint, in, out, headers)
 }
 
 func (f *Client) GetAllVolumes(ctx context.Context) ([]api.Volume, error) {
 	listVolumesEndpoint := ""
 
 	out := make([]api.Volume, 0)
+	ctx = contextWithAction(ctx, volumeList)
 
-	err := f.sendRequestVolumes(ctx, volumeList, http.MethodGet, listVolumesEndpoint, nil, &out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodGet, listVolumesEndpoint, nil, &out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list volumes: %w", err)
 	}
@@ -43,8 +44,9 @@ func (f *Client) CreateVolume(ctx context.Context, req api.CreateVolumeRequest) 
 	createVolumeEndpoint := ""
 
 	out := new(api.Volume)
+	ctx = contextWithAction(ctx, volumeCreate)
 
-	err := f.sendRequestVolumes(ctx, volumeCreate, http.MethodPost, createVolumeEndpoint, req, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodPost, createVolumeEndpoint, req, out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create volume: %w", err)
 	}
@@ -55,8 +57,9 @@ func (f *Client) UpdateVolume(ctx context.Context, volumeId string, req api.Upda
 	updateVolumeEndpoint := fmt.Sprintf("/%s", volumeId)
 
 	out := new(api.Volume)
+	ctx = contextWithAction(ctx, volumetUpdate)
 
-	err := f.sendRequestVolumes(ctx, volumetUpdate, http.MethodPut, updateVolumeEndpoint, req, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodPut, updateVolumeEndpoint, req, out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update volume: %w", err)
 	}
@@ -67,8 +70,9 @@ func (f *Client) GetVolume(ctx context.Context, volumeId string) (*api.Volume, e
 	getVolumeEndpoint := fmt.Sprintf("/%s", volumeId)
 
 	out := new(api.Volume)
+	ctx = contextWithAction(ctx, volumeGet)
 
-	err := f.sendRequestVolumes(ctx, volumeGet, http.MethodGet, getVolumeEndpoint, nil, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodGet, getVolumeEndpoint, nil, out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get volume %s: %w", volumeId, err)
 	}
@@ -79,8 +83,9 @@ func (f *Client) GetVolumeSnapshots(ctx context.Context, volumeId string) ([]api
 	getVolumeSnapshotsEndpoint := fmt.Sprintf("/%s/snapshots", volumeId)
 
 	out := make([]api.VolumeSnapshot, 0)
+	ctx = contextWithAction(ctx, volumeSnapshotList)
 
-	err := f.sendRequestVolumes(ctx, volumeSnapshotList, http.MethodGet, getVolumeSnapshotsEndpoint, nil, &out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodGet, getVolumeSnapshotsEndpoint, nil, &out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get volume %s snapshots: %w", volumeId, err)
 	}
@@ -88,8 +93,10 @@ func (f *Client) GetVolumeSnapshots(ctx context.Context, volumeId string) ([]api
 }
 
 func (f *Client) CreateVolumeSnapshot(ctx context.Context, volumeId string) error {
+	ctx = contextWithAction(ctx, volumeSnapshotCreate)
+
 	err := f.sendRequestVolumes(
-		ctx, volumeSnapshotCreate, http.MethodPost, fmt.Sprintf("/%s/snapshots", volumeId),
+		ctx, http.MethodPost, fmt.Sprintf("/%s/snapshots", volumeId),
 		nil, nil, nil,
 	)
 	if err != nil {
@@ -115,8 +122,9 @@ func (f *Client) ExtendVolume(ctx context.Context, volumeId string, size_gb int)
 	}
 
 	out := new(ExtendVolumeResponse)
+	ctx = contextWithAction(ctx, volumeExtend)
 
-	err := f.sendRequestVolumes(ctx, volumeExtend, http.MethodPut, extendVolumeEndpoint, req, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodPut, extendVolumeEndpoint, req, out, nil)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to extend volume %s: %w", volumeId, err)
 	}
@@ -127,8 +135,9 @@ func (f *Client) DeleteVolume(ctx context.Context, volumeId string) (*api.Volume
 	destroyVolumeEndpoint := fmt.Sprintf("/%s", volumeId)
 
 	out := new(api.Volume)
+	ctx = contextWithAction(ctx, volumeDelete)
 
-	err := f.sendRequestVolumes(ctx, volumeDelete, http.MethodDelete, destroyVolumeEndpoint, nil, out, nil)
+	err := f.sendRequestVolumes(ctx, http.MethodDelete, destroyVolumeEndpoint, nil, out, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to destroy volume %s: %w", volumeId, err)
 	}

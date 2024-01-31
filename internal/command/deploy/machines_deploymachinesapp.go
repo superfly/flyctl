@@ -24,8 +24,11 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 )
 
@@ -38,9 +41,13 @@ type ProcessGroupsDiff struct {
 }
 
 func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_machines")
+	defer span.End()
+
 	ctx = flaps.NewContext(ctx, md.flapsClient)
 
 	if err := md.updateReleaseInBackend(ctx, "running"); err != nil {
+		tracing.RecordError(span, err, "failed to update release")
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
 
@@ -79,12 +86,19 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
+	if err != nil {
+		tracing.RecordError(span, err, "failed to deploy machines")
+	}
 	return err
 }
 
 // restartMachinesApp only restarts existing machines but updates their release metadata
 func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "restart_machines")
+	defer span.End()
+
 	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
+		tracing.RecordError(span, err, "failed to acquire lease")
 		return err
 	}
 	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
@@ -118,6 +132,9 @@ func (md *machineDeployment) inferCanaryGuest(name string) *api.MachineGuest {
 }
 
 func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_canary")
+	defer span.End()
+
 	canaryMachines := []machine.LeasableMachine{}
 	groupsInConfig := md.ProcessNames()
 	total := len(groupsInConfig)
@@ -137,6 +154,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 			withDns(&api.DNSConfig{SkipRegistration: true}),
 		)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to provision canary machine")
 			firstLine, _, _ := strings.Cut(err.Error(), "\n")
 			statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
 			return err
@@ -238,6 +256,9 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 //   - Launch new machines on new groups
 //   - Update existing machines
 func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_new_machines")
+	defer span.End()
+
 	if err := md.runReleaseCommand(ctx); err != nil {
 		return fmt.Errorf("release command failed - aborting deployment. %w", err)
 	}
@@ -388,7 +409,17 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	return nil
 }
 
-func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, updateEntries []*machineUpdateEntry) (err error) {
+func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_machines", trace.WithAttributes(
+		attribute.String("strategy", md.strategy),
+	))
+	defer func() {
+		if err != nil {
+			tracing.RecordError(span, err, "update failed")
+		}
+		span.End()
+	}()
+
 	if len(updateEntries) == 0 {
 		return nil
 	}
@@ -397,13 +428,13 @@ func (md *machineDeployment) updateExistingMachines(parentCtx context.Context, u
 
 	switch md.strategy {
 	case "bluegreen":
-		return md.updateUsingBlueGreenStrategy(parentCtx, updateEntries)
+		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
-		return md.updateUsingImmediateStrategy(parentCtx, updateEntries)
+		return md.updateUsingImmediateStrategy(ctx, updateEntries)
 	case "canary", "rolling":
 		fallthrough
 	default:
-		return md.updateUsingRollingStrategy(parentCtx, updateEntries)
+		return md.updateUsingRollingStrategy(ctx, updateEntries)
 	}
 }
 
@@ -421,6 +452,9 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 }
 
 func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Context, updateEntries []*machineUpdateEntry) error {
+	parentCtx, span := tracing.GetTracer().Start(parentCtx, "immediate")
+	defer span.End()
+
 	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
 	defer sl.Destroy(false)
 
@@ -470,6 +504,7 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 		updatesPool.Go(func(_ context.Context) error {
 			statusRunning()
 			if err := md.updateMachine(eCtx, e); err != nil {
+				tracing.RecordError(span, err, "failed to update machine")
 				statusFailure(err)
 				return err
 			}
@@ -482,6 +517,9 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 }
 
 func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Context, updateEntries []*machineUpdateEntry) error {
+	parentCtx, span := tracing.GetTracer().Start(parentCtx, "rolling", trace.WithAttributes(attribute.String("strategy", md.strategy)))
+	defer span.End()
+
 	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
 	defer sl.Destroy(false)
 
@@ -514,6 +552,12 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 }
 
 func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
+	parentCtx, span := tracing.GetTracer().Start(parentCtx, "update_entries_in_group", trace.WithAttributes(
+		attribute.Int("start_id", startIdx),
+		attribute.Int("max_unavailable", int(md.maxUnavailable)),
+	))
+	defer span.End()
+
 	var poolSize int
 	switch mu := md.maxUnavailable; {
 	case mu >= 1:
@@ -523,6 +567,8 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 	default:
 		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
 	}
+
+	span.SetAttributes(attribute.Int("pool_size", poolSize))
 
 	updatePool := pool.New().
 		WithErrors().
@@ -589,9 +635,11 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 
 			if err := md.updateMachine(eCtx, e); err != nil {
 				statusFailure(err)
+				tracing.RecordError(span, err, "failed to update machine")
 				return err
 			}
 			if err := md.waitForMachine(eCtx, e); err != nil {
+				tracing.RecordError(span, err, "failed to wait for machine")
 				statusFailure(err)
 				return err
 			}
@@ -614,6 +662,12 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 }
 
 func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_machine", trace.WithAttributes(
+		attribute.String("id", e.launchInput.ID),
+		attribute.Bool("requires_replacement", e.launchInput.RequiresReplacement),
+	))
+	defer span.End()
+
 	fmtID := e.leasableMachine.FormattedMachineId()
 
 	replaceMachine := func() error {
@@ -646,6 +700,9 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 }
 
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_by_replace", trace.WithAttributes(attribute.String("id", e.launchInput.ID)))
+	defer span.End()
+
 	lm := e.leasableMachine
 	// If machine requires replacement, destroy old machine and launch a new one
 	// This can be the case for machines that changes its volumes.
@@ -974,9 +1031,13 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 }
 
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "check_dns")
+	defer span.End()
+
 	client := client.FromContext(ctx).API()
 	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to get ip addresses")
 		return err
 	}
 
@@ -1008,22 +1069,32 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 				} else if ipAddr.Type == "v6" {
 					numIPv6 += 1
 				}
-
 			}
 
+			span.SetAttributes(attribute.Int("v4_count", numIPv4))
+			span.SetAttributes(attribute.Int("v6_count", numIPv6))
+
 			m.SetQuestion(fqdn, dns.TypeA)
+			span.SetAttributes(attribute.String("v4_question", m.String()))
 			answerv4, _, err := c.Exchange(m, "9.9.9.9:53")
 			if err != nil {
+				tracing.RecordError(span, err, "failed to exchange v4")
 				return err
 			} else if len(answerv4.Answer) != numIPv4 {
+				span.SetAttributes(attribute.String("v4_answer", answerv4.String()))
+				tracing.RecordError(span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
 				return fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
 			}
 
 			m.SetQuestion(fqdn, dns.TypeAAAA)
+			span.SetAttributes(attribute.String("v6_question", m.String()))
 			answerv6, _, err := c.Exchange(m, "9.9.9.9:53")
 			if err != nil {
+				tracing.RecordError(span, err, "failed to exchange v4")
 				return err
 			} else if len(answerv6.Answer) != numIPv6 {
+				span.SetAttributes(attribute.String("v6_answer", answerv6.String()))
+				tracing.RecordError(span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
 				return fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
 			}
 
