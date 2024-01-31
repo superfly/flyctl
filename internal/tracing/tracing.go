@@ -51,6 +51,12 @@ func RecordError(span trace.Span, err error, description string) {
 	span.SetStatus(codes.Error, description)
 }
 
+func CreateLinkSpan(ctx context.Context, res *http.Response) {
+	remoteSpanCtx := SpanContextFromHeaders(res)
+	_, span := GetTracer().Start(ctx, "flaps.link", trace.WithLinks(trace.Link{SpanContext: remoteSpanCtx}))
+	defer span.End()
+}
+
 func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 	traceIDstr := res.Header.Get(headerFlyTraceId)
 	spanIDstr := res.Header.Get(headerFlySpanId)
