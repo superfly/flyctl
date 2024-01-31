@@ -18,7 +18,7 @@ type launchPlanSource struct {
 	appNameSource  string
 	regionSource   string
 	orgSource      string
-	guestSource    string
+	computeSource  string
 	postgresSource string
 	redisSource    string
 }
@@ -84,7 +84,20 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 // Used to confirm the plan before executing it.
 func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 
-	guest := state.Plan.Guest()
+	// It feels wrong to modify the appConfig here, but in well-formed states these should be identical anyway.
+	state.appConfig.Compute = state.Plan.Compute
+
+	// Expensive but should accurately simulate the whole machine building path, meaning we end up with the same
+	// guest description that will be deployed down the road :)
+	fakeMachine, err := state.appConfig.ToMachineConfig(state.appConfig.DefaultProcessName(), nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve machine guest config: %w", err)
+	}
+	guestStr := fakeMachine.Guest.String()
+
+	if len(state.appConfig.Compute) > 1 {
+		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
+	}
 
 	org, err := state.Org(ctx)
 	if err != nil {
@@ -110,7 +123,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
-		{"App Machines", guest.String(), state.PlanSource.guestSource},
+		{"App Machines", guestStr, state.PlanSource.computeSource},
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
 	}

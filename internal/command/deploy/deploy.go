@@ -222,10 +222,10 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
@@ -258,7 +258,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		if err := appConfig.EnsureV2Config(); err != nil {
 			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
 		}
-		if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
+		if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 			return err
 		}
 	} else {
@@ -318,7 +318,6 @@ func deployToMachines(
 	appConfig *appconfig.Config,
 	appCompact *api.AppCompact,
 	img *imgsrc.DeploymentImage,
-	guest *api.MachineGuest,
 ) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -348,11 +347,9 @@ func deployToMachines(
 		return err
 	}
 
-	if guest == nil {
-		guest, err = flag.GetMachineGuest(ctx, nil)
-		if err != nil {
-			return err
-		}
+	guest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	excludeRegions := make(map[string]interface{})
