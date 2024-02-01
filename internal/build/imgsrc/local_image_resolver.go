@@ -24,7 +24,7 @@ func (*localImageResolver) Name() string {
 }
 
 func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "resolve_image_locally")
+	ctx, span := tracing.GetTracer().Start(ctx, "local_image_resolver")
 	defer span.End()
 
 	build.BuildStart()
