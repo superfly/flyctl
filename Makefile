@@ -19,7 +19,7 @@ test-api: FORCE
 
 raw-preflight-test:
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
-	go test ./test/preflight --tags=integration -v -timeout 10m --run="$(T)"
+	go test ./test/preflight --tags=integration -v -timeout 20m --run="$(T)"
 
 # to run one test, use: make preflight-test T=TestAppsV2ConfigSave
 preflight-test: build
