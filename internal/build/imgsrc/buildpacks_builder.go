@@ -29,7 +29,7 @@ func returnTrue(s string) bool {
 }
 
 func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "buildpack.run", trace.WithAttributes(opts.ToSpanAttributes()...))
+	ctx, span := tracing.GetTracer().Start(ctx, "buildpacks_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
 	build.BuildStart()
@@ -107,7 +107,14 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks volumes: %+v", opts.BuildpacksVolumes))
 	}
 
-	err = packClient.Build(ctx, packclient.BuildOptions{
+	buildCtx, buildSpan := tracing.GetTracer().Start(ctx, "build_image",
+		trace.WithAttributes(opts.ToSpanAttributes()...),
+		trace.WithAttributes(
+			attribute.String("type", "buildpack"),
+			attribute.Bool("is_remote", dockerFactory.IsRemote()),
+		),
+	)
+	err = packClient.Build(buildCtx, packclient.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
 		ClearCache:     opts.NoCache,
@@ -128,16 +135,18 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	})
 	build.ImageBuildFinish()
 	build.BuildFinish()
-
 	if err != nil {
 		if dockerFactory.IsRemote() {
-			span.AddEvent("bad build caused by remote builder failure")
+			buildSpan.AddEvent("bad build caused by remote builder failure")
 			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
-		span.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
-		tracing.RecordError(span, err, "failed to build image")
+		buildSpan.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
+		tracing.RecordError(buildSpan, err, "failed to build image")
+		buildSpan.End()
 		return nil, "", err
 	}
+
+	buildSpan.End()
 
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
