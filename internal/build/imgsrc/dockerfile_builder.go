@@ -101,7 +101,7 @@ func makeBuildContext(dockerfile string, opts ImageOptions, isRemote bool) (io.R
 }
 
 func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "dockerfile.run", trace.WithAttributes(opts.ToSpanAttributes()...))
+	ctx, span := tracing.GetTracer().Start(ctx, "dockerfile_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
 	build.BuildStart()
@@ -305,6 +305,12 @@ func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*strin
 }
 
 func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_image",
+		trace.WithAttributes(opts.ToSpanAttributes()...),
+		trace.WithAttributes(attribute.String("type", "classic")),
+	)
+	defer span.End()
+
 	options := types.ImageBuildOptions{
 		Tags:        []string{opts.Tag},
 		BuildArgs:   buildArgs,
@@ -379,6 +385,12 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 }
 
 func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_image",
+		trace.WithAttributes(opts.ToSpanAttributes()...),
+		trace.WithAttributes(attribute.String("type", "buildkit")),
+	)
+	defer span.End()
+
 	// Connect to Docker Engine's embedded Buildkit.
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
 		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
