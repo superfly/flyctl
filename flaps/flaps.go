@@ -170,7 +170,9 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
-	err = f._sendRequest(ctx, appCreate, http.MethodPost, "/apps", in, nil, nil)
+	ctx = contextWithAction(ctx, appCreate)
+
+	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
 	return
 }
 
@@ -185,9 +187,11 @@ func WaitForApp(ctx context.Context, name string) error {
 		Jitter: true,
 	}
 
+	ctx = contextWithAction(ctx, machineGet)
+
 waiting:
 	for {
-		err := f._sendRequest(ctx, machineGet, http.MethodGet, "/apps/"+url.PathEscape(name), nil, nil, nil)
+		err := f._sendRequest(ctx, http.MethodGet, "/apps/"+url.PathEscape(name), nil, nil, nil)
 		if err == nil {
 			return nil
 		}
@@ -212,13 +216,14 @@ func snakeCase(s string) string {
 	})
 }
 
-func (f *Client) _sendRequest(ctx context.Context, action flapsAction, method, endpoint string, in, out interface{}, headers map[string][]string) error {
-	actionName := snakeCase(action.String())
+func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	actionName := snakeCase(actionFromContext(ctx).String())
 
 	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("flaps.%s", actionName), trace.WithAttributes(
 		attribute.String("request.action", actionName),
 		attribute.String("request.endpoint", endpoint),
 		attribute.String("request.method", method),
+		attribute.String("request.machine_id", machineIDFromContext(ctx)),
 	))
 	defer span.End()
 
@@ -244,6 +249,8 @@ func (f *Client) _sendRequest(ctx context.Context, action flapsAction, method, e
 		}
 	}()
 
+	span.SetAttributes(attribute.String("remote.trace_id", resp.Header.Get(tracing.HeaderFlyTraceId)))
+	span.SetAttributes(attribute.String("remote.span_id", resp.Header.Get(tracing.HeaderFlySpanId)))
 	span.SetAttributes(attribute.Int("request.status_code", resp.StatusCode))
 	span.SetAttributes(attribute.String("request.id", resp.Header.Get(headerFlyRequestId)))
 
