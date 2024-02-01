@@ -73,7 +73,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	if clearShadow {
-		delete(options, "shadow_bucket")
+		options["shadow_bucket"] = map[string]interface{}{}
 	} else if shadowBucketSpecified {
 		options["shadow_bucket"] = map[string]interface{}{
 			"access_key":    accessKey,

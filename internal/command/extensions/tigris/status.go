@@ -2,6 +2,8 @@ package tigris
 
 import (
 	"context"
+	"strings"
+
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
@@ -9,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
-	"strings"
 )
 
 func status() *cobra.Command {
@@ -85,7 +86,7 @@ func runStatus(ctx context.Context) (err error) {
 			}
 		}
 		obj[0] = append(obj[0], value)
-		colName := strings.Title(strings.Replace(strings.Join(keys, " "), "_", " ", -1)) // Adjust the column name formatting as needed
+		colName := strings.Title(strings.Replace(strings.Join(keys, " "), "_", " ", -1))
 		cols = append(cols, colName)
 	}
 
