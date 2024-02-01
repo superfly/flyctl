@@ -17,6 +17,6 @@ func TestHeartbeat(t *testing.T) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "", http.NoBody)
 	assert.NoError(t, err)
 
-	err = heartbeat(dc, req)
+	err = heartbeat(ctx, dc, req)
 	assert.Error(t, err)
 }
