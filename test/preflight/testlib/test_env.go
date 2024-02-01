@@ -287,7 +287,7 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 	appName := randomName(f, prefix)
 	f.Cleanup(func() {
-		if !strings.Contain(f.t.Name(), "TestAppsV2") {
+		if !strings.Contains(f.t.Name(), "TestAppsV2") {
 			f.FlyAllowExitFailure("apps destroy --yes %s", appName)
 		}
 	})
