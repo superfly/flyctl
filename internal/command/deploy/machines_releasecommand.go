@@ -22,9 +22,15 @@ import (
 
 func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "run_release_cmd")
-	defer span.End()
+	defer func() {
+		if err != nil {
+			tracing.RecordError(span, err, "failed to run release_cmd")
+		}
+		span.End()
+	}()
 
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
+		span.AddEvent("no release command")
 		return nil
 	}
 

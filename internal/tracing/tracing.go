@@ -25,8 +25,8 @@ import (
 
 const (
 	tracerName       = "github.com/superfly/flyctl"
-	headerFlyTraceId = "fly-trace-id"
-	headerFlySpanId  = "fly-span-id"
+	HeaderFlyTraceId = "fly-trace-id"
+	HeaderFlySpanId  = "fly-span-id"
 )
 
 func getCollectorUrl() string {
@@ -58,8 +58,8 @@ func CreateLinkSpan(ctx context.Context, res *http.Response) {
 }
 
 func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
-	traceIDstr := res.Header.Get(headerFlyTraceId)
-	spanIDstr := res.Header.Get(headerFlySpanId)
+	traceIDstr := res.Header.Get(HeaderFlyTraceId)
+	spanIDstr := res.Header.Get(HeaderFlySpanId)
 
 	traceID, _ := trace.TraceIDFromHex(traceIDstr)
 	spanID, _ := trace.SpanIDFromHex(spanIDstr)
