@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -286,7 +287,9 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 	appName := randomName(f, prefix)
 	f.Cleanup(func() {
-		f.FlyAllowExitFailure("apps destroy --yes %s", appName)
+		if !strings.Contain(f.t.Name(), "TestAppsV2") {
+			f.FlyAllowExitFailure("apps destroy --yes %s", appName)
+		}
 	})
 	return appName
 }
