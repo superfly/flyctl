@@ -24,6 +24,8 @@ type AddOnData struct {
 	ErrorMessage string `json:"errorMessage"`
 	// Add-on metadata
 	Metadata interface{} `json:"metadata"`
+	// Add-on options
+	Options interface{} `json:"options"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -43,6 +45,9 @@ func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
 
 // GetMetadata returns AddOnData.Metadata, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetMetadata() interface{} { return v.Metadata }
+
+// GetOptions returns AddOnData.Options, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetOptions() interface{} { return v.Options }
 
 type AddOnType string
 
@@ -2420,6 +2425,11 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetMetadata() inter
 	return v.AddOnData.Metadata
 }
 
+// GetOptions returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
+	return v.AddOnData.Options
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2457,6 +2467,8 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	ErrorMessage string `json:"errorMessage"`
 
 	Metadata interface{} `json:"metadata"`
+
+	Options interface{} `json:"options"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2476,6 +2488,7 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.Status = v.AddOnData.Status
 	retval.ErrorMessage = v.AddOnData.ErrorMessage
 	retval.Metadata = v.AddOnData.Metadata
+	retval.Options = v.AddOnData.Options
 	return &retval, nil
 }
 
@@ -4477,6 +4490,7 @@ fragment AddOnData on AddOn {
 	status
 	errorMessage
 	metadata
+	options
 }
 fragment ExtensionProviderData on AddOnProvider {
 	id
@@ -4727,6 +4741,7 @@ fragment AddOnData on AddOn {
 	status
 	errorMessage
 	metadata
+	options
 }
 fragment OrganizationData on Organization {
 	id
