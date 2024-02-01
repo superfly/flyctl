@@ -10,12 +10,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -77,6 +79,9 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_create")
+	defer span.End()
+
 	var greenMachines machineUpdateEntries
 
 	for _, mach := range bg.blueMachines {
@@ -85,6 +90,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to launch machine")
 			return err
 		}
 
@@ -147,6 +153,9 @@ func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
 }
 
 func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_start_wait")
+	defer span.End()
+
 	wait := time.NewTicker(bg.timeout)
 	machineIDToState := map[string]int{}
 	render := bg.renderMachineStates(machineIDToState)
@@ -263,6 +272,9 @@ func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*api.HealthCheckStat
 }
 
 func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_health_wait")
+	defer span.End()
+
 	wait := time.NewTicker(bg.timeout)
 	machineIDToHealthStatus := map[string]*api.HealthCheckStatus{}
 	errChan := make(chan error)
@@ -354,6 +366,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 }
 
 func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "mark_green_machines_for_traffic")
+	defer span.End()
+
 	for _, gm := range bg.greenMachines.machines() {
 		if bg.aborted.Load() {
 			return ErrAborted
@@ -370,6 +385,9 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 }
 
 func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "destroy_blue_machines")
+	defer span.End()
+
 	for _, gm := range bg.blueMachines {
 		if bg.aborted.Load() {
 			return ErrAborted
@@ -423,6 +441,9 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 }
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "bluegreen")
+	defer span.End()
+
 	defer bg.ctrlcHook.Done()
 
 	if bg.aborted.Load() {
@@ -431,10 +452,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to validate deployment")
 		return err
 	}
 
+	span.SetAttributes(attribute.Bool("can_perform", canPerform))
+
 	if !canPerform {
+		tracing.RecordError(span, ErrOrgLimit, "failed to deploy, orglimit")
 		return ErrOrgLimit
 	}
 
@@ -469,6 +494,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
 	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to wait for start")
 		return errors.Wrap(err, ErrWaitForStartedState.Error())
 	}
 
@@ -478,6 +504,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to wait for health")
 		return errors.Wrap(err, ErrWaitForHealthy.Error())
 	}
 
@@ -487,6 +514,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready\n")
 	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to mark as ready for traffic")
 		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
 
@@ -496,6 +524,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to destroy blue machines")
 		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
 	}
 
@@ -504,6 +533,9 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
+	defer span.End()
+
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
@@ -513,6 +545,7 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	for _, mach := range bg.greenMachines.machines() {
 		err := mach.Destroy(ctx, true)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to destroy green machine")
 			return err
 		}
 	}

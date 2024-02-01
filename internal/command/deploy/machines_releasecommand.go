@@ -16,10 +16,21 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "run_release_cmd")
+	defer func() {
+		if err != nil {
+			tracing.RecordError(span, err, "failed to run release_cmd")
+		}
+		span.End()
+	}()
+
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
+		span.AddEvent("no release command")
 		return nil
 	}
 
@@ -37,12 +48,15 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 
 	err = md.createOrUpdateReleaseCmdMachine(ctx)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to create release cmd machine")
 		return fmt.Errorf("error running release_command machine: %w", err)
 	}
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to wait for release cmd machine")
+
 		return err
 	}
 	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.releaseCmdTimeout, true)
@@ -92,6 +106,8 @@ func dedicatedHostIdMismatch(m *api.Machine, ac *appconfig.Config) bool {
 }
 
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
+	span := trace.SpanFromContext(ctx)
+
 	if md.releaseCommandMachine.IsEmpty() {
 		return md.createReleaseCommandMachine(ctx)
 	}
@@ -99,6 +115,7 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 
 	if dedicatedHostIdMismatch(releaseCmdMachine.Machine(), md.appConfig) {
+		span.AddEvent("dedicated hostid mismatch")
 		if err := releaseCmdMachine.Destroy(ctx, true); err != nil {
 			return fmt.Errorf("error destroying release_command machine: %w", err)
 		}
@@ -110,9 +127,13 @@ func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context
 }
 
 func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "create_release_cmd_machine")
+	defer span.End()
+
 	launchInput := md.launchInputForReleaseCommand(nil)
 	releaseCmdMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to get ip addresses")
 		return fmt.Errorf("error creating a release_command machine: %w", err)
 	}
 
@@ -122,6 +143,9 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 }
 
 func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_release_cmd_machine")
+	defer span.End()
+
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 
