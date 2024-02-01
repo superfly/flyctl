@@ -6,7 +6,8 @@ package flaps
 type flapsAction int
 
 const (
-	appCreate flapsAction = iota
+	none flapsAction = iota
+	appCreate
 	machineLaunch
 	machineUpdate
 	machineStart
