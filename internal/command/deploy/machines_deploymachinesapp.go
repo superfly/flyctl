@@ -540,20 +540,21 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		WithContext(parentCtx).
 		WithCancelOnError()
 
-	for _, entries := range entriesByGroup {
+	for group, entries := range entriesByGroup {
 		entries := entries
 		startIdx += len(entries)
 		groupsPool.Go(func(ctx context.Context) error {
-			return md.updateEntriesGroup(ctx, entries, sl, startIdx-len(entries))
+			return md.updateEntriesGroup(ctx, group, entries, sl, startIdx-len(entries))
 		})
 	}
 
 	return groupsPool.Wait()
 }
 
-func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
+func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group string, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
 	parentCtx, span := tracing.GetTracer().Start(parentCtx, "update_entries_in_group", trace.WithAttributes(
 		attribute.Int("start_id", startIdx),
+		attribute.String("group", group),
 		attribute.Int("max_unavailable", int(md.maxUnavailable)),
 	))
 	defer span.End()
@@ -624,6 +625,11 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 		}
 
 		updateFunc := func(poolCtx context.Context) error {
+			ctx, span := tracing.GetTracer().Start(eCtx, "update", trace.WithAttributes(
+				attribute.Int("id", idx),
+			))
+			defer span.End()
+
 			// If the pool context is done, it means some other machine update failed
 			select {
 			case <-poolCtx.Done():
@@ -633,12 +639,12 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, entri
 				statusRunning()
 			}
 
-			if err := md.updateMachine(eCtx, e); err != nil {
+			if err := md.updateMachine(ctx, e); err != nil {
 				statusFailure(err)
 				tracing.RecordError(span, err, "failed to update machine")
 				return err
 			}
-			if err := md.waitForMachine(eCtx, e); err != nil {
+			if err := md.waitForMachine(ctx, e); err != nil {
 				tracing.RecordError(span, err, "failed to wait for machine")
 				statusFailure(err)
 				return err
