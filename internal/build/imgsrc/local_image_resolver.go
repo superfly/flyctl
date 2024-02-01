@@ -118,15 +118,22 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
 
 func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*types.ImageSummary, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "find_image_with_docker")
+	defer span.End()
+
 	ref, err := dockerparser.Parse(imageName)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to parse image")
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String("ref", ref.Name()))
 
 	isID := imageIDPattern.MatchString(imageName)
 
 	images, err := d.ImageList(ctx, types.ImageListOptions{})
 	if err != nil {
+		tracing.RecordError(span, err, "failed to list images")
 		return nil, err
 	}
 
@@ -152,6 +159,8 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 	}
 
 	terminal.Debug("Search terms:", searchTerms)
+
+	span.SetAttributes(attribute.StringSlice("search_terms", searchTerms))
 
 	for _, img := range images {
 		for _, tag := range img.RepoTags {
