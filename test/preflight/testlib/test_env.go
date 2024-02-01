@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -199,6 +200,8 @@ type FlyCmdConfig struct {
 }
 
 func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfig, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	f.t.Logf("fly %s", fmt.Sprintf(flyctlCmd, vals...))
+
 	argsStr := fmt.Sprintf(flyctlCmd, vals...)
 	args, err := shlex.Split(argsStr)
 	if err != nil {
@@ -284,7 +287,9 @@ func (f *FlyctlTestEnv) CreateRandomAppName() string {
 
 	appName := randomName(f, prefix)
 	f.Cleanup(func() {
-		f.FlyAllowExitFailure("apps destroy --yes %s", appName)
+		if !strings.Contains(f.t.Name(), "TestAppsV2") {
+			f.FlyAllowExitFailure("apps destroy --yes %s", appName)
+		}
 	})
 	return appName
 }
