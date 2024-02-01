@@ -13,6 +13,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/registry"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/jpillora/backoff"
@@ -461,16 +462,16 @@ func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag s
 	return nil
 }
 
-func registryAuth(token string) types.AuthConfig {
-	return types.AuthConfig{
+func registryAuth(token string) registry.AuthConfig {
+	return registry.AuthConfig{
 		Username:      "x",
 		Password:      token,
 		ServerAddress: "registry.fly.io",
 	}
 }
 
-func authConfigs(token string) map[string]types.AuthConfig {
-	authConfigs := map[string]types.AuthConfig{}
+func authConfigs(token string) map[string]registry.AuthConfig {
+	authConfigs := map[string]registry.AuthConfig{}
 
 	authConfigs["registry.fly.io"] = registryAuth(token)
 
@@ -478,7 +479,7 @@ func authConfigs(token string) map[string]types.AuthConfig {
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
 
 	if dockerhubUsername != "" && dockerhubPassword != "" {
-		cfg := types.AuthConfig{
+		cfg := registry.AuthConfig{
 			Username:      dockerhubUsername,
 			Password:      dockerhubPassword,
 			ServerAddress: "index.docker.io",
