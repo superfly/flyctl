@@ -62,7 +62,7 @@ require (
 	github.com/superfly/macaroon v0.2.10
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
-	github.com/vektah/gqlparser/v2 v2.5.10
+	github.com/vektah/gqlparser/v2 v2.5.11
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.22.0
 	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.21.0
