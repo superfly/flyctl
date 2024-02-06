@@ -38,10 +38,14 @@ func dischargeThirdPartyCaveats(ctx context.Context, t *tokens.Tokens) (bool, er
 		tp.WithHTTP(&http.Client{Jar: jar}),
 	}
 	if len(t.UserTokens) != 0 {
-		opts = append(opts, tp.WithBearerAuthentication(
-			"auth.fly.io",
-			strings.Join(t.UserTokens, ","),
-		))
+		opts = append(opts,
+			tp.WithBearerAuthentication(
+				"auth.fly.io",
+				strings.Join(t.UserTokens, ","),
+			), tp.WithBearerAuthentication(
+				flyio.LocationAuthentication,
+				strings.Join(t.UserTokens, ","),
+			))
 	}
 	c := flyio.DischargeClient(opts...)
 
