@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type remoteImageResolver struct {
@@ -19,7 +20,7 @@ func (*remoteImageResolver) Name() string {
 }
 
 func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, streams *iostreams.IOStreams, opts RefOptions, build *build) (*DeploymentImage, string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "resolve_image_remotely")
+	ctx, span := tracing.GetTracer().Start(ctx, "remote_image_resolver", trace.WithAttributes(opts.ToSpanAttributes()...))
 	defer span.End()
 
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' remotely...\n", opts.ImageRef)
