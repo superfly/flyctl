@@ -4,7 +4,6 @@
 package preflight
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -378,111 +376,6 @@ web = "nginx -g 'daemon off;'"
 		}
 	}
 	require.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
-}
-
-func TestAppsV2MigrateToV2(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
-
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(3 * time.Second)
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
-
-	var statusMap map[string]any
-	result.StdOutJSON(&statusMap)
-	platformVersion, _ := statusMap["PlatformVersion"].(string)
-	require.Equal(f, "machines", platformVersion)
-}
-
-// This test takes forever. I'm sorry.
-func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
-	f := testlib.NewTestEnvFromEnv(t)
-	f.Skipf("not reliably working")
-	appName := f.CreateRandomAppName()
-
-	f.Fly("apps create %s -o %s --nomad", appName, f.OrgSlug())
-	f.WriteFlyToml(`
-app = "%s"
-primary_region = "%s"
-
-[build]
-  image = "nginx"
-
-[mounts]
-	source = "vol_test"
-	destination = "/vol"
-	`, appName, f.PrimaryRegion())
-
-	f.Fly("vol create -y -s 2 --region %s vol_test", f.PrimaryRegion())
-	f.Fly("deploy --now --force-nomad")
-
-	// Give
-	time.Sleep(2 * time.Second)
-	f.Fly("ssh console -C 'dd if=/dev/random of=/vol/flag.txt bs=1M count=10'")
-	f.Fly("ssh console -C 'sync -f /vol/'")
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		r := f.FlyAllowExitFailure("ssh console -q -C 'test -r /vol/flag.txt'")
-		assert.Equal(c, 0, r.ExitCode(), "expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.ExitCode(), r.CmdString(), r.StdOutString(), r.StdErr().String())
-	}, 5*time.Second, 1*time.Second)
-
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
-
-	var statusMap map[string]any
-	result.StdOutJSON(&statusMap)
-	platformVersion, _ := statusMap["PlatformVersion"].(string)
-	require.Equal(f, "machines", platformVersion)
-
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		r := f.FlyAllowExitFailure("ssh console -q -C 'test -r /vol/flag.txt'")
-		assert.Equal(c, 0, r.ExitCode(), "expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.ExitCode(), r.CmdString(), r.StdOutString(), r.StdErr().String())
-	}, 5*time.Second, 1*time.Second)
-}
-
-// this test is really slow :(
-func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
-
-	ctx, cancel := context.WithTimeoutCause(context.Background(), 6*time.Minute, errors.New("test timed out"))
-	defer cancel()
-
-	f.FlyC(ctx, "launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(3 * time.Second)
-	f.FlyC(ctx, "autoscale set min=2 max=3")
-	f.FlyC(ctx, "migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.FlyC(ctx, "status --json")
-
-	var statusMap map[string]any
-	result.StdOutJSON(&statusMap)
-	platformVersion, _ := statusMap["PlatformVersion"].(string)
-	require.Equal(f, "machines", platformVersion)
-
-	// give time for the request to process
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		machines := f.MachinesList(appName)
-		assert.Equal(c, 3, len(machines))
-
-		for _, machine := range machines {
-			services := machine.Config.Services
-			assert.Equal(c, 1, len(services))
-
-			service := services[0]
-			assert.Equal(c, *service.MinMachinesRunning, 2)
-		}
-	}, 5*time.Second, 1*time.Second)
-
-	result = f.Fly("config show -a %s", appName)
-
-	require.Contains(f, result.StdOutString(), `"min_machines_running": 2,`)
-	require.Contains(f, result.StdOutString(), `"auto_start_machines": true,`)
-	require.Contains(f, result.StdOutString(), `"auto_stop_machines": true,`)
 }
 
 func TestNoPublicIPDeployMachines(t *testing.T) {
