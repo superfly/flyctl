@@ -130,29 +130,56 @@ func (t *Tokens) normalized(macaroonsAndUserTokens, includeScheme bool) string {
 	return scheme + t.Macaroons()
 }
 
-// pruneBadMacaroons removes expired and invalid macaroon tokens.
+// pruneBadMacaroons removes expired and invalid macaroon tokens as well as
+// discharge tokens that are no longer needed.
 func (t *Tokens) pruneBadMacaroons() bool {
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	var updated bool
+	var (
+		updated   bool
+		tpTickets = make(map[string]bool)
+		parsed    = make(map[string]*macaroon.Macaroon)
+	)
 
-	// TODO: remove unused discharge tokens
-
-	t.MacaroonTokens = slices.DeleteFunc(t.MacaroonTokens, func(tok string) bool {
+	for _, tok := range t.MacaroonTokens {
 		raws, err := macaroon.Parse(tok)
 		if err != nil {
-			updated = true
-			return true
+			continue
 		}
 
 		m, err := macaroon.Decode(raws[0])
 		if err != nil {
+			continue
+		}
+
+		if time.Now().After(m.Expiration()) {
+			continue
+		}
+
+		parsed[tok] = m
+
+		if m.Location != flyio.LocationPermission {
+			continue
+		}
+
+		for _, tp := range macaroon.GetCaveats[*macaroon.Caveat3P](&m.UnsafeCaveats) {
+			tpTickets[string(tp.Ticket)] = true
+		}
+	}
+
+	t.MacaroonTokens = slices.DeleteFunc(t.MacaroonTokens, func(tok string) bool {
+		m, ok := parsed[tok]
+		if !ok {
 			updated = true
 			return true
 		}
 
-		if time.Now().After(m.Expiration()) {
+		if m.Location == flyio.LocationPermission {
+			return false
+		}
+
+		if !tpTickets[string(m.Nonce.KID)] {
 			updated = true
 			return true
 		}
