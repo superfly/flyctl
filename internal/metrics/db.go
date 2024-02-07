@@ -26,6 +26,12 @@ func queueMetric(metric metricsMessage) {
 
 // Spawns a forked `flyctl metrics send` process that sends metrics to the flyctl-metrics server
 func FlushMetrics(ctx context.Context) error {
+	if len(metrics) == 0 {
+		// Don't bother sending an empty request if there are no metrics to flush
+		// This is important to prevent leaking requests when analytics is disabled
+		return nil
+	}
+
 	json, err := json.Marshal(metrics)
 	if err != nil {
 		return err
