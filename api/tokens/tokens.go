@@ -130,29 +130,56 @@ func (t *Tokens) normalized(macaroonsAndUserTokens, includeScheme bool) string {
 	return scheme + t.Macaroons()
 }
 
-// pruneBadMacaroons removes expired and invalid macaroon tokens.
+// pruneBadMacaroons removes expired and invalid macaroon tokens as well as
+// discharge tokens that are no longer needed.
 func (t *Tokens) pruneBadMacaroons() bool {
 	t.m.Lock()
 	defer t.m.Unlock()
 
-	var updated bool
+	var (
+		updated   bool
+		tpTickets = make(map[string]bool)
+		parsed    = make(map[string]*macaroon.Macaroon)
+	)
 
-	// TODO: remove unused discharge tokens
-
-	t.MacaroonTokens = slices.DeleteFunc(t.MacaroonTokens, func(tok string) bool {
+	for _, tok := range t.MacaroonTokens {
 		raws, err := macaroon.Parse(tok)
 		if err != nil {
-			updated = true
-			return true
+			continue
 		}
 
 		m, err := macaroon.Decode(raws[0])
 		if err != nil {
+			continue
+		}
+
+		if time.Now().After(m.Expiration()) {
+			continue
+		}
+
+		parsed[tok] = m
+
+		if m.Location != flyio.LocationPermission {
+			continue
+		}
+
+		for _, tp := range macaroon.GetCaveats[*macaroon.Caveat3P](&m.UnsafeCaveats) {
+			tpTickets[string(tp.Ticket)] = true
+		}
+	}
+
+	t.MacaroonTokens = slices.DeleteFunc(t.MacaroonTokens, func(tok string) bool {
+		m, ok := parsed[tok]
+		if !ok {
 			updated = true
 			return true
 		}
 
-		if time.Now().After(m.Expiration()) {
+		if m.Location == flyio.LocationPermission {
+			return false
+		}
+
+		if !tpTickets[string(m.Nonce.KID)] {
 			updated = true
 			return true
 		}
@@ -178,10 +205,11 @@ func (t *Tokens) pruneBadMacaroons() bool {
 //
 // See https://github.com/superfly/macaroon/blob/main/tp/README.md
 func (t *Tokens) dischargeThirdPartyCaveats(ctx context.Context, opts []UpdateOption) (bool, error) {
-	t.m.Lock()
-	defer t.m.Unlock()
-
+	t.m.RLock()
 	macaroons := strings.Join(t.MacaroonTokens, ",")
+	oauths := strings.Join(t.UserTokens, ",")
+	t.m.RUnlock()
+
 	if macaroons == "" {
 		return false, nil
 	}
@@ -196,25 +224,21 @@ func (t *Tokens) dischargeThirdPartyCaveats(ctx context.Context, opts []UpdateOp
 		return false, err
 	}
 
-	h := &http.Client{Jar: jar}
-	if options.debugger != nil {
-		h.Transport = debugTransport{
+	h := &http.Client{
+		Jar: jar,
+		Transport: debugTransport{
 			d: options.debugger,
 			t: http.DefaultTransport,
-		}
+		},
 	}
 
 	copts := options.clientOptions
 	copts = append(copts, tp.WithHTTP(h))
-	if len(t.UserTokens) != 0 {
+	if oauths != "" {
 		copts = append(copts,
-			tp.WithBearerAuthentication(
-				"auth.fly.io",
-				strings.Join(t.UserTokens, ","),
-			), tp.WithBearerAuthentication(
-				flyio.LocationAuthentication,
-				strings.Join(t.UserTokens, ","),
-			))
+			tp.WithBearerAuthentication("auth.fly.io", oauths),
+			tp.WithBearerAuthentication(flyio.LocationAuthentication, oauths),
+		)
 	}
 	c := flyio.DischargeClient(copts...)
 
@@ -225,11 +249,17 @@ func (t *Tokens) dischargeThirdPartyCaveats(ctx context.Context, opts []UpdateOp
 		return false, nil
 	}
 
+	toCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
 	options.debugger.Debug("Attempting to upgrade authentication token")
-	withDischarges, err := c.FetchDischargeTokens(ctx, macaroons)
+	withDischarges, err := c.FetchDischargeTokens(toCtx, macaroons)
 
 	// withDischarges will be non-empty in the event of partial success
 	if withDischarges != "" && withDischarges != macaroons {
+		t.m.Lock()
+		defer t.m.Unlock()
+
 		t.MacaroonTokens = Parse(withDischarges).MacaroonTokens
 		return true, err
 	}

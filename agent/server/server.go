@@ -141,7 +141,14 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 	})
 
 	eg.Go(func() error {
-		s.updateMacaroons(ctx)
+		if f := config.Tokens(ctx).FromConfigFile; f == "" {
+			s.print("monitoring for token expiration")
+			s.updateMacaroonsInMemory(ctx)
+		} else {
+			s.print("monitoring for token changes and expiration")
+			s.updateMacaroonsInFile(ctx, f)
+		}
+
 		return nil
 	})
 
@@ -372,15 +379,7 @@ func (s *server) clean(ctx context.Context) {
 }
 
 // updateMacaroons prunes expired macaroons and attempts to fetch discharge
-// tokens if necessary.
-func (s *server) updateMacaroons(ctx context.Context) {
-	if f := config.Tokens(ctx).FromConfigFile; f == "" {
-		s.updateMacaroonsInMemory(ctx)
-	} else {
-		s.updateMacaroonsInFile(ctx, f)
-	}
-}
-
+// tokens as necessary.
 func (s *server) updateMacaroonsInMemory(ctx context.Context) {
 	toks := config.Tokens(ctx)
 
@@ -403,6 +402,9 @@ func (s *server) updateMacaroonsInMemory(ctx context.Context) {
 	}
 }
 
+// updateMacaroons updates the agent's tokens as the config file changes. It
+// also prunes expired tokens and fetches discharge tokens as necessary. Those
+// updates are written back to the config file.
 func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
 	toks := config.Tokens(ctx)
 
