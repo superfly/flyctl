@@ -2,6 +2,7 @@ package deploy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -20,8 +21,11 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -100,6 +104,9 @@ type machineDeployment struct {
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
+	defer span.End()
+
 	if !args.RestartOnly && args.DeploymentImage == "" {
 		return nil, fmt.Errorf("BUG: machines deployment created without specifying the image")
 	}
@@ -108,12 +115,14 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 	appConfig, err := determineAppConfigForMachines(ctx, args.EnvFromFlags, args.PrimaryRegionFlag, args.Strategy, args.MaxUnavailable, args.Files)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to determine app config for machines")
 		return nil, err
 	}
 
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
 		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		tracing.RecordError(span, err, "failed to validate process groups")
 		return nil, err
 	}
 
@@ -122,12 +131,14 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 	flapsClient, err := flaps.New(ctx, args.AppCompact)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to init flaps client")
 		return nil, err
 	}
 
 	if appConfig.Deploy != nil {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to split release command")
 			return nil, err
 		}
 	}
@@ -205,33 +216,43 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		processGroups:          args.ProcessGroups,
 	}
 	if err := md.setStrategy(); err != nil {
+		tracing.RecordError(span, err, "failed to set strategy")
 		return nil, err
 	}
 	if err := md.setMachinesForDeployment(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to set machines for first deployemt")
 		return nil, err
 	}
 	if err := md.setVolumes(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to set volumes")
 		return nil, err
 	}
 	if err := md.setImg(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to set img")
 		return nil, err
 	}
 	if err := md.setFirstDeploy(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to set first depoyment")
 		return nil, err
 	}
 
 	// Provisioning must come after setVolumes
 	if err := md.provisionFirstDeploy(ctx, args.AllocPublicIP); err != nil {
+		tracing.RecordError(span, err, "failed to provision first depoloy")
 		return nil, err
 	}
 
 	// validations must happen after every else
 	if err := md.validateVolumeConfig(); err != nil {
+		tracing.RecordError(span, err, "failed to validate volume config")
 		return nil, err
 	}
 	if err = md.createReleaseInBackend(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to create release in backend")
 		return nil, err
 	}
+
+	span.SetAttributes(md.ToSpanAttributes()...)
 	return md, nil
 }
 
@@ -245,8 +266,12 @@ func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
 }
 
 func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "set_machines_for_deployment")
+	defer span.End()
+
 	machines, releaseCmdMachine, err := md.flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to list machines")
 		return err
 	}
 
@@ -254,6 +279,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		activeMachines, err := md.flapsClient.ListActive(ctx)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to list machines")
 			return err
 		}
 		if len(activeMachines) > 0 {
@@ -479,6 +505,9 @@ func (md *machineDeployment) setStrategy() error {
 }
 
 func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
+	defer span.End()
+
 	_ = `# @genqlient
 	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
 		createRelease(input:$input) {
@@ -498,6 +527,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	}
 	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to create machine release")
 		return err
 	}
 	md.releaseId = resp.CreateRelease.Release.Id
@@ -506,6 +536,12 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 }
 
 func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
+		attribute.String("release_id", md.releaseId),
+		attribute.String("status", status),
+	))
+	defer span.End()
+
 	_ = `# @genqlient
 	mutation MachinesUpdateRelease($input:UpdateReleaseInput!) {
 		updateRelease(input:$input) {
@@ -521,6 +557,7 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	}
 	_, err := gql.MachinesUpdateRelease(ctx, md.gqlClient, input)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to update machine release")
 		return err
 	}
 	return nil
@@ -589,4 +626,42 @@ func (md *machineDeployment) ProcessNames() (names []string) {
 		})
 	}
 	return
+}
+
+func (md *machineDeployment) ToSpanAttributes() []attribute.KeyValue {
+	attrs := []attribute.KeyValue{
+		attribute.String("deployment.app.name", md.app.Name),
+		attribute.String("deployment.image", md.img),
+		attribute.String("deployment.strategy", md.strategy),
+		attribute.Bool("deployment.skip_smoke_checks", md.skipSmokeChecks),
+		attribute.Bool("deployment.skip_health_checks", md.skipHealthChecks),
+		attribute.Bool("deployment.restart_only", md.restartOnly),
+		attribute.Float64("deployment.max_unavailable", md.maxUnavailable),
+		attribute.Float64("deployment.wait_timeout", md.waitTimeout.Seconds()),
+		attribute.Float64("deployment.lease_timeout", md.leaseTimeout.Seconds()),
+		attribute.Float64("deployment.lease_delay_between", md.leaseDelayBetween.Seconds()),
+		attribute.Float64("deployment.release_cmd_timeout", md.releaseCmdTimeout.Seconds()),
+		attribute.Bool("deployment.increased_availability", md.increasedAvailability),
+		attribute.Bool("deployment.update_only", md.updateOnly),
+		attribute.Int("deployment.immediate_max_concurrency", md.immediateMaxConcurrent),
+		attribute.Int("deployment.volume_initial_size", md.volumeInitialSize),
+	}
+
+	b, err := json.Marshal(md.excludeRegions)
+	if err == nil {
+		attrs = append(attrs, attribute.String("deployment.exclude_regions", string(b)))
+	}
+
+	b, err = json.Marshal(md.onlyRegions)
+	if err == nil {
+		attrs = append(attrs, attribute.String("deployment.only_regions", string(b)))
+	}
+
+	b, err = json.Marshal(md.processGroups)
+	if err == nil {
+		attrs = append(attrs, attribute.String("deployment.process_groups", string(b)))
+	}
+
+	return attrs
+
 }

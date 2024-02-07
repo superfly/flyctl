@@ -38,10 +38,14 @@ func dischargeThirdPartyCaveats(ctx context.Context, t *tokens.Tokens) (bool, er
 		tp.WithHTTP(&http.Client{Jar: jar}),
 	}
 	if len(t.UserTokens) != 0 {
-		opts = append(opts, tp.WithBearerAuthentication(
-			"auth.fly.io",
-			strings.Join(t.UserTokens, ","),
-		))
+		opts = append(opts,
+			tp.WithBearerAuthentication(
+				"auth.fly.io",
+				strings.Join(t.UserTokens, ","),
+			), tp.WithBearerAuthentication(
+				flyio.LocationAuthentication,
+				strings.Join(t.UserTokens, ","),
+			))
 	}
 	c := flyio.DischargeClient(opts...)
 
@@ -84,7 +88,17 @@ func pruneBadMacaroons(t *tokens.Tokens) bool {
 			return true
 		}
 
-		if expired := time.Now().After(m.Expiration()); expired {
+		if time.Now().After(m.Expiration()) {
+			updated = true
+			return true
+		}
+
+		// preemptively prune auth tokens that will expire in the next minute.
+		// The hope is that we can replace discharge tokens *before* they expire
+		// so requests don't fail.
+		//
+		// TODO: this is hacky
+		if m.Location == flyio.LocationAuthentication && time.Now().Add(time.Minute).After(m.Expiration()) {
 			updated = true
 			return true
 		}

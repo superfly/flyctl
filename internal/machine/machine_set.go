@@ -10,6 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -139,6 +140,9 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 }
 
 func (ms *machineSet) StartBackgroundLeaseRefresh(ctx context.Context, leaseDuration time.Duration, delayBetween time.Duration) {
+	ctx, span := tracing.GetTracer().Start(ctx, "start_background_lease_refresh")
+	defer span.End()
+
 	for _, m := range ms.machines {
 		m.StartBackgroundLeaseRefresh(ctx, leaseDuration, delayBetween)
 	}
