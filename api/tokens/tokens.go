@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/superfly/macaroon"
@@ -24,6 +25,7 @@ type Tokens struct {
 	MacaroonTokens []string
 	UserTokens     []string
 	FromConfigFile string
+	m              sync.RWMutex
 }
 
 // Parse extracts individual tokens from a token string. The input token may
@@ -44,6 +46,15 @@ func Parse(token string) *Tokens {
 	}
 
 	return ret
+}
+
+func (t *Tokens) Replace(other *Tokens) {
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	t.MacaroonTokens = other.MacaroonTokens
+	t.UserTokens = other.UserTokens
+	t.FromConfigFile = other.FromConfigFile
 }
 
 // Update prunes any invalid/expired macaroons and fetches needed third party
@@ -92,10 +103,16 @@ func (t *Tokens) All() string {
 }
 
 func (t *Tokens) Macaroons() string {
+	t.m.RLock()
+	defer t.m.RUnlock()
+
 	return strings.Join(t.MacaroonTokens, ",")
 }
 
 func (t *Tokens) normalized(macaroonsAndUserTokens, includeScheme bool) string {
+	t.m.RLock()
+	defer t.m.RUnlock()
+
 	scheme := ""
 	if includeScheme {
 		scheme = "Bearer "
@@ -113,24 +130,11 @@ func (t *Tokens) normalized(macaroonsAndUserTokens, includeScheme bool) string {
 	return scheme + t.Macaroons()
 }
 
-// stripAuthorizationScheme strips any FlyV1/Bearer schemes from token.
-func stripAuthorizationScheme(token string) string {
-	token = strings.TrimSpace(token)
-
-	pfx, rest, found := strings.Cut(token, " ")
-	if !found {
-		return token
-	}
-
-	if pfx = strings.TrimSpace(pfx); strings.EqualFold(pfx, "Bearer") || strings.EqualFold(pfx, "FlyV1") {
-		return stripAuthorizationScheme(rest)
-	}
-
-	return token
-}
-
 // pruneBadMacaroons removes expired and invalid macaroon tokens.
 func (t *Tokens) pruneBadMacaroons() bool {
+	t.m.Lock()
+	defer t.m.Unlock()
+
 	var updated bool
 
 	// TODO: remove unused discharge tokens
@@ -174,7 +178,10 @@ func (t *Tokens) pruneBadMacaroons() bool {
 //
 // See https://github.com/superfly/macaroon/blob/main/tp/README.md
 func (t *Tokens) dischargeThirdPartyCaveats(ctx context.Context, opts []UpdateOption) (bool, error) {
-	macaroons := t.Macaroons()
+	t.m.Lock()
+	defer t.m.Unlock()
+
+	macaroons := strings.Join(t.MacaroonTokens, ",")
 	if macaroons == "" {
 		return false, nil
 	}
@@ -265,4 +272,20 @@ type debugTransport struct {
 func (d debugTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	d.d.Debug("Request:", req.URL.String())
 	return d.t.RoundTrip(req)
+}
+
+// stripAuthorizationScheme strips any FlyV1/Bearer schemes from token.
+func stripAuthorizationScheme(token string) string {
+	token = strings.TrimSpace(token)
+
+	pfx, rest, found := strings.Cut(token, " ")
+	if !found {
+		return token
+	}
+
+	if pfx = strings.TrimSpace(pfx); strings.EqualFold(pfx, "Bearer") || strings.EqualFold(pfx, "FlyV1") {
+		return stripAuthorizationScheme(rest)
+	}
+
+	return token
 }
