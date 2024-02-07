@@ -8,9 +8,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/scanner"
 )
 
 // Let's *try* to keep this struct backwards-compatible as we change it
@@ -32,10 +30,9 @@ type launchState struct {
 	workingDir string
 	configPath string
 	LaunchManifest
-	env        map[string]string
-	appConfig  *appconfig.Config
-	sourceInfo *scanner.SourceInfo
-	cache      map[string]interface{}
+	env map[string]string
+	planBuildCache
+	cache map[string]interface{}
 }
 
 func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
