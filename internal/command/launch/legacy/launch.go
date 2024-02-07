@@ -302,7 +302,7 @@ func Run(ctx context.Context) (err error) {
 	}
 
 	if deployNow {
-		return deploy.DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "now"), nil)
+		return deploy.DeployWithConfig(ctx, appConfig, flag.GetBool(ctx, "now"))
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
@@ -434,10 +434,7 @@ func buildPlanFromLegacyOptions(
 		AppName:    appConfig.AppName,
 		RegionCode: region.Code,
 		OrgSlug:    org.Slug,
-		CPUKind:    guest.CPUKind,
-		CPUs:       guest.CPUs,
-		MemoryMB:   guest.MemoryMB,
-		VmSize:     guest.ToSize(),
+		Compute:    []*appconfig.Compute{{MachineGuest: guest}},
 	}
 	if sourceInfo != nil {
 		launchPlan.ScannerFamily = sourceInfo.Family

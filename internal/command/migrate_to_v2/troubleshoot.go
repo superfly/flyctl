@@ -580,5 +580,5 @@ func (t *troubleshooter) deployMachines(ctx context.Context) (err error) {
 		return err
 	}
 
-	return deploy.DeployWithConfig(fakeFlagCtx, cfg, false, nil)
+	return deploy.DeployWithConfig(fakeFlagCtx, cfg, false)
 }
