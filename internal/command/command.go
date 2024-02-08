@@ -13,8 +13,10 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -531,28 +533,39 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 func updateMacaroons(ctx context.Context) (context.Context, error) {
 	log := logger.FromContext(ctx)
 
-	tokens := config.Tokens(ctx)
+	toks := config.Tokens(ctx)
 
-	pruned := pruneBadMacaroons(tokens)
-	discharged, err := dischargeThirdPartyCaveats(ctx, tokens)
+	updated, err := toks.Update(ctx,
+		tokens.WithUserURLCallback(tryOpenUserURL),
+		tokens.WithDebugger(log),
+	)
 
 	if err != nil {
 		log.Warn("Failed to upgrade authentication token. Command may fail.")
 		log.Debug(err)
 	}
 
-	if pruned || discharged {
-		if tokens.FromConfigFile {
-			path := state.ConfigFile(ctx)
+	if !updated || toks.FromConfigFile == "" {
+		return ctx, nil
+	}
 
-			if err = config.SetAccessToken(path, tokens.All()); err != nil {
-				log.Warn("Failed to persist authentication token.")
-				log.Debug(err)
-			}
-		}
+	if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
+		log.Warn("Failed to persist authentication token.")
+		log.Debug(err)
 	}
 
 	return ctx, nil
+}
+
+func tryOpenUserURL(ctx context.Context, url string) error {
+	if err := open.Run(url); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+			"failed opening browser. Copy the url (%s) into a browser and continue\n",
+			url,
+		)
+	}
+
+	return nil
 }
 
 // LoadAppConfigIfPresent is a Preparer which loads the application's

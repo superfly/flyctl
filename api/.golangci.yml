@@ -49,6 +49,9 @@ linters-settings:
         - github.com/Khan/genqlient
         - github.com/PuerkitoBio/rehttp
         - github.com/superfly/graphql
+        - github.com/superfly/macaroon
+        - github.com/superfly/macaroon/flyio
+        - github.com/superfly/macaroon/tp
         - go.opentelemetry.io/otel
         - go.opentelemetry.io/otel/attribute
         - go.opentelemetry.io/otel/codes
