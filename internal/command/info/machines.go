@@ -54,24 +54,13 @@ func showMachineInfo(ctx context.Context, appName string) error {
 }
 
 func showMachineAppInfo(ctx context.Context, app *api.AppCompact) error {
-	var (
-		io = iostreams.FromContext(ctx)
-	)
-	rows := [][]string{
-		{
-			app.Name,
-			app.Organization.Slug,
-			app.PlatformVersion,
-			app.Hostname,
-		},
-	}
-	var cols = []string{"Name", "Owner", "Platform", "Hostname"}
-
-	if err := render.VerticalTable(io.Out, "App", rows, cols...); err != nil {
-		return err
-	}
-
-	return nil
+	io := iostreams.FromContext(ctx)
+	rows := [][]string{{
+		app.Name,
+		app.Organization.Slug,
+		app.Hostname,
+	}}
+	return render.VerticalTable(io.Out, "App", rows, "Name", "Owner", "Hostname")
 }
 
 func showMachineIPInfo(ctx context.Context, appName string) error {

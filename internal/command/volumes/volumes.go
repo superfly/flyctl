@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -93,30 +92,12 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 }
 
 func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, out io.Writer) error {
-	apiClient := client.FromContext(ctx).API()
 	rows := make([][]string, 0, len(volumes))
 	for _, volume := range volumes {
 		var attachedVMID string
 
-		if app.PlatformVersion == "machines" {
-			if volume.AttachedMachine != nil {
-				attachedVMID = *volume.AttachedMachine
-			}
-		} else {
-			names, err := apiClient.GetAllocationTaskNames(ctx, app.Name)
-			if err != nil {
-				return err
-			}
-
-			if volume.AttachedAllocation != nil {
-				attachedVMID = *volume.AttachedAllocation
-
-				taskName, ok := names[*volume.AttachedAllocation]
-
-				if ok && taskName != "app" {
-					attachedVMID = fmt.Sprintf("%s (%s)", *volume.AttachedAllocation, taskName)
-				}
-			}
+		if volume.AttachedMachine != nil {
+			attachedVMID = *volume.AttachedMachine
 		}
 
 		rows = append(rows, []string{

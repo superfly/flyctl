@@ -40,9 +40,5 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	if appInfo.PlatformVersion == "machines" {
-		return ShowMachineServiceInfo(ctx, appInfo)
-	} else {
-		return showNomadServiceInfo(ctx, appInfo)
-	}
+	return ShowMachineServiceInfo(ctx, appInfo)
 }

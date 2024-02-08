@@ -34,13 +34,6 @@ func runSetup(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 	io := iostreams.FromContext(ctx)
 
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return err
-	} else if app.PlatformVersion != "machines" {
-		return errors.New("LSVD is supported only for Machines apps")
-	}
-
 	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
 		return err
