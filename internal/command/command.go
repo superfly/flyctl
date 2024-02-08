@@ -252,16 +252,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	return cache.NewContext(ctx, c), nil
 }
 
-func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {
-	apiClient := client.FromContext(ctx).API()
-	app, err := apiClient.GetAppBasic(ctx, appName)
-	if err != nil {
-		return false, fmt.Errorf("failed to retrieve app: %w", err)
-	}
-
-	return app.PlatformVersion == appconfig.MachinesPlatform, nil
-}
-
 func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
