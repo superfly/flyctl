@@ -78,15 +78,7 @@ func runListDbs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	switch app.PlatformVersion {
-	case "machines":
-		return runMachineListDbs(ctx, app)
-	case "nomad":
-		return runNomadListDbs(ctx, app)
-	default:
-		return fmt.Errorf("unknown platform version")
-	}
+	return runMachineListDbs(ctx, app)
 }
 
 func runMachineListDbs(ctx context.Context, app *api.AppCompact) error {
@@ -115,39 +107,6 @@ func runMachineListDbs(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	return listDBs(ctx, leader.PrivateIP)
-}
-
-func runNomadListDbs(ctx context.Context, app *api.AppCompact) error {
-	// Minimum image version requirements
-	var (
-		MinPostgresHaVersion = "0.0.19"
-		client               = client.FromContext(ctx).API()
-	)
-
-	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-		return err
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-	}
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-	}
-
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	return listDBs(ctx, leaderIP)
-
 }
 
 func listDBs(ctx context.Context, leaderIP string) error {
