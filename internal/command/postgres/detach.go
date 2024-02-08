@@ -62,15 +62,7 @@ func runDetach(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	switch pgApp.PlatformVersion {
-	case "machines":
-		return runMachineDetach(ctx, app, pgApp)
-	case "nomad":
-		return runNomadDetach(ctx, app, pgApp)
-	default:
-		return fmt.Errorf("unknown platform version")
-	}
+	return runMachineDetach(ctx, app, pgApp)
 }
 
 func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {
@@ -99,38 +91,6 @@ func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCo
 	}
 
 	return detachAppFromPostgres(ctx, leader.PrivateIP, app, pgApp)
-}
-
-func runNomadDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {
-	var (
-		MinPostgresHaVersion = "0.0.19"
-		client               = client.FromContext(ctx).API()
-	)
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("can't establish agent %w", err)
-	}
-
-	if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-		return err
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgApp.Name, err)
-	}
-
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", pgApp.Name)
-	}
-
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	return detachAppFromPostgres(ctx, leaderIP, app, pgApp)
 }
 
 // TODO - This process needs to be re-written to suppport non-interactive terminals.
