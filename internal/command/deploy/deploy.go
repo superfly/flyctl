@@ -9,7 +9,6 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -28,8 +27,6 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/watch"
 )
 
 var CommonFlags = flag.Set{
@@ -79,12 +76,6 @@ var CommonFlags = flag.Set{
 			"The lease is refreshed periodically for this same time, which is why it is short." +
 			"flyctl releases leases in most cases.",
 		Default: DefaultLeaseTtl.String(),
-	},
-	flag.Bool{
-		Name:        "force-nomad",
-		Description: "(Deprecated) Use the Apps v1 platform built with Nomad",
-		Default:     false,
-		Hidden:      true,
 	},
 	flag.Bool{
 		Name:        "force-machines",
@@ -254,28 +245,11 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)
-	if useMachines(ctx, appCompact) {
-		if err := appConfig.EnsureV2Config(); err != nil {
-			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
-		}
-		if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
-			return err
-		}
-	} else {
-		if flag.GetBool(ctx, "no-public-ips") {
-			return fmt.Errorf("the --no-public-ips flag can only be used for v2 apps")
-		}
-		if flag.IsSpecified(ctx, "vm-cpus") {
-			return fmt.Errorf("the --vm-cpus flag can only be used for v2 apps")
-		}
-		if flag.IsSpecified(ctx, "vm-memory") {
-			return fmt.Errorf("the --vm-memory flag can only be used for v2 apps")
-		}
-
-		err = deployToNomad(ctx, appConfig, appCompact, img)
-		if err != nil {
-			return err
-		}
+	if err := appConfig.EnsureV2Config(); err != nil {
+		return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
+	}
+	if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
+		return err
 	}
 
 	if appURL := appConfig.URL(); appURL != nil {
@@ -426,73 +400,6 @@ func deployToMachines(
 	return err
 }
 
-func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
-	apiClient := client.FromContext(ctx).API()
-
-	metrics.Started(ctx, "deploy_nomad")
-	defer func() {
-		metrics.Status(ctx, "deploy_nomad", err == nil)
-	}()
-
-	// Assign an empty map if nil so later assignments won't fail
-	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
-		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
-	}
-
-	release, releaseCommand, err := createRelease(ctx, appConfig, img)
-	if err != nil {
-		return err
-	}
-
-	// Give a warning about nomad deprecation every 5 releases
-	if release.Version%5 == 0 {
-		command.PromptToMigrate(ctx, appCompact)
-	}
-
-	if flag.GetDetach(ctx) {
-		return nil
-	}
-
-	// TODO: This is a single message that doesn't belong to any block output, so we should have helpers to allow that
-	tb := render.NewTextBlock(ctx)
-	tb.Done("You can detach the terminal anytime without stopping the deployment")
-
-	// Run the pre-deployment release command if it's set
-	if releaseCommand != nil {
-		// TODO: don't use text block here
-		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
-		tb.Done("This release will not be available until the release command succeeds.")
-
-		if err := watch.ReleaseCommand(ctx, appConfig.AppName, releaseCommand.ID); err != nil {
-			return err
-		}
-
-		release, err = apiClient.GetAppReleaseNomad(ctx, appConfig.AppName, release.ID)
-		if err != nil {
-			return err
-		}
-	}
-
-	if release.DeploymentStrategy == "IMMEDIATE" {
-		logger := logger.FromContext(ctx)
-		logger.Debug("immediate deployment strategy, nothing to monitor")
-
-		return nil
-	}
-
-	return watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
-}
-
-func useMachines(ctx context.Context, appCompact *api.AppCompact) bool {
-	if buildinfo.IsDev() && flag.GetBool(ctx, "force-nomad") && !appCompact.Deployed {
-		return false
-	}
-	if appCompact.Deployed && appCompact.PlatformVersion == appconfig.NomadPlatform {
-		return false
-	}
-	return true
-}
-
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
 func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) {
 	io := iostreams.FromContext(ctx)
@@ -545,30 +452,4 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 
 	tb.Done("Verified app config")
 	return cfg, nil
-}
-
-func createRelease(ctx context.Context, appConfig *appconfig.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
-	tb := render.NewTextBlock(ctx, "Creating release")
-
-	input := api.DeployImageInput{
-		AppID: appConfig.AppName,
-		Image: img.Tag,
-	}
-
-	// Set the deployment strategy
-	if val := flag.GetString(ctx, "strategy"); val != "" {
-		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
-	}
-
-	input.Definition = api.DefinitionPtr(appConfig.SanitizedDefinition())
-
-	// Start deployment of the determined image
-	client := client.FromContext(ctx).API()
-
-	release, releaseCommand, err := client.DeployImage(ctx, input)
-	if err == nil {
-		tb.Donef("release v%d created\n", release.Version)
-	}
-
-	return release, releaseCommand, err
 }
