@@ -348,33 +348,6 @@ func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasi
 	return &data.AppBasic, nil
 }
 
-func (client *Client) GetAppMonitoring(ctx context.Context, appName string) (*AppMonitoring, error) {
-	query := `
-		query ($appName: String!) {
-			appmonitoring:app(name: $appName) {
-				id
-				currentRelease {
-					evaluationId
-					status
-					inProgress
-					version
-				}
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-	req.Var("appName", appName)
-	ctx = ctxWithAction(ctx, "get_app_monitoring")
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.AppMonitoring, nil
-}
-
 func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppPostgres, error) {
 	query := `
 		query ($appName: String!) {

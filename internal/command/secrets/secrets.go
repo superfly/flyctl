@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/flyctl/api"
@@ -12,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/spf13/cobra"
@@ -49,34 +47,6 @@ func New() *cobra.Command {
 	)
 
 	return secrets
-}
-
-func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
-	switch app.PlatformVersion {
-	case appconfig.MachinesPlatform:
-		return DeploySecrets(ctx, app, stage, detach)
-	default:
-		return v1deploySecrets(ctx, app, release, stage, detach)
-	}
-}
-
-func v1deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
-	out := iostreams.FromContext(ctx).Out
-	if stage {
-		return errors.New("--stage isn't available for Nomad apps")
-	}
-
-	if !app.Deployed {
-		fmt.Fprintln(out, "Secrets are staged for the first deployment")
-		return nil
-	}
-
-	fmt.Fprintf(out, "Release v%d created\n", release.Version)
-	if flag.GetBool(ctx, "detach") {
-		return nil
-	}
-
-	return watch.Deployment(ctx, app.Name, release.EvaluationID)
 }
 
 func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach bool) error {
