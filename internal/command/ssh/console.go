@@ -80,12 +80,7 @@ func quiet(ctx context.Context) bool {
 }
 
 func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *api.AppCompact, console bool) (addr string, err error) {
-	if app.PlatformVersion == "machines" {
-		addr, err = addrForMachines(ctx, app, console)
-	} else {
-		addr, err = addrForNomad(ctx, cli, app, console)
-	}
-
+	addr, err = addrForMachines(ctx, app, console)
 	if err != nil {
 		return
 	}
@@ -344,51 +339,6 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	// No VM was selected or passed as an argument, so just pick the first one for now
 	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
 	return selectedMachine.PrivateIP, nil
-}
-
-func addrForNomad(ctx context.Context, agentclient *agent.Client, app *api.AppCompact, console bool) (addr string, err error) {
-	if flag.GetBool(ctx, "select") {
-
-		instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-		if err != nil {
-			return "", fmt.Errorf("look up %s: %w", app.Name, err)
-		}
-
-		selected := 0
-		prompt := &survey.Select{
-			Message:  "Select instance:",
-			Options:  instances.Labels,
-			PageSize: 15,
-		}
-
-		if err := survey.AskOne(prompt, &selected); err != nil {
-			return "", fmt.Errorf("selecting instance: %w", err)
-		}
-
-		addr = instances.Addresses[selected]
-		return addr, nil
-	}
-
-	if addr = flag.GetString(ctx, "address"); addr != "" {
-		return addr, nil
-	}
-
-	if console {
-		if len(flag.Args(ctx)) != 0 {
-			return flag.Args(ctx)[0], nil
-		}
-	}
-
-	// No VM was selected or passed as an argument, so just pick the first one for now
-	// We may use 'nearest.of' in the future
-	instances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-	if err != nil {
-		return "", fmt.Errorf("look up %s: %w", app.Name, err)
-	}
-	if len(instances.Addresses) < 1 {
-		return "", fmt.Errorf("no instances found for %s", app.Name)
-	}
-	return instances.Addresses[0], nil
 }
 
 const defaultTermEnv = "xterm"

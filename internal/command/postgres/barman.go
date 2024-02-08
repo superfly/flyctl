@@ -120,10 +120,6 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("wrong platform version")
-	}
-
 	var region *api.Region
 	region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
