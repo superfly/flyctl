@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
-	"github.com/superfly/flyctl/internal/command/launch/legacy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/iostreams"
@@ -121,13 +120,6 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 }
 
 func run(ctx context.Context) (err error) {
-
-	// NOTE: We depend on legacy launcher behavior for Nomad support, which is needed for the MigrateToV2 tests
-	//       Once we rip out those tests, this can go with them.
-	if flag.GetBool(ctx, "legacy") || flag.GetBool(ctx, "force-nomad") {
-		return legacy.Run(ctx)
-	}
-
 	io := iostreams.FromContext(ctx)
 
 	if err := warnLegacyBehavior(ctx); err != nil {
