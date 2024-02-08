@@ -70,10 +70,9 @@ func runSet(ctx context.Context) (err error) {
 
 func SetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets map[string]string, stage bool, detach bool) error {
 	client := client.FromContext(ctx).API()
-	release, err := client.SetSecrets(ctx, app.Name, secrets)
-	if err != nil {
+	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}
 
-	return deployForSecrets(ctx, app, release, stage, detach)
+	return DeploySecrets(ctx, app, stage, detach)
 }
