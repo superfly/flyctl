@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newRestart() *cobra.Command {
@@ -76,27 +75,7 @@ func runRestart(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	if app.PlatformVersion == "machines" {
-		return runMachinesRestart(ctx, app)
-	}
-
-	return runNomadRestart(ctx, app)
-}
-
-func runNomadRestart(ctx context.Context, app *api.AppCompact) error {
-	client := client.FromContext(ctx).API()
-
-	command.PromptToMigrate(ctx, app)
-
-	if _, err := client.RestartApp(ctx, app.Name); err != nil {
-		return fmt.Errorf("failed restarting app: %w", err)
-	}
-
-	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.Out, "%s is being restarted\n", app.Name)
-
-	return nil
+	return runMachinesRestart(ctx, app)
 }
 
 func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {

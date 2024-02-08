@@ -6,7 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -62,15 +61,7 @@ func runConfigShow(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	switch app.PlatformVersion {
-	case "machines":
-		return runMachineConfigShow(ctx, app)
-	case "nomad":
-		return runNomadConfigShow(ctx, app)
-	default:
-		return fmt.Errorf("unknown platform version")
-	}
+	return runMachineConfigShow(ctx, app)
 }
 
 func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
@@ -105,38 +96,6 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 	}
 
 	return showSettings(ctx, app, manager, leader.PrivateIP)
-}
-
-func runNomadConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
-	var (
-		MinPostgresHaVersion = "0.0.19"
-		client               = client.FromContext(ctx).API()
-	)
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-		return err
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-	}
-
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-	}
-
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	return showSettings(ctx, app, flypg.StolonManager, leaderIP)
 }
 
 func showSettings(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) error {
