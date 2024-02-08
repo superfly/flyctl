@@ -70,15 +70,8 @@ func runUpdate(ctx context.Context) error {
 		return err
 	}
 
-	switch app.PlatformVersion {
-	case "nomad":
-		return updateImageForNomad(ctx)
-	case "machines":
-		if app.IsPostgresApp() {
-			return updatePostgresOnMachines(ctx, app)
-		}
-		return updateImageForMachines(ctx, app)
-	default:
-		return fmt.Errorf("unable to determine platform version. please contact support")
+	if app.IsPostgresApp() {
+		return updatePostgresOnMachines(ctx, app)
 	}
+	return updateImageForMachines(ctx, app)
 }
