@@ -33,16 +33,8 @@ The update will perform a rolling restart against each VM, which may result in a
 		flag.AppConfig(),
 		flag.Yes(),
 		flag.String{
-			Name:        "strategy",
-			Description: "Deployment strategy. (Nomad only)",
-		},
-		flag.Bool{
-			Name:        "detach",
-			Description: "Return immediately instead of monitoring update progress. (Nomad only)",
-		},
-		flag.String{
 			Name:        "image",
-			Description: "Target a specific image. (Machines only)",
+			Description: "Target a specific image",
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",

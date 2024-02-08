@@ -366,10 +366,6 @@ func runMachineRun(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	if app.PlatformVersion == "nomad" {
-		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support Machines", app.Name)
-	}
-
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
 		imageOrPath = "ubuntu"
