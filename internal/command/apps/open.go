@@ -52,11 +52,7 @@ func runOpen(ctx context.Context) error {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	if !app.Deployed && app.PlatformVersion != "machines" {
-		return errors.New("app has not been deployed yet. Please try deploying your app first")
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}

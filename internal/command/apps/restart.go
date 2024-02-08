@@ -34,12 +34,12 @@ func newRestart() *cobra.Command {
 	flag.Add(cmd,
 		flag.Bool{
 			Name:        "force-stop",
-			Description: "Performs a force stop against the target Machine. ( Machines only )",
+			Description: "Performs a force stop against the target Machine",
 			Default:     false,
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Restarts app without waiting for health checks. ( Machines only )",
+			Description: "Restarts app without waiting for health checks",
 			Default:     false,
 		},
 	)
