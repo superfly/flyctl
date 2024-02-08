@@ -395,7 +395,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
 		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
 	}
-	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast)
+	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
 	if err != nil {
 		return "", err
 	}
@@ -418,7 +418,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 		// Don't use `ctx` here.
 		// Cancelling the context kills the reader of statusCh which blocks bc.Solve below.
 		// bc.Solve closes statusCh at the end and DisplaySolveStatus returns by reading the closed channel.
-		_, err = progressui.DisplaySolveStatus(context.Background(), "", con, os.Stdout, statusCh)
+		_, err = progressui.DisplaySolveStatus(context.Background(), con, os.Stdout, statusCh)
 		return err
 	})
 	var res *client.SolveResponse
