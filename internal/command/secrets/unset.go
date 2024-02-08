@@ -42,10 +42,9 @@ func runUnset(ctx context.Context) (err error) {
 
 func UnsetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets []string, stage bool, detach bool) error {
 	client := client.FromContext(ctx).API()
-	release, err := client.UnsetSecrets(ctx, app.Name, secrets)
-	if err != nil {
+	if _, err := client.UnsetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}
 
-	return deployForSecrets(ctx, app, release, stage, detach)
+	return DeploySecrets(ctx, app, stage, detach)
 }

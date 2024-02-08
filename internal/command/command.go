@@ -12,10 +12,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -442,16 +440,6 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
-}
-
-func PromptToMigrate(ctx context.Context, app *api.AppCompact) {
-	if app.PlatformVersion == "nomad" {
-		config := appconfig.ConfigFromContext(ctx)
-		if config != nil {
-			io := iostreams.FromContext(ctx)
-			fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with:\nfly migrate-to-v2 -c %s\n", aurora.Yellow("WARN"), config.ConfigFilePath())
-		}
-	}
 }
 
 func killOldAgent(ctx context.Context) (context.Context, error) {

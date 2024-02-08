@@ -82,12 +82,11 @@ func runList(ctx context.Context) (err error) {
 			app.Name,
 			app.Organization.Slug,
 			app.Status,
-			app.PlatformVersion,
 			latestDeploy,
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Platform", "Latest Deploy")
+	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
 
 	return
 }
