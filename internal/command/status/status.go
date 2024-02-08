@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,14 +16,11 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/api"
-
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
 )
 
 func New() (cmd *cobra.Command) {
@@ -66,10 +62,6 @@ currently allocated.
 		},
 	)
 
-	cmd.AddCommand(
-		newInstance(),
-	)
-
 	return
 }
 
@@ -92,10 +84,8 @@ func runOnce(ctx context.Context) error {
 
 func once(ctx context.Context, out io.Writer) (err error) {
 	var (
-		appName    = appconfig.NameFromContext(ctx)
-		all        = flag.GetBool(ctx, "all")
-		client     = client.FromContext(ctx).API()
-		jsonOutput = config.FromContext(ctx).JSONOutput
+		appName = appconfig.NameFromContext(ctx)
+		client  = client.FromContext(ctx).API()
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -103,87 +93,7 @@ func once(ctx context.Context, out io.Writer) (err error) {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	platformVersion := app.PlatformVersion
-
-	if platformVersion == "machines" {
-		err = RenderMachineStatus(ctx, app, out)
-		return
-	} else {
-		command.PromptToMigrate(ctx, app)
-	}
-
-	var status *api.AppStatus
-	if status, err = client.GetAppStatus(ctx, appName, all); err != nil {
-		err = fmt.Errorf("failed retrieving app %s: %w", appName, err)
-
-		return
-	}
-	var backupRegions []api.Region
-	if status.Deployed && !jsonOutput {
-		if _, backupRegions, err = client.ListAppRegions(ctx, appName); err != nil {
-			return fmt.Errorf("failed retrieving backup regions for %s: %w", appName, err)
-		}
-	}
-
-	if jsonOutput {
-		err = render.JSON(out, status)
-
-		return
-	}
-
-	obj := [][]string{
-		{
-			status.Name,
-			status.Organization.Slug,
-			strconv.Itoa(status.Version),
-			status.Status,
-			status.Hostname,
-			app.PlatformVersion,
-		},
-	}
-
-	if err = render.VerticalTable(out, "App", obj, "Name", "Owner", "Version", "Status", "Hostname", "Platform"); err != nil {
-		return
-	}
-	if !status.Deployed && platformVersion == "" {
-		_, err = fmt.Fprintln(out, "App has not been deployed yet.")
-
-		return
-	}
-
-	showDeploymentStatus := status.DeploymentStatus != nil &&
-		((status.DeploymentStatus.Version == status.Version && status.DeploymentStatus.Status != "cancelled") || flag.GetBool(ctx, "deployment"))
-
-	if showDeploymentStatus {
-		if err = renderDeploymentStatus(out, status.DeploymentStatus); err != nil {
-			return
-		}
-	}
-
-	err = render.AllocationStatuses(out, "Instances", backupRegions, status.Allocations...)
-
-	return
-}
-
-func renderDeploymentStatus(w io.Writer, ds *api.DeploymentStatus) error {
-	obj := [][]string{
-		{
-			ds.ID,
-			fmt.Sprintf("v%d", ds.Version),
-			ds.Status,
-			ds.Description,
-			fmt.Sprintf("%d desired, %d placed, %d healthy, %d unhealthy",
-				ds.DesiredCount, ds.PlacedCount, ds.HealthyCount, ds.UnhealthyCount),
-		},
-	}
-
-	return render.VerticalTable(w, "Deployment Status", obj,
-		"ID",
-		"Version",
-		"Status",
-		"Description",
-		"Instances",
-	)
+	return RenderMachineStatus(ctx, app, out)
 }
 
 func runWatch(ctx context.Context) (err error) {
