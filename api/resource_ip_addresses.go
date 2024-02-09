@@ -49,34 +49,6 @@ func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddres
 	return ips, nil
 }
 
-func (c *Client) FindIPAddress(ctx context.Context, appName string, address string) (*IPAddress, error) {
-	query := `
-		query($appName: String!, $address: String!) {
-			app(name: $appName) {
-				ipAddress(address: $address) {
-					id
-					address
-					type
-					region
-					createdAt
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-	ctx = ctxWithAction(ctx, "find_ip_address")
-	req.Var("appName", appName)
-	req.Var("address", address)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.App.IPAddress, nil
-}
-
 func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *Organization, network string) (*IPAddress, error) {
 	query := `
 		mutation($input: AllocateIPAddressInput!) {
