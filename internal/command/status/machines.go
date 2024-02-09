@@ -164,8 +164,8 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 		return err
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image, app.PlatformVersion}}
-	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image}}
+	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image"); err != nil {
 		return err
 	}
 

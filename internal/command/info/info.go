@@ -6,7 +6,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -38,21 +37,9 @@ func New() *cobra.Command {
 }
 
 func runInfo(ctx context.Context) error {
-	var (
-		client  = client.FromContext(ctx).API()
-		appName = appconfig.NameFromContext(ctx)
-	)
+	appName := appconfig.NameFromContext(ctx)
 
-	appInfo, err := client.GetAppInfo(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	if appInfo.PlatformVersion == "machines" {
-		return showMachineInfo(ctx, appName)
-	} else {
-		return showNomadInfo(ctx, appInfo)
-	}
+	return showMachineInfo(ctx, appName)
 }
 
 // TODO - Move this into a higher level package, so it can be used elsewhere.

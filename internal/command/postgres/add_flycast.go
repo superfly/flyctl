@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newAddFlycast() *cobra.Command {
@@ -44,7 +43,6 @@ func runAddFlycast(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
 		appName = appconfig.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -61,18 +59,10 @@ func runAddFlycast(ctx context.Context) error {
 		return err
 	}
 
-	switch app.PlatformVersion {
-	case "machines":
-		if err := doAddFlycast(ctx); err != nil {
-			return err
-		}
-
-		fmt.Fprintln(io.Out, "Flycast added!")
-	case "nomad":
-		return fmt.Errorf("not supported on nomad")
-	default:
-		return fmt.Errorf("unknown platform version")
+	if err := doAddFlycast(ctx); err != nil {
+		return err
 	}
+
 	return nil
 }
 
