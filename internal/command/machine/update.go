@@ -82,7 +82,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	machine, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

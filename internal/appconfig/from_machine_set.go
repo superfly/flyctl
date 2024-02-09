@@ -16,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
-func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machines machine.MachineSet) (*Config, string, error) {
+func FromAppAndMachineSet(ctx context.Context, appName string, machines machine.MachineSet) (*Config, string, error) {
 	var (
 		warnings                  []string
 		io                        = iostreams.FromContext(ctx)
@@ -28,7 +28,7 @@ func FromAppAndMachineSet(ctx context.Context, appCompact *api.AppCompact, machi
 		warnings = append(warnings, warningMsg)
 	}
 	for _, m := range machines.GetMachines() {
-		appConfig, machineWarning := fromAppAndOneMachine(ctx, appCompact, m, processGroups)
+		appConfig, machineWarning := fromAppAndOneMachine(ctx, appName, m, processGroups)
 		warnings = append(warnings, machineWarning)
 		tomlString, err := appConfig.marshalTOML()
 		if err != nil {
@@ -87,7 +87,7 @@ func prettyDiff(original, new string, colorize *iostreams.ColorScheme) string {
 	return ""
 }
 
-func fromAppAndOneMachine(ctx context.Context, appCompact *api.AppCompact, m machine.LeasableMachine, processGroups *processGroupInfo) (*Config, string) {
+func fromAppAndOneMachine(ctx context.Context, appName string, m machine.LeasableMachine, processGroups *processGroupInfo) (*Config, string) {
 	var (
 		warningMsg     string
 		primaryRegion  string
@@ -130,7 +130,7 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 		}
 	}
 	cfg := NewConfig()
-	cfg.AppName = appCompact.Name
+	cfg.AppName = appName
 	cfg.PrimaryRegion = primaryRegion
 	cfg.Env = m.Machine().Config.Env
 	cfg.Metrics = []*Metrics{
