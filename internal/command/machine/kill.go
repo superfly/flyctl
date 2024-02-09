@@ -41,7 +41,7 @@ func runMachineKill(ctx context.Context) (err error) {
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	current, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

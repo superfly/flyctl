@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -48,12 +47,7 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app: %w", err)
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -64,21 +58,8 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	if cfg.ForMachines() {
-		envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
-			return []string{e.Key, e.Value}
-		})
-		return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
-	} else {
-		vars, ok := cfg.RawDefinition["env"].(map[string]any)
-		if !ok {
-			return nil
-		}
-
-		envRows := lo.Map(lo.Entries(vars), func(e lo.Entry[string, any], _ int) []string {
-			return []string{e.Key, fmt.Sprintf("%s", e.Value)}
-		})
-
-		return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
-	}
+	envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
+		return []string{e.Key, e.Value}
+	})
+	return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
 }

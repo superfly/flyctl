@@ -26,7 +26,6 @@ const (
 
 func NewConfig() *Config {
 	return &Config{
-		RawDefinition:    map[string]any{},
 		defaultGroupName: api.MachineProcessGroupApp,
 		configFilePath:   "--config path unset--",
 	}
@@ -68,21 +67,13 @@ type Config struct {
 	Statics []Static   `toml:"statics,omitempty" json:"statics,omitempty"`
 	Metrics []*Metrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
 
-	// RawDefinition contains fly.toml parsed as-is
-	// If you add any config field that is v2 specific, be sure to remove it in SanitizeDefinition()
-	RawDefinition map[string]any `toml:"-" json:"-"`
-
 	// MergedFiles is a list of files that have been merged from the app config and flags.
 	MergedFiles []*api.File `toml:"-" json:"-"`
 
 	// Path to application configuration file, usually fly.toml.
 	configFilePath string
 
-	// Indicates the intended platform to use: machines or nomad
-	platformVersion string
-
 	// Set when it fails to unmarshal fly.toml into Config
-	// Don't hard fail because RawDefinition still holds the app configuration for Nomad apps
 	v2UnmarshalError error
 
 	// The default group name to refer to (used with flatten configs)
@@ -311,10 +302,6 @@ func (cfg *Config) URL() *url.URL {
 	default:
 		return nil
 	}
-}
-
-func (cfg *Config) PlatformVersion() string {
-	return cfg.platformVersion
 }
 
 // MergeFiles merges the provided files with the files in the config wherein the provided files
