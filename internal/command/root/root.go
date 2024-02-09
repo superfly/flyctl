@@ -61,7 +61,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
 	"github.com/superfly/flyctl/internal/command/tokens"
-	"github.com/superfly/flyctl/internal/command/turboku"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
 	"github.com/superfly/flyctl/internal/command/wireguard"
@@ -119,7 +118,6 @@ func New() *cobra.Command {
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),
 		jobs.New(),
-		turboku.New(),
 		group(services.New(), "upkeep"),
 		group(config.New(), "configuring"),
 		group(scale.New(), "configuring"),
