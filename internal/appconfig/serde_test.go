@@ -133,51 +133,7 @@ func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	assert.Equal(t, &Config{
 		configFilePath:   "./testdata/always-invalid-v2.toml",
 		v2UnmarshalError: fmt.Errorf("Unknown type for service concurrency: int64"),
-
-		AppName: "unsupported-format",
-		Build: &Build{
-			Builder:           "dockerfile",
-			Image:             "foo/fighter",
-			Builtin:           "whatisthis",
-			Dockerfile:        "Dockerfile",
-			Ignorefile:        ".gitignore",
-			DockerBuildTarget: "target",
-			Buildpacks:        []string{"packme", "well"},
-			Settings: map[string]any{
-				"foo":   "bar",
-				"other": int64(2),
-			},
-
-			Args: map[string]string{
-				"param1": "value1",
-				"param2": "value2",
-			},
-		},
-
-		RawDefinition: map[string]any{
-			"app": "unsupported-format",
-			"build": map[string]any{
-				"builder":      "dockerfile",
-				"image":        "foo/fighter",
-				"builtin":      "whatisthis",
-				"dockerfile":   "Dockerfile",
-				"ignorefile":   ".gitignore",
-				"build-target": "target",
-				"buildpacks":   []any{"packme", "well"},
-				"args": map[string]any{
-					"param1": "value1",
-					"param2": "value2",
-				},
-				"settings": map[string]any{
-					"foo":   "bar",
-					"other": int64(2),
-				},
-			},
-			"services": []any{map[string]any{
-				"concurrency":   int64(20),
-				"internal_port": "8080",
-			}},
-		},
+		AppName:          "unsupported-format",
 	}, cfg)
 }
 
@@ -201,17 +157,6 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 			Entrypoint: []string{"entrypoint"},
 			Exec:       []string{"exec"},
 		},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"experimental": map[string]any{
-				"cmd":          "cmd",
-				"entrypoint":   "entrypoint",
-				"exec":         "exec",
-				"kill_timeout": int64(3),
-				"metrics_path": "/foo",
-				"metrics_port": int64(9000),
-			},
-		},
 	}, cfg)
 }
 
@@ -227,13 +172,6 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 			Source:      "pg_data",
 			Destination: "/data",
 		}},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"mounts": []any{map[string]any{
-				"source":      "pg_data",
-				"destination": "/data",
-			}},
-		},
 	}, cfg)
 }
 
@@ -241,8 +179,6 @@ func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
 	const path = "./testdata/format-quirks.toml"
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
-	// Nullify cfg.RawDefinition because Compute section is apps v2 only
-	cfg.RawDefinition = nil
 
 	assert.Equal(t, &Config{
 		configFilePath:   "./testdata/format-quirks.toml",
@@ -341,52 +277,6 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 				},
 			},
 		},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"build": map[string]any{
-				"build_target": "thalayer",
-			},
-			"env": map[string]any{
-				"FOO": "STRING",
-				"BAR": int64(123),
-			},
-			"experimental": map[string]any{},
-			"mount": map[string]any{
-				"source":      "data",
-				"destination": "/data",
-			},
-			"metrics": map[string]any{
-				"port": int64(9999),
-				"path": "/metrics",
-			},
-			"processes": []any{map[string]any{}},
-			"services": []any{map[string]any{
-				"internal_port": "8080",
-				"ports": []any{
-					map[string]any{"port": "80", "handlers": []any{"http"}},
-				},
-				"concurrency": "12,23",
-				"tcp_checks": []any{
-					map[string]any{"interval": int64(10000), "timeout": int64(2000)},
-					map[string]any{"interval": "20s", "timeout": "3s"},
-				},
-				"http_checks": []any{
-					map[string]any{
-						"interval": int64(30000),
-						"timeout":  int64(4000),
-						"headers": []any{
-							map[string]any{"name": "origin", "value": "http://localhost:8000"},
-						},
-					},
-					map[string]any{
-						"interval":     "20s",
-						"timeout":      "3s",
-						"grace_period": "",
-						"headers":      map[string]any{"fly-healthcheck": int64(1), "astring": "string", "metoo": true},
-					},
-				},
-			}},
-		},
 	}, cfg)
 }
 
@@ -400,18 +290,6 @@ func TestLoadTOMLAppConfigOldProcesses(t *testing.T) {
 		Processes: map[string]string{
 			"web":    "./web",
 			"worker": "./worker",
-		},
-		RawDefinition: map[string]any{
-			"processes": []any{
-				map[string]any{
-					"name":    "web",
-					"command": "./web",
-				},
-				map[string]any{
-					"name":    "worker",
-					"command": "./worker",
-				},
-			},
 		},
 	}, cfg)
 }
@@ -431,17 +309,6 @@ func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 				HTTPPath: api.Pointer("/flycheck/pg"),
 			},
 		},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"checks": map[string]any{
-				"pg": map[string]any{
-					"type":    "http",
-					"port":    int64(5500),
-					"path":    "/flycheck/pg",
-					"headers": []any{},
-				},
-			},
-		},
 	}, cfg)
 }
 
@@ -449,9 +316,6 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	const path = "./testdata/full-reference.toml"
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
-
-	// Nullify cfg.RawDefinition because it won't mutate per test in TestLoadTOMLAppConfigOldFormat
-	cfg.RawDefinition = nil
 
 	assert.Equal(t, &Config{
 		configFilePath:   "./testdata/full-reference.toml",

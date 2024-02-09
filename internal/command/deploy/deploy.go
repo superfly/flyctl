@@ -245,9 +245,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)
-	if err := appConfig.EnsureV2Config(); err != nil {
-		return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
-	}
 	if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
 		return err
 	}
