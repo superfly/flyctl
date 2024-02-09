@@ -67,34 +67,6 @@ func TestProcessNames(t *testing.T) {
 				cfg, err = LoadConfig(tc.filepath)
 				require.NoError(t, err)
 			}
-			// Test unknown platform version
-			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
-			assert.Equal(t, tc.processNames, cfg.ProcessNames())
-			assert.Equal(t, tc.format, cfg.FormatProcessNames())
-
-			// XXX: Break here because SetPlatform calls crash on nil Config
-			if cfg == nil {
-				return
-			}
-
-			// Test for machines
-			require.NoError(t, cfg.SetMachinesPlatform())
-			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
-			assert.Equal(t, tc.processNames, cfg.ProcessNames())
-			assert.Equal(t, tc.format, cfg.FormatProcessNames())
-
-			if cfg.RawDefinition == nil {
-				return
-			}
-
-			// Test for detached
-			require.NoError(t, cfg.SetDetachedPlatform())
-			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
-			assert.Equal(t, tc.processNames, cfg.ProcessNames())
-			assert.Equal(t, tc.format, cfg.FormatProcessNames())
-
-			// Test for nomad
-			require.NoError(t, cfg.SetNomadPlatform())
 			assert.Equal(t, tc.defaultProcessName, cfg.DefaultProcessName())
 			assert.Equal(t, tc.processNames, cfg.ProcessNames())
 			assert.Equal(t, tc.format, cfg.FormatProcessNames())

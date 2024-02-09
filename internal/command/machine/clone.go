@@ -3,7 +3,6 @@ package machine
 import (
 	"context"
 	"fmt"
-	"slices"
 	"strings"
 	"time"
 
@@ -11,10 +10,9 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -58,7 +56,6 @@ If the original Machine has a volume, then a new empty volume will be created an
 			Name:        "attach-volume",
 			Description: "Existing volume to attach to the new Machine in the form of <volume_id>[:/path/inside/machine]",
 		},
-		flag.ProcessGroup("Change the cloned Machine process group to what is specified here"),
 		flag.String{
 			Name:        "override-cmd",
 			Description: "Set CMD on the new Machine to this value",
@@ -93,17 +90,11 @@ func runMachineClone(ctx context.Context) (err error) {
 		appName  = appconfig.NameFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
 	)
-
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return err
-	}
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	source, ctx, err := selectOneMachine(ctx, app, machineID, haveMachineID)
+	source, ctx, err := selectOneMachine(ctx, appName, machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
@@ -133,35 +124,7 @@ func runMachineClone(ctx context.Context) (err error) {
 
 	fmt.Fprintf(out, "Cloning Machine %s into region %s\n", colorize.Bold(source.ID), colorize.Bold(region))
 
-	targetConfig := source.Config
-	if targetProcessGroup := flag.GetProcessGroup(ctx); targetProcessGroup != "" {
-		appConfig, err := getAppConfig(ctx, appName)
-		if err != nil {
-			return fmt.Errorf("failed to get app config: %w", err)
-		}
-
-		if !slices.Contains(appConfig.ProcessNames(), targetProcessGroup) {
-			return fmt.Errorf("process group %s is not present in app configuration, add a [processes] section to fly.toml", targetProcessGroup)
-		}
-		if targetProcessGroup == api.MachineProcessGroupFlyAppReleaseCommand {
-			return fmt.Errorf("invalid process group %s, %s is reserved for internal use", targetProcessGroup, api.MachineProcessGroupFlyAppReleaseCommand)
-		}
-
-		if targetConfig.Metadata == nil {
-			targetConfig.Metadata = make(map[string]string)
-		}
-		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = targetProcessGroup
-		targetConfig.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
-
-		terminal.Infof("Setting process group to %s for new Machine and updating cmd, services, and checks\n", targetProcessGroup)
-		mConfig, err := appConfig.ToMachineConfig(targetProcessGroup, nil)
-		if err != nil {
-			return fmt.Errorf("failed to get process group config: %w", err)
-		}
-		targetConfig.Init.Cmd = mConfig.Init.Cmd
-		targetConfig.Services = mConfig.Services
-		targetConfig.Checks = mConfig.Checks
-	}
+	targetConfig := helpers.Clone(source.Config)
 
 	targetConfig.Guest, err = flag.GetMachineGuest(ctx, targetConfig.Guest)
 	if err != nil {
