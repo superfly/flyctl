@@ -24,7 +24,6 @@ require (
 	github.com/gofrs/flock v0.8.1
 	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
-	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.6.0
 	github.com/heroku/heroku-go/v5 v5.5.0
@@ -58,6 +57,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/superfly/flyctl/api v0.0.0
 	github.com/superfly/graphql v0.2.4
+	github.com/superfly/har v0.1.1
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.10
 	github.com/superfly/tokenizer v0.0.2
@@ -171,7 +171,6 @@ require (
 	go.opentelemetry.io/otel/metric v1.23.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
-	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/tools v0.17.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240102182953-50ed04b92917 // indirect
@@ -240,7 +239,5 @@ require (
 )
 
 replace github.com/superfly/flyctl/api => ./api
-
-// replace github.com/superfly/lfsc-go => ../lfsc-go
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
