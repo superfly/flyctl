@@ -39,7 +39,8 @@ type CreateVolumeRequest struct {
 }
 
 type UpdateVolumeRequest struct {
-	SnapshotRetention *int `json:"snapshot_retention"`
+	SnapshotRetention *int  `json:"snapshot_retention"`
+	AutoBackupEnabled *bool `json:"auto_backup_enabled"`
 }
 
 type VolumeSnapshot struct {
