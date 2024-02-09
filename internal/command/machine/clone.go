@@ -18,7 +18,6 @@ import (
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/terminal"
 )
 
 func newClone() *cobra.Command {
@@ -285,25 +284,4 @@ func runMachineClone(ctx context.Context) (err error) {
 	fmt.Fprintf(out, "Machine has been successfully cloned!\n")
 
 	return
-}
-
-func getAppConfig(ctx context.Context, appName string) (*appconfig.Config, error) {
-	cfg := appconfig.ConfigFromContext(ctx)
-	if cfg == nil {
-		terminal.Debug("no local app config detected; fetching from backend ...")
-
-		cfg, err := appconfig.FromRemoteApp(ctx, appName)
-		if err != nil {
-			return nil, fmt.Errorf("failed fetching existing app config: %w", err)
-		}
-
-		return cfg, nil
-	}
-
-	err, _ := cfg.Validate(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return cfg, nil
 }
