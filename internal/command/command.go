@@ -31,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/update"
 	"github.com/superfly/flyctl/internal/version"
+	"github.com/superfly/har"
 )
 
 type Runner func(context.Context) error
@@ -92,6 +93,14 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		ctx = NewContext(ctx, cmd)
 		ctx = flag.NewContext(ctx, cmd.Flags())
 
+		// Initialize HAR profiling, if enabled.
+		var harFile *har.File
+		harProfileFilename := flag.GetString(ctx, "har-profile")
+		if harProfileFilename != "" {
+			harFile = har.NewFile()
+			ctx = har.NewContextWithFile(ctx, harFile)
+		}
+
 		// run the common preparers
 		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
 			return
@@ -127,6 +136,13 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		if err = fn(ctx); err == nil {
 			// and finally, run the finalizer
 			finalize(ctx)
+		}
+
+		// If we recorded a profile, write it out to disk.
+		if harFile != nil {
+			if err := writeHARProfileToFile(ctx, harFile, harProfileFilename); err != nil {
+				fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Error writing profile: ", err)
+			}
 		}
 
 		return
@@ -517,7 +533,6 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		tokens.WithUserURLCallback(tryOpenUserURL),
 		tokens.WithDebugger(log),
 	)
-
 	if err != nil {
 		log.Warn("Failed to upgrade authentication token. Command may fail.")
 		log.Debug(err)
@@ -693,4 +708,17 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func writeHARProfileToFile(ctx context.Context, file *har.File, filename string) error {
+	f, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = f.Close() }()
+
+	if _, err := file.WriteTo(f); err != nil {
+		return err
+	}
+	return nil
 }

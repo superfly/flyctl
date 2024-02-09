@@ -51,4 +51,7 @@ const (
 
 	// ProcessGroup denotes the name of the process group flag.
 	ProcessGroup = "process-group"
+
+	// HARProfile denotes the name of the HAR profile flag.
+	HARProfile = "har-profile"
 )

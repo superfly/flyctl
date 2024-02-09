@@ -27,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/har"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -87,7 +88,11 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		logger = opts.Logger
 	}
 
-	transport := otelhttp.NewTransport(http.DefaultTransport)
+	var transport http.RoundTripper = otelhttp.NewTransport(http.DefaultTransport)
+	if har.FileFromContext(ctx) != nil {
+		transport = har.NewTransport(transport)
+	}
+
 	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)

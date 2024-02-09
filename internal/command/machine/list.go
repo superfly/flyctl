@@ -131,5 +131,6 @@ func runMachineList(ctx context.Context) (err error) {
 
 		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
 	}
+
 	return nil
 }
