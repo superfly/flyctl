@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -48,12 +47,7 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app: %w", err)
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return err
 	}
