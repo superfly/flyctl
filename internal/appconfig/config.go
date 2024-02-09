@@ -17,11 +17,6 @@ import (
 const (
 	// DefaultConfigFileName denotes the default application configuration file name.
 	DefaultConfigFileName = "fly.toml"
-	// Config is versioned, initially, to separate nomad from machine apps without having to consult
-	// the API
-	MachinesPlatform = "machines"
-	NomadPlatform    = "nomad"
-	DetachedPlatform = "detached"
 )
 
 func NewConfig() *Config {
@@ -29,11 +24,6 @@ func NewConfig() *Config {
 		defaultGroupName: api.MachineProcessGroupApp,
 		configFilePath:   "--config path unset--",
 	}
-}
-
-type Metrics struct {
-	*api.MachineMetrics
-	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 // Config wraps the properties of app configuration.
@@ -78,6 +68,11 @@ type Config struct {
 
 	// The default group name to refer to (used with flatten configs)
 	defaultGroupName string
+}
+
+type Metrics struct {
+	*api.MachineMetrics
+	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type Deploy struct {
