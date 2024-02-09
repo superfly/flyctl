@@ -24,14 +24,14 @@ var selectFlag = flag.Bool{
 	Hidden:      true,
 }
 
-func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string, haveMachineID bool) (*api.Machine, context.Context, error) {
+func selectOneMachine(ctx context.Context, appName string, machineID string, haveMachineID bool) (*api.Machine, context.Context, error) {
 	if err := checkSelectConditions(ctx, haveMachineID); err != nil {
 		return nil, nil, err
 	}
 
 	var err error
-	if app != nil {
-		ctx, err = buildContextFromApp(ctx, app)
+	if appName != "" {
+		ctx, err = buildContextFromAppName(ctx, appName)
 	} else {
 		ctx, err = buildContextFromAppNameOrMachineID(ctx, machineID)
 	}
@@ -114,8 +114,8 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 	return machineIDs, ctx, nil
 }
 
-func buildContextFromApp(ctx context.Context, app *api.AppCompact) (context.Context, error) {
-	flapsClient, err := flaps.New(ctx, app)
+func buildContextFromAppName(ctx context.Context, appName string) (context.Context, error) {
+	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}

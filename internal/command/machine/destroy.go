@@ -49,7 +49,7 @@ This command requires a machine to be in a stopped state unless the force flag i
 
 func runMachineDestroy(ctx context.Context) (err error) {
 	if len(flag.Args(ctx)) == 0 {
-		machine, ctx, err := selectOneMachine(ctx, nil, "", false)
+		machine, ctx, err := selectOneMachine(ctx, "", "", false)
 		if err != nil {
 			return err
 		}
