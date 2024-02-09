@@ -18,11 +18,7 @@ type Query struct {
 	}
 	App             App
 	AppCompact      AppCompact
-	AppInfo         AppInfo
 	AppBasic        AppBasic
-	AppStatus       AppStatus
-	AppMonitoring   AppMonitoring
-	AppPostgres     AppPostgres
 	AppCertsCompact AppCertsCompact
 	Viewer          User
 	GqlMachine      GqlMachine
@@ -32,7 +28,6 @@ type Query struct {
 
 	Organization        *Organization
 	OrganizationDetails OrganizationDetails
-	Build               Build
 	Volume              struct {
 		App struct {
 			Name string
@@ -46,7 +41,6 @@ type Query struct {
 	Platform struct {
 		RequestRegion string
 		Regions       []Region
-		VMSizes       []VMSize
 	}
 
 	NearestRegion *Region
@@ -54,14 +48,6 @@ type Query struct {
 	LatestImageTag     string
 	LatestImageDetails ImageVersion
 	// aliases & nodes
-
-	TemplateDeploymentNode *TemplateDeployment
-	ReleaseCommandNode     *ReleaseCommand
-
-	ValidateConfig AppConfig
-
-	// hack to let us alias node to a type
-	// DNSZone *DNSZone
 
 	// mutations
 	CreateApp struct {
@@ -74,11 +60,6 @@ type Query struct {
 
 	UnsetSecrets struct {
 		Release Release
-	}
-
-	DeployImage struct {
-		Release        Release
-		ReleaseCommand *ReleaseCommand
 	}
 
 	EnsureRemoteBuilder *struct {
@@ -114,45 +95,6 @@ type Query struct {
 	ReleaseIPAddress struct {
 		App App
 	}
-	ScaleApp struct {
-		App       App
-		Placement []RegionPlacement
-		Delta     []ScaleRegionChange
-	}
-
-	UpdateAutoscaleConfig struct {
-		App App
-	}
-
-	SetVMSize struct {
-		App          App
-		VMSize       *VMSize
-		ProcessGroup *ProcessGroup
-	}
-
-	SetVMCount struct {
-		App             App
-		TaskGroupCounts []TaskGroupCount
-		Warnings        []string
-	}
-
-	ConfigureRegions struct {
-		App           App
-		Regions       []Region
-		BackupRegions []Region
-	}
-
-	ResumeApp struct {
-		App AppCompact
-	}
-
-	SuspendApp struct {
-		App App
-	}
-
-	RestartApp struct {
-		App App
-	}
 
 	CreateDomain struct {
 		Domain *Domain
@@ -184,19 +126,8 @@ type Query struct {
 		Organization Organization
 	}
 
-	SetSlackHandler *struct {
-		Handler *HealthCheckHandler
-	}
-
-	SetPagerdutyHandler *struct {
-		Handler *HealthCheckHandler
-	}
-
-	CreatePostgresCluster *CreatePostgresClusterPayload
-
 	AttachPostgresCluster *AttachPostgresClusterPayload
-
-	EnablePostgresConsul *PostgresEnableConsulPayload
+	EnablePostgresConsul  *PostgresEnableConsulPayload
 
 	CreateOrganizationInvitation CreateOrganizationInvitation
 
@@ -301,37 +232,12 @@ type App struct {
 	}
 	SharedIPAddress string
 	IPAddress       *IPAddress
-	Builds          struct {
-		Nodes []Build
-	}
-	SourceBuilds struct {
-		Nodes []SourceBuild
-	}
-	Changes struct {
-		Nodes []AppChange
-	}
-	Certificates struct {
+	Certificates    struct {
 		Nodes []AppCertificate
 	}
-	Certificate      AppCertificate
-	Config           AppConfig
-	ParseConfig      AppConfig
-	Allocations      []*AllocationStatus
-	Allocation       *AllocationStatus
-	DeploymentStatus *DeploymentStatus
-	Autoscaling      *AutoscalingConfig
-	VMSize           VMSize
-	Regions          *[]Region
-	BackupRegions    *[]Region
-	TaskGroupCounts  []TaskGroupCount
-	ProcessGroups    []ProcessGroup
-	HealthChecks     *struct {
-		Nodes []CheckState
-	}
+	Certificate     AppCertificate
 	PostgresAppRole *struct {
-		Name      string
-		Databases *[]PostgresClusterDatabase
-		Users     *[]PostgresClusterUser
+		Name string
 	}
 	Image *Image
 
@@ -344,21 +250,11 @@ type App struct {
 	LimitedAccessTokens *struct {
 		Nodes []LimitedAccessToken
 	}
-
-	CurrentLock *AppLock
 }
 type LimitedAccessToken struct {
 	Id        string
 	Name      string
 	ExpiresAt time.Time
-}
-type AppLock struct {
-	ID         int `json:"lockId"`
-	Expiration time.Time
-}
-type TaskGroupCount struct {
-	Name  string
-	Count int
 }
 
 type AppCertsCompact struct {
@@ -405,7 +301,6 @@ type AppInfo struct {
 	IPAddresses     struct {
 		Nodes []IPAddress
 	}
-	Services []Service
 }
 
 type AppBasic struct {
@@ -415,50 +310,6 @@ type AppBasic struct {
 	Organization    *OrganizationBasic
 }
 
-type AppMonitoring struct {
-	ID             string
-	CurrentRelease *Release
-}
-
-type AppPostgres struct {
-	ID              string
-	Name            string
-	Organization    *OrganizationBasic
-	ImageDetails    ImageVersion
-	PostgresAppRole *struct {
-		Name      string
-		Databases *[]PostgresClusterDatabase
-		Users     *[]PostgresClusterUser
-	}
-	PlatformVersion string
-	Services        []Service
-}
-
-func (app *AppPostgres) IsPostgresApp() bool {
-	// check app.PostgresAppRole.Name == "postgres_cluster"
-	return app.PostgresAppRole != nil && app.PostgresAppRole.Name == "postgres_cluster"
-}
-
-type AppStatus struct {
-	ID               string
-	Name             string
-	Deployed         bool
-	Status           string
-	Hostname         string
-	Version          int
-	PlatformVersion  string
-	AppURL           string
-	Organization     Organization
-	DeploymentStatus *DeploymentStatus
-	Allocations      []*AllocationStatus
-}
-
-type AppConfig struct {
-	Definition Definition
-	Services   []Service
-	Valid      bool
-	Errors     []string
-}
 type Organization struct {
 	ID                 string
 	InternalNumericID  string
@@ -496,14 +347,6 @@ type Organization struct {
 			Cursor *string
 			Node   *DelegatedWireGuardTokenHandle
 		}
-	}
-
-	HealthCheckHandlers *struct {
-		Nodes []HealthCheckHandler
-	}
-
-	HealthChecks *struct {
-		Nodes []HealthCheck
 	}
 
 	LoggedCertificates *struct {
@@ -598,6 +441,16 @@ type IPAddress struct {
 	CreatedAt time.Time
 }
 
+type VMSize struct {
+	Name        string
+	CPUCores    float32
+	CPUClass    string
+	MemoryGB    float32
+	MemoryMB    int
+	PriceMonth  float32
+	PriceSecond float32
+}
+
 type User struct {
 	ID              string
 	Name            string
@@ -667,6 +520,15 @@ type LogEntry struct {
 	}
 }
 
+type Region struct {
+	Code             string
+	Name             string
+	Latitude         float32
+	Longitude        float32
+	GatewayAvailable bool
+	RequiresPaidPlan bool
+}
+
 type Release struct {
 	ID                 string
 	Version            int
@@ -682,59 +544,8 @@ type Release struct {
 	ImageRef           string
 }
 
-type Build struct {
-	ID         string
-	InProgress bool
-	Status     string
-	User       User
-	Logs       string
-	Image      string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
-}
-
-type SourceBuild struct {
-	ID        string
-	Status    string
-	User      User
-	Logs      string
-	Image     string
-	AppName   string
-	MachineId string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-}
-
 type SignedUrl struct {
 	PutUrl string
-}
-
-type AppChange struct {
-	ID        string
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Actor     struct {
-		Type string
-	}
-	Status      string
-	Description string
-	Reason      string
-	User        User
-}
-
-type DeploymentStatus struct {
-	ID             string
-	Status         string
-	Description    string
-	InProgress     bool
-	Successful     bool
-	CreatedAt      time.Time
-	Allocations    []*AllocationStatus
-	Version        int
-	DesiredCount   int
-	PlacedCount    int
-	HealthyCount   int
-	UnhealthyCount int
 }
 
 type AppCertificate struct {
@@ -784,45 +595,6 @@ type DeleteCertificatePayload struct {
 	Certificate AppCertificate
 }
 
-type DeployImageInput struct {
-	AppID      string      `json:"appId"`
-	Image      string      `json:"image"`
-	Services   *[]Service  `json:"services"`
-	Definition *Definition `json:"definition"`
-	Strategy   *string     `json:"strategy"`
-}
-
-type Service struct {
-	Description     string        `json:"description"`
-	Protocol        string        `json:"protocol,omitempty"`
-	InternalPort    int           `json:"internalPort,omitempty"`
-	Ports           []PortHandler `json:"ports,omitempty"`
-	Checks          []Check       `json:"checks,omitempty"`
-	SoftConcurrency int           `json:"softConcurrency,omitempty"`
-	HardConcurrency int           `json:"hardConcurrency,omitempty"`
-}
-
-type PortHandler struct {
-	Port     int      `json:"port"`
-	Handlers []string `json:"handlers"`
-}
-
-type Check struct {
-	Type              string       `json:"type"`
-	Interval          *uint64      `json:"interval"`
-	Timeout           *uint64      `json:"timeout"`
-	HTTPMethod        *string      `json:"httpMethod"`
-	HTTPPath          *string      `json:"httpPath"`
-	HTTPProtocol      *string      `json:"httpProtocol"`
-	HTTPSkipTLSVerify *bool        `json:"httpTlsSkipVerify"`
-	HTTPHeaders       []HTTPHeader `json:"httpHeaders"`
-}
-
-type HTTPHeader struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
 type AllocateIPAddressInput struct {
 	AppID          string `json:"appId"`
 	Type           string `json:"type"`
@@ -835,164 +607,6 @@ type ReleaseIPAddressInput struct {
 	AppID       *string `json:"appId"`
 	IPAddressID *string `json:"ipAddressId"`
 	IP          *string `json:"ip"`
-}
-
-type ScaleAppInput struct {
-	AppID   string             `json:"appId"`
-	Regions []ScaleRegionInput `json:"regions"`
-}
-
-type ScaleRegionInput struct {
-	Region string `json:"region"`
-	Count  int    `json:"count"`
-}
-
-type ScaleRegionChange struct {
-	Region    string
-	FromCount int
-	ToCount   int
-}
-
-type RegionPlacement struct {
-	Region string
-	Count  int
-}
-
-type AllocationStatus struct {
-	ID                 string
-	IDShort            string
-	Version            int
-	TaskName           string
-	Region             string
-	Status             string
-	DesiredStatus      string
-	Healthy            bool
-	Canary             bool
-	Failed             bool
-	Restarts           int
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
-	Checks             []CheckState
-	Events             []AllocationEvent
-	LatestVersion      bool
-	PassingCheckCount  int
-	WarningCheckCount  int
-	CriticalCheckCount int
-	Transitioning      bool
-	PrivateIP          string
-	RecentLogs         []LogEntry
-	AttachedVolumes    struct {
-		Nodes []Volume
-	}
-}
-
-type AllocationEvent struct {
-	Timestamp time.Time
-	Type      string
-	Message   string
-}
-
-type CheckState struct {
-	Name        string
-	Status      string
-	Output      string
-	ServiceName string
-	Allocation  *AllocationStatus
-	Type        string
-	UpdatedAt   time.Time
-}
-
-type Region struct {
-	Code             string
-	Name             string
-	Latitude         float32
-	Longitude        float32
-	GatewayAvailable bool
-	RequiresPaidPlan bool
-}
-
-type AutoscalingConfig struct {
-	BalanceRegions bool
-	Enabled        bool
-	MaxCount       int
-	MinCount       int
-	Regions        []AutoscalingRegionConfig
-}
-
-type AutoscalingRegionConfig struct {
-	Code     string
-	MinCount int
-	Weight   int
-}
-
-type UpdateAutoscaleConfigInput struct {
-	AppID          string                       `json:"appId"`
-	Enabled        *bool                        `json:"enabled"`
-	MinCount       *int                         `json:"minCount"`
-	MaxCount       *int                         `json:"maxCount"`
-	BalanceRegions *bool                        `json:"balanceRegions"`
-	ResetRegions   *bool                        `json:"resetRegions"`
-	Regions        []AutoscaleRegionConfigInput `json:"regions"`
-}
-
-type AutoscaleRegionConfigInput struct {
-	Code     string `json:"code"`
-	MinCount *int   `json:"minCount"`
-	Weight   *int   `json:"weight"`
-	Reset    *bool  `json:"reset"`
-}
-
-type VMSize struct {
-	Name        string
-	CPUCores    float32
-	CPUClass    string
-	MemoryGB    float32
-	MemoryMB    int
-	PriceMonth  float32
-	PriceSecond float32
-	// MemoryIncrementsMB []int
-}
-
-type ProcessGroup struct {
-	Name         string
-	Regions      []string
-	MaxPerRegion int
-	VMSize       *VMSize
-}
-
-type SetVMSizeInput struct {
-	AppID    string `json:"appId"`
-	Group    string `json:"group"`
-	SizeName string `json:"sizeName"`
-	MemoryMb int64  `json:"memoryMb"`
-}
-
-type SetVMCountInput struct {
-	AppID       string         `json:"appId"`
-	GroupCounts []VMCountInput `json:"groupCounts"`
-}
-
-type VMCountInput struct {
-	Group        string `json:"group"`
-	Count        int    `json:"count"`
-	MaxPerRegion *int   `json:"maxPerRegion"`
-}
-
-type StartSourceBuildInput struct {
-	AppID string `json:"appId"`
-}
-
-type BuildArgInput struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-type ConfigureRegionsInput struct {
-	AppID         string   `json:"appId"`
-	Group         string   `json:"group"`
-	AllowRegions  []string `json:"allowRegions"`
-	DenyRegions   []string `json:"denyRegions"`
-	BackupRegions []string `json:"backupRegions"`
 }
 
 type Errors []Error
@@ -1094,68 +708,6 @@ type LoggedCertificate struct {
 	Cert string
 }
 
-type HealthCheck struct {
-	Entity      string
-	Name        string
-	Output      string
-	State       string
-	LastPassing time.Time
-}
-
-type HealthCheckHandler struct {
-	Name string
-	Type string
-}
-
-type SetSlackHandlerInput struct {
-	OrganizationID  string  `json:"organizationId"`
-	Name            string  `json:"name"`
-	SlackWebhookURL string  `json:"slackWebhookUrl"`
-	SlackChannel    *string `json:"slackChannel"`
-	SlackUsername   *string `json:"slackUsername"`
-	SlackIconURL    *string `json:"slackIconUrl"`
-}
-
-type SetPagerdutyHandlerInput struct {
-	OrganizationID string `json:"organizationId"`
-	Name           string `json:"name"`
-	PagerdutyToken string `json:"pagerdutyToken"`
-}
-
-type CreatePostgresClusterInput struct {
-	OrganizationID string  `json:"organizationId"`
-	Name           string  `json:"name"`
-	Region         *string `json:"region,omitempty"`
-	Password       *string `json:"password,omitempty"`
-	VMSize         *string `json:"vmSize,omitempty"`
-	VolumeSizeGB   *int    `json:"volumeSizeGb,omitempty"`
-	Count          *int    `json:"count,omitempty"`
-	ImageRef       *string `json:"imageRef,omitempty"`
-	SnapshotID     *string `json:"snapshotId,omitempty"`
-}
-
-type CreatePostgresClusterPayload struct {
-	App      *App
-	Username string
-	Password string
-}
-
-type TemplateDeployment struct {
-	ID     string
-	Status string
-	Apps   *struct {
-		Nodes []App
-	}
-}
-
-type NomadToMachinesMigrationInput struct {
-	AppID string `json:"appId"`
-}
-
-type NomadToMachinesMigrationPrepInput struct {
-	AppID string `json:"appId"`
-}
-
 type AttachPostgresClusterInput struct {
 	AppID                string  `json:"appId"`
 	PostgresClusterAppID string  `json:"postgresClusterAppId"`
@@ -1187,17 +739,6 @@ type EnsureRemoteBuilderInput struct {
 	OrganizationID *string `json:"organizationId"`
 }
 
-type PostgresClusterUser struct {
-	Username    string
-	IsSuperuser bool
-	Databases   []string
-}
-
-type PostgresClusterDatabase struct {
-	Name  string
-	Users []string
-}
-
 type PostgresClusterAttachment struct {
 	ID                      string
 	DatabaseName            string
@@ -1210,18 +751,6 @@ type Image struct {
 	Digest         string
 	Ref            string
 	CompressedSize string
-}
-
-type ReleaseCommand struct {
-	ID           string
-	Command      string
-	Status       string
-	ExitCode     *int
-	InstanceID   *string
-	InProgress   bool
-	Succeeded    bool
-	Failed       bool
-	EvaluationID string
 }
 
 type Invitation struct {
@@ -1249,17 +778,6 @@ type GqlMachine struct {
 	IPs struct {
 		Nodes []*MachineIP
 	}
-}
-
-type Condition struct {
-	Equal    interface{} `json:"equal,omitempty"`
-	NotEqual interface{} `json:"not_equal,omitempty"`
-}
-
-type Filters struct {
-	AppName      string               `json:"app_name"`
-	MachineState []Condition          `json:"machine_state"`
-	Meta         map[string]Condition `json:"meta"`
 }
 
 type Logger interface {
