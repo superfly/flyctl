@@ -14,28 +14,11 @@ import (
 // ProcessNames lists each key of c.Processes, sorted lexicographically
 // If c.Processes == nil, returns ["app"]
 func (c *Config) ProcessNames() (names []string) {
-	switch {
-	case c == nil:
+	if c == nil {
 		return []string{api.MachineProcessGroupApp}
-	case c.platformVersion == MachinesPlatform:
-		if len(c.Processes) != 0 {
-			names = lo.Keys(c.Processes)
-		}
-	case c.platformVersion == "":
-		fallthrough
-	case c.platformVersion == DetachedPlatform:
-		fallthrough
-	case c.platformVersion == NomadPlatform:
-		switch cast := c.RawDefinition["processes"].(type) {
-		case map[string]any:
-			if len(cast) != 0 {
-				names = lo.Keys(cast)
-			}
-		case map[string]string:
-			if len(cast) != 0 {
-				names = lo.Keys(cast)
-			}
-		}
+	}
+	if len(c.Processes) != 0 {
+		names = lo.Keys(c.Processes)
 	}
 
 	switch {
