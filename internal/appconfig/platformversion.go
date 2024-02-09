@@ -32,23 +32,3 @@ func (c *Config) SetNomadPlatform() error {
 	c.platformVersion = NomadPlatform
 	return nil
 }
-
-func (c *Config) SetPlatformVersion(platform string) error {
-	switch platform {
-	case MachinesPlatform:
-		return c.SetMachinesPlatform()
-	case NomadPlatform:
-		return c.SetNomadPlatform()
-	case DetachedPlatform:
-		return c.SetDetachedPlatform()
-	case "":
-		return fmt.Errorf("Empty value as platform version")
-	default:
-		return fmt.Errorf("Unknown platform version: '%s'", platform)
-	}
-}
-
-// ForMachines is true when the config is intended for the machines platform
-func (c *Config) ForMachines() bool {
-	return c.platformVersion == MachinesPlatform
-}

@@ -64,21 +64,8 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	if cfg.ForMachines() {
-		envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
-			return []string{e.Key, e.Value}
-		})
-		return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
-	} else {
-		vars, ok := cfg.RawDefinition["env"].(map[string]any)
-		if !ok {
-			return nil
-		}
-
-		envRows := lo.Map(lo.Entries(vars), func(e lo.Entry[string, any], _ int) []string {
-			return []string{e.Key, fmt.Sprintf("%s", e.Value)}
-		})
-
-		return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
-	}
+	envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
+		return []string{e.Key, e.Value}
+	})
+	return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
 }
