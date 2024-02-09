@@ -492,38 +492,6 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []api.Region, regio
 	return
 }
 
-var errVMsizeRequired = NonInteractiveError("vm size must be specified when not running interactively")
-
-func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
-	client := client.FromContext(ctx).API()
-
-	vmSizes, err := client.PlatformVMSizes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	sort.VMSizesBySize(vmSizes)
-
-	switch {
-	case def != "":
-		for _, vmSize := range vmSizes {
-			if def == vmSize.Name {
-				return &vmSize, nil
-			}
-		}
-		return nil, fmt.Errorf("vm size %s not found", def)
-	default:
-		switch vmSize, err := SelectVMSize(ctx, vmSizes); {
-		case err == nil:
-			return vmSize, nil
-		case IsNonInteractive(err):
-			return nil, errVMsizeRequired
-		default:
-			return nil, err
-		}
-	}
-}
-
 func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize, err error) {
 	options := []string{}
 
