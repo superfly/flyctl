@@ -217,6 +217,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	// Also change PlatformMap in core.go if this list ever changes.
 	if deps["@adonisjs/core"] != nil {
 		srcInfo.Family = "AdonisJS"
+	} else if deps["astro"] != nil {
+		srcInfo.Family = "Astro"
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
