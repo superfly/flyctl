@@ -15,6 +15,10 @@ updates:
       - "go"
     schedule:
       interval: "daily"
+    groups:
+      tracing:
+        patterns:
+          - "go.opentelemetry.io/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
