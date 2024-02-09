@@ -88,7 +88,6 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	}
 
 	dst := helpers.Clone(c)
-	dst.platformVersion = c.platformVersion
 	dst.configFilePath = "--flatten--"
 	dst.defaultGroupName = groupName
 

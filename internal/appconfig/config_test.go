@@ -133,18 +133,6 @@ func TestConfigPortGetter(t *testing.T) {
 func TestCloneAppconfig(t *testing.T) {
 	config := &Config{
 		AppName: "testcfg",
-		RawDefinition: map[string]any{
-			"mounts": []Mount{
-				{
-					Source:      "src-raw",
-					Destination: "dst-raw",
-				},
-				{
-					Source:      "src2",
-					Destination: "dst2",
-				},
-			},
-		},
 		Mounts: []Mount{{
 			Source:      "src",
 			Destination: "dst",

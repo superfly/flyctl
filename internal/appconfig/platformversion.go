@@ -5,6 +5,5 @@ func (c *Config) SetMachinesPlatform() error {
 	if c.v2UnmarshalError != nil {
 		return c.v2UnmarshalError
 	}
-	c.platformVersion = MachinesPlatform
 	return nil
 }
