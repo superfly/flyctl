@@ -109,48 +109,6 @@ func TestFromDefinition(t *testing.T) {
 		},
 		configFilePath:   "--config path unset--",
 		defaultGroupName: "app",
-		RawDefinition: map[string]any{
-			"env": map[string]any{},
-			"experimental": map[string]any{
-				"auto_rollback": true,
-			},
-			"kill_signal":  "SIGINT",
-			"kill_timeout": float64(5),
-			"processes":    []any{},
-			"services": []any{
-				map[string]any{
-					"concurrency": map[string]any{
-						"hard_limit": float64(25),
-						"soft_limit": float64(20),
-						"type":       "connections",
-					},
-					"http_checks":   []any{},
-					"internal_port": float64(8080),
-					"ports": []any{
-						map[string]any{
-							"force_https": true,
-							"handlers":    []any{"http"},
-							"port":        float64(80),
-						},
-						map[string]any{
-							"handlers": []any{"tls", "http"},
-							"port":     float64(443),
-						},
-					},
-					"processes":     []any{"app"},
-					"protocol":      "tcp",
-					"script_checks": []any{},
-					"tcp_checks": []any{
-						map[string]any{
-							"grace_period":  "1s",
-							"interval":      "15s",
-							"restart_limit": float64(0),
-							"timeout":       "2s",
-						},
-					},
-				},
-			},
-		},
 	}, cfg)
 }
 
