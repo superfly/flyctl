@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -148,10 +149,16 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		}
 	}
 
+	plan, err := DeterminePlan(ctx, org)
+	if err != nil {
+		return nil, err
+	}
+
 	s := spinner.Run(io, "Launching...")
 
 	params := RedisConfiguration{
 		Name:          name,
+		PlanId:        plan.Id,
 		PrimaryRegion: region,
 		ReadRegions:   *readRegions,
 		Eviction:      enableEviction,
@@ -164,7 +171,7 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 		return
 	}
 
-	fmt.Fprintf(io.Out, "\nYour Pay-as-you-go Upstash Redis database %s is ready. Check the pricing details at https://upstash.com/pricing.\n", colorize.Green(addOn.Name))
+	fmt.Fprintf(io.Out, "\nYour Upstash Redis database %s is ready. Check the pricing details at https://upstash.com/pricing.\n", colorize.Green(addOn.Name))
 	fmt.Fprintf(io.Out, "Apps in the %s org can connect to Redis at %s\n", colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
 	fmt.Fprintf(io.Out, "If you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
 
@@ -210,4 +217,36 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 	}
 
 	return &response.CreateAddOn.AddOn, nil
+}
+
+func DeterminePlan(ctx context.Context, org *api.Organization) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
+
+	client := client.FromContext(ctx).API()
+
+	// List redis instances
+	// If there's already a redis instance in the org, return the "Pay-as-you-go" plan
+	// Otherwise, return the "Free" plan
+
+	planId := redisPlanFree
+	listRedisResp, err := gql.ListAddOns(ctx, client.GenqClient, "redis")
+	if err != nil {
+		return nil, err
+	}
+
+	if len(listRedisResp.AddOns.Nodes) != 0 {
+		planId = redisPlanPayAsYouGo
+	}
+
+	// Now that we have the Plan ID, look up the actual plan
+	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, addon := range allAddons.AddOnPlans.Nodes {
+		if addon.Id == planId {
+			return &addon, nil
+		}
+	}
+	return nil, errors.New("plan not found")
 }
