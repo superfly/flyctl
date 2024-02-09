@@ -492,8 +492,6 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []api.Region, regio
 	return
 }
 
-var errVMsizeRequired = NonInteractiveError("vm size must be specified when not running interactively")
-
 func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize, err error) {
 	options := []string{}
 
