@@ -90,27 +90,6 @@ func (client *Client) getAppsPage(ctx context.Context, orgID *string, role *stri
 	return data.Apps.Nodes, data.Apps.PageInfo.HasNextPage, data.Apps.PageInfo.EndCursor, nil
 }
 
-func (client *Client) GetAppID(ctx context.Context, appName string) (string, error) {
-	query := `
-		query ($appName: String!) {
-			app(name: $appName) {
-				id
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-	req.Var("appName", appName)
-	ctx = ctxWithAction(ctx, "get_app_id")
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return "", err
-	}
-
-	return data.App.ID, nil
-}
-
 func (client *Client) GetApp(ctx context.Context, appName string) (*App, error) {
 	query := `
 		query ($appName: String!) {
@@ -250,75 +229,6 @@ func (client *Client) GetAppCompact(ctx context.Context, appName string) (*AppCo
 	return &data.AppCompact, nil
 }
 
-func (client *Client) AppToCompact(app *App) *AppCompact {
-	return &AppCompact{
-		ID:       app.ID,
-		Name:     app.Name,
-		Status:   app.Status,
-		Deployed: app.Deployed,
-		Hostname: app.Hostname,
-		AppURL:   app.AppURL,
-		Organization: &OrganizationBasic{
-			ID:   app.Organization.ID,
-			Slug: app.Organization.Slug,
-		},
-	}
-}
-
-func (client *Client) GetAppInfo(ctx context.Context, appName string) (*AppInfo, error) {
-	query := `
-		query ($appName: String!) {
-			appinfo:app(name: $appName) {
-				id
-				name
-				hostname
-				deployed
-				status
-				version
-				appUrl
-				platformVersion
-				organization {
-					id
-					slug
-					paidPlan
-				}
-				services {
-					description
-					protocol
-					internalPort
-					ports {
-						port
-						handlers
-					}
-				}
-				ipAddresses {
-					nodes {
-						id
-						address
-						type
-						region
-						createdAt
-					}
-				}
-				postgresAppRole: role {
-					name
-				}
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-	req.Var("appName", appName)
-	ctx = ctxWithAction(ctx, "get_app_info")
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.AppInfo, nil
-}
-
 func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasic, error) {
 	query := `
 		query ($appName: String!) {
@@ -346,41 +256,6 @@ func (client *Client) GetAppBasic(ctx context.Context, appName string) (*AppBasi
 	}
 
 	return &data.AppBasic, nil
-}
-
-func (client *Client) GetAppPostgres(ctx context.Context, appName string) (*AppPostgres, error) {
-	query := `
-		query ($appName: String!) {
-			apppostgres:app(name: $appName) {
-				id
-				name
-				organization {
-					id
-					slug
-					paidPlan
-				}
-				imageDetails {
-					repository
-					version
-				}
-				postgresAppRole: role {
-					name
-				}
-				platformVersion
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-	req.Var("appName", appName)
-	ctx = ctxWithAction(ctx, "get_app_postgres")
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.AppPostgres, nil
 }
 
 func (client *Client) CreateApp(ctx context.Context, input CreateAppInput) (*App, error) {
@@ -463,85 +338,6 @@ func (client *Client) MoveApp(ctx context.Context, appName string, orgID string)
 
 	data, err := client.RunWithContext(ctx, req)
 	return &data.App, err
-}
-
-// SuspendApp - Send GQL mutation to suspend app
-func (client *Client) SuspendApp(ctx context.Context, appName string) (*App, error) {
-	query := `
-	mutation ($input: PauseAppInput!) {
-		pauseApp(input: $input) {
-		  app{
-			id
-			name
-			status
-			version
-			hostname
-		  }
-		}
-	  }
-	`
-
-	req := client.NewRequest(query)
-
-	req.Var("input", map[string]string{
-		"appId": appName,
-	})
-	ctx = ctxWithAction(ctx, "suspend_app")
-
-	data, err := client.RunWithContext(ctx, req)
-	return &data.SuspendApp.App, err
-}
-
-// ResumeApp - Send GQL mutation to pause app
-func (client *Client) ResumeApp(ctx context.Context, appName string) (*AppCompact, error) {
-	query := `
-	mutation ($input: ResumeAppInput!) {
-		resumeApp(input: $input) {
-		  app{
-			id
-			name
-			status
-			version
-			hostname
-		  }
-		}
-	  }
-	`
-
-	req := client.NewRequest(query)
-
-	req.Var("input", map[string]string{
-		"appId": appName,
-	})
-
-	ctx = ctxWithAction(ctx, "resume_app")
-
-	data, err := client.RunWithContext(ctx, req)
-	return &data.ResumeApp.App, err
-}
-
-// RestartApp - Send GQL mutation to restart app
-func (client *Client) RestartApp(ctx context.Context, appName string) (*App, error) {
-	query := `
-		mutation ($input: RestartAppInput!) {
-			restartApp(input: $input) {
-				app{
-					id
-					name
-				}
-			}
-		}
-	`
-
-	req := client.NewRequest(query)
-
-	req.Var("input", map[string]string{
-		"appId": appName,
-	})
-	ctx = ctxWithAction(ctx, "restart_app")
-
-	data, err := client.RunWithContext(ctx, req)
-	return &data.RestartApp.App, err
 }
 
 func (client *Client) ResolveImageForApp(ctx context.Context, appName, imageRef string) (*Image, error) {

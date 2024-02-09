@@ -32,28 +32,6 @@ query($slug: String!) {
 	return data.Organization.LoggedCertificates.Nodes, nil
 }
 
-func (c *Client) EstablishSSHKey(ctx context.Context, org *Organization, override bool) (*SSHCertificate, error) {
-	req := c.NewRequest(`
-mutation($input: EstablishSSHKeyInput!) {
-  establishSshKey(input: $input) {
-    certificate
-  }
-}
-`)
-	req.Var("input", map[string]interface{}{
-		"organizationId": org.ID,
-		"override":       override,
-	})
-	ctx = ctxWithAction(ctx, "establish_ssh_key")
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.EstablishSSHKey, nil
-}
-
 func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: IssueCertificateInput!) {
