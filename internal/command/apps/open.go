@@ -10,7 +10,6 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -47,11 +46,6 @@ func runOpen(ctx context.Context) error {
 	iostream := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
-	}
-
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
@@ -60,7 +54,8 @@ func runOpen(ctx context.Context) error {
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
-		if appConfig, err = appconfig.FromAppCompact(ctx, app); err != nil {
+		appConfig, err = appconfig.FromRemoteApp(ctx, appName)
+		if err != nil {
 			return errors.New("The app config could not be found")
 		}
 	}
