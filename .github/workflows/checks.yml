@@ -43,7 +43,7 @@ jobs:
         with:
           go-version-file: "${{ matrix.module }}/go.mod"
           # check-latest: true
-      - uses: golangci/golangci-lint-action@v3
+      - uses: golangci/golangci-lint-action@v4
         with:
           version: v1.54
           working-directory: ${{ matrix.module }}
