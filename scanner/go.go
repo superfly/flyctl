@@ -1,22 +1,22 @@
 package scanner
 
 import (
+	"fmt"
 	"golang.org/x/mod/modfile"
 	"os"
-	"path"
 )
-
-var gomod *modfile.File
 
 func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("go.mod")) {
 		return nil, nil
 	}
 
-	modfileParsed := parseModfile()
+	gomod, parseErr := parseModfile()
 
-	version := extractGoVersion(modfileParsed)
-	binaryName := generateBinaryName(modfileParsed)
+	version := "1"
+	if parseErr == nil && len(gomod.Go.Version) > 0 {
+		version = gomod.Go.Version
+	}
 
 	files := templates("templates/go")
 
@@ -28,60 +28,24 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 			"PORT": "8080",
 		},
 		BuildArgs: map[string]string{
-			"GO_VERSION":  version,
-			"GO_BIN_NAME": binaryName,
+			"GO_VERSION": version,
 		},
 	}
 
 	return s, nil
 }
 
-func parseModfile() bool {
+func parseModfile() (*modfile.File, error) {
 	dat, err := os.ReadFile("go.mod")
 	if err != nil {
-		return false
+		return nil, fmt.Errorf("could not open go.mod: %w", err)
 	}
 
 	f, modErr := modfile.Parse("go.mod", dat, nil)
 
 	if modErr != nil {
-		return false
+		return nil, fmt.Errorf("could not parse go.mod: %w", modErr)
 	}
 
-	gomod = f
-
-	return true
-}
-
-func extractGoVersion(modfileParsed bool) string {
-	// todo: Can we get current latest stable via web request?
-	version := "1.22"
-	if modfileParsed {
-		// Even if it's parsed, ensure we found a version
-		if len(gomod.Go.Version) > 0 {
-			return gomod.Go.Version
-		}
-	}
-
-	return version
-}
-
-func generateBinaryName(modfileParsed bool) string {
-	binName := "main"
-
-	longName := gomod.Module.Mod.Path
-
-	if len(longName) > 0 {
-		// Get the module name. If it's a URL or contains
-		// slashes, only return the last segment
-		potentialBinName := path.Base(longName)
-
-		// Possibly the base path is just "." or "/",
-		// which are not suitable names
-		if len(potentialBinName) > 1 {
-			return potentialBinName
-		}
-	}
-
-	return binName
+	return f, nil
 }
