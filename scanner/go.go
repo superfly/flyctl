@@ -12,6 +12,10 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	if !absFileExists("go.sum") {
+		terminal.Warn("no go.sum file found, please adjust your Dockerfile to remove references to go.sum")
+	}
+
 	gomod, parseErr := parseModfile()
 
 	version := "1"
