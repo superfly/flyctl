@@ -19,7 +19,6 @@ app = "unsupported-format"
 
 [[services]]
   internal_port = "8080"
-  # Single numerical concurrency is not valid, even for nomad
-  # but we are testing here that this file can't be parsed into V2 Config
-  # yet its RawDefinition is usable for v1 apps
+  # Single numerical concurrency is not valid
+  # but we are testing here that this file can't be parsed
   concurrency = 20

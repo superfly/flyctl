@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
@@ -36,7 +35,6 @@ func New() *cobra.Command {
 		newRestart(),
 		newUsers(),
 		newFailover(),
-		newNomadToMachines(),
 		newAddFlycast(),
 		newImport(),
 		newEvents(),
@@ -44,47 +42,6 @@ func New() *cobra.Command {
 	)
 
 	return cmd
-}
-
-func hasRequiredVersionOnNomad(app *api.AppCompact, cluster, standalone string) error {
-	// Validate image version to ensure it's compatible with this feature.
-	if app.ImageDetails.Version == "" || app.ImageDetails.Version == "unknown" {
-		return fmt.Errorf("command is not compatible with this image")
-	}
-
-	imageVersionStr := app.ImageDetails.Version[1:]
-	imageVersion, err := version.NewVersion(imageVersionStr)
-	if err != nil {
-		return err
-	}
-
-	// Specify compatible versions per repo.
-	requiredVersion := &version.Version{}
-	if app.ImageDetails.Repository == "flyio/postgres-standalone" {
-		requiredVersion, err = version.NewVersion(standalone)
-		if err != nil {
-			return err
-		}
-	}
-	if app.ImageDetails.Repository == "flyio/postgres" {
-		requiredVersion, err = version.NewVersion(cluster)
-		if err != nil {
-			return err
-		}
-	}
-
-	if requiredVersion == nil {
-		return fmt.Errorf("unable to resolve image version")
-	}
-
-	if imageVersion.LessThan(requiredVersion) {
-		return fmt.Errorf(
-			"image version is not compatible. (Current: %s, Required: >= %s)\n"+
-				"Please run 'flyctl image show' and update to the latest available version",
-			imageVersion, requiredVersion.String())
-	}
-
-	return nil
 }
 
 func hasRequiredVersionOnMachines(machines []*api.Machine, cluster, flex, standalone string) error {
@@ -177,30 +134,6 @@ func machinesNodeRoles(ctx context.Context, machines []*api.Machine) (leader *ap
 	return leader, replicas
 }
 
-func nomadNodeRoles(ctx context.Context, allocs []*api.AllocationStatus) (leader *api.AllocationStatus, replicas []*api.AllocationStatus, err error) {
-	dialer := agent.DialerFromContext(ctx)
-
-	for _, alloc := range allocs {
-		pgclient := flypg.NewFromInstance(alloc.PrivateIP, dialer)
-		if err != nil {
-			return nil, nil, fmt.Errorf("can't connect to %s: %w", alloc.ID, err)
-		}
-
-		role, err := pgclient.NodeRole(ctx)
-		if err != nil {
-			return nil, nil, fmt.Errorf("can't get role for %s: %w", alloc.ID, err)
-		}
-
-		switch role {
-		case "leader":
-			leader = alloc
-		case "replica":
-			replicas = append(replicas, alloc)
-		}
-	}
-	return leader, replicas, nil
-}
-
 func machineRole(machine *api.Machine) (role string) {
 	role = "unknown"
 
@@ -215,22 +148,6 @@ func machineRole(machine *api.Machine) (role string) {
 		}
 	}
 	return role
-}
-
-func leaderIpFromNomadInstances(ctx context.Context, addrs []string) (string, error) {
-	dialer := agent.DialerFromContext(ctx)
-	for _, addr := range addrs {
-		pgclient := flypg.NewFromInstance(addr, dialer)
-		role, err := pgclient.NodeRole(ctx)
-		if err != nil {
-			return "", fmt.Errorf("can't get role for %s: %w", addr, err)
-		}
-
-		if role == "leader" || role == "primary" {
-			return addr, nil
-		}
-	}
-	return "", fmt.Errorf("no instances found with leader role")
 }
 
 func isLeader(machine *api.Machine) bool {

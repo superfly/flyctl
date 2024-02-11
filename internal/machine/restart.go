@@ -11,20 +11,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
-	machines, releaseFunc, err := AcquireAllLeases(ctx)
-	defer releaseFunc()
-	if err != nil {
-		return err
-	}
-
-	for _, m := range machines {
-		Restart(ctx, m, input, m.LeaseNonce)
-	}
-
-	return nil
-}
-
 func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput, nonce string) error {
 	var (
 		flapsClient = flaps.FromContext(ctx)

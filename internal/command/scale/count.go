@@ -9,13 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newScaleCount() *cobra.Command {
@@ -80,14 +78,7 @@ func runScaleCount(ctx context.Context) error {
 
 	maxPerRegion := flag.GetInt(ctx, "max-per-region")
 
-	isV2, err := command.IsMachinesPlatform(ctx, appName)
-	if err != nil {
-		return err
-	}
-	if isV2 {
-		return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
-	}
-	return runNomadScaleCount(ctx, appName, groups, maxPerRegion)
+	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 }
 
 func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, error) {
@@ -118,29 +109,4 @@ func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, e
 	}
 
 	return groups, nil
-}
-
-func runNomadScaleCount(ctx context.Context, appName string, groups map[string]int, maxPerRegion int) error {
-	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
-
-	var maxPerRegionPtr *int
-	if maxPerRegion >= 0 {
-		maxPerRegionPtr = &maxPerRegion
-	}
-
-	counts, warnings, err := apiClient.SetAppVMCount(ctx, appName, groups, maxPerRegionPtr)
-	if err != nil {
-		return err
-	}
-
-	if len(warnings) > 0 {
-		for _, warning := range warnings {
-			fmt.Fprintln(io.Out, "Warning:", warning)
-		}
-		fmt.Fprintln(io.Out)
-	}
-
-	fmt.Fprintf(io.Out, "Count changed to %s\n", countMessage(counts))
-	return nil
 }

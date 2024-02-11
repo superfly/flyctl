@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/logrusorgru/aurora"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -252,16 +252,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	return cache.NewContext(ctx, c), nil
 }
 
-func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {
-	apiClient := client.FromContext(ctx).API()
-	app, err := apiClient.GetAppBasic(ctx, appName)
-	if err != nil {
-		return false, fmt.Errorf("failed to retrieve app: %w", err)
-	}
-
-	return app.PlatformVersion == appconfig.MachinesPlatform, nil
-}
-
 func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
@@ -442,16 +432,6 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
-func PromptToMigrate(ctx context.Context, app *api.AppCompact) {
-	if app.PlatformVersion == "nomad" {
-		config := appconfig.ConfigFromContext(ctx)
-		if config != nil {
-			io := iostreams.FromContext(ctx)
-			fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with:\nfly migrate-to-v2 -c %s\n", aurora.Yellow("WARN"), config.ConfigFilePath())
-		}
-	}
-}
-
 func killOldAgent(ctx context.Context) (context.Context, error) {
 	path := filepath.Join(state.ConfigDirectory(ctx), "agent.pid")
 
@@ -531,28 +511,39 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 func updateMacaroons(ctx context.Context) (context.Context, error) {
 	log := logger.FromContext(ctx)
 
-	tokens := config.Tokens(ctx)
+	toks := config.Tokens(ctx)
 
-	pruned := pruneBadMacaroons(tokens)
-	discharged, err := dischargeThirdPartyCaveats(ctx, tokens)
+	updated, err := toks.Update(ctx,
+		tokens.WithUserURLCallback(tryOpenUserURL),
+		tokens.WithDebugger(log),
+	)
 
 	if err != nil {
 		log.Warn("Failed to upgrade authentication token. Command may fail.")
 		log.Debug(err)
 	}
 
-	if pruned || discharged {
-		if tokens.FromConfigFile {
-			path := state.ConfigFile(ctx)
+	if !updated || toks.FromConfigFile == "" {
+		return ctx, nil
+	}
 
-			if err = config.SetAccessToken(path, tokens.All()); err != nil {
-				log.Warn("Failed to persist authentication token.")
-				log.Debug(err)
-			}
-		}
+	if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
+		log.Warn("Failed to persist authentication token.")
+		log.Debug(err)
 	}
 
 	return ctx, nil
+}
+
+func tryOpenUserURL(ctx context.Context, url string) error {
+	if err := open.Run(url); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+			"failed opening browser. Copy the url (%s) into a browser and continue\n",
+			url,
+		)
+	}
+
+	return nil
 }
 
 // LoadAppConfigIfPresent is a Preparer which loads the application's
@@ -570,16 +561,9 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
-
-			// Query Web API for platform version
-			platformVersion, _ := determinePlatform(ctx, cfg.AppName)
-			if platformVersion != "" {
-				err := cfg.SetPlatformVersion(platformVersion)
-				if err != nil {
-					logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
-				}
+			if err := cfg.SetMachinesPlatform(); err != nil {
+				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
-
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
@@ -590,19 +574,6 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
-}
-
-func determinePlatform(ctx context.Context, appName string) (string, error) {
-	client := client.FromContext(ctx)
-	if appName == "" {
-		return "", fmt.Errorf("Can't determine platform without an application name")
-	}
-
-	basicApp, err := client.API().GetAppBasic(ctx, appName)
-	if err != nil {
-		return "", err
-	}
-	return basicApp.PlatformVersion, nil
 }
 
 // appConfigFilePaths returns the possible paths at which we may find a fly.toml

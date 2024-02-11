@@ -17,7 +17,7 @@ import (
 
 func newUpdate() (cmd *cobra.Command) {
 	const (
-		long = `Update an Upstash Redis database`
+		long = `Update an Upstash Redis database settings, payment plan or replica regions`
 
 		short = long
 		usage = "update <name>"
@@ -60,42 +60,26 @@ func runUpdate(ctx context.Context) (err error) {
 		return
 	}
 
-	var index int
-	var promptOptions []string
-
-	result, err := gql.ListAddOnPlans(ctx, client)
-	if err != nil {
-		return
-	}
-
-	for _, plan := range result.AddOnPlans.Nodes {
-		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s Max Data Size, $%d/month/region", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth))
-	}
-
-	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", "", promptOptions...)
-
-	if err != nil {
-		return fmt.Errorf("failed to select a plan: %w", err)
-	}
-
-	// type Options struct {
-	// 	Eviction bool
-	// }
-
-	// options := &Options{}
-
 	options, _ := addOn.Options.(map[string]interface{})
+
+	plan := addOn.AddOnPlan.Id
+
+	if addOn.AddOnPlan.Id == redisPlanFree {
+		if upgradePlan, err := prompt.Confirm(ctx, "Would you like to upgrade to the unrestricted Pay-as-you-go plan?"); upgradePlan || err != nil {
+			plan = redisPlanPayAsYouGo
+		}
+	}
 
 	if err != nil {
 		return
 	}
 
 	if options["eviction"] != nil && options["eviction"].(bool) {
-		if disableEviction, err := prompt.Confirm(ctx, " Would you like to disable eviction?"); disableEviction || err != nil {
+		if disableEviction, err := prompt.Confirm(ctx, "Would you like to disable eviction?"); disableEviction || err != nil {
 			options["eviction"] = false
 		}
 	} else {
-		options["eviction"], err = prompt.Confirm(ctx, " Would you like to enable eviction?")
+		options["eviction"], err = prompt.Confirm(ctx, "Would you like to enable eviction?")
 	}
 
 	if err != nil {
@@ -108,7 +92,7 @@ func runUpdate(ctx context.Context) (err error) {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, plan, readRegionCodes, options)
 
 	if err != nil {
 		return

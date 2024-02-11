@@ -153,10 +153,6 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return errors.New("console is only supported for the machines platform")
-	}
-
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
@@ -171,7 +167,7 @@ func runConsole(ctx context.Context) error {
 		}
 	}
 
-	if err, extraInfo := appConfig.ValidateForMachinesPlatform(ctx); err != nil {
+	if err, extraInfo := appConfig.Validate(ctx); err != nil {
 		fmt.Fprintln(io.ErrOut, extraInfo)
 		return err
 	}

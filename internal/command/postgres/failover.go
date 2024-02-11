@@ -66,10 +66,6 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("app %s is not a Postgres app", app.Name)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("failover is only supported for machines apps")
-	}
-
 	ctx, err = apps.BuildContext(ctx, app)
 	if err != nil {
 		return err

@@ -42,28 +42,6 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Created At")
 }
 
-func renderPrivateTable(ctx context.Context, allocations []*api.AllocationStatus, backupRegions []api.Region) {
-	rows := make([][]string, 0, len(allocations))
-
-	for _, alloc := range allocations {
-
-		region := alloc.Region
-		if len(backupRegions) > 0 {
-			for _, r := range backupRegions {
-				if alloc.Region == r.Code {
-					region = alloc.Region + "(B)"
-					break
-				}
-			}
-		}
-
-		rows = append(rows, []string{alloc.IDShort, region, alloc.PrivateIP})
-	}
-
-	out := iostreams.FromContext(ctx).Out
-	render.Table(out, "", rows, "ID", "Region", "IP")
-}
-
 func renderPrivateTableMachines(ctx context.Context, machines []*api.Machine) {
 	rows := make([][]string, 0, len(machines))
 

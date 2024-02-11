@@ -17,10 +17,12 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -134,6 +136,18 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 
 	eg.Go(func() error {
 		s.clean(ctx)
+
+		return nil
+	})
+
+	eg.Go(func() error {
+		if f := config.Tokens(ctx).FromConfigFile; f == "" {
+			s.print("monitoring for token expiration")
+			s.updateMacaroonsInMemory(ctx)
+		} else {
+			s.print("monitoring for token changes and expiration")
+			s.updateMacaroonsInFile(ctx, f)
+		}
 
 		return nil
 	})
@@ -364,10 +378,110 @@ func (s *server) clean(ctx context.Context) {
 	}
 }
 
+// updateMacaroons prunes expired macaroons and attempts to fetch discharge
+// tokens as necessary.
+func (s *server) updateMacaroonsInMemory(ctx context.Context) {
+	toks := config.Tokens(ctx)
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	var lastErr error
+
+	for {
+		if _, err := toks.Update(ctx, tokens.WithDebugger(s)); err != nil && err != lastErr {
+			s.print("failed upgrading authentication tokens:", err)
+			lastErr = err
+		}
+
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
+// updateMacaroons updates the agent's tokens as the config file changes. It
+// also prunes expired tokens and fetches discharge tokens as necessary. Those
+// updates are written back to the config file.
+func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
+	toks := config.Tokens(ctx)
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	var lastErr error
+
+	fiBefore, err := os.Stat(path)
+	if err != nil {
+		s.print("failed stating config file:", err)
+		s.updateMacaroonsInMemory(ctx)
+		return
+	}
+
+	for {
+		updated, err := toks.Update(ctx, tokens.WithDebugger(s))
+		if err != nil && err != lastErr {
+			s.print("failed upgrading authentication tokens:", err)
+			lastErr = err
+
+			// Don't continue loop here! It might only be partial failure
+		}
+
+		if updated {
+			fiAfter, err := os.Stat(path)
+			if err != nil {
+				s.print("failed stating config file:", err)
+				s.updateMacaroonsInMemory(ctx)
+				return
+			}
+
+			// Don't write updates if the file changed out from under us. This
+			// isn't as strong of an assurance as a lockfile would be, but a
+			// race isn't that consequential.
+			if fiBefore.ModTime() == fiAfter.ModTime() {
+				if err := config.SetAccessToken(path, toks.All()); err != nil {
+					s.print("Failed to persist authentication token:", err)
+					s.updateMacaroonsInMemory(ctx)
+					return
+				}
+
+				s.print("Authentication tokens upgraded")
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		if fiBefore, err = os.Stat(path); err != nil {
+			s.print("failed stating config file:", err)
+			s.updateMacaroonsInMemory(ctx)
+			return
+		}
+
+		tok, err := config.ReadAccessToken(path)
+		if err != nil {
+			s.print("failed reading config file:", err)
+			s.updateMacaroonsInMemory(ctx)
+			return
+		}
+
+		toks.Replace(tokens.Parse(tok))
+	}
+}
+
 func (s *server) print(v ...interface{}) {
 	s.Logger.Print(v...)
 }
 
 func (s *server) printf(format string, v ...interface{}) {
 	s.Logger.Printf(format, v...)
+}
+
+func (s *server) Debug(v ...any) {
+	s.Logger.Print(v...)
 }

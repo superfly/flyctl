@@ -2,9 +2,8 @@ package regions
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 
@@ -45,6 +44,7 @@ func newRegionsAdd() *cobra.Command {
 		flag.JSONOutput(),
 		flag.String{Name: "group", Description: "The process group to add the region to"},
 	)
+	cmd.Hidden = true
 	return cmd
 }
 
@@ -65,6 +65,7 @@ func newRegionsRemove() *cobra.Command {
 		flag.JSONOutput(),
 		flag.String{Name: "group", Description: "The process group to add the region to"},
 	)
+	cmd.Hidden = true
 	return cmd
 }
 
@@ -85,6 +86,7 @@ func newRegionsSet() *cobra.Command {
 		flag.JSONOutput(),
 		flag.String{Name: "group", Description: "The process group to add the region to"},
 	)
+	cmd.Hidden = true
 	return cmd
 }
 
@@ -104,6 +106,7 @@ func newRegionsBackup() *cobra.Command {
 		flag.Yes(),
 		flag.JSONOutput(),
 	)
+	cmd.Hidden = true
 	return cmd
 }
 
@@ -112,7 +115,7 @@ func newRegionsList() *cobra.Command {
 		short = `Shows the list of regions the app is allowed to run in`
 		long  = `Shows the list of regions the app is allowed to run in`
 	)
-	cmd := command.New("list", short, long, runRegionsList,
+	cmd := command.New("list", short, long, v2RunRegionsList,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -125,17 +128,18 @@ func newRegionsList() *cobra.Command {
 	return cmd
 }
 
-func runRegionsList(ctx context.Context) error {
-	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+func runRegionsAdd(ctx context.Context) error {
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+}
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return err
-	}
+func runRegionsRemove(ctx context.Context) error {
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+}
 
-	if app.PlatformVersion == "nomad" {
-		return v1RunRegionsList(ctx)
-	}
-	return v2RunRegionsList(ctx)
+func runRegionsSet(ctx context.Context) error {
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+}
+
+func runRegionsBackup(ctx context.Context) error {
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
 }
