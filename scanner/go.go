@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/mod/modfile"
 	"os"
 )
@@ -14,7 +15,9 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	gomod, parseErr := parseModfile()
 
 	version := "1"
-	if parseErr == nil && len(gomod.Go.Version) > 0 {
+	if parseErr != nil {
+		terminal.Warnf("go.mod appears to be invalid, the next deployment may fail: %v", parseErr)
+	} else if gomod.Go.Version != "" {
 		version = gomod.Go.Version
 	}
 
