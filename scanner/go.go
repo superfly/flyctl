@@ -25,10 +25,8 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		version = gomod.Go.Version
 	}
 
-	files := templates("templates/go")
-
 	s := &SourceInfo{
-		Files:  files,
+		Files:  templates("templates/go"),
 		Family: "Go",
 		Port:   8080,
 		Env: map[string]string{
