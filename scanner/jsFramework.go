@@ -215,7 +215,13 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	// confusion for many when the framework detected is listed as "NodeJS"
 	// See flyapps/dockerfile-node for the actual framework detction.
 	// Also change PlatformMap in core.go if this list ever changes.
-	if deps["@adonisjs/core"] != nil {
+	if (deps["astro"] != nil) && (deps["@astrojs/node"] != nil) {
+		srcInfo.Family = "Astro with SSR"
+		srcInfo.Port = 4321
+	} else if deps["astro"] != nil {
+		srcInfo.Family = "Astro Static Site"
+		srcInfo.Port = 80
+	} else if deps["@adonisjs/core"] != nil {
 		srcInfo.Family = "AdonisJS"
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
