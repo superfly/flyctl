@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -21,6 +20,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO(Allison): are we still supporting the launch-into usecase?
 	// I'm assuming *not* for now, because it's confusing UX and this
 	// is the perfect time to remove it.
+
+	if err := state.updateComputeFromDeprecatedGuestFields(ctx); err != nil {
+		return err
+	}
 
 	state.updateConfig(ctx)
 
@@ -78,6 +81,32 @@ func (state *launchState) Launch(ctx context.Context) error {
 	return nil
 }
 
+// Apply the freestanding Guest fields to the appConfig's Compute field
+// This is temporary, but allows us to start using Compute-based plans in flyctl *now* while the UI catches up in time.
+func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Context) error {
+
+	if len(state.Plan.Compute) != 0 {
+		// If the UI returns a compute field, then we don't need to do any forward-compat patching.
+		return nil
+	}
+	// Fallback for versions of the UI that don't support a Compute field in the Plan.
+
+	defer func() {
+		// Set the plan's compute field to the calculated compute field.
+		// This makes sure that code expecting a compute definition in the plan is able to find it
+		// (and that it's up-to-date)
+		state.Plan.Compute = state.appConfig.Compute
+	}()
+
+	if compute := state.appConfig.ComputeForGroup(state.appConfig.DefaultProcessName()); compute != nil {
+		applyGuestToCompute(compute, state.Plan.Guest())
+	} else {
+		state.appConfig.Compute = append(state.appConfig.Compute, guestToCompute(state.Plan.Guest()))
+	}
+
+	return nil
+}
+
 // updateConfig populates the appConfig with the plan's values
 func (state *launchState) updateConfig(ctx context.Context) {
 	state.appConfig.AppName = state.Plan.AppName
@@ -99,12 +128,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	} else {
 		state.appConfig.HTTPService = nil
 	}
-	state.appConfig.Compute = []*appconfig.Compute{
-		{
-			MachineGuest: state.Plan.Guest(),
-			Processes:    lo.Keys(state.appConfig.Processes),
-		},
-	}
+	state.appConfig.Compute = state.Plan.Compute
 }
 
 // createApp creates the fly.io app for the plan

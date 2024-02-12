@@ -58,6 +58,36 @@ func (c *Config) DefaultProcessName() string {
 	return c.ProcessNames()[0]
 }
 
+// Checks if `toCheck` is a process group name that should target `target`
+//
+// Returns true if target == toCheck or if target is the default process name and toCheck is empty
+func (c *Config) flattenGroupMatches(target, toCheck string) bool {
+	if target == "" {
+		target = c.DefaultProcessName()
+	}
+	switch {
+	case toCheck == target:
+		return true
+	case toCheck == "" && target == c.DefaultProcessName():
+		return true
+	default:
+		return false
+	}
+}
+
+// Checks if any of the process group names in `toCheck` should target the group `target`
+//
+// Returns true if any of the groups in toCheck would return true for `flattenGroupMatches`,
+// or if toCheck is empty, returns true if target is the default process name
+func (c *Config) flattenGroupsMatch(target string, toCheck []string) bool {
+	if len(toCheck) == 0 {
+		return c.flattenGroupMatches(target, "")
+	}
+	return lo.SomeBy(toCheck, func(x string) bool {
+		return c.flattenGroupMatches(target, x)
+	})
+}
+
 // Flatten generates a machine config specific to a process_group.
 //
 // Only services, mounts, checks, metrics & files specific to the provided progress group will be in the returned config.
@@ -70,21 +100,8 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	if groupName == "" {
 		groupName = defaultGroupName
 	}
-	matchesGroup := func(x string) bool {
-		switch {
-		case x == groupName:
-			return true
-		case x == "" && groupName == defaultGroupName:
-			return true
-		default:
-			return false
-		}
-	}
 	matchesGroups := func(xs []string) bool {
-		if len(xs) == 0 {
-			return matchesGroup("")
-		}
-		return lo.SomeBy(xs, matchesGroup)
+		return c.flattenGroupsMatch(groupName, xs)
 	}
 
 	dst := helpers.Clone(c)
@@ -93,7 +110,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 
 	// [processes]
 	dst.Processes = lo.PickBy(dst.Processes, func(k, v string) bool {
-		return matchesGroup(k)
+		return dst.flattenGroupMatches(groupName, k)
 	})
 
 	// [checks]
@@ -146,21 +163,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	}
 
 	// [[vm]]
-	// Find the most specific VM compute requirements for this process group
-	// In reality there are only four valid cases:
-	//   1. No [[vm]] section
-	//   2. One [[vm]] section with `processes = [groupname]`
-	//   3. Previous case plus global [[compute]] without processes
-	//   4. Only a [[vm]] section without processes set which applies to all groups
-	compute := lo.MaxBy(
-		// grab only the compute that matches or have no processes set
-		lo.Filter(dst.Compute, func(x *Compute, _ int) bool {
-			return len(x.Processes) == 0 || matchesGroups(x.Processes)
-		}),
-		// Next find the most specific
-		func(item *Compute, _ *Compute) bool {
-			return slices.Contains(item.Processes, groupName)
-		})
+	compute := dst.ComputeForGroup(groupName)
 
 	dst.Compute = nil
 	if compute != nil {
@@ -173,6 +176,30 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	}
 
 	return dst, nil
+}
+
+// ComputeForGroup finds the most specific VM compute requirements for this process group
+// In reality there are only four valid cases:
+//  1. No [[vm]] section
+//  2. One [[vm]] section with `processes = [groupName]`
+//  3. Previous case plus global [[compute]] without processes
+//  4. Only a [[vm]] section without processes set which applies to all groups
+func (c *Config) ComputeForGroup(groupName string) *Compute {
+
+	if groupName == "" {
+		groupName = c.DefaultProcessName()
+	}
+
+	compute := lo.MaxBy(
+		// grab only the compute that matches or have no processes set
+		lo.Filter(c.Compute, func(x *Compute, _ int) bool {
+			return len(x.Processes) == 0 || c.flattenGroupsMatch(groupName, x.Processes)
+		}),
+		// Next find the most specific
+		func(item *Compute, _ *Compute) bool {
+			return slices.Contains(item.Processes, groupName)
+		})
+	return compute
 }
 
 func (c *Config) InitCmd(groupName string) ([]string, error) {
