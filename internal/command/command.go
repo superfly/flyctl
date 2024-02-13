@@ -14,10 +14,10 @@ import (
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api/tokens"
+	"github.com/superfly/fly-go/api/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"

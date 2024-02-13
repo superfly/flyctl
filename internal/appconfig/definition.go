@@ -2,7 +2,7 @@ package appconfig
 
 import (
 	"github.com/pelletier/go-toml/v2"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 func (c *Config) ToDefinition() (*api.Definition, error) {

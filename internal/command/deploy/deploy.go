@@ -9,24 +9,24 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/sentry"
-
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/cmdutil"
 )
 
 var CommonFlags = flag.Set{
@@ -187,7 +187,10 @@ func run(ctx context.Context) error {
 	defer hook.Done()
 
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName:   appName,
+		UserAgent: buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}

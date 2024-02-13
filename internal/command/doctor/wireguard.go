@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/ping"
 )
@@ -82,7 +82,6 @@ func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 }
 
 func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
-
 	apiClient := client.FromContext(ctx).API()
 
 	// Set up the agent connection

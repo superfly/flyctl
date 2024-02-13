@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 func TestGetImage(t *testing.T) {

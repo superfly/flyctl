@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	"github.com/superfly/flyctl/api/tokens"
+	"github.com/superfly/fly-go/api/tokens"
 )
 
 type contextKey struct{}

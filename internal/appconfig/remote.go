@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"

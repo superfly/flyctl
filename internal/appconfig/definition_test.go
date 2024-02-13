@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 // Usual Config response for api.GetConfig GQL call

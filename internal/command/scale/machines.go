@@ -5,14 +5,19 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*api.VMSize, error) {
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName:   appName,
+		UserAgent: buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return nil, err
 	}

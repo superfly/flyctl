@@ -8,15 +8,15 @@ import (
 
 	"github.com/superfly/flyctl/ssh"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/helpers"
-
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	iostreams "github.com/superfly/flyctl/iostreams"
 )
 
@@ -96,7 +96,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		return err
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+		UserAgent:  buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return err
 	}

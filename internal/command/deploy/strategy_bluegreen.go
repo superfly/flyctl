@@ -12,8 +12,8 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/machine"
