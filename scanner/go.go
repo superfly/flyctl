@@ -12,7 +12,17 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	s := &SourceInfo{
+		Files:  templates("templates/go"),
+		Family: "Go",
+		Port:   8080,
+		Env: map[string]string{
+			"PORT": "8080",
+		},
+	}
+
 	if !absFileExists("go.sum") {
+		s.SkipDeploy = true
 		terminal.Warn("no go.sum file found, please adjust your Dockerfile to remove references to go.sum")
 	}
 
@@ -25,16 +35,8 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		version = gomod.Go.Version
 	}
 
-	s := &SourceInfo{
-		Files:  templates("templates/go"),
-		Family: "Go",
-		Port:   8080,
-		Env: map[string]string{
-			"PORT": "8080",
-		},
-		BuildArgs: map[string]string{
-			"GO_VERSION": version,
-		},
+	s.BuildArgs = map[string]string{
+		"GO_VERSION": version,
 	}
 
 	return s, nil
