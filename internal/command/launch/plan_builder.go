@@ -577,6 +577,12 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
 }
 
+// Applies the fields of the guest to the provided compute.
+// Ignores the guest's kernel arguments, host dedication, and GPU config,
+// leaving whatever the given compute originally had.
+//
+// This is because this function is meant for backwards compatibility with
+// the Web UI's guest definition, which doesn't have these fields.
 func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
 	for k, v := range api.MachinePresets {
 		if reflect.DeepEqual(*v, *g) {
@@ -586,16 +592,27 @@ func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
 			return
 		}
 	}
+
+	originalGuest := c.MachineGuest
+	clonedGuest := helpers.Clone(g)
+	c.MachineGuest = clonedGuest
+
+	// Canonicalize to human-readable memory strings when possible
 	var memStr string
 	if g.MemoryMB%1024 == 0 {
 		memStr = fmt.Sprintf("%dgb", g.MemoryMB/1024)
 	} else {
 		memStr = fmt.Sprintf("%dmb", g.MemoryMB)
 	}
-	clonedGuest := helpers.Clone(g)
-	c.MachineGuest = clonedGuest
 	c.Memory = memStr
 	c.MemoryMB = 0
+
+	// Restore original values for fields the Web UI does not return
+	if originalGuest != nil {
+		c.MachineGuest.KernelArgs = originalGuest.KernelArgs
+		c.MachineGuest.GPUs = originalGuest.GPUs
+		c.MachineGuest.HostDedicationID = originalGuest.HostDedicationID
+	}
 }
 
 func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
