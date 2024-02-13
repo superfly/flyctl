@@ -135,6 +135,18 @@ func New() *cobra.Command {
 			Default:     true,
 			Hidden:      true,
 		},
+		flag.StringArray{
+			Name:        "file-local",
+			Description: "Set of files to write to the Machine, in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-literal",
+			Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-secret",
+			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
+		},
 		flag.VMSizeFlags,
 	)
 
