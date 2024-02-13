@@ -213,6 +213,19 @@ func run(ctx context.Context) error {
 		return err
 	}
 
+	gpuKinds := []string{}
+	for _, compute := range appConfig.Compute {
+		gpuKinds = append(gpuKinds, compute.GPUKind)
+	}
+
+	cpuKinds := []string{}
+	for _, compute := range appConfig.Compute {
+		gpuKinds = append(gpuKinds, compute.CPUKind)
+	}
+
+	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
+	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
+
 	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
 }
 
