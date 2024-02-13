@@ -17,6 +17,13 @@ func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddres
 						type
 						region
 						createdAt
+						network {
+							name
+							organization {
+								slug
+							}
+						}
+						serviceName
 					}
 				}
 				sharedIpAddress
