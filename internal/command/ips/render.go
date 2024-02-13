@@ -26,20 +26,36 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 
 		switch {
 		case ipAddr.Type == "v4":
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated, $2/mo)", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated, $2/mo)", ipAddr.Region, "", ipAddr.ServiceName, createdAt})
 		case ipAddr.Type == "shared_v4":
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, "", ipAddr.ServiceName, createdAt})
 		case ipAddr.Type == "v6":
-			rows = append(rows, []string{"v6", ipAddr.Address, "public (dedicated)", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v6", ipAddr.Address, "public (dedicated)", ipAddr.Region, formatNetwork(ipAddr), ipAddr.ServiceName, createdAt})
 		case ipAddr.Type == "private_v6":
-			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, createdAt})
+			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, formatNetwork(ipAddr), ipAddr.ServiceName, createdAt})
 		default:
-			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, createdAt})
+			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, "", ipAddr.ServiceName, createdAt})
 		}
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Created At")
+	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Network", "Service", "Created At")
+}
+
+func formatNetwork(ipAddr api.IPAddress) string {
+	if ipAddr.Network == nil {
+		return ""
+	}
+	name := ipAddr.Network.Name
+	if name == "" {
+		name = "default"
+	}
+
+	if ipAddr.Network.Organization != nil {
+		return ipAddr.Network.Organization.Slug + "/" + name
+	}
+
+	return name
 }
 
 func renderPrivateTableMachines(ctx context.Context, machines []*api.Machine) {
