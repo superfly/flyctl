@@ -7,11 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -115,7 +116,9 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 }
 
 func buildContextFromAppName(ctx context.Context, appName string) (context.Context, error) {
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
@@ -142,9 +145,14 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 			return nil, fmt.Errorf("could not get machine from GraphQL to determine app name: %w", err)
 		}
 		ctx = appconfig.WithName(ctx, gqlMachine.App.Name)
-		flapsClient, err = flaps.New(ctx, gqlMachine.App)
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppCompact: gqlMachine.App,
+			AppName:    gqlMachine.App.Name,
+		})
 	} else {
-		flapsClient, err = flaps.NewFromAppName(ctx, appName)
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: appName,
+		})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)

@@ -13,7 +13,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 

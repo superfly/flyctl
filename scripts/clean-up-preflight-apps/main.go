@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/shlex"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"

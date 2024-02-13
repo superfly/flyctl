@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"

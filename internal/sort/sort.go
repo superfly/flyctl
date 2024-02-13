@@ -4,7 +4,7 @@ package sort
 import (
 	"sort"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 // OrganizationsByTypeAndName sorts orgs by their type and name.

@@ -12,20 +12,19 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/watch"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 var sharedFlags = flag.Set{
@@ -360,7 +359,10 @@ func runMachineRun(ctx context.Context) error {
 		LSVD:   flag.GetBool(ctx, "lsvd"),
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
@@ -519,7 +521,10 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
 
-		if err := flaps.WaitForApp(ctx, appc.Name); err != nil {
+		f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: appc.Name})
+		if err != nil {
+			return nil, err
+		} else if err := f.WaitForApp(ctx, appc.Name); err != nil {
 			return nil, err
 		}
 	}
@@ -565,7 +570,10 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		return nil, err
 	}
 
-	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	if err != nil {
+		return nil, err
+	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
@@ -616,7 +624,8 @@ type determineMachineConfigInput struct {
 
 func determineMachineConfig(
 	ctx context.Context,
-	input *determineMachineConfigInput) (*api.MachineConfig, error) {
+	input *determineMachineConfigInput,
+) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	var err error

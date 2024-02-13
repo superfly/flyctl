@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 type PostgresPlan struct {

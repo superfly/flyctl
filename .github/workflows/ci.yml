@@ -29,7 +29,7 @@ jobs:
       - name: "Place wintun.dll"
         run: cp deps/wintun/bin/amd64/wintun.dll ./
       - name: Run tests
-        run: make test test-api
+        run: make test
 
   release:
     needs: test

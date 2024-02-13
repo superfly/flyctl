@@ -7,16 +7,16 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
-
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 func newList() *cobra.Command {
@@ -43,7 +43,9 @@ func runList(ctx context.Context) error {
 		return fmt.Errorf("outputting to json is not yet supported")
 	}
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}

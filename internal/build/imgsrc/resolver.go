@@ -18,7 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	dockerclient "github.com/docker/docker/client"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -26,7 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/terminal"
 )
 

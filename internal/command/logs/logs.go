@@ -11,11 +11,11 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
