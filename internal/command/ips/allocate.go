@@ -72,7 +72,10 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	} else if !flag.GetBool(ctx, "yes") {
-		switch confirmed, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now cost $2/mo. Are you ok with this?"); {
+		msg := `Looks like you're accessing a paid feature. Dedicated IPv4 addresses now cost $2/mo.
+Are you ok with this? Alternatively, you could allocate a shared IPv4 address with the --shared flag.`
+
+		switch confirmed, err := prompt.Confirm(ctx, msg); {
 		case err == nil:
 			if !confirmed {
 				return nil
