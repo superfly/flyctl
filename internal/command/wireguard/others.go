@@ -9,8 +9,8 @@ import (
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"

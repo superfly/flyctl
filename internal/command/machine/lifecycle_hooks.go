@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/iostreams"

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"

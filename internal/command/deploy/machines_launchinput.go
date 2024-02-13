@@ -5,7 +5,7 @@ import (
 	"strconv"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"

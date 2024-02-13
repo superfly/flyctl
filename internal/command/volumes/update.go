@@ -5,17 +5,17 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newUpdate() *cobra.Command {
@@ -69,7 +69,10 @@ func runUpdate(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName:   appName,
+		UserAgent: buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return err
 	}

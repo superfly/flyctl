@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
