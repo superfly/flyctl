@@ -6,7 +6,7 @@ package appconfig
 import (
 	"time"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 func (c *Config) SetInternalPort(port int) {

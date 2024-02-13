@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 

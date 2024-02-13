@@ -6,9 +6,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -165,11 +165,10 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		}
 	}
 	return machineAttachCluster(ctx, params, flycast)
-
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
-	//Minimum image version requirements
+	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresStandaloneVersion = "0.0.7"

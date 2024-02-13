@@ -22,7 +22,7 @@ repos:
     hooks:
     -   id: golangci-lint
         stages: [commit]
-    -   id: golangci-lint
-        name: "golangci-lint api"
-        stages: [commit]
-        entry: bash -c "cd api && exec golangci-lint run --new-from-rev HEAD --fix"
+    #-   id: golangci-lint
+    #    name: "golangci-lint api"
+    #    stages: [commit]
+    #    entry: bash -c "cd api && exec golangci-lint run --new-from-rev HEAD --fix"

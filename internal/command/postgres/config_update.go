@@ -8,9 +8,9 @@ import (
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -108,7 +108,6 @@ func runConfigUpdate(ctx context.Context) error {
 		return err
 	}
 	return runMachineConfigUpdate(ctx, app)
-
 }
 
 func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {

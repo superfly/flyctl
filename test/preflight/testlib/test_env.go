@@ -15,7 +15,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/oklog/ulid/v2"
 	"github.com/pelletier/go-toml/v2"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 )
 

@@ -8,8 +8,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/config"
 )
 
