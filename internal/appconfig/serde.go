@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -107,6 +108,11 @@ func (c *Config) marshalTOML() ([]byte, error) {
 func unmarshalTOML(buf []byte) (*Config, error) {
 	cfgMap := map[string]any{}
 	if err := toml.Unmarshal(buf, &cfgMap); err != nil {
+		var derr *toml.DecodeError
+		if errors.As(err, &derr) {
+			row, col := derr.Position()
+			return nil, fmt.Errorf("row %d column %d\n%s", row, col, derr.String())
+		}
 		return nil, err
 	}
 	cfg, err := applyPatches(cfgMap)
