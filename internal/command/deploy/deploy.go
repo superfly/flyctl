@@ -224,10 +224,10 @@ func run(ctx context.Context) error {
 	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
-	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
@@ -256,7 +256,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)
-	if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
+	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
 
@@ -300,7 +300,6 @@ func deployToMachines(
 	appConfig *appconfig.Config,
 	appCompact *api.AppCompact,
 	img *imgsrc.DeploymentImage,
-	guest *api.MachineGuest,
 ) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -330,11 +329,9 @@ func deployToMachines(
 		return err
 	}
 
-	if guest == nil {
-		guest, err = flag.GetMachineGuest(ctx, nil)
-		if err != nil {
-			return err
-		}
+	guest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	excludeRegions := make(map[string]interface{})
