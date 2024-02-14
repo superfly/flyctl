@@ -12,7 +12,7 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/state"
@@ -23,7 +23,7 @@ import (
 
 var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 
-func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error) {
+func generatePeerName(ctx context.Context, apiClient *fly.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return "", err
@@ -40,7 +40,7 @@ func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient *api.Client, org *api.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
@@ -72,7 +72,7 @@ func StateForOrg(ctx context.Context, apiClient *api.Client, org *api.Organizati
 	return stateb, nil
 }
 
-func Create(apiClient *api.Client, org *api.Organization, regionCode, name string) (*wg.WireGuardState, error) {
+func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -181,7 +181,7 @@ func setWireGuardStateForOrg(ctx context.Context, orgSlug string, s *wg.WireGuar
 	return setWireGuardState(ctx, states)
 }
 
-func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
+func PruneInvalidPeers(ctx context.Context, apiClient *fly.Client) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil

@@ -9,7 +9,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -92,7 +92,7 @@ func newCreateBarman() *cobra.Command {
 func runBarmanCreate(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -121,7 +121,7 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	var region *api.Region
+	var region *fly.Region
 	region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
 	})
@@ -129,7 +129,7 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	machineConfig := api.MachineConfig{}
+	machineConfig := fly.MachineConfig{}
 
 	machineConfig.Env = map[string]string{
 		"IS_BARMAN":      "true",
@@ -142,53 +142,53 @@ func runBarmanCreate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	machineConfig.Guest = &api.MachineGuest{
+	machineConfig.Guest = &fly.MachineGuest{
 		CPUKind:  vmSize.CPUClass,
 		CPUs:     int(vmSize.CPUCores),
 		MemoryMB: vmSize.MemoryMB,
 	}
 
 	// Metrics
-	machineConfig.Metrics = &api.MachineMetrics{
+	machineConfig.Metrics = &fly.MachineMetrics{
 		Path: "/metrics",
 		Port: 9187,
 	}
 
-	machineConfig.Checks = map[string]api.MachineCheck{
+	machineConfig.Checks = map[string]fly.MachineCheck{
 		"connection": {
-			Port:     api.Pointer(5500),
-			Type:     api.Pointer("http"),
+			Port:     fly.Pointer(5500),
+			Type:     fly.Pointer("http"),
 			HTTPPath: &CheckPathConnection,
-			Interval: &api.Duration{Duration: Duration15s},
-			Timeout:  &api.Duration{Duration: Duration10s},
+			Interval: &fly.Duration{Duration: Duration15s},
+			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"role": {
-			Port:     api.Pointer(5500),
-			Type:     api.Pointer("http"),
+			Port:     fly.Pointer(5500),
+			Type:     fly.Pointer("http"),
 			HTTPPath: &CheckPathRole,
-			Interval: &api.Duration{Duration: Duration15s},
-			Timeout:  &api.Duration{Duration: Duration10s},
+			Interval: &fly.Duration{Duration: Duration15s},
+			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 		"vm": {
-			Port:     api.Pointer(5500),
-			Type:     api.Pointer("http"),
+			Port:     fly.Pointer(5500),
+			Type:     fly.Pointer("http"),
 			HTTPPath: &CheckPathVm,
-			Interval: &api.Duration{Duration: Duration15s},
-			Timeout:  &api.Duration{Duration: Duration10s},
+			Interval: &fly.Duration{Duration: Duration15s},
+			Timeout:  &fly.Duration{Duration: Duration10s},
 		},
 	}
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
-		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
-		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
-		api.MachineConfigMetadataKeyFlyManagedPostgres: "true",
+		fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
+		fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
+		fly.MachineConfigMetadataKeyFlyManagedPostgres: "true",
 		"managed-by-fly-deploy":                        "true",
 		"fly-barman":                                   "true",
 	}
 
 	// Restart policy
-	machineConfig.Restart.Policy = api.MachineRestartPolicyAlways
+	machineConfig.Restart.Policy = fly.MachineRestartPolicyAlways
 
 	imageRepo := "flyio/postgres-flex"
 
@@ -198,14 +198,14 @@ func runBarmanCreate(ctx context.Context) error {
 	}
 	machineConfig.Image = imageRef
 
-	var vol *api.Volume
+	var vol *fly.Volume
 
-	volInput := api.CreateVolumeRequest{
+	volInput := fly.CreateVolumeRequest{
 		Name:              volumeName,
 		Region:            region.Code,
-		SizeGb:            api.Pointer(flag.GetInt(ctx, "volume-size")),
-		Encrypted:         api.Pointer(true),
-		RequireUniqueZone: api.Pointer(true),
+		SizeGb:            fly.Pointer(flag.GetInt(ctx, "volume-size")),
+		Encrypted:         fly.Pointer(true),
+		RequireUniqueZone: fly.Pointer(true),
 	}
 
 	if *volInput.SizeGb == 0 {
@@ -233,12 +233,12 @@ func runBarmanCreate(ctx context.Context) error {
 		return fmt.Errorf("failed to create volume: %w", err)
 	}
 
-	machineConfig.Mounts = append(machineConfig.Mounts, api.MachineMount{
+	machineConfig.Mounts = append(machineConfig.Mounts, fly.MachineMount{
 		Volume: vol.ID,
 		Path:   volumePath,
 	})
 
-	launchInput := api.LaunchMachineInput{
+	launchInput := fly.LaunchMachineInput{
 		Name:   "barman",
 		Region: volInput.Region,
 		Config: &machineConfig,
@@ -381,7 +381,7 @@ func newBarmanRecover() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *api.AppCompact) {
+func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -444,7 +444,7 @@ func runBarmanRecover(ctx context.Context) error {
 }
 
 func runConsole(ctx context.Context, cmd string) error {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -484,7 +484,7 @@ func runConsole(ctx context.Context, cmd string) error {
 	return nil
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *api.AppCompact, console bool) (addr string, err error) {
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
 	addr, err = addrForMachines(ctx, app, console)
 
 	if err != nil {
@@ -502,7 +502,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	return
 }
 
-func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
@@ -517,7 +517,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		return "", err
 	}
 
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 		return m.State == "started"
 	})
 
@@ -529,7 +529,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		return "", err
 	}
 
-	var selectedMachine *api.Machine
+	var selectedMachine *fly.Machine
 
 	for _, machine := range machines {
 		if machine.Config.Env["IS_BARMAN"] != "" {

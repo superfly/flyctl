@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -285,11 +285,11 @@ func runMachineCreate(ctx context.Context) error {
 func runMachineRun(ctx context.Context) error {
 	var (
 		appName  = appconfig.NameFromContext(ctx)
-		client   = api.ClientFromContext(ctx)
+		client   = fly.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		err      error
-		app      *api.AppCompact
+		app      *fly.AppCompact
 		isCreate = false
 		interact = false
 		shell    = flag.GetBool(ctx, "shell")
@@ -345,14 +345,14 @@ func runMachineRun(ctx context.Context) error {
 		}
 	}
 
-	machineConf := &api.MachineConfig{
+	machineConf := &fly.MachineConfig{
 		AutoDestroy: destroy,
-		DNS: &api.DNSConfig{
+		DNS: &fly.DNSConfig{
 			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
-	input := api.LaunchMachineInput{
+	input := fly.LaunchMachineInput{
 		Name:   flag.GetString(ctx, "name"),
 		Region: flag.GetString(ctx, "region"),
 		LSVD:   flag.GetBool(ctx, "lsvd"),
@@ -476,7 +476,7 @@ func runMachineRun(ctx context.Context) error {
 	if !flag.GetDetach(ctx) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
+		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)
@@ -488,7 +488,7 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api.AppCompact, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context, client *fly.Client) (*fly.AppCompact, error) {
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
@@ -500,7 +500,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 		return nil, fmt.Errorf("create interactive shell app: %w", err)
 	}
 
-	var appc *api.App
+	var appc *fly.App
 
 	for appi, appt := range apps {
 		if strings.HasPrefix(appt.Name, "flyctl-interactive-shells-") {
@@ -510,7 +510,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 	}
 
 	if appc == nil {
-		appc, err = client.CreateApp(ctx, api.CreateAppInput{
+		appc, err = client.CreateApp(ctx, fly.CreateAppInput{
 			OrganizationID: org.ID,
 			// i'll never find love again like the kind you give like the kind you send
 			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000)),
@@ -537,7 +537,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api
 	return app, nil
 }
 
-func createApp(ctx context.Context, message, name string, client *api.Client) (*api.AppCompact, error) {
+func createApp(ctx context.Context, message, name string, client *fly.Client) (*fly.AppCompact, error) {
 	confirm, err := prompt.Confirm(ctx, message)
 	if err != nil {
 		return nil, err
@@ -559,7 +559,7 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		}
 	}
 
-	input := api.CreateAppInput{
+	input := fly.CreateAppInput{
 		Name:           name,
 		OrganizationID: org.ID,
 	}
@@ -576,14 +576,14 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		return nil, err
 	}
 
-	return &api.AppCompact{
+	return &fly.AppCompact{
 		ID:       app.ID,
 		Name:     app.Name,
 		Status:   app.Status,
 		Deployed: app.Deployed,
 		Hostname: app.Hostname,
 		AppURL:   app.AppURL,
-		Organization: &api.OrganizationBasic{
+		Organization: &fly.OrganizationBasic{
 			ID:   app.Organization.ID,
 			Slug: app.Organization.Slug,
 		},
@@ -613,7 +613,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 }
 
 type determineMachineConfigInput struct {
-	initialMachineConf api.MachineConfig
+	initialMachineConf fly.MachineConfig
 	appName            string
 	imageOrPath        string
 	region             string
@@ -624,7 +624,7 @@ type determineMachineConfigInput struct {
 func determineMachineConfig(
 	ctx context.Context,
 	input *determineMachineConfigInput,
-) (*api.MachineConfig, error) {
+) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	var err error
@@ -678,7 +678,7 @@ func determineMachineConfig(
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
 		if machineConf.DNS == nil {
-			machineConf.DNS = &api.DNSConfig{}
+			machineConf.DNS = &fly.DNSConfig{}
 		}
 		machineConf.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
 	}
@@ -714,24 +714,24 @@ func determineMachineConfig(
 	// default restart policy to always unless otherwise specified
 	switch flag.GetString(ctx, "restart") {
 	case "no":
-		machineConf.Restart.Policy = api.MachineRestartPolicyNo
+		machineConf.Restart.Policy = fly.MachineRestartPolicyNo
 	case "on-fail":
-		machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+		machineConf.Restart.Policy = fly.MachineRestartPolicyOnFailure
 	case "always":
-		machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+		machineConf.Restart.Policy = fly.MachineRestartPolicyAlways
 	case "":
 		if flag.IsSpecified(ctx, "restart") {
 			// An empty policy was explicitly requested.
 			machineConf.Restart.Policy = ""
 		} else if machineConf.AutoDestroy {
 			// Autodestroy only works when the restart policy is set to no, so unless otherwise specified, we set the restart policy to no.
-			machineConf.Restart.Policy = api.MachineRestartPolicyNo
+			machineConf.Restart.Policy = fly.MachineRestartPolicyNo
 		} else if !input.updating {
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
-				machineConf.Restart.Policy = api.MachineRestartPolicyOnFailure
+				machineConf.Restart.Policy = fly.MachineRestartPolicyOnFailure
 			} else {
-				machineConf.Restart.Policy = api.MachineRestartPolicyAlways
+				machineConf.Restart.Policy = fly.MachineRestartPolicyAlways
 			}
 		}
 	default:
@@ -756,16 +756,16 @@ func determineMachineConfig(
 		s := &machineConf.Services[idx]
 		// Use the chance to port the deprecated field
 		if machineConf.DisableMachineAutostart != nil {
-			s.Autostart = api.Pointer(!(*machineConf.DisableMachineAutostart))
+			s.Autostart = fly.Pointer(!(*machineConf.DisableMachineAutostart))
 			machineConf.DisableMachineAutostart = nil
 		}
 
 		if flag.IsSpecified(ctx, "autostop") {
-			s.Autostop = api.Pointer(flag.GetBool(ctx, "autostop"))
+			s.Autostop = fly.Pointer(flag.GetBool(ctx, "autostop"))
 		}
 
 		if flag.IsSpecified(ctx, "autostart") {
-			s.Autostart = api.Pointer(flag.GetBool(ctx, "autostart"))
+			s.Autostart = fly.Pointer(flag.GetBool(ctx, "autostart"))
 		}
 	}
 

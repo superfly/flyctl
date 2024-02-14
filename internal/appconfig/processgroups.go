@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -15,7 +15,7 @@ import (
 // If c.Processes == nil, returns ["app"]
 func (c *Config) ProcessNames() []string {
 	if c == nil {
-		return []string{api.MachineProcessGroupApp}
+		return []string{fly.MachineProcessGroupApp}
 	}
 	switch names := lo.Keys(c.Processes); {
 	case len(names) == 1:
@@ -26,7 +26,7 @@ func (c *Config) ProcessNames() []string {
 	case c.defaultGroupName != "":
 		return []string{c.defaultGroupName}
 	default:
-		return []string{api.MachineProcessGroupApp}
+		return []string{fly.MachineProcessGroupApp}
 	}
 }
 
@@ -43,12 +43,12 @@ func (c *Config) FormatProcessNames() string {
 // * The first process name in ascending lexicographical order
 func (c *Config) DefaultProcessName() string {
 	if c == nil {
-		return api.MachineProcessGroupApp
+		return fly.MachineProcessGroupApp
 	}
 
 	defaultGroupName := c.defaultGroupName
 	if defaultGroupName == "" {
-		defaultGroupName = api.MachineProcessGroupApp
+		defaultGroupName = fly.MachineProcessGroupApp
 	}
 
 	processNames := c.ProcessNames()
@@ -185,7 +185,6 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 //  3. Previous case plus global [[compute]] without processes
 //  4. Only a [[vm]] section without processes set which applies to all groups
 func (c *Config) ComputeForGroup(groupName string) *Compute {
-
 	if groupName == "" {
 		groupName = c.DefaultProcessName()
 	}

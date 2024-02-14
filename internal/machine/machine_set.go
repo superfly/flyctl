@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -28,7 +28,7 @@ type machineSet struct {
 	machines []LeasableMachine
 }
 
-func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*api.Machine) *machineSet {
+func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
 		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -44,7 +44,7 @@ func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	appName := flag.FirstArg(ctx)
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying an app is not reversible."

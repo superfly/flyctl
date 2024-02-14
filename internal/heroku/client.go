@@ -7,7 +7,7 @@ import (
 
 	"github.com/PuerkitoBio/rehttp"
 	heroku "github.com/heroku/heroku-go/v5"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/tokenizer"
 )
@@ -33,7 +33,7 @@ func New(auth Auth) (*Client, error) {
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
-	logging := &api.LoggingTransport{
+	logging := &fly.LoggingTransport{
 		InnerTransport: retry,
 		Logger:         terminal.DefaultLogger,
 	}

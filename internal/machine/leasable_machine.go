@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/statuslogger"
@@ -18,19 +18,19 @@ import (
 )
 
 type LeasableMachine interface {
-	Machine() *api.Machine
+	Machine() *fly.Machine
 	HasLease() bool
 	AcquireLease(context.Context, time.Duration) error
 	RefreshLease(context.Context, time.Duration) error
 	ReleaseLease(context.Context) error
 	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
-	Update(context.Context, api.LaunchMachineInput) error
+	Update(context.Context, fly.LaunchMachineInput) error
 	Start(context.Context) error
 	Destroy(context.Context, bool) error
 	WaitForState(context.Context, string, time.Duration, bool) error
 	WaitForSmokeChecksToPass(context.Context) error
 	WaitForHealthchecksToPass(context.Context, time.Duration) error
-	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*api.MachineEvent, error)
+	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*fly.MachineEvent, error)
 	FormattedMachineId() string
 	GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration)
 }
@@ -39,13 +39,13 @@ type leasableMachine struct {
 	flapsClient            *flaps.Client
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
-	machine                *api.Machine
+	machine                *fly.Machine
 	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
 }
 
-func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *api.Machine) LeasableMachine {
+func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *fly.Machine) LeasableMachine {
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
@@ -55,7 +55,7 @@ func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, mach
 	}
 }
 
-func (lm *leasableMachine) Update(ctx context.Context, input api.LaunchMachineInput) error {
+func (lm *leasableMachine) Update(ctx context.Context, input fly.LaunchMachineInput) error {
 	if lm.IsDestroyed() {
 		return fmt.Errorf("error cannot update machine %s that was already destroyed", lm.machine.ID)
 	}
@@ -75,7 +75,7 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 	if lm.IsDestroyed() {
 		return nil
 	}
-	input := api.RemoveMachineInput{
+	input := fly.RemoveMachineInput{
 		ID:   lm.machine.ID,
 		Kill: kill,
 	}
@@ -107,7 +107,7 @@ func (lm *leasableMachine) logStatusFinished(ctx context.Context, current string
 	statuslogger.Logf(ctx, "Machine %s has state: %s", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Green(current))
 }
 
-func (lm *leasableMachine) logHealthCheckStatus(ctx context.Context, status *api.HealthCheckStatus) {
+func (lm *leasableMachine) logHealthCheckStatus(ctx context.Context, status *fly.HealthCheckStatus) {
 	if status == nil {
 		return
 	}
@@ -129,7 +129,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.HasLease() {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
-	lm.logStatusWaiting(ctx, api.MachineStateStarted)
+	lm.logStatusWaiting(ctx, fly.MachineStateStarted)
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
 		return err
@@ -186,7 +186,7 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 				timeout:      timeout,
 				desiredState: desiredState,
 			}
-		case notFoundResponse && desiredState != api.MachineStateDestroyed:
+		case notFoundResponse && desiredState != fly.MachineStateDestroyed:
 			return err
 		case !notFoundResponse && err != nil:
 			select {
@@ -200,8 +200,8 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 	}
 }
 
-func (lm *leasableMachine) isConstantlyRestarting(machine *api.Machine) bool {
-	var ev *api.MachineEvent
+func (lm *leasableMachine) isConstantlyRestarting(machine *fly.Machine) bool {
+	var ev *fly.MachineEvent
 
 	for _, mev := range machine.Events {
 		if mev.Type == "exit" {
@@ -313,7 +313,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 }
 
 // waits for an eventType1 type event to show up after we see a eventType2 event, and returns it
-func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration, allowInfinite bool) (*api.MachineEvent, error) {
+func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventType1, eventType2 string, timeout time.Duration, allowInfinite bool) (*fly.MachineEvent, error) {
 	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
 	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
 	defer cancel()
@@ -346,7 +346,7 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 	}
 }
 
-func (lm *leasableMachine) Machine() *api.Machine {
+func (lm *leasableMachine) Machine() *fly.Machine {
 	return lm.machine
 }
 

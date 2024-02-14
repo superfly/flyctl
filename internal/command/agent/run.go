@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent/server"
 	"github.com/superfly/flyctl/flyctl"
 
@@ -46,10 +46,10 @@ func run(ctx context.Context) error {
 	}
 	defer closeLogger()
 
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	if !apiClient.Authenticated() {
-		logger.Println(api.ErrNoAuthToken)
-		return api.ErrNoAuthToken
+		logger.Println(fly.ErrNoAuthToken)
+		return fly.ErrNoAuthToken
 	}
 
 	unlock, err := lock(ctx, logger)

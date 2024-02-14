@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -48,7 +48,7 @@ func New() (cmd *cobra.Command) {
 }
 
 func establish(ctx context.Context) (ac *agent.Client, err error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	if ac, err = agent.Establish(ctx, client); err != nil {
 		err = fmt.Errorf("failed establishing connection to agent: %w", err)

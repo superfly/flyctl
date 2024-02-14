@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/iostreams"
@@ -33,7 +33,7 @@ func runSignup(ctx context.Context) error {
 		return err
 	}
 
-	user, err := api.NewClientFromOptions(api.ClientOptions{
+	user, err := fly.NewClientFromOptions(fly.ClientOptions{
 		AccessToken: token,
 		Name:        buildinfo.Name(),
 		Version:     buildinfo.Version().String(),

@@ -5,13 +5,13 @@ import (
 	"net"
 	"strings"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
+func renderListTable(ctx context.Context, ipAddresses []fly.IPAddress) {
 	rows := make([][]string, 0, len(ipAddresses))
 
 	var ipType string
@@ -42,7 +42,7 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Created At")
 }
 
-func renderPrivateTableMachines(ctx context.Context, machines []*api.Machine) {
+func renderPrivateTableMachines(ctx context.Context, machines []*fly.Machine) {
 	rows := make([][]string, 0, len(machines))
 
 	for _, machine := range machines {

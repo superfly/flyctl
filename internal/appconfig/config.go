@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -21,7 +21,7 @@ const (
 
 func NewConfig() *Config {
 	return &Config{
-		defaultGroupName: api.MachineProcessGroupApp,
+		defaultGroupName: fly.MachineProcessGroupApp,
 		configFilePath:   "--config path unset--",
 	}
 }
@@ -32,7 +32,7 @@ type Config struct {
 	AppName        string        `toml:"app,omitempty" json:"app,omitempty"`
 	PrimaryRegion  string        `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
 	KillSignal     *string       `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
-	KillTimeout    *api.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	KillTimeout    *fly.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
 	SwapSizeMB     *int          `toml:"swap_size_mb,omitempty" json:"swap_size_mb,omitempty"`
 	ConsoleCommand string        `toml:"console_command,omitempty" json:"console_command,omitempty"`
 
@@ -58,7 +58,7 @@ type Config struct {
 	Metrics []*Metrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	// MergedFiles is a list of files that have been merged from the app config and flags.
-	MergedFiles []*api.File `toml:"-" json:"-"`
+	MergedFiles []*fly.File `toml:"-" json:"-"`
 
 	// Path to application configuration file, usually fly.toml.
 	configFilePath string
@@ -71,16 +71,16 @@ type Config struct {
 }
 
 type Metrics struct {
-	*api.MachineMetrics
+	*fly.MachineMetrics
 	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type Deploy struct {
 	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	ReleaseCommandTimeout *api.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
+	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
 	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
-	WaitTimeout           *api.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
+	WaitTimeout           *fly.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
 }
 
 type File struct {
@@ -91,8 +91,8 @@ type File struct {
 	Processes  []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
-func (f File) toMachineFile() (*api.File, error) {
-	file := &api.File{
+func (f File) toMachineFile() (*fly.File, error) {
+	file := &fly.File{
 		GuestPath: f.GuestPath,
 	}
 	switch {
@@ -152,7 +152,7 @@ type Experimental struct {
 type Compute struct {
 	Size              string `json:"size,omitempty" toml:"size,omitempty"`
 	Memory            string `json:"memory,omitempty" toml:"memory,omitempty"`
-	*api.MachineGuest `toml:",inline" json:",inline"`
+	*fly.MachineGuest `toml:",inline" json:",inline"`
 	Processes         []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
@@ -301,9 +301,9 @@ func (cfg *Config) URL() *url.URL {
 
 // MergeFiles merges the provided files with the files in the config wherein the provided files
 // take precedence.
-func (cfg *Config) MergeFiles(files []*api.File) error {
+func (cfg *Config) MergeFiles(files []*fly.File) error {
 	// First convert the Config files to Machine files.
-	cfgFiles := make([]*api.File, 0, len(cfg.Files))
+	cfgFiles := make([]*fly.File, 0, len(cfg.Files))
 	for _, f := range cfg.Files {
 		machineFile, err := f.toMachineFile()
 		if err != nil {
@@ -313,7 +313,7 @@ func (cfg *Config) MergeFiles(files []*api.File) error {
 	}
 
 	// Merge the config files with the provided files.
-	mConfig := &api.MachineConfig{
+	mConfig := &fly.MachineConfig{
 		Files: cfgFiles,
 	}
 	machine.MergeFiles(mConfig, files)

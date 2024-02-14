@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -38,7 +38,7 @@ func newRegions() (cmd *cobra.Command) {
 }
 
 func runRegions(ctx context.Context) error {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	regions, _, err := client.PlatformRegions(ctx)
 	if err != nil {

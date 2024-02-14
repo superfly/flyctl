@@ -8,7 +8,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -74,7 +74,7 @@ func newImport() *cobra.Command {
 
 func runImport(ctx context.Context) error {
 	var (
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 
 		sourceURI = flag.FirstArg(ctx)
@@ -122,20 +122,20 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to build context: %s", err)
 	}
 
-	machineConfig := &api.MachineConfig{
+	machineConfig := &fly.MachineConfig{
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": "pass",
 		},
-		Guest: &api.MachineGuest{
+		Guest: &fly.MachineGuest{
 			CPUKind:  vmSize.CPUClass,
 			CPUs:     int(vmSize.CPUCores),
 			MemoryMB: vmSize.MemoryMB,
 		},
-		DNS: &api.DNSConfig{
+		DNS: &fly.DNSConfig{
 			SkipRegistration: true,
 		},
-		Restart: api.MachineRestart{
-			Policy: api.MachineRestartPolicyNo,
+		Restart: fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,
 	}
@@ -150,7 +150,7 @@ func runImport(ctx context.Context) error {
 	machineConfig.Image = imageRef
 
 	ephemeralInput := &mach.EphemeralInput{
-		LaunchInput: api.LaunchMachineInput{
+		LaunchInput: fly.LaunchMachineInput{
 			Region: region.Code,
 			Config: machineConfig,
 		},

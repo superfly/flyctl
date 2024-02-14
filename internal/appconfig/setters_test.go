@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func TestSettersWithService(t *testing.T) {
@@ -19,19 +19,19 @@ func TestSettersWithService(t *testing.T) {
 	assert.Equal(t, cfg.Services, []Service{{
 		InternalPort: 1234,
 		Protocol:     "tcp",
-		Concurrency: &api.MachineServiceConcurrency{
+		Concurrency: &fly.MachineServiceConcurrency{
 			Type:      "connections",
 			HardLimit: 34,
 			SoftLimit: 12,
 		},
 		HTTPChecks: []*ServiceHTTPCheck{{
-			Interval:          api.MustParseDuration("10s"),
-			Timeout:           api.MustParseDuration("2s"),
-			GracePeriod:       api.MustParseDuration("5s"),
-			HTTPMethod:        api.Pointer("GET"),
-			HTTPPath:          api.Pointer("/status"),
-			HTTPProtocol:      api.Pointer("http"),
-			HTTPTLSSkipVerify: api.Pointer(false),
+			Interval:          fly.MustParseDuration("10s"),
+			Timeout:           fly.MustParseDuration("2s"),
+			GracePeriod:       fly.MustParseDuration("5s"),
+			HTTPMethod:        fly.Pointer("GET"),
+			HTTPPath:          fly.Pointer("/status"),
+			HTTPProtocol:      fly.Pointer("http"),
+			HTTPTLSSkipVerify: fly.Pointer(false),
 		}},
 	}})
 }
@@ -47,7 +47,7 @@ func TestSettersWithHTTPService(t *testing.T) {
 	assert.Empty(t, cfg.Services)
 	assert.Equal(t, cfg.HTTPService, &HTTPService{
 		InternalPort: 1234,
-		Concurrency: &api.MachineServiceConcurrency{
+		Concurrency: &fly.MachineServiceConcurrency{
 			Type:      "connections",
 			HardLimit: 34,
 			SoftLimit: 12,
@@ -55,15 +55,15 @@ func TestSettersWithHTTPService(t *testing.T) {
 	})
 	assert.Equal(t, cfg.Checks, map[string]*ToplevelCheck{
 		"status": {
-			Port:              api.Pointer(1234),
-			Type:              api.Pointer("http"),
-			Interval:          api.MustParseDuration("10s"),
-			Timeout:           api.MustParseDuration("2s"),
-			GracePeriod:       api.MustParseDuration("5s"),
-			HTTPMethod:        api.Pointer("GET"),
-			HTTPPath:          api.Pointer("/status"),
-			HTTPProtocol:      api.Pointer("http"),
-			HTTPTLSSkipVerify: api.Pointer(false),
+			Port:              fly.Pointer(1234),
+			Type:              fly.Pointer("http"),
+			Interval:          fly.MustParseDuration("10s"),
+			Timeout:           fly.MustParseDuration("2s"),
+			GracePeriod:       fly.MustParseDuration("5s"),
+			HTTPMethod:        fly.Pointer("GET"),
+			HTTPPath:          fly.Pointer("/status"),
+			HTTPProtocol:      fly.Pointer("http"),
+			HTTPTLSSkipVerify: fly.Pointer(false),
 		},
 	})
 }
@@ -170,5 +170,5 @@ func TestSetVolumes(t *testing.T) {
 func TestSetKillSignal(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetKillSignal("TERM")
-	assert.Equal(t, cfg.KillSignal, api.Pointer("TERM"))
+	assert.Equal(t, cfg.KillSignal, fly.Pointer("TERM"))
 }

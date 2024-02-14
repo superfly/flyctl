@@ -13,7 +13,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
@@ -107,7 +107,7 @@ func CaptureMessage(msg string, opts ...CaptureOption) {
 	})
 }
 
-func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *api.AppCompact) {
+func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName string, appCompact *fly.AppCompact) {
 	if appCompact == nil {
 		CaptureException(
 			err,
