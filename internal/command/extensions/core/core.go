@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/briandowns/spinner"
@@ -472,12 +473,19 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 			return err
 		}
 	} else {
-		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
-		for key, value := range secrets {
-			fmt.Println(key + ": " + value.(string))
-		}
-	}
+		fmt.Fprintf(io.Out, "Set the following secrets on your target app.\n")
+		var keys []string
 
+		for key := range secrets {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			fmt.Println(key + ": " + secrets[key].(string))
+		}
+
+	}
 	return err
 }
 
