@@ -8,10 +8,12 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -43,7 +45,10 @@ func runSave(ctx context.Context) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName:   appName,
+		UserAgent: buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return err
 	}
@@ -83,7 +88,6 @@ func runSave(ctx context.Context) error {
 }
 
 func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configPath string) error {
-
 	io := iostreams.FromContext(ctx)
 
 	oldCfg, err := loadPrevConfig(configPath)

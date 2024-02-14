@@ -7,7 +7,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/pkg/errors"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 type pollingStream struct {

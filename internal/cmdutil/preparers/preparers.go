@@ -11,9 +11,10 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/instrument"
@@ -62,7 +63,11 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	api.SetInstrumenter(instrument.ApiAdapter)
 	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := client.FromTokens(cfg.Tokens)
+	c := client.NewClientWithOptions(&client.NewClientOpts{
+		Tokens:        cfg.Tokens,
+		ClientName:    buildinfo.Name(),
+		ClientVersion: buildinfo.Version().String(),
+	})
 	logger.Debug("client initialized.")
 
 	return client.NewContext(ctx, c), nil
@@ -87,7 +92,6 @@ func DetermineConfigDir(ctx context.Context) (context.Context, error) {
 //     This will set flag.Changed to true, as if it were specified manually.
 //   - If none of the flags were set, the main flag will remain its default value.
 func ApplyAliases(ctx context.Context) (context.Context, error) {
-
 	var (
 		invalidFlagNames []string
 		invalidTypes     []string

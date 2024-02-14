@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	"github.com/superfly/flyctl/agent/server"
 	"github.com/superfly/flyctl/flyctl"
 
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
@@ -59,11 +60,12 @@ func run(ctx context.Context) error {
 	defer unlock()
 
 	opt := server.Options{
-		Socket:     socketPath(ctx),
-		Logger:     logger,
-		Client:     apiClient.API(),
-		Background: logPath != "",
-		ConfigFile: state.ConfigFile(ctx),
+		Socket:           socketPath(ctx),
+		Logger:           logger,
+		Client:           apiClient.API(),
+		Background:       logPath != "",
+		ConfigFile:       state.ConfigFile(ctx),
+		ConfigWebsockets: viper.GetBool(flyctl.ConfigWireGuardWebsockets),
 	}
 
 	return server.Run(ctx, opt)

@@ -11,7 +11,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 )

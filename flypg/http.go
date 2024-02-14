@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -80,9 +80,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
-
 	body, err := c.doRequest(ctx, method, path, in)
-
 	if err != nil {
 		return err
 	}
