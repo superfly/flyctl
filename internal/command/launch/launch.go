@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -116,9 +116,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		if state.appConfig.HTTPService == nil {
 			state.appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
-				AutoStartMachines:  api.Pointer(true),
-				AutoStopMachines:   api.Pointer(true),
-				MinMachinesRunning: api.Pointer(0),
+				AutoStartMachines:  fly.Pointer(true),
+				AutoStopMachines:   fly.Pointer(true),
+				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}
 		}
@@ -130,13 +130,13 @@ func (state *launchState) updateConfig(ctx context.Context) {
 }
 
 // createApp creates the fly.io app for the plan
-func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
-	apiClient := api.ClientFromContext(ctx)
+func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
+	apiClient := fly.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
 		return nil, err
 	}
-	app, err := apiClient.CreateApp(ctx, api.CreateAppInput{
+	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
 		Name:            state.Plan.AppName,
 		PreferredRegion: &state.Plan.RegionCode,

@@ -8,7 +8,7 @@ import (
 
 	"github.com/r3labs/diff"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -89,7 +89,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 
 func runConfigUpdate(ctx context.Context) error {
 	var (
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -109,7 +109,7 @@ func runConfigUpdate(ctx context.Context) error {
 	return runMachineConfigUpdate(ctx, app)
 }
 
-func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
+func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -174,7 +174,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 
 		// Ensure leases are released before we issue restart.
 		releaseLeaseFunc()
-		if err := machinesRestart(ctx, &api.RestartMachineInput{}); err != nil {
+		if err := machinesRestart(ctx, &fly.RestartMachineInput{}); err != nil {
 			return err
 		}
 	}
@@ -182,7 +182,7 @@ func runMachineConfigUpdate(ctx context.Context, app *api.AppCompact) error {
 	return nil
 }
 
-func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP string) (bool, error) {
+func updateStolonConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 
 	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.StolonManager, leaderIP)
@@ -205,7 +205,7 @@ func updateStolonConfig(ctx context.Context, app *api.AppCompact, leaderIP strin
 	return restartRequired, nil
 }
 
-func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string) (bool, error) {
+func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -248,7 +248,7 @@ func updateFlexConfig(ctx context.Context, app *api.AppCompact, leaderIP string)
 	return restartRequired, nil
 }
 
-func resolveConfigChanges(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) (bool, map[string]string, error) {
+func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) (bool, map[string]string, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)

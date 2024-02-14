@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -49,7 +49,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -66,13 +66,13 @@ func runRestart(ctx context.Context) error {
 		return err
 	}
 
-	input := api.RestartMachineInput{
+	input := fly.RestartMachineInput{
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
 	return machinesRestart(ctx, &input)
 }
 
-func machinesRestart(ctx context.Context, input *api.RestartMachineInput) (err error) {
+func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.20"
 		MinPostgresFlexVersion       = "0.0.3"

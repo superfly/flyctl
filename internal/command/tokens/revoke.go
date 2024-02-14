@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -25,7 +25,7 @@ func newRevoke() *cobra.Command {
 }
 
 func runRevoke(ctx context.Context) (err error) {
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
 	args := flag.Args(ctx)
 	for _, id := range args {

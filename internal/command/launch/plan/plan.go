@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/version"
 )
@@ -38,9 +38,9 @@ type LaunchPlan struct {
 
 // Guest returns the guest described by the *raw* guest fields in a Plan.
 // When the UI starts returning Compute, this will be deprecated.
-func (p *LaunchPlan) Guest() *api.MachineGuest {
+func (p *LaunchPlan) Guest() *fly.MachineGuest {
 	// TODO(Allison): Determine whether we should use VmSize or CPUKind/CPUs
-	guest := api.MachineGuest{
+	guest := fly.MachineGuest{
 		CPUs:    p.CPUs,
 		CPUKind: p.CPUKind,
 	}

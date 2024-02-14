@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -75,7 +75,7 @@ The target argument can be either a ".internal" DNS name in our network
 }
 
 func run(ctx context.Context) error {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	var (
 		err  error

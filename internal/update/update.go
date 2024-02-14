@@ -58,13 +58,16 @@ type InvalidReleaseError struct {
 func (i InvalidReleaseError) Error() string {
 	return i.msg
 }
+
 func (i InvalidReleaseError) StatusCode() int {
 	return i.status
 }
 
 // memoized values for ValidateRelease
-var _validatedReleases = map[string]error{}
-var _validatedReleaseLock sync.Mutex
+var (
+	_validatedReleases    = map[string]error{}
+	_validatedReleaseLock sync.Mutex
+)
 
 // ValidateRelease reports whether the given release is valid via an API call.
 // If the version is invalid, the error will be an InvalidReleaseError.
@@ -194,7 +197,6 @@ var _brewBinDir memoize[string]
 
 func brewBinDir() (string, error) {
 	return _brewBinDir.Get(func() (string, error) {
-
 		brewExe, err := safeexec.LookPath("brew")
 		if err != nil {
 			return "", errBrewNotFound
@@ -209,7 +211,6 @@ func brewBinDir() (string, error) {
 
 		return brewBinPrefix, nil
 	})
-
 }
 
 // Use IsUnderHomebrew()
@@ -490,7 +491,7 @@ func NormalizeChannel(channel string) string {
 
 // Old install code conflates channels and versions. This fixes it so
 // "stable" maps to "latest" while preserving prerelease behavior.
-// This will get removed once we're using the new flypkgs api.
+// This will get removed once we're using the new flypkgs API.
 func translateChannelForRails(channel string) string {
 	switch channel {
 	case "pre", "prerelease":

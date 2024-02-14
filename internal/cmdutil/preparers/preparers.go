@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -57,19 +57,19 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 
 	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
+	fly.SetBaseURL(cfg.APIBaseURL)
+	fly.SetErrorLog(cfg.LogGQLErrors)
+	fly.SetInstrumenter(instrument.ApiAdapter)
+	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := api.NewClientFromOptions(api.ClientOptions{
+	c := fly.NewClientFromOptions(fly.ClientOptions{
 		Name:    buildinfo.Name(),
 		Version: buildinfo.Version().String(),
 		Tokens:  cfg.Tokens,
 	})
 	logger.Debug("client initialized.")
 
-	return api.NewContextWithClient(ctx, c), nil
+	return fly.NewContextWithClient(ctx, c), nil
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {

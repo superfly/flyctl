@@ -4,14 +4,13 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func TestGetImage(t *testing.T) {
-
 	type testcase struct {
 		name     string
-		machines []*api.Machine
+		machines []*fly.Machine
 		expected string
 	}
 
@@ -19,26 +18,26 @@ func TestGetImage(t *testing.T) {
 		{
 			name:     "2 machines with different images",
 			expected: "library/redis:latest",
-			machines: []*api.Machine{
+			machines: []*fly.Machine{
 				{
-					ImageRef: api.MachineImageRef{
+					ImageRef: fly.MachineImageRef{
 						Repository: "library/redis",
 						Tag:        "latest",
 					},
-					Config: &api.MachineConfig{
+					Config: &fly.MachineConfig{
 						Metadata: map[string]string{
-							api.MachineConfigMetadataKeyFlyReleaseVersion: "2",
+							fly.MachineConfigMetadataKeyFlyReleaseVersion: "2",
 						},
 					},
 				},
 				{
-					ImageRef: api.MachineImageRef{
+					ImageRef: fly.MachineImageRef{
 						Repository: "library/nginx",
 						Tag:        "latest",
 					},
-					Config: &api.MachineConfig{
+					Config: &fly.MachineConfig{
 						Metadata: map[string]string{
-							api.MachineConfigMetadataKeyFlyReleaseVersion: "1",
+							fly.MachineConfigMetadataKeyFlyReleaseVersion: "1",
 						},
 					},
 				},
@@ -47,26 +46,26 @@ func TestGetImage(t *testing.T) {
 		{
 			name:     "2 machines with same images",
 			expected: "library/nginx:latest",
-			machines: []*api.Machine{
+			machines: []*fly.Machine{
 				{
-					ImageRef: api.MachineImageRef{
+					ImageRef: fly.MachineImageRef{
 						Repository: "library/nginx",
 						Tag:        "latest",
 					},
-					Config: &api.MachineConfig{
+					Config: &fly.MachineConfig{
 						Metadata: map[string]string{
-							api.MachineConfigMetadataKeyFlyReleaseVersion: "2",
+							fly.MachineConfigMetadataKeyFlyReleaseVersion: "2",
 						},
 					},
 				},
 				{
-					ImageRef: api.MachineImageRef{
+					ImageRef: fly.MachineImageRef{
 						Repository: "library/nginx",
 						Tag:        "latest",
 					},
-					Config: &api.MachineConfig{
+					Config: &fly.MachineConfig{
 						Metadata: map[string]string{
-							api.MachineConfigMetadataKeyFlyReleaseVersion: "1",
+							fly.MachineConfigMetadataKeyFlyReleaseVersion: "1",
 						},
 					},
 				},
@@ -79,5 +78,4 @@ func TestGetImage(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, tc.expected, img, tc.name)
 	}
-
 }

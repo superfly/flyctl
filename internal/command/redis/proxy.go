@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
@@ -46,7 +46,7 @@ func runProxy(ctx context.Context) (err error) {
 }
 
 func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.ConnectParams, string, error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	var index int
 	var options []string

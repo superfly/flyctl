@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -29,7 +29,7 @@ func newUnset() (cmd *cobra.Command) {
 }
 
 func runUnset(ctx context.Context) (err error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -39,8 +39,8 @@ func runUnset(ctx context.Context) (err error) {
 	return UnsetSecretsAndDeploy(ctx, app, flag.Args(ctx), flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
 
-func UnsetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets []string, stage bool, detach bool) error {
-	client := api.ClientFromContext(ctx)
+func UnsetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets []string, stage bool, detach bool) error {
+	client := fly.ClientFromContext(ctx)
 	if _, err := client.UnsetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}

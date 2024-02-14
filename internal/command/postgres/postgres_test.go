@@ -4,21 +4,21 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func TestIsFlex(t *testing.T) {
 	assert.False(t, IsFlex(nil))
-	assert.False(t, IsFlex(&api.Machine{}))
-	assert.False(t, IsFlex(&api.Machine{
-		ImageRef: api.MachineImageRef{
+	assert.False(t, IsFlex(&fly.Machine{}))
+	assert.False(t, IsFlex(&fly.Machine{
+		ImageRef: fly.MachineImageRef{
 			Labels: map[string]string{
 				"fly.pg-manager": "stolon",
 			},
 		},
 	}))
-	assert.True(t, IsFlex(&api.Machine{
-		ImageRef: api.MachineImageRef{
+	assert.True(t, IsFlex(&fly.Machine{
+		ImageRef: fly.MachineImageRef{
 			Labels: map[string]string{
 				"fly.pg-manager": "repmgr",
 			},

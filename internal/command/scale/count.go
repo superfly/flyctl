@@ -9,7 +9,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -66,7 +66,7 @@ func runScaleCount(ctx context.Context) error {
 	groupName := flag.GetProcessGroup(ctx)
 
 	if groupName == "" {
-		groupName = api.MachineProcessGroupApp
+		groupName = fly.MachineProcessGroupApp
 	}
 
 	groups, err := parseGroupCounts(args, groupName)

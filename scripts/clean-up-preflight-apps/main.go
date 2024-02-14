@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/shlex"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/logger"
@@ -25,7 +25,7 @@ func main() {
 func run() error {
 	var (
 		ctx       = context.TODO()
-		apiClient = api.NewClientFromOptions(api.ClientOptions{
+		apiClient = fly.NewClientFromOptions(fly.ClientOptions{
 			AccessToken: os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
 			Name:        buildinfo.Name(),
 			Version:     buildinfo.Version().String(),

@@ -7,7 +7,7 @@ import (
 
 	dockerclient "github.com/docker/docker/client"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/flyctl/agent"
@@ -218,7 +218,7 @@ This is likely a platform issue, please contact support.
 }
 
 func runAuth(ctx context.Context) (err error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	if _, err = client.GetCurrentUser(ctx); err != nil {
 		err = fmt.Errorf("can't verify access token: %w", err)

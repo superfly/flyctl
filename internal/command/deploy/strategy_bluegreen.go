@@ -12,7 +12,7 @@ import (
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
@@ -39,7 +39,7 @@ type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
 	flaps               *flaps.Client
-	apiClient           *api.Client
+	apiClient           *fly.Client
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
 	clearLinesAbove     func(count int)
@@ -216,7 +216,7 @@ func (bg *blueGreen) changeDetected(a, b map[string]string) bool {
 	return false
 }
 
-func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheckStatus) func() {
+func (bg *blueGreen) renderMachineHealthchecks(state map[string]*fly.HealthCheckStatus) func() {
 	firstRun := true
 
 	previousView := map[string]string{}
@@ -251,7 +251,7 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*api.HealthCheck
 	}
 }
 
-func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*api.HealthCheckStatus) bool {
+func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*fly.HealthCheckStatus) bool {
 	passed := 0
 
 	bg.healthLock.RLock()
@@ -276,7 +276,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	defer span.End()
 
 	wait := time.NewTicker(bg.timeout)
-	machineIDToHealthStatus := map[string]*api.HealthCheckStatus{}
+	machineIDToHealthStatus := map[string]*fly.HealthCheckStatus{}
 	errChan := make(chan error)
 	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
 
@@ -292,7 +292,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 			continue
 		}
 
-		machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &api.HealthCheckStatus{}
+		machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &fly.HealthCheckStatus{}
 	}
 
 	for _, gm := range bg.greenMachines {
@@ -410,7 +410,7 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 			serviceProtocol := service.Protocol
 
 			for _, check := range service.Checks {
-				cc := api.MachineCheck{
+				cc := fly.MachineCheck{
 					Port:              check.Port,
 					Type:              check.Type,
 					Interval:          check.Interval,
@@ -432,7 +432,7 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 				}
 
 				if entry.launchInput.Config.Checks == nil {
-					entry.launchInput.Config.Checks = make(map[string]api.MachineCheck)
+					entry.launchInput.Config.Checks = make(map[string]fly.MachineCheck)
 				}
 				entry.launchInput.Config.Checks[fmt.Sprintf("bg_deployments_%s", *check.Type)] = cc
 			}

@@ -19,7 +19,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
@@ -76,7 +76,7 @@ validity.`
 }
 
 func runSSHIssue(ctx context.Context) (err error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
@@ -286,7 +286,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	})
 }
 
-func populateAgent(icert *api.IssuedCertificate, priv ed25519.PrivateKey) error {
+func populateAgent(icert *fly.IssuedCertificate, priv ed25519.PrivateKey) error {
 	acon, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
 		return fmt.Errorf("can't connect to SSH agent: %w", err)

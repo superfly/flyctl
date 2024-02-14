@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
@@ -54,7 +54,7 @@ func Start(ctx context.Context, p *ConnectParams) error {
 func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 	var (
 		io            = iostreams.FromContext(ctx)
-		client        = api.ClientFromContext(ctx)
+		client        = fly.ClientFromContext(ctx)
 		orgSlug       = p.OrganizationSlug
 		localBindAddr = p.BindAddr
 		localPort     = p.Ports[0]

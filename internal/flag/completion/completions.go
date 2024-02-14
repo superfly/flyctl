@@ -8,7 +8,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
@@ -19,9 +19,9 @@ func CompleteApps(
 	partial string,
 ) ([]string, error) {
 	var (
-		client = api.ClientFromContext(ctx)
+		client = fly.ClientFromContext(ctx)
 
-		apps []api.App
+		apps []fly.App
 		err  error
 	)
 
@@ -30,7 +30,7 @@ func CompleteApps(
 	// We can't use `flag.*` here because of import cycles. *sigh*
 	orgFlag := cmd.Flag(flagnames.Org)
 	if orgFlag != nil && orgFlag.Changed {
-		var org *api.Organization
+		var org *fly.Organization
 		org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
 		if err != nil {
 			return nil, err
@@ -44,7 +44,7 @@ func CompleteApps(
 		return nil, err
 	}
 
-	ret := lo.FilterMap(apps, func(app api.App, _ int) (string, bool) {
+	ret := lo.FilterMap(apps, func(app fly.App, _ int) (string, bool) {
 		if strings.HasPrefix(app.Name, partial) {
 			var info []string
 			if !orgFiltered {
@@ -65,9 +65,9 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
-	format := func(org api.Organization) string {
+	format := func(org fly.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
@@ -92,9 +92,9 @@ func CompleteRegions(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
-	format := func(org api.Region) string {
+	format := func(org fly.Region) string {
 		return fmt.Sprintf("%s\t%s", org.Code, org.Name)
 	}
 
@@ -103,7 +103,7 @@ func CompleteRegions(
 	if err != nil {
 		return nil, err
 	}
-	regionNames := lo.FilterMap(regions, func(region api.Region, _ int) (string, bool) {
+	regionNames := lo.FilterMap(regions, func(region fly.Region, _ int) (string, bool) {
 		if strings.HasPrefix(region.Code, partial) {
 			return format(region), true
 		}

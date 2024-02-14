@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 )
 
 type PostgresPlan struct {
@@ -43,8 +43,8 @@ type FlyPostgresPlan struct {
 	AutoStop   bool   `json:"auto_stop"`
 }
 
-func (p *FlyPostgresPlan) Guest() *api.MachineGuest {
-	guest := api.MachineGuest{}
+func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
+	guest := fly.MachineGuest{}
 	guest.SetSize(p.VmSize)
 	if p.VmRam != 0 {
 		guest.MemoryMB = p.VmRam

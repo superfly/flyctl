@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -49,7 +49,7 @@ func New() *cobra.Command {
 	return secrets
 }
 
-func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach bool) error {
+func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if stage {

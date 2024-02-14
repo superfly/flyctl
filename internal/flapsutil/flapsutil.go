@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -23,7 +23,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 		}
 
-		client := api.ClientFromContext(ctx)
+		client := fly.ClientFromContext(ctx)
 		agentclient, err := agent.Establish(ctx, client)
 		if err != nil {
 			return nil, fmt.Errorf("error establishing agent: %w", err)
@@ -52,7 +52,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 	return flaps.NewWithOptions(ctx, opts)
 }
 
-func resolveOrgSlugForApp(ctx context.Context, app *api.AppCompact, appName string) (string, error) {
+func resolveOrgSlugForApp(ctx context.Context, app *fly.AppCompact, appName string) (string, error) {
 	app, err := resolveApp(ctx, app, appName)
 	if err != nil {
 		return "", err
@@ -60,10 +60,10 @@ func resolveOrgSlugForApp(ctx context.Context, app *api.AppCompact, appName stri
 	return app.Organization.Slug, nil
 }
 
-func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
+func resolveApp(ctx context.Context, app *fly.AppCompact, appName string) (*fly.AppCompact, error) {
 	var err error
 	if app == nil {
-		client := api.ClientFromContext(ctx)
+		client := fly.ClientFromContext(ctx)
 		app, err = client.GetAppCompact(ctx, appName)
 	}
 	return app, err
