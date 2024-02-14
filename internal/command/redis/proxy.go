@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -90,5 +90,4 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 		Dialer:           dialer,
 		RemoteHost:       database.PrivateIp,
 	}, database.Password, nil
-
 }

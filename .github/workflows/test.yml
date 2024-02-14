@@ -12,8 +12,6 @@ jobs:
         test:
           - workdir: "."
             target: "test"
-          - workdir: "api"
-            target: "test-api"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

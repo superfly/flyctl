@@ -6,7 +6,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 )

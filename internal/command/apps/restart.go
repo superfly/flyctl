@@ -6,14 +6,14 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/flag/completion"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
@@ -85,7 +85,10 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	// Rolling restart against exclusively the machines managed by the Apps platform
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return err
 	}
@@ -108,5 +111,4 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	return nil
-
 }

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -131,4 +132,8 @@ func Commit() string {
 		}
 	}
 	return rev + dirty
+}
+
+func UserAgent() string {
+	return strings.TrimSpace(fmt.Sprintf("fly-cli/%s", Version()))
 }

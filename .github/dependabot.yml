@@ -15,21 +15,6 @@ updates:
         patterns:
           - "golang.org/x/*"
 
-  - package-ecosystem: "gomod"
-    directory: "/api"
-    labels:
-      - "dependencies"
-      - "go"
-    schedule:
-      interval: "daily"
-    groups:
-      tracing:
-        patterns:
-          - "go.opentelemetry.io/*"
-      golangx:
-        patterns:
-          - "golang.org/x/*"
-
   - package-ecosystem: "github-actions"
     directory: "/"
     labels:

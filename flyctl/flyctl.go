@@ -6,7 +6,7 @@ import (
 	"path"
 
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/terminal"
