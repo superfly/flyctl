@@ -135,6 +135,18 @@ func New() *cobra.Command {
 			Default:     true,
 			Hidden:      true,
 		},
+		flag.StringArray{
+			Name:        "file-local",
+			Description: "Set of files to write to the Machine, in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-literal",
+			Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-secret",
+			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -153,10 +165,6 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return errors.New("console is only supported for the machines platform")
-	}
-
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
@@ -171,7 +179,7 @@ func runConsole(ctx context.Context) error {
 		}
 	}
 
-	if err, extraInfo := appConfig.ValidateForMachinesPlatform(ctx); err != nil {
+	if err, extraInfo := appConfig.Validate(ctx); err != nil {
 		fmt.Fprintln(io.ErrOut, extraInfo)
 		return err
 	}

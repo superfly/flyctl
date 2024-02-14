@@ -93,18 +93,6 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	return json.NewDecoder(body).Decode(out)
 }
 
-func (c *Client) DoPlaintext(ctx context.Context, method, path string, in interface{}) (string, error) {
-	body, err := c.doRequest(ctx, method, path, in)
-	if err != nil {
-		return "", err
-	}
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
-}
-
 func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {
 	var (
 		body    io.Reader

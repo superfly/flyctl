@@ -38,9 +38,9 @@ func TestFlyLaunchV2(t *testing.T) {
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
 		"vm": []any{map[string]any{
-			"cpu_kind":  "shared",
-			"cpus":      int64(1),
-			"memory_mb": int64(1024),
+			"cpu_kind": "shared",
+			"cpus":     int64(1),
+			"memory":   "1gb",
 		}},
 		"http_service": map[string]any{
 			"force_https":          true,
@@ -51,55 +51,6 @@ func TestFlyLaunchV2(t *testing.T) {
 			"processes":            []any{"app"},
 		},
 	}
-	require.EqualValues(f, want, toml)
-}
-
-// Same as case01 but for Nomad apps
-func TestFlyLaunchV1(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
-
-	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx --internal-port 80 --force-nomad", f.OrgSlug(), appName, f.PrimaryRegion())
-	toml := f.UnmarshalFlyToml()
-	want := map[string]any{
-		"app":            appName,
-		"build":          map[string]any{"image": "nginx"},
-		"env":            map[string]any{},
-		"experimental":   map[string]any{"auto_rollback": true},
-		"kill_signal":    "SIGINT",
-		"kill_timeout":   int64(5),
-		"primary_region": f.PrimaryRegion(),
-		"processes":      []any{},
-		"services": []any{map[string]any{
-			"concurrency":   map[string]any{"hard_limit": int64(25), "soft_limit": int64(20), "type": "connections"},
-			"http_checks":   []any{},
-			"internal_port": int64(80),
-			"ports": []any{
-				map[string]any{"force_https": true, "handlers": []any{"http"}, "port": int64(80)},
-				map[string]any{"handlers": []any{"tls", "http"}, "port": int64(443)},
-			},
-			"processes":     []any{"app"},
-			"protocol":      "tcp",
-			"script_checks": []any{},
-			"tcp_checks": []any{map[string]any{
-				"grace_period":  "1s",
-				"interval":      "15s",
-				"timeout":       "2s",
-				"restart_limit": int64(0),
-			}},
-		}},
-	}
-	require.EqualValues(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable --force-nomad", appName, f.SecondaryRegion())
-	toml = f.UnmarshalFlyToml()
-	want["primary_region"] = f.SecondaryRegion()
-	want["build"].(map[string]any)["image"] = "nginx:stable"
-	require.EqualValues(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999 --force-nomad", appName)
-	toml = f.UnmarshalFlyToml()
-	want["services"].([]any)[0].(map[string]any)["internal_port"] = int64(9999)
 	require.EqualValues(f, want, toml)
 }
 
@@ -127,9 +78,9 @@ func TestFlyLaunchWithTOML(t *testing.T) {
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
 		"vm": []any{map[string]any{
-			"cpu_kind":  "shared",
-			"cpus":      int64(1),
-			"memory_mb": int64(1024),
+			"cpu_kind": "shared",
+			"cpus":     int64(1),
+			"memory":   "1gb",
 		}},
 	}
 	require.EqualValues(f, want, toml)

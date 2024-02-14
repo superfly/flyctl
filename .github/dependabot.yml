@@ -7,6 +7,13 @@ updates:
       - "go"
     schedule:
       interval: "daily"
+    groups:
+      tracing:
+        patterns:
+          - "go.opentelemetry.io/*"
+      golangx:
+        patterns:
+          - "golang.org/x/*"
 
   - package-ecosystem: "gomod"
     directory: "/api"
@@ -15,6 +22,13 @@ updates:
       - "go"
     schedule:
       interval: "daily"
+    groups:
+      tracing:
+        patterns:
+          - "go.opentelemetry.io/*"
+      golangx:
+        patterns:
+          - "golang.org/x/*"
 
   - package-ecosystem: "github-actions"
     directory: "/"

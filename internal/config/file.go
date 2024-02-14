@@ -13,6 +13,17 @@ import (
 	"github.com/superfly/flyctl/wg"
 )
 
+func ReadAccessToken(path string) (string, error) {
+	s := struct {
+		AccessToken string `yaml:"access_token"`
+	}{}
+	if err := unmarshal(path, &s); err != nil {
+		return "", err
+	}
+
+	return s.AccessToken, nil
+}
+
 // SetAccessToken sets the value of the access token at the configuration file
 // found at path.
 func SetAccessToken(path, token string) error {

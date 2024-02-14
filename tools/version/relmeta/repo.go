@@ -148,7 +148,7 @@ func (r *gitRepo) gitDirty() (bool, error) {
 
 func (r *gitRepo) RefreshTags() error {
 	originName := "origin"
-	_, err := r.runGit("fetch", "--tags", originName)
+	_, err := r.runGit("fetch", "--tags", "--force", originName)
 	return err
 }
 

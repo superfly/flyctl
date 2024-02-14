@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/superfly/graphql"
 )
@@ -70,6 +69,7 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 				slug
 				name
 				type
+				billable
                 limitedAccessTokens {
 					nodes {
 					    id
@@ -154,37 +154,6 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 		"name": organizationname,
 	})
 	ctx = ctxWithAction(ctx, "create_organization")
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.CreateOrganization.Organization, nil
-}
-
-func (c *Client) CreateOrganizationWithAppsV2DefaultOn(ctx context.Context, organizationname string) (*Organization, error) {
-	query := `
-		mutation($input: CreateOrganizationInput!) {
-			createOrganization(input: $input) {
-			    organization {
-					id
-					name
-					slug
-					type
-					viewerRole
-				  }
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", map[string]interface{}{
-		"name":            organizationname,
-		"appsV2DefaultOn": true,
-	})
-	ctx = ctxWithAction(ctx, "create_organization_with_apps_v2_default_on")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -282,64 +251,4 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 	}
 
 	return data.DeleteOrganizationMembership.Organization.Name, data.DeleteOrganizationMembership.User.Email, nil
-}
-
-func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image string) (*Organization, error) {
-	org, err := c.GetOrganizationBySlug(ctx, orgName)
-	if err != nil {
-		return nil, err
-	}
-
-	query := `
-		mutation($input: UpdateRemoteBuilderInput!) {
-			updateRemoteBuilder(input: $input) {
-			    organization {
-						remoteBuilderImage
-					}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", map[string]string{
-		"organizationId": org.ID,
-		"image":          image,
-	})
-	ctx = ctxWithAction(ctx, "update_remote_builder")
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.UpdateRemoteBuilder.Organization, nil
-}
-
-const appsV2DefaultOnSettingsKey = "apps_v2_default_on"
-
-func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (bool, error) {
-	query := `
-	query($slug: String!) {
-		organization(slug: $slug) {
-			settings
-		}
-	}
-	`
-	req := c.NewRequest(query)
-	req.Var("slug", orgSlug)
-	ctx = ctxWithAction(ctx, "get_apps_v2_default_on_for_org")
-
-	resp, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return false, err
-	}
-
-	if val, present := resp.Organization.Settings[appsV2DefaultOnSettingsKey]; !present {
-		return false, nil
-	} else if appsV2DefaultOn, ok := val.(bool); !ok {
-		return false, fmt.Errorf("failed to convert '%v' to boolean value for %s org setting", val, appsV2DefaultOnSettingsKey)
-	} else {
-		return appsV2DefaultOn, nil
-	}
 }

@@ -12,7 +12,6 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs/appsv2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sort"
@@ -39,7 +38,6 @@ Organization admins can also invite or remove users from Organizations.
 		newRemove(),
 		newCreate(),
 		newDelete(),
-		appsv2.New(),
 	)
 
 	return orgs
