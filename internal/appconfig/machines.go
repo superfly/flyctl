@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/docker/go-units"
@@ -213,6 +214,10 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	// Files
 	mConfig.Files = nil
 	machine.MergeFiles(mConfig, c.MergedFiles)
+
+	if c.PersistentRootfsSize != src.PersistentRootfsSize {
+		return nil, errors.New("Changing persistent_rootfs_size is currently not supported.")
+	}
 
 	// Guest
 	if guest, err := c.toMachineGuest(); err != nil {
