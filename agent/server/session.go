@@ -19,9 +19,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -310,7 +310,6 @@ func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error
 }
 
 func (s *session) lookupTxt(ctx context.Context, args ...string) {
-
 	if len(args) != 2 {
 		s.error(fmt.Errorf("lookupTxt: bad args"))
 		return

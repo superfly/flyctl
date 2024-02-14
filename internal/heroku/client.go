@@ -7,7 +7,7 @@ import (
 
 	"github.com/PuerkitoBio/rehttp"
 	heroku "github.com/heroku/heroku-go/v5"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/tokenizer"
 )

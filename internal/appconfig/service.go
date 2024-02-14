@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 

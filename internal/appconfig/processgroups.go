@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/helpers"
 )
 

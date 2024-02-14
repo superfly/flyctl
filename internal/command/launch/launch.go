@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -14,7 +14,6 @@ import (
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
 func (state *launchState) Launch(ctx context.Context) error {
-
 	io := iostreams.FromContext(ctx)
 
 	// TODO(Allison): are we still supporting the launch-into usecase?
@@ -84,7 +83,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 // Apply the freestanding Guest fields to the appConfig's Compute field
 // This is temporary, but allows us to start using Compute-based plans in flyctl *now* while the UI catches up in time.
 func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Context) error {
-
 	if len(state.Plan.Compute) != 0 {
 		// If the UI returns a compute field, then we don't need to do any forward-compat patching.
 		return nil
