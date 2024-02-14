@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -64,6 +65,7 @@ var commonPreparers = []preparers.Preparer{
 	killOldAgent,
 	startMetrics,
 	preparers.SetOtelAuthenticationKey,
+	setUsingGPU,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -722,4 +724,22 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func setUsingGPU(ctx context.Context) (context.Context, error) {
+	appConfig := appconfig.ConfigFromContext(ctx)
+	if appConfig == nil {
+		return ctx, errors.New("app config not found")
+	}
+
+	usingGPU := false
+	for _, compute := range appConfig.Compute {
+		if compute.GPUKind != "" {
+			usingGPU = true
+			break
+		}
+	}
+	instrument.UsingGPU = usingGPU
+
+	return ctx, nil
 }

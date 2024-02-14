@@ -36,6 +36,7 @@ func Started(ctx context.Context, metricSlug string) {
 	SendNoData(ctx, metricSlug+"/started")
 
 }
+
 func Status(ctx context.Context, metricSlug string, success bool) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
