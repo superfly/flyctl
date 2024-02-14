@@ -3,7 +3,7 @@ package render
 import (
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 )
 
 func MachineHealthChecksSummary(machines ...*api.Machine) string {

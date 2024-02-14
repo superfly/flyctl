@@ -12,8 +12,8 @@ import (
 
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/pkg/errors"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
 )

@@ -7,11 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 // New initializes and returns a new apps Command.
@@ -61,7 +62,10 @@ func BuildContext(ctx context.Context, app *api.AppCompact) (context.Context, er
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return nil, err
 	}

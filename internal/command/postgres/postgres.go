@@ -7,7 +7,7 @@ import (
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	mach "github.com/superfly/flyctl/internal/machine"
