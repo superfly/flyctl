@@ -8,7 +8,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
@@ -22,7 +22,7 @@ import (
 
 func runWireguardList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -105,7 +105,7 @@ func runWireguardReset(ctx context.Context) error {
 		return err
 	}
 
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	agentclient, err := agent.Establish(ctx, apiClient)
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func runWireguardReset(ctx context.Context) error {
 
 func runWireguardCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -174,7 +174,7 @@ func runWireguardCreate(ctx context.Context) error {
 
 func runWireguardRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {

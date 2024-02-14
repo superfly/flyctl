@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -50,7 +50,7 @@ func newUpdate() *cobra.Command {
 func runUpdate(ctx context.Context) error {
 	var (
 		cfg      = config.FromContext(ctx)
-		client   = api.ClientFromContext(ctx)
+		client   = fly.ClientFromContext(ctx)
 		volumeID = flag.FirstArg(ctx)
 	)
 
@@ -76,11 +76,11 @@ func runUpdate(ctx context.Context) error {
 
 	var snapshotRetention *int
 	if flag.GetInt(ctx, "snapshot-retention") != 0 {
-		snapshotRetention = api.Pointer(flag.GetInt(ctx, "snapshot-retention"))
+		snapshotRetention = fly.Pointer(flag.GetInt(ctx, "snapshot-retention"))
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	input := api.UpdateVolumeRequest{
+	input := fly.UpdateVolumeRequest{
 		SnapshotRetention: snapshotRetention,
 	}
 

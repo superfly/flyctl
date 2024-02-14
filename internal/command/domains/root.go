@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -101,7 +101,7 @@ func newDomainsRegister() *cobra.Command {
 
 func runDomainsList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
 	args := flag.Args(ctx)
 	var orgSlug string
@@ -138,7 +138,7 @@ func runDomainsList(ctx context.Context) error {
 
 func runDomainsShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	name := flag.FirstArg(ctx)
 
 	domain, err := apiClient.GetDomain(ctx, name)
@@ -180,9 +180,9 @@ func runDomainsShow(ctx context.Context) error {
 
 func runDomainsCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
-	var org *api.Organization
+	var org *fly.Organization
 	var name string
 	var err error
 

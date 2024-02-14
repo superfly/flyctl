@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -35,7 +35,7 @@ func newProxy() *cobra.Command {
 }
 
 func runMachineProxy(ctx context.Context) error {
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {

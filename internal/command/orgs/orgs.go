@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -60,7 +60,7 @@ func emailFromSecondArgOrPrompt(ctx context.Context) (email string, err error) {
 
 var errSlugArgMustBeSpecified = prompt.NonInteractiveError("slug argument must be specified when not running interactively")
 
-func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.OrganizationFilter) (slug string, err error) {
+func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...fly.OrganizationFilter) (slug string, err error) {
 	if orgSlug != "" {
 		return orgSlug, nil
 	}
@@ -76,15 +76,15 @@ func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.Org
 		return
 	}
 
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
-	var orgs []api.Organization
+	var orgs []fly.Organization
 	if orgs, err = client.GetOrganizations(ctx, filters...); err != nil {
 		return
 	}
 	sort.OrganizationsByTypeAndName(orgs)
 
-	var org *api.Organization
+	var org *fly.Organization
 	if org, err = prompt.SelectOrg(ctx, orgs); prompt.IsNonInteractive(err) {
 		err = errSlugArgMustBeSpecified
 	} else if err == nil {
@@ -94,7 +94,7 @@ func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.Org
 	return
 }
 
-func OrgFromEnvVarOrFirstArgOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
+func OrgFromEnvVarOrFirstArgOrSelect(ctx context.Context, filters ...fly.OrganizationFilter) (*fly.Organization, error) {
 	slug := flag.GetOrg(ctx)
 	if slug == "" {
 		var err error
@@ -107,7 +107,7 @@ func OrgFromEnvVarOrFirstArgOrSelect(ctx context.Context, filters ...api.Organiz
 	return OrgFromSlug(ctx, slug)
 }
 
-func OrgFromFlagOrSelect(ctx context.Context, filters ...api.OrganizationFilter) (*api.Organization, error) {
+func OrgFromFlagOrSelect(ctx context.Context, filters ...fly.OrganizationFilter) (*fly.Organization, error) {
 	slug, err := slugFromArgOrSelect(ctx, flag.GetOrg(ctx), filters...)
 	if err != nil {
 		return nil, err
@@ -116,8 +116,8 @@ func OrgFromFlagOrSelect(ctx context.Context, filters ...api.OrganizationFilter)
 	return OrgFromSlug(ctx, slug)
 }
 
-func OrgFromSlug(ctx context.Context, slug string) (*api.Organization, error) {
-	client := api.ClientFromContext(ctx)
+func OrgFromSlug(ctx context.Context, slug string) (*fly.Organization, error) {
+	client := fly.ClientFromContext(ctx)
 
 	org, err := client.GetOrganizationBySlug(ctx, slug)
 	if err != nil {
@@ -127,7 +127,7 @@ func OrgFromSlug(ctx context.Context, slug string) (*api.Organization, error) {
 	return org, nil
 }
 
-func printOrg(w io.Writer, org *api.Organization, headers bool) {
+func printOrg(w io.Writer, org *fly.Organization, headers bool) {
 	if headers {
 		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Name", "Slug", "Type")
 		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")

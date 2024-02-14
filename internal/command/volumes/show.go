@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -40,7 +40,7 @@ func newShow() (cmd *cobra.Command) {
 
 func runShow(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	volumeID := flag.FirstArg(ctx)
 
@@ -64,7 +64,7 @@ func runShow(ctx context.Context) error {
 		return err
 	}
 
-	var volume *api.Volume
+	var volume *fly.Volume
 	if volumeID == "" {
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {

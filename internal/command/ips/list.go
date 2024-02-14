@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -37,7 +37,7 @@ func newList() *cobra.Command {
 
 func runIPAddressesList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	appName := appconfig.NameFromContext(ctx)

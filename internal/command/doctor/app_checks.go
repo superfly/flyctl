@@ -11,7 +11,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -25,10 +25,10 @@ type AppChecker struct {
 	checks     map[string]string
 	color      *iostreams.ColorScheme
 	ctx        context.Context
-	app        *api.AppCompact
+	app        *fly.AppCompact
 	workDir    string
 	appConfig  *appconfig.Config
-	apiClient  *api.Client
+	apiClient  *fly.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) (*AppChecker, error) {
@@ -40,7 +40,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil, nil
 	}
 
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -103,7 +103,7 @@ func (ac *AppChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
+func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
 	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
@@ -126,7 +126,7 @@ func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
 	return ipAddresses
 }
 
-func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {

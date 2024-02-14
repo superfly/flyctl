@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -78,7 +78,7 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *api.AppCompact, console bool) (addr string, err error) {
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
 	addr, err = addrForMachines(ctx, app, console)
 	if err != nil {
 		return
@@ -111,7 +111,7 @@ func newConsole() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *api.AppCompact) {
+func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -132,7 +132,7 @@ func captureError(ctx context.Context, err error, app *api.AppCompact) {
 }
 
 func runConsole(ctx context.Context) error {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	if !quiet(ctx) {
@@ -215,7 +215,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 	return err
 }
 
-func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
 	out := iostreams.FromContext(ctx).Out
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
@@ -230,7 +230,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		return "", err
 	}
 
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 		return m.State == "started"
 	})
 
@@ -239,7 +239,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 
 	if region := flag.GetRegion(ctx); region != "" {
-		machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 			return m.Region == region
 		})
 		if len(machines) < 1 {
@@ -248,7 +248,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 
 	if group := flag.GetProcessGroup(ctx); group != "" {
-		machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 			return m.ProcessGroup() == group
 		})
 		if len(machines) < 1 {
@@ -258,8 +258,8 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 
 	var namesWithRegion []string
 	machineID := flag.GetString(ctx, "machine")
-	var selectedMachine *api.Machine
-	multipleGroups := len(lo.UniqBy(machines, func(m *api.Machine) string { return m.ProcessGroup() })) > 1
+	var selectedMachine *fly.Machine
+	multipleGroups := len(lo.UniqBy(machines, func(m *fly.Machine) string { return m.ProcessGroup() })) > 1
 
 	for _, machine := range machines {
 		if machine.ID == machineID {
@@ -271,7 +271,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		role := ""
 		for _, check := range machine.Checks {
 			if check.Name == "role" {
-				if check.Status == api.Passing {
+				if check.Status == fly.Passing {
 					role = check.Output
 				} else {
 					role = "error"

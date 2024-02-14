@@ -10,7 +10,7 @@ func New() *cobra.Command {
 		short = "Manage Fly Machines."
 		long  = short + ` Fly Machines are super-fast, lightweight VMs that can be created,
 and then quickly started and stopped as needed with flyctl commands or with the
-Machines REST API.`
+Machines REST fly.`
 		usage = "machine <command>"
 	)
 

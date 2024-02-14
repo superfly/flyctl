@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -21,7 +21,7 @@ func (e *ErrNoConfigChangesFound) Error() string {
 	return "no config changes found"
 }
 
-func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfig api.MachineConfig, customPrompt string) (bool, error) {
+func ConfirmConfigChanges(ctx context.Context, machine *fly.Machine, targetConfig fly.MachineConfig, customPrompt string) (bool, error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -57,7 +57,7 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 
 // CloneConfig deep-copies a MachineConfig.
 // If CloneConfig is called on a nil config, nil is returned.
-func CloneConfig(orig *api.MachineConfig) *api.MachineConfig {
+func CloneConfig(orig *fly.MachineConfig) *fly.MachineConfig {
 	if orig == nil {
 		return nil
 	}
@@ -73,7 +73,7 @@ var cmpOptions = cmp.Options{
 			})),
 }
 
-func configCompare(ctx context.Context, original api.MachineConfig, new api.MachineConfig) string {
+func configCompare(ctx context.Context, original fly.MachineConfig, new fly.MachineConfig) string {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -116,9 +116,9 @@ func configCompare(ctx context.Context, original api.MachineConfig, new api.Mach
 }
 
 // MergeFiles merges the files parsed from the command line or fly.toml into the machine configuration.
-func MergeFiles(machineConf *api.MachineConfig, files []*api.File) {
+func MergeFiles(machineConf *fly.MachineConfig, files []*fly.File) {
 	for _, f := range files {
-		idx := slices.IndexFunc(machineConf.Files, func(i *api.File) bool {
+		idx := slices.IndexFunc(machineConf.Files, func(i *fly.File) bool {
 			return i.GuestPath == f.GuestPath
 		})
 

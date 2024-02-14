@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -70,14 +70,14 @@ func scaleVertically(ctx context.Context, group, sizeName string, memoryMB int) 
 	return nil
 }
 
-func formatCores(size api.VMSize) string {
+func formatCores(size fly.VMSize) string {
 	if size.CPUCores < 1.0 {
 		return fmt.Sprintf("%.2f", size.CPUCores)
 	}
 	return fmt.Sprintf("%d", int(size.CPUCores))
 }
 
-func formatMemory(size api.VMSize) string {
+func formatMemory(size fly.VMSize) string {
 	if size.MemoryGB < 1.0 {
 		return fmt.Sprintf("%d MB", size.MemoryMB)
 	}

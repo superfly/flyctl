@@ -5,7 +5,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -31,7 +31,7 @@ secrets and another for config file defined environment variables.`
 }
 
 func runEnv(ctx context.Context) error {
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
@@ -40,7 +40,7 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	secretRows := lo.Map(secrets, func(s api.Secret, _ int) []string {
+	secretRows := lo.Map(secrets, func(s fly.Secret, _ int) []string {
 		return []string{s.Name, s.Digest, s.CreatedAt.Format("2006-01-02T15:04:05")}
 	})
 	if err := render.Table(io.Out, "Secrets", secretRows, "Name", "Digest", "Created At"); err != nil {

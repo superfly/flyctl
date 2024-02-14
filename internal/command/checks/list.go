@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -38,9 +38,9 @@ func runAppCheckList(ctx context.Context) error {
 	})
 
 	if config.FromContext(ctx).JSONOutput {
-		checks := map[string][]api.MachineCheckStatus{}
+		checks := map[string][]fly.MachineCheckStatus{}
 		for _, machine := range machines {
-			checks[machine.ID] = make([]api.MachineCheckStatus, len(machine.Checks))
+			checks[machine.ID] = make([]fly.MachineCheckStatus, len(machine.Checks))
 			for i, check := range machine.Checks {
 				checks[machine.ID][i] = *check
 			}

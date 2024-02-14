@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -79,13 +79,13 @@ func runMachineStop(ctx context.Context) (err error) {
 }
 
 func Stop(ctx context.Context, machineID string, signal string, timeout int) (err error) {
-	machineStopInput := api.StopMachineInput{
+	machineStopInput := fly.StopMachineInput{
 		ID:     machineID,
 		Signal: strings.ToUpper(signal),
 	}
 
 	if timeout > 0 {
-		machineStopInput.Timeout = api.Duration{Duration: time.Duration(timeout) * time.Second}
+		machineStopInput.Timeout = fly.Duration{Duration: time.Duration(timeout) * time.Second}
 	}
 
 	waitTimeout := flag.GetDuration(ctx, "wait-timeout")

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -38,7 +38,7 @@ func create() (cmd *cobra.Command) {
 
 func runK8sCreate(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
-	client := api.ClientFromContext(ctx).GenqClient
+	client := fly.ClientFromContext(ctx).GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	targetOrg, err := orgs.OrgFromFlagOrSelect(ctx)
 	if err != nil {

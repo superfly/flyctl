@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -71,7 +71,7 @@ func runMachineExec(ctx context.Context) (err error) {
 
 	var timeout = flag.GetInt(ctx, "timeout")
 
-	in := &api.MachineExecRequest{
+	in := &fly.MachineExecRequest{
 		Cmd:     command,
 		Timeout: timeout,
 	}
