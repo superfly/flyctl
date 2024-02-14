@@ -28,7 +28,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/graphql"
 
-	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
 
 	term2 "github.com/superfly/flyctl/terminal"
@@ -56,9 +55,6 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	ctx = logger.NewContext(ctx, logger.FromEnv(io.ErrOut).AndLogToFile())
 	// initialize the background task runner early so command preparers can start running stuff immediately
 	ctx = task.NewWithContext(ctx)
-
-	httptracing.Init()
-	defer httptracing.Finish()
 
 	tp, err := tracing.InitTraceProvider(ctx)
 	if err != nil {

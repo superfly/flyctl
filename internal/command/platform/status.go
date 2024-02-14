@@ -13,7 +13,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -57,7 +56,7 @@ func runStatus(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		httpClient, err := api.NewHTTPClient(logger.MaybeFromContext(ctx), httptracing.NewTransport(http.DefaultTransport))
+		httpClient, err := api.NewHTTPClient(logger.MaybeFromContext(ctx), http.DefaultTransport)
 		if err != nil {
 			return err
 		}
@@ -65,14 +64,14 @@ func runStatus(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-		defer res.Body.Close() //skipcq: GO-S2307
+		defer res.Body.Close() // skipcq: GO-S2307
 
 		if res.StatusCode != 200 {
 			err = api.ErrorFromResp(res)
 			return fmt.Errorf("failed to retrieve status: %w", err)
 		}
 
-		var result = map[string]any{}
+		result := map[string]any{}
 		if err = json.NewDecoder(res.Body).Decode(&result); err != nil {
 			return nil
 		}
