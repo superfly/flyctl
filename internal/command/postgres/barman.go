@@ -6,25 +6,25 @@ import (
 	"log"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/ip"
-
-	"github.com/pkg/errors"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/ip"
 )
 
 var (
@@ -97,7 +97,10 @@ func runBarmanCreate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName:   appName,
+		UserAgent: buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return err
 	}
@@ -409,9 +412,7 @@ func runBarmanListBackup(ctx context.Context) error {
 }
 
 func runBarmanShowBackup(ctx context.Context) error {
-	var (
-		io = iostreams.FromContext(ctx)
-	)
+	io := iostreams.FromContext(ctx)
 	backupId := flag.FirstArg(ctx)
 	fmt.Printf("barman show-backup pg %s", backupId)
 	fmt.Fprintf(io.Out, "barman show-backup pg %s", backupId)
@@ -505,7 +506,11 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 
 func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
 	// out := iostreams.FromContext(ctx).Out
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+		UserAgent:  buildinfo.UserAgent(),
+	})
 	if err != nil {
 		return "", err
 	}

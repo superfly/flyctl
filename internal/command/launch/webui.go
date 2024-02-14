@@ -13,7 +13,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/logger"

@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/wireguard"

@@ -10,10 +10,10 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/api"
+	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -257,7 +257,6 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 			} else {
 				return fmt.Errorf("Machine %s never became the leader", newLeader.ID)
 			}
-
 		},
 		retry.Context(ctx), retry.Attempts(60), retry.Delay(time.Second), retry.DelayType(retry.FixedDelay),
 	); err != nil {
@@ -302,7 +301,6 @@ func handleFlexFailoverFail(ctx context.Context, machines []*api.Machine) (err e
 			} else {
 				return fmt.Errorf("Old leader is in an unexpected state: %s", leader.State)
 			}
-
 		},
 		retry.Context(ctx), retry.Attempts(60), retry.Delay(time.Second), retry.DelayType(retry.FixedDelay),
 	); err != nil {
