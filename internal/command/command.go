@@ -735,7 +735,7 @@ func setUsingGPU(ctx context.Context) (context.Context, error) {
 
 	usingGPU := false
 	for _, compute := range appConfig.Compute {
-		if compute.GPUKind != "" {
+		if compute != nil && compute.GPUKind != "" {
 			usingGPU = true
 			break
 		}
