@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -14,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"golang.org/x/exp/maps"
 )
 
 func newScaleCount() *cobra.Command {
@@ -62,18 +64,24 @@ func runScaleCount(ctx context.Context) error {
 
 	if groupName == "" {
 		groupName = api.MachineProcessGroupApp
-		if !slices.Contains(processNames, groupName) {
-			return fmt.Errorf("--process-group flag is required when no group named 'app' is defined")
-		}
-	}
-
-	if !slices.Contains(processNames, groupName) {
-		return fmt.Errorf("process group '%s' not found", groupName)
 	}
 
 	groups, err := parseGroupCounts(args, groupName)
 	if err != nil {
 		return err
+	}
+
+	unknownNames := lo.Filter(maps.Keys(groups), func(x string, _ int) bool {
+		return !slices.Contains(processNames, x)
+	})
+	if len(unknownNames) > 0 {
+		return fmt.Errorf(
+			"Attempting to scale unknown process groups %v but valid names are %v.\n"+
+				" Use `fly scale count COUNT --process-group=NAME` \n"+
+				" or multi group syntax `fly scale count NAME1=COUNT1 NAME2=COUNT2 ...`",
+			unknownNames,
+			processNames,
+		)
 	}
 
 	maxPerRegion := flag.GetInt(ctx, "max-per-region")
