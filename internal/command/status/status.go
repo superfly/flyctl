@@ -14,7 +14,7 @@ import (
 	"github.com/inancgumus/screen"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -85,7 +85,7 @@ func runOnce(ctx context.Context) error {
 func once(ctx context.Context, out io.Writer) (err error) {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)

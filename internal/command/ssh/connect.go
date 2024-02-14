@@ -10,7 +10,7 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/pkg/errors"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -20,7 +20,7 @@ import (
 
 const DefaultSshUsername = "root"
 
-func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, quiet bool) (*agent.Client, agent.Dialer, error) {
+func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, quiet bool) (*agent.Client, agent.Dialer, error) {
 	io := iostreams.FromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -51,7 +51,7 @@ func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, 
 
 type ConnectParams struct {
 	Ctx            context.Context
-	Org            api.OrganizationImpl
+	Org            fly.OrganizationImpl
 	Username       string
 	Dialer         agent.Dialer
 	DisableSpinner bool
@@ -100,8 +100,8 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	return sshClient, nil
 }
 
-func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl, appNames []string) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
-	client := api.ClientFromContext(ctx)
+func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appNames []string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
+	client := fly.ClientFromContext(ctx)
 	hours := 1
 
 	pub, priv, err := ed25519.GenerateKey(nil)

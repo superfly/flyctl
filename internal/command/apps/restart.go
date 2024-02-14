@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -51,7 +51,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = flag.FirstArg(ctx)
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 	)
 
 	if appName == "" {
@@ -77,8 +77,8 @@ func runRestart(ctx context.Context) error {
 	return runMachinesRestart(ctx, app)
 }
 
-func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
-	input := &api.RestartMachineInput{
+func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
+	input := &fly.RestartMachineInput{
 		ForceStop:        flag.GetBool(ctx, "force-stop"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}

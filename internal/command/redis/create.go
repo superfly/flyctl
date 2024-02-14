@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -111,7 +111,7 @@ func runCreate(ctx context.Context) (err error) {
 	return err
 }
 
-func Create(ctx context.Context, org *api.Organization, name string, region *api.Region, disallowReplicas bool, enableEviction bool, readRegions *[]api.Region) (addOn *gql.AddOn, err error) {
+func Create(ctx context.Context, org *fly.Organization, name string, region *fly.Region, disallowReplicas bool, enableEviction bool, readRegions *[]fly.Region) (addOn *gql.AddOn, err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -126,7 +126,7 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 	excludedRegions = append(excludedRegions, region.Code)
 
 	if readRegions == nil {
-		readRegions = &[]api.Region{}
+		readRegions = &[]fly.Region{}
 
 		if !disallowReplicas {
 			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions, "replica-regions")
@@ -180,13 +180,13 @@ func Create(ctx context.Context, org *api.Organization, name string, region *api
 type RedisConfiguration struct {
 	Name          string
 	PlanId        string
-	PrimaryRegion *api.Region
-	ReadRegions   []api.Region
+	PrimaryRegion *fly.Region
+	ReadRegions   []fly.Region
 	Eviction      bool
 }
 
-func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
-	client := api.ClientFromContext(ctx).GenqClient
+func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
+	client := fly.ClientFromContext(ctx).GenqClient
 
 	var readRegionCodes []string
 
@@ -218,9 +218,9 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 	return &response.CreateAddOn.AddOn, nil
 }
 
-func DeterminePlan(ctx context.Context, org *api.Organization) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
+func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
 
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	// All new databases are pay-as-you-go
 	planId := redisPlanPayAsYouGo

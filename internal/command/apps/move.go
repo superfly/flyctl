@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/flag/completion"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -50,7 +50,7 @@ organization the current user belongs to.
 func RunMove(ctx context.Context) error {
 	var (
 		appName  = flag.FirstArg(ctx)
-		client   = api.ClientFromContext(ctx)
+		client   = fly.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		logger   = logger.FromContext(ctx)
@@ -93,9 +93,9 @@ Please confirm whether you wish to restart this app now.`
 	return runMoveAppOnMachines(ctx, app, org)
 }
 
-func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *api.Organization) error {
+func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *fly.Organization) error {
 	var (
-		client           = api.ClientFromContext(ctx)
+		client           = fly.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
@@ -116,7 +116,7 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 	}
 
 	for _, machine := range machines {
-		input := &api.LaunchMachineInput{
+		input := &fly.LaunchMachineInput{
 			Name:             machine.Name,
 			Region:           machine.Region,
 			Config:           machine.Config,

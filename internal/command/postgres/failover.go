@@ -10,7 +10,7 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
@@ -52,7 +52,7 @@ func runFailover(ctx context.Context) (err error) {
 		MinPostgresStandaloneVersion = "0.0.7"
 
 		io      = iostreams.FromContext(ctx)
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -137,7 +137,7 @@ func runFailover(ctx context.Context) (err error) {
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppCompact) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
 	}
@@ -152,7 +152,7 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 
 	primaryRegion := ""
-	candidates := make([]*api.Machine, 0)
+	candidates := make([]*fly.Machine, 0)
 
 	for _, machine := range machines {
 		machinePrimaryRegion, ok := machine.Config.Env["PRIMARY_REGION"]
@@ -194,7 +194,7 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 
 	// Stop the leader
 	fmt.Println("Stopping current leader... ", oldLeader.ID)
-	machineStopInput := api.StopMachineInput{
+	machineStopInput := fly.StopMachineInput{
 		ID:     oldLeader.ID,
 		Signal: "SIGINT",
 	}
@@ -271,7 +271,7 @@ func flexFailover(ctx context.Context, machines []*api.Machine, app *api.AppComp
 	return nil
 }
 
-func handleFlexFailoverFail(ctx context.Context, machines []*api.Machine) (err error) {
+func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err error) {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 
@@ -339,7 +339,7 @@ func handleFlexFailoverFail(ctx context.Context, machines []*api.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *api.AppCompact, machinesWithinPrimaryRegion []*api.Machine) (*api.Machine, error) {
+func pickNewLeader(ctx context.Context, app *fly.AppCompact, machinesWithinPrimaryRegion []*fly.Machine) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
 	for _, machine := range machinesWithinPrimaryRegion {
@@ -371,7 +371,7 @@ func pickNewLeader(ctx context.Context, app *api.AppCompact, machinesWithinPrima
 }
 
 // Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks
-func passesDryRun(ctx context.Context, app *api.AppCompact, machine *api.Machine) bool {
+func passesDryRun(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) bool {
 	err := ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
 		Org:      app.Organization,

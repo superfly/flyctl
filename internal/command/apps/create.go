@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -68,7 +68,7 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
-		apiClient     = api.ClientFromContext(ctx)
+		apiClient     = fly.ClientFromContext(ctx)
 	)
 
 	var name string
@@ -95,14 +95,14 @@ func RunCreate(ctx context.Context) (err error) {
 		return
 	}
 
-	input := api.CreateAppInput{
+	input := fly.CreateAppInput{
 		Name:           name,
 		OrganizationID: org.ID,
 		Machines:       true,
 	}
 
 	if v := flag.GetString(ctx, "network"); v != "" {
-		input.Network = api.StringPointer(v)
+		input.Network = fly.StringPointer(v)
 	}
 
 	app, err := apiClient.CreateApp(ctx, input)

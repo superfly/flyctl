@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -41,7 +41,7 @@ func newDestroy() *cobra.Command {
 func runDestroy(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = api.ClientFromContext(ctx)
+		client = fly.ClientFromContext(ctx)
 		volIDs = flag.Args(ctx)
 	)
 
@@ -110,7 +110,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 	}
 
 	// fetch the volume so we can get the associated app
-	var volume *api.Volume
+	var volume *fly.Volume
 	if volume, err = flapsClient.GetVolume(ctx, volID); err != nil {
 		return false, err
 	}

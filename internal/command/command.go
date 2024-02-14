@@ -14,8 +14,8 @@ import (
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/api/tokens"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -499,8 +499,8 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !api.ClientFromContext(ctx).Authenticated() {
-		return nil, api.ErrNoAuthToken
+	if !fly.ClientFromContext(ctx).Authenticated() {
+		return nil, fly.ErrNoAuthToken
 	}
 
 	return updateMacaroons(ctx)

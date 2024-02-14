@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -31,7 +31,7 @@ func newSetup() *cobra.Command {
 
 func runSetup(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)

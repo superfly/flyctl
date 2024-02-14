@@ -10,7 +10,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -238,7 +238,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = api.ClientFromContext(ctx)
+		client = fly.ClientFromContext(ctx)
 	)
 
 	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
@@ -470,12 +470,12 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	// TODO: I believe this will only check apps that are visible to you.
 	//       We should probably expose a global uniqueness check.
 	_, err := client.GetAppBasic(ctx, name)
 	if err != nil {
-		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
+		if fly.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
 			return false, nil
 		}
 		return false, err
@@ -485,15 +485,15 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context) (*api.Organization, string, error) {
-	client := api.ClientFromContext(ctx)
+func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
+	client := fly.ClientFromContext(ctx)
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	bySlug := make(map[string]api.Organization, len(orgs))
+	bySlug := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
@@ -525,8 +525,8 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 //  1. the primary_region field of the config, if one exists
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
-func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
-	client := api.ClientFromContext(ctx)
+func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
+	client := fly.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -553,8 +553,8 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
-func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error) {
-	apiClient := api.ClientFromContext(ctx)
+func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
+	apiClient := fly.ClientFromContext(ctx)
 
 	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {
@@ -575,8 +575,8 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 //
 // This is because this function is meant for backwards compatibility with
 // the Web UI's guest definition, which doesn't have these fields.
-func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
-	for k, v := range api.MachinePresets {
+func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
+	for k, v := range fly.MachinePresets {
 		if reflect.DeepEqual(*v, *g) {
 			c.MachineGuest = nil
 			c.Memory = ""
@@ -607,7 +607,7 @@ func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
 	}
 }
 
-func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
+func guestToCompute(g *fly.MachineGuest) *appconfig.Compute {
 	var c appconfig.Compute
 	applyGuestToCompute(&c, g)
 	return &c
@@ -620,7 +620,7 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 		return config.Compute, "from your fly.toml", nil
 	}
 
-	def := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+	def := helpers.Clone(fly.MachinePresets["shared-cpu-1x"])
 	def.MemoryMB = 1024
 	reason := "most apps need about 1GB of RAM"
 
@@ -635,7 +635,7 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
-func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *api.Organization, print bool) bool {
+func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *fly.Organization, print bool) bool {
 	if !org.Billable && p.HighAvailability {
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")

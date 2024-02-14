@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
@@ -25,13 +25,13 @@ type commandResponse struct {
 
 type Command struct {
 	ctx    context.Context
-	app    *api.AppCompact
+	app    *fly.AppCompact
 	dialer agent.Dialer
 	io     *iostreams.IOStreams
 }
 
-func NewCommand(ctx context.Context, app *api.AppCompact) (*Command, error) {
-	client := api.ClientFromContext(ctx)
+func NewCommand(ctx context.Context, app *fly.AppCompact) (*Command, error) {
+	client := fly.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {

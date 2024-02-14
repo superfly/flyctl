@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
@@ -214,7 +214,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		return cmd
 	}
 
-	expectMachinesInGroups := func(machines []*api.Machine, expected map[string]int) {
+	expectMachinesInGroups := func(machines []*fly.Machine, expected map[string]int) {
 		found := map[string]int{}
 		for _, m := range machines {
 			if m.Config == nil || m.Config.Metadata == nil {
