@@ -434,11 +434,18 @@ type DNSRecords struct {
 }
 
 type IPAddress struct {
-	ID        string
-	Address   string
-	Type      string
-	Region    string
-	CreatedAt time.Time
+	ID          string
+	Address     string
+	Type        string
+	Region      string
+	CreatedAt   time.Time
+	ServiceName string
+	Network     *struct {
+		Name         string
+		Organization *struct {
+			Slug string
+		}
+	}
 }
 
 type VMSize struct {
