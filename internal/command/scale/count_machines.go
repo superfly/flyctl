@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
@@ -17,6 +18,8 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+const maxConcurrentActions = 5
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
@@ -51,12 +54,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	}
 
 	volumes, err := flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return err
-	}
-
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
 	if err != nil {
 		return err
 	}
@@ -110,37 +107,58 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
+	// XXX: Don't acquire the leases until the user confirms it wants to execute any action
+	//      The downside is that AcquireLeases has the side effect of fetching an updated copy of machine config
+	//      that we don't use here, but it also updates the `LeaseNonce` field of the original machine which we rely on
+	_, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseFunc() // It's important to call the release func even in case of errors
+	if err != nil {
+		return err
+	}
+
+	updatePool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(maxConcurrentActions).
+		WithContext(ctx)
+
 	fmt.Fprintf(io.Out, "Executing scale plan\n")
 	for _, action := range actions {
+		action := action
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action, i)
-				if err != nil {
-					return err
-				}
+				updatePool.Go(func(ctx context.Context) error {
+					m, err := launchMachine(ctx, action, i)
+					if err != nil {
+						return err
+					}
 
-				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s",
-					m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize(),
-				)
-				if len(m.Config.Mounts) > 0 {
-					fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
-				}
-				fmt.Fprintln(io.Out)
+					fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s",
+						m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize(),
+					)
+					if len(m.Config.Mounts) > 0 {
+						fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
+					}
+					fmt.Fprintln(io.Out)
+					return nil
+				})
 			}
 		case action.Delta < 0:
 			for i := 0; i > action.Delta; i-- {
-				m := action.Machines[-i]
-				err := destroyMachine(ctx, m)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				updatePool.Go(func(ctx context.Context) error {
+					m := action.Machines[-i]
+					err := destroyMachine(ctx, m)
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+					return nil
+				})
 			}
 		}
 	}
 
-	return nil
+	return updatePool.Wait()
 }
 
 func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine, error) {

@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
@@ -36,14 +38,16 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*api.Machine, 
 		return nil, nil, err
 	}
 
-	creationMsg := "Created an ephemeral machine " + colorize.Bold(machine.ID)
-	if input.What != "" {
-		creationMsg += " " + input.What
-	}
-	fmt.Fprintf(io.Out, "%s.\n", creationMsg)
+	if cmdutil.IsTerminal(os.Stdout) {
+		creationMsg := "Created an ephemeral machine " + colorize.Bold(machine.ID)
+		if input.What != "" {
+			creationMsg += " " + input.What
+		}
+		fmt.Fprintf(io.Out, "%s.\n", creationMsg)
 
-	sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", colorize.Bold(machine.ID)))
-	defer sp.Stop()
+		sp := spinner.Run(io, fmt.Sprintf("Waiting for %s to start ...", colorize.Bold(machine.ID)))
+		defer sp.Stop()
+	}
 
 	const waitTimeout = 15 * time.Second
 	var flapsErr *flaps.FlapsError
@@ -123,7 +127,9 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 	return func() {
 		const stopTimeout = 15 * time.Second
 
-		stopCtx, cancel := context.WithTimeout(context.Background(), stopTimeout)
+		// FIXME: is there a reason we *need* to use context.Background here, instead of the normal context
+		// As far as I can tell, this is the only place in the codebase that does this
+		stopCtx, cancel := context.WithTimeout(ctx, stopTimeout)
 		stopCtx, cancel = ctrlc.HookCancelableContext(stopCtx, cancel)
 		defer cancel()
 
@@ -137,13 +143,20 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 			return
 		}
 
-		fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
-		if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
-			fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
-			terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
-			terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
+		if cmdutil.IsTerminal(os.Stdout) {
+			fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
+			if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
+				fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
+				terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
+				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
+			} else {
+				fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
+			}
 		} else {
-			fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
+			if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
+				fmt.Fprintf(io.ErrOut, "Attempt to destroy ephemeral machine %s failed: %v", machine.ID, err)
+				fmt.Fprint(io.ErrOut, "You may need to destroy it manually (`fly machine destroy`).")
+			}
 		}
 	}
 }

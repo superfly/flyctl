@@ -16,7 +16,9 @@ var configPatches = []patchFuncType{
 	patchProcesses,
 	patchExperimental,
 	patchTopLevelChecks,
+	patchCompute,
 	patchMounts,
+	patchMetrics,
 	patchTopFields,
 	patchBuild,
 }
@@ -220,6 +222,27 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 	return cfg, nil
 }
 
+func patchCompute(cfg map[string]any) (map[string]any, error) {
+	var compute []map[string]any
+	for _, k := range []string{"compute", "computes", "vm"} {
+		if raw, ok := cfg[k]; ok {
+			cast, err := ensureArrayOfMap(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing compute: %w", err)
+			}
+			delete(cfg, k)
+			compute = append(compute, cast...)
+		}
+	}
+	for idx, c := range compute {
+		if v, ok := c["memory"]; ok {
+			compute[idx]["memory"] = castToString(v)
+		}
+	}
+	cfg["vm"] = compute
+	return cfg, nil
+}
+
 func patchMounts(cfg map[string]any) (map[string]any, error) {
 	var mounts []map[string]any
 	for _, k := range []string{"mount", "mounts"} {
@@ -228,10 +251,31 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Error processing mounts: %w", err)
 			}
+			delete(cfg, k)
 			mounts = append(mounts, cast...)
 		}
 	}
+	for idx, x := range mounts {
+		if v, ok := x["initial_size"]; ok {
+			mounts[idx]["initial_size"] = castToString(v)
+		}
+	}
 	cfg["mounts"] = mounts
+	return cfg, nil
+}
+
+func patchMetrics(cfg map[string]any) (map[string]any, error) {
+	var metrics []map[string]any
+	for _, k := range []string{"metric", "metrics"} {
+		if raw, ok := cfg[k]; ok {
+			cast, err := ensureArrayOfMap(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing mounts: %w", err)
+			}
+			metrics = append(metrics, cast...)
+		}
+	}
+	cfg["metrics"] = metrics
 	return cfg, nil
 }
 

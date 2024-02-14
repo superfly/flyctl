@@ -24,7 +24,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 
 	// Acquire leases for all machines
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}
@@ -89,7 +89,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 
 	// Acquire leases
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}

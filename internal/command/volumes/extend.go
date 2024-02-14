@@ -16,17 +16,14 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
 
 func newExtend() *cobra.Command {
 	const (
-		long = `Extends a target volume to the size specified. The instance is automatically restarted for Nomad (V1) apps.
-		Most Machines (V2 apps) don't require a restart. Older Machines get a message to manually restart the Machine
-		to increase the size of the FS.`
+		short = "Extend a volume to the specified size."
 
-		short = "Extend a target volume"
+		long = short + ` Most Machines don't require a restart. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
 
 		usage = "extend [id]"
 	)
@@ -69,7 +66,7 @@ func runExtend(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	app, err := client.GetApp(ctx, appName)
+	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -90,21 +87,6 @@ func runExtend(ctx context.Context) error {
 			return err
 		}
 		sizeGB += volume.SizeGb
-	}
-
-	if app.PlatformVersion == "nomad" {
-		if !flag.GetYes(ctx) {
-			switch confirmed, err := prompt.Confirm(ctx, "Extending this volume will result in a VM restart. Continue?"); {
-			case err == nil:
-				if !confirmed {
-					return nil
-				}
-			case prompt.IsNonInteractive(err):
-				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-			default:
-				return err
-			}
-		}
 	}
 
 	if volID == "" {
@@ -130,12 +112,10 @@ func runExtend(ctx context.Context) error {
 		return err
 	}
 
-	if app.PlatformVersion == "machines" {
-		if needsRestart {
-			fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your machine to increase the size of the FS"))
-		} else {
-			fmt.Fprintln(out, colorize.Green("Your machine got its volume size extended without needing a restart"))
-		}
+	if needsRestart {
+		fmt.Fprintln(out, colorize.Yellow("You will need to stop and start your Machine to increase the size of the file system"))
+	} else {
+		fmt.Fprintln(out, colorize.Green("Your Machine got its volume size extended without needing a restart"))
 	}
 
 	return nil

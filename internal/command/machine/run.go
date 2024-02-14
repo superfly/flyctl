@@ -2,18 +2,12 @@ package machine
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
-	"os"
-	"path"
-	"path/filepath"
-	"slices"
-	"strconv"
+	"math/rand"
 	"strings"
 	"time"
 
 	"github.com/briandowns/spinner"
-	"github.com/dustin/go-humanize"
 	"github.com/google/shlex"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
@@ -25,14 +19,12 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/watch"
 )
 
@@ -43,9 +35,9 @@ var sharedFlags = flag.Set{
 	flag.StringSlice{
 		Name:      "port",
 		Shorthand: "p",
-		Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
-	i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
-	To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
+		Description: `The external ports and handlers for services, in the format: port[:machinePort][/protocol[:handler[:handler...]]])
+	For example: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
+	To remove a port mapping use '-' as handler. For example: --port 80/tcp:-`,
 	},
 	flag.StringArray{
 		Name:        "env",
@@ -54,7 +46,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "entrypoint",
-		Description: "ENTRYPOINT replacement",
+		Description: "The command to override the Docker ENTRYPOINT.",
 	},
 	flag.Bool{
 		Name:        "build-only",
@@ -77,7 +69,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "dockerfile",
-		Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		Description: "The path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
 	},
 	flag.StringArray{
 		Name:        "build-arg",
@@ -101,7 +93,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringArray{
 		Name:        "kernel-arg",
-		Description: "List of kernel arguments to be provided to the init. Can be specified multiple times.",
+		Description: "A list of kernel arguments to provide to the init. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "metadata",
@@ -110,7 +102,7 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "schedule",
-		Description: `Schedule a machine run at hourly, daily and monthly intervals`,
+		Description: `Schedule a Machine run at hourly, daily and monthly intervals`,
 	},
 	flag.Bool{
 		Name:        "skip-dns-registration",
@@ -118,12 +110,12 @@ var sharedFlags = flag.Set{
 	},
 	flag.Bool{
 		Name:        "autostart",
-		Description: "Automatically start a stopped machine when a network request is received",
+		Description: "Automatically start a stopped Machine when a network request is received",
 		Default:     true,
 	},
 	flag.Bool{
 		Name:        "autostop",
-		Description: "Automatically stop a machine when there aren't network requests for it",
+		Description: "Automatically stop a Machine when there are no network requests for it",
 		Default:     true,
 	},
 	flag.String{
@@ -133,21 +125,86 @@ var sharedFlags = flag.Set{
 	},
 	flag.StringSlice{
 		Name:        "standby-for",
-		Description: "Comma separated list of machine ids to watch for",
+		Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
 	},
 	flag.StringArray{
 		Name:        "file-local",
-		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		Description: "Set of files to write to the Machine, in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "file-literal",
-		Description: "Set of literals in the form of /path/inside/machine=VALUE pairs where VALUE is the content. Can be specified multiple times.",
+		Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
 	},
 	flag.StringArray{
 		Name:        "file-secret",
-		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
+		Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
 	},
 	flag.VMSizeFlags,
+}
+
+var runOrCreateFlags = flag.Set{
+	flag.Region(),
+	// deprecated in favor of `flyctl machine update`
+	flag.String{
+		Name:        "id",
+		Description: "Machine ID, if previously known",
+	},
+	flag.String{
+		Name:        "name",
+		Shorthand:   "n",
+		Description: "Machine name. Will be generated if omitted.",
+	},
+	flag.String{
+		Name:        "org",
+		Description: `The organization that will own the app`,
+	},
+	flag.Bool{
+		Name:        "rm",
+		Description: "Automatically remove the Machine when it exits. Sets the restart-policy to 'never' if not otherwise specified.",
+	},
+	flag.StringSlice{
+		Name:        "volume",
+		Shorthand:   "v",
+		Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+	},
+	flag.Bool{
+		Name:        "lsvd",
+		Description: "Enable LSVD for this machine",
+		Hidden:      true,
+	},
+}
+
+func soManyErrors(args ...interface{}) error {
+	sb := &strings.Builder{}
+	errs := 0
+
+	for i := range args {
+		if i%2 == 0 {
+			var err error
+
+			kind := args[i].(string)
+			erri := args[i+1]
+
+			if erri != nil {
+				err = erri.(error)
+			}
+
+			if err != nil {
+				fmt.Fprintf(sb, "\t%s: %s\n", kind, err)
+				errs += 1
+			}
+		}
+	}
+
+	if errs == 0 {
+		return nil
+	}
+
+	if errs == 1 {
+		return errors.New(strings.ReplaceAll(strings.ReplaceAll(sb.String(), "\t", ""), "\n", ""))
+	}
+
+	return fmt.Errorf("Multiple errors:\n%s", sb.String())
 }
 
 var s = spinner.New(spinner.CharSets[9], 100*time.Millisecond)
@@ -167,39 +224,64 @@ func newRun() *cobra.Command {
 
 	flag.Add(
 		cmd,
-		flag.Region(),
-		// deprecated in favor of `flyctl machine update`
+		runOrCreateFlags,
+		sharedFlags,
 		flag.String{
-			Name:        "id",
-			Description: "Machine ID, if previously known",
+			Name:        "user",
+			Description: "Used with --shell. The username, if we're shelling into the Machine now.",
+			Default:     "root",
+			Hidden:      false,
 		},
 		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "Machine name, will be generated if missing",
-		},
-		flag.String{
-			Name:        "org",
-			Description: `The organization that will own the app`,
+			Name:        "command",
+			Description: "Used with --shell. The command to run, if we're shelling into the Machine now (in case you don't have bash).",
+			Default:     "/bin/bash",
+			Hidden:      false,
 		},
 		flag.Bool{
-			Name:        "rm",
-			Description: "Automatically remove the machine when it exits",
+			Name:        "shell",
+			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
+			Hidden:      false,
 		},
-		flag.StringSlice{
-			Name:        "volume",
-			Shorthand:   "v",
-			Description: "Volumes to mount in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
-		},
-		flag.String{
-			Name: "host-dedication-id",
-		},
+	)
+
+	cmd.Args = cobra.MinimumNArgs(0)
+
+	return cmd
+}
+
+func newCreate() *cobra.Command {
+	const (
+		short = "Create, but don't start, a machine"
+		long  = short + "\n"
+
+		usage = "create <image> [command]"
+	)
+
+	cmd := command.New(usage, short, long, runMachineCreate,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(
+		cmd,
+		runOrCreateFlags,
 		sharedFlags,
 	)
 
 	cmd.Args = cobra.MinimumNArgs(1)
 
 	return cmd
+}
+
+type contextKey struct {
+	name string
+}
+
+var createCommandCtxKey = &contextKey{"createCommand"}
+
+func runMachineCreate(ctx context.Context) error {
+	return runMachineRun(context.WithValue(ctx, createCommandCtxKey, true))
 }
 
 func runMachineRun(ctx context.Context) error {
@@ -210,10 +292,36 @@ func runMachineRun(ctx context.Context) error {
 		colorize = io.ColorScheme()
 		err      error
 		app      *api.AppCompact
+		isCreate = false
+		interact = false
+		shell    = flag.GetBool(ctx, "shell")
+		destroy  = flag.GetBool(ctx, "rm")
 	)
 
-	if appName == "" {
-		app, err = createApp(ctx, "Running a machine without specifying an app will create one for you, is this what you want?", "", client)
+	if shell {
+		destroy = true
+		interact = true
+	}
+
+	if ctx.Value(createCommandCtxKey) != nil {
+		isCreate = true
+	}
+
+	switch {
+	case interact && appName != "":
+		app, err = client.GetAppCompact(ctx, appName)
+		if err != nil {
+			return err
+		}
+
+	case interact && appName == "":
+		app, err = getOrCreateEphemeralShellApp(ctx, client)
+		if err != nil {
+			return err
+		}
+
+	case appName == "":
+		app, err = createApp(ctx, "Running a Machine without specifying an app will create one for you, is this what you want?", "", client)
 		if err != nil {
 			return err
 		}
@@ -222,11 +330,10 @@ func runMachineRun(ctx context.Context) error {
 			return nil
 		}
 
-	} else {
+	default:
 		app, err = client.GetAppCompact(ctx, appName)
 		if err != nil && strings.Contains(err.Error(), "Could not find App") {
 			app, err = createApp(ctx, fmt.Sprintf("App '%s' does not exist, would you like to create it?", appName), appName, client)
-
 			if err != nil {
 				return err
 			}
@@ -234,7 +341,6 @@ func runMachineRun(ctx context.Context) error {
 			if app == nil {
 				return nil
 			}
-
 		}
 		if err != nil {
 			return err
@@ -242,16 +348,16 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	machineConf := &api.MachineConfig{
-		AutoDestroy: flag.GetBool(ctx, "rm"),
+		AutoDestroy: destroy,
 		DNS: &api.DNSConfig{
 			SkipRegistration: flag.GetBool(ctx, "skip-dns-registration"),
 		},
 	}
 
 	input := api.LaunchMachineInput{
-		Name:             flag.GetString(ctx, "name"),
-		Region:           flag.GetString(ctx, "region"),
-		HostDedicationID: flag.GetString(ctx, "host-dedication-id"),
+		Name:   flag.GetString(ctx, "name"),
+		Region: flag.GetString(ctx, "region"),
+		LSVD:   flag.GetBool(ctx, "lsvd"),
 	}
 
 	flapsClient, err := flaps.New(ctx, app)
@@ -260,12 +366,10 @@ func runMachineRun(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	if app.PlatformVersion == "nomad" {
-		return fmt.Errorf("the app %s uses an earlier version of the platform that does not support machines", app.Name)
-	}
-
 	imageOrPath := flag.FirstArg(ctx)
-	if imageOrPath == "" {
+	if imageOrPath == "" && shell {
+		imageOrPath = "ubuntu"
+	} else if imageOrPath == "" {
 		return fmt.Errorf("image argument can't be an empty string")
 	}
 
@@ -280,6 +384,7 @@ func runMachineRun(ctx context.Context) error {
 		imageOrPath:        imageOrPath,
 		region:             input.Region,
 		updating:           false,
+		interact:           interact,
 	})
 	if err != nil {
 		return err
@@ -289,7 +394,7 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input.SkipLaunch = len(machineConf.Standbys) > 0
+	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
 
 	machine, err := flapsClient.Launch(ctx, input)
@@ -299,22 +404,72 @@ func runMachineRun(ctx context.Context) error {
 
 	id, instanceID, state, privateIP := machine.ID, machine.InstanceID, machine.State, machine.PrivateIP
 
-	fmt.Fprintf(io.Out, "Success! A machine has been successfully launched in app %s\n", appName)
+	verb := "launched"
+	if isCreate {
+		verb = "created"
+	}
+
+	fmt.Fprintf(io.Out, "Success! A Machine has been successfully %s in app %s\n", verb, app.Name)
 	fmt.Fprintf(io.Out, " Machine ID: %s\n", id)
-	fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
-	fmt.Fprintf(io.Out, " State: %s\n", state)
+
+	if !interact {
+		fmt.Fprintf(io.Out, " Instance ID: %s\n", instanceID)
+		fmt.Fprintf(io.Out, " State: %s\n", state)
+	}
 
 	if input.SkipLaunch {
 		return nil
 	}
 
-	fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	if !interact {
+		fmt.Fprintf(io.Out, "\n Attempting to start machine...\n\n")
+	}
+
 	s.Start()
 	// wait for machine to be started
 	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*5)
 	s.Stop()
 	if err != nil {
 		return err
+	}
+
+	if interact {
+		_, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+		if err != nil {
+			return err
+		}
+
+		// the app handle we have from creating a new app, presuming that's what
+		// we did, doesn't have the ID set.
+		app, err = client.GetAppCompact(ctx, app.Name)
+		if err != nil {
+			return fmt.Errorf("failed to load app info for %s: %w", app.Name, err)
+		}
+
+		sshClient, err := ssh.Connect(&ssh.ConnectParams{
+			Ctx:            ctx,
+			Org:            app.Organization,
+			Dialer:         dialer,
+			Username:       flag.GetString(ctx, "user"),
+			DisableSpinner: false,
+			AppNames:       []string{app.Name},
+		}, machine.PrivateIP)
+		if err != nil {
+			return err
+		}
+
+		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
+		if destroy {
+			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if destroy {
+			return nil
+		}
 	}
 
 	if !flag.GetDetach(ctx) {
@@ -330,6 +485,52 @@ func runMachineRun(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "  %s\n", privateIP)
 
 	return nil
+}
+
+func getOrCreateEphemeralShellApp(ctx context.Context, client *api.Client) (*api.AppCompact, error) {
+	// no prompt if --org, buried in the context code
+	org, err := prompt.Org(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("create interactive shell app: %w", err)
+	}
+
+	apps, err := client.GetAppsForOrganization(ctx, org.ID)
+	if err != nil {
+		return nil, fmt.Errorf("create interactive shell app: %w", err)
+	}
+
+	var appc *api.App
+
+	for appi, appt := range apps {
+		if strings.HasPrefix(appt.Name, "flyctl-interactive-shells-") {
+			appc = &apps[appi]
+			break
+		}
+	}
+
+	if appc == nil {
+		appc, err = client.CreateApp(ctx, api.CreateAppInput{
+			OrganizationID: org.ID,
+			// i'll never find love again like the kind you give like the kind you send
+			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000)),
+		})
+
+		if err != nil {
+			return nil, fmt.Errorf("create interactive shell app: %w", err)
+		}
+
+		if err := flaps.WaitForApp(ctx, appc.Name); err != nil {
+			return nil, err
+		}
+	}
+
+	// this app handle won't have all the metadata attached, so grab it
+	app, err := client.GetAppCompact(ctx, appc.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	return app, nil
 }
 
 func createApp(ctx context.Context, message, name string, client *api.Client) (*api.AppCompact, error) {
@@ -364,6 +565,10 @@ func createApp(ctx context.Context, message, name string, client *api.Client) (*
 		return nil, err
 	}
 
+	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
+		return nil, err
+	}
+
 	return &api.AppCompact{
 		ID:       app.ID,
 		Name:     app.Name,
@@ -390,303 +595,6 @@ func parseKVFlag(ctx context.Context, flagName string, initialMap map[string]str
 	return parsed, nil
 }
 
-func determineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
-	var (
-		client = client.FromContext(ctx).API()
-		io     = iostreams.FromContext(ctx)
-		cfg    = appconfig.ConfigFromContext(ctx)
-	)
-
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io)
-
-	// build if relative or absolute path
-	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
-		opts := imgsrc.ImageOptions{
-			AppName:    appName,
-			WorkingDir: path.Join(state.WorkingDirectory(ctx)),
-			Publish:    !flag.GetBuildOnly(ctx),
-			ImageLabel: flag.GetString(ctx, "image-label"),
-			Target:     flag.GetString(ctx, "build-target"),
-			NoCache:    flag.GetBool(ctx, "no-build-cache"),
-		}
-
-		dockerfilePath := cfg.Dockerfile()
-
-		// dockerfile passed through flags takes precedence over the one set in config
-		if flag.GetString(ctx, "dockerfile") != "" {
-			dockerfilePath = flag.GetString(ctx, "dockerfile")
-		}
-
-		if dockerfilePath != "" {
-			dockerfilePath, err := filepath.Abs(dockerfilePath)
-			if err != nil {
-				return nil, err
-			}
-			opts.DockerfilePath = dockerfilePath
-		}
-
-		extraArgs, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-arg"))
-		if err != nil {
-			return nil, errors.Wrap(err, "invalid build-arg")
-		}
-		opts.BuildArgs = extraArgs
-
-		img, err = resolver.BuildImage(ctx, io, opts)
-		if err != nil {
-			return nil, err
-		}
-		if img == nil {
-			return nil, errors.New("could not find an image to deploy")
-		}
-	} else {
-		opts := imgsrc.RefOptions{
-			AppName:    appName,
-			WorkingDir: state.WorkingDirectory(ctx),
-			Publish:    !flag.GetBool(ctx, "build-only"),
-			ImageRef:   imageOrPath,
-			ImageLabel: flag.GetString(ctx, "image-label"),
-		}
-
-		img, err = resolver.ResolveReference(ctx, io, opts)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if img == nil {
-		return nil, errors.New("could not find an image to deploy")
-	}
-
-	fmt.Fprintf(io.Out, "Image: %s\n", img.Tag)
-	fmt.Fprintf(io.Out, "Image size: %s\n\n", humanize.Bytes(uint64(img.Size)))
-
-	return img, nil
-}
-
-func determineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
-	unattachedVolumes := make(map[string][]api.Volume)
-
-	pathIndex := make(map[string]int)
-	for idx, m := range mounts {
-		pathIndex[m.Path] = idx
-	}
-
-	for _, v := range flag.GetStringSlice(ctx, "volume") {
-		splittedIDDestOpts := strings.Split(v, ":")
-		if len(splittedIDDestOpts) < 2 {
-			return nil, fmt.Errorf("Can't infer volume and mount path from '%s'", v)
-		}
-		volID := splittedIDDestOpts[0]
-		mountPath := splittedIDDestOpts[1]
-
-		if !strings.HasPrefix(volID, "vol_") {
-			volName := volID
-
-			// Load app volumes the first time
-			if len(unattachedVolumes) == 0 {
-				var err error
-				unattachedVolumes, err = getUnattachedVolumes(ctx, region)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			if len(unattachedVolumes[volName]) == 0 {
-				return nil, fmt.Errorf("not enough unattached volumes for '%s'", volName)
-			}
-			volID = unattachedVolumes[volName][0].ID
-			unattachedVolumes[volName] = unattachedVolumes[volName][1:]
-		}
-
-		if idx, found := pathIndex[mountPath]; found {
-			mounts[idx].Volume = volID
-		} else {
-			mounts = append(mounts, api.MachineMount{
-				Volume: volID,
-				Path:   mountPath,
-			})
-		}
-	}
-	return mounts, nil
-}
-
-func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	apiclient := client.FromContext(ctx).API()
-	flapsClient := flaps.FromContext(ctx)
-
-	if regionCode == "" {
-		region, err := apiclient.GetNearestRegion(ctx)
-		if err != nil {
-			return nil, err
-		}
-		regionCode = region.Code
-	}
-
-	volumes, err := flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
-	}
-
-	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return !v.IsAttached() && (regionCode == v.Region)
-	})
-	if len(unattached) == 0 {
-		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
-	}
-
-	unattachedMap := lo.GroupBy(unattached, func(v api.Volume) string { return v.Name })
-	return unattachedMap, nil
-}
-
-func determineServices(ctx context.Context, services []api.MachineService) ([]api.MachineService, error) {
-	svcKey := func(internalPort int, protocol string) string {
-		return fmt.Sprintf("%d/%s", internalPort, protocol)
-	}
-	servicesRef := lo.Map(services, func(s api.MachineService, _ int) *api.MachineService { return &s })
-	servicesMap := lo.KeyBy(servicesRef, func(s *api.MachineService) string {
-		return svcKey(s.InternalPort, s.Protocol)
-	})
-
-	for _, p := range flag.GetStringSlice(ctx, "port") {
-		internalPort, proto, edgePort, edgeStartPort, edgeEndPort, handlers, err := parsePortFlag(p)
-		if err != nil {
-			return nil, err
-		}
-
-		// Look for existing services or append a new one
-		svc, ok := servicesMap[svcKey(internalPort, proto)]
-		if !ok {
-			svc = &api.MachineService{
-				InternalPort: internalPort,
-				Protocol:     proto,
-			}
-			servicesRef = append(servicesRef, svc)
-			servicesMap[svcKey(internalPort, proto)] = svc
-		}
-
-		// A dash handler removes the service: --port 5432/tcp:-
-		if slices.Equal(handlers, []string{"-"}) {
-			svc.Ports = nil
-			continue
-		}
-
-		// Look for existing ports and update them
-		found := false
-		for idx := range svc.Ports {
-			svcPort := &svc.Ports[idx]
-			if svcPort.Port != nil && edgePort != nil && *(svcPort.Port) == *edgePort {
-				found = true
-				svcPort.Handlers = handlers
-			}
-			if svcPort.StartPort != nil && edgeStartPort != nil && *(svcPort.StartPort) == *edgeStartPort {
-				found = true
-				svcPort.Handlers = handlers
-				svcPort.EndPort = edgeEndPort
-			}
-		}
-		// Or append new port definition
-		if !found {
-			svc.Ports = append(svc.Ports, api.MachinePort{
-				Port:      edgePort,
-				StartPort: edgeStartPort,
-				EndPort:   edgeEndPort,
-				Handlers:  handlers,
-			})
-		}
-	}
-
-	// Remove any service without exposed ports
-	services = lo.FilterMap(servicesRef, func(s *api.MachineService, _ int) (api.MachineService, bool) {
-		if s != nil && len(s.Ports) > 0 {
-			return *s, true
-		}
-		return api.MachineService{}, false
-	})
-
-	return services, nil
-}
-
-func parsePortFlag(str string) (internalPort int, protocol string, port, startPort, endPort *int, handlers []string, err error) {
-	protocol = "tcp"
-	splittedPortsProto := strings.Split(str, "/")
-	if len(splittedPortsProto) == 2 {
-		splittedProtoHandlers := strings.Split(splittedPortsProto[1], ":")
-		protocol = splittedProtoHandlers[0]
-		handlers = append(handlers, splittedProtoHandlers[1:]...)
-	} else if len(splittedPortsProto) > 2 {
-		err = errors.New("port must be at most two elements (ports/protocol:handler)")
-		return
-	}
-
-	port, startPort, endPort, internalPort, err = parsePorts(splittedPortsProto[0])
-	if internalPort == 0 {
-		switch {
-		case port != nil:
-			internalPort = *port
-		case startPort != nil:
-			internalPort = *startPort
-		}
-	}
-	return
-}
-
-func parsePorts(input string) (port, start_port, end_port *int, internal_port int, err error) {
-	split := strings.Split(input, ":")
-	if len(split) == 1 {
-		var external_port int
-		external_port, err = strconv.Atoi(split[0])
-		if err != nil {
-			err = errors.Wrap(err, "invalid port")
-			return
-		}
-
-		port = api.IntPointer(external_port)
-	} else if len(split) == 2 {
-		internal_port, err = strconv.Atoi(split[1])
-		if err != nil {
-			err = errors.Wrap(err, "invalid machine (internal) port")
-			return
-		}
-
-		external_split := strings.Split(split[0], "-")
-		if len(external_split) == 1 {
-			var external_port int
-			external_port, err = strconv.Atoi(external_split[0])
-			if err != nil {
-				err = errors.Wrap(err, "invalid external port")
-				return
-			}
-
-			port = api.IntPointer(external_port)
-		} else if len(external_split) == 2 {
-			var start int
-			start, err = strconv.Atoi(external_split[0])
-			if err != nil {
-				err = errors.Wrap(err, "invalid start port for port range")
-				return
-			}
-
-			start_port = api.IntPointer(start)
-
-			var end int
-			end, err = strconv.Atoi(external_split[0])
-			if err != nil {
-				err = errors.Wrap(err, "invalid end port for port range")
-				return
-			}
-
-			end_port = api.IntPointer(end)
-		} else {
-			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
-		}
-	} else {
-		err = errors.New("port definition must be at most 2 elements (external:internal)")
-	}
-
-	return
-}
-
 func selectAppName(ctx context.Context) (name string, err error) {
 	const msg = "App Name:"
 
@@ -703,9 +611,12 @@ type determineMachineConfigInput struct {
 	imageOrPath        string
 	region             string
 	updating           bool
+	interact           bool
 }
 
-func determineMachineConfig(ctx context.Context, input *determineMachineConfigInput) (*api.MachineConfig, error) {
+func determineMachineConfig(
+	ctx context.Context,
+	input *determineMachineConfigInput) (*api.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
 	var err error
@@ -746,7 +657,15 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
-		machineConf.Init.Cmd = flag.Args(ctx)[1:]
+		args := flag.Args(ctx)
+
+		if len(args) != 0 {
+			machineConf.Init.Cmd = args[1:]
+		}
+	}
+
+	if input.interact {
+		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
@@ -770,7 +689,7 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Metadata[k] = v
 	}
 
-	services, err := determineServices(ctx, machineConf.Services)
+	services, err := command.DetermineServices(ctx, machineConf.Services)
 	if err != nil {
 		return machineConf, err
 	}
@@ -796,6 +715,9 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		if flag.IsSpecified(ctx, "restart") {
 			// An empty policy was explicitly requested.
 			machineConf.Restart.Policy = ""
+		} else if machineConf.AutoDestroy {
+			// Autodestroy only works when the restart policy is set to no, so unless otherwise specified, we set the restart policy to no.
+			machineConf.Restart.Policy = api.MachineRestartPolicyNo
 		} else if !input.updating {
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
@@ -808,13 +730,13 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		return machineConf, errors.New("invalid restart provided")
 	}
 
-	machineConf.Mounts, err = determineMounts(ctx, machineConf.Mounts, input.region)
+	machineConf.Mounts, err = command.DetermineMounts(ctx, machineConf.Mounts, input.region)
 	if err != nil {
 		return machineConf, err
 	}
 
 	if input.imageOrPath != "" {
-		img, err := determineImage(ctx, input.appName, input.imageOrPath)
+		img, err := command.DetermineImage(ctx, input.appName, input.imageOrPath)
 		if err != nil {
 			return machineConf, err
 		}
@@ -845,80 +767,11 @@ func determineMachineConfig(ctx context.Context, input *determineMachineConfigIn
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
 	}
 
-	machineFiles, err := FilesFromCommand(ctx)
+	machineFiles, err := command.FilesFromCommand(ctx)
 	if err != nil {
 		return machineConf, err
 	}
 	mach.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
-}
-
-// FilesFromCommand checks the specified flags for files and returns a list of api.File to be used
-// in the machine configuration.
-func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
-	machineFiles := []*api.File{}
-
-	localFiles, err := parseFiles(ctx, "file-local", func(value string, file *api.File) error {
-		content, err := os.ReadFile(value)
-		if err != nil {
-			return fmt.Errorf("could not read file %s: %w", value, err)
-		}
-		rawValue := base64.StdEncoding.EncodeToString(content)
-		file.RawValue = &rawValue
-		return nil
-	})
-	if err != nil {
-		return machineFiles, fmt.Errorf("failed to read file-local: %w", err)
-	}
-	machineFiles = append(machineFiles, localFiles...)
-
-	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *api.File) error {
-		encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
-		file.RawValue = &encodedValue
-		return nil
-	})
-	if err != nil {
-		return machineFiles, fmt.Errorf("failed to read file-literal: %w", err)
-	}
-	machineFiles = append(machineFiles, literalFiles...)
-
-	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *api.File) error {
-		file.SecretName = &value
-		return nil
-	})
-	if err != nil {
-		return machineFiles, fmt.Errorf("failed to read file-secret: %w", err)
-	}
-	machineFiles = append(machineFiles, secretFiles...)
-
-	return machineFiles, nil
-}
-
-func parseFiles(ctx context.Context, flagName string, cb func(value string, file *api.File) error) ([]*api.File, error) {
-	flagFiles := flag.GetStringArray(ctx, flagName)
-	machineFiles := make([]*api.File, 0, len(flagFiles))
-
-	for _, f := range flagFiles {
-		guestPath, fileRef, ok := strings.Cut(f, "=")
-		file := api.File{
-			GuestPath: guestPath,
-		}
-		switch {
-		case !ok:
-			return nil, fmt.Errorf("invalid %s argument %s", flagName, f)
-		case !filepath.IsAbs(guestPath):
-			return nil, fmt.Errorf("guest path, %s, must be absolute", guestPath)
-		case fileRef == "":
-			// empty value is allowed to remove file from machine
-		default:
-			if err := cb(fileRef, &file); err != nil {
-				return nil, err
-			}
-		}
-
-		machineFiles = append(machineFiles, &file)
-	}
-
-	return machineFiles, nil
 }

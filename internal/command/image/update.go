@@ -33,16 +33,8 @@ The update will perform a rolling restart against each VM, which may result in a
 		flag.AppConfig(),
 		flag.Yes(),
 		flag.String{
-			Name:        "strategy",
-			Description: "Deployment strategy. (Nomad only)",
-		},
-		flag.Bool{
-			Name:        "detach",
-			Description: "Return immediately instead of monitoring update progress. (Nomad only)",
-		},
-		flag.String{
 			Name:        "image",
-			Description: "Target a specific image. (Machines only)",
+			Description: "Target a specific image",
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
@@ -70,15 +62,8 @@ func runUpdate(ctx context.Context) error {
 		return err
 	}
 
-	switch app.PlatformVersion {
-	case "nomad":
-		return updateImageForNomad(ctx)
-	case "machines":
-		if app.IsPostgresApp() {
-			return updatePostgresOnMachines(ctx, app)
-		}
-		return updateImageForMachines(ctx, app)
-	default:
-		return fmt.Errorf("unable to determine platform version. please contact support")
+	if app.IsPostgresApp() {
+		return updatePostgresOnMachines(ctx, app)
 	}
+	return updateImageForMachines(ctx, app)
 }

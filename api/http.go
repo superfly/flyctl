@@ -45,12 +45,6 @@ type LoggingTransport struct {
 	mu             sync.Mutex
 }
 
-type contextKey struct {
-	name string
-}
-
-var contextKeyRequestStart = &contextKey{"RequestStart"}
-
 func (t *LoggingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx := context.WithValue(req.Context(), contextKeyRequestStart, time.Now())
 	req = req.WithContext(ctx)

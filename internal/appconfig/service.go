@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/samber/lo"
@@ -144,7 +145,7 @@ func (chk *ServiceTCPCheck) String(port int) string {
 	return fmt.Sprintf("tcp-%d", port)
 }
 
-func serviceFromMachineService(ms api.MachineService, processes []string) *Service {
+func serviceFromMachineService(ctx context.Context, ms api.MachineService, processes []string) *Service {
 	var (
 		tcpChecks  []*ServiceTCPCheck
 		httpChecks []*ServiceHTTPCheck
@@ -154,9 +155,9 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 		case "tcp":
 			tcpChecks = append(tcpChecks, tcpCheckFromMachineCheck(check))
 		case "http":
-			httpChecks = append(httpChecks, httpCheckFromMachineCheck(check))
+			httpChecks = append(httpChecks, httpCheckFromMachineCheck(ctx, check))
 		default:
-			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type))
+			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type), sentry.WithTraceID(ctx))
 		}
 	}
 	return &Service{
@@ -181,14 +182,14 @@ func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
 	}
 }
 
-func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
+func httpCheckFromMachineCheck(ctx context.Context, mc api.MachineCheck) *ServiceHTTPCheck {
 	headers := make(map[string]string)
 	for _, h := range mc.HTTPHeaders {
 		if len(h.Values) > 0 {
 			headers[h.Name] = h.Values[0]
 		}
 		if len(h.Values) > 1 {
-			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"))
+			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
 	return &ServiceHTTPCheck{

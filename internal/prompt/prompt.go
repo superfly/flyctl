@@ -398,7 +398,7 @@ func Region(ctx context.Context, splitPaid bool, params RegionParams) (*api.Regi
 
 		for _, region := range paidOnly {
 			if slug == region.Code {
-				return nil, fmt.Errorf("region %s requires an organization with a paid plan. See our plans: https://fly.io/plans", slug)
+				return nil, fmt.Errorf("region %s requires an organization with a Launch plan or higher. See our plans: https://fly.io/plans", slug)
 			}
 		}
 
@@ -437,7 +437,7 @@ func SelectRegion(ctx context.Context, msg string, paid []api.Region, regions []
 	var options []string
 	if isInteractive(ctx) && len(paid) > 0 {
 		io := iostreams.FromContext(ctx)
-		fmt.Fprintf(io.ErrOut, "Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
+		fmt.Fprintf(io.ErrOut, "Some regions require a Launch plan or higher (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
 	}
 
 	for _, r := range regions {
@@ -469,7 +469,7 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []api.Region, regio
 
 	if isInteractive(ctx) && len(paid) > 0 {
 		io := iostreams.FromContext(ctx)
-		fmt.Fprintf(io.ErrOut, "Some regions require a paid plan (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
+		fmt.Fprintf(io.ErrOut, "Some regions require a Launch plan or higher (%s).\nSee https://fly.io/plans to set up a plan.\n\n", strings.Join(lo.Map(paid, func(r api.Region, _ int) string { return r.Code }), ", "))
 	}
 
 	for i, r := range regions {
@@ -490,38 +490,6 @@ func MultiSelectRegion(ctx context.Context, msg string, paid []api.Region, regio
 		}
 	}
 	return
-}
-
-var errVMsizeRequired = NonInteractiveError("vm size must be specified when not running interactively")
-
-func VMSize(ctx context.Context, def string) (size *api.VMSize, err error) {
-	client := client.FromContext(ctx).API()
-
-	vmSizes, err := client.PlatformVMSizes(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	sort.VMSizesBySize(vmSizes)
-
-	switch {
-	case def != "":
-		for _, vmSize := range vmSizes {
-			if def == vmSize.Name {
-				return &vmSize, nil
-			}
-		}
-		return nil, fmt.Errorf("vm size %s not found", def)
-	default:
-		switch vmSize, err := SelectVMSize(ctx, vmSizes); {
-		case err == nil:
-			return vmSize, nil
-		case IsNonInteractive(err):
-			return nil, errVMsizeRequired
-		default:
-			return nil, err
-		}
-	}
 }
 
 func SelectVMSize(ctx context.Context, vmSizes []api.VMSize) (vmSize *api.VMSize, err error) {

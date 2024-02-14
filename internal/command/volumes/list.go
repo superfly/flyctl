@@ -18,9 +18,9 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long = "List all the volumes associated with this application."
+		short = "List the volumes associated with an app."
 
-		short = "List the volumes for app"
+		long = short
 	)
 
 	cmd := command.New("list", short, long, runList,
@@ -45,7 +45,7 @@ func runList(ctx context.Context) error {
 
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := apiClient.GetApp(ctx, appName)
+	app, err := apiClient.GetAppBasic(ctx, appName)
 	if err != nil {
 		return err
 	}

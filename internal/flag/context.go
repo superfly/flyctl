@@ -62,7 +62,7 @@ func GetInt(ctx context.Context, name string) int {
 }
 
 // GetFloat64 returns the value of the named int flag ctx carries. It panics
-// in case ctx carries no flags or in case the named flag isn't an int one.
+// in case ctx carries no flags or in case the named flag isn't a float64 one.
 func GetFloat64(ctx context.Context, name string) float64 {
 	if v, err := FromContext(ctx).GetFloat64(name); err != nil {
 		panic(err)

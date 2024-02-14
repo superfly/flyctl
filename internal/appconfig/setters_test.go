@@ -34,28 +34,6 @@ func TestSettersWithService(t *testing.T) {
 			HTTPTLSSkipVerify: api.Pointer(false),
 		}},
 	}})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"app": "setters",
-		"services": []map[string]any{{
-			"internal_port": 1234,
-			"protocol":      "tcp",
-			"concurrency": map[string]any{
-				"type":       "connections",
-				"hard_limit": 34,
-				"soft_limit": 12,
-			},
-			"http_checks": []map[string]any{{
-				"interval":        10000,
-				"grace_period":    "5s",
-				"method":          "get",
-				"path":            "/status",
-				"protocol":        "http",
-				"restart_limit":   0,
-				"timeout":         2000,
-				"tls_skip_verify": false,
-			}},
-		}},
-	})
 }
 
 func TestSettersWithHTTPService(t *testing.T) {
@@ -88,7 +66,6 @@ func TestSettersWithHTTPService(t *testing.T) {
 			HTTPTLSSkipVerify: api.Pointer(false),
 		},
 	})
-	// No need to test RawDefinition because http_service is machines only
 }
 
 func TestSettersWithouServices(t *testing.T) {
@@ -98,7 +75,6 @@ func TestSettersWithouServices(t *testing.T) {
 	cfg.SetConcurrency(12, 34)
 	assert.Nil(t, cfg.Services, nil)
 	assert.Nil(t, cfg.HTTPService, nil)
-	assert.Equal(t, cfg.RawDefinition, map[string]any{})
 }
 
 func TestSetEnvVariable(t *testing.T) {
@@ -110,13 +86,6 @@ func TestSetEnvVariable(t *testing.T) {
 		"b": "2",
 		"c": "3",
 	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"env": map[string]string{
-			"a": "1",
-			"b": "2",
-			"c": "3",
-		},
-	})
 }
 
 func TestReleaseCommand(t *testing.T) {
@@ -124,11 +93,6 @@ func TestReleaseCommand(t *testing.T) {
 	cfg.SetReleaseCommand("/bin/app/run migrate")
 	assert.Equal(t, cfg.Deploy, &Deploy{
 		ReleaseCommand: "/bin/app/run migrate",
-	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"deploy": map[string]string{
-			"release_command": "/bin/app/run migrate",
-		},
 	})
 }
 
@@ -141,13 +105,6 @@ func TestReleaseCommand_DeploySectionExists(t *testing.T) {
 		ReleaseCommand: "/bin/app/run migrate",
 		Strategy:       "immediate",
 	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"app": "setters",
-		"deploy": map[string]any{
-			"release_command": "/bin/app/run migrate",
-			"strategy":        "immediate",
-		},
-	})
 }
 
 func TestSetDocker(t *testing.T) {
@@ -157,12 +114,6 @@ func TestSetDocker(t *testing.T) {
 	assert.Equal(t, cfg.Experimental, &Experimental{
 		Entrypoint: []string{"/entry"},
 		Cmd:        []string{"/cmd"},
-	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"experimental": map[string]string{
-			"entrypoint": "/entry",
-			"cmd":        "/cmd",
-		},
 	})
 }
 
@@ -177,14 +128,6 @@ func TestSetDocker_ExperimentalSectionExists(t *testing.T) {
 		Cmd:        []string{"/cmd"},
 		Exec:       []string{"/exec"},
 	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"app": "setters",
-		"experimental": map[string]any{
-			"entrypoint": "/entry",
-			"cmd":        "/cmd",
-			"exec":       "/exec",
-		},
-	})
 }
 
 func TestSetProcesses(t *testing.T) {
@@ -194,12 +137,6 @@ func TestSetProcesses(t *testing.T) {
 	assert.Equal(t, cfg.Experimental, &Experimental{
 		Entrypoint: []string{"/entry"},
 		Cmd:        []string{"/cmd"},
-	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"experimental": map[string]string{
-			"entrypoint": "/entry",
-			"cmd":        "/cmd",
-		},
 	})
 }
 
@@ -214,14 +151,6 @@ func TestSetProcesses_SectionExists(t *testing.T) {
 		"back": "run-back",
 		"foo":  "bar",
 	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"app": "setters",
-		"processes": map[string]any{
-			"app":  "run-web",
-			"back": "run-back",
-			"foo":  "bar",
-		},
-	})
 }
 
 func TestSetStatics(t *testing.T) {
@@ -230,27 +159,16 @@ func TestSetStatics(t *testing.T) {
 	assert.Equal(t, cfg.Statics, []Static{
 		{GuestPath: "/guest", UrlPrefix: "/prefix"},
 	})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"statics": []Static{
-			{GuestPath: "/guest", UrlPrefix: "/prefix"},
-		},
-	})
 }
 
 func TestSetVolumes(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetMounts([]Mount{{Source: "data", Destination: "/data"}})
 	assert.Equal(t, cfg.Mounts, []Mount{{Source: "data", Destination: "/data"}})
-	assert.Equal(t, cfg.RawDefinition, map[string]any{
-		"mounts": []Mount{
-			{Source: "data", Destination: "/data"},
-		},
-	})
 }
 
 func TestSetKillSignal(t *testing.T) {
 	cfg := NewConfig()
 	cfg.SetKillSignal("TERM")
 	assert.Equal(t, cfg.KillSignal, api.Pointer("TERM"))
-	assert.Equal(t, cfg.RawDefinition, map[string]any{"kill_signal": "TERM"})
 }

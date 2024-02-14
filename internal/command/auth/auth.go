@@ -16,7 +16,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
@@ -47,10 +46,10 @@ If you do have an account, begin with the AUTH LOGIN subcommand.
 	return auth
 }
 
-func runWebLogin(ctx context.Context, signup bool) error {
+func runWebLogin(ctx context.Context, signup bool) (string, error) {
 	auth, err := api.StartCLISessionWebAuth(state.Hostname(ctx), signup)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	io := iostreams.FromContext(ctx)
@@ -69,27 +68,14 @@ func runWebLogin(ctx context.Context, signup bool) error {
 	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return errors.New("Login expired, please try again")
+		return "", errors.New("Login expired, please try again")
 	case err != nil:
-		return err
+		return "", err
 	case token == "":
-		return errors.New("failed to log in, please try again")
+		return "", errors.New("failed to log in, please try again")
 	}
 
-	if err := persistAccessToken(ctx, token); err != nil {
-		return err
-	}
-
-	client := client.FromToken(token).API()
-
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving current user: %w", err)
-	}
-
-	fmt.Fprintf(io.Out, "successfully logged in as %s\n", colorize.Bold(user.Email))
-
-	return nil
+	return token, nil
 }
 
 // TODO: this does NOT break on interrupts

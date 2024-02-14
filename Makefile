@@ -32,6 +32,8 @@ cmddocs: generate
 	@echo Running Docs Generation
 	bash scripts/generate_docs.sh
 
+lint:
+	golangci-lint run ./...
 
 pre:
 	pre-commit run --all-files

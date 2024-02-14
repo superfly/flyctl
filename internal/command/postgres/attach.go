@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
@@ -108,27 +107,20 @@ func runAttach(ctx context.Context) error {
 		SuperUser:    flag.GetBool(ctx, "superuser"),
 	}
 
-	pgAppFull, err := client.GetApp(ctx, pgAppName)
+	ips, err := client.GetIPAddresses(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range pgAppFull.IPAddresses.Nodes {
+	for _, ip := range ips {
 		if ip.Type == "private_v6" {
 			flycast = &ip.Address
 		}
 	}
 
-	switch pgApp.PlatformVersion {
-	case "machines":
-		return machineAttachCluster(ctx, params, flycast)
-	case "nomad":
-		return nomadAttachCluster(ctx, pgApp, params)
-	default:
-		return fmt.Errorf("platform is not supported")
-	}
+	return machineAttachCluster(ctx, params, flycast)
 }
 
 // AttachCluster is mean't to be called from an external package.
@@ -155,64 +147,25 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 	}
 
 	// Verify that the target app exists.
-	_, err = client.GetApp(ctx, appName)
+	_, err = client.GetAppBasic(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 	}
 
-	pgAppFull, err := client.GetApp(ctx, pgAppName)
+	ips, err := client.GetIPAddresses(ctx, pgAppName)
 	if err != nil {
-		return fmt.Errorf("failed retrieving postgres app %s: %w", pgAppName, err)
+		return fmt.Errorf("failed retrieving IP addresses for postgres app %s: %w", pgAppName, err)
 	}
 
 	var flycast *string
 
-	for _, ip := range pgAppFull.IPAddresses.Nodes {
+	for _, ip := range ips {
 		if ip.Type == "private_v6" {
 			flycast = &ip.Address
 		}
 	}
+	return machineAttachCluster(ctx, params, flycast)
 
-	switch pgApp.PlatformVersion {
-	case "machines":
-		return machineAttachCluster(ctx, params, flycast)
-	case "nomad":
-		return nomadAttachCluster(ctx, pgApp, params)
-	default:
-		return fmt.Errorf("platform is not supported")
-	}
-}
-
-func nomadAttachCluster(ctx context.Context, pgApp *api.AppCompact, params AttachParams) error {
-	var (
-		MinPostgresHaVersion = "0.0.19"
-		client               = client.FromContext(ctx).API()
-	)
-
-	if err := hasRequiredVersionOnNomad(pgApp, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-		return err
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return errors.Wrap(err, "can't establish agent")
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, pgApp.Organization.Slug, pgApp.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", pgApp.Name, err)
-	}
-
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", pgApp.Name)
-	}
-
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	return runAttachCluster(ctx, leaderIP, params, nil)
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {

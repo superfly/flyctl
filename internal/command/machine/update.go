@@ -38,6 +38,11 @@ func newUpdate() *cobra.Command {
 		flag.Yes(),
 		selectFlag,
 		flag.Bool{
+			Name:        "skip-start",
+			Description: "Updates machine without starting it.",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
@@ -70,13 +75,14 @@ func runUpdate(ctx context.Context) (err error) {
 
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
+		skipStart        = flag.GetBool(ctx, "skip-start")
 		image            = flag.GetString(ctx, "image")
 		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	machine, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
@@ -84,7 +90,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	// Acquire lease
 	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
-	defer releaseLeaseFunc(ctx, machine)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}
@@ -132,7 +138,7 @@ func runUpdate(ctx context.Context) (err error) {
 		Name:             machine.Name,
 		Region:           machine.Region,
 		Config:           machineConf,
-		SkipLaunch:       len(machineConf.Standbys) > 0,
+		SkipLaunch:       len(machineConf.Standbys) > 0 || skipStart,
 		SkipHealthChecks: skipHealthChecks,
 		Timeout:          flag.GetInt(ctx, "wait-timeout"),
 	}

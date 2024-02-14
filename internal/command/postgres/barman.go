@@ -120,10 +120,6 @@ func runBarmanCreate(ctx context.Context) error {
 		return err
 	}
 
-	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("wrong platform version")
-	}
-
 	var region *api.Region
 	region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Select a region. Prefer closer to the primary",
@@ -183,7 +179,7 @@ func runBarmanCreate(ctx context.Context) error {
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
-		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyManagedPostgres: "true",
 		"managed-by-fly-deploy":                        "true",
@@ -384,13 +380,14 @@ func newBarmanRecover() *cobra.Command {
 	return cmd
 }
 
-func captureError(err error, app *api.AppCompact) {
+func captureError(ctx context.Context, err error, app *api.AppCompact) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 
 	sentry.CaptureException(err,
+		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", "ssh-console"),
 		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
@@ -472,15 +469,16 @@ func runConsole(ctx context.Context, cmd string) error {
 		Dialer:         dialer,
 		Username:       "root",
 		DisableSpinner: false,
+		AppNames:       []string{app.Name},
 	}
 	sshc, err := ssh.Connect(params, addr)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return err
 	}
 
 	if err := ssh.Console(ctx, sshc, cmd, false); err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return err
 	}
 
@@ -497,7 +495,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
 		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
-			captureError(err, app)
+			captureError(ctx, err, app)
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
 	}

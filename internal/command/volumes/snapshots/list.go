@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
@@ -38,6 +39,13 @@ func newList() *cobra.Command {
 
 	flag.Add(cmd, flag.JSONOutput())
 	return cmd
+}
+
+func timeToString(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return humanize.Time(t)
 }
 
 func runList(ctx context.Context) error {
@@ -84,12 +92,18 @@ func runList(ctx context.Context) error {
 
 	rows := make([][]string, 0, len(snapshots))
 	for _, snapshot := range snapshots {
+		id := snapshot.ID
+		if id == "" {
+			id = "(pending)"
+		}
+
 		rows = append(rows, []string{
-			snapshot.ID,
+			id,
+			snapshot.Status,
 			strconv.Itoa(snapshot.Size),
-			humanize.Time(snapshot.CreatedAt),
+			timeToString(snapshot.CreatedAt),
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Size", "Created At")
+	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At")
 }

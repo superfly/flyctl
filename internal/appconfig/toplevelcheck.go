@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
@@ -25,14 +26,14 @@ type ToplevelCheck struct {
 	Processes         []string          `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
-func topLevelCheckFromMachineCheck(mc api.MachineCheck) *ToplevelCheck {
+func topLevelCheckFromMachineCheck(ctx context.Context, mc api.MachineCheck) *ToplevelCheck {
 	headers := make(map[string]string)
 	for _, h := range mc.HTTPHeaders {
 		if len(h.Values) > 0 {
 			headers[h.Name] = h.Values[0]
 		}
 		if len(h.Values) > 1 {
-			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"))
+			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
 	return &ToplevelCheck{

@@ -107,12 +107,19 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 
 	var updatable []*api.Machine
 
+	unknownRepos := map[string]bool{}
+
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
+		// Skip API call for already-seen unknown repos, or default deploy-label prefix.
+		if unknownRepos[image] || strings.HasPrefix(machine.ImageRef.Tag, "deployment-") {
+			continue
+		}
 
 		latestImage, err := client.GetLatestImageDetails(ctx, image)
 		if err != nil {
 			if strings.Contains(err.Error(), "Unknown repository") {
+				unknownRepos[image] = true
 				continue
 			}
 			return fmt.Errorf("unable to fetch latest image details for %s: %w", image, err)
@@ -157,8 +164,8 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 		return err
 	}
 
-	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image, app.PlatformVersion}}
-	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image", "Platform"); err != nil {
+	obj := [][]string{{app.Name, app.Organization.Slug, app.Hostname, image}}
+	if err := render.VerticalTable(out, "App", obj, "Name", "Owner", "Hostname", "Image"); err != nil {
 		return err
 	}
 
@@ -201,7 +208,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	}
 
 	if len(unmanaged) > 0 {
-		msg := fmt.Sprintf("Found machines that aren't part of the Fly Apps Platform, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
+		msg := fmt.Sprintf("Found machines that aren't part of Fly Launch, run %s to see them.\n", io.ColorScheme().Yellow("fly machines list"))
 		fmt.Fprint(out, msg)
 	}
 

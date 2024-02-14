@@ -329,7 +329,7 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *api.MachineCon
 
 	// Metadata
 	machineConfig.Metadata = map[string]string{
-		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyManagedPostgres: "true",
 		"managed-by-fly-deploy":                        "true",
@@ -357,6 +357,10 @@ func (l *Launcher) createApp(ctx context.Context, config *CreateClusterInput) (*
 
 	app, err := l.client.CreateApp(ctx, appInput)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 
@@ -410,7 +414,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		}
 
 		app := api.App{Name: config.AppName}
-		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []api.App{app}, nil, pub)
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, nil, pub)
 		if err != nil {
 			return nil, err
 		}

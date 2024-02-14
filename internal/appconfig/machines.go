@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
+	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
@@ -39,7 +41,7 @@ func (c *Config) ToReleaseMachineConfig() (*api.MachineConfig, error) {
 			SkipRegistration: true,
 		},
 		Metadata: map[string]string{
-			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppReleaseCommand,
 		},
@@ -80,7 +82,7 @@ func (c *Config) ToConsoleMachineConfig() (*api.MachineConfig, error) {
 			SkipRegistration: true,
 		},
 		Metadata: map[string]string{
-			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+			api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 			api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 			api.MachineConfigMetadataKeyFlyProcessGroup:    api.MachineProcessGroupFlyAppConsole,
 		},
@@ -106,7 +108,10 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	}
 
 	// Metrics
-	mConfig.Metrics = c.Metrics
+	mConfig.Metrics = nil
+	if len(c.Metrics) > 0 {
+		mConfig.Metrics = c.Metrics[0].MachineMetrics
+	}
 
 	// Init
 	cmd, err := c.InitCmd(processGroup)
@@ -119,13 +124,16 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 		}
 		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
 		mConfig.Init.Exec = c.Experimental.Exec
+	} else {
+		mConfig.Init.Entrypoint = nil
+		mConfig.Init.Exec = nil
 	}
 	mConfig.Init.Cmd = cmd
 	mConfig.Init.SwapSizeMB = c.SwapSizeMB
 
 	// Metadata
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
-		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.ParsedVersion().String(),
+		api.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 		api.MachineConfigMetadataKeyFlyPlatformVersion: api.MachineFlyPlatformVersion2,
 		api.MachineConfigMetadataKeyFlyProcessGroup:    processGroup,
 	})
@@ -171,17 +179,32 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	mConfig.Statics = nil
 	for _, s := range c.Statics {
 		mConfig.Statics = append(mConfig.Statics, &api.Static{
-			GuestPath: s.GuestPath,
-			UrlPrefix: s.UrlPrefix,
+			GuestPath:    s.GuestPath,
+			UrlPrefix:    s.UrlPrefix,
+			TigrisBucket: s.TigrisBucket,
 		})
 	}
 
 	// Mounts
 	mConfig.Mounts = nil
 	for _, m := range c.Mounts {
+		var extendSizeIncrement, extendSizeLimit int
+
+		if m.AutoExtendSizeIncrement != "" {
+			// Ignore the error because invalid values are caught at config validation time
+			extendSizeIncrement, _ = helpers.ParseSize(m.AutoExtendSizeIncrement, units.FromHumanSize, units.GB)
+		}
+		if m.AutoExtendSizeLimit != "" {
+			// Ignore the error because invalid values are caught at config validation time
+			extendSizeLimit, _ = helpers.ParseSize(m.AutoExtendSizeLimit, units.FromHumanSize, units.GB)
+		}
+
 		mConfig.Mounts = append(mConfig.Mounts, api.MachineMount{
-			Path: m.Destination,
-			Name: m.Source,
+			Path:                   m.Destination,
+			Name:                   m.Source,
+			ExtendThresholdPercent: m.AutoExtendSizeThreshold,
+			AddSizeGb:              extendSizeIncrement,
+			SizeGbLimit:            extendSizeLimit,
 		})
 	}
 
@@ -189,10 +212,19 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	c.tomachineSetStopConfig(mConfig)
 
 	// Files
+	mConfig.Files = nil
 	machine.MergeFiles(mConfig, c.MergedFiles)
 
 	if c.PersistentRootfsSize != src.PersistentRootfsSize {
 		return nil, errors.New("Changing persistent_rootfs_size is currently not supported.")
+	}
+
+	// Guest
+	if guest, err := c.toMachineGuest(); err != nil {
+		return nil, err
+	} else if guest != nil {
+		// Only override machine's Guest if app config knows what to set
+		mConfig.Guest = guest
 	}
 
 	return mConfig, nil
@@ -210,4 +242,57 @@ func (c *Config) tomachineSetStopConfig(mConfig *api.MachineConfig) error {
 	}
 
 	return nil
+}
+
+func (c *Config) toMachineGuest() (*api.MachineGuest, error) {
+	// XXX: Don't be extra smart here, keep it backwards compatible with apps that don't have a [[compute]] section.
+	// Think about apps that counts on `fly deploy` to respect whatever was set by `fly scale` or the --vm-* family flags.
+	// It is important to return a `nil` guest when fly.toml doesn't contain a [[compute]] section for the process group.
+	if len(c.Compute) == 0 {
+		return nil, nil
+	} else if len(c.Compute) > 2 {
+		return nil, fmt.Errorf("2+ compute sections for group %s", c.DefaultProcessName())
+	}
+
+	// At most one compute after group flattening
+	compute := c.Compute[0]
+
+	size := api.DefaultVMSize
+	switch {
+	case compute.Size != "":
+		size = compute.Size
+	case compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "":
+		size = api.DefaultGPUVMSize
+	}
+
+	guest := &api.MachineGuest{}
+	if err := guest.SetSize(size); err != nil {
+		return nil, err
+	}
+
+	if c.HostDedicationID != "" {
+		guest.HostDedicationID = c.HostDedicationID
+	}
+
+	if compute.Memory != "" {
+		mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+		switch {
+		case err != nil:
+			return nil, err
+		case mb == 0:
+			return nil, fmt.Errorf("memory cannot be zero")
+		default:
+			guest.MemoryMB = mb
+		}
+	}
+
+	if compute.MachineGuest != nil {
+		opts := copier.Option{IgnoreEmpty: true, DeepCopy: true}
+		err := copier.CopyWithOption(guest, compute.MachineGuest, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return guest, nil
 }

@@ -37,7 +37,7 @@ organization the current user belongs to.
 		flag.Org(),
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Update machines without waiting for health checks. (Machines only)",
+			Description: "Update machines without waiting for health checks",
 			Default:     false,
 		},
 	)
@@ -91,19 +91,7 @@ Please confirm whether you wish to restart this app now.`
 		}
 	}
 
-	// Run machine specific migration process.
-	if app.PlatformVersion == "machines" {
-		return runMoveAppOnMachines(ctx, app, org)
-	}
-
-	_, err = client.MoveApp(ctx, appName, org.ID)
-	if err != nil {
-		return fmt.Errorf("failed moving app: %w", err)
-	}
-
-	fmt.Fprintf(io.Out, "successfully moved %s to %s\n", appName, org.Slug)
-
-	return nil
+	return runMoveAppOnMachines(ctx, app, org)
 }
 
 func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *api.Organization) error {
@@ -119,7 +107,7 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 	}
 
 	machines, releaseLeaseFunc, err := mach.AcquireAllLeases(ctx)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}

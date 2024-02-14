@@ -79,7 +79,7 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 		return nil, "", err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, database.Organization.Slug)
+	dialer, err := agentclient.ConnectToTunnel(ctx, database.Organization.Slug, false)
 	if err != nil {
 		return nil, "", err
 	}

@@ -87,9 +87,12 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	if err != nil {
 		return nil, err
 	}
+	// Respect Guest if set by fly.toml
+	if mc.Guest == nil {
+		mc.Guest = lo.ValueOr(d.guestPerGroup, groupName, d.guest)
+	}
 
 	mc.Image = d.image
-	mc.Guest = lo.ValueOr(d.guestPerGroup, groupName, d.guest)
 	mc.Mounts = lo.Map(mc.Mounts, func(mount api.MachineMount, _ int) api.MachineMount {
 		mount.SizeGb = lo.ValueOr(d.volsizeByName, mount.Name, d.volsize)
 		mount.Encrypted = true
@@ -97,7 +100,7 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	})
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
 	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = d.releaseVersion
-	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.ParsedVersion().String()
+	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 
 	return mc, nil
 }
@@ -121,12 +124,12 @@ func (d *defaultValues) CreateVolumeRequest(mConfig *api.MachineConfig, region s
 	}
 	mount := mConfig.Mounts[0]
 	return &api.CreateVolumeRequest{
-		Name:              mount.Name,
-		Region:            region,
-		SizeGb:            &mount.SizeGb,
-		Encrypted:         api.Pointer(mount.Encrypted),
-		RequireUniqueZone: api.Pointer(false),
-		SnapshotID:        d.snapshotID,
-		HostDedicationId:  mConfig.HostDedicationId,
+		Name:                mount.Name,
+		Region:              region,
+		SizeGb:              &mount.SizeGb,
+		Encrypted:           api.Pointer(mount.Encrypted),
+		RequireUniqueZone:   api.Pointer(false),
+		SnapshotID:          d.snapshotID,
+		ComputeRequirements: mConfig.Guest,
 	}
 }

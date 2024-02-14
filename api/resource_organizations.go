@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/superfly/graphql"
 )
@@ -36,6 +35,8 @@ func (client *Client) GetOrganizations(ctx context.Context, filters ...Organizat
 					name
 					type
 					paidPlan
+					billable
+					viewerRole
 				}
 			}
 		}
@@ -48,6 +49,8 @@ func (client *Client) GetOrganizations(ctx context.Context, filters ...Organizat
 
 	req := client.NewRequest(q)
 	filter.apply(req)
+
+	ctx = ctxWithAction(ctx, "get_organizations")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
@@ -66,6 +69,7 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 				slug
 				name
 				type
+				billable
                 limitedAccessTokens {
 					nodes {
 					    id
@@ -78,7 +82,7 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 	`
 
 	req := client.NewRequest(q)
-
+	ctx = ctxWithAction(ctx, "get_organization_by_slug")
 	req.Var("slug", slug)
 
 	data, err := client.RunWithContext(ctx, req)
@@ -87,37 +91,6 @@ func (client *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*
 	}
 
 	return data.Organization, nil
-}
-
-func (client *Client) GetCurrentOrganizations(ctx context.Context) (Organization, []Organization, error) {
-	query := `
-	query {
-		personalOrganization {
-		  id
-		  slug
-		  name
-		  type
-		  viewerRole
-		}
-		organizations {
-		  nodes {
-			id
-			slug
-			name
-			type
-			viewerRole
-		  }
-		}
-	  }
-	`
-
-	req := client.NewRequest(query)
-
-	data, err := client.RunWithContext(ctx, req)
-	if err != nil {
-		return Organization{}, nil, err
-	}
-	return data.PersonalOrganization, data.Organizations.Nodes, nil
 }
 
 func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug string) (*OrganizationDetails, error) {
@@ -151,7 +124,7 @@ func (client *Client) GetDetailedOrganizationBySlug(ctx context.Context, slug st
 
 	req := client.NewRequest(query)
 	req.Var("slug", slug)
-
+	ctx = ctxWithAction(ctx, "get_detailed_organization")
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {
 		return nil, err
@@ -180,36 +153,7 @@ func (c *Client) CreateOrganization(ctx context.Context, organizationname string
 	req.Var("input", map[string]string{
 		"name": organizationname,
 	})
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.CreateOrganization.Organization, nil
-}
-
-func (c *Client) CreateOrganizationWithAppsV2DefaultOn(ctx context.Context, organizationname string) (*Organization, error) {
-	query := `
-		mutation($input: CreateOrganizationInput!) {
-			createOrganization(input: $input) {
-			    organization {
-					id
-					name
-					slug
-					type
-					viewerRole
-				  }
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", map[string]interface{}{
-		"name":            organizationname,
-		"appsV2DefaultOn": true,
-	})
+	ctx = ctxWithAction(ctx, "create_organization")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -234,6 +178,8 @@ func (c *Client) DeleteOrganization(ctx context.Context, id string) (deletedid s
 	req.Var("input", map[string]string{
 		"organizationId": id,
 	})
+
+	ctx = ctxWithAction(ctx, "delete_organization")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -266,6 +212,7 @@ func (c *Client) CreateOrganizationInvite(ctx context.Context, id, email string)
 		"organizationId": id,
 		"email":          email,
 	})
+	ctx = ctxWithAction(ctx, "create_organization_invite")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -296,6 +243,7 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 		"userId":         userId,
 		"organizationId": orgId,
 	})
+	ctx = ctxWithAction(ctx, "delete_organization")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -303,62 +251,4 @@ func (c *Client) DeleteOrganizationMembership(ctx context.Context, orgId, userId
 	}
 
 	return data.DeleteOrganizationMembership.Organization.Name, data.DeleteOrganizationMembership.User.Email, nil
-}
-
-func (c *Client) UpdateRemoteBuilder(ctx context.Context, orgName string, image string) (*Organization, error) {
-	org, err := c.GetOrganizationBySlug(ctx, orgName)
-	if err != nil {
-		return nil, err
-	}
-
-	query := `
-		mutation($input: UpdateRemoteBuilderInput!) {
-			updateRemoteBuilder(input: $input) {
-			    organization {
-						remoteBuilderImage
-					}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("input", map[string]string{
-		"organizationId": org.ID,
-		"image":          image,
-	})
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.UpdateRemoteBuilder.Organization, nil
-}
-
-const appsV2DefaultOnSettingsKey = "apps_v2_default_on"
-
-func (c *Client) GetAppsV2DefaultOnForOrg(ctx context.Context, orgSlug string) (bool, error) {
-	query := `
-	query($slug: String!) {
-		organization(slug: $slug) {
-			settings
-		}
-	}
-	`
-	req := c.NewRequest(query)
-	req.Var("slug", orgSlug)
-
-	resp, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return false, err
-	}
-
-	if val, present := resp.Organization.Settings[appsV2DefaultOnSettingsKey]; !present {
-		return false, nil
-	} else if appsV2DefaultOn, ok := val.(bool); !ok {
-		return false, fmt.Errorf("failed to convert '%v' to boolean value for %s org setting", val, appsV2DefaultOnSettingsKey)
-	} else {
-		return appsV2DefaultOn, nil
-	}
 }

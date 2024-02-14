@@ -8,6 +8,7 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
@@ -84,15 +85,11 @@ type SourceFile struct {
 	Path     string
 	Contents []byte
 }
-type Static struct {
-	GuestPath string `toml:"guest_path" json:"guest_path"`
-	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
-}
-type Volume struct {
-	Source      string   `toml:"source" json:"source,omitempty"`
-	Destination string   `toml:"destination" json:"destination,omitempty"`
-	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
-}
+
+type Static = appconfig.Static
+
+type Volume = appconfig.Mount
+
 type ScannerConfig struct {
 	Mode         string
 	ExistingPort int

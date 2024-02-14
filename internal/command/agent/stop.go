@@ -17,9 +17,7 @@ func newStop() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("stop", short, long, runStop,
-		command.RequireSession,
-	)
+	cmd = command.New("stop", short, long, runStop)
 
 	cmd.Args = cobra.NoArgs
 

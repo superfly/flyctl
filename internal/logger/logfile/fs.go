@@ -7,15 +7,17 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/superfly/flyctl/helpers"
 )
 
 func logDir() (string, error) {
-	homeDir, err := os.UserHomeDir()
+	configDir, err := helpers.GetConfigDirectory()
 	if err != nil {
 		return "", err
 	}
 
-	dir := filepath.Join(homeDir, ".fly", "logs")
+	dir := filepath.Join(configDir, "logs")
 
 	dirStat, err := os.Stat(dir)
 	if err == nil && !dirStat.IsDir() {

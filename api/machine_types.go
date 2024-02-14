@@ -38,14 +38,13 @@ type Machine struct {
 	InstanceID string `json:"instance_id,omitempty"`
 	Version    string `json:"version,omitempty"`
 	// PrivateIP is the internal 6PN address of the machine.
-	PrivateIP        string                `json:"private_ip,omitempty"`
-	CreatedAt        string                `json:"created_at,omitempty"`
-	UpdatedAt        string                `json:"updated_at,omitempty"`
-	Config           *MachineConfig        `json:"config,omitempty"`
-	Events           []*MachineEvent       `json:"events,omitempty"`
-	Checks           []*MachineCheckStatus `json:"checks,omitempty"`
-	LeaseNonce       string                `json:"nonce,omitempty"`
-	HostDedicationID string                `json:"host_dedication_id,omitempty"`
+	PrivateIP  string                `json:"private_ip,omitempty"`
+	CreatedAt  string                `json:"created_at,omitempty"`
+	UpdatedAt  string                `json:"updated_at,omitempty"`
+	Config     *MachineConfig        `json:"config,omitempty"`
+	Events     []*MachineEvent       `json:"events,omitempty"`
+	Checks     []*MachineCheckStatus `json:"checks,omitempty"`
+	LeaseNonce string                `json:"nonce,omitempty"`
 }
 
 func (m *Machine) FullImageRef() string {
@@ -304,27 +303,36 @@ var (
 	MachineRestartPolicyAlways    MachineRestartPolicy = "always"
 )
 
+// @description The Machine restart policy defines whether and how flyd restarts a Machine after its main process exits. See https://fly.io/docs/machines/guides-examples/machine-restart-policy/.
 type MachineRestart struct {
-	Policy MachineRestartPolicy `json:"policy,omitempty"`
-	// MaxRetries is only relevant with the on-failure policy.
+	// * no - Never try to restart a Machine automatically when its main process exits, whether that’s on purpose or on a crash.
+	// * always - Always restart a Machine automatically and never let it enter a stopped state, even when the main process exits cleanly.
+	// * on-failure - Try up to MaxRetries times to automatically restart the Machine if it exits with a non-zero exit code. Default when no explicit policy is set, and for Machines with schedules.
+	Policy MachineRestartPolicy `json:"policy,omitempty" enums:"no,always,on-failure"`
+	// When policy is on-failure, the maximum number of times to attempt to restart the Machine before letting it stop.
 	MaxRetries int `json:"max_retries,omitempty"`
 }
 
 type MachineMount struct {
-	Encrypted bool   `json:"encrypted,omitempty"`
-	Path      string `json:"path,omitempty"`
-	SizeGb    int    `json:"size_gb,omitempty"`
-	Volume    string `json:"volume,omitempty"`
-	Name      string `json:"name,omitempty"`
+	Encrypted              bool   `json:"encrypted,omitempty"`
+	Path                   string `json:"path,omitempty"`
+	SizeGb                 int    `json:"size_gb,omitempty"`
+	Volume                 string `json:"volume,omitempty"`
+	Name                   string `json:"name,omitempty"`
+	ExtendThresholdPercent int    `json:"extend_threshold_percent,omitempty"`
+	AddSizeGb              int    `json:"add_size_gb,omitempty"`
+	SizeGbLimit            int    `json:"size_gb_limit,omitempty"`
 }
 
 type MachineGuest struct {
-	CPUKind  string `json:"cpu_kind,omitempty"`
-	CPUs     int    `json:"cpus,omitempty"`
-	MemoryMB int    `json:"memory_mb,omitempty"`
-	GPUKind  string `json:"gpu_kind,omitempty"`
+	CPUKind          string `json:"cpu_kind,omitempty" toml:"cpu_kind,omitempty"`
+	CPUs             int    `json:"cpus,omitempty" toml:"cpus,omitempty"`
+	MemoryMB         int    `json:"memory_mb,omitempty" toml:"memory_mb,omitempty"`
+	GPUs             int    `json:"gpus,omitempty" toml:"gpus,omitempty"`
+	GPUKind          string `json:"gpu_kind,omitempty" toml:"gpu_kind,omitempty"`
+	HostDedicationID string `json:"host_dedication_id,omitempty" toml:"host_dedication_id,omitempty"`
 
-	KernelArgs []string `json:"kernel_args,omitempty"`
+	KernelArgs []string `json:"kernel_args,omitempty" toml:"kernel_args,omitempty"`
 }
 
 func (mg *MachineGuest) SetSize(size string) error {
@@ -353,6 +361,7 @@ func (mg *MachineGuest) SetSize(size string) error {
 	mg.CPUs = guest.CPUs
 	mg.CPUKind = guest.CPUKind
 	mg.MemoryMB = guest.MemoryMB
+	mg.GPUKind = guest.GPUKind
 	return nil
 }
 
@@ -361,10 +370,16 @@ func (mg *MachineGuest) ToSize() string {
 	if mg == nil {
 		return ""
 	}
-	switch mg.CPUKind {
-	case "shared":
+	switch {
+	case mg.GPUKind == "a100-pcie-40gb":
+		return "a100-40gb"
+	case mg.GPUKind == "a100-sxm4-80gb":
+		return "a100-80gb"
+	case mg.GPUKind == "l40s":
+		return "l40s"
+	case mg.CPUKind == "shared":
 		return fmt.Sprintf("shared-cpu-%dx", mg.CPUs)
-	case "performance":
+	case mg.CPUKind == "performance":
 		return fmt.Sprintf("performance-%dx", mg.CPUs)
 	default:
 		return "unknown"
@@ -406,6 +421,10 @@ var MachinePresets map[string]*MachineGuest = map[string]*MachineGuest{
 	"performance-4x":  {CPUKind: "performance", CPUs: 4, MemoryMB: 4 * MIN_MEMORY_MB_PER_CPU},
 	"performance-8x":  {CPUKind: "performance", CPUs: 8, MemoryMB: 8 * MIN_MEMORY_MB_PER_CPU},
 	"performance-16x": {CPUKind: "performance", CPUs: 16, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
+
+	"a100-40gb": {GPUKind: "a100-pcie-40gb", GPUs: 1, CPUKind: "performance", CPUs: 8, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
+	"a100-80gb": {GPUKind: "a100-sxm4-80gb", GPUs: 1, CPUKind: "performance", CPUs: 8, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
+	"l40s":      {GPUKind: "l40s", GPUs: 1, CPUKind: "performance", CPUs: 8, MemoryMB: 16 * MIN_MEMORY_MB_PER_CPU},
 }
 
 type MachineMetrics struct {
@@ -413,22 +432,36 @@ type MachineMetrics struct {
 	Path string `toml:"path" json:"path,omitempty"`
 }
 
+// @description An optional object that defines one or more named checks. The key for each check is the check name.
 type MachineCheck struct {
-	Port              *int                `json:"port,omitempty"`
-	Type              *string             `json:"type,omitempty"`
-	Interval          *Duration           `json:"interval,omitempty"`
-	Timeout           *Duration           `json:"timeout,omitempty"`
-	GracePeriod       *Duration           `json:"grace_period,omitempty"`
-	HTTPMethod        *string             `json:"method,omitempty"`
-	HTTPPath          *string             `json:"path,omitempty"`
-	HTTPProtocol      *string             `json:"protocol,omitempty"`
-	HTTPSkipTLSVerify *bool               `json:"tls_skip_verify,omitempty"`
+	// The port to connect to, often the same as internal_port
+	Port *int `json:"port,omitempty"`
+	// tcp or http
+	Type *string `json:"type,omitempty"`
+	// The time between connectivity checks
+	Interval *Duration `json:"interval,omitempty"`
+	// The maximum time a connection can take before being reported as failing its health check
+	Timeout *Duration `json:"timeout,omitempty"`
+	// The time to wait after a VM starts before checking its health
+	GracePeriod *Duration `json:"grace_period,omitempty"`
+	// For http checks, the HTTP method to use to when making the request
+	HTTPMethod *string `json:"method,omitempty"`
+	// For http checks, the path to send the request to
+	HTTPPath *string `json:"path,omitempty"`
+	// For http checks, whether to use http or https
+	HTTPProtocol *string `json:"protocol,omitempty"`
+	// For http checks with https protocol, whether or not to verify the TLS certificate
+	HTTPSkipTLSVerify *bool `json:"tls_skip_verify,omitempty"`
+	// If the protocol is https, the hostname to use for TLS certificate validation
 	HTTPTLSServerName *string             `json:"tls_server_name,omitempty"`
 	HTTPHeaders       []MachineHTTPHeader `json:"headers,omitempty"`
 }
 
+// @description For http checks, an array of objects with string field Name and array of strings field Values. The key/value pairs specify header and header values that will get passed with the check call.
 type MachineHTTPHeader struct {
-	Name   string   `json:"name,omitempty"`
+	// The header name
+	Name string `json:"name,omitempty"`
+	// The header value
 	Values []string `json:"values,omitempty"`
 }
 
@@ -517,8 +550,9 @@ type TLSOptions struct {
 }
 
 type HTTPOptions struct {
-	Compress *bool                `json:"compress,omitempty" toml:"compress,omitempty"`
-	Response *HTTPResponseOptions `json:"response,omitempty" toml:"response,omitempty"`
+	Compress  *bool                `json:"compress,omitempty" toml:"compress,omitempty"`
+	Response  *HTTPResponseOptions `json:"response,omitempty" toml:"response,omitempty"`
+	H2Backend *bool                `json:"h2_backend,omitempty" toml:"h2_backend,omitempty"`
 }
 
 type HTTPResponseOptions struct {
@@ -547,8 +581,11 @@ type MachineServiceConcurrency struct {
 type MachineConfig struct {
 	// Fields managed from fly.toml
 	// If you add anything here, ensure appconfig.Config.ToMachine() is updated
+
+	// An object filled with key/value pairs to be set as environment variables
 	Env      map[string]string       `json:"env,omitempty"`
 	Init     MachineInit             `json:"init,omitempty"`
+	Guest    *MachineGuest           `json:"guest,omitempty"`
 	Metadata map[string]string       `json:"metadata,omitempty"`
 	Mounts   []MachineMount          `json:"mounts,omitempty"`
 	Services []MachineService        `json:"services,omitempty"`
@@ -557,15 +594,18 @@ type MachineConfig struct {
 	Statics  []*Static               `json:"statics,omitempty"`
 
 	// Set by fly deploy or fly machines commands
+
+	// The docker image to run
 	Image string  `json:"image,omitempty"`
 	Files []*File `json:"files,omitempty"`
 
 	// The following fields can only be set or updated by `fly machines run|update` commands
 	// "fly deploy" must preserve them, if you add anything here, ensure it is propagated on deploys
-	Schedule    string           `json:"schedule,omitempty"`
+
+	Schedule string `json:"schedule,omitempty"`
+	// Optional boolean telling the Machine to destroy itself once it’s complete (default false)
 	AutoDestroy bool             `json:"auto_destroy,omitempty"`
 	Restart     MachineRestart   `json:"restart,omitempty"`
-	Guest       *MachineGuest    `json:"guest,omitempty"`
 	DNS         *DNSConfig       `json:"dns,omitempty"`
 	Processes   []MachineProcess `json:"processes,omitempty"`
 
@@ -581,7 +621,6 @@ type MachineConfig struct {
 	DisableMachineAutostart *bool `json:"disable_machine_autostart,omitempty"`
 
 	PersistentRootfsSize uint32 `json:"persistent_rootfs_size,omitempty"`
-	HostDedicationId string `json:"host_dedication_id,omitempty"`
 }
 
 func (c *MachineConfig) ProcessGroup() string {
@@ -606,8 +645,9 @@ func (c *MachineConfig) ProcessGroup() string {
 }
 
 type Static struct {
-	GuestPath string `toml:"guest_path" json:"guest_path" validate:"required"`
-	UrlPrefix string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+	GuestPath    string `toml:"guest_path" json:"guest_path" validate:"required"`
+	UrlPrefix    string `toml:"url_prefix" json:"url_prefix" validate:"required"`
+	TigrisBucket string `toml:"tigris_bucket" json:"tigris_bucket"`
 }
 
 type MachineInit struct {
@@ -620,7 +660,15 @@ type MachineInit struct {
 }
 
 type DNSConfig struct {
-	SkipRegistration bool `json:"skip_registration,omitempty"`
+	SkipRegistration bool        `json:"skip_registration,omitempty"`
+	Nameservers      []string    `json:"nameservers,omitempty"`
+	Searches         []string    `json:"searches,omitempty"`
+	Options          []dnsOption `json:"options,omitempty"`
+}
+
+type dnsOption struct {
+	Name  string `json:"name,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
 type StopConfig struct {
@@ -628,16 +676,16 @@ type StopConfig struct {
 	Signal  *string   `json:"signal,omitempty"`
 }
 
-// File represents a file that will be written to the machine. One of RawValue or SecretName must be set.
+// @description A file that will be written to the Machine. One of RawValue or SecretName must be set.
 type File struct {
 	// GuestPath is the path on the machine where the file will be written and must be an absolute path.
-	// i.e. /full/path/to/file.json
+	// For example: /full/path/to/file.json
 	GuestPath string `json:"guest_path,omitempty"`
 
-	// RawValue containts the base64 encoded string of the file contents.
+	// The base64 encoded string of the file contents.
 	RawValue *string `json:"raw_value,omitempty"`
 
-	// SecretName is the name of the secret that contains the base64 encoded file contents.
+	// The name of the secret that contains the base64 encoded file contents.
 	SecretName *string `json:"secret_name,omitempty"`
 }
 
@@ -652,6 +700,7 @@ type MachineLeaseData struct {
 	Nonce     string `json:"nonce,omitempty"`
 	ExpiresAt int64  `json:"expires_at,omitempty"`
 	Owner     string `json:"owner,omitempty"`
+	Version   string `json:"version,omitempty"`
 }
 
 type MachineStartResponse struct {
@@ -666,7 +715,7 @@ type LaunchMachineInput struct {
 	Name                    string         `json:"name,omitempty"`
 	SkipLaunch              bool           `json:"skip_launch,omitempty"`
 	SkipServiceRegistration bool           `json:"skip_service_registration,omitempty"`
-	HostDedicationID        string         `json:"host_dedication_id,omitempty"`
+	LSVD                    bool           `json:"lsvd,omitempty"`
 
 	LeaseTTL int `json:"lease_ttl,omitempty"`
 

@@ -297,7 +297,7 @@ func (d Duration) addTo(cmd *cobra.Command) {
 func Org() String {
 	return String{
 		Name:         flagnames.Org,
-		Description:  "The target Fly organization",
+		Description:  "The target Fly.io organization",
 		Shorthand:    "o",
 		CompletionFn: completion.CompleteOrgs,
 	}
@@ -371,7 +371,7 @@ func Now() Bool {
 func NoDeploy() Bool {
 	return Bool{
 		Name:        "no-deploy",
-		Description: "Do not prompt for deployment",
+		Description: "Do not immediately deploy the new app after fly launch creates and configures it",
 	}
 }
 
@@ -390,7 +390,7 @@ const remoteOnlyName = "remote-only"
 func RemoteOnly(defaultValue bool) Bool {
 	return Bool{
 		Name:        remoteOnlyName,
-		Description: "Perform builds on a remote builder instance instead of using the local docker daemon",
+		Description: "Perform builds on a remote builder instance instead of using the local docker daemon. This is the default. Use --local-only to build locally.",
 		Default:     defaultValue,
 	}
 }
@@ -405,7 +405,7 @@ const localOnlyName = "local-only"
 func LocalOnly() Bool {
 	return Bool{
 		Name:        localOnlyName,
-		Description: "Only perform builds locally using the local docker daemon",
+		Description: "Perform builds locally using the local docker daemon. The default is --remote-only.",
 	}
 }
 
@@ -529,9 +529,47 @@ func JSONOutput() Bool {
 	}
 }
 
-func ProcessGroup() String {
+func ProcessGroup(desc string) String {
+	if desc == "" {
+		desc = "The target process group"
+	}
+
 	return String{
 		Name:        flagnames.ProcessGroup,
-		Description: "The target process group",
+		Description: desc,
+		Shorthand:   "g",
+		Aliases:     []string{"group"},
+	}
+}
+
+// BuildpacksDockerHost address to docker daemon that will be exposed to the buildpacks build container
+const BuildpacksDockerHost = "buildpacks-docker-host"
+
+func BpDockerHost() String {
+	return String{
+		Name: BuildpacksDockerHost,
+		Description: `Address to docker daemon that will be exposed to the build container.
+If not set (or set to empty string) the standard socket location will be used.
+Special value 'inherit' may be used in which case DOCKER_HOST environment variable will be used.
+This option may set DOCKER_HOST environment variable for the build container if needed.
+`,
+	}
+}
+
+// BuildpacksVolume the host volume that will be mounted to the buildpacks build container
+const BuildpacksVolume = "buildpacks-volume"
+
+func BpVolume() StringSlice {
+	return StringSlice{
+		Name: BuildpacksVolume,
+		Description: `Mount host volume into the build container, in the form '<host path>:<target path>[:<options>]'.
+- 'host path': Name of the volume or absolute directory path to mount.
+- 'target path': The path where the file or directory is available in the container.
+- 'options' (default "ro"): An optional comma separated list of mount options.
+    - "ro", volume contents are read-only.
+    - "rw", volume contents are readable and writeable.
+    - "volume-opt=<key>=<value>", can be specified more than once, takes a key-value pair consisting of the option name and its value.
+Repeat for each volume in order (comma-separated lists not accepted)
+`,
 	}
 }

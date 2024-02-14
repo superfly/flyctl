@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/blang/semver"
@@ -146,10 +147,18 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Bun"
 	}
 
-	// extract deps
+	// extract deps and devdeps
 	deps, ok := packageJson["dependencies"].(map[string]interface{})
 	if !ok || deps == nil {
 		deps = make(map[string]interface{})
+	}
+	devdeps, ok := packageJson["devDependencies"].(map[string]interface{})
+	if !ok || devdeps == nil {
+		devdeps = make(map[string]interface{})
+	}
+	scripts, ok := packageJson["scripts"].(map[string]interface{})
+	if !ok || scripts == nil {
+		scripts = make(map[string]interface{})
 	}
 
 	// infer db from dependencies
@@ -185,11 +194,34 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	// default to port 3000
 	srcInfo.Port = 3000
 
+	// etract port from EXPOSE statement in dockerfile
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err == nil {
+		m := portRegex.FindStringSubmatch(string(dockerfile))
+
+		for i, name := range portRegex.SubexpNames() {
+			if len(m) > 0 && name == "port" {
+				portFromDockerfile, err := strconv.Atoi(m[i])
+				if err == nil {
+					fmt.Printf("got port\n")
+					srcInfo.Port = portFromDockerfile
+					continue
+				}
+			}
+		}
+	}
+
 	// While redundant and requires dual matenance, it has been a point of
 	// confusion for many when the framework detected is listed as "NodeJS"
 	// See flyapps/dockerfile-node for the actual framework detction.
 	// Also change PlatformMap in core.go if this list ever changes.
-	if deps["@adonisjs/core"] != nil {
+	if (deps["astro"] != nil) && (deps["@astrojs/node"] != nil) {
+		srcInfo.Family = "Astro with SSR"
+		srcInfo.Port = 4321
+	} else if deps["astro"] != nil {
+		srcInfo.Family = "Astro Static Site"
+		srcInfo.Port = 80
+	} else if deps["@adonisjs/core"] != nil {
 		srcInfo.Family = "AdonisJS"
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
@@ -200,8 +232,13 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Next.js"
 	} else if deps["nust"] != nil {
 		srcInfo.Family = "Nust"
+	} else if devdeps["nuxt"] != nil {
+		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
+	} else if scripts["dev"] == "vite" {
+		srcInfo.Family = "Vite"
+		srcInfo.Port = 80
 	}
 
 	return srcInfo, nil
@@ -272,7 +309,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		if !installed || args[0] == "npx" {
 			fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
 			cmd := exec.Command(args[0], args[1:]...)
-			cmd.Stdin = nil
+			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 

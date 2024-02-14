@@ -1,5 +1,4 @@
 //go:build !windows
-// +build !windows
 
 package agent
 
@@ -8,7 +7,7 @@ import (
 	"syscall"
 )
 
-func setSysProcAttributes(cmd *exec.Cmd) {
+func SetSysProcAttributes(cmd *exec.Cmd) {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setpgid: true,
 		Pgid:    0,

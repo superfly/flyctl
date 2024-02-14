@@ -4,15 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 
+	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/config"
@@ -56,6 +58,95 @@ func New() *cobra.Command {
 			Description: "Unix username to connect as",
 			Default:     ssh.DefaultSshUsername,
 		},
+		flag.String{
+			Name:        "image",
+			Shorthand:   "i",
+			Description: "image to use (default: current release)",
+		},
+		flag.StringArray{
+			Name:        "env",
+			Shorthand:   "e",
+			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+		},
+		flag.String{
+			Name:        "entrypoint",
+			Description: "ENTRYPOINT replacement",
+		},
+		flag.Bool{
+			Name:        "build-only",
+			Description: "Only build the image without running the machine",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-remote-only",
+			Description: "Perform builds remotely without using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-local-only",
+			Description: "Only perform builds locally using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-nixpacks",
+			Description: "Build your image with nixpacks",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "dockerfile",
+			Description: "Path to a Dockerfile. Defaults to the Dockerfile in the working directory.",
+		},
+		flag.StringArray{
+			Name:        "build-arg",
+			Description: "Set of build time variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "image-label",
+			Description: "Image label to use when tagging and pushing to the fly registry. Defaults to \"deployment-{timestamp}\".",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "build-target",
+			Description: "Set the target build stage to build if the Dockerfile has more than one stage",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "no-build-cache",
+			Description: "Do not use the cache when building the image",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "command",
+			Shorthand:   "C",
+			Default:     "",
+			Description: "command to run on SSH session",
+		},
+		flag.StringSlice{
+			Name:      "port",
+			Shorthand: "p",
+			Description: `Publish ports, format: port[:machinePort][/protocol[:handler[:handler...]]])
+		i.e.: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
+		To remove a port mapping use '-' as handler, i.e.: --port 80/tcp:-`,
+		},
+		flag.Bool{
+			Name:        "skip-dns-registration",
+			Description: "Do not register the machine's 6PN IP with the internal DNS system",
+			Default:     true,
+			Hidden:      true,
+		},
+		flag.StringArray{
+			Name:        "file-local",
+			Description: "Set of files to write to the Machine, in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-literal",
+			Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-secret",
+			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -74,10 +165,6 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return errors.New("console is only supported for the machines platform")
-	}
-
 	flapsClient, err := flaps.New(ctx, app)
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
@@ -92,7 +179,7 @@ func runConsole(ctx context.Context) error {
 		}
 	}
 
-	if err, extraInfo := appConfig.ValidateForMachinesPlatform(ctx); err != nil {
+	if err, extraInfo := appConfig.Validate(ctx); err != nil {
 		fmt.Fprintln(io.ErrOut, extraInfo)
 		return err
 	}
@@ -117,13 +204,20 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
+		AppNames:       []string{app.Name},
 	}
 	sshClient, err := ssh.Connect(params, machine.PrivateIP)
 	if err != nil {
 		return err
 	}
 
-	return ssh.Console(ctx, sshClient, appConfig.ConsoleCommand, true)
+	consoleCommand := appConfig.ConsoleCommand
+
+	if flag.IsSpecified(ctx, "command") {
+		consoleCommand = flag.GetString(ctx, "command")
+	}
+
+	return ssh.Console(ctx, sshClient, consoleCommand, true)
 }
 
 func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
@@ -132,7 +226,7 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	} else if flag.IsSpecified(ctx, "machine") {
 		return getMachineByID(ctx)
 	} else {
-		guest, err := determineEphemeralConsoleMachineGuest(ctx)
+		guest, err := determineEphemeralConsoleMachineGuest(ctx, appConfig)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -154,7 +248,7 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 		return machine.State == api.MachineStateStarted
 	})
 
-	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx)
+	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx, appConfig)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -210,7 +304,12 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, err
 	}
-	if currentRelease == nil {
+
+	if !flag.IsSpecified(ctx, "image") && flag.IsSpecified(ctx, "dockerfile") {
+		flag.SetString(ctx, "image", ".")
+	}
+
+	if currentRelease == nil && !flag.IsSpecified(ctx, "image") {
 		return nil, nil, errors.New("can't create an ephemeral console machine since the app has not yet been released")
 	}
 
@@ -218,79 +317,103 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to generate ephemeral console machine configuration: %w", err)
 	}
-	machConfig.Image = currentRelease.ImageRef
+
+	machConfig.Mounts, err = command.DetermineMounts(ctx, machConfig.Mounts, config.FromContext(ctx).Region)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to process mounts: %w", err)
+	}
+
+	if flag.IsSpecified(ctx, "image") {
+		img, err := command.DetermineImage(ctx, app.Name, flag.GetString(ctx, "image"))
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get image: %w", err)
+		}
+		machConfig.Image = img.Tag
+	} else {
+		machConfig.Image = currentRelease.ImageRef
+	}
+
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed parsing environment: %w", err)
+		}
+		maps.Copy(machConfig.Env, parsedEnv)
+	}
+
+	if machConfig.DNS == nil {
+		machConfig.DNS = &api.DNSConfig{}
+	}
+	machConfig.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
+
+	machineFiles, err := command.FilesFromCommand(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing filest: %w", err)
+	}
+	machine.MergeFiles(machConfig, machineFiles)
+
 	machConfig.Guest = guest
+
+	services, err := command.DetermineServices(ctx, machConfig.Services)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed parsing port: %w", err)
+	}
+	machConfig.Services = services
+
+	if entrypoint := flag.GetString(ctx, "entrypoint"); entrypoint != "" {
+		splitted, err := shlex.Split(entrypoint)
+		if err != nil {
+			return nil, nil, fmt.Errorf("invalid entrypoint: %w", err)
+		}
+		machConfig.Init.Entrypoint = splitted
+	}
+
+	if hdid := appConfig.HostDedicationID; hdid != "" {
+		machConfig.Guest.HostDedicationID = hdid
+	}
 
 	input := &machine.EphemeralInput{
 		LaunchInput: api.LaunchMachineInput{
-			Config:           machConfig,
-			Region:           config.FromContext(ctx).Region,
-			HostDedicationID: appConfig.HostDedicationID,
+			Config: machConfig,
+			Region: config.FromContext(ctx).Region,
 		},
 		What: "to run the console",
 	}
 	return machine.LaunchEphemeral(ctx, input)
 }
 
-func determineEphemeralConsoleMachineGuest(ctx context.Context) (*api.MachineGuest, error) {
-	desiredGuest := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
-	if flag.IsSpecified(ctx, "vm-size") {
-		if err := desiredGuest.SetSize(flag.GetString(ctx, "vm-size")); err != nil {
-			return nil, err
-		}
+func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*api.MachineGuest, error) {
+	desiredGuest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return nil, err
 	}
 
-	if cpuKind := flag.GetString(ctx, "vm-cpu-kind"); cpuKind != "" {
-		desiredGuest.CPUKind = cpuKind
-	}
-
-	if flag.IsSpecified(ctx, "vm-cpus") {
-		cpus := flag.GetInt(ctx, "vm-cpus")
-		var maxCPUs int
+	if !flag.IsSpecified(ctx, "vm-memory") {
+		var minMemory, maxMemory int
 		switch desiredGuest.CPUKind {
 		case "shared":
-			maxCPUs = 8
+			minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
+			maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
 		case "performance":
-			maxCPUs = 16
+			minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_CPU
+			maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_CPU
 		default:
-			return nil, fmt.Errorf("invalid CPU kind '%s'", desiredGuest.CPUKind)
+			return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", desiredGuest.CPUKind)
 		}
-		if cpus <= 0 || cpus > maxCPUs || (cpus != 1 && cpus%2 != 0) {
-			return nil, errors.New("invalid number of CPUs")
-		}
-		desiredGuest.CPUs = cpus
-	}
-	cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
 
-	var minMemory, maxMemory, memoryIncrement int
-	switch desiredGuest.CPUKind {
-	case "shared":
-		minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
-		maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
-		memoryIncrement = 256
-	case "performance":
-		minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_CPU
-		maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_CPU
-		memoryIncrement = 1024
-	default:
-		return nil, fmt.Errorf("invalid CPU kind '%s'", desiredGuest.CPUKind)
-	}
-
-	if flag.IsSpecified(ctx, "vm-memory") {
-		memory := flag.GetInt(ctx, "vm-memory")
-		switch {
-		case memory < minMemory:
-			return nil, fmt.Errorf("not enough memory (at least %d MB is required for %d %s CPU%s)", minMemory, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
-		case memory > maxMemory:
-			return nil, fmt.Errorf("too much memory (at most %d MB is allowed for %d %s CPU%s)", maxMemory, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
-		case memory%memoryIncrement != 0:
-			return nil, fmt.Errorf("memory must be in increments of %d MB", memoryIncrement)
+		// use vm.memory_mb from fly.toml (if present) as a lower bound
+		appConfig.Flatten("console")
+		if appConfig.Compute != nil && len(appConfig.Compute) == 1 {
+			compute := appConfig.Compute[0]
+			if compute.MemoryMB != 0 {
+				minMemory = compute.MemoryMB
+			}
 		}
-		desiredGuest.MemoryMB = memory
-	} else {
+
 		adjusted := lo.Clamp(desiredGuest.MemoryMB, minMemory, maxMemory)
 		if adjusted != desiredGuest.MemoryMB && flag.IsSpecified(ctx, "vm-size") {
 			action := lo.Ternary(adjusted < desiredGuest.MemoryMB, "lowered", "raised")
+			cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
 			terminal.Warnf("Ephemeral machine memory will be %s to %d MB to be compatible with %d %s CPU%s.\n", action, adjusted, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
 		}
 		desiredGuest.MemoryMB = adjusted

@@ -63,7 +63,7 @@ func runMachineExec(ctx context.Context) (err error) {
 		command = args[0]
 	}
 
-	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	current, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

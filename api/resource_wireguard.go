@@ -22,6 +22,7 @@ query($slug: String!, $name: String!) {
 `)
 	req.Var("slug", slug)
 	req.Var("name", name)
+	ctx = ctxWithAction(ctx, "get_wg_peer")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -49,6 +50,7 @@ query($slug: String!) {
 }
 `)
 	req.Var("slug", slug)
+	ctx = ctxWithAction(ctx, "get_wg_peers")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -88,6 +90,7 @@ mutation($input: AddWireGuardPeerInput!) {
 	}
 
 	req.Var("input", inputs)
+	ctx = ctxWithAction(ctx, "create_wg_peers")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -111,6 +114,7 @@ mutation($input: RemoveWireGuardPeerInput!) {
 		"organizationId": org.ID,
 		"name":           name,
 	})
+	ctx = ctxWithAction(ctx, "remove_wg_peer")
 
 	_, err := c.RunWithContext(ctx, req)
 
@@ -129,6 +133,7 @@ mutation($input: CreateDelegatedWireGuardTokenInput!) {
 		"organizationId": org.ID,
 		"name":           name,
 	})
+	ctx = ctxWithAction(ctx, "create_deletegated_wg_token")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -161,6 +166,7 @@ mutation($input: DeleteDelegatedWireGuardTokenInput!) {
 
 	req := c.NewRequest(query)
 	req.Var("input", input)
+	ctx = ctxWithAction(ctx, "delete_deletegated_wg_token")
 
 	_, err := c.RunWithContext(ctx, req)
 
@@ -180,6 +186,7 @@ query($slug: String!) {
 }
 `)
 	req.Var("slug", slug)
+	ctx = ctxWithAction(ctx, "get_deletegated_wg_tokens")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -199,6 +206,7 @@ func (c *Client) ClosestWireguardGatewayRegion(ctx context.Context) (*Region, er
 			}
 		}
 `)
+	ctx = ctxWithAction(ctx, "closest_wg_gateway_region")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -220,6 +228,7 @@ mutation($input: ValidateWireGuardPeersInput!) {
 	req.Var("input", map[string]interface{}{
 		"peerIps": peerIPs,
 	})
+	ctx = ctxWithAction(ctx, "validate_wg_peers")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

@@ -13,7 +13,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -39,7 +39,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -47,12 +47,12 @@ jobs:
         id: go-version
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Login to GitHub Container Registry
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -64,14 +64,15 @@ jobs:
           mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         with:
           version: latest
           args: release --clean --release-notes=./tmp/changelog.txt
         env:
+          BUILD_ENV: "production"
           GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
       - name: Upload checksums as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: checksums
           path: dist/checksums.txt
@@ -95,7 +96,7 @@ jobs:
           repository: superfly/docs
           token: ${{ steps.installationToken.outputs.token }}
           path: docs
-      - uses: actions/setup-go@v4
+      - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -105,39 +106,6 @@ jobs:
           GITHUB_TOKEN: ${{ steps.installationToken.outputs.token }}
         run: scripts/publish_docs.sh ${{ github.ref_name }}
 
-  dev_release:
-    if: startsWith(github.ref, 'refs/tags/v0.') && contains(github.ref, 'dev-')
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v4
-        with:
-          go-version-file: "go.mod"
-          check-latest: true
-      - name: Get go version
-        id: go-version
-        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
-      - name: Place wintun.dll
-        run: cp -r deps/wintun/bin/amd64/wintun.dll ./
-      - name: generate release notes
-        run: |
-          mkdir -p ./tmp
-          ./scripts/changelog.sh > ./tmp/changelog.txt
-      - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
-        with:
-          version: latest
-          args: release --config .goreleaser.dev.yml --rm-dist --release-notes=./tmp/changelog.txt
-        env:
-          GITHUB_TOKEN: ${{ secrets.GORELEASER_GITHUB_TOKEN }}
-      - name: Upload checksums as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: checksums
-          path: dist/checksums.txt
-
   aur-publish:
     name: Build & publish to AUR
     needs: release
@@ -146,7 +114,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Download checksums
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: checksums
       - name: Generate PKGBUILD

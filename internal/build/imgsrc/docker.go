@@ -13,6 +13,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/registry"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/jpillora/backoff"
@@ -25,8 +26,10 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type dockerClientFactory struct {
@@ -46,15 +49,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, 
 			mode:   daemonType,
 			remote: true,
 			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				if cachedDocker != nil {
-					return cachedDocker, nil
-				}
-				c, err := newRemoteDockerClient(ctx, apiClient, appName, streams, build)
-				if err != nil {
-					return nil, err
-				}
-				cachedDocker = c
-				return cachedDocker, nil
+				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -128,6 +123,23 @@ const (
 	DockerDaemonTypeNixpacks
 )
 
+func (t DockerDaemonType) String() string {
+	switch t {
+	case DockerDaemonTypeLocal:
+		return "local"
+	case DockerDaemonTypeRemote:
+		return "remote"
+	case DockerDaemonTypeNone:
+		return "none"
+	case DockerDaemonTypePrefersLocal:
+		return "prefers-local"
+	case DockerDaemonTypeNixpacks:
+		return "nix-packs"
+	default:
+		return "none"
+	}
+}
+
 func (t DockerDaemonType) AllowLocal() bool {
 	return (t & DockerDaemonTypeLocal) != 0
 }
@@ -173,7 +185,15 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client) (c *dockerclient.Client, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client")
+	defer span.End()
+
+	if cachedClient != nil {
+		span.AddEvent("using cached docker client")
+		return cachedClient, nil
+	}
+
 	startedAt := time.Now()
 
 	defer func() {
@@ -187,6 +207,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	var machine *api.GqlMachine
 	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to init remote builder machine")
 		return nil, err
 	}
 	remoteBuilderAppName := app.Name
@@ -212,6 +233,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 		sentry.CaptureException(err,
 			sentry.WithTag("feature", "remote-build"),
+			sentry.WithTraceID(ctx),
 			sentry.WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
 					"name": appName,
@@ -234,14 +256,30 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 			break
 		}
 	}
+
+	span.SetAttributes(
+		attribute.String("builder.name", remoteBuilderAppName),
+		attribute.String("builder.id", machine.ID),
+		attribute.String("builder.host", host),
+	)
+
 	if host == "" {
-		return nil, errors.New("machine did not have a private IP")
+		err = errors.New("machine did not have a private IP")
+		tracing.RecordError(span, err, "failed to boot remote builder")
+		return nil, err
 	}
 
 	builderHostOverride, ok := os.LookupEnv("FLY_RCHAB_OVERRIDE_HOST")
 	if ok {
 		oldHost := host
 		host = builderHostOverride
+
+		span.SetAttributes(
+			attribute.String("builder.old_host", oldHost),
+			attribute.String("builder.host", host),
+		)
+
+		span.AddEvent(fmt.Sprintf("Override builder host with: %s (was %s)\n", host, oldHost))
 		terminal.Infof("Override builder host with: %s (was %s)\n", host, oldHost)
 	}
 
@@ -251,7 +289,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 		err = fmt.Errorf("failed building options: %w", err)
 		captureError(err)
-
 		return nil, err
 	}
 
@@ -261,6 +298,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 		err = fmt.Errorf("failed creating docker client: %w", err)
 		captureError(err)
+		tracing.RecordError(span, err, "failed to initialize remote client")
 
 		return nil, err
 	}
@@ -271,14 +309,17 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 
 		err = fmt.Errorf("failed waiting for docker daemon: %w", err)
 		captureError(err)
+		tracing.RecordError(span, err, "failed to wait for docker daemon")
 
 		return nil, err
 	case !up:
 		streams.StopProgressIndicator()
+		err := errors.New("remote builder app unavailable")
 
 		terminal.Warnf("Remote builder did not start in time. Check remote builder logs with `flyctl logs -a %s`\n", remoteBuilderAppName)
+		tracing.RecordError(span, err, "remote builder failed to start")
 
-		return nil, errors.New("remote builder app unavailable")
+		return nil, err
 	default:
 		if msg := fmt.Sprintf("Remote builder %s ready", remoteBuilderAppName); streams.IsInteractive() {
 			streams.StopProgressIndicatorMsg(msg)
@@ -287,10 +328,14 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 		}
 	}
 
-	return client, nil
+	cachedClient = client
+	return cachedClient, nil
 }
 
 func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_client_ops")
+	defer span.End()
+
 	opts = []dockerclient.Opt{
 		dockerclient.WithAPIVersionNegotiation(),
 		dockerclient.WithHost(host),
@@ -304,6 +349,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 
 	url, err := dockerclient.ParseHostURL(host)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to parse remote builder host")
 		return nil, fmt.Errorf("failed to parse remote builder host: %w", err)
 	}
 	transport := new(http.Transport)
@@ -317,16 +363,19 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 
 	var app *api.AppBasic
 	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
+		tracing.RecordError(span, err, "error fetching target app")
 		return nil, fmt.Errorf("error fetching target app: %w", err)
 	}
 
 	var agentclient *agent.Client
 	if agentclient, err = agent.Establish(ctx, apiClient); err != nil {
+		tracing.RecordError(span, err, "failed to establish agent")
 		return
 	}
 
 	var dialer agent.Dialer
 	if dialer, err = agentclient.Dialer(ctx, app.Organization.Slug); err != nil {
+		tracing.RecordError(span, err, "failed to dial wg agent")
 		return
 	}
 
@@ -413,16 +462,16 @@ func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag s
 	return nil
 }
 
-func registryAuth(token string) types.AuthConfig {
-	return types.AuthConfig{
+func registryAuth(token string) registry.AuthConfig {
+	return registry.AuthConfig{
 		Username:      "x",
 		Password:      token,
 		ServerAddress: "registry.fly.io",
 	}
 }
 
-func authConfigs(token string) map[string]types.AuthConfig {
-	authConfigs := map[string]types.AuthConfig{}
+func authConfigs(token string) map[string]registry.AuthConfig {
+	authConfigs := map[string]registry.AuthConfig{}
 
 	authConfigs["registry.fly.io"] = registryAuth(token)
 
@@ -430,7 +479,7 @@ func authConfigs(token string) map[string]types.AuthConfig {
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
 
 	if dockerhubUsername != "" && dockerhubPassword != "" {
-		cfg := types.AuthConfig{
+		cfg := registry.AuthConfig{
 			Username:      dockerhubUsername,
 			Password:      dockerhubPassword,
 			ServerAddress: "index.docker.io",

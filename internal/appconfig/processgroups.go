@@ -13,32 +13,11 @@ import (
 
 // ProcessNames lists each key of c.Processes, sorted lexicographically
 // If c.Processes == nil, returns ["app"]
-func (c *Config) ProcessNames() (names []string) {
-	switch {
-	case c == nil:
+func (c *Config) ProcessNames() []string {
+	if c == nil {
 		return []string{api.MachineProcessGroupApp}
-	case c.platformVersion == MachinesPlatform:
-		if len(c.Processes) != 0 {
-			names = lo.Keys(c.Processes)
-		}
-	case c.platformVersion == "":
-		fallthrough
-	case c.platformVersion == DetachedPlatform:
-		fallthrough
-	case c.platformVersion == NomadPlatform:
-		switch cast := c.RawDefinition["processes"].(type) {
-		case map[string]any:
-			if len(cast) != 0 {
-				names = lo.Keys(cast)
-			}
-		case map[string]string:
-			if len(cast) != 0 {
-				names = lo.Keys(cast)
-			}
-		}
 	}
-
-	switch {
+	switch names := lo.Keys(c.Processes); {
 	case len(names) == 1:
 		return names
 	case len(names) > 1:
@@ -79,9 +58,39 @@ func (c *Config) DefaultProcessName() string {
 	return c.ProcessNames()[0]
 }
 
+// Checks if `toCheck` is a process group name that should target `target`
+//
+// Returns true if target == toCheck or if target is the default process name and toCheck is empty
+func (c *Config) flattenGroupMatches(target, toCheck string) bool {
+	if target == "" {
+		target = c.DefaultProcessName()
+	}
+	switch {
+	case toCheck == target:
+		return true
+	case toCheck == "" && target == c.DefaultProcessName():
+		return true
+	default:
+		return false
+	}
+}
+
+// Checks if any of the process group names in `toCheck` should target the group `target`
+//
+// Returns true if any of the groups in toCheck would return true for `flattenGroupMatches`,
+// or if toCheck is empty, returns true if target is the default process name
+func (c *Config) flattenGroupsMatch(target string, toCheck []string) bool {
+	if len(toCheck) == 0 {
+		return c.flattenGroupMatches(target, "")
+	}
+	return lo.SomeBy(toCheck, func(x string) bool {
+		return c.flattenGroupMatches(target, x)
+	})
+}
+
 // Flatten generates a machine config specific to a process_group.
 //
-// Only services, mounts, checks & files specific to the provided progress group will be in the returned config.
+// Only services, mounts, checks, metrics & files specific to the provided progress group will be in the returned config.
 func (c *Config) Flatten(groupName string) (*Config, error) {
 	if err := c.SetMachinesPlatform(); err != nil {
 		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
@@ -91,70 +100,106 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	if groupName == "" {
 		groupName = defaultGroupName
 	}
-	matchesGroup := func(x string) bool {
-		switch {
-		case x == groupName:
-			return true
-		case x == "" && groupName == defaultGroupName:
-			return true
-		default:
-			return false
-		}
-	}
 	matchesGroups := func(xs []string) bool {
-		if len(xs) == 0 {
-			return matchesGroup("")
-		}
-		for _, x := range xs {
-			if matchesGroup(x) {
-				return true
-			}
-		}
-		return false
+		return c.flattenGroupsMatch(groupName, xs)
 	}
 
 	dst := helpers.Clone(c)
-	dst.platformVersion = c.platformVersion
 	dst.configFilePath = "--flatten--"
 	dst.defaultGroupName = groupName
 
 	// [processes]
-	dst.Processes = nil
-	for name, cmdStr := range c.Processes {
-		if !matchesGroup(name) {
-			continue
-		}
-		dst.Processes = map[string]string{dst.defaultGroupName: cmdStr}
-		break
-	}
-
-	// [checks]
-	dst.Checks = lo.PickBy(c.Checks, func(_ string, check *ToplevelCheck) bool {
-		return matchesGroups(check.Processes)
+	dst.Processes = lo.PickBy(dst.Processes, func(k, v string) bool {
+		return dst.flattenGroupMatches(groupName, k)
 	})
 
+	// [checks]
+	dst.Checks = lo.PickBy(dst.Checks, func(_ string, check *ToplevelCheck) bool {
+		return matchesGroups(check.Processes)
+	})
+	for i := range dst.Checks {
+		dst.Checks[i].Processes = []string{groupName}
+	}
+
 	// [[http_service]]
-	dst.HTTPService = nil
-	if c.HTTPService != nil && matchesGroups(c.HTTPService.Processes) {
-		dst.HTTPService = c.HTTPService
+	if dst.HTTPService != nil {
+		if matchesGroups(dst.HTTPService.Processes) {
+			dst.HTTPService.Processes = []string{groupName}
+		} else {
+			dst.HTTPService = nil
+		}
 	}
 
 	// [[services]]
-	dst.Services = lo.Filter(c.Services, func(s Service, _ int) bool {
+	dst.Services = lo.Filter(dst.Services, func(s Service, _ int) bool {
 		return matchesGroups(s.Processes)
 	})
+	for i := range dst.Services {
+		dst.Services[i].Processes = []string{groupName}
+	}
 
 	// [[Mounts]]
-	dst.Mounts = lo.Filter(c.Mounts, func(x Mount, _ int) bool {
+	dst.Mounts = lo.Filter(dst.Mounts, func(x Mount, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
+	for i := range dst.Mounts {
+		dst.Mounts[i].Processes = []string{groupName}
+	}
 
 	// [[Files]]
-	dst.Files = lo.Filter(c.Files, func(x File, _ int) bool {
+	dst.Files = lo.Filter(dst.Files, func(x File, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
+	for i := range dst.Files {
+		dst.Files[i].Processes = []string{groupName}
+	}
+
+	// [[metrics]]
+	dst.Metrics = lo.Filter(dst.Metrics, func(x *Metrics, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+	for i := range dst.Metrics {
+		dst.Metrics[i].Processes = []string{groupName}
+	}
+
+	// [[vm]]
+	compute := dst.ComputeForGroup(groupName)
+
+	dst.Compute = nil
+	if compute != nil {
+		// Sync top level host_dedication_id if set within compute
+		if compute.MachineGuest != nil && compute.MachineGuest.HostDedicationID != "" {
+			dst.HostDedicationID = compute.MachineGuest.HostDedicationID
+		}
+		compute.Processes = []string{groupName}
+		dst.Compute = append(dst.Compute, compute)
+	}
 
 	return dst, nil
+}
+
+// ComputeForGroup finds the most specific VM compute requirements for this process group
+// In reality there are only four valid cases:
+//  1. No [[vm]] section
+//  2. One [[vm]] section with `processes = [groupName]`
+//  3. Previous case plus global [[compute]] without processes
+//  4. Only a [[vm]] section without processes set which applies to all groups
+func (c *Config) ComputeForGroup(groupName string) *Compute {
+
+	if groupName == "" {
+		groupName = c.DefaultProcessName()
+	}
+
+	compute := lo.MaxBy(
+		// grab only the compute that matches or have no processes set
+		lo.Filter(c.Compute, func(x *Compute, _ int) bool {
+			return len(x.Processes) == 0 || c.flattenGroupsMatch(groupName, x.Processes)
+		}),
+		// Next find the most specific
+		func(item *Compute, _ *Compute) bool {
+			return slices.Contains(item.Processes, groupName)
+		})
+	return compute
 }
 
 func (c *Config) InitCmd(groupName string) ([]string, error) {

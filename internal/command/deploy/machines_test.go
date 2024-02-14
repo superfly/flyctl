@@ -51,7 +51,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}, li)
@@ -66,9 +66,11 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			"PRIMARY_REGION": "scl",
 			"OTHER":          "value",
 		},
-		Metrics: &api.MachineMetrics{
-			Port: 9000,
-			Path: "/prometheus",
+		Metrics: []*appconfig.Metrics{{
+			MachineMetrics: &api.MachineMetrics{
+				Port: 9000,
+				Path: "/prometheus",
+			}},
 		},
 		Deploy: &appconfig.Deploy{
 			ReleaseCommand: "touch sky",
@@ -115,7 +117,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Metrics: &api.MachineMetrics{
 				Port: 9000,
@@ -163,7 +165,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "fly_app_release_command",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Restart: api.MachineRestart{
 				Policy: api.MachineRestartPolicyNo,
@@ -208,7 +210,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_process_group":    "fly_app_release_command",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Init: api.MachineInit{
 				Cmd: []string{"touch", "sky"},
@@ -250,7 +252,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Env: map[string]string{
 				"FLY_PROCESS_GROUP": "app",
@@ -284,7 +286,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 			Env: map[string]string{
 				"FLY_PROCESS_GROUP": "app",
@@ -329,7 +331,7 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 				"fly_process_group":    "app",
 				"fly_release_id":       "",
 				"fly_release_version":  "0",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}, got)
@@ -374,7 +376,7 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 				"fly_process_group":    "awesome-group",
 				"fly_release_id":       "",
 				"fly_release_version":  "2",
-				"fly_flyctl_version":   buildinfo.ParsedVersion().String(),
+				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
 		},
 	}, got)

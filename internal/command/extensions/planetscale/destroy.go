@@ -31,7 +31,7 @@ func destroy() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.Yes(),
+		extensions_core.SharedFlags,
 	)
 
 	return cmd

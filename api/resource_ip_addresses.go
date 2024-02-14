@@ -26,6 +26,7 @@ func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddres
 
 	req := c.NewRequest(query)
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "get_ip_addresses")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -48,34 +49,6 @@ func (c *Client) GetIPAddresses(ctx context.Context, appName string) ([]IPAddres
 	return ips, nil
 }
 
-func (c *Client) FindIPAddress(ctx context.Context, appName string, address string) (*IPAddress, error) {
-	query := `
-		query($appName: String!, $address: String!) {
-			app(name: $appName) {
-				ipAddress(address: $address) {
-					id
-					address
-					type
-					region
-					createdAt
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	req.Var("appName", appName)
-	req.Var("address", address)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.App.IPAddress, nil
-}
-
 func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *Organization, network string) (*IPAddress, error) {
 	query := `
 		mutation($input: AllocateIPAddressInput!) {
@@ -92,6 +65,7 @@ func (c *Client) AllocateIPAddress(ctx context.Context, appName string, addrType
 	`
 
 	req := c.NewRequest(query)
+	ctx = ctxWithAction(ctx, "allocate_ip_address")
 	input := AllocateIPAddressInput{AppID: appName, Type: addrType, Region: region}
 
 	if org != nil {
@@ -124,7 +98,7 @@ func (c *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (n
 	`
 
 	req := c.NewRequest(query)
-
+	ctx = ctxWithAction(ctx, "allocate_shared_ip_address")
 	req.Var("input", AllocateIPAddressInput{AppID: appName, Type: "shared_v4"})
 
 	data, err := c.RunWithContext(ctx, req)
@@ -145,7 +119,7 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string
 	`
 
 	req := c.NewRequest(query)
-
+	ctx = ctxWithAction(ctx, "release_ip_address")
 	req.Var("input", ReleaseIPAddressInput{AppID: &appName, IP: &ip})
 
 	_, err := c.RunWithContext(ctx, req)

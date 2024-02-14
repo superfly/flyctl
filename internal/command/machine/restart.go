@@ -78,7 +78,7 @@ func runMachineRestart(ctx context.Context) error {
 
 	// Acquire leases
 	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}

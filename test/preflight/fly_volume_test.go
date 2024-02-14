@@ -32,27 +32,27 @@ primary_region = "%s"
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 
-	f.Fly("vol extend -s 2 %s", ml[0].Config.Mounts[0].Volume)
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
-		require.Equal(c, vl[0].SizeGb, 2)
-	}, 10*time.Second, 2*time.Second)
-
-	f.Fly("vol extend -s +1 %s", ml[0].Config.Mounts[0].Volume)
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		vl := f.VolumeList(appName)
-		require.Equal(c, vl[0].SizeGb, 3)
-	}, 10*time.Second, 2*time.Second)
-
-	f.Fly("vol extend -s +1gb %s", ml[0].Config.Mounts[0].Volume)
+	f.Fly("vol extend -s 4 %s", ml[0].Config.Mounts[0].Volume)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		vl := f.VolumeList(appName)
 		require.Equal(c, vl[0].SizeGb, 4)
 	}, 10*time.Second, 2*time.Second)
 
-	f.Fly("vol extend -s 5gb %s", ml[0].Config.Mounts[0].Volume)
+	f.Fly("vol extend -s +1 %s", ml[0].Config.Mounts[0].Volume)
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		vl := f.VolumeList(appName)
 		require.Equal(c, vl[0].SizeGb, 5)
+	}, 10*time.Second, 2*time.Second)
+
+	f.Fly("vol extend -s +1gb %s", ml[0].Config.Mounts[0].Volume)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		vl := f.VolumeList(appName)
+		require.Equal(c, vl[0].SizeGb, 6)
+	}, 10*time.Second, 2*time.Second)
+
+	f.Fly("vol extend -s 7gb %s", ml[0].Config.Mounts[0].Volume)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		vl := f.VolumeList(appName)
+		require.Equal(c, vl[0].SizeGb, 7)
 	}, 10*time.Second, 2*time.Second)
 }

@@ -22,10 +22,16 @@ in JSON format. The configuration data is retrieved from the Fly service.`
 	cmd = command.New("show", short, long, runShow,
 		command.RequireSession,
 		command.RequireAppName,
+		command.LoadAppConfigIfPresent,
 	)
 	cmd.Args = cobra.NoArgs
 	cmd.Aliases = []string{"display"}
-	flag.Add(cmd, flag.App(), flag.AppConfig())
+	flag.Add(cmd, flag.App(), flag.AppConfig(),
+		flag.Bool{
+			Name:        "local",
+			Description: "Parse and show local fly.toml as JSON",
+		},
+	)
 	return
 }
 
@@ -33,15 +39,24 @@ func runShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
-	if err != nil {
-		return err
-	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	var cfg *appconfig.Config
 
-	cfg, err := appconfig.FromRemoteApp(ctx, appName)
-	if err != nil {
-		return err
+	if !flag.GetBool(ctx, "local") {
+		flapsClient, err := flaps.NewFromAppName(ctx, appName)
+		if err != nil {
+			return err
+		}
+		ctx = flaps.NewContext(ctx, flapsClient)
+
+		cfg, err = appconfig.FromRemoteApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+	} else {
+		cfg = appconfig.ConfigFromContext(ctx)
+		if cfg == nil {
+			return fmt.Errorf("No local fly.toml found")
+		}
 	}
 
 	b, err := json.MarshalIndent(cfg, "", "  ")

@@ -21,10 +21,6 @@ func prepareInitialCtx(cmd *cobra.Command) (context.Context, error) {
 	if err != nil {
 		return nil, err
 	}
-	ctx, err = preparers.DetermineUserHomeDir(ctx)
-	if err != nil {
-		return nil, err
-	}
 	ctx, err = preparers.DetermineConfigDir(ctx)
 	if err != nil {
 		return nil, err

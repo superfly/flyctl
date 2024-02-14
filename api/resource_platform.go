@@ -20,6 +20,7 @@ func (c *Client) PlatformRegions(ctx context.Context) ([]Region, *Region, error)
 	`
 
 	req := c.NewRequest(query)
+	ctx = ctxWithAction(ctx, "platform_regions")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -38,56 +39,4 @@ func (c *Client) PlatformRegions(ctx context.Context) ([]Region, *Region, error)
 	}
 
 	return data.Platform.Regions, requestRegion, nil
-}
-
-func (c *Client) PlatformRegionsAll(ctx context.Context) ([]Region, error) {
-	query := `
-		query {
-			platform {
-				regions {
-					name
-					code
-					latitude
-					longitude
-					gatewayAvailable
-					requiresPlan
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.Platform.Regions, nil
-}
-
-func (c *Client) PlatformVMSizes(ctx context.Context) ([]VMSize, error) {
-	query := `
-		query {
-			platform {
-				vmSizes {
-					name
-					cpuCores
-					memoryGb
-					memoryMb
-					priceMonth
-					priceSecond
-				}
-			}
-		}
-	`
-
-	req := c.NewRequest(query)
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return data.Platform.VMSizes, nil
 }

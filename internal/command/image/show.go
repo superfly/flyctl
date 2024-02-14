@@ -2,6 +2,7 @@ package image
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -43,10 +44,9 @@ func newShow() *cobra.Command {
 	return cmd
 }
 
-func runShow(ctx context.Context) (err error) {
+func runShow(ctx context.Context) error {
 	var (
 		client  = client.FromContext(ctx).API()
-		io      = iostreams.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -55,89 +55,7 @@ func runShow(ctx context.Context) (err error) {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	var status *api.AppStatus
-
-	if status, err = client.GetAppStatus(ctx, appName, true); err != nil {
-		err = fmt.Errorf("failed retrieving app %s: %w", appName, err)
-
-		return
-	}
-
-	if !status.Deployed && app.PlatformVersion == "" {
-		_, err = fmt.Fprintln(io.Out, "App has not been deployed yet.")
-
-		return
-	}
-
-	switch app.PlatformVersion {
-	case "nomad":
-		return showNomadImage(ctx, app)
-	case "machines":
-		return showMachineImage(ctx, app)
-	}
-
-	return nil
-}
-
-func showNomadImage(ctx context.Context, app *api.AppCompact) error {
-	var (
-		client   = client.FromContext(ctx).API()
-		cfg      = config.FromContext(ctx)
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
-		// appName  = appv2.NameFromContext(ctx)
-	)
-
-	info, err := client.GetImageInfo(ctx, app.Name)
-	if err != nil {
-		return fmt.Errorf("failed to get image info: %w", err)
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(io.Out, info.ImageDetails)
-	}
-
-	if info.ImageVersionTrackingEnabled && info.ImageUpgradeAvailable {
-		current := fmt.Sprintf("%s:%s", info.ImageDetails.Repository, info.ImageDetails.Tag)
-		latest := fmt.Sprintf("%s:%s", info.LatestImageDetails.Repository, info.LatestImageDetails.Tag)
-
-		if info.ImageDetails.Version != "" {
-			current = fmt.Sprintf("%s %s", current, info.ImageDetails.Version)
-		}
-
-		if info.LatestImageDetails.Version != "" {
-			latest = fmt.Sprintf("%s %s", latest, info.LatestImageDetails.Version)
-		}
-
-		message := fmt.Sprintf("Update available! (%s -> %s)\n", current, latest)
-		message += "Run `flyctl image update` to migrate to the latest image version.\n"
-
-		fmt.Fprintln(io.ErrOut, colorize.Yellow(message))
-	}
-
-	image := info.ImageDetails
-
-	if image.Version == "" {
-		image.Version = "N/A"
-	}
-
-	obj := [][]string{
-		{
-			image.Registry,
-			image.Repository,
-			image.Tag,
-			image.Version,
-			image.Digest,
-		},
-	}
-
-	return render.VerticalTable(io.Out, "Image Details", obj,
-		"Registry",
-		"Repository",
-		"Tag",
-		"Version",
-		"Digest",
-	)
+	return showMachineImage(ctx, app)
 }
 
 func showMachineImage(ctx context.Context, app *api.AppCompact) error {
@@ -167,6 +85,22 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version = machine.ImageVersion()
 		}
 
+		var labelsString string
+
+		if cfg.JSONOutput {
+			json, err := json.Marshal(machine.ImageRef.Labels)
+			if err != nil {
+				return err
+			}
+			if string(json) != "null" {
+				labelsString = string(json)
+			}
+		} else {
+			for key, val := range machine.ImageRef.Labels {
+				labelsString += fmt.Sprintf("%s=%s", key, val)
+			}
+		}
+
 		obj := map[string]string{
 			"MachineID":  machine.ID,
 			"Registry":   machine.ImageRef.Registry,
@@ -174,6 +108,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			"Tag":        machine.ImageRef.Tag,
 			"Version":    version,
 			"Digest":     machine.ImageRef.Digest,
+			"Labels":     labelsString,
 		}
 
 		rows := [][]string{
@@ -183,6 +118,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 				machine.ImageRef.Tag,
 				version,
 				machine.ImageRef.Digest,
+				labelsString,
 			},
 		}
 
@@ -196,6 +132,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			"Tag",
 			"Version",
 			"Digest",
+			"Labels",
 		)
 
 	}
@@ -265,6 +202,22 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			version = machine.ImageVersion()
 		}
 
+		var labelsString string
+
+		if cfg.JSONOutput {
+			json, err := json.Marshal(image.Labels)
+			if err != nil {
+				return err
+			}
+			if string(json) != "null" {
+				labelsString = string(json)
+			}
+		} else {
+			for key, val := range image.Labels {
+				labelsString += fmt.Sprintf("%s=%s", key, val)
+			}
+		}
+
 		objs = append(objs, map[string]string{
 			"MachineID":  machine.ID,
 			"Registry":   image.Registry,
@@ -272,6 +225,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			"Tag":        image.Tag,
 			"Version":    version,
 			"Digest":     image.Digest,
+			"Labels":     labelsString,
 		})
 
 		rows = append(rows, []string{
@@ -281,6 +235,7 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 			image.Tag,
 			version,
 			image.Digest,
+			labelsString,
 		})
 	}
 
@@ -298,5 +253,6 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 		"Tag",
 		"Version",
 		"Digest",
+		"Labels",
 	)
 }

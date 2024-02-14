@@ -21,6 +21,7 @@ func (client *Client) GetMachine(ctx context.Context, machineId string) (*GqlMac
 
 	req := client.NewRequest(query)
 	req.Var("machineId", machineId)
+	ctx = ctxWithAction(ctx, "get_machine")
 
 	data, err := client.RunWithContext(ctx, req)
 	if err != nil {

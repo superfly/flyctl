@@ -9,17 +9,18 @@ import (
 	"os"
 
 	"github.com/AlecAivazis/survey/v2"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
-	"github.com/superfly/flyctl/internal/command/launch/legacy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Create and configure a new app from source code or a Docker image.`
+		long  = `Create and configure a new app from source code or a Docker image`
 		short = long
 	)
 
@@ -54,11 +55,6 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
-			Name:        "reuse-app",
-			Description: "Continue even if app name clashes with an existent app",
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "dockerignore-from-gitignore",
 			Description: "If a .dockerignore does not exist, create one from .gitignore files",
 			Default:     false,
@@ -68,12 +64,6 @@ func New() (cmd *cobra.Command) {
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
 		},
-		// Launch V2
-		flag.Bool{
-			Name:        "ui",
-			Description: "Use the Launch V2 interface",
-			Hidden:      true,
-		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -82,6 +72,18 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "from-manifest",
 			Description: "Path to a manifest file for Launch ('-' reads from stdin)",
+			Hidden:      true,
+		},
+		// legacy launch flags (deprecated)
+		flag.Bool{
+			Name:        "legacy",
+			Description: "Use the legacy CLI interface (deprecated)",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "reuse-app",
+			Description: "Continue even if app name clashes with an existent app",
+			Default:     false,
 			Hidden:      true,
 		},
 	)
@@ -118,11 +120,6 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 }
 
 func run(ctx context.Context) (err error) {
-
-	if !flag.GetBool(ctx, "ui") {
-		return legacy.Run(ctx)
-	}
-
 	io := iostreams.FromContext(ctx)
 
 	if err := warnLegacyBehavior(ctx); err != nil {
@@ -141,11 +138,21 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	incompleteLaunchManifest := false
+	canEnterUi := !flag.GetBool(ctx, "manifest")
+
 	if launchManifest == nil {
 
-		launchManifest, cache, err = buildManifest(ctx)
+		launchManifest, cache, err = buildManifest(ctx, canEnterUi)
 		if err != nil {
-			return err
+			var recoverableErr recoverableInUiError
+			if errors.As(err, &recoverableErr) && canEnterUi {
+				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
+				fmt.Fprintln(io.ErrOut, recoverableErr.Error())
+				incompleteLaunchManifest = true
+			} else {
+				return err
+			}
 		}
 
 		if flag.GetBool(ctx, "manifest") {
@@ -177,21 +184,30 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
-	confirm := false
-	prompt := &survey.Confirm{
-		Message: "Do you want to tweak these settings before proceeding?",
-	}
-	err = survey.AskOne(prompt, &confirm)
-	if err != nil {
-		// TODO(allison): This should probably not just return the error
-		return err
+	editInUi := false
+	if io.IsInteractive() && !flag.GetBool(ctx, "yes") {
+		prompt := &survey.Confirm{
+			Message: lo.Ternary(
+				incompleteLaunchManifest,
+				"Would you like to continue in the web UI?",
+				"Do you want to tweak these settings before proceeding?",
+			),
+		}
+		err = survey.AskOne(prompt, &editInUi)
+		if err != nil {
+			// TODO(allison): This should probably not just return the error
+			return err
+		}
 	}
 
-	if confirm {
+	if editInUi {
 		err = state.EditInWebUi(ctx)
 		if err != nil {
 			return err
 		}
+	} else if incompleteLaunchManifest {
+		// UI was required to reconcile launch issues, but user denied. Abort.
+		return errors.New("launch can not continue with errors present")
 	}
 
 	err = state.Launch(ctx)
@@ -219,7 +235,11 @@ func warnLegacyBehavior(ctx context.Context) error {
 	// TODO(Allison): We probably want to support re-configuring an existing app, but
 	// that is different from the launch-into behavior of reuse-app, which basically just deployed.
 	if flag.IsSpecified(ctx, "reuse-app") {
-		return errors.New("the --reuse-app flag is no longer supported. you are likely looking for 'fly deploy'")
+
+		return flyerr.GenericErr{
+			Err:     "the --reuse-app flag is no longer supported. you are likely looking for 'fly deploy'",
+			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
+		}
 	}
 	return nil
 }

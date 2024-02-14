@@ -23,6 +23,7 @@ func create() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		extensions_core.SharedFlags,
 	)
 	return cmd
 }
@@ -30,7 +31,12 @@ func create() (cmd *cobra.Command) {
 func runSentryCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 
-	extension, err := extensions_core.ProvisionExtension(ctx, appName, "sentry", false, gql.AddOnOptions{})
-	secrets.DeploySecrets(ctx, gql.ToAppCompact(extension.App), false, false)
+	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
+		AppName:  appName,
+		Provider: "sentry",
+	})
+	if extension.SetsSecrets {
+		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
+	}
 	return
 }

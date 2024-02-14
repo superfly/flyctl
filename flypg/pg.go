@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
-	"github.com/superfly/flyctl/terminal"
 )
 
 func (c *Client) ListUsers(ctx context.Context) ([]PostgresUser, error) {
@@ -69,19 +67,6 @@ func (c *Client) CreateDatabase(ctx context.Context, name string) error {
 	return nil
 }
 
-func (c *Client) DeleteDatabase(ctx context.Context, name string) error {
-	endpoint := "/commands/databases/delete"
-
-	in := &DeleteDatabaseRequest{
-		Name: name,
-	}
-
-	if err := c.Do(ctx, http.MethodDelete, endpoint, in, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
 func (c *Client) DatabaseExists(ctx context.Context, name string) (bool, error) {
 	endpoint := "/commands/databases"
 
@@ -120,89 +105,6 @@ func (c *Client) UserExists(ctx context.Context, name string) (bool, error) {
 		return true, nil
 	}
 	return false, nil
-}
-
-func (c *Client) NodeRole(ctx context.Context) (string, error) {
-	endpoint := "/commands/admin/role"
-
-	out := new(NodeRoleResponse)
-
-	err := c.Do(ctx, http.MethodGet, endpoint, nil, out)
-	if err != nil && ErrorStatus(err) == http.StatusNotFound {
-		terminal.Debugf("404 response from %s endpoint. Calling legacy endpoint.\n", endpoint)
-		return c.legacyNodeRole(ctx)
-	}
-	if err != nil {
-		return "", err
-	}
-	return out.Result, nil
-}
-
-func (c *Client) legacyNodeRole(ctx context.Context) (string, error) {
-	endpoint := "/flycheck/role"
-	var out string
-	err := c.Do(ctx, http.MethodGet, endpoint, nil, &out)
-	if err != nil {
-		return "", err
-	}
-	return out, nil
-}
-
-func (c *Client) LegacyStolonReplicationStats(ctx context.Context) ([]ReplicationStat, error) {
-	endpoint := "/commands/admin/replicationstats"
-
-	out := new(ReplicationStatsResponse)
-
-	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
-		return nil, err
-	}
-	return out.Result, nil
-}
-func (c *Client) LegacyStolonDBUid(ctx context.Context) (*string, error) {
-	endpoint := "/commands/admin/dbuid"
-
-	out := new(StolonDBUidResponse)
-
-	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
-		return nil, err
-	}
-	return &out.Result, nil
-}
-
-func (c *Client) LegacyBounceHaproxy(ctx context.Context) error {
-	endpoint := "/commands/admin/haproxy/restart"
-
-	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
-		return err
-	}
-	return nil
-}
-func (c *Client) LegacyEnableReadonly(ctx context.Context) error {
-	endpoint := "/commands/admin/readonly/enable"
-
-	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
-		return err
-	}
-	return nil
-}
-func (c *Client) LegacyDisableReadonly(ctx context.Context) error {
-	endpoint := "/commands/admin/readonly/disable"
-
-	if err := c.Do(ctx, http.MethodPost, endpoint, nil, nil); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (c *Client) RestartNodePG(ctx context.Context) error {
-	endpoint := "/commands/admin/restart"
-
-	out := new(RestartResponse)
-
-	if err := c.Do(ctx, http.MethodGet, endpoint, nil, out); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (c *Client) Failover(ctx context.Context) error {

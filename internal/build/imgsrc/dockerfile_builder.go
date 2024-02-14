@@ -26,8 +26,11 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -98,6 +101,9 @@ func makeBuildContext(dockerfile string, opts ImageOptions, isRemote bool) (io.R
 }
 
 func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "dockerfile_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
+	defer span.End()
+
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		// Where should debug messages be sent?
@@ -111,7 +117,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if opts.DockerfilePath != "" {
 		if !helpers.FileExists(opts.DockerfilePath) {
 			build.BuildFinish()
-			return nil, "", fmt.Errorf("Dockerfile '%s' not found", opts.DockerfilePath)
+			err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
+			tracing.RecordError(span, err, "failed to find dockerfile")
+			return nil, "", err
 		}
 		dockerfile = opts.DockerfilePath
 	} else {
@@ -119,6 +127,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 
 	if dockerfile == "" {
+		span.AddEvent("dockerfile not found, skipping")
 		terminal.Debug("dockerfile not found, skipping")
 		build.BuildFinish()
 		return nil, "", nil
@@ -129,12 +138,14 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// pass the relative path to Dockerfile within the context
 		p, err := filepath.Rel(opts.WorkingDir, dockerfile)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to get relative dockerfile path")
 			return nil, "", err
 		}
 		// On Windows, convert \ to a slash / as the docker build will
 		// run in a Linux VM at the end.
 		relDockerfile = filepath.ToSlash(p)
 	}
+	span.SetAttributes(attribute.String("relative_dockerfile_path", relDockerfile))
 
 	build.BuilderInitStart()
 	docker, err := dockerFactory.buildFn(ctx, build)
@@ -150,8 +161,11 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuildFinish()
 		build.BuilderInitFinish()
+		tracing.RecordError(span, err, "failed to check for buildkit support")
 		return nil, "", fmt.Errorf("error checking for buildkit support: %w", err)
 	}
+
+	span.SetAttributes(attribute.Bool("buildkit_enabled", buildkitEnabled))
 
 	build.BuilderInitFinish()
 	defer func() {
@@ -174,6 +188,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		if err != nil {
 			build.BuildFinish()
 			build.ContextBuildFinish()
+			tracing.RecordError(span, err, "failed to make build context")
 			return nil, "", err
 		}
 
@@ -205,6 +220,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		}
 		build.ImageBuildFinish()
 		build.BuildFinish()
+		tracing.RecordError(span, err, "failed to fetch docker server info")
 		return nil, "", errors.Wrap(err, "error fetching docker server info")
 	}
 
@@ -216,18 +232,20 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.ImageBuildFinish()
 		build.BuildFinish()
+		tracing.RecordError(span, err, "failed to parse build args")
 		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, relDockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
+			tracing.RecordError(span, err, "failed to build image")
 			return nil, "", errors.Wrap(err, "error building")
 		}
 	} else {
@@ -238,6 +256,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			}
 			build.ImageBuildFinish()
 			build.BuildFinish()
+			tracing.RecordError(span, err, "failed to build image")
 			return nil, "", errors.Wrap(err, "error building")
 		}
 	}
@@ -263,11 +282,15 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		return nil, "", errors.Wrap(err, "count not find built image")
 	}
 
-	return &DeploymentImage{
+	di := DeploymentImage{
 		ID:   img.ID,
 		Tag:  opts.Tag,
 		Size: img.Size,
-	}, "", nil
+	}
+
+	span.SetAttributes(di.ToSpanAttributes()...)
+
+	return &di, "", nil
 }
 
 func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*string, error) {
@@ -282,14 +305,21 @@ func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*strin
 }
 
 func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_image",
+		trace.WithAttributes(opts.ToSpanAttributes()...),
+		trace.WithAttributes(attribute.String("type", "classic")),
+	)
+	defer span.End()
+
 	options := types.ImageBuildOptions{
 		Tags:        []string{opts.Tag},
 		BuildArgs:   buildArgs,
-		AuthConfigs: authConfigs(config.FromContext(ctx).AccessToken),
+		AuthConfigs: authConfigs(config.Tokens(ctx).Docker()),
 		Platform:    "linux/amd64",
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
 		NoCache:     opts.NoCache,
+		Labels:      opts.Label,
 	}
 
 	resp, err := docker.ImageBuild(ctx, r, options)
@@ -326,6 +356,10 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 		attrs["no-cache"] = ""
 	}
 
+	for k, v := range opts.Label {
+		attrs["label:"+k] = v
+	}
+
 	for k, v := range buildArgs {
 		if v == nil {
 			continue
@@ -351,11 +385,17 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 }
 
 func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_image",
+		trace.WithAttributes(opts.ToSpanAttributes()...),
+		trace.WithAttributes(attribute.String("type", "buildkit")),
+	)
+	defer span.End()
+
 	// Connect to Docker Engine's embedded Buildkit.
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
 		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
 	}
-	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast)
+	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
 	if err != nil {
 		return "", err
 	}
@@ -378,7 +418,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 		// Don't use `ctx` here.
 		// Cancelling the context kills the reader of statusCh which blocks bc.Solve below.
 		// bc.Solve closes statusCh at the end and DisplaySolveStatus returns by reading the closed channel.
-		_, err = progressui.DisplaySolveStatus(context.Background(), "", con, os.Stdout, statusCh)
+		_, err = progressui.DisplaySolveStatus(context.Background(), con, os.Stdout, statusCh)
 		return err
 	})
 	var res *client.SolveResponse
@@ -392,7 +432,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 			options.Session,
 			// To pull images from local Docker Engine with Fly's access token,
 			// we need to pass the provider. Remote builders don't need that.
-			newBuildkitAuthProvider(config.FromContext(ctx).AccessToken),
+			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
 			secretsprovider.FromMap(secrets),
 		)
 
@@ -403,19 +443,28 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 		return nil
 	})
 	err = eg.Wait()
+
 	if err != nil {
 		return "", err
 	}
 	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
-func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) error {
+func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_registry", trace.WithAttributes(attribute.String("tag", tag)))
+	defer span.End()
+
+	defer func() {
+		if err != nil {
+			tracing.RecordError(span, err, "failed to push to fly registry")
+		}
+	}()
 
 	metrics.Started(ctx, "image_push")
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
 
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: flyRegistryAuth(config.FromContext(ctx).AccessToken),
+		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
 	})
 	metrics.Status(ctx, "image_push", err == nil)
 

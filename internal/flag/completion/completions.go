@@ -75,12 +75,12 @@ func CompleteOrgs(
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
-	personal, others, err := clientApi.GetCurrentOrganizations(ctx)
+	orgs, err := clientApi.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}
-	names := []string{format(personal)}
-	for _, org := range others {
+	names := []string{}
+	for _, org := range orgs {
 		names = append(names, format(org))
 	}
 	ret := lo.Filter(names, func(name string, _ int) bool {

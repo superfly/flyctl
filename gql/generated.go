@@ -5,6 +5,7 @@ package gql
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -19,6 +20,12 @@ type AddOnData struct {
 	PrimaryRegion string `json:"primaryRegion"`
 	// Status of the add-on
 	Status string `json:"status"`
+	// Optional error message when `status` is `error`
+	ErrorMessage string `json:"errorMessage"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
+	// Add-on options
+	Options interface{} `json:"options"`
 }
 
 // GetId returns AddOnData.Id, and is useful for accessing the field via an interface.
@@ -33,17 +40,30 @@ func (v *AddOnData) GetPrimaryRegion() string { return v.PrimaryRegion }
 // GetStatus returns AddOnData.Status, and is useful for accessing the field via an interface.
 func (v *AddOnData) GetStatus() string { return v.Status }
 
+// GetErrorMessage returns AddOnData.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetErrorMessage() string { return v.ErrorMessage }
+
+// GetMetadata returns AddOnData.Metadata, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetMetadata() interface{} { return v.Metadata }
+
+// GetOptions returns AddOnData.Options, and is useful for accessing the field via an interface.
+func (v *AddOnData) GetOptions() interface{} { return v.Options }
+
 type AddOnType string
 
 const (
-	// A Logtail log receiver
-	AddOnTypeLogtail AddOnType = "logtail"
+	// A Kubernetes cluster
+	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
 	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
 	// A Sentry project endpoint
 	AddOnTypeSentry AddOnType = "sentry"
+	// A Supabase database
+	AddOnTypeSupabase AddOnType = "supabase"
+	// A Tigris Data bucket
+	AddOnTypeTigris AddOnType = "tigris"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
@@ -192,25 +212,170 @@ type AgentGetInstancesResponse struct {
 // GetApp returns AgentGetInstancesResponse.App, and is useful for accessing the field via an interface.
 func (v *AgentGetInstancesResponse) GetApp() AgentGetInstancesApp { return v.App }
 
-// AgreedToProviderTosOrganization includes the requested fields of the GraphQL type Organization.
-type AgreedToProviderTosOrganization struct {
+// AgreedToProviderTosResponse is returned by AgreedToProviderTos on success.
+type AgreedToProviderTosResponse struct {
+	Viewer AgreedToProviderTosViewerPrincipal `json:"-"`
+}
+
+// GetViewer returns AgreedToProviderTosResponse.Viewer, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosResponse) GetViewer() AgreedToProviderTosViewerPrincipal { return v.Viewer }
+
+func (v *AgreedToProviderTosResponse) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*AgreedToProviderTosResponse
+		Viewer json.RawMessage `json:"viewer"`
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.AgreedToProviderTosResponse = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	{
+		dst := &v.Viewer
+		src := firstPass.Viewer
+		if len(src) != 0 && string(src) != "null" {
+			err = __unmarshalAgreedToProviderTosViewerPrincipal(
+				src, dst)
+			if err != nil {
+				return fmt.Errorf(
+					"unable to unmarshal AgreedToProviderTosResponse.Viewer: %w", err)
+			}
+		}
+	}
+	return nil
+}
+
+type __premarshalAgreedToProviderTosResponse struct {
+	Viewer json.RawMessage `json:"viewer"`
+}
+
+func (v *AgreedToProviderTosResponse) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *AgreedToProviderTosResponse) __premarshalJSON() (*__premarshalAgreedToProviderTosResponse, error) {
+	var retval __premarshalAgreedToProviderTosResponse
+
+	{
+
+		dst := &retval.Viewer
+		src := v.Viewer
+		var err error
+		*dst, err = __marshalAgreedToProviderTosViewerPrincipal(
+			&src)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"unable to marshal AgreedToProviderTosResponse.Viewer: %w", err)
+		}
+	}
+	return &retval, nil
+}
+
+// AgreedToProviderTosViewerMacaroon includes the requested fields of the GraphQL type Macaroon.
+type AgreedToProviderTosViewerMacaroon struct {
+	Typename string `json:"__typename"`
+}
+
+// GetTypename returns AgreedToProviderTosViewerMacaroon.Typename, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosViewerMacaroon) GetTypename() string { return v.Typename }
+
+// AgreedToProviderTosViewerPrincipal includes the requested fields of the GraphQL interface Principal.
+//
+// AgreedToProviderTosViewerPrincipal is implemented by the following types:
+// AgreedToProviderTosViewerMacaroon
+// AgreedToProviderTosViewerUser
+type AgreedToProviderTosViewerPrincipal interface {
+	implementsGraphQLInterfaceAgreedToProviderTosViewerPrincipal()
+	// GetTypename returns the receiver's concrete GraphQL type-name (see interface doc for possible values).
+	GetTypename() string
+}
+
+func (v *AgreedToProviderTosViewerMacaroon) implementsGraphQLInterfaceAgreedToProviderTosViewerPrincipal() {
+}
+func (v *AgreedToProviderTosViewerUser) implementsGraphQLInterfaceAgreedToProviderTosViewerPrincipal() {
+}
+
+func __unmarshalAgreedToProviderTosViewerPrincipal(b []byte, v *AgreedToProviderTosViewerPrincipal) error {
+	if string(b) == "null" {
+		return nil
+	}
+
+	var tn struct {
+		TypeName string `json:"__typename"`
+	}
+	err := json.Unmarshal(b, &tn)
+	if err != nil {
+		return err
+	}
+
+	switch tn.TypeName {
+	case "Macaroon":
+		*v = new(AgreedToProviderTosViewerMacaroon)
+		return json.Unmarshal(b, *v)
+	case "User":
+		*v = new(AgreedToProviderTosViewerUser)
+		return json.Unmarshal(b, *v)
+	case "":
+		return fmt.Errorf(
+			"response was missing Principal.__typename")
+	default:
+		return fmt.Errorf(
+			`unexpected concrete type for AgreedToProviderTosViewerPrincipal: "%v"`, tn.TypeName)
+	}
+}
+
+func __marshalAgreedToProviderTosViewerPrincipal(v *AgreedToProviderTosViewerPrincipal) ([]byte, error) {
+
+	var typename string
+	switch v := (*v).(type) {
+	case *AgreedToProviderTosViewerMacaroon:
+		typename = "Macaroon"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*AgreedToProviderTosViewerMacaroon
+		}{typename, v}
+		return json.Marshal(result)
+	case *AgreedToProviderTosViewerUser:
+		typename = "User"
+
+		result := struct {
+			TypeName string `json:"__typename"`
+			*AgreedToProviderTosViewerUser
+		}{typename, v}
+		return json.Marshal(result)
+	case nil:
+		return []byte("null"), nil
+	default:
+		return nil, fmt.Errorf(
+			`unexpected concrete type for AgreedToProviderTosViewerPrincipal: "%T"`, v)
+	}
+}
+
+// AgreedToProviderTosViewerUser includes the requested fields of the GraphQL type User.
+type AgreedToProviderTosViewerUser struct {
+	Typename string `json:"__typename"`
 	// Check if the organization has agreed to the extension provider terms of service
 	AgreedToProviderTos bool `json:"agreedToProviderTos"`
 }
 
-// GetAgreedToProviderTos returns AgreedToProviderTosOrganization.AgreedToProviderTos, and is useful for accessing the field via an interface.
-func (v *AgreedToProviderTosOrganization) GetAgreedToProviderTos() bool { return v.AgreedToProviderTos }
+// GetTypename returns AgreedToProviderTosViewerUser.Typename, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosViewerUser) GetTypename() string { return v.Typename }
 
-// AgreedToProviderTosResponse is returned by AgreedToProviderTos on success.
-type AgreedToProviderTosResponse struct {
-	// Find an organization by ID
-	Organization AgreedToProviderTosOrganization `json:"organization"`
-}
-
-// GetOrganization returns AgreedToProviderTosResponse.Organization, and is useful for accessing the field via an interface.
-func (v *AgreedToProviderTosResponse) GetOrganization() AgreedToProviderTosOrganization {
-	return v.Organization
-}
+// GetAgreedToProviderTos returns AgreedToProviderTosViewerUser.AgreedToProviderTos, and is useful for accessing the field via an interface.
+func (v *AgreedToProviderTosViewerUser) GetAgreedToProviderTos() bool { return v.AgreedToProviderTos }
 
 // AllAppsOrganization includes the requested fields of the GraphQL type Organization.
 type AllAppsOrganization struct {
@@ -265,6 +430,8 @@ type AppData struct {
 	Deployed bool   `json:"deployed"`
 	// Fly platform version
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
+	// Secrets set on the application
+	Secrets []AppDataSecretsSecret `json:"secrets"`
 	// Organization that owns this app
 	Organization AppDataOrganization `json:"organization"`
 }
@@ -281,35 +448,104 @@ func (v *AppData) GetDeployed() bool { return v.Deployed }
 // GetPlatformVersion returns AppData.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *AppData) GetPlatformVersion() PlatformVersionEnum { return v.PlatformVersion }
 
+// GetSecrets returns AppData.Secrets, and is useful for accessing the field via an interface.
+func (v *AppData) GetSecrets() []AppDataSecretsSecret { return v.Secrets }
+
 // GetOrganization returns AppData.Organization, and is useful for accessing the field via an interface.
 func (v *AppData) GetOrganization() AppDataOrganization { return v.Organization }
 
 // AppDataOrganization includes the requested fields of the GraphQL type Organization.
 type AppDataOrganization struct {
-	Id string `json:"id"`
-	// Unique organization slug
-	Slug string `json:"slug"`
-	// Unmodified unique org slug
-	RawSlug  string `json:"rawSlug"`
-	PaidPlan bool   `json:"paidPlan"`
-	// Whether the organization can provision beta extensions
-	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+	OrganizationData `json:"-"`
 }
 
 // GetId returns AppDataOrganization.Id, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetId() string { return v.Id }
+func (v *AppDataOrganization) GetId() string { return v.OrganizationData.Id }
 
 // GetSlug returns AppDataOrganization.Slug, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetSlug() string { return v.Slug }
+func (v *AppDataOrganization) GetSlug() string { return v.OrganizationData.Slug }
 
 // GetRawSlug returns AppDataOrganization.RawSlug, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetRawSlug() string { return v.RawSlug }
+func (v *AppDataOrganization) GetRawSlug() string { return v.OrganizationData.RawSlug }
 
 // GetPaidPlan returns AppDataOrganization.PaidPlan, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetPaidPlan() bool { return v.PaidPlan }
+func (v *AppDataOrganization) GetPaidPlan() bool { return v.OrganizationData.PaidPlan }
+
+// GetAddOnSsoLink returns AppDataOrganization.AddOnSsoLink, and is useful for accessing the field via an interface.
+func (v *AppDataOrganization) GetAddOnSsoLink() string { return v.OrganizationData.AddOnSsoLink }
 
 // GetProvisionsBetaExtensions returns AppDataOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
-func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
+func (v *AppDataOrganization) GetProvisionsBetaExtensions() bool {
+	return v.OrganizationData.ProvisionsBetaExtensions
+}
+
+func (v *AppDataOrganization) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*AppDataOrganization
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.AppDataOrganization = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.OrganizationData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalAppDataOrganization struct {
+	Id string `json:"id"`
+
+	Slug string `json:"slug"`
+
+	RawSlug string `json:"rawSlug"`
+
+	PaidPlan bool `json:"paidPlan"`
+
+	AddOnSsoLink string `json:"addOnSsoLink"`
+
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+}
+
+func (v *AppDataOrganization) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *AppDataOrganization) __premarshalJSON() (*__premarshalAppDataOrganization, error) {
+	var retval __premarshalAppDataOrganization
+
+	retval.Id = v.OrganizationData.Id
+	retval.Slug = v.OrganizationData.Slug
+	retval.RawSlug = v.OrganizationData.RawSlug
+	retval.PaidPlan = v.OrganizationData.PaidPlan
+	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
+	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
+	return &retval, nil
+}
+
+// AppDataSecretsSecret includes the requested fields of the GraphQL type Secret.
+type AppDataSecretsSecret struct {
+	// The name of the secret
+	Name string `json:"name"`
+}
+
+// GetName returns AppDataSecretsSecret.Name, and is useful for accessing the field via an interface.
+func (v *AppDataSecretsSecret) GetName() string { return v.Name }
 
 type BuildFinalImageInput struct {
 	// Sha256 id of docker image
@@ -507,8 +743,6 @@ type CreateAddOnCreateAddOnCreateAddOnPayloadAddOn struct {
 	PublicUrl string `json:"publicUrl"`
 	// Single sign-on link to the add-on dashboard
 	SsoLink string `json:"ssoLink"`
-	// Token for the add-on
-	Token string `json:"token"`
 	// Environment variables for the add-on
 	Environment interface{} `json:"environment"`
 	// Region where the primary instance is deployed
@@ -523,9 +757,6 @@ func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetPublicUrl() string { 
 
 // GetSsoLink returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.SsoLink, and is useful for accessing the field via an interface.
 func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetSsoLink() string { return v.SsoLink }
-
-// GetToken returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.Token, and is useful for accessing the field via an interface.
-func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetToken() string { return v.Token }
 
 // GetEnvironment returns CreateAddOnCreateAddOnCreateAddOnPayloadAddOn.Environment, and is useful for accessing the field via an interface.
 func (v *CreateAddOnCreateAddOnCreateAddOnPayloadAddOn) GetEnvironment() interface{} {
@@ -640,6 +871,11 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) GetPlatformVersion() PlatformVer
 	return v.AppData.PlatformVersion
 }
 
+// GetSecrets returns CreateAppCreateAppCreateAppPayloadApp.Secrets, and is useful for accessing the field via an interface.
+func (v *CreateAppCreateAppCreateAppPayloadApp) GetSecrets() []AppDataSecretsSecret {
+	return v.AppData.Secrets
+}
+
 // GetOrganization returns CreateAppCreateAppCreateAppPayloadApp.Organization, and is useful for accessing the field via an interface.
 func (v *CreateAppCreateAppCreateAppPayloadApp) GetOrganization() AppDataOrganization {
 	return v.AppData.Organization
@@ -683,6 +919,8 @@ type __premarshalCreateAppCreateAppCreateAppPayloadApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -703,6 +941,7 @@ func (v *CreateAppCreateAppCreateAppPayloadApp) __premarshalJSON() (*__premarsha
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -918,25 +1157,6 @@ func (v *CreateExtensionResponse) GetCreateAddOn() CreateExtensionCreateAddOnCre
 	return v.CreateAddOn
 }
 
-// Autogenerated input type of CreateExtensionTosAgreement
-type CreateExtensionTosAgreementInput struct {
-	// The add-on provider name
-	AddOnProviderName string `json:"addOnProviderName"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// The organization that agrees to the ToS
-	OrganizationId string `json:"organizationId"`
-}
-
-// GetAddOnProviderName returns CreateExtensionTosAgreementInput.AddOnProviderName, and is useful for accessing the field via an interface.
-func (v *CreateExtensionTosAgreementInput) GetAddOnProviderName() string { return v.AddOnProviderName }
-
-// GetClientMutationId returns CreateExtensionTosAgreementInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *CreateExtensionTosAgreementInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetOrganizationId returns CreateExtensionTosAgreementInput.OrganizationId, and is useful for accessing the field via an interface.
-func (v *CreateExtensionTosAgreementInput) GetOrganizationId() string { return v.OrganizationId }
-
 // CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayload includes the requested fields of the GraphQL type CreateLimitedAccessTokenPayload.
 // The GraphQL type's documentation follows.
 //
@@ -1108,6 +1328,7 @@ type ExtensionProviderData struct {
 	NameSuffix               string                                       `json:"nameSuffix"`
 	Beta                     bool                                         `json:"beta"`
 	TosAgreement             string                                       `json:"tosAgreement"`
+	Internal                 bool                                         `json:"internal"`
 	ProvisioningInstructions string                                       `json:"provisioningInstructions"`
 	ExcludedRegions          []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
 }
@@ -1153,6 +1374,9 @@ func (v *ExtensionProviderData) GetBeta() bool { return v.Beta }
 
 // GetTosAgreement returns ExtensionProviderData.TosAgreement, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetTosAgreement() string { return v.TosAgreement }
+
+// GetInternal returns ExtensionProviderData.Internal, and is useful for accessing the field via an interface.
+func (v *ExtensionProviderData) GetInternal() bool { return v.Internal }
 
 // GetProvisioningInstructions returns ExtensionProviderData.ProvisioningInstructions, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderData) GetProvisioningInstructions() string {
@@ -1309,8 +1533,6 @@ type GetAddOnAddOn struct {
 	PrivateIp string `json:"privateIp"`
 	// Password for the add-on
 	Password string `json:"password"`
-	// Token for the add-on
-	Token string `json:"token"`
 	// Status of the add-on
 	Status string `json:"status"`
 	// Region where the primary instance is deployed
@@ -1323,6 +1545,8 @@ type GetAddOnAddOn struct {
 	SsoLink string `json:"ssoLink"`
 	// Organization that owns this service
 	Organization GetAddOnAddOnOrganization `json:"organization"`
+	// The add-on provider
+	AddOnProvider GetAddOnAddOnAddOnProvider `json:"addOnProvider"`
 	// An app associated with this add-on
 	App GetAddOnAddOnApp `json:"app"`
 	// The add-on plan
@@ -1337,9 +1561,6 @@ func (v *GetAddOnAddOn) GetPrivateIp() string { return v.PrivateIp }
 
 // GetPassword returns GetAddOnAddOn.Password, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetPassword() string { return v.Password }
-
-// GetToken returns GetAddOnAddOn.Token, and is useful for accessing the field via an interface.
-func (v *GetAddOnAddOn) GetToken() string { return v.Token }
 
 // GetStatus returns GetAddOnAddOn.Status, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetStatus() string { return v.Status }
@@ -1359,6 +1580,9 @@ func (v *GetAddOnAddOn) GetSsoLink() string { return v.SsoLink }
 // GetOrganization returns GetAddOnAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOrganization() GetAddOnAddOnOrganization { return v.Organization }
 
+// GetAddOnProvider returns GetAddOnAddOn.AddOnProvider, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetAddOnProvider() GetAddOnAddOnAddOnProvider { return v.AddOnProvider }
+
 // GetApp returns GetAddOnAddOn.App, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetApp() GetAddOnAddOnApp { return v.App }
 
@@ -1370,6 +1594,12 @@ func (v *GetAddOnAddOn) GetId() string { return v.AddOnData.Id }
 
 // GetName returns GetAddOnAddOn.Name, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
+
+// GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
+
+// GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.AddOnData.Metadata }
 
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
@@ -1403,8 +1633,6 @@ type __premarshalGetAddOnAddOn struct {
 
 	Password string `json:"password"`
 
-	Token string `json:"token"`
-
 	Status string `json:"status"`
 
 	PrimaryRegion string `json:"primaryRegion"`
@@ -1417,6 +1645,8 @@ type __premarshalGetAddOnAddOn struct {
 
 	Organization GetAddOnAddOnOrganization `json:"organization"`
 
+	AddOnProvider GetAddOnAddOnAddOnProvider `json:"addOnProvider"`
+
 	App GetAddOnAddOnApp `json:"app"`
 
 	AddOnPlan GetAddOnAddOnAddOnPlan `json:"addOnPlan"`
@@ -1424,6 +1654,10 @@ type __premarshalGetAddOnAddOn struct {
 	Id string `json:"id"`
 
 	Name string `json:"name"`
+
+	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1440,17 +1674,19 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.PublicUrl = v.PublicUrl
 	retval.PrivateIp = v.PrivateIp
 	retval.Password = v.Password
-	retval.Token = v.Token
 	retval.Status = v.Status
 	retval.PrimaryRegion = v.PrimaryRegion
 	retval.ReadRegions = v.ReadRegions
 	retval.Options = v.Options
 	retval.SsoLink = v.SsoLink
 	retval.Organization = v.Organization
+	retval.AddOnProvider = v.AddOnProvider
 	retval.App = v.App
 	retval.AddOnPlan = v.AddOnPlan
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -1470,6 +1706,176 @@ func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
 // GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
 
+// GetAddOnAddOnAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
+type GetAddOnAddOnAddOnProvider struct {
+	ExtensionProviderData `json:"-"`
+}
+
+// GetId returns GetAddOnAddOnAddOnProvider.Id, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetId() string { return v.ExtensionProviderData.Id }
+
+// GetName returns GetAddOnAddOnAddOnProvider.Name, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetName() string { return v.ExtensionProviderData.Name }
+
+// GetDisplayName returns GetAddOnAddOnAddOnProvider.DisplayName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetDisplayName() string {
+	return v.ExtensionProviderData.DisplayName
+}
+
+// GetTosUrl returns GetAddOnAddOnAddOnProvider.TosUrl, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetTosUrl() string { return v.ExtensionProviderData.TosUrl }
+
+// GetAsyncProvisioning returns GetAddOnAddOnAddOnProvider.AsyncProvisioning, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetAsyncProvisioning() bool {
+	return v.ExtensionProviderData.AsyncProvisioning
+}
+
+// GetAutoProvision returns GetAddOnAddOnAddOnProvider.AutoProvision, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetAutoProvision() bool {
+	return v.ExtensionProviderData.AutoProvision
+}
+
+// GetSelectName returns GetAddOnAddOnAddOnProvider.SelectName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetSelectName() bool { return v.ExtensionProviderData.SelectName }
+
+// GetSelectRegion returns GetAddOnAddOnAddOnProvider.SelectRegion, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetSelectRegion() bool {
+	return v.ExtensionProviderData.SelectRegion
+}
+
+// GetSelectReplicaRegions returns GetAddOnAddOnAddOnProvider.SelectReplicaRegions, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetSelectReplicaRegions() bool {
+	return v.ExtensionProviderData.SelectReplicaRegions
+}
+
+// GetDetectPlatform returns GetAddOnAddOnAddOnProvider.DetectPlatform, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetDetectPlatform() bool {
+	return v.ExtensionProviderData.DetectPlatform
+}
+
+// GetResourceName returns GetAddOnAddOnAddOnProvider.ResourceName, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetResourceName() string {
+	return v.ExtensionProviderData.ResourceName
+}
+
+// GetNameSuffix returns GetAddOnAddOnAddOnProvider.NameSuffix, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetNameSuffix() string {
+	return v.ExtensionProviderData.NameSuffix
+}
+
+// GetBeta returns GetAddOnAddOnAddOnProvider.Beta, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetBeta() bool { return v.ExtensionProviderData.Beta }
+
+// GetTosAgreement returns GetAddOnAddOnAddOnProvider.TosAgreement, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetTosAgreement() string {
+	return v.ExtensionProviderData.TosAgreement
+}
+
+// GetInternal returns GetAddOnAddOnAddOnProvider.Internal, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetInternal() bool { return v.ExtensionProviderData.Internal }
+
+// GetProvisioningInstructions returns GetAddOnAddOnAddOnProvider.ProvisioningInstructions, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetProvisioningInstructions() string {
+	return v.ExtensionProviderData.ProvisioningInstructions
+}
+
+// GetExcludedRegions returns GetAddOnAddOnAddOnProvider.ExcludedRegions, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnProvider) GetExcludedRegions() []ExtensionProviderDataExcludedRegionsRegion {
+	return v.ExtensionProviderData.ExcludedRegions
+}
+
+func (v *GetAddOnAddOnAddOnProvider) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetAddOnAddOnAddOnProvider
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetAddOnAddOnAddOnProvider = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.ExtensionProviderData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetAddOnAddOnAddOnProvider struct {
+	Id string `json:"id"`
+
+	Name string `json:"name"`
+
+	DisplayName string `json:"displayName"`
+
+	TosUrl string `json:"tosUrl"`
+
+	AsyncProvisioning bool `json:"asyncProvisioning"`
+
+	AutoProvision bool `json:"autoProvision"`
+
+	SelectName bool `json:"selectName"`
+
+	SelectRegion bool `json:"selectRegion"`
+
+	SelectReplicaRegions bool `json:"selectReplicaRegions"`
+
+	DetectPlatform bool `json:"detectPlatform"`
+
+	ResourceName string `json:"resourceName"`
+
+	NameSuffix string `json:"nameSuffix"`
+
+	Beta bool `json:"beta"`
+
+	TosAgreement string `json:"tosAgreement"`
+
+	Internal bool `json:"internal"`
+
+	ProvisioningInstructions string `json:"provisioningInstructions"`
+
+	ExcludedRegions []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
+}
+
+func (v *GetAddOnAddOnAddOnProvider) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetAddOnAddOnAddOnProvider) __premarshalJSON() (*__premarshalGetAddOnAddOnAddOnProvider, error) {
+	var retval __premarshalGetAddOnAddOnAddOnProvider
+
+	retval.Id = v.ExtensionProviderData.Id
+	retval.Name = v.ExtensionProviderData.Name
+	retval.DisplayName = v.ExtensionProviderData.DisplayName
+	retval.TosUrl = v.ExtensionProviderData.TosUrl
+	retval.AsyncProvisioning = v.ExtensionProviderData.AsyncProvisioning
+	retval.AutoProvision = v.ExtensionProviderData.AutoProvision
+	retval.SelectName = v.ExtensionProviderData.SelectName
+	retval.SelectRegion = v.ExtensionProviderData.SelectRegion
+	retval.SelectReplicaRegions = v.ExtensionProviderData.SelectReplicaRegions
+	retval.DetectPlatform = v.ExtensionProviderData.DetectPlatform
+	retval.ResourceName = v.ExtensionProviderData.ResourceName
+	retval.NameSuffix = v.ExtensionProviderData.NameSuffix
+	retval.Beta = v.ExtensionProviderData.Beta
+	retval.TosAgreement = v.ExtensionProviderData.TosAgreement
+	retval.Internal = v.ExtensionProviderData.Internal
+	retval.ProvisioningInstructions = v.ExtensionProviderData.ProvisioningInstructions
+	retval.ExcludedRegions = v.ExtensionProviderData.ExcludedRegions
+	return &retval, nil
+}
+
 // GetAddOnAddOnApp includes the requested fields of the GraphQL type App.
 type GetAddOnAddOnApp struct {
 	AppData `json:"-"`
@@ -1486,6 +1892,9 @@ func (v *GetAddOnAddOnApp) GetDeployed() bool { return v.AppData.Deployed }
 
 // GetPlatformVersion returns GetAddOnAddOnApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
+
+// GetSecrets returns GetAddOnAddOnApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
 
 // GetOrganization returns GetAddOnAddOnApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
@@ -1524,6 +1933,8 @@ type __premarshalGetAddOnAddOnApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -1542,6 +1953,7 @@ func (v *GetAddOnAddOnApp) __premarshalJSON() (*__premarshalGetAddOnAddOnApp, er
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -1626,6 +2038,9 @@ func (v *GetAddOnProviderAddOnProvider) GetTosAgreement() string {
 	return v.ExtensionProviderData.TosAgreement
 }
 
+// GetInternal returns GetAddOnProviderAddOnProvider.Internal, and is useful for accessing the field via an interface.
+func (v *GetAddOnProviderAddOnProvider) GetInternal() bool { return v.ExtensionProviderData.Internal }
+
 // GetProvisioningInstructions returns GetAddOnProviderAddOnProvider.ProvisioningInstructions, and is useful for accessing the field via an interface.
 func (v *GetAddOnProviderAddOnProvider) GetProvisioningInstructions() string {
 	return v.ExtensionProviderData.ProvisioningInstructions
@@ -1690,6 +2105,8 @@ type __premarshalGetAddOnProviderAddOnProvider struct {
 
 	TosAgreement string `json:"tosAgreement"`
 
+	Internal bool `json:"internal"`
+
 	ProvisioningInstructions string `json:"provisioningInstructions"`
 
 	ExcludedRegions []ExtensionProviderDataExcludedRegionsRegion `json:"excludedRegions"`
@@ -1720,6 +2137,7 @@ func (v *GetAddOnProviderAddOnProvider) __premarshalJSON() (*__premarshalGetAddO
 	retval.NameSuffix = v.ExtensionProviderData.NameSuffix
 	retval.Beta = v.ExtensionProviderData.Beta
 	retval.TosAgreement = v.ExtensionProviderData.TosAgreement
+	retval.Internal = v.ExtensionProviderData.Internal
 	retval.ProvisioningInstructions = v.ExtensionProviderData.ProvisioningInstructions
 	retval.ExcludedRegions = v.ExtensionProviderData.ExcludedRegions
 	return &retval, nil
@@ -1761,6 +2179,9 @@ func (v *GetAppApp) GetDeployed() bool { return v.AppData.Deployed }
 // GetPlatformVersion returns GetAppApp.PlatformVersion, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetPlatformVersion() PlatformVersionEnum { return v.AppData.PlatformVersion }
 
+// GetSecrets returns GetAppApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAppApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
+
 // GetOrganization returns GetAppApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAppApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
 
@@ -1798,6 +2219,8 @@ type __premarshalGetAppApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -1816,43 +2239,10 @@ func (v *GetAppApp) __premarshalJSON() (*__premarshalGetAppApp, error) {
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
-
-// GetAppLockApp includes the requested fields of the GraphQL type App.
-type GetAppLockApp struct {
-	CurrentLock *GetAppLockAppCurrentLockAppLock `json:"currentLock"`
-}
-
-// GetCurrentLock returns GetAppLockApp.CurrentLock, and is useful for accessing the field via an interface.
-func (v *GetAppLockApp) GetCurrentLock() *GetAppLockAppCurrentLockAppLock { return v.CurrentLock }
-
-// GetAppLockAppCurrentLockAppLock includes the requested fields of the GraphQL type AppLock.
-// The GraphQL type's documentation follows.
-//
-// app lock
-type GetAppLockAppCurrentLockAppLock struct {
-	// Lock ID
-	LockId string `json:"lockId"`
-	// Time when the lock expires
-	Expiration time.Time `json:"expiration"`
-}
-
-// GetLockId returns GetAppLockAppCurrentLockAppLock.LockId, and is useful for accessing the field via an interface.
-func (v *GetAppLockAppCurrentLockAppLock) GetLockId() string { return v.LockId }
-
-// GetExpiration returns GetAppLockAppCurrentLockAppLock.Expiration, and is useful for accessing the field via an interface.
-func (v *GetAppLockAppCurrentLockAppLock) GetExpiration() time.Time { return v.Expiration }
-
-// GetAppLockResponse is returned by GetAppLock on success.
-type GetAppLockResponse struct {
-	// Find an app by name
-	App GetAppLockApp `json:"app"`
-}
-
-// GetApp returns GetAppLockResponse.App, and is useful for accessing the field via an interface.
-func (v *GetAppLockResponse) GetApp() GetAppLockApp { return v.App }
 
 // GetAppResponse is returned by GetApp on success.
 type GetAppResponse struct {
@@ -1885,6 +2275,9 @@ func (v *GetAppWithAddonsApp) GetDeployed() bool { return v.AppData.Deployed }
 func (v *GetAppWithAddonsApp) GetPlatformVersion() PlatformVersionEnum {
 	return v.AppData.PlatformVersion
 }
+
+// GetSecrets returns GetAppWithAddonsApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsApp) GetSecrets() []AppDataSecretsSecret { return v.AppData.Secrets }
 
 // GetOrganization returns GetAppWithAddonsApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAppWithAddonsApp) GetOrganization() AppDataOrganization { return v.AppData.Organization }
@@ -1925,6 +2318,8 @@ type __premarshalGetAppWithAddonsApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -1944,6 +2339,7 @@ func (v *GetAppWithAddonsApp) __premarshalJSON() (*__premarshalGetAppWithAddonsA
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -1985,6 +2381,21 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetStatus() string 
 	return v.AddOnData.Status
 }
 
+// GetErrorMessage returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.ErrorMessage, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetErrorMessage() string {
+	return v.AddOnData.ErrorMessage
+}
+
+// GetMetadata returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} {
+	return v.AddOnData.Metadata
+}
+
+// GetOptions returns GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
+func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} {
+	return v.AddOnData.Options
+}
+
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
@@ -2018,6 +2429,12 @@ type __premarshalGetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn struct {
 	PrimaryRegion string `json:"primaryRegion"`
 
 	Status string `json:"status"`
+
+	ErrorMessage string `json:"errorMessage"`
+
+	Metadata interface{} `json:"metadata"`
+
+	Options interface{} `json:"options"`
 }
 
 func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) MarshalJSON() ([]byte, error) {
@@ -2035,6 +2452,9 @@ func (v *GetAppWithAddonsAppAddOnsAddOnConnectionNodesAddOn) __premarshalJSON() 
 	retval.Name = v.AddOnData.Name
 	retval.PrimaryRegion = v.AddOnData.PrimaryRegion
 	retval.Status = v.AddOnData.Status
+	retval.ErrorMessage = v.AddOnData.ErrorMessage
+	retval.Metadata = v.AddOnData.Metadata
+	retval.Options = v.AddOnData.Options
 	return &retval, nil
 }
 
@@ -2080,6 +2500,11 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetPlatformVersion() PlatformVe
 	return v.AppData.PlatformVersion
 }
 
+// GetSecrets returns GetAppsByRoleAppsAppConnectionNodesApp.Secrets, and is useful for accessing the field via an interface.
+func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetSecrets() []AppDataSecretsSecret {
+	return v.AppData.Secrets
+}
+
 // GetOrganization returns GetAppsByRoleAppsAppConnectionNodesApp.Organization, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleAppsAppConnectionNodesApp) GetOrganization() AppDataOrganization {
 	return v.AppData.Organization
@@ -2119,6 +2544,8 @@ type __premarshalGetAppsByRoleAppsAppConnectionNodesApp struct {
 
 	PlatformVersion PlatformVersionEnum `json:"platformVersion"`
 
+	Secrets []AppDataSecretsSecret `json:"secrets"`
+
 	Organization AppDataOrganization `json:"organization"`
 }
 
@@ -2137,6 +2564,7 @@ func (v *GetAppsByRoleAppsAppConnectionNodesApp) __premarshalJSON() (*__premarsh
 	retval.Name = v.AppData.Name
 	retval.Deployed = v.AppData.Deployed
 	retval.PlatformVersion = v.AppData.PlatformVersion
+	retval.Secrets = v.AppData.Secrets
 	retval.Organization = v.AppData.Organization
 	return &retval, nil
 }
@@ -2149,6 +2577,26 @@ type GetAppsByRoleResponse struct {
 
 // GetApps returns GetAppsByRoleResponse.Apps, and is useful for accessing the field via an interface.
 func (v *GetAppsByRoleResponse) GetApps() GetAppsByRoleAppsAppConnection { return v.Apps }
+
+// GetExtensionSsoLinkOrganization includes the requested fields of the GraphQL type Organization.
+type GetExtensionSsoLinkOrganization struct {
+	// Single sign-on link for the given extension type
+	ExtensionSsoLink string `json:"extensionSsoLink"`
+}
+
+// GetExtensionSsoLink returns GetExtensionSsoLinkOrganization.ExtensionSsoLink, and is useful for accessing the field via an interface.
+func (v *GetExtensionSsoLinkOrganization) GetExtensionSsoLink() string { return v.ExtensionSsoLink }
+
+// GetExtensionSsoLinkResponse is returned by GetExtensionSsoLink on success.
+type GetExtensionSsoLinkResponse struct {
+	// Find an organization by ID
+	Organization GetExtensionSsoLinkOrganization `json:"organization"`
+}
+
+// GetOrganization returns GetExtensionSsoLinkResponse.Organization, and is useful for accessing the field via an interface.
+func (v *GetExtensionSsoLinkResponse) GetOrganization() GetExtensionSsoLinkOrganization {
+	return v.Organization
+}
 
 // GetNearestRegionNearestRegion includes the requested fields of the GraphQL type Region.
 type GetNearestRegionNearestRegion struct {
@@ -2180,26 +2628,89 @@ func (v *GetNearestRegionResponse) GetNearestRegion() GetNearestRegionNearestReg
 
 // GetOrganizationOrganization includes the requested fields of the GraphQL type Organization.
 type GetOrganizationOrganization struct {
-	Id string `json:"id"`
-	// Organization name
-	Name string `json:"name"`
-	// Unique organization slug
-	Slug string `json:"slug"`
-	// Single sign-on link for the given integration type
-	AddOnSsoLink string `json:"addOnSsoLink"`
+	OrganizationData `json:"-"`
 }
 
 // GetId returns GetOrganizationOrganization.Id, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetId() string { return v.Id }
-
-// GetName returns GetOrganizationOrganization.Name, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetName() string { return v.Name }
+func (v *GetOrganizationOrganization) GetId() string { return v.OrganizationData.Id }
 
 // GetSlug returns GetOrganizationOrganization.Slug, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetSlug() string { return v.Slug }
+func (v *GetOrganizationOrganization) GetSlug() string { return v.OrganizationData.Slug }
+
+// GetRawSlug returns GetOrganizationOrganization.RawSlug, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetRawSlug() string { return v.OrganizationData.RawSlug }
+
+// GetPaidPlan returns GetOrganizationOrganization.PaidPlan, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetPaidPlan() bool { return v.OrganizationData.PaidPlan }
 
 // GetAddOnSsoLink returns GetOrganizationOrganization.AddOnSsoLink, and is useful for accessing the field via an interface.
-func (v *GetOrganizationOrganization) GetAddOnSsoLink() string { return v.AddOnSsoLink }
+func (v *GetOrganizationOrganization) GetAddOnSsoLink() string {
+	return v.OrganizationData.AddOnSsoLink
+}
+
+// GetProvisionsBetaExtensions returns GetOrganizationOrganization.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *GetOrganizationOrganization) GetProvisionsBetaExtensions() bool {
+	return v.OrganizationData.ProvisionsBetaExtensions
+}
+
+func (v *GetOrganizationOrganization) UnmarshalJSON(b []byte) error {
+
+	if string(b) == "null" {
+		return nil
+	}
+
+	var firstPass struct {
+		*GetOrganizationOrganization
+		graphql.NoUnmarshalJSON
+	}
+	firstPass.GetOrganizationOrganization = v
+
+	err := json.Unmarshal(b, &firstPass)
+	if err != nil {
+		return err
+	}
+
+	err = json.Unmarshal(
+		b, &v.OrganizationData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+type __premarshalGetOrganizationOrganization struct {
+	Id string `json:"id"`
+
+	Slug string `json:"slug"`
+
+	RawSlug string `json:"rawSlug"`
+
+	PaidPlan bool `json:"paidPlan"`
+
+	AddOnSsoLink string `json:"addOnSsoLink"`
+
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
+}
+
+func (v *GetOrganizationOrganization) MarshalJSON() ([]byte, error) {
+	premarshaled, err := v.__premarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(premarshaled)
+}
+
+func (v *GetOrganizationOrganization) __premarshalJSON() (*__premarshalGetOrganizationOrganization, error) {
+	var retval __premarshalGetOrganizationOrganization
+
+	retval.Id = v.OrganizationData.Id
+	retval.Slug = v.OrganizationData.Slug
+	retval.RawSlug = v.OrganizationData.RawSlug
+	retval.PaidPlan = v.OrganizationData.PaidPlan
+	retval.AddOnSsoLink = v.OrganizationData.AddOnSsoLink
+	retval.ProvisionsBetaExtensions = v.OrganizationData.ProvisionsBetaExtensions
+	return &retval, nil
+}
 
 // GetOrganizationResponse is returned by GetOrganization on success.
 type GetOrganizationResponse struct {
@@ -2356,44 +2867,24 @@ type ListAddOnsResponse struct {
 // GetAddOns returns ListAddOnsResponse.AddOns, and is useful for accessing the field via an interface.
 func (v *ListAddOnsResponse) GetAddOns() ListAddOnsAddOnsAddOnConnection { return v.AddOns }
 
-// Autogenerated input type of LockApp
-type LockAppInput struct {
-	// The ID of the app
-	AppId string `json:"appId"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-}
-
-// GetAppId returns LockAppInput.AppId, and is useful for accessing the field via an interface.
-func (v *LockAppInput) GetAppId() string { return v.AppId }
-
-// GetClientMutationId returns LockAppInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *LockAppInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// LockAppLockAppLockAppPayload includes the requested fields of the GraphQL type LockAppPayload.
+// LogOutLogOutLogOutPayload includes the requested fields of the GraphQL type LogOutPayload.
 // The GraphQL type's documentation follows.
 //
-// Autogenerated return type of LockApp.
-type LockAppLockAppLockAppPayload struct {
-	// Unique lock ID
-	LockId string `json:"lockId"`
-	// When this lock automatically expires
-	Expiration time.Time `json:"expiration"`
+// Autogenerated return type of LogOut.
+type LogOutLogOutLogOutPayload struct {
+	Ok bool `json:"ok"`
 }
 
-// GetLockId returns LockAppLockAppLockAppPayload.LockId, and is useful for accessing the field via an interface.
-func (v *LockAppLockAppLockAppPayload) GetLockId() string { return v.LockId }
+// GetOk returns LogOutLogOutLogOutPayload.Ok, and is useful for accessing the field via an interface.
+func (v *LogOutLogOutLogOutPayload) GetOk() bool { return v.Ok }
 
-// GetExpiration returns LockAppLockAppLockAppPayload.Expiration, and is useful for accessing the field via an interface.
-func (v *LockAppLockAppLockAppPayload) GetExpiration() time.Time { return v.Expiration }
-
-// LockAppResponse is returned by LockApp on success.
-type LockAppResponse struct {
-	LockApp LockAppLockAppLockAppPayload `json:"lockApp"`
+// LogOutResponse is returned by LogOut on success.
+type LogOutResponse struct {
+	LogOut LogOutLogOutLogOutPayload `json:"logOut"`
 }
 
-// GetLockApp returns LockAppResponse.LockApp, and is useful for accessing the field via an interface.
-func (v *LockAppResponse) GetLockApp() LockAppLockAppLockAppPayload { return v.LockApp }
+// GetLogOut returns LogOutResponse.LogOut, and is useful for accessing the field via an interface.
+func (v *LogOutResponse) GetLogOut() LogOutLogOutLogOutPayload { return v.LogOut }
 
 // MachinesCreateReleaseCreateReleaseCreateReleasePayload includes the requested fields of the GraphQL type CreateReleasePayload.
 // The GraphQL type's documentation follows.
@@ -2466,46 +2957,37 @@ type MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease struct {
 // GetId returns MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease.Id, and is useful for accessing the field via an interface.
 func (v *MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease) GetId() string { return v.Id }
 
-// MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload includes the requested fields of the GraphQL type CreateReleasePayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of CreateRelease.
-type MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload struct {
-	Release MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease `json:"release"`
-}
-
-// GetRelease returns MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload.Release, and is useful for accessing the field via an interface.
-func (v *MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload) GetRelease() MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease {
-	return v.Release
-}
-
-// MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease includes the requested fields of the GraphQL type Release.
-type MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease struct {
-	// Unique ID
+// OrganizationData includes the GraphQL fields of Organization requested by the fragment OrganizationData.
+type OrganizationData struct {
 	Id string `json:"id"`
-	// The version of the release
-	Version int `json:"version"`
+	// Unique organization slug
+	Slug string `json:"slug"`
+	// Unmodified unique org slug
+	RawSlug  string `json:"rawSlug"`
+	PaidPlan bool   `json:"paidPlan"`
+	// Single sign-on link for the given integration type
+	AddOnSsoLink string `json:"addOnSsoLink"`
+	// Whether the organization can provision beta extensions
+	ProvisionsBetaExtensions bool `json:"provisionsBetaExtensions"`
 }
 
-// GetId returns MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease.Id, and is useful for accessing the field via an interface.
-func (v *MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease) GetId() string {
-	return v.Id
-}
+// GetId returns OrganizationData.Id, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetId() string { return v.Id }
 
-// GetVersion returns MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease.Version, and is useful for accessing the field via an interface.
-func (v *MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease) GetVersion() int {
-	return v.Version
-}
+// GetSlug returns OrganizationData.Slug, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetSlug() string { return v.Slug }
 
-// MigrateMachinesCreateReleaseResponse is returned by MigrateMachinesCreateRelease on success.
-type MigrateMachinesCreateReleaseResponse struct {
-	CreateRelease MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload `json:"createRelease"`
-}
+// GetRawSlug returns OrganizationData.RawSlug, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetRawSlug() string { return v.RawSlug }
 
-// GetCreateRelease returns MigrateMachinesCreateReleaseResponse.CreateRelease, and is useful for accessing the field via an interface.
-func (v *MigrateMachinesCreateReleaseResponse) GetCreateRelease() MigrateMachinesCreateReleaseCreateReleaseCreateReleasePayload {
-	return v.CreateRelease
-}
+// GetPaidPlan returns OrganizationData.PaidPlan, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetPaidPlan() bool { return v.PaidPlan }
+
+// GetAddOnSsoLink returns OrganizationData.AddOnSsoLink, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetAddOnSsoLink() string { return v.AddOnSsoLink }
+
+// GetProvisionsBetaExtensions returns OrganizationData.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
+func (v *OrganizationData) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
 
 type PlatformVersionEnum string
 
@@ -2636,59 +3118,6 @@ func (v *SecretInput) GetKey() string { return v.Key }
 // GetValue returns SecretInput.Value, and is useful for accessing the field via an interface.
 func (v *SecretInput) GetValue() string { return v.Value }
 
-// SelfServiceSetPlatformVersionResponse is returned by SelfServiceSetPlatformVersion on success.
-type SelfServiceSetPlatformVersionResponse struct {
-	SetPlatformVersion SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayload `json:"setPlatformVersion"`
-}
-
-// GetSetPlatformVersion returns SelfServiceSetPlatformVersionResponse.SetPlatformVersion, and is useful for accessing the field via an interface.
-func (v *SelfServiceSetPlatformVersionResponse) GetSetPlatformVersion() SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayload {
-	return v.SetPlatformVersion
-}
-
-// SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayload includes the requested fields of the GraphQL type SetPlatformVersionPayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of SetPlatformVersion.
-type SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayload struct {
-	App SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp `json:"app"`
-}
-
-// GetApp returns SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayload.App, and is useful for accessing the field via an interface.
-func (v *SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayload) GetApp() SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp {
-	return v.App
-}
-
-// SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp includes the requested fields of the GraphQL type App.
-type SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp struct {
-	// Unique application ID
-	Id string `json:"id"`
-}
-
-// GetId returns SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp.Id, and is useful for accessing the field via an interface.
-func (v *SelfServiceSetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp) GetId() string {
-	return v.Id
-}
-
-// Autogenerated input type of SetAppsv2DefaultOn
-type SetAppsv2DefaultOnInput struct {
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// Whether or not new apps in this org use Apps V2 by default
-	DefaultOn bool `json:"defaultOn"`
-	// The organization slug
-	OrganizationSlug string `json:"organizationSlug"`
-}
-
-// GetClientMutationId returns SetAppsv2DefaultOnInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *SetAppsv2DefaultOnInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetDefaultOn returns SetAppsv2DefaultOnInput.DefaultOn, and is useful for accessing the field via an interface.
-func (v *SetAppsv2DefaultOnInput) GetDefaultOn() bool { return v.DefaultOn }
-
-// GetOrganizationSlug returns SetAppsv2DefaultOnInput.OrganizationSlug, and is useful for accessing the field via an interface.
-func (v *SetAppsv2DefaultOnInput) GetOrganizationSlug() string { return v.OrganizationSlug }
-
 // SetNomadVMCountResponse is returned by SetNomadVMCount on success.
 type SetNomadVMCountResponse struct {
 	SetVmCount SetNomadVMCountSetVmCountSetVMCountPayload `json:"setVmCount"`
@@ -2730,97 +3159,6 @@ func (v *SetNomadVMCountSetVmCountSetVMCountPayloadTaskGroupCountsTaskGroupCount
 // GetCount returns SetNomadVMCountSetVmCountSetVMCountPayloadTaskGroupCountsTaskGroupCount.Count, and is useful for accessing the field via an interface.
 func (v *SetNomadVMCountSetVmCountSetVMCountPayloadTaskGroupCountsTaskGroupCount) GetCount() int {
 	return v.Count
-}
-
-// SetOrgSettingsResponse is returned by SetOrgSettings on success.
-type SetOrgSettingsResponse struct {
-	SetAppsV2DefaultOn SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayload `json:"setAppsV2DefaultOn"`
-}
-
-// GetSetAppsV2DefaultOn returns SetOrgSettingsResponse.SetAppsV2DefaultOn, and is useful for accessing the field via an interface.
-func (v *SetOrgSettingsResponse) GetSetAppsV2DefaultOn() SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayload {
-	return v.SetAppsV2DefaultOn
-}
-
-// SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayload includes the requested fields of the GraphQL type SetAppsv2DefaultOnPayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of SetAppsv2DefaultOn.
-type SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayload struct {
-	Organization SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayloadOrganization `json:"organization"`
-}
-
-// GetOrganization returns SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayload.Organization, and is useful for accessing the field via an interface.
-func (v *SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayload) GetOrganization() SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayloadOrganization {
-	return v.Organization
-}
-
-// SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayloadOrganization includes the requested fields of the GraphQL type Organization.
-type SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayloadOrganization struct {
-	Settings interface{} `json:"settings"`
-}
-
-// GetSettings returns SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayloadOrganization.Settings, and is useful for accessing the field via an interface.
-func (v *SetOrgSettingsSetAppsV2DefaultOnSetAppsv2DefaultOnPayloadOrganization) GetSettings() interface{} {
-	return v.Settings
-}
-
-// Autogenerated input type of SetPlatformVersion
-type SetPlatformVersionInput struct {
-	// The ID of the app
-	AppId string `json:"appId"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// Unique lock ID
-	LockId string `json:"lockId"`
-	// nomad or machines
-	PlatformVersion string `json:"platformVersion"`
-}
-
-// GetAppId returns SetPlatformVersionInput.AppId, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionInput) GetAppId() string { return v.AppId }
-
-// GetClientMutationId returns SetPlatformVersionInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetLockId returns SetPlatformVersionInput.LockId, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionInput) GetLockId() string { return v.LockId }
-
-// GetPlatformVersion returns SetPlatformVersionInput.PlatformVersion, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionInput) GetPlatformVersion() string { return v.PlatformVersion }
-
-// SetPlatformVersionResponse is returned by SetPlatformVersion on success.
-type SetPlatformVersionResponse struct {
-	SetPlatformVersion SetPlatformVersionSetPlatformVersionSetPlatformVersionPayload `json:"setPlatformVersion"`
-}
-
-// GetSetPlatformVersion returns SetPlatformVersionResponse.SetPlatformVersion, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionResponse) GetSetPlatformVersion() SetPlatformVersionSetPlatformVersionSetPlatformVersionPayload {
-	return v.SetPlatformVersion
-}
-
-// SetPlatformVersionSetPlatformVersionSetPlatformVersionPayload includes the requested fields of the GraphQL type SetPlatformVersionPayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of SetPlatformVersion.
-type SetPlatformVersionSetPlatformVersionSetPlatformVersionPayload struct {
-	App SetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp `json:"app"`
-}
-
-// GetApp returns SetPlatformVersionSetPlatformVersionSetPlatformVersionPayload.App, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionSetPlatformVersionSetPlatformVersionPayload) GetApp() SetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp {
-	return v.App
-}
-
-// SetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp includes the requested fields of the GraphQL type App.
-type SetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp struct {
-	// Unique application ID
-	Id string `json:"id"`
-}
-
-// GetId returns SetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp.Id, and is useful for accessing the field via an interface.
-func (v *SetPlatformVersionSetPlatformVersionSetPlatformVersionPayloadApp) GetId() string {
-	return v.Id
 }
 
 // Autogenerated input type of SetSecrets
@@ -2953,55 +3291,6 @@ func (v *SetVMCountInput) GetGroupCounts() []VMCountInput { return v.GroupCounts
 // GetLockId returns SetVMCountInput.LockId, and is useful for accessing the field via an interface.
 func (v *SetVMCountInput) GetLockId() string { return v.LockId }
 
-// Autogenerated input type of UnlockApp
-type UnlockAppInput struct {
-	// The ID of the app
-	AppId string `json:"appId"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// Unique lock ID
-	LockId string `json:"lockId"`
-}
-
-// GetAppId returns UnlockAppInput.AppId, and is useful for accessing the field via an interface.
-func (v *UnlockAppInput) GetAppId() string { return v.AppId }
-
-// GetClientMutationId returns UnlockAppInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *UnlockAppInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetLockId returns UnlockAppInput.LockId, and is useful for accessing the field via an interface.
-func (v *UnlockAppInput) GetLockId() string { return v.LockId }
-
-// UnlockAppResponse is returned by UnlockApp on success.
-type UnlockAppResponse struct {
-	UnlockApp UnlockAppUnlockAppUnlockAppPayload `json:"unlockApp"`
-}
-
-// GetUnlockApp returns UnlockAppResponse.UnlockApp, and is useful for accessing the field via an interface.
-func (v *UnlockAppResponse) GetUnlockApp() UnlockAppUnlockAppUnlockAppPayload { return v.UnlockApp }
-
-// UnlockAppUnlockAppUnlockAppPayload includes the requested fields of the GraphQL type UnlockAppPayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of UnlockApp.
-type UnlockAppUnlockAppUnlockAppPayload struct {
-	App UnlockAppUnlockAppUnlockAppPayloadApp `json:"app"`
-}
-
-// GetApp returns UnlockAppUnlockAppUnlockAppPayload.App, and is useful for accessing the field via an interface.
-func (v *UnlockAppUnlockAppUnlockAppPayload) GetApp() UnlockAppUnlockAppUnlockAppPayloadApp {
-	return v.App
-}
-
-// UnlockAppUnlockAppUnlockAppPayloadApp includes the requested fields of the GraphQL type App.
-type UnlockAppUnlockAppUnlockAppPayloadApp struct {
-	// Unique application ID
-	Id string `json:"id"`
-}
-
-// GetId returns UnlockAppUnlockAppUnlockAppPayloadApp.Id, and is useful for accessing the field via an interface.
-func (v *UnlockAppUnlockAppUnlockAppPayloadApp) GetId() string { return v.Id }
-
 // UpdateAddOnResponse is returned by UpdateAddOn on success.
 type UpdateAddOnResponse struct {
 	UpdateAddOn UpdateAddOnUpdateAddOnUpdateAddOnPayload `json:"updateAddOn"`
@@ -3081,14 +3370,10 @@ func (v *__AgentGetInstancesInput) GetAppName() string { return v.AppName }
 // __AgreedToProviderTosInput is used internally by genqlient
 type __AgreedToProviderTosInput struct {
 	AddOnProviderName string `json:"addOnProviderName"`
-	OrganizationId    string `json:"organizationId"`
 }
 
 // GetAddOnProviderName returns __AgreedToProviderTosInput.AddOnProviderName, and is useful for accessing the field via an interface.
 func (v *__AgreedToProviderTosInput) GetAddOnProviderName() string { return v.AddOnProviderName }
-
-// GetOrganizationId returns __AgreedToProviderTosInput.OrganizationId, and is useful for accessing the field via an interface.
-func (v *__AgreedToProviderTosInput) GetOrganizationId() string { return v.OrganizationId }
 
 // __AllAppsInput is used internally by genqlient
 type __AllAppsInput struct {
@@ -3148,11 +3433,11 @@ func (v *__CreateLimitedAccessTokenInput) GetExpiry() string { return v.Expiry }
 
 // __CreateTosAgreementInput is used internally by genqlient
 type __CreateTosAgreementInput struct {
-	Input CreateExtensionTosAgreementInput `json:"input"`
+	ProviderName string `json:"providerName"`
 }
 
-// GetInput returns __CreateTosAgreementInput.Input, and is useful for accessing the field via an interface.
-func (v *__CreateTosAgreementInput) GetInput() CreateExtensionTosAgreementInput { return v.Input }
+// GetProviderName returns __CreateTosAgreementInput.ProviderName, and is useful for accessing the field via an interface.
+func (v *__CreateTosAgreementInput) GetProviderName() string { return v.ProviderName }
 
 // __DeleteAddOnInput is used internally by genqlient
 type __DeleteAddOnInput struct {
@@ -3202,14 +3487,6 @@ type __GetAppInput struct {
 // GetName returns __GetAppInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAppInput) GetName() string { return v.Name }
 
-// __GetAppLockInput is used internally by genqlient
-type __GetAppLockInput struct {
-	AppName string `json:"appName"`
-}
-
-// GetAppName returns __GetAppLockInput.AppName, and is useful for accessing the field via an interface.
-func (v *__GetAppLockInput) GetAppName() string { return v.AppName }
-
 // __GetAppWithAddonsInput is used internally by genqlient
 type __GetAppWithAddonsInput struct {
 	Name      string    `json:"name"`
@@ -3234,6 +3511,18 @@ func (v *__GetAppsByRoleInput) GetRole() string { return v.Role }
 // GetOrganizationId returns __GetAppsByRoleInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *__GetAppsByRoleInput) GetOrganizationId() string { return v.OrganizationId }
 
+// __GetExtensionSsoLinkInput is used internally by genqlient
+type __GetExtensionSsoLinkInput struct {
+	OrgSlug  string `json:"orgSlug"`
+	Provider string `json:"provider"`
+}
+
+// GetOrgSlug returns __GetExtensionSsoLinkInput.OrgSlug, and is useful for accessing the field via an interface.
+func (v *__GetExtensionSsoLinkInput) GetOrgSlug() string { return v.OrgSlug }
+
+// GetProvider returns __GetExtensionSsoLinkInput.Provider, and is useful for accessing the field via an interface.
+func (v *__GetExtensionSsoLinkInput) GetProvider() string { return v.Provider }
+
 // __GetOrganizationInput is used internally by genqlient
 type __GetOrganizationInput struct {
 	Slug string `json:"slug"`
@@ -3250,14 +3539,6 @@ type __ListAddOnsInput struct {
 // GetAddOnType returns __ListAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
 
-// __LockAppInput is used internally by genqlient
-type __LockAppInput struct {
-	Input LockAppInput `json:"input"`
-}
-
-// GetInput returns __LockAppInput.Input, and is useful for accessing the field via an interface.
-func (v *__LockAppInput) GetInput() LockAppInput { return v.Input }
-
 // __MachinesCreateReleaseInput is used internally by genqlient
 type __MachinesCreateReleaseInput struct {
 	Input CreateReleaseInput `json:"input"`
@@ -3273,14 +3554,6 @@ type __MachinesUpdateReleaseInput struct {
 
 // GetInput returns __MachinesUpdateReleaseInput.Input, and is useful for accessing the field via an interface.
 func (v *__MachinesUpdateReleaseInput) GetInput() UpdateReleaseInput { return v.Input }
-
-// __MigrateMachinesCreateReleaseInput is used internally by genqlient
-type __MigrateMachinesCreateReleaseInput struct {
-	Input CreateReleaseInput `json:"input"`
-}
-
-// GetInput returns __MigrateMachinesCreateReleaseInput.Input, and is useful for accessing the field via an interface.
-func (v *__MigrateMachinesCreateReleaseInput) GetInput() CreateReleaseInput { return v.Input }
 
 // __ResetAddOnPasswordInput is used internally by genqlient
 type __ResetAddOnPasswordInput struct {
@@ -3306,14 +3579,6 @@ type __ResolverFinishBuildInput struct {
 // GetInput returns __ResolverFinishBuildInput.Input, and is useful for accessing the field via an interface.
 func (v *__ResolverFinishBuildInput) GetInput() FinishBuildInput { return v.Input }
 
-// __SelfServiceSetPlatformVersionInput is used internally by genqlient
-type __SelfServiceSetPlatformVersionInput struct {
-	Input SetPlatformVersionInput `json:"input"`
-}
-
-// GetInput returns __SelfServiceSetPlatformVersionInput.Input, and is useful for accessing the field via an interface.
-func (v *__SelfServiceSetPlatformVersionInput) GetInput() SetPlatformVersionInput { return v.Input }
-
 // __SetNomadVMCountInput is used internally by genqlient
 type __SetNomadVMCountInput struct {
 	Input SetVMCountInput `json:"input"`
@@ -3322,22 +3587,6 @@ type __SetNomadVMCountInput struct {
 // GetInput returns __SetNomadVMCountInput.Input, and is useful for accessing the field via an interface.
 func (v *__SetNomadVMCountInput) GetInput() SetVMCountInput { return v.Input }
 
-// __SetOrgSettingsInput is used internally by genqlient
-type __SetOrgSettingsInput struct {
-	Input SetAppsv2DefaultOnInput `json:"input"`
-}
-
-// GetInput returns __SetOrgSettingsInput.Input, and is useful for accessing the field via an interface.
-func (v *__SetOrgSettingsInput) GetInput() SetAppsv2DefaultOnInput { return v.Input }
-
-// __SetPlatformVersionInput is used internally by genqlient
-type __SetPlatformVersionInput struct {
-	Input SetPlatformVersionInput `json:"input"`
-}
-
-// GetInput returns __SetPlatformVersionInput.Input, and is useful for accessing the field via an interface.
-func (v *__SetPlatformVersionInput) GetInput() SetPlatformVersionInput { return v.Input }
-
 // __SetSecretsInput is used internally by genqlient
 type __SetSecretsInput struct {
 	Input SetSecretsInput `json:"input"`
@@ -3345,14 +3594,6 @@ type __SetSecretsInput struct {
 
 // GetInput returns __SetSecretsInput.Input, and is useful for accessing the field via an interface.
 func (v *__SetSecretsInput) GetInput() SetSecretsInput { return v.Input }
-
-// __UnlockAppInput is used internally by genqlient
-type __UnlockAppInput struct {
-	Input UnlockAppInput `json:"input"`
-}
-
-// GetInput returns __UnlockAppInput.Input, and is useful for accessing the field via an interface.
-func (v *__UnlockAppInput) GetInput() UnlockAppInput { return v.Input }
 
 // __UpdateAddOnInput is used internally by genqlient
 type __UpdateAddOnInput struct {
@@ -3376,7 +3617,6 @@ func (v *__UpdateAddOnInput) GetOptions() interface{} { return v.Options }
 
 // The query or mutation executed by AgentGetInstances.
 const AgentGetInstances_Operation = `
-# @genqlient
 query AgentGetInstances ($appName: String!) {
 	app(name: $appName) {
 		organization {
@@ -3435,9 +3675,12 @@ func AgentGetInstances(
 
 // The query or mutation executed by AgreedToProviderTos.
 const AgreedToProviderTos_Operation = `
-query AgreedToProviderTos ($addOnProviderName: String!, $organizationId: ID!) {
-	organization(id: $organizationId) {
-		agreedToProviderTos(providerName: $addOnProviderName)
+query AgreedToProviderTos ($addOnProviderName: String!) {
+	viewer {
+		__typename
+		... on User {
+			agreedToProviderTos(providerName: $addOnProviderName)
+		}
 	}
 }
 `
@@ -3446,14 +3689,12 @@ func AgreedToProviderTos(
 	ctx context.Context,
 	client graphql.Client,
 	addOnProviderName string,
-	organizationId string,
 ) (*AgreedToProviderTosResponse, error) {
 	req := &graphql.Request{
 		OpName: "AgreedToProviderTos",
 		Query:  AgreedToProviderTos_Operation,
 		Variables: &__AgreedToProviderTosInput{
 			AddOnProviderName: addOnProviderName,
-			OrganizationId:    organizationId,
 		},
 	}
 	var err error
@@ -3472,7 +3713,6 @@ func AgreedToProviderTos(
 
 // The query or mutation executed by AllApps.
 const AllApps_Operation = `
-# @genqlient
 query AllApps ($orgSlug: String!) {
 	organization(slug: $orgSlug) {
 		apps {
@@ -3519,7 +3759,6 @@ mutation CreateAddOn ($input: CreateAddOnInput!) {
 			name
 			publicUrl
 			ssoLink
-			token
 			environment
 			primaryRegion
 		}
@@ -3574,13 +3813,20 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
-	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+	secrets {
+		name
 	}
+	organization {
+		... OrganizationData
+	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -3700,8 +3946,8 @@ func CreateLimitedAccessToken(
 
 // The query or mutation executed by CreateTosAgreement.
 const CreateTosAgreement_Operation = `
-mutation CreateTosAgreement ($input: CreateExtensionTosAgreementInput!) {
-	createExtensionTosAgreement(input: $input) {
+mutation CreateTosAgreement ($providerName: String!) {
+	createExtensionTosAgreement(input: {addOnProviderName:$providerName}) {
 		clientMutationId
 	}
 }
@@ -3710,13 +3956,13 @@ mutation CreateTosAgreement ($input: CreateExtensionTosAgreementInput!) {
 func CreateTosAgreement(
 	ctx context.Context,
 	client graphql.Client,
-	input CreateExtensionTosAgreementInput,
+	providerName string,
 ) (*CreateTosAgreementResponse, error) {
 	req := &graphql.Request{
 		OpName: "CreateTosAgreement",
 		Query:  CreateTosAgreement_Operation,
 		Variables: &__CreateTosAgreementInput{
-			Input: input,
+			ProviderName: providerName,
 		},
 	}
 	var err error
@@ -3770,7 +4016,6 @@ func DeleteAddOn(
 
 // The query or mutation executed by FlyctlConfigCurrentRelease.
 const FlyctlConfigCurrentRelease_Operation = `
-# @genqlient
 query FlyctlConfigCurrentRelease ($appName: String!) {
 	app(name: $appName) {
 		currentReleaseUnprocessed {
@@ -3808,7 +4053,6 @@ func FlyctlConfigCurrentRelease(
 
 // The query or mutation executed by FlyctlDeployGetLatestImage.
 const FlyctlDeployGetLatestImage_Operation = `
-# @genqlient
 query FlyctlDeployGetLatestImage ($appName: String!) {
 	app(name: $appName) {
 		currentReleaseUnprocessed {
@@ -3854,7 +4098,6 @@ query GetAddOn ($name: String) {
 		publicUrl
 		privateIp
 		password
-		token
 		status
 		primaryRegion
 		readRegions
@@ -3863,6 +4106,9 @@ query GetAddOn ($name: String) {
 		organization {
 			slug
 			paidPlan
+		}
+		addOnProvider {
+			... ExtensionProviderData
 		}
 		app {
 			... AppData
@@ -3879,19 +4125,50 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
+	metadata
+	options
+}
+fragment ExtensionProviderData on AddOnProvider {
+	id
+	name
+	displayName
+	tosUrl
+	asyncProvisioning
+	autoProvision
+	selectName
+	selectRegion
+	selectReplicaRegions
+	detectPlatform
+	resourceName
+	nameSuffix
+	beta
+	tosAgreement
+	internal
+	provisioningInstructions
+	excludedRegions {
+		code
+	}
 }
 fragment AppData on App {
 	id
 	name
 	deployed
 	platformVersion
-	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+	secrets {
+		name
 	}
+	organization {
+		... OrganizationData
+	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -3943,6 +4220,7 @@ fragment ExtensionProviderData on AddOnProvider {
 	nameSuffix
 	beta
 	tosAgreement
+	internal
 	provisioningInstructions
 	excludedRegions {
 		code
@@ -3988,13 +4266,20 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
-	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+	secrets {
+		name
 	}
+	organization {
+		... OrganizationData
+	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4024,46 +4309,6 @@ func GetApp(
 	return &data, err
 }
 
-// The query or mutation executed by GetAppLock.
-const GetAppLock_Operation = `
-# @genqlient
-query GetAppLock ($appName: String!) {
-	app(name: $appName) {
-		# @genqlient(pointer: true)
-		currentLock {
-			lockId
-			expiration
-		}
-	}
-}
-`
-
-func GetAppLock(
-	ctx context.Context,
-	client graphql.Client,
-	appName string,
-) (*GetAppLockResponse, error) {
-	req := &graphql.Request{
-		OpName: "GetAppLock",
-		Query:  GetAppLock_Operation,
-		Variables: &__GetAppLockInput{
-			AppName: appName,
-		},
-	}
-	var err error
-
-	var data GetAppLockResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
 // The query or mutation executed by GetAppWithAddons.
 const GetAppWithAddons_Operation = `
 query GetAppWithAddons ($name: String!, $addOnType: AddOnType!) {
@@ -4081,12 +4326,11 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
+	secrets {
+		name
+	}
 	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+		... OrganizationData
 	}
 }
 fragment AddOnData on AddOn {
@@ -4094,6 +4338,17 @@ fragment AddOnData on AddOn {
 	name
 	primaryRegion
 	status
+	errorMessage
+	metadata
+	options
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4139,13 +4394,20 @@ fragment AppData on App {
 	name
 	deployed
 	platformVersion
-	organization {
-		id
-		slug
-		rawSlug
-		paidPlan
-		provisionsBetaExtensions
+	secrets {
+		name
 	}
+	organization {
+		... OrganizationData
+	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4166,6 +4428,43 @@ func GetAppsByRole(
 	var err error
 
 	var data GetAppsByRoleResponse
+	resp := &graphql.Response{Data: &data}
+
+	err = client.MakeRequest(
+		ctx,
+		req,
+		resp,
+	)
+
+	return &data, err
+}
+
+// The query or mutation executed by GetExtensionSsoLink.
+const GetExtensionSsoLink_Operation = `
+query GetExtensionSsoLink ($orgSlug: String!, $provider: String!) {
+	organization(slug: $orgSlug) {
+		extensionSsoLink(provider: $provider)
+	}
+}
+`
+
+func GetExtensionSsoLink(
+	ctx context.Context,
+	client graphql.Client,
+	orgSlug string,
+	provider string,
+) (*GetExtensionSsoLinkResponse, error) {
+	req := &graphql.Request{
+		OpName: "GetExtensionSsoLink",
+		Query:  GetExtensionSsoLink_Operation,
+		Variables: &__GetExtensionSsoLinkInput{
+			OrgSlug:  orgSlug,
+			Provider: provider,
+		},
+	}
+	var err error
+
+	var data GetExtensionSsoLinkResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
@@ -4214,11 +4513,16 @@ func GetNearestRegion(
 const GetOrganization_Operation = `
 query GetOrganization ($slug: String!) {
 	organization(slug: $slug) {
-		id
-		name
-		slug
-		addOnSsoLink
+		... OrganizationData
 	}
+}
+fragment OrganizationData on Organization {
+	id
+	slug
+	rawSlug
+	paidPlan
+	addOnSsoLink
+	provisionsBetaExtensions
 }
 `
 
@@ -4250,7 +4554,6 @@ func GetOrganization(
 
 // The query or mutation executed by ListAddOnPlans.
 const ListAddOnPlans_Operation = `
-# @genqlient
 query ListAddOnPlans {
 	addOnPlans {
 		nodes {
@@ -4334,32 +4637,26 @@ func ListAddOns(
 	return &data, err
 }
 
-// The query or mutation executed by LockApp.
-const LockApp_Operation = `
-# @genqlient
-mutation LockApp ($input: LockAppInput!) {
-	lockApp(input: $input) {
-		lockId
-		expiration
+// The query or mutation executed by LogOut.
+const LogOut_Operation = `
+mutation LogOut {
+	logOut(input: {}) {
+		ok
 	}
 }
 `
 
-func LockApp(
+func LogOut(
 	ctx context.Context,
 	client graphql.Client,
-	input LockAppInput,
-) (*LockAppResponse, error) {
+) (*LogOutResponse, error) {
 	req := &graphql.Request{
-		OpName: "LockApp",
-		Query:  LockApp_Operation,
-		Variables: &__LockAppInput{
-			Input: input,
-		},
+		OpName: "LogOut",
+		Query:  LogOut_Operation,
 	}
 	var err error
 
-	var data LockAppResponse
+	var data LogOutResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
@@ -4373,7 +4670,6 @@ func LockApp(
 
 // The query or mutation executed by MachinesCreateRelease.
 const MachinesCreateRelease_Operation = `
-# @genqlient
 mutation MachinesCreateRelease ($input: CreateReleaseInput!) {
 	createRelease(input: $input) {
 		release {
@@ -4412,7 +4708,6 @@ func MachinesCreateRelease(
 
 // The query or mutation executed by MachinesUpdateRelease.
 const MachinesUpdateRelease_Operation = `
-# @genqlient
 mutation MachinesUpdateRelease ($input: UpdateReleaseInput!) {
 	updateRelease(input: $input) {
 		release {
@@ -4448,48 +4743,8 @@ func MachinesUpdateRelease(
 	return &data, err
 }
 
-// The query or mutation executed by MigrateMachinesCreateRelease.
-const MigrateMachinesCreateRelease_Operation = `
-# @genqlient
-mutation MigrateMachinesCreateRelease ($input: CreateReleaseInput!) {
-	createRelease(input: $input) {
-		release {
-			id
-			version
-		}
-	}
-}
-`
-
-func MigrateMachinesCreateRelease(
-	ctx context.Context,
-	client graphql.Client,
-	input CreateReleaseInput,
-) (*MigrateMachinesCreateReleaseResponse, error) {
-	req := &graphql.Request{
-		OpName: "MigrateMachinesCreateRelease",
-		Query:  MigrateMachinesCreateRelease_Operation,
-		Variables: &__MigrateMachinesCreateReleaseInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data MigrateMachinesCreateReleaseResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
 // The query or mutation executed by ResetAddOnPassword.
 const ResetAddOnPassword_Operation = `
-# @genqlient
 mutation ResetAddOnPassword ($name: String!) {
 	resetAddOnPassword(input: {name:$name}) {
 		addOn {
@@ -4527,7 +4782,6 @@ func ResetAddOnPassword(
 
 // The query or mutation executed by ResolverCreateBuild.
 const ResolverCreateBuild_Operation = `
-# @genqlient
 mutation ResolverCreateBuild ($input: CreateBuildInput!) {
 	createBuild(input: $input) {
 		id
@@ -4564,7 +4818,6 @@ func ResolverCreateBuild(
 
 // The query or mutation executed by ResolverFinishBuild.
 const ResolverFinishBuild_Operation = `
-# @genqlient
 mutation ResolverFinishBuild ($input: FinishBuildInput!) {
 	finishBuild(input: $input) {
 		id
@@ -4589,44 +4842,6 @@ func ResolverFinishBuild(
 	var err error
 
 	var data ResolverFinishBuildResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
-// The query or mutation executed by SelfServiceSetPlatformVersion.
-const SelfServiceSetPlatformVersion_Operation = `
-# @genqlient
-mutation SelfServiceSetPlatformVersion ($input: SetPlatformVersionInput!) {
-	setPlatformVersion(input: $input) {
-		app {
-			id
-		}
-	}
-}
-`
-
-func SelfServiceSetPlatformVersion(
-	ctx context.Context,
-	client graphql.Client,
-	input SetPlatformVersionInput,
-) (*SelfServiceSetPlatformVersionResponse, error) {
-	req := &graphql.Request{
-		OpName: "SelfServiceSetPlatformVersion",
-		Query:  SelfServiceSetPlatformVersion_Operation,
-		Variables: &__SelfServiceSetPlatformVersionInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data SelfServiceSetPlatformVersionResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
@@ -4666,82 +4881,6 @@ func SetNomadVMCount(
 	var err error
 
 	var data SetNomadVMCountResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
-// The query or mutation executed by SetOrgSettings.
-const SetOrgSettings_Operation = `
-# @genqlient
-mutation SetOrgSettings ($input: SetAppsv2DefaultOnInput!) {
-	setAppsV2DefaultOn(input: $input) {
-		organization {
-			settings
-		}
-	}
-}
-`
-
-func SetOrgSettings(
-	ctx context.Context,
-	client graphql.Client,
-	input SetAppsv2DefaultOnInput,
-) (*SetOrgSettingsResponse, error) {
-	req := &graphql.Request{
-		OpName: "SetOrgSettings",
-		Query:  SetOrgSettings_Operation,
-		Variables: &__SetOrgSettingsInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data SetOrgSettingsResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
-// The query or mutation executed by SetPlatformVersion.
-const SetPlatformVersion_Operation = `
-# @genqlient
-mutation SetPlatformVersion ($input: SetPlatformVersionInput!) {
-	setPlatformVersion(input: $input) {
-		app {
-			id
-		}
-	}
-}
-`
-
-func SetPlatformVersion(
-	ctx context.Context,
-	client graphql.Client,
-	input SetPlatformVersionInput,
-) (*SetPlatformVersionResponse, error) {
-	req := &graphql.Request{
-		OpName: "SetPlatformVersion",
-		Query:  SetPlatformVersion_Operation,
-		Variables: &__SetPlatformVersionInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data SetPlatformVersionResponse
 	resp := &graphql.Response{Data: &data}
 
 	err = client.MakeRequest(
@@ -4800,47 +4939,8 @@ func SetSecrets(
 	return &data, err
 }
 
-// The query or mutation executed by UnlockApp.
-const UnlockApp_Operation = `
-# @genqlient
-mutation UnlockApp ($input: UnlockAppInput!) {
-	unlockApp(input: $input) {
-		app {
-			id
-		}
-	}
-}
-`
-
-func UnlockApp(
-	ctx context.Context,
-	client graphql.Client,
-	input UnlockAppInput,
-) (*UnlockAppResponse, error) {
-	req := &graphql.Request{
-		OpName: "UnlockApp",
-		Query:  UnlockApp_Operation,
-		Variables: &__UnlockAppInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data UnlockAppResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
 // The query or mutation executed by UpdateAddOn.
 const UpdateAddOn_Operation = `
-# @genqlient
 mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
 	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions,options:$options}) {
 		addOn {

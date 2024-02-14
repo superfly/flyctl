@@ -10,6 +10,7 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -27,6 +28,7 @@ func list() (cmd *cobra.Command) {
 
 	flag.Add(cmd,
 		flag.Org(),
+		extensions_core.SharedFlags,
 	)
 
 	return cmd

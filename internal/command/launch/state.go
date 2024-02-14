@@ -8,9 +8,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/scanner"
 )
 
 // Let's *try* to keep this struct backwards-compatible as we change it
@@ -18,7 +16,7 @@ type launchPlanSource struct {
 	appNameSource  string
 	regionSource   string
 	orgSource      string
-	guestSource    string
+	computeSource  string
 	postgresSource string
 	redisSource    string
 }
@@ -32,10 +30,9 @@ type launchState struct {
 	workingDir string
 	configPath string
 	LaunchManifest
-	env        map[string]string
-	appConfig  *appconfig.Config
-	sourceInfo *scanner.SourceInfo
-	cache      map[string]interface{}
+	env map[string]string
+	planBuildCache
+	cache map[string]interface{}
 }
 
 func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, error)) (T, error) {
@@ -75,7 +72,7 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 		return r.Code == state.Plan.RegionCode
 	})
 	if !ok {
-		return region, fmt.Errorf("region %state not found", state.Plan.RegionCode)
+		return region, fmt.Errorf("region %s not found. Is this a valid region according to `fly platform regions`?", state.Plan.RegionCode)
 	}
 	return region, nil
 }
@@ -84,7 +81,20 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 // Used to confirm the plan before executing it.
 func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 
-	guest := state.Plan.Guest()
+	// It feels wrong to modify the appConfig here, but in well-formed states these should be identical anyway.
+	state.appConfig.Compute = state.Plan.Compute
+
+	// Expensive but should accurately simulate the whole machine building path, meaning we end up with the same
+	// guest description that will be deployed down the road :)
+	fakeMachine, err := state.appConfig.ToMachineConfig(state.appConfig.DefaultProcessName(), nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve machine guest config: %w", err)
+	}
+	guestStr := fakeMachine.Guest.String()
+
+	if len(state.appConfig.Compute) > 1 {
+		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
+	}
 
 	org, err := state.Org(ctx)
 	if err != nil {
@@ -96,12 +106,12 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	postgresStr, err := state.Plan.Postgres.Describe(ctx)
+	postgresStr, err := describePostgresPlan(ctx, state.Plan.Postgres, org)
 	if err != nil {
 		return "", err
 	}
 
-	redisStr, err := state.Plan.Redis.Describe(ctx)
+	redisStr, err := describeRedisPlan(ctx, state.Plan.Redis, org)
 	if err != nil {
 		return "", err
 	}
@@ -110,9 +120,18 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
-		{"App Machines", guest.String(), state.PlanSource.guestSource},
+		{"App Machines", guestStr, state.PlanSource.computeSource},
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
+	}
+
+	for _, row := range rows {
+		// TODO: This is a hack. It'd be nice to not require a special sentinel value for the description,
+		//       but it works OK for now. I'd special-case on value=="" instead, but that isn't *necessarily*
+		//       a failure case for every field.
+		if row[2] == recoverableSpecifyInUi {
+			row[1] = "<unspecified>"
+		}
 	}
 
 	colLengths := []int{0, 0, 0}

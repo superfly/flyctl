@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/version"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -45,17 +46,17 @@ func Establish(ctx context.Context, apiClient *api.Client) (*Client, error) {
 		return StartDaemon(ctx)
 	}
 
-	resVer, err := buildinfo.ParseVersion(res.Version)
+	resVer, err := version.Parse(res.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	if buildinfo.ParsedVersion().EQ(resVer) {
+	if buildinfo.Version().Equal(resVer) {
 		return c, nil
 	}
 
 	// TOOD: log this instead
-	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.ParsedVersion())
+	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
 	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
@@ -334,6 +335,32 @@ func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, e
 	return
 }
 
+func (c *Client) LookupTxt(ctx context.Context, slug, host string) (records []string, err error) {
+	err = c.do(ctx, func(conn net.Conn) (err error) {
+		if err = proto.Write(conn, "lookupTxt", slug, host); err != nil {
+			return
+		}
+
+		var data []byte
+		if data, err = proto.Read(conn); err != nil {
+			return
+		}
+
+		switch {
+		default:
+			err = errInvalidResponse(data)
+		case isOK(data):
+			err = unmarshal(&records, data)
+		case isError(data):
+			err = extractError(data)
+		}
+
+		return
+	})
+
+	return
+}
+
 // WaitForTunnel waits for a tunnel to the given org slug to become available
 // in the next four minutes.
 func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) {
@@ -414,7 +441,7 @@ func (c *Client) Instances(ctx context.Context, org, app string) (instances Inst
 	go func() {
 		gqlChan <- gqlGetInstances(ctx, org, app)
 	}()
-	r, err := compareAndChooseResults(<-gqlChan, &agentInstances, <-agentChan, org, app)
+	r, err := compareAndChooseResults(ctx, <-gqlChan, &agentInstances, <-agentChan, org, app)
 	instances = *r
 	return
 }
@@ -424,16 +451,16 @@ type instancesResult struct {
 	Err       error
 }
 
-func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, agentErr error, orgSlug, appName string) (*Instances, error) {
+func compareAndChooseResults(ctx context.Context, gqlResult instancesResult, agentResult *Instances, agentErr error, orgSlug, appName string) (*Instances, error) {
 	terminal.Debugf("gqlErr: %v agentErr: %v\n", gqlResult.Err, agentErr)
 	if gqlResult.Err != nil && agentErr != nil {
-		captureError(fmt.Errorf("two errors looking up: %s %s: gqlErr: %v agentErr: %v", orgSlug, appName, gqlResult.Err.Error(), agentErr), "agentclient-instances", orgSlug, appName)
+		captureError(ctx, fmt.Errorf("two errors looking up: %s %s: gqlErr: %v agentErr: %v", orgSlug, appName, gqlResult.Err.Error(), agentErr), "agentclient-instances", orgSlug, appName)
 		return nil, gqlResult.Err
 	} else if gqlResult.Err != nil {
-		captureError(fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
+		captureError(ctx, fmt.Errorf("gql error looking up: %s %s: %v", orgSlug, appName, gqlResult.Err), "agentclient-instances", orgSlug, appName)
 		return agentResult, nil
 	} else if agentErr != nil {
-		captureError(fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
+		captureError(ctx, fmt.Errorf("dns error looking up: %s %s: %v", orgSlug, appName, agentErr), "agentclient-instances", orgSlug, appName)
 		return gqlResult.Instances, nil
 	} else if !arrayEqual(gqlResult.Instances.Addresses, agentResult.Addresses) {
 		return gqlResult.Instances, nil
@@ -442,12 +469,13 @@ func compareAndChooseResults(gqlResult instancesResult, agentResult *Instances, 
 	}
 }
 
-func captureError(err error, feature, orgSlug, appName string) {
+func captureError(ctx context.Context, err error, feature, orgSlug, appName string) {
 	if errors.Is(err, context.Canceled) {
 		return
 	}
 	terminal.Debugf("error: %v\n", err)
 	sentry.CaptureException(err,
+		sentry.WithTraceID(ctx),
 		sentry.WithTag("feature", feature),
 		sentry.WithContexts(map[string]sentry.Context{
 			"app": map[string]interface{}{
@@ -574,18 +602,20 @@ func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) 
 
 // ConnectToTunnel is a convenience method for connect to a wireguard tunnel
 // and returning a Dialer. Only suitable for use in the new CLI commands.
-func (c *Client) ConnectToTunnel(ctx context.Context, slug string) (d Dialer, err error) {
+func (c *Client) ConnectToTunnel(ctx context.Context, slug string, silent bool) (d Dialer, err error) {
 	io := iostreams.FromContext(ctx)
 
 	dialer, err := c.Dialer(ctx, slug)
 	if err != nil {
 		return nil, err
 	}
-	io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
+	if !silent {
+		io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
+		defer io.StopProgressIndicator()
+	}
 	if err := c.WaitForTunnel(ctx, slug); err != nil {
 		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}
-	io.StopProgressIndicator()
 	return dialer, err
 }
 

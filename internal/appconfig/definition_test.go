@@ -109,48 +109,6 @@ func TestFromDefinition(t *testing.T) {
 		},
 		configFilePath:   "--config path unset--",
 		defaultGroupName: "app",
-		RawDefinition: map[string]any{
-			"env": map[string]any{},
-			"experimental": map[string]any{
-				"auto_rollback": true,
-			},
-			"kill_signal":  "SIGINT",
-			"kill_timeout": float64(5),
-			"processes":    []any{},
-			"services": []any{
-				map[string]any{
-					"concurrency": map[string]any{
-						"hard_limit": float64(25),
-						"soft_limit": float64(20),
-						"type":       "connections",
-					},
-					"http_checks":   []any{},
-					"internal_port": float64(8080),
-					"ports": []any{
-						map[string]any{
-							"force_https": true,
-							"handlers":    []any{"http"},
-							"port":        float64(80),
-						},
-						map[string]any{
-							"handlers": []any{"tls", "http"},
-							"port":     float64(443),
-						},
-					},
-					"processes":     []any{"app"},
-					"protocol":      "tcp",
-					"script_checks": []any{},
-					"tcp_checks": []any{
-						map[string]any{
-							"grace_period":  "1s",
-							"interval":      "15s",
-							"restart_limit": float64(0),
-							"timeout":       "2s",
-						},
-					},
-				},
-			},
-		},
 	}, cfg)
 }
 
@@ -169,6 +127,23 @@ func TestToDefinition(t *testing.T) {
 		"swap_size_mb":       int64(512),
 		"console_command":    "/bin/bash",
 		"host_dedication_id": "06031957",
+		"vm": []any{
+			map[string]any{
+				"size":               "shared-cpu-1x",
+				"memory":             "8gb",
+				"cpu_kind":           "performance",
+				"cpus":               int64(8),
+				"gpus":               int64(2),
+				"gpu_kind":           "a100-pcie-40gb",
+				"host_dedication_id": "isolated-xxx",
+				"memory_mb":          int64(8192),
+				"kernel_args":        []any{"quiet"},
+				"processes":          []any{"app"},
+			},
+			map[string]any{
+				"memory_mb": int64(4096),
+			},
+		},
 		"build": map[string]any{
 			"builder":      "dockerfile",
 			"image":        "foo/fighter",
@@ -188,8 +163,11 @@ func TestToDefinition(t *testing.T) {
 		},
 
 		"http_service": map[string]any{
-			"internal_port": int64(8080),
-			"force_https":   true,
+			"internal_port":        int64(8080),
+			"force_https":          true,
+			"auto_start_machines":  false,
+			"auto_stop_machines":   false,
+			"min_machines_running": int64(0),
 			"concurrency": map[string]any{
 				"type":       "donuts",
 				"hard_limit": int64(10),
@@ -210,8 +188,8 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
-			"checks": []map[string]any{
-				{
+			"checks": []any{
+				map[string]any{
 					"interval":        "1m21s",
 					"timeout":         "7s",
 					"grace_period":    "2s",
@@ -239,44 +217,47 @@ func TestToDefinition(t *testing.T) {
 		"deploy": map[string]any{
 			"release_command": "release command",
 			"strategy":        "rolling-eyes",
+			"max_unavailable": 0.2,
 		},
 		"env": map[string]any{
 			"FOO": "BAR",
 		},
-		"metrics": map[string]any{
-			"port": int64(9999),
-			"path": "/metrics",
+		"metrics": []any{
+			map[string]any{
+				"port": int64(9999),
+				"path": "/metrics",
+			},
+			map[string]any{
+				"port":      int64(9998),
+				"path":      "/metrics",
+				"processes": []any{"web"},
+			},
 		},
-		"statics": []map[string]any{
-			{
+		"statics": []any{
+			map[string]any{
 				"guest_path": "/path/to/statics",
 				"url_prefix": "/static-assets",
 			},
 		},
-		"files": []map[string]any{
-			{
-				"guest_path":  "/path/to/hello.txt",
-				"raw_value":   "aGVsbG8gd29ybGQK",
-				"local_path":  "",
-				"secret_name": "",
+		"files": []any{
+			map[string]any{
+				"guest_path": "/path/to/hello.txt",
+				"raw_value":  "aGVsbG8gd29ybGQK",
 			},
-			{
+			map[string]any{
 				"guest_path":  "/path/to/secret.txt",
-				"raw_value":   "",
 				"secret_name": "SUPER_SECRET",
-				"local_path":  "",
 			},
-			{
-				"guest_path":  "/path/to/config.yaml",
-				"raw_value":   "",
-				"secret_name": "",
-				"local_path":  "/local/path/config.yaml",
-				"processes":   []any{"web"},
+			map[string]any{
+				"guest_path": "/path/to/config.yaml",
+				"local_path": "/local/path/config.yaml",
+				"processes":  []any{"web"},
 			},
 		},
-		"mounts": []map[string]any{{
-			"source":      "data",
-			"destination": "/data",
+		"mounts": []any{map[string]any{
+			"source":       "data",
+			"destination":  "/data",
+			"initial_size": "30gb",
 		}},
 		"processes": map[string]any{
 			"web":  "run web",
@@ -300,18 +281,21 @@ func TestToDefinition(t *testing.T) {
 				},
 			},
 		},
-		"services": []map[string]any{
-			{
-				"internal_port": int64(8081),
-				"protocol":      "tcp",
-				"processes":     []any{"app"},
+		"services": []any{
+			map[string]any{
+				"internal_port":        int64(8081),
+				"protocol":             "tcp",
+				"processes":            []any{"app"},
+				"auto_start_machines":  false,
+				"auto_stop_machines":   false,
+				"min_machines_running": int64(1),
 				"concurrency": map[string]any{
 					"type":       "requests",
 					"hard_limit": int64(22),
 					"soft_limit": int64(13),
 				},
-				"ports": []map[string]any{
-					{
+				"ports": []any{
+					map[string]any{
 						"port":        int64(80),
 						"start_port":  int64(100),
 						"end_port":    int64(200),
@@ -319,15 +303,15 @@ func TestToDefinition(t *testing.T) {
 						"force_https": true,
 					},
 				},
-				"tcp_checks": []map[string]any{
-					{
+				"tcp_checks": []any{
+					map[string]any{
 						"interval":     "21s",
 						"timeout":      "4s",
 						"grace_period": "1s",
 					},
 				},
-				"http_checks": []map[string]any{
-					{
+				"http_checks": []any{
+					map[string]any{
 						"interval":        "1m21s",
 						"timeout":         "7s",
 						"grace_period":    "2s",
@@ -340,7 +324,7 @@ func TestToDefinition(t *testing.T) {
 							"My-Custom-Header": "whatever",
 						},
 					},
-					{
+					map[string]any{
 						"interval": "33s",
 						"timeout":  "10s",
 						"method":   "POST",

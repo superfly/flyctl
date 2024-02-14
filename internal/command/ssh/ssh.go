@@ -8,7 +8,7 @@ import (
 // New initializes and returns a new apps Command.
 func New() *cobra.Command {
 	const (
-		long  = `Use SSH to login to or run commands on VMs`
+		long  = `Use SSH to log into or run commands on Machines`
 		short = long
 	)
 

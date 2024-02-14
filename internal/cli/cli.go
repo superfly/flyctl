@@ -16,10 +16,13 @@ import (
 	"github.com/kr/text"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/internal/tracing"
 	"golang.org/x/term"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -56,6 +59,14 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	httptracing.Init()
 	defer httptracing.Finish()
+
+	tp, err := tracing.InitTraceProvider(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return 127
+	}
+
+	defer tp.Shutdown(ctx)
 
 	cmd := root.New()
 	cmd.SetOut(io.Out)
@@ -120,7 +131,17 @@ func isUnchangedError(err error) bool {
 }
 
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
-	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), "\n")
+	if env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
+		printGHAErrorAnnotation(cmd, err)
+	}
+
+	var requestId string
+
+	if requestId = flaps.GetErrorRequestID(err); requestId != "" {
+		requestId = fmt.Sprintf(" (Request ID: %s)", requestId)
+	}
+
+	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, "\n")
 
 	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
 		fmt.Fprintln(io.ErrOut, description)
@@ -140,7 +161,23 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 	if bool, err := cmd.Flags().GetBool(flagnames.Debug); err == nil && bool {
 		fmt.Fprintf(io.ErrOut, "Stacktrace:\n%s\n", debug.Stack())
 	}
+}
 
+func printGHAErrorAnnotation(cmd *cobra.Command, err error) {
+	errMsg := err.Error()
+	if requestId := flaps.GetErrorRequestID(err); requestId != "" {
+		errMsg += " (Request ID: " + requestId + ")"
+	}
+
+	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
+		errMsg += "\n" + description
+	}
+
+	// GHA annotation messages don't support multiple lines. replace \n with a symbol to prevent losing output
+	//
+	errMsg = strings.ReplaceAll(errMsg, "\n", "⏎")
+
+	fmt.Printf("::error title=flyctl error::%s\n", errMsg)
 }
 
 // TODO: remove this once generation of the docs has been refactored.

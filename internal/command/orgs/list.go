@@ -34,7 +34,7 @@ func newList() *cobra.Command {
 func runList(ctx context.Context) error {
 	client := client.FromContext(ctx).API()
 
-	personal, others, err := client.GetCurrentOrganizations(ctx)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return err
 	}
@@ -42,26 +42,25 @@ func runList(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if config.FromContext(ctx).JSONOutput {
-		orgs := map[string]string{
-			personal.Slug: personal.Name,
+		bySlug := map[string]string{}
+
+		for _, other := range orgs {
+			bySlug[other.Slug] = other.Name
 		}
 
-		for _, other := range others {
-			orgs[other.Slug] = other.Name
-		}
-
-		_ = render.JSON(out, orgs)
+		_ = render.JSON(out, bySlug)
 
 		return nil
 	}
 
-	var b bytes.Buffer
+	var (
+		b     bytes.Buffer
+		first = true
+	)
 
-	printOrg(&b, &personal, true)
-	for _, org := range others {
-		if org.ID != personal.ID {
-			printOrg(&b, &org, false)
-		}
+	for _, org := range orgs {
+		printOrg(&b, &org, first)
+		first = false
 	}
 
 	b.WriteTo(out)

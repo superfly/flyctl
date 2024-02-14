@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/logrusorgru/aurora"
+	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/client"
@@ -30,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/update"
+	"github.com/superfly/flyctl/internal/version"
 )
 
 type Runner func(context.Context) error
@@ -52,7 +53,6 @@ var commonPreparers = []preparers.Preparer{
 	preparers.ApplyAliases,
 	determineHostname,
 	determineWorkingDir,
-	preparers.DetermineUserHomeDir,
 	preparers.DetermineConfigDir,
 	ensureConfigDirExists,
 	ensureConfigDirPerms,
@@ -63,6 +63,7 @@ var commonPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
 	startMetrics,
+	preparers.SetOtelAuthenticationKey,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -105,6 +106,17 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 		task.FromContext(ctx).Start(ctx)
 
 		sendOsMetric(ctx, "started")
+		task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
+			io := iostreams.FromContext(ctx)
+
+			if !metrics.IsFlushMetricsDisabled(ctx) {
+				err := metrics.FlushMetrics(ctx)
+				if err != nil {
+					fmt.Fprintln(io.ErrOut, "Error spawning metrics process: ", err)
+				}
+			}
+		})
+
 		defer func() {
 			if err == nil {
 				sendOsMetric(ctx, "successful")
@@ -240,16 +252,6 @@ func loadCache(ctx context.Context) (context.Context, error) {
 	return cache.NewContext(ctx, c), nil
 }
 
-func IsMachinesPlatform(ctx context.Context, appName string) (bool, error) {
-	apiClient := client.FromContext(ctx).API()
-	app, err := apiClient.GetAppBasic(ctx, appName)
-	if err != nil {
-		return false, fmt.Errorf("failed to retrieve app: %w", err)
-	}
-
-	return app.PlatformVersion == appconfig.MachinesPlatform, nil
-}
-
 func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
@@ -287,7 +289,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 
 			// Check if the current version has been yanked.
 			if cache.IsCurrentVersionInvalid() == "" {
-				currentRelErr := update.ValidateRelease(ctx, buildinfo.ParsedVersion().String())
+				currentRelErr := update.ValidateRelease(ctx, buildinfo.Version().String())
 				if currentRelErr != nil {
 					var invalidRelErr *update.InvalidReleaseError
 					if errors.As(currentRelErr, &invalidRelErr) {
@@ -356,7 +358,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	var (
-		current   = buildinfo.ParsedVersion()
+		current   = buildinfo.Version()
 		cache     = cache.FromContext(ctx)
 		logger    = logger.FromContext(ctx)
 		io        = iostreams.FromContext(ctx)
@@ -374,13 +376,13 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 		fmt.Fprintf(io.ErrOut, "The current version of flyctl is invalid: %s\n", versionInvalidMsg)
 	}
 
-	latest, err := buildinfo.ParseVersion(latestRel.Version)
+	latest, err := version.Parse(latestRel.Version)
 	if err != nil {
 		logger.Warnf("error parsing version number '%s': %s", latestRel.Version, err)
 		return ctx, err
 	}
 
-	if !latest.Newer() {
+	if !latest.Newer(current) {
 		if versionInvalidMsg != "" && !silent {
 			// Continuing from versionInvalidMsg above
 			fmt.Fprintln(io.ErrOut, "but there is not a newer version available. Proceed with caution!")
@@ -393,7 +395,7 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	// The env.IsCI check is technically redundant (it should be done in update.Check), but
 	// it's nice to be extra cautious.
 	if cfg.AutoUpdate && !env.IsCI() && update.CanUpdateThisInstallation() {
-		if versionInvalidMsg != "" || current.SeverelyOutdated(latest) {
+		if versionInvalidMsg != "" || current.SignificantlyBehind(latest) {
 			if !silent {
 				fmt.Fprintln(io.ErrOut, colorize.Green(fmt.Sprintf("Automatically updating %s -> %s.", current, latestRel.Version)))
 			}
@@ -428,16 +430,6 @@ func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
-}
-
-func PromptToMigrate(ctx context.Context, app *api.AppCompact) {
-	if app.PlatformVersion == "nomad" {
-		config := appconfig.ConfigFromContext(ctx)
-		if config != nil {
-			io := iostreams.FromContext(ctx)
-			fmt.Fprintf(io.ErrOut, "%s Apps v1 Platform is deprecated. We recommend migrating your app with:\nfly migrate-to-v2 -c %s\n", aurora.Yellow("WARN"), config.ConfigFilePath())
-		}
-	}
 }
 
 func killOldAgent(ctx context.Context) (context.Context, error) {
@@ -511,7 +503,47 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		return nil, client.ErrNoAuthToken
 	}
 
+	return updateMacaroons(ctx)
+}
+
+// updateMacaroons prune any invalid/expired macaroons and fetch needed third
+// party discharges
+func updateMacaroons(ctx context.Context) (context.Context, error) {
+	log := logger.FromContext(ctx)
+
+	toks := config.Tokens(ctx)
+
+	updated, err := toks.Update(ctx,
+		tokens.WithUserURLCallback(tryOpenUserURL),
+		tokens.WithDebugger(log),
+	)
+
+	if err != nil {
+		log.Warn("Failed to upgrade authentication token. Command may fail.")
+		log.Debug(err)
+	}
+
+	if !updated || toks.FromConfigFile == "" {
+		return ctx, nil
+	}
+
+	if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
+		log.Warn("Failed to persist authentication token.")
+		log.Debug(err)
+	}
+
 	return ctx, nil
+}
+
+func tryOpenUserURL(ctx context.Context, url string) error {
+	if err := open.Run(url); err != nil {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
+			"failed opening browser. Copy the url (%s) into a browser and continue\n",
+			url,
+		)
+	}
+
+	return nil
 }
 
 // LoadAppConfigIfPresent is a Preparer which loads the application's
@@ -529,16 +561,9 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 		switch cfg, err := appconfig.LoadConfig(path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
-
-			// Query Web API for platform version
-			platformVersion, _ := determinePlatform(ctx, cfg.AppName)
-			if platformVersion != "" {
-				err := cfg.SetPlatformVersion(platformVersion)
-				if err != nil {
-					logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
-				}
+			if err := cfg.SetMachinesPlatform(); err != nil {
+				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
-
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
@@ -549,19 +574,6 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	}
 
 	return ctx, nil
-}
-
-func determinePlatform(ctx context.Context, appName string) (string, error) {
-	client := client.FromContext(ctx)
-	if appName == "" {
-		return "", fmt.Errorf("Can't determine platform without an application name")
-	}
-
-	basicApp, err := client.API().GetAppBasic(ctx, appName)
-	if err != nil {
-		return "", err
-	}
-	return basicApp.PlatformVersion, nil
 }
 
 // appConfigFilePaths returns the possible paths at which we may find a fly.toml

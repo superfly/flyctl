@@ -9,10 +9,12 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
@@ -25,8 +27,6 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/cmdutil"
-	"github.com/superfly/flyctl/internal/logger"
-	"github.com/superfly/flyctl/internal/watch"
 )
 
 var CommonFlags = flag.Set{
@@ -47,13 +47,11 @@ var CommonFlags = flag.Set{
 	flag.NoCache(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
+	flag.BpDockerHost(),
+	flag.BpVolume(),
 	flag.Bool{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
-	},
-	flag.Bool{
-		Name:        "no-extensions",
-		Description: "Do not provision Sentry nor other auto-provisioned extensions",
 	},
 	flag.StringArray{
 		Name:        "env",
@@ -61,26 +59,23 @@ var CommonFlags = flag.Set{
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
 	flag.Yes(),
-	flag.Int{
+	flag.String{
 		Name:        "wait-timeout",
-		Description: "Seconds to wait for individual machines to transition states and become healthy.",
-		Default:     int(DefaultWaitTimeout.Seconds()),
+		Description: "Time duration to wait for individual machines to transition states and become healthy.",
+		Default:     DefaultWaitTimeout.String(),
 	},
 	flag.String{
 		Name:        "release-command-timeout",
-		Description: "Seconds to wait for a release command finish running, or 'none' to disable.",
-		Default:     strconv.Itoa(int(DefaultReleaseCommandTimeout.Seconds())),
+		Description: "Time duration to wait for a release command finish running, or 'none' to disable.",
+		Default:     DefaultReleaseCommandTimeout.String(),
 	},
-	flag.Int{
-		Name:        "lease-timeout",
-		Description: "Seconds to lease individual machines while running deployment. All machines are leased at the beginning and released at the end. The lease is refreshed periodically for this same time, which is why it is short. flyctl releases leases in most cases.",
-		Default:     int(DefaultLeaseTtl.Seconds()),
-	},
-	flag.Bool{
-		Name:        "force-nomad",
-		Description: "(Deprecated) Use the Apps v1 platform built with Nomad",
-		Default:     false,
-		Hidden:      true,
+	flag.String{
+		Name: "lease-timeout",
+		Description: "Time duration to lease individual machines while running deployment." +
+			" All machines are leased at the beginning and released at the end." +
+			"The lease is refreshed periodically for this same time, which is why it is short." +
+			"flyctl releases leases in most cases.",
+		Default: DefaultLeaseTtl.String(),
 	},
 	flag.Bool{
 		Name:        "force-machines",
@@ -98,10 +93,15 @@ var CommonFlags = flag.Set{
 		Description: "Perform smoke checks during deployment",
 		Default:     true,
 	},
+	flag.Bool{
+		Name:        "dns-checks",
+		Description: "Perform DNS checks during deployment",
+		Default:     true,
+	},
 	flag.Float64{
 		Name:        "max-unavailable",
 		Description: "Max number of unavailable machines during rolling updates. A number between 0 and 1 means percent of total machines",
-		Default:     0.33,
+		Default:     DefaultMaxUnavailable,
 	},
 	flag.Bool{
 		Name:        "no-public-ips",
@@ -127,7 +127,24 @@ var CommonFlags = flag.Set{
 		Name:        "only-regions",
 		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
+	flag.StringArray{
+		Name:        "label",
+		Description: "Add custom metadata to an image via docker labels",
+	},
+	flag.Int{
+		Name:        "immediate-max-concurrent",
+		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
+		Default:     16,
+	},
+	flag.Int{
+		Name:        "volume-initial-size",
+		Description: "The initial size in GB for volumes created on first deploy",
+	},
 	flag.VMSizeFlags,
+	flag.StringSlice{
+		Name:        "process-groups",
+		Description: "Deploy to machines only in these process groups",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -163,12 +180,30 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	hook := ctrlc.Hook(func() {
+		metrics.FlushMetrics(ctx)
+	})
+
+	defer hook.Done()
+
 	appName := appconfig.NameFromContext(ctx)
 	flapsClient, err := flaps.NewFromAppName(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
+
+	client := client.FromContext(ctx).API()
+
+	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
+	defer span.End()
+
+	user, err := client.GetCurrentUser(ctx)
+	if err != nil {
+		return fmt.Errorf("failed retrieving current user: %w", err)
+	}
+
+	span.SetAttributes(attribute.String("user.id", user.ID))
 
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
@@ -178,10 +213,21 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
+	var gpuKinds, cpuKinds []string
+	for _, compute := range appConfig.Compute {
+		if compute != nil && compute.MachineGuest != nil {
+			gpuKinds = append(gpuKinds, compute.MachineGuest.GPUKind)
+			cpuKinds = append(cpuKinds, compute.MachineGuest.CPUKind)
+		}
+	}
+
+	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
+	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
+
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := client.FromContext(ctx).API()
@@ -210,28 +256,8 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)
-	if useMachines(ctx, appCompact) {
-		if err := appConfig.EnsureV2Config(); err != nil {
-			return fmt.Errorf("Can't deploy an invalid v2 app config: %s", err)
-		}
-		if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
-			return err
-		}
-	} else {
-		if flag.GetBool(ctx, "no-public-ips") {
-			return fmt.Errorf("the --no-public-ips flag can only be used for v2 apps")
-		}
-		if flag.IsSpecified(ctx, "vm-cpus") {
-			return fmt.Errorf("the --vm-cpus flag can only be used for v2 apps")
-		}
-		if flag.IsSpecified(ctx, "vm-memory") {
-			return fmt.Errorf("the --vm-memory flag can only be used for v2 apps")
-		}
-
-		err = deployToNomad(ctx, appConfig, appCompact, img)
-		if err != nil {
-			return err
-		}
+	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
+		return err
 	}
 
 	if appURL := appConfig.URL(); appURL != nil {
@@ -241,15 +267,31 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	return err
 }
 
-func determineRelCmdTimeout(timeout string) (time.Duration, error) {
-	if timeout == "none" {
-		return 0, nil
+func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, error) {
+	if !flag.IsSpecified(ctx, flagName) {
+		return nil, nil
 	}
-	asInt, err := strconv.Atoi(timeout)
-	if err != nil {
-		return 0, fmt.Errorf("invalid release command timeout '%v': valid options are a number of seconds, or 'none'", timeout)
+
+	v := flag.GetString(ctx, flagName)
+	if v == "none" {
+		d := time.Duration(0)
+		return &d, nil
 	}
-	return time.Duration(asInt) * time.Second, nil
+
+	duration, err := time.ParseDuration(v)
+	if err == nil {
+		return &duration, nil
+	}
+
+	if strings.Contains(err.Error(), "missing unit in duration") {
+		asInt, err := strconv.Atoi(v)
+		if err == nil {
+			duration = time.Duration(asInt) * time.Second
+			return &duration, nil
+		}
+	}
+
+	return nil, fmt.Errorf("invalid duration value %v used for --%s flag: valid options are a number of seconds, number with time unit (i.e.: 5m, 180s) or 'none'", v, flagName)
 }
 
 // in a rare twist, the guest param takes precedence over CLI flags!
@@ -258,7 +300,6 @@ func deployToMachines(
 	appConfig *appconfig.Config,
 	appCompact *api.AppCompact,
 	img *imgsrc.DeploymentImage,
-	guest *api.MachineGuest,
 ) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -268,21 +309,29 @@ func deployToMachines(
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
-	releaseCmdTimeout, err := determineRelCmdTimeout(flag.GetString(ctx, "release-command-timeout"))
+	releaseCmdTimeout, err := parseDurationFlag(ctx, "release-command-timeout")
 	if err != nil {
 		return err
 	}
 
-	files, err := machine.FilesFromCommand(ctx)
+	waitTimeout, err := parseDurationFlag(ctx, "wait-timeout")
 	if err != nil {
 		return err
 	}
 
-	if guest == nil {
-		guest, err = flag.GetMachineGuest(ctx, nil)
-		if err != nil {
-			return err
-		}
+	leaseTimeout, err := parseDurationFlag(ctx, "lease-timeout")
+	if err != nil {
+		return err
+	}
+
+	files, err := command.FilesFromCommand(ctx)
+	if err != nil {
+		return err
+	}
+
+	guest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	excludeRegions := make(map[string]interface{})
@@ -300,104 +349,60 @@ func deployToMachines(
 		}
 	}
 
+	// We default the flag to 0.33 so that --help can show the actual default value,
+	// but internally we want to differentiate between the flag being specified and not.
+	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
+	var maxUnavailable *float64 = nil
+	if flag.IsSpecified(ctx, "max-unavailable") {
+		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		// Validation to ensure that 0.0 is *purely* the "unspecified" value
+		if *maxUnavailable <= 0 {
+			return fmt.Errorf("the value for --max-unavailable must be > 0")
+		}
+	}
+
+	processGroups := make(map[string]interface{})
+	for _, r := range flag.GetStringSlice(ctx, "process-groups") {
+		reg := strings.TrimSpace(r)
+		if reg != "" {
+			processGroups[reg] = struct{}{}
+		}
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:            appCompact,
-		DeploymentImage:       img.Tag,
-		Strategy:              flag.GetString(ctx, "strategy"),
-		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     appConfig.PrimaryRegion,
-		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
-		SkipHealthChecks:      flag.GetDetach(ctx),
-		WaitTimeout:           time.Duration(flag.GetInt(ctx, "wait-timeout")) * time.Second,
-		LeaseTimeout:          time.Duration(flag.GetInt(ctx, "lease-timeout")) * time.Second,
-		MaxUnavailable:        flag.GetFloat64(ctx, "max-unavailable"),
-		ReleaseCmdTimeout:     releaseCmdTimeout,
-		Guest:                 guest,
-		IncreasedAvailability: flag.GetBool(ctx, "ha"),
-		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
-		UpdateOnly:            flag.GetBool(ctx, "update-only"),
-		Files:                 files,
-		ExcludeRegions:        excludeRegions,
-		NoExtensions:          flag.GetBool(ctx, "no-extensions"),
-		OnlyRegions:           onlyRegions,
+		AppCompact:             appCompact,
+		DeploymentImage:        img.Tag,
+		Strategy:               flag.GetString(ctx, "strategy"),
+		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
+		PrimaryRegionFlag:      appConfig.PrimaryRegion,
+		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:       flag.GetDetach(ctx),
+		SkipDNSChecks:          flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
+		WaitTimeout:            waitTimeout,
+		ReleaseCmdTimeout:      releaseCmdTimeout,
+		LeaseTimeout:           leaseTimeout,
+		MaxUnavailable:         maxUnavailable,
+		Guest:                  guest,
+		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
+		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
+		UpdateOnly:             flag.GetBool(ctx, "update-only"),
+		Files:                  files,
+		ExcludeRegions:         excludeRegions,
+		OnlyRegions:            onlyRegions,
+		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
+		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
+		ProcessGroups:          processGroups,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
 	}
 	return err
-}
-
-func deployToNomad(ctx context.Context, appConfig *appconfig.Config, appCompact *api.AppCompact, img *imgsrc.DeploymentImage) (err error) {
-	apiClient := client.FromContext(ctx).API()
-
-	metrics.Started(ctx, "deploy_nomad")
-	defer func() {
-		metrics.Status(ctx, "deploy_nomad", err == nil)
-	}()
-
-	// Assign an empty map if nil so later assignments won't fail
-	if appConfig.PrimaryRegion != "" && appConfig.Env["PRIMARY_REGION"] == "" {
-		appConfig.SetEnvVariable("PRIMARY_REGION", appConfig.PrimaryRegion)
-	}
-
-	release, releaseCommand, err := createRelease(ctx, appConfig, img)
-	if err != nil {
-		return err
-	}
-
-	// Give a warning about nomad deprecation every 5 releases
-	if release.Version%5 == 0 {
-		command.PromptToMigrate(ctx, appCompact)
-	}
-
-	if flag.GetDetach(ctx) {
-		return nil
-	}
-
-	// TODO: This is a single message that doesn't belong to any block output, so we should have helpers to allow that
-	tb := render.NewTextBlock(ctx)
-	tb.Done("You can detach the terminal anytime without stopping the deployment")
-
-	// Run the pre-deployment release command if it's set
-	if releaseCommand != nil {
-		// TODO: don't use text block here
-		tb := render.NewTextBlock(ctx, fmt.Sprintf("Release command detected: %s\n", releaseCommand.Command))
-		tb.Done("This release will not be available until the release command succeeds.")
-
-		if err := watch.ReleaseCommand(ctx, appConfig.AppName, releaseCommand.ID); err != nil {
-			return err
-		}
-
-		release, err = apiClient.GetAppReleaseNomad(ctx, appConfig.AppName, release.ID)
-		if err != nil {
-			return err
-		}
-	}
-
-	if release.DeploymentStrategy == "IMMEDIATE" {
-		logger := logger.FromContext(ctx)
-		logger.Debug("immediate deployment strategy, nothing to monitor")
-
-		return nil
-	}
-
-	return watch.Deployment(ctx, appConfig.AppName, release.EvaluationID)
-}
-
-func useMachines(ctx context.Context, appCompact *api.AppCompact) bool {
-	if buildinfo.IsDev() && flag.GetBool(ctx, "force-nomad") && !appCompact.Deployed {
-		return false
-	}
-	if appCompact.Deployed && appCompact.PlatformVersion == appconfig.NomadPlatform {
-		return false
-	}
-	return true
 }
 
 // determineAppConfig fetches the app config from a local file, or in its absence, from the API
@@ -405,10 +410,13 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	io := iostreams.FromContext(ctx)
 	tb := render.NewTextBlock(ctx, "Verifying app config")
 	appName := appconfig.NameFromContext(ctx)
+	ctx, span := tracing.GetTracer().Start(ctx, "get_app_config")
+	defer span.End()
 
 	if cfg = appconfig.ConfigFromContext(ctx); cfg == nil {
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
+			tracing.RecordError(span, err, "get config from remote")
 			return nil, err
 		}
 	}
@@ -416,6 +424,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
 		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
 		if err != nil {
+			tracing.RecordError(span, err, "parse env")
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
@@ -436,35 +445,16 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		fmt.Fprintf(io.Out, extraInfo)
 	}
 	if err != nil {
+		tracing.RecordError(span, err, "validate config")
 		return nil, err
+	}
+
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+		if !config.FromContext(ctx).JSONOutput {
+			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
+		}
 	}
 
 	tb.Done("Verified app config")
 	return cfg, nil
-}
-
-func createRelease(ctx context.Context, appConfig *appconfig.Config, img *imgsrc.DeploymentImage) (*api.Release, *api.ReleaseCommand, error) {
-	tb := render.NewTextBlock(ctx, "Creating release")
-
-	input := api.DeployImageInput{
-		AppID: appConfig.AppName,
-		Image: img.Tag,
-	}
-
-	// Set the deployment strategy
-	if val := flag.GetString(ctx, "strategy"); val != "" {
-		input.Strategy = api.StringPointer(strings.ReplaceAll(strings.ToUpper(val), "-", "_"))
-	}
-
-	input.Definition = api.DefinitionPtr(appConfig.SanitizedDefinition())
-
-	// Start deployment of the determined image
-	client := client.FromContext(ctx).API()
-
-	release, releaseCommand, err := client.DeployImage(ctx, input)
-	if err == nil {
-		tb.Donef("release v%d created\n", release.Version)
-	}
-
-	return release, releaseCommand, err
 }

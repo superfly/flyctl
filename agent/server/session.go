@@ -117,6 +117,7 @@ var handlers = map[string]handlerFunc{
 	"probe":       (*session).probe,
 	"instances":   (*session).instances,
 	"resolve":     (*session).resolve,
+	"lookupTxt":   (*session).lookupTxt,
 	"ping6":       (*session).ping6,
 }
 
@@ -140,7 +141,7 @@ func (s *session) ping(_ context.Context, args ...string) {
 	}
 
 	_ = s.marshal(agent.PingResponse{
-		Version:    buildinfo.ParsedVersion().String(),
+		Version:    buildinfo.Version().String(),
 		PID:        os.Getpid(),
 		Background: s.srv.Options.Background,
 	})
@@ -160,7 +161,7 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(org, recycle)
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle)
 	if err != nil {
 		s.error(err)
 
@@ -306,6 +307,40 @@ func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error
 	}
 
 	return addr, nil
+}
+
+func (s *session) lookupTxt(ctx context.Context, args ...string) {
+
+	if len(args) != 2 {
+		s.error(fmt.Errorf("lookupTxt: bad args"))
+		return
+	}
+
+	tunnel := s.srv.tunnelFor(args[0])
+	if tunnel == nil {
+		s.error(agent.ErrTunnelUnavailable)
+		return
+	}
+
+	hostArg := args[1]
+
+	host, _, err := net.SplitHostPort(hostArg)
+	if err != nil {
+		if !strings.Contains(err.Error(), "missing port") {
+			s.error(err)
+			return
+		}
+
+		host = hostArg
+	}
+
+	txt, err := tunnel.LookupTXT(ctx, host)
+	if err != nil {
+		s.error(err)
+		return
+	}
+
+	s.marshal(txt)
 }
 
 var (

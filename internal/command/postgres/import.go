@@ -92,10 +92,6 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to resolve app: %w", err)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("This feature is only available on our Machines platform")
-	}
-
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}

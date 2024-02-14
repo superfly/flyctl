@@ -43,14 +43,19 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 
 	env := os.Environ()
 	env = append(env, "FLY_NO_UPDATE_CHECK=1")
-	env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.FromContext(ctx).AccessToken))
+
+	// if our tokens came from the config file, let agent get them there too
+	if toks := config.Tokens(ctx); toks.FromConfigFile == "" {
+		env = append(env, fmt.Sprintf("FLY_API_TOKEN=%s", config.Tokens(ctx).GraphQL()))
+	}
+
 	cmd.Env = env
 
-	setSysProcAttributes(cmd)
+	SetSysProcAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		err = forkError{err}
-		sentry.CaptureException(err)
+		sentry.CaptureException(err, sentry.WithTraceID(ctx))
 
 		return nil, fmt.Errorf("failed starting agent process: %w", err)
 	}
@@ -74,9 +79,9 @@ func StartDaemon(ctx context.Context) (*Client, error) {
 		}
 
 		if log != "" {
-			sentry.CaptureException(err, sentry.WithExtra("log", log))
+			sentry.CaptureException(err, sentry.WithExtra("log", log), sentry.WithTraceID(ctx))
 		} else {
-			sentry.CaptureException(err)
+			sentry.CaptureException(err, sentry.WithTraceID(ctx))
 		}
 
 		return nil, err

@@ -20,9 +20,9 @@ import (
 
 func newShow() (cmd *cobra.Command) {
 	const (
-		long = `Show details of an app's volume`
+		short = "Show the details of the specified volume."
 
-		short = "Show details of an app's volume"
+		long = short
 	)
 
 	cmd = command.New("show [id]", short, long, runShow,
@@ -66,7 +66,7 @@ func runShow(ctx context.Context) error {
 
 	var volume *api.Volume
 	if volumeID == "" {
-		app, err := client.GetApp(ctx, appName)
+		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
 			return err
 		}

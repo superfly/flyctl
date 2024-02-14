@@ -10,7 +10,19 @@ import (
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
+	"github.com/superfly/flyctl/wg"
 )
+
+func ReadAccessToken(path string) (string, error) {
+	s := struct {
+		AccessToken string `yaml:"access_token"`
+	}{}
+	if err := unmarshal(path, &s); err != nil {
+		return "", err
+	}
+
+	return s.AccessToken, nil
+}
 
 // SetAccessToken sets the value of the access token at the configuration file
 // found at path.
@@ -41,6 +53,18 @@ func SetSendMetrics(path string, sendMetrics bool) error {
 func SetAutoUpdate(path string, autoUpdate bool) error {
 	return set(path, map[string]interface{}{
 		AutoUpdateFileKey: autoUpdate,
+	})
+}
+
+func SetWireGuardState(path string, state map[string]*wg.WireGuardState) error {
+	return set(path, map[string]interface{}{
+		WireGuardStateFileKey: state,
+	})
+}
+
+func SetWireGuardWebsocketsEnabled(path string, enabled bool) error {
+	return set(path, map[string]interface{}{
+		WireGuardWebsocketsFileKey: enabled,
 	})
 }
 

@@ -22,37 +22,24 @@ func renderListTable(ctx context.Context, ipAddresses []api.IPAddress) {
 			ipType = "public"
 		}
 
-		if ipAddr.Type == "shared_v4" {
-			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, ""})
-		} else {
-			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, format.RelativeTime(ipAddr.CreatedAt)})
+		createdAt := format.RelativeTime(ipAddr.CreatedAt)
+
+		switch {
+		case ipAddr.Type == "v4":
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (dedicated, $2/mo)", ipAddr.Region, createdAt})
+		case ipAddr.Type == "shared_v4":
+			rows = append(rows, []string{"v4", ipAddr.Address, "public (shared)", ipAddr.Region, createdAt})
+		case ipAddr.Type == "v6":
+			rows = append(rows, []string{"v6", ipAddr.Address, "public (dedicated)", ipAddr.Region, createdAt})
+		case ipAddr.Type == "private_v6":
+			rows = append(rows, []string{"v6", ipAddr.Address, "private", ipAddr.Region, createdAt})
+		default:
+			rows = append(rows, []string{ipAddr.Type, ipAddr.Address, ipType, ipAddr.Region, createdAt})
 		}
 	}
 
 	out := iostreams.FromContext(ctx).Out
 	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Created At")
-}
-
-func renderPrivateTable(ctx context.Context, allocations []*api.AllocationStatus, backupRegions []api.Region) {
-	rows := make([][]string, 0, len(allocations))
-
-	for _, alloc := range allocations {
-
-		region := alloc.Region
-		if len(backupRegions) > 0 {
-			for _, r := range backupRegions {
-				if alloc.Region == r.Code {
-					region = alloc.Region + "(B)"
-					break
-				}
-			}
-		}
-
-		rows = append(rows, []string{alloc.IDShort, region, alloc.PrivateIP})
-	}
-
-	out := iostreams.FromContext(ctx).Out
-	render.Table(out, "", rows, "ID", "Region", "IP")
 }
 
 func renderPrivateTableMachines(ctx context.Context, machines []*api.Machine) {

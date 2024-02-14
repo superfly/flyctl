@@ -53,12 +53,12 @@ func runList(ctx context.Context) (err error) {
 			return command.ErrRequireAppName
 		}
 
-		app, err := apiClient.GetApp(ctx, appName)
+		tokens, err := apiClient.GetAppLimitedAccessTokens(ctx, appName)
 		if err != nil {
-			return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			return fmt.Errorf("failed retrieving tokens for app %s: %w", appName, err)
 		}
 
-		for _, token := range app.LimitedAccessTokens.Nodes {
+		for _, token := range tokens {
 			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
 		}
 

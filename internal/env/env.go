@@ -54,6 +54,30 @@ func IsSet(keys ...string) bool {
 	return false
 }
 
+func IS_GH_ACTION() bool {
+	return IsTruthy("GITHUB_ACTIONS")
+}
+
+func GitCommitSHA() string {
+	sha := os.Getenv("GITHUB_SHA")
+	return sha
+}
+
+func GitActionEventName() string {
+	eventName := os.Getenv("GITHUB_EVENT_NAME")
+	return eventName
+}
+
+func GitActionName() string {
+	eventName := os.Getenv("GITHUB_ACTION")
+	return eventName
+}
+
+func GitRepoAndOwner() string {
+	repoAndOwner := os.Getenv("GITHUB_REPOSITORY")
+	return repoAndOwner
+}
+
 // IsCI reports whether the environment is a CI one.
 //
 // Based on https://github.com/watson/ci-info/blob/c4f1553f254c78babef5c200c48569ede313b718/index.js
@@ -62,6 +86,9 @@ func IsCI() bool {
 		// Travis CI, CircleCI, Cirrus CI,
 		// Gitlab CI, Appveyor, CodeShip, dsari
 		"CI",
+
+		// GitHub Actions
+		"GITHUB_ACTIONS",
 
 		// Travis CI, Cirrus CI
 		"CONTINUOUS_INTEGRATION",

@@ -2,9 +2,9 @@ package plan
 
 import (
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/version"
 )
-
-const descriptionNone = "<none>"
 
 type LaunchPlan struct {
 	AppName string `json:"name"`
@@ -13,10 +13,18 @@ type LaunchPlan struct {
 	RegionCode       string `json:"region"`
 	HighAvailability bool   `json:"ha"`
 
-	CPUKind  string `json:"vm_cpukind,omitempty"`
-	CPUs     int    `json:"vm_cpus,omitempty"`
-	MemoryMB int    `json:"vm_memory,omitempty"`
-	VmSize   string `json:"vm_size,omitempty"`
+	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
+	CPUKind string `json:"vm_cpukind,omitempty"`
+	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
+	CPUs int `json:"vm_cpus,omitempty"`
+	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
+	MemoryMB int `json:"vm_memory,omitempty"`
+	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
+	VmSize string `json:"vm_size,omitempty"`
+
+	// In the future, we'll use this over CPUKind, CPUs, MemoryMB, and VmSize.
+	// As of writing this, however, the UI does not return this field.
+	Compute []*appconfig.Compute `json:"compute"`
 
 	HttpServicePort int `json:"http_service_port,omitempty"`
 
@@ -24,9 +32,12 @@ type LaunchPlan struct {
 
 	Redis RedisPlan `json:"redis"`
 
-	ScannerFamily string `json:"scanner_family"`
+	ScannerFamily string          `json:"scanner_family"`
+	FlyctlVersion version.Version `json:"flyctl_version"`
 }
 
+// Guest returns the guest described by the *raw* guest fields in a Plan.
+// When the UI starts returning Compute, this will be deprecated.
 func (p *LaunchPlan) Guest() *api.MachineGuest {
 	// TODO(Allison): Determine whether we should use VmSize or CPUKind/CPUs
 	guest := api.MachineGuest{
@@ -38,11 +49,4 @@ func (p *LaunchPlan) Guest() *api.MachineGuest {
 	}
 	guest.MemoryMB = p.MemoryMB
 	return &guest
-}
-
-func (p *LaunchPlan) SetGuestFields(guest *api.MachineGuest) {
-	p.CPUs = guest.CPUs
-	p.CPUKind = guest.CPUKind
-	p.MemoryMB = guest.MemoryMB
-	p.VmSize = guest.ToSize()
 }

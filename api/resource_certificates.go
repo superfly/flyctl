@@ -20,6 +20,7 @@ func (c *Client) GetAppCertificates(ctx context.Context, appName string) ([]AppC
 	req := c.NewRequest(query)
 
 	req.Var("appName", appName)
+	ctx = ctxWithAction(ctx, "get_app_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -75,6 +76,7 @@ func (c *Client) CheckAppCertificate(ctx context.Context, appName, hostname stri
 		"appId":    appName,
 		"hostname": hostname,
 	})
+	ctx = ctxWithAction(ctx, "check_app_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -128,6 +130,7 @@ func (c *Client) AddCertificate(ctx context.Context, appName, hostname string) (
 
 	req.Var("appId", appName)
 	req.Var("hostname", hostname)
+	ctx = ctxWithAction(ctx, "add_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -156,6 +159,7 @@ func (c *Client) DeleteCertificate(ctx context.Context, appName, hostname string
 
 	req.Var("appId", appName)
 	req.Var("hostname", hostname)
+	ctx = ctxWithAction(ctx, "delete_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/logger"
 	state2 "github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -54,6 +55,7 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 	}
 
 	oldPlan := helpers.Clone(state.Plan)
+	state.Plan = &plan.LaunchPlan{}
 
 	// TODO(Ali): Remove me.
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
@@ -72,6 +74,13 @@ func (state *launchState) EditInWebUi(ctx context.Context) error {
 		return err
 	}
 
+	// Patch in some fields that we keep in the plan that aren't persisted by the UI.
+	// Technically, we should probably just be persisting this, but there's
+	// no clear value to the UI having these fields currently.
+	if _, ok := finalSession.Metadata["ha"]; !ok {
+		state.Plan.HighAvailability = oldPlan.HighAvailability
+	}
+	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	return nil

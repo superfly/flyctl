@@ -11,17 +11,25 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
+	"time"
 
+	"github.com/azazeal/pause"
+	"github.com/jpillora/backoff"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/api"
+	"github.com/superfly/flyctl/api/tokens"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/httptracing"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const headerFlyRequestId = "fly-request-id"
@@ -29,7 +37,7 @@ const headerFlyRequestId = "fly-request-id"
 type Client struct {
 	appName    string
 	baseUrl    *url.URL
-	authToken  string
+	tokens     *tokens.Tokens
 	httpClient *http.Client
 	userAgent  string
 }
@@ -78,16 +86,18 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	if opts.Logger != nil {
 		logger = opts.Logger
 	}
-	httpClient, err := api.NewHTTPClient(logger, httptracing.NewTransport(http.DefaultTransport))
+
+	transport := otelhttp.NewTransport(http.DefaultTransport)
+	httpClient, err := api.NewHTTPClient(logger, transport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client to %s: %w", flapsUrl.String(), err)
 	}
 	return &Client{
 		appName:    opts.AppName,
 		baseUrl:    flapsUrl,
-		authToken:  config.FromContext(ctx).AccessToken,
+		tokens:     config.Tokens(ctx),
 		httpClient: httpClient,
-		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.ParsedVersion())),
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
 }
 
@@ -132,8 +142,9 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 			return dialer.DialContext(ctx, network, addr)
 		},
 	}
+	instrumentedTransport := otelhttp.NewTransport(transport)
 
-	httpClient, err := api.NewHTTPClient(logger, httptracing.NewTransport(transport))
+	httpClient, err := api.NewHTTPClient(logger, instrumentedTransport)
 	if err != nil {
 		return nil, fmt.Errorf("flaps: can't setup HTTP client for %s: %w", params.orgSlug, err)
 	}
@@ -147,9 +158,9 @@ func newWithUsermodeWireguard(ctx context.Context, params wireguardConnectionPar
 	return &Client{
 		appName:    params.appName,
 		baseUrl:    flapsBaseUrl,
-		authToken:  config.FromContext(ctx).AccessToken,
+		tokens:     config.Tokens(ctx),
 		httpClient: httpClient,
-		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.ParsedVersion())),
+		userAgent:  strings.TrimSpace(fmt.Sprintf("fly-cli/%s", buildinfo.Version())),
 	}, nil
 }
 
@@ -159,22 +170,76 @@ func (f *Client) CreateApp(ctx context.Context, name string, org string) (err er
 		"org_slug": org,
 	}
 
+	ctx = contextWithAction(ctx, appCreate)
+
 	err = f._sendRequest(ctx, http.MethodPost, "/apps", in, nil, nil)
 	return
 }
 
+func WaitForApp(ctx context.Context, name string) error {
+	f, err := NewFromAppName(ctx, name)
+	if err != nil {
+		return err
+	}
+	bo := &backoff.Backoff{
+		Min:    100 * time.Millisecond,
+		Max:    500 * time.Millisecond,
+		Jitter: true,
+	}
+
+	ctx = contextWithAction(ctx, machineGet)
+
+waiting:
+	for {
+		err := f._sendRequest(ctx, http.MethodGet, "/apps/"+url.PathEscape(name), nil, nil, nil)
+		if err == nil {
+			return nil
+		}
+
+		if ferr, ok := err.(*FlapsError); ok {
+			switch ferr.ResponseStatusCode {
+			case 404, 401:
+				pause.For(ctx, bo.Duration())
+				continue waiting
+			}
+		}
+
+		return err
+	}
+}
+
+var snakeCasePattern = regexp.MustCompile("[A-Z]")
+
+func snakeCase(s string) string {
+	return snakeCasePattern.ReplaceAllStringFunc(s, func(m string) string {
+		return "_" + strings.ToLower(m)
+	})
+}
+
 func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, out interface{}, headers map[string][]string) error {
+	actionName := snakeCase(actionFromContext(ctx).String())
+
+	ctx, span := tracing.GetTracer().Start(ctx, fmt.Sprintf("flaps.%s", actionName), trace.WithAttributes(
+		attribute.String("request.action", actionName),
+		attribute.String("request.endpoint", endpoint),
+		attribute.String("request.method", method),
+		attribute.String("request.machine_id", machineIDFromContext(ctx)),
+	))
+	defer span.End()
+
 	timing := instrument.Flaps.Begin()
 	defer timing.End()
 
 	req, err := f.NewRequest(ctx, method, endpoint, in, headers)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to prepare request")
 		return err
 	}
 	req.Header.Set("User-Agent", f.userAgent)
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to do request")
 		return err
 	}
 	defer func() {
@@ -183,6 +248,11 @@ func (f *Client) _sendRequest(ctx context.Context, method, endpoint string, in, 
 			terminal.Debugf("error closing response body: %v\n", err)
 		}
 	}()
+
+	span.SetAttributes(attribute.String("remote.trace_id", resp.Header.Get(tracing.HeaderFlyTraceId)))
+	span.SetAttributes(attribute.String("remote.span_id", resp.Header.Get(tracing.HeaderFlySpanId)))
+	span.SetAttributes(attribute.Int("request.status_code", resp.StatusCode))
+	span.SetAttributes(attribute.String("request.id", resp.Header.Get(headerFlyRequestId)))
 
 	if resp.StatusCode > 299 {
 		responseBody, err := io.ReadAll(resp.Body)
@@ -240,7 +310,7 @@ func (f *Client) NewRequest(ctx context.Context, method, path string, in interfa
 	}
 	req.Header = headers
 
-	req.Header.Add("Authorization", api.AuthorizationHeader(f.authToken))
+	req.Header.Add("Authorization", f.tokens.FlapsHeader())
 
 	return req, nil
 }

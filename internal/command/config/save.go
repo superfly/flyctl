@@ -111,9 +111,7 @@ func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configP
 		}
 	}
 
-	// Inherit the [build] section from the old config.
-	// This is the only section from definition.SanitizedDefinition()
-	// that is supported by the nomad platform and not synthesized.
+	// Inherit the [build] section from the local config.
 	currentCfg.Build = oldCfg.Build
 
 	return nil

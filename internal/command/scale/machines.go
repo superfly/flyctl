@@ -43,7 +43,7 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	}
 
 	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
+	defer releaseFunc()
 	if err != nil {
 		return nil, err
 	}

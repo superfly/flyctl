@@ -5,30 +5,60 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"time"
+
+	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/version"
 )
 
-var cachedName string // populated during init
+var (
+	// set during init
+	cachedVersion   version.Version
+	cachedBuildTime time.Time
+	cachedName      string
+	branchName      string
+)
 
 func init() {
-	var err error
-	if cachedName, err = os.Executable(); err != nil {
+	if err := loadMeta(); err != nil {
 		panic(err)
 	}
-	cachedName = filepath.Base(cachedName)
 }
 
-// Name returns the name for the executable that started the current
-// process.
-//
-// Name is safe for concurrent use.
+func loadMeta() error {
+	if err := loadCachedName(); err != nil {
+		return errors.Wrap(err, "error loading executable name")
+	}
+
+	if err := loadBuildTime(); err != nil {
+		return errors.Wrap(err, "error loading build date from embedded flag")
+	}
+
+	if err := loadVersion(); err != nil {
+		return errors.Wrap(err, "error loading build version from embedded flag")
+	}
+
+	return nil
+}
+
+func loadCachedName() error {
+	execName, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	cachedName = filepath.Base(execName)
+	return nil
+}
+
+// Name returns the executable that started the current process.
 func Name() string {
 	return cachedName
 }
 
 type info struct {
 	Name         string
-	Version      Version
+	Version      version.Version
 	Commit       string
 	BranchName   string
 	BuildDate    time.Time
@@ -54,10 +84,10 @@ func (i info) String() string {
 func Info() info {
 	return info{
 		Name:         Name(),
-		Version:      ParsedVersion(),
+		Version:      Version(),
 		Commit:       Commit(),
 		BranchName:   BranchName(),
-		BuildDate:    BuildDate(),
+		BuildDate:    BuildTime(),
 		OS:           OS(),
 		Architecture: Arch(),
 		Environment:  Environment(),
@@ -70,4 +100,35 @@ func OS() string {
 
 func Arch() string {
 	return runtime.GOARCH
+}
+
+func BranchName() string {
+	return branchName
+}
+
+func Version() version.Version {
+	return cachedVersion
+}
+
+func BuildTime() time.Time {
+	return cachedBuildTime
+}
+
+func Commit() string {
+	info, _ := debug.ReadBuildInfo()
+	var rev string = "<none>"
+	var dirty string = ""
+	for _, v := range info.Settings {
+		if v.Key == "vcs.revision" {
+			rev = v.Value
+		}
+		if v.Key == "vcs.modified" {
+			if v.Value == "true" {
+				dirty = "-dirty"
+			} else {
+				dirty = ""
+			}
+		}
+	}
+	return rev + dirty
 }

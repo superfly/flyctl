@@ -5,39 +5,50 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"time"
 
 	"github.com/briandowns/spinner"
 	"github.com/skratchdot/open-golang/open"
+	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
 
 type Extension struct {
-	Data gql.ExtensionData
-	App  gql.AppData
+	Data        gql.ExtensionData
+	App         *gql.AppData
+	SetsSecrets bool
 }
 
-func ProvisionExtension(ctx context.Context, appName string, providerName string, auto bool, options map[string]interface{}) (extension Extension, err error) {
+type ExtensionParams struct {
+	AppName      string
+	Organization *api.Organization
+	Provider     string
+	Options      map[string]interface{}
+}
+
+// Common flags that should be used for all extension commands
+var SharedFlags = flag.Set{
+	flag.Yes(),
+}
+
+func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension Extension, err error) {
 	client := client.FromContext(ctx).API().GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(providerName))
 
-	if err != nil {
-		return
-	}
+	var targetApp gql.AppData
+	var targetOrg gql.OrganizationData
 
-	targetApp := appResponse.App.AppData
-	targetOrg := targetApp.Organization
-	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
+	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
 
 	if err != nil {
 		return
@@ -45,48 +56,46 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
-	// Stop provisioning if being provisioned automatically, but the provider has auto-provisioning disabled
-
-	if auto && !provider.AutoProvision {
-		return extension, nil
-	}
-
-	// Stop auto-provisioning if this provider is in beta and the target org does is not allowed to provision beta extensions.\
-	// Standard provisioning will be stopped by the backend for the same reason, but there, we'll supply a better error message.
-
-	if auto && provider.Beta && !targetOrg.ProvisionsBetaExtensions {
-		return extension, nil
-	}
-
-	// Stop provisioning if this app already has an extension of this type, but only display an error for
-	// extensions that weren't automatically provisioned
-
-	if len(appResponse.App.AddOns.Nodes) > 0 {
-		existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(appName))
-
-		if auto {
-			existsError = nil
-		}
-
-		return extension, existsError
-	}
-
-	// Display ToS implicit agreement only once per org. Viewing makes the agreement official.
-
-	err = DisplayTosAgreement(ctx, provider, targetOrg, auto)
+	// Ensure users have agreed to the provider terms of service
+	err = AgreeToProviderTos(ctx, provider)
 
 	if err != nil {
 		return extension, err
 	}
 
-	// Pick a name for the extension unless we want it to be the same as the app, like in Sentry's case
+	if params.AppName != "" {
+		appResponse, err := gql.GetAppWithAddons(ctx, client, params.AppName, gql.AddOnType(params.Provider))
+		if err != nil {
+			return extension, err
+		}
+
+		targetApp = appResponse.App.AppData
+		targetOrg = appResponse.App.Organization.OrganizationData
+
+		if len(appResponse.App.AddOns.Nodes) > 0 {
+			existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(params.AppName))
+
+			return extension, existsError
+		}
+
+	} else {
+		resp, err := gql.GetOrganization(ctx, client, params.Organization.Slug)
+
+		if err != nil {
+			return extension, err
+		}
+
+		targetOrg = resp.Organization.OrganizationData
+	}
+
 	var name string
 
+	// Prompt to name the provisioned resource, or use the target app name like in Sentry's case
 	if provider.SelectName {
 		name = flag.GetString(ctx, "name")
 
 		if name == "" {
-			if provider.NameSuffix != "" {
+			if provider.NameSuffix != "" && targetApp.Name != "" {
 				name = targetApp.Name + "-" + provider.NameSuffix
 			}
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
@@ -103,7 +112,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		OrganizationId: targetOrg.Id,
 		Name:           name,
 		AppId:          targetApp.Id,
-		Type:           gql.AddOnType(providerName),
+		Type:           gql.AddOnType(provider.Name),
 	}
 
 	var inExcludedRegion bool
@@ -147,7 +156,6 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	var detectedPlatform *scanner.SourceInfo
 
 	// Pass the detected platform family to the API
-
 	if provider.DetectPlatform {
 		absDir, err := filepath.Abs(".")
 
@@ -162,15 +170,14 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 		}
 
 		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
-			if options == nil {
-				options = gql.AddOnOptions{}
+			if params.Options == nil {
+				params.Options = gql.AddOnOptions{}
 			}
-			options["platform"] = PlatformMap[detectedPlatform.Family]
+			params.Options["platform"] = PlatformMap[detectedPlatform.Family]
 		}
-
 	}
 
-	input.Options = options
+	input.Options = params.Options
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
 	if err != nil {
@@ -178,7 +185,7 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 	}
 
 	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
-	extension.App = targetApp
+	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
 		err = WaitForProvision(ctx, extension.Data.Name)
@@ -207,41 +214,52 @@ func ProvisionExtension(ctx context.Context, appName string, providerName string
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	SetSecrets(ctx, &targetApp, extension.Data.Environment.(map[string]interface{}))
+	setSecretsFromExtension(ctx, &targetApp, &extension)
 
 	return extension, nil
 }
 
-func DisplayTosAgreement(ctx context.Context, provider gql.ExtensionProviderData, org gql.AppDataOrganization, auto bool) error {
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
 	client := client.FromContext(ctx).API().GenqClient
+	out := iostreams.FromContext(ctx).Out
 
-	agreed, err := AgreedToProviderTos(ctx, provider.Name, org.Id)
+	// Internal providers like kubernetes don't need ToS agreement
+	if provider.Internal {
+		return nil
+	}
+
+	// Check if the provider ToS was agreed to already
+	agreed, err := AgreedToProviderTos(ctx, provider.Name)
 
 	if err != nil {
 		return err
 	}
 
-	var tosMsgPrefix string
+	if agreed {
+		return nil
+	}
 
-	// Display different ToS copy if an extension was automatically provisioned at deploy time
-	if auto {
-		tosMsgPrefix = "By deploying this app"
+	fmt.Fprint(out, "\n"+provider.TosAgreement+"\n\n")
+
+	// Prompt the user to agree to the provider ToS, or display the ToS agreement copy
+	// for non-interactive sessions
+	if !flag.GetYes(ctx) {
+		switch confirmTos, err := prompt.Confirm(ctx, "Do you agree?"); {
+		case err == nil:
+			if !confirmTos {
+				return errors.New("You must agree to continue.")
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("To agree, the --yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
 	} else {
-		tosMsgPrefix = fmt.Sprintf("By provisioning this %s", provider.ResourceName)
+		fmt.Fprintln(out, "By specifying the --yes flag, you have agreed to the terms displayed above.")
+		return nil
 	}
 
-	tosSuffix := "you agree to the %s Terms of Service: https://fly.io/legal/supplemental-terms"
-	tosMessage := colorize.Green("* ") + provider.TosAgreement + " " + tosMsgPrefix + ", " + tosSuffix
-
-	if !agreed {
-		fmt.Fprintf(io.Out, tosMessage+"\n\n", provider.DisplayName)
-		_, err = gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
-			AddOnProviderName: provider.Name,
-			OrganizationId:    org.Id,
-		})
-	}
+	_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
 
 	return err
 }
@@ -269,6 +287,14 @@ func WaitForProvision(ctx context.Context, name string) error {
 			return err
 		}
 
+		if resp.AddOn.Status == "error" {
+			if resp.AddOn.ErrorMessage != "" {
+				return errors.New(resp.AddOn.ErrorMessage)
+			} else {
+				return errors.New("provisioning failed")
+			}
+		}
+
 		if resp.AddOn.Status == "ready" {
 			return nil
 		}
@@ -292,9 +318,49 @@ func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData)
 	return
 }
 
+func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) (err error) {
+	var (
+		client = client.FromContext(ctx).API().GenqClient
+	)
+
+	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
+
+	if err != nil {
+		return
+	}
+
+	provider := resp.AddOnProvider.ExtensionProviderData
+
+	err = AgreeToProviderTos(ctx, provider)
+
+	if err != nil {
+		return err
+	}
+
+	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, providerName)
+
+	if err != nil {
+		return err
+	}
+
+	err = openUrl(ctx, result.Organization.ExtensionSsoLink)
+
+	return
+}
+
+func openUrl(ctx context.Context, url string) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
+
+	if err := open.Run(url); err != nil {
+		return fmt.Errorf("failed opening %s: %w", url, err)
+	}
+	return
+}
+
 func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
 		client = client.FromContext(ctx).API().GenqClient
 	)
 
@@ -304,12 +370,14 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 		return err
 	}
 
-	url := result.AddOn.SsoLink
-	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
+	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
 
-	if err := open.Run(url); err != nil {
-		return fmt.Errorf("failed opening %s: %w", url, err)
+	if err != nil {
+		return err
 	}
+
+	url := result.AddOn.SsoLink
+	openUrl(ctx, url)
 
 	return
 }
@@ -347,40 +415,112 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	return
 }
 
-func SetSecrets(ctx context.Context, app *gql.AppData, secrets map[string]interface{}) error {
+func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
 	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API().GenqClient
+		io              = iostreams.FromContext(ctx)
+		client          = client.FromContext(ctx).API().GenqClient
+		setSecrets bool = true
 	)
 
-	input := gql.SetSecretsInput{
-		AppId: app.Id,
+	environment := extension.Data.Environment
+	if environment == nil || reflect.ValueOf(environment).IsNil() {
+		return nil
 	}
 
-	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
+	secrets := extension.Data.Environment.(map[string]interface{})
 
-	for key, value := range secrets {
-		input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
-		fmt.Println(key)
+	if app.Name != "" {
+		appResp, err := gql.GetApp(ctx, client, app.Name)
+
+		if err != nil {
+			return err
+		}
+
+		var matchingNames []string
+
+		for _, s := range appResp.App.Secrets {
+			if _, exists := secrets[s.Name]; exists {
+				matchingNames = append(matchingNames, s.Name)
+			}
+		}
+
+		if len(matchingNames) > 0 {
+			fmt.Fprintf(io.Out, "Secrets %v already exist on app %s. They won't be set automatically.\n\n", matchingNames, app.Name)
+			setSecrets = false
+		}
+
+	} else {
+		setSecrets = false
 	}
 
-	fmt.Fprintln(io.Out)
+	if setSecrets {
+		extension.SetsSecrets = true
+		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
+		input := gql.SetSecretsInput{
+			AppId: app.Id,
+		}
+		for key, value := range secrets {
+			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
+			fmt.Println(key)
+		}
 
-	_, err := gql.SetSecrets(ctx, client, input)
+		fmt.Fprintln(io.Out)
+
+		_, err = gql.SetSecrets(ctx, client, input)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
+		for key, value := range secrets {
+			fmt.Println(key + ": " + value.(string))
+		}
+	}
 
 	return err
 }
 
-func AgreedToProviderTos(ctx context.Context, providerName string, orgId string) (bool, error) {
+func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error) {
 	client := client.FromContext(ctx).API().GenqClient
 
-	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName, orgId)
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName)
 
 	if err != nil {
 		return false, err
 	}
+	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
+}
 
-	return tosResp.Organization.AgreedToProviderTos, nil
+func Status(ctx context.Context, provider gql.AddOnType) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	extension, app, err := Discover(ctx, provider)
+
+	if err != nil {
+		return err
+	}
+
+	obj := [][]string{
+		{
+			extension.Name,
+			extension.PrimaryRegion,
+			extension.Status,
+		},
+	}
+
+	var cols []string = []string{"Name", "Primary Region", "Status"}
+
+	if app != nil {
+		obj[0] = append(obj[0], app.Name)
+		cols = append(cols, "App")
+	}
+
+	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
+		return
+	}
+
+	return
 }
 
 // Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py
@@ -497,7 +637,7 @@ var PlatformMap = map[string]string{
 	"Python":        "python",
 	"Rails":         "ruby-rails",
 	"RedwoodJS":     "javascript-react",
-	"Remix":         "javscript-remix",
-	"Remix/Prisma":  "javscript-remix",
+	"Remix":         "javascript-remix",
+	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
 }

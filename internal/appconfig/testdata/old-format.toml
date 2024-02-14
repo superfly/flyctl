@@ -59,3 +59,8 @@ build_target = "thalayer"
   # singular mount
   source = "data"
   destination = "/data"
+
+[metrics]
+  # singular metrics
+  port = 9999
+  path = "/metrics"

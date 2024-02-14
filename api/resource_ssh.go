@@ -22,6 +22,7 @@ query($slug: String!) {
 }
 `)
 	req.Var("slug", slug)
+	ctx = ctxWithAction(ctx, "get_logged_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {
@@ -31,28 +32,7 @@ query($slug: String!) {
 	return data.Organization.LoggedCertificates.Nodes, nil
 }
 
-func (c *Client) EstablishSSHKey(ctx context.Context, org *Organization, override bool) (*SSHCertificate, error) {
-	req := c.NewRequest(`
-mutation($input: EstablishSSHKeyInput!) {
-  establishSshKey(input: $input) {
-    certificate
-  }
-}
-`)
-	req.Var("input", map[string]interface{}{
-		"organizationId": org.ID,
-		"override":       override,
-	})
-
-	data, err := c.RunWithContext(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	return &data.EstablishSSHKey, nil
-}
-
-func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, principals []string, apps []App, valid_hours *int, publicKey ed25519.PublicKey) (*IssuedCertificate, error) {
+func (c *Client) IssueSSHCertificate(ctx context.Context, org OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*IssuedCertificate, error) {
 	req := c.NewRequest(`
 mutation($input: IssueCertificateInput!) {
   issueCertificate(input: $input) {
@@ -60,12 +40,6 @@ mutation($input: IssueCertificateInput!) {
   }
 }
 `)
-
-	appNames := make([]string, 0, len(apps))
-	for _, app := range apps {
-		appNames = append(appNames, app.Name)
-	}
-
 	var pubStr string
 	if len(publicKey) > 0 {
 		sshPub, err := ssh.NewPublicKey(publicKey)
@@ -88,6 +62,7 @@ mutation($input: IssueCertificateInput!) {
 	}
 
 	req.Var("input", inputs)
+	ctx = ctxWithAction(ctx, "issue_ssh_certificates")
 
 	data, err := c.RunWithContext(ctx, req)
 	if err != nil {

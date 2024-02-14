@@ -12,7 +12,6 @@ import (
 
 	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs/appsv2"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sort"
@@ -39,7 +38,6 @@ Organization admins can also invite or remove users from Organizations.
 		newRemove(),
 		newCreate(),
 		newDelete(),
-		appsv2.New(),
 	)
 
 	return orgs
@@ -66,6 +64,10 @@ var errSlugArgMustBeSpecified = prompt.NonInteractiveError("slug argument must b
 func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.OrganizationFilter) (slug string, err error) {
 	if orgSlug != "" {
 		return orgSlug, nil
+	}
+
+	if args := flag.Args(ctx); len(args) > 0 {
+		return args[0], nil
 	}
 
 	io := iostreams.FromContext(ctx)

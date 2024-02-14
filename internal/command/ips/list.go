@@ -2,6 +2,7 @@ package ips
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/client"
@@ -37,6 +38,7 @@ func newList() *cobra.Command {
 func runIPAddressesList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
 	client := client.FromContext(ctx).API()
+	out := iostreams.FromContext(ctx).Out
 
 	appName := appconfig.NameFromContext(ctx)
 	ipAddresses, err := client.GetIPAddresses(ctx, appName)
@@ -45,10 +47,10 @@ func runIPAddressesList(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		out := iostreams.FromContext(ctx).Out
 		return render.JSON(out, ipAddresses)
 	}
 
 	renderListTable(ctx, ipAddresses)
+	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/reference/services/#ip-addresses")
 	return nil
 }

@@ -13,6 +13,8 @@ var pgSettings = map[string]string{
 	"max-wal-senders":            "max_wal_senders",
 	"max-replication-slots":      "max_replication_slots",
 	"max-connections":            "max_connections",
+	"work-mem":                   "work_mem",
+	"maintenance-work-mem":       "maintenance_work_mem",
 	"shared-buffers":             "shared_buffers",
 	"log-statement":              "log_statement",
 	"log-min-duration-statement": "log_min_duration_statement",

@@ -22,6 +22,7 @@ func New() *cobra.Command {
 
 	snapshots.AddCommand(
 		newList(),
+		newCreate(),
 	)
 
 	return snapshots

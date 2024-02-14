@@ -10,13 +10,18 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"go.opentelemetry.io/otel/attribute"
 
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+// TODO(ali): Use statuslogger here
 
 var (
 	ErrAborted             = errors.New("deployment aborted by user")
@@ -27,29 +32,33 @@ var (
 	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready")
 	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
 	ErrValidationError     = errors.New("app not in valid state for bluegreen deployments")
+	ErrOrgLimit            = errors.New("app can't undergo bluegreen deployment due to org limits")
 )
 
 type blueGreen struct {
-	greenMachines   []machine.LeasableMachine
-	blueMachines    []*machineUpdateEntry
-	flaps           *flaps.Client
-	io              *iostreams.IOStreams
-	colorize        *iostreams.ColorScheme
-	clearLinesAbove func(count int)
-	timeout         time.Duration
-	aborted         atomic.Bool
-	healthLock      sync.RWMutex
-	stateLock       sync.RWMutex
-	ctrlcHook       ctrlc.Handle
-
+	greenMachines       machineUpdateEntries
+	blueMachines        machineUpdateEntries
+	flaps               *flaps.Client
+	apiClient           *api.Client
+	io                  *iostreams.IOStreams
+	colorize            *iostreams.ColorScheme
+	clearLinesAbove     func(count int)
+	timeout             time.Duration
+	aborted             atomic.Bool
+	healthLock          sync.RWMutex
+	stateLock           sync.RWMutex
+	ctrlcHook           ctrlc.Handle
+	appConfig           *appconfig.Config
 	hangingBlueMachines []string
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
 	bg := &blueGreen{
-		greenMachines:       []machine.LeasableMachine{},
+		greenMachines:       machineUpdateEntries{},
 		blueMachines:        blueMachines,
 		flaps:               md.flapsClient,
+		apiClient:           md.apiClient,
+		appConfig:           md.appConfig,
 		timeout:             md.waitTimeout,
 		io:                  md.io,
 		colorize:            md.colorize,
@@ -70,7 +79,10 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
-	var greenMachines []machine.LeasableMachine
+	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_create")
+	defer span.End()
+
+	var greenMachines machineUpdateEntries
 
 	for _, mach := range bg.blueMachines {
 		launchInput := mach.launchInput
@@ -78,13 +90,14 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 
 		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to launch machine")
 			return err
 		}
 
 		greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
 		defer greenMachine.ReleaseLease(ctx)
 
-		greenMachines = append(greenMachines, greenMachine)
+		greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
 
 		fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
 	}
@@ -140,19 +153,22 @@ func (bg *blueGreen) allMachinesStarted(stateMap map[string]int) bool {
 }
 
 func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_start_wait")
+	defer span.End()
+
 	wait := time.NewTicker(bg.timeout)
 	machineIDToState := map[string]int{}
 	render := bg.renderMachineStates(machineIDToState)
 	errChan := make(chan error)
 
-	for _, gm := range bg.greenMachines {
+	for _, gm := range bg.greenMachines.machines() {
 		machineIDToState[gm.FormattedMachineId()] = 0
 	}
 
 	for _, gm := range bg.greenMachines {
-		id := gm.FormattedMachineId()
+		id := gm.leasableMachine.FormattedMachineId()
 
-		if len(gm.Machine().Config.Standbys) > 0 {
+		if gm.launchInput.SkipLaunch {
 			machineIDToState[id] = 1
 			continue
 		}
@@ -167,7 +183,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 			bg.stateLock.Lock()
 			machineIDToState[id] = 1
 			bg.stateLock.Unlock()
-		}(gm)
+		}(gm.leasableMachine)
 	}
 
 	for {
@@ -256,28 +272,38 @@ func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*api.HealthCheckStat
 }
 
 func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_health_wait")
+	defer span.End()
+
 	wait := time.NewTicker(bg.timeout)
 	machineIDToHealthStatus := map[string]*api.HealthCheckStatus{}
 	errChan := make(chan error)
 	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
 
 	for _, gm := range bg.greenMachines {
-		// in some cases, not all processes have healthchecks setup
-		// eg. processes that run background workers, etc.
-		// there's no point checking for health, a started state is enough
-		if len(gm.Machine().Checks) == 0 {
+		if gm.launchInput.SkipLaunch {
 			continue
 		}
 
-		machineIDToHealthStatus[gm.FormattedMachineId()] = &api.HealthCheckStatus{}
+		// in some cases, not all processes have healthchecks setup
+		// eg. processes that run background workers, etc.
+		// there's no point checking for health, a started state is enough
+		if len(gm.leasableMachine.Machine().Checks) == 0 {
+			continue
+		}
+
+		machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &api.HealthCheckStatus{}
 	}
 
 	for _, gm := range bg.greenMachines {
+		if gm.launchInput.SkipLaunch {
+			continue
+		}
 
 		// in some cases, not all processes have healthchecks setup
 		// eg. processes that run background workers, etc.
 		// there's no point checking for health, a started state is enough
-		if len(gm.Machine().Checks) == 0 {
+		if len(gm.leasableMachine.Machine().Checks) == 0 {
 			continue
 		}
 
@@ -312,7 +338,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				time.Sleep(interval)
 			}
-		}(gm)
+		}(gm.leasableMachine)
 	}
 
 	for {
@@ -340,7 +366,10 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 }
 
 func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) error {
-	for _, gm := range bg.greenMachines {
+	ctx, span := tracing.GetTracer().Start(ctx, "mark_green_machines_for_traffic")
+	defer span.End()
+
+	for _, gm := range bg.greenMachines.machines() {
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
@@ -356,6 +385,9 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 }
 
 func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "destroy_blue_machines")
+	defer span.End()
+
 	for _, gm := range bg.blueMachines {
 		if bg.aborted.Load() {
 			return ErrAborted
@@ -409,10 +441,26 @@ func (bg *blueGreen) attachCustomTopLevelChecks() {
 }
 
 func (bg *blueGreen) Deploy(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "bluegreen")
+	defer span.End()
+
 	defer bg.ctrlcHook.Done()
 
 	if bg.aborted.Load() {
 		return ErrAborted
+	}
+
+	canPerform, err := bg.apiClient.CanPerformBluegreenDeployment(ctx, bg.appConfig.AppName)
+	if err != nil {
+		tracing.RecordError(span, err, "failed to validate deployment")
+		return err
+	}
+
+	span.SetAttributes(attribute.Bool("can_perform", canPerform))
+
+	if !canPerform {
+		tracing.RecordError(span, ErrOrgLimit, "failed to deploy, orglimit")
+		return ErrOrgLimit
 	}
 
 	bg.attachCustomTopLevelChecks()
@@ -446,6 +494,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
 	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to wait for start")
 		return errors.Wrap(err, ErrWaitForStartedState.Error())
 	}
 
@@ -455,6 +504,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to wait for health")
 		return errors.Wrap(err, ErrWaitForHealthy.Error())
 	}
 
@@ -464,6 +514,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready\n")
 	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to mark as ready for traffic")
 		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
 
@@ -473,6 +524,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to destroy blue machines")
 		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
 	}
 
@@ -481,15 +533,19 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
+	defer span.End()
+
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
 		return nil
 	}
 
-	for _, mach := range bg.greenMachines {
+	for _, mach := range bg.greenMachines.machines() {
 		err := mach.Destroy(ctx, true)
 		if err != nil {
+			tracing.RecordError(span, err, "failed to destroy green machine")
 			return err
 		}
 	}

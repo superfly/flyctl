@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/docker/go-units"
 	"github.com/samber/lo"
 	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/gql"
-	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -20,14 +20,6 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
 		return fmt.Errorf("failed to provision seed volumes: %w", err)
-	}
-
-	// Provision Sentry on first deployment unless explicitly prevented by the --no-extensions option
-	if !md.noExtensions {
-		_, err := extensions_core.ProvisionExtension(ctx, md.app.Name, "sentry", true, gql.AddOnOptions{})
-		if err != nil {
-			fmt.Fprintf(md.io.ErrOut, "Failed to provision a Sentry project for this app. Use `fly ext sentry create` to try again.\nERROR: %s", err)
-		}
 	}
 	return nil
 }
@@ -111,20 +103,47 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			return err
 		}
 
+		mConfig, err := md.appConfig.ToMachineConfig(groupName, nil)
+		if err != nil {
+			return err
+		}
+		guest := md.machineGuest
+		if mConfig.Guest != nil {
+			guest = mConfig.Guest
+		}
+
 		for _, m := range groupConfig.Mounts {
 			if v := existentVolumes[m.Source]; v > 0 {
 				existentVolumes[m.Source]--
 				continue
 			}
 
-			fmt.Fprintf(md.io.Out, "Creating 1GB volume '%s' for process group '%s'. Use 'fly vol extend' to increase its size\n", m.Source, groupName)
+			var initialSize int
+			switch {
+			case m.InitialSize != "":
+				// Ignore the error because invalid values are caught at config validation time
+				initialSize, _ = helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			case md.volumeInitialSize > 0:
+				initialSize = md.volumeInitialSize
+			case guest != nil && guest.GPUKind != "":
+				initialSize = DefaultGPUVolumeInitialSizeGB
+			default:
+				initialSize = DefaultVolumeInitialSizeGB
+			}
+
+			fmt.Fprintf(
+				md.io.Out,
+				"Creating a %d GB volume named '%s' for process group '%s'. "+
+					"Use 'fly vol extend' to increase its size\n",
+				initialSize, m.Source, groupName,
+			)
 
 			input := api.CreateVolumeRequest{
-				Name:             m.Source,
-				Region:           groupConfig.PrimaryRegion,
-				SizeGb:           api.Pointer(1),
-				Encrypted:        api.Pointer(true),
-				HostDedicationId: md.appConfig.HostDedicationID,
+				Name:                m.Source,
+				Region:              groupConfig.PrimaryRegion,
+				SizeGb:              api.Pointer(initialSize),
+				Encrypted:           api.Pointer(true),
+				ComputeRequirements: guest,
 			}
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)

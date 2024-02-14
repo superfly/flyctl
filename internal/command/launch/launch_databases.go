@@ -129,7 +129,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		}
 
 		if err != nil {
-			const msg = "Error creating Postgresql database. Be warned that this may affect deploys"
+			const msg = "Error creating Postgres database. Be warned that this may affect deploys"
 			fmt.Fprintln(io.Out, io.ColorScheme().Red(msg))
 		}
 
@@ -141,9 +141,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	redisPlan := state.Plan.Redis.UpstashRedis
-	if redisPlan.AppName == "" {
-		redisPlan.AppName = fmt.Sprintf("%s-redis", state.appConfig.AppName)
-	}
+	dbName := fmt.Sprintf("%s-redis", state.Plan.AppName)
 	org, err := state.Org(ctx)
 	if err != nil {
 		return err
@@ -169,7 +167,7 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		}
 	}
 
-	db, err := redis.Create(ctx, org, redisPlan.AppName, &region, redisPlan.PlanId, len(readReplicaRegions) == 0, redisPlan.Eviction, &readReplicaRegions)
+	db, err := redis.Create(ctx, org, dbName, &region, len(readReplicaRegions) == 0, redisPlan.Eviction, &readReplicaRegions)
 	if err != nil {
 		return err
 	}
