@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"github.com/superfly/fly-go/api/tokens"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )

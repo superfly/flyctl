@@ -8,14 +8,14 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/ping"
 )
 
 func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
@@ -59,7 +59,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 }
 
 func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
@@ -82,7 +82,7 @@ func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 }
 
 func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 
 	// Set up the agent connection
 	ac, err := agent.DefaultClient(ctx)

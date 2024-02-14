@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -49,7 +49,7 @@ including type, when, success/fail and which user triggered the release.
 func runReleases(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = api.ClientFromContext(ctx)
+		client  = fly.ClientFromContext(ctx)
 		out     = iostreams.FromContext(ctx).Out
 	)
 
@@ -70,7 +70,7 @@ func runReleases(ctx context.Context) error {
 	return render.Table(out, "", rows, headers...)
 }
 
-func formatMachinesReleases(releases []api.Release, image bool) ([][]string, []string) {
+func formatMachinesReleases(releases []fly.Release, image bool) ([][]string, []string) {
 	var rows [][]string
 	for _, release := range releases {
 		row := []string{

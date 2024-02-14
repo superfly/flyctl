@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -41,7 +41,7 @@ func newList() *cobra.Command {
 }
 
 func runList(ctx context.Context) (err error) {
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	var rows [][]string
 

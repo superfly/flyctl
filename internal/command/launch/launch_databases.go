@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
@@ -49,7 +49,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
 		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = api.ClientFromContext(ctx)
+		apiClient = fly.ClientFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
@@ -150,15 +150,15 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		return err
 	}
 
-	var readReplicaRegions []api.Region
+	var readReplicaRegions []fly.Region
 	{
-		client := api.ClientFromContext(ctx)
+		client := fly.ClientFromContext(ctx)
 		regions, _, err := client.PlatformRegions(ctx)
 		if err != nil {
 			return err
 		}
 		for _, code := range redisPlan.ReadReplicas {
-			if region, ok := lo.Find(regions, func(r api.Region) bool { return r.Code == code }); ok {
+			if region, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == code }); ok {
 				readReplicaRegions = append(readReplicaRegions, region)
 			} else {
 				return fmt.Errorf("region %s not found", code)

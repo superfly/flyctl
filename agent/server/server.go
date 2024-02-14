@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/api/tokens"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
@@ -27,7 +27,7 @@ import (
 type Options struct {
 	Socket           string
 	Logger           *log.Logger
-	Client           *api.Client
+	Client           *fly.Client
 	Background       bool
 	ConfigFile       string
 	ConfigWebsockets bool
@@ -220,7 +220,7 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *api.Organization, recycle bool) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -60,7 +60,7 @@ func TestPostgres_FlexFailover(t *testing.T) {
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
-	findLeaderID := func(ml []*api.Machine) string {
+	findLeaderID := func(ml []*fly.Machine) string {
 		for _, mach := range ml {
 			for _, chk := range mach.Checks {
 				if chk.Name == "role" && chk.Output == "primary" {

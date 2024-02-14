@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -99,7 +99,7 @@ func runLeaseView(ctx context.Context) (err error) {
 	}
 	flapsClient := flaps.FromContext(ctx)
 
-	var leases = make(map[string]*api.MachineLease)
+	var leases = make(map[string]*fly.MachineLease)
 
 	for _, machine := range machines {
 		lease, err := flapsClient.FindLease(ctx, machine.ID)

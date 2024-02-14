@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -39,14 +39,14 @@ be shown with its name, owner and when it was last deployed.
 }
 
 func runList(ctx context.Context) (err error) {
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
 
-	var apps []api.App
+	var apps []fly.App
 	if org != nil {
 		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 	} else {
@@ -90,8 +90,8 @@ func runList(ctx context.Context) (err error) {
 	return
 }
 
-func getOrg(ctx context.Context) (*api.Organization, error) {
-	client := api.ClientFromContext(ctx)
+func getOrg(ctx context.Context) (*fly.Organization, error) {
+	client := fly.ClientFromContext(ctx)
 
 	orgName := flag.GetOrg(ctx)
 

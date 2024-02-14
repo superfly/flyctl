@@ -9,7 +9,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -193,7 +193,7 @@ func run(ctx context.Context) error {
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 
 	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
 	defer span.End()
@@ -230,7 +230,7 @@ func run(ctx context.Context) error {
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := api.ClientFromContext(ctx)
+	apiClient := fly.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
@@ -298,7 +298,7 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 func deployToMachines(
 	ctx context.Context,
 	appConfig *appconfig.Config,
-	appCompact *api.AppCompact,
+	appCompact *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
@@ -354,7 +354,7 @@ func deployToMachines(
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
 	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		maxUnavailable = fly.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")

@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -58,7 +58,7 @@ func runDestroy(ctx context.Context) (err error) {
 
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = api.ClientFromContext(ctx).GenqClient
+		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
 	name := flag.FirstArg(ctx)

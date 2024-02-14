@@ -6,7 +6,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -55,7 +55,7 @@ func runExtend(ctx context.Context) error {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		appName  = appconfig.NameFromContext(ctx)
-		client   = api.ClientFromContext(ctx)
+		client   = fly.ClientFromContext(ctx)
 		volID    = flag.FirstArg(ctx)
 	)
 

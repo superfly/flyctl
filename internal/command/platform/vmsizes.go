@@ -8,7 +8,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -36,11 +36,11 @@ func runMachineVMSizes(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 
 	type preset struct {
-		guest   *api.MachineGuest
+		guest   *fly.MachineGuest
 		strings []string
 	}
 
-	sortedPresets := lo.MapToSlice(api.MachinePresets, func(key string, value *api.MachineGuest) preset {
+	sortedPresets := lo.MapToSlice(fly.MachinePresets, func(key string, value *fly.MachineGuest) preset {
 		arr := []string{
 			key,
 			cores(value.CPUs),

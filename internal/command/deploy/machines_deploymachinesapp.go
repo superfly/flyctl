@@ -16,7 +16,7 @@ import (
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
@@ -110,7 +110,7 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
-func (md *machineDeployment) inferCanaryGuest(name string) *api.MachineGuest {
+func (md *machineDeployment) inferCanaryGuest(name string) *fly.MachineGuest {
 	canaryGuest := md.machineGuest
 	for _, lm := range md.machineSet.GetMachines() {
 		machine := lm.Machine()
@@ -150,7 +150,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 		machine, err := md.spawnMachineInGroup(ctx, name, nil,
 			withMeta(metadata{key: "fly_canary", value: "true"}),
 			withGuest(md.inferCanaryGuest(name)),
-			withDns(&api.DNSConfig{SkipRegistration: true}),
+			withDns(&fly.DNSConfig{SkipRegistration: true}),
 		)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to provision canary machine")
@@ -307,7 +307,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 
 type machineUpdateEntry struct {
 	leasableMachine machine.LeasableMachine
-	launchInput     *api.LaunchMachineInput
+	launchInput     *fly.LaunchMachineInput
 }
 
 type machineUpdateEntries []*machineUpdateEntry
@@ -355,7 +355,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 		// but we only suggest changing region on machine start.
 
 		var timeoutErr machine.WaitTimeoutErr
-		if errors.As(err, &timeoutErr) && timeoutErr.DesiredState() == api.MachineStateStarted {
+		if errors.As(err, &timeoutErr) && timeoutErr.DesiredState() == fly.MachineStateStarted {
 			// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
 			// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
 			descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
@@ -385,7 +385,7 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 	}
 
 	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, false); err != nil {
+		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return err
 		}
@@ -737,8 +737,8 @@ func (md *machineDeployment) updateMachineInPlace(ctx context.Context, e *machin
 
 type spawnOptions struct {
 	meta  []metadata
-	guest *api.MachineGuest
-	dns   *api.DNSConfig
+	guest *fly.MachineGuest
+	dns   *fly.DNSConfig
 }
 
 type spawnOptionsFn func(*spawnOptions)
@@ -749,13 +749,13 @@ func withMeta(m metadata) spawnOptionsFn {
 	}
 }
 
-func withGuest(guest *api.MachineGuest) spawnOptionsFn {
+func withGuest(guest *fly.MachineGuest) spawnOptionsFn {
 	return func(o *spawnOptions) {
 		o.guest = guest
 	}
 }
 
-func withDns(dns *api.DNSConfig) spawnOptionsFn {
+func withDns(dns *fly.DNSConfig) spawnOptionsFn {
 	return func(o *spawnOptions) {
 		o.dns = dns
 	}
@@ -823,7 +823,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	// And wait (or not) for successful health checks
 	if !md.skipHealthChecks {
 		// Don't wait for state if the --detach flag isn't specified
-		if err := lm.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, false); err != nil {
+		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false); err != nil {
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return nil, err
 		}
@@ -1018,7 +1018,7 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 	fmt.Fprintf(md.io.ErrOut, "Smoke checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
 	fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", lm.Machine().ID)
 	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
-	if api.IsNotAuthenticatedError(logErr) {
+	if fly.IsNotAuthenticatedError(logErr) {
 		fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
 	} else {
 		if logErr != nil {
@@ -1039,7 +1039,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "check_dns")
 	defer span.End()
 
-	client := api.ClientFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to get ip addresses")

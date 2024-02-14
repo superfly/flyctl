@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/superfly/fly-go/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/config"
@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func getFromMetadata(m *api.Machine, key string) string {
+func getFromMetadata(m *fly.Machine, key string) string {
 	if m.Config != nil && m.Config.Metadata != nil {
 		return m.Config.Metadata[key]
 	}
@@ -26,7 +26,7 @@ func getFromMetadata(m *api.Machine, key string) string {
 	return ""
 }
 
-func getProcessgroup(m *api.Machine) string {
+func getProcessgroup(m *fly.Machine) string {
 	name := m.ProcessGroup()
 	if name == "" {
 		name = "<default>"
@@ -38,12 +38,12 @@ func getProcessgroup(m *api.Machine) string {
 	return name
 }
 
-func getReleaseVersion(m *api.Machine) string {
-	return getFromMetadata(m, api.MachineConfigMetadataKeyFlyReleaseVersion)
+func getReleaseVersion(m *fly.Machine) string {
+	return getFromMetadata(m, fly.MachineConfigMetadataKeyFlyReleaseVersion)
 }
 
 // getImage returns the image on the most recent machine released under an app.
-func getImage(machines []*api.Machine) (string, error) {
+func getImage(machines []*fly.Machine) (string, error) {
 	// for context, see this comment https://github.com/superfly/flyctl/pull/1709#discussion_r1110466239
 	versionToImage := map[int]string{}
 	for _, machine := range machines {
@@ -72,11 +72,11 @@ func getImage(machines []*api.Machine) (string, error) {
 	return latestImage, nil
 }
 
-func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer) error {
+func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer) error {
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()
-		client     = api.ClientFromContext(ctx)
+		client     = fly.ClientFromContext(ctx)
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
@@ -106,9 +106,9 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	}
 
 	// Tracks latest eligible version
-	var latest *api.ImageVersion
+	var latest *fly.ImageVersion
 
-	var updatable []*api.Machine
+	var updatable []*fly.Machine
 
 	unknownRepos := map[string]bool{}
 
@@ -152,7 +152,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 		fmt.Fprintln(out, colorize.Yellow("Run `flyctl image update` to migrate to the latest image version."))
 	}
 
-	managed, unmanaged := []*api.Machine{}, []*api.Machine{}
+	managed, unmanaged := []*fly.Machine{}, []*fly.Machine{}
 
 	for _, machine := range machines {
 		if machine.IsAppsV2() {
@@ -218,10 +218,10 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	return nil
 }
 
-func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) error {
+func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) error {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = api.ClientFromContext(ctx)
+		client = fly.ClientFromContext(ctx)
 	)
 
 	versionQuery := `
@@ -244,7 +244,7 @@ func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines 
 		version = resp.App.CurrentRelease.Version
 	}
 
-	machinesToShow := []*api.Machine{}
+	machinesToShow := []*fly.Machine{}
 	if app.IsPostgresApp() {
 		machinesToShow = machines
 	} else {
@@ -270,11 +270,11 @@ func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines 
 	return render.JSON(out, status)
 }
 
-func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine, out io.Writer) (err error) {
+func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine, out io.Writer) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = api.ClientFromContext(ctx)
+		client   = fly.ClientFromContext(ctx)
 	)
 
 	if len(machines) > 0 {
@@ -290,8 +290,8 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 	}
 
 	// Tracks latest eligible version
-	var latest *api.ImageVersion
-	var updatable []*api.Machine
+	var latest *fly.ImageVersion
+	var updatable []*fly.Machine
 
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
@@ -339,7 +339,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 		role := "unknown"
 		for _, check := range machine.Checks {
 			if check.Name == "role" {
-				if check.Status == api.Passing {
+				if check.Status == fly.Passing {
 					role = check.Output
 				} else {
 					role = "error"
@@ -362,7 +362,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 	return render.Table(out, "", rows, "ID", "State", "Role", "Region", "Checks", "Image", "Created", "Updated")
 }
 
-func isQuorumMet(machines []*api.Machine) (bool, string) {
+func isQuorumMet(machines []*fly.Machine) (bool, string) {
 	primaryRegion := machines[0].Config.Env["PRIMARY_REGION"]
 
 	// We are only considering machines in the primary region.
