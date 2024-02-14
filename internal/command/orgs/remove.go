@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 )
 
@@ -32,7 +31,7 @@ invitation to join (if not, see orgs revoke).
 }
 
 func runRemove(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {
 		return nil

@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/config"
@@ -77,7 +76,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()
-		client     = client.FromContext(ctx).API()
+		client     = api.ClientFromContext(ctx)
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
@@ -222,7 +221,7 @@ func RenderMachineStatus(ctx context.Context, app *api.AppCompact, out io.Writer
 func renderMachineJSONStatus(ctx context.Context, app *api.AppCompact, machines []*api.Machine) error {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 	)
 
 	versionQuery := `
@@ -275,7 +274,7 @@ func renderPGStatus(ctx context.Context, app *api.AppCompact, machines []*api.Ma
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		client   = api.ClientFromContext(ctx)
 	)
 
 	if len(machines) > 0 {

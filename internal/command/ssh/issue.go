@@ -20,7 +20,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
@@ -77,7 +76,7 @@ validity.`
 }
 
 func runSSHIssue(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)

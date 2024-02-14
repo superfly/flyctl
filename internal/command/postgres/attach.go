@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
@@ -74,7 +73,7 @@ func runAttach(ctx context.Context) error {
 	var (
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		client    = client.FromContext(ctx).API()
+		client    = api.ClientFromContext(ctx)
 	)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
@@ -126,7 +125,7 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 
 		pgAppName = params.PgAppName
 		appName   = params.AppName
@@ -198,7 +197,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 
 func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams, flycast *string) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 

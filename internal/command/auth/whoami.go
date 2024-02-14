@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -30,7 +30,7 @@ authenticated and in use.
 }
 
 func runWhoAmI(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	user, err := client.GetCurrentUser(ctx)
 	if err != nil {

@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -67,7 +66,7 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = api.ClientFromContext(ctx)
 	)
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{

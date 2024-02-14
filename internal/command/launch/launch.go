@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -132,7 +131,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
 		return nil, err

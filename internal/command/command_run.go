@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
@@ -31,7 +30,7 @@ import (
 
 func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
@@ -370,7 +369,7 @@ func DetermineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	apiclient := client.FromContext(ctx).API()
+	apiclient := api.ClientFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 
 	if regionCode == "" {

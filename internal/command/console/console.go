@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -158,7 +157,7 @@ func runConsole(ctx context.Context) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		apiClient = client.FromContext(ctx).API()
+		apiClient = api.ClientFromContext(ctx)
 	)
 
 	app, err := apiClient.GetAppCompact(ctx, appName)
@@ -303,7 +302,7 @@ func getMachineByID(ctx context.Context) (*api.Machine, func(), error) {
 }
 
 func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, func(), error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {
 		return nil, nil, err

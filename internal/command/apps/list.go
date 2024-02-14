@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -40,7 +39,7 @@ be shown with its name, owner and when it was last deployed.
 }
 
 func runList(ctx context.Context) (err error) {
-	client := client.FromContext(ctx)
+	client := api.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
@@ -49,9 +48,9 @@ func runList(ctx context.Context) (err error) {
 
 	var apps []api.App
 	if org != nil {
-		apps, err = client.API().GetAppsForOrganization(ctx, org.ID)
+		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 	} else {
-		apps, err = client.API().GetApps(ctx, nil)
+		apps, err = client.GetApps(ctx, nil)
 	}
 
 	if err != nil {
@@ -65,7 +64,7 @@ func runList(ctx context.Context) (err error) {
 		return
 	}
 
-	var verbose = flag.GetBool(ctx, "verbose")
+	verbose := flag.GetBool(ctx, "verbose")
 
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
@@ -92,7 +91,7 @@ func runList(ctx context.Context) (err error) {
 }
 
 func getOrg(ctx context.Context) (*api.Organization, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	orgName := flag.GetOrg(ctx)
 

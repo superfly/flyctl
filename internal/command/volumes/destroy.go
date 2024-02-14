@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -42,7 +41,7 @@ func newDestroy() *cobra.Command {
 func runDestroy(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 		volIDs = flag.Args(ctx)
 	)
 

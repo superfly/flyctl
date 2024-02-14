@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -78,7 +78,7 @@ func newDNSRecordsImport() *cobra.Command {
 
 func runDNSRecordsList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	name := flag.FirstArg(ctx)
 
@@ -117,7 +117,7 @@ func runDNSRecordsList(ctx context.Context) error {
 
 func runDNSRecordsExport(ctx context.Context) error {
 	name := flag.FirstArg(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	domain, err := apiClient.GetDomain(ctx, name)
 	if err != nil {
@@ -153,7 +153,7 @@ func runDNSRecordsExport(ctx context.Context) error {
 
 func runDNSRecordsImport(ctx context.Context) error {
 	name := flag.FirstArg(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	var filename string
 

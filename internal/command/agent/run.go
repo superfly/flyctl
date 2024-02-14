@@ -11,10 +11,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/agent/server"
 	"github.com/superfly/flyctl/flyctl"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
@@ -46,11 +46,10 @@ func run(ctx context.Context) error {
 	}
 	defer closeLogger()
 
-	apiClient := client.FromContext(ctx)
+	apiClient := api.ClientFromContext(ctx)
 	if !apiClient.Authenticated() {
-		logger.Println(client.ErrNoAuthToken)
-
-		return client.ErrNoAuthToken
+		logger.Println(api.ErrNoAuthToken)
+		return api.ErrNoAuthToken
 	}
 
 	unlock, err := lock(ctx, logger)
@@ -62,7 +61,7 @@ func run(ctx context.Context) error {
 	opt := server.Options{
 		Socket:           socketPath(ctx),
 		Logger:           logger,
-		Client:           apiClient.API(),
+		Client:           apiClient,
 		Background:       logPath != "",
 		ConfigFile:       state.ConfigFile(ctx),
 		ConfigWebsockets: viper.GetBool(flyctl.ConfigWireGuardWebsockets),

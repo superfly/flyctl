@@ -15,7 +15,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -87,7 +87,7 @@ func newGet() *cobra.Command {
 }
 
 func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.GetAppCompact(ctx, appName)

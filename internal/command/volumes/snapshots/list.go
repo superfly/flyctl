@@ -9,7 +9,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -51,7 +51,7 @@ func runList(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
 		cfg    = config.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 	)
 
 	volID := flag.FirstArg(ctx)

@@ -13,7 +13,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -286,7 +285,7 @@ func runMachineCreate(ctx context.Context) error {
 func runMachineRun(ctx context.Context) error {
 	var (
 		appName  = appconfig.NameFromContext(ctx)
-		client   = client.FromContext(ctx).API()
+		client   = api.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		err      error

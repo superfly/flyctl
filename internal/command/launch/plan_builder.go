@@ -11,7 +11,6 @@ import (
 	"unicode"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -40,9 +39,11 @@ func (e recoverableInUiError) String() string {
 	}
 	return e.base.Error()
 }
+
 func (e recoverableInUiError) Error() string {
 	return e.base.Error()
 }
+
 func (e recoverableInUiError) Unwrap() error {
 	return e.base
 }
@@ -73,7 +74,6 @@ func appNameTakenErr(appName string) error {
 }
 
 func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
-
 	io := iostreams.FromContext(ctx)
 
 	var recoverableInUiErrors []recoverableInUiError
@@ -233,18 +233,15 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		Plan:       lp,
 		PlanSource: planSource,
 	}, buildCache, err
-
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
-
 	var (
-		io        = iostreams.FromContext(ctx)
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
+		io     = iostreams.FromContext(ctx)
+		client = api.ClientFromContext(ctx)
 	)
 
-	org, err := clientApi.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -252,7 +249,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, clientApi, org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
 	var (
@@ -408,7 +405,6 @@ func validateAppName(appName string) error {
 
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
-
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
 		if prefix != "" {
@@ -474,7 +470,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	// TODO: I believe this will only check apps that are visible to you.
 	//       We should probably expose a global uniqueness check.
 	_, err := client.GetAppBasic(ctx, name)
@@ -490,12 +486,9 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context) (*api.Organization, string, error) {
-	var (
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
-	)
+	client := api.ClientFromContext(ctx)
 
-	orgs, err := clientApi.GetOrganizations(ctx)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, "", err
 	}
@@ -533,8 +526,7 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
-
-	client := client.FromContext(ctx)
+	client := api.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -545,7 +537,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	closestRegion, closestRegionErr := client.API().GetNearestRegion(ctx)
+	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
 
 	if regionCode != "" {
 		region, err := getRegionByCode(ctx, regionCode)
@@ -562,7 +554,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
 func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {
@@ -624,7 +616,6 @@ func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
 // determineCompute returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
 func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) ([]*appconfig.Compute, string, error) {
-
 	if len(config.Compute) > 0 {
 		return config.Compute, "from your fly.toml", nil
 	}
@@ -645,7 +636,6 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 }
 
 func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *api.Organization, print bool) bool {
-
 	if !org.Billable && p.HighAvailability {
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")

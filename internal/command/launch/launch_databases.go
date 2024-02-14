@@ -7,7 +7,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
@@ -50,7 +49,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
 		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = client.FromContext(ctx).API()
+		apiClient = api.ClientFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
@@ -153,7 +152,7 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 
 	var readReplicaRegions []api.Region
 	{
-		client := client.FromContext(ctx).API()
+		client := api.ClientFromContext(ctx)
 		regions, _, err := client.PlatformRegions(ctx)
 		if err != nil {
 			return err

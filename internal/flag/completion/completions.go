@@ -9,7 +9,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
@@ -19,10 +18,8 @@ func CompleteApps(
 	args []string,
 	partial string,
 ) ([]string, error) {
-
 	var (
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
+		client = api.ClientFromContext(ctx)
 
 		apps []api.App
 		err  error
@@ -34,14 +31,14 @@ func CompleteApps(
 	orgFlag := cmd.Flag(flagnames.Org)
 	if orgFlag != nil && orgFlag.Changed {
 		var org *api.Organization
-		org, err = clientApi.GetOrganizationBySlug(ctx, orgFlag.Value.String())
+		org, err = client.GetOrganizationBySlug(ctx, orgFlag.Value.String())
 		if err != nil {
 			return nil, err
 		}
-		apps, err = clientApi.GetAppsForOrganization(ctx, org.ID)
+		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 		orgFiltered = true
 	} else {
-		apps, err = clientApi.GetApps(ctx, nil)
+		apps, err = client.GetApps(ctx, nil)
 	}
 	if err != nil {
 		return nil, err
@@ -68,14 +65,13 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-
-	clientApi := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	format := func(org api.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
 	}
 
-	orgs, err := clientApi.GetOrganizations(ctx)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -96,15 +92,14 @@ func CompleteRegions(
 	args []string,
 	partial string,
 ) ([]string, error) {
-
-	clientApi := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	format := func(org api.Region) string {
 		return fmt.Sprintf("%s\t%s", org.Code, org.Name)
 	}
 
 	// TODO(ali): Do we need to worry about which ones are marked as "gateway"?
-	regions, reqRegion, err := clientApi.PlatformRegions(ctx)
+	regions, reqRegion, err := client.PlatformRegions(ctx)
 	if err != nil {
 		return nil, err
 	}
