@@ -7,7 +7,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
@@ -48,7 +47,7 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 }
 
 func (state *launchState) Org(ctx context.Context) (*api.Organization, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*api.Organization, error) {
 		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
 	})
@@ -56,7 +55,7 @@ func (state *launchState) Org(ctx context.Context) (*api.Organization, error) {
 
 func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	regions, err := cacheGrab(state.cache, "regions", func() ([]api.Region, error) {
 		regions, _, err := apiClient.PlatformRegions(ctx)
 		if err != nil {

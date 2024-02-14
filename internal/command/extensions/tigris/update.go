@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -40,7 +40,7 @@ func update() (cmd *cobra.Command) {
 }
 
 func runUpdate(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := api.ClientFromContext(ctx).GenqClient
 
 	id := flag.FirstArg(ctx)
 	response, err := gql.GetAddOn(ctx, client, id)

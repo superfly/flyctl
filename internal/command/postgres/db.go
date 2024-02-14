@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -61,7 +60,7 @@ func newListDbs() *cobra.Command {
 
 func runListDbs(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = api.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 

@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -32,7 +31,7 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) (err error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 		cfg    = config.FromContext(ctx)
 	)

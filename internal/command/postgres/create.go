@@ -8,7 +8,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
@@ -98,7 +97,7 @@ func newCreate() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	var (
 		appName  = flag.GetString(ctx, "name")
-		client   = client.FromContext(ctx).API()
+		client   = api.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 	)
@@ -266,7 +265,7 @@ func run(ctx context.Context) (err error) {
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
 func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, params *ClusterParams) (err error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 

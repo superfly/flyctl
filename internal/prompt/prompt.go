@@ -16,7 +16,6 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/future"
@@ -205,7 +204,7 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
 func Org(ctx context.Context) (*api.Organization, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
@@ -279,7 +278,7 @@ var regionsFuture *future.Future[RegionInfo]
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := client.FromContext(ctx).API()
+			client := api.ClientFromContext(ctx)
 			regions, defaultRegion, err := client.PlatformRegions(ctx)
 			regionInfo := RegionInfo{
 				Regions:       regions,

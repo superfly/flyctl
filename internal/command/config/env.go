@@ -6,7 +6,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -32,7 +31,7 @@ secrets and another for config file defined environment variables.`
 }
 
 func runEnv(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 

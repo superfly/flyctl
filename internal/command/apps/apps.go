@@ -8,7 +8,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
@@ -49,7 +48,7 @@ The LIST command will list all currently registered applications.
 
 // BuildContext is a helper that builds out commonly required context requirements
 func BuildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -34,7 +33,7 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -67,7 +66,7 @@ func runSet(ctx context.Context) (err error) {
 }
 
 func SetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets map[string]string, stage bool, detach bool) error {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}

@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/flag"
@@ -257,7 +256,7 @@ func machineRole(machine *api.Machine) (role string) {
 
 func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = api.ClientFromContext(ctx)
 		image  = flag.GetString(ctx, "image")
 	)
 

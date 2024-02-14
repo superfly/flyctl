@@ -14,7 +14,6 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -181,7 +180,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
 	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {

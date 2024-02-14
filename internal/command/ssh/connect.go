@@ -11,7 +11,6 @@ import (
 	"github.com/briandowns/spinner"
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -102,7 +101,7 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 }
 
 func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl, appNames []string) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	hours := 1
 
 	pub, priv, err := ed25519.GenerateKey(nil)

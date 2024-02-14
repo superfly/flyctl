@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -43,12 +43,10 @@ organization later.
 }
 
 func runCreate(ctx context.Context) error {
-
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	user, err := client.GetCurrentUser(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -62,7 +60,6 @@ func runCreate(ctx context.Context) error {
 
 		if name == "" {
 			confirmed, err := prompt.Confirm(ctx, "Do you still want to create the organization?")
-
 			if err != nil {
 				return err
 			}
@@ -87,7 +84,6 @@ func runCreate(ctx context.Context) error {
 	}
 
 	org, err := client.CreateOrganization(ctx, name)
-
 	if err != nil {
 		return fmt.Errorf("failed creating organization: %w", err)
 	}
@@ -95,7 +91,6 @@ func runCreate(ctx context.Context) error {
 	if io := iostreams.FromContext(ctx); config.FromContext(ctx).JSONOutput {
 		_ = render.JSON(io.Out, org)
 	} else {
-
 		fmt.Fprintf(io.Out, "Your organization %s (%s) was created successfully. Visit %s to add a credit card and enable deployment.\n", org.Name, org.Slug, colorize.Green(fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)))
 	}
 

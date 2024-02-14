@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -187,7 +186,7 @@ type RedisConfiguration struct {
 }
 
 func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := api.ClientFromContext(ctx).GenqClient
 
 	var readRegionCodes []string
 
@@ -221,7 +220,7 @@ func ProvisionDatabase(ctx context.Context, org *api.Organization, config RedisC
 
 func DeterminePlan(ctx context.Context, org *api.Organization) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
 
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	// All new databases are pay-as-you-go
 	planId := redisPlanPayAsYouGo

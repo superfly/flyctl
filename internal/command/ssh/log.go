@@ -7,7 +7,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
@@ -34,7 +34,7 @@ func newLog() *cobra.Command {
 }
 
 func runLog(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	jsonOutput := config.FromContext(ctx).JSONOutput
 	out := iostreams.FromContext(ctx).Out
 

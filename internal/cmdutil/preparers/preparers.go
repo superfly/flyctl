@@ -12,7 +12,6 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -63,14 +62,14 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	api.SetInstrumenter(instrument.ApiAdapter)
 	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := client.NewClientWithOptions(&client.NewClientOpts{
-		Tokens:        cfg.Tokens,
-		ClientName:    buildinfo.Name(),
-		ClientVersion: buildinfo.Version().String(),
+	c := api.NewClientFromOptions(api.ClientOptions{
+		Name:    buildinfo.Name(),
+		Version: buildinfo.Version().String(),
+		Tokens:  cfg.Tokens,
 	})
 	logger.Debug("client initialized.")
 
-	return client.NewContext(ctx, c), nil
+	return api.NewContextWithClient(ctx, c), nil
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {

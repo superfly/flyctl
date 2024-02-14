@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -111,7 +110,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 }
 
 func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization, network string) (err error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 

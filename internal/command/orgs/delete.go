@@ -7,7 +7,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -59,7 +58,7 @@ func runDelete(ctx context.Context) error {
 		}
 	}
 
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	if _, err := client.DeleteOrganization(ctx, org.ID); err != nil {
 		return fmt.Errorf("failed deleting organization %s", err)
 	}

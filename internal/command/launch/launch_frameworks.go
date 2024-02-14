@@ -11,7 +11,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/samber/lo"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -112,7 +112,7 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 	}
 
 	if len(secrets) > 0 {
-		apiClient := client.FromContext(ctx).API()
+		apiClient := api.ClientFromContext(ctx)
 		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
 		if err != nil {
 			return err

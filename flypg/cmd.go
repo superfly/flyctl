@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
@@ -32,7 +31,7 @@ type Command struct {
 }
 
 func NewCommand(ctx context.Context, app *api.AppCompact) (*Command, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {

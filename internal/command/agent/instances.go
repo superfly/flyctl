@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
 
-	apiClient "github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -39,7 +38,7 @@ func runInstances(ctx context.Context) (err error) {
 	}
 
 	slug := flag.FirstArg(ctx)
-	apiClient := apiClient.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	var org *api.Organization
 	if org, err = apiClient.GetOrganizationBySlug(ctx, slug); err != nil {

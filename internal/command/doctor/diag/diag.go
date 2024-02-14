@@ -16,7 +16,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
@@ -107,7 +107,7 @@ add the --force flag to send us best-effort diagnostics.`)
 
 	zip.Close()
 
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	url, err := client.CreateDoctorUrl(context.Background())
 	if err != nil {

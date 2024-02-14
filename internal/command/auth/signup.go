@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/iostreams"
@@ -33,11 +33,11 @@ func runSignup(ctx context.Context) error {
 		return err
 	}
 
-	user, err := client.NewClientWithOptions(&client.NewClientOpts{
-		Token:         token,
-		ClientName:    buildinfo.Name(),
-		ClientVersion: buildinfo.Version().String(),
-	}).API().GetCurrentUser(ctx)
+	user, err := api.NewClientFromOptions(api.ClientOptions{
+		AccessToken: token,
+		Name:        buildinfo.Name(),
+		Version:     buildinfo.Version().String(),
+	}).GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving current user: %w", err)
 	}

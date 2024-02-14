@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -88,7 +88,7 @@ func newListEvents() *cobra.Command {
 
 func runListEvents(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = api.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 

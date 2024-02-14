@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -36,7 +35,7 @@ sent, and the user will be pending until they respond.
 }
 
 func runInvite(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
 	if err != nil {

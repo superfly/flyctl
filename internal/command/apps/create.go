@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -69,7 +68,7 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
-		apiClient     = client.FromContext(ctx).API()
+		apiClient     = api.ClientFromContext(ctx)
 	)
 
 	var name string
