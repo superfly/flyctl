@@ -729,7 +729,8 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 func setUsingGPU(ctx context.Context) (context.Context, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
-		return ctx, errors.New("app config not found")
+		instrument.UsingGPU = false
+		return ctx, nil
 	}
 
 	usingGPU := false
