@@ -11,7 +11,6 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
@@ -53,7 +52,7 @@ func runFailover(ctx context.Context) (err error) {
 		MinPostgresStandaloneVersion = "0.0.7"
 
 		io      = iostreams.FromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = api.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 

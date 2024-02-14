@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -50,7 +49,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = api.ClientFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)

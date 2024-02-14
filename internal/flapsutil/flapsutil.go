@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -24,7 +23,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 		}
 
-		client := client.FromContext(ctx).API()
+		client := api.ClientFromContext(ctx)
 		agentclient, err := agent.Establish(ctx, client)
 		if err != nil {
 			return nil, fmt.Errorf("error establishing agent: %w", err)
@@ -64,7 +63,7 @@ func resolveOrgSlugForApp(ctx context.Context, app *api.AppCompact, appName stri
 func resolveApp(ctx context.Context, app *api.AppCompact, appName string) (*api.AppCompact, error) {
 	var err error
 	if app == nil {
-		client := client.FromContext(ctx).API()
+		client := api.ClientFromContext(ctx)
 		app, err = client.GetAppCompact(ctx, appName)
 	}
 	return app, err

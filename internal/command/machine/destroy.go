@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -84,7 +83,7 @@ func singleDestroyRun(ctx context.Context, machine *api.Machine) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)

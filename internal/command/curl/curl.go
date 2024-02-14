@@ -19,7 +19,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -77,7 +76,7 @@ func run(ctx context.Context) error {
 }
 
 func fetchRegionCodes(ctx context.Context) (codes []string, err error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	var regions []api.Region
 	if regions, _, err = client.PlatformRegions(ctx); err != nil {

@@ -8,7 +8,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag/completion"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -51,7 +50,7 @@ organization the current user belongs to.
 func RunMove(ctx context.Context) error {
 	var (
 		appName  = flag.FirstArg(ctx)
-		client   = client.FromContext(ctx).API()
+		client   = api.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		logger   = logger.FromContext(ctx)
@@ -96,7 +95,7 @@ Please confirm whether you wish to restart this app now.`
 
 func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *api.Organization) error {
 	var (
-		client           = client.FromContext(ctx).API()
+		client           = api.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)

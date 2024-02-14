@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/machine"
@@ -13,7 +12,7 @@ import (
 )
 
 func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	cfg, err := getAppV2ConfigFromReleases(ctx, apiClient, appName)
 	if cfg == nil {

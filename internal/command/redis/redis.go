@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/client"
+	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 )
@@ -36,7 +36,7 @@ func New() (cmd *cobra.Command) {
 }
 
 func GetExcludedRegions(ctx context.Context) (excludedRegions []string, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := api.ClientFromContext(ctx).GenqClient
 
 	response, err := gql.GetAddOnProvider(ctx, client, "upstash_redis")
 

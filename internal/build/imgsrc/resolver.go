@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	dockerclient "github.com/docker/docker/client"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -310,7 +309,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
-	gqlClient := client.FromContext(ctx).API().GenqClient
+	gqlClient := api.ClientFromContext(ctx).GenqClient
 	_ = `# @genqlient
 	mutation ResolverCreateBuild($input:CreateBuildInput!) {
 		createBuild(input:$input) {
@@ -513,7 +512,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
 		return nil, nil
 	}
-	gqlClient := client.FromContext(ctx).API().GenqClient
+	gqlClient := api.ClientFromContext(ctx).GenqClient
 	_ = `# @genqlient
 	mutation ResolverFinishBuild($input:FinishBuildInput!) {
 		finishBuild(input:$input) {

@@ -19,7 +19,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -501,8 +500,7 @@ func arrayEqual(a, b []string) bool {
 }
 
 func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResult {
-	flyClient := client.FromContext(ctx)
-	gqlClient := flyClient.API().GenqClient
+	gqlClient := api.ClientFromContext(ctx).GenqClient
 	_ = `# @genqlient
 	query AgentGetInstances($appName: String!) {
 		app(name: $appName) {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -138,7 +137,7 @@ Displays results in the same format as the SHOW command.`
 
 func runCertificatesList(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	certs, err := apiClient.GetAppCertificates(ctx, appName)
 	if err != nil {
@@ -149,7 +148,7 @@ func runCertificatesList(ctx context.Context) error {
 }
 
 func runCertificatesShow(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -168,7 +167,7 @@ func runCertificatesShow(ctx context.Context) error {
 }
 
 func runCertificatesCheck(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -187,7 +186,7 @@ func runCertificatesCheck(ctx context.Context) error {
 }
 
 func runCertificatesAdd(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -202,7 +201,7 @@ func runCertificatesAdd(ctx context.Context) error {
 func runCertificatesRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -242,7 +241,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCerti
 
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 	alternateHostname := getAlternateHostname(hostname)
 
 	// These are the IPs we have for the app

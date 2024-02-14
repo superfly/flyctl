@@ -15,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -65,7 +64,7 @@ Use --no-tail to only fetch the logs in the buffer.
 }
 
 func run(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),

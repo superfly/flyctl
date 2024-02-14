@@ -9,7 +9,6 @@ import (
 	"github.com/superfly/flyctl/ssh"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -67,7 +66,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		client   = api.ClientFromContext(ctx)
 	)
 
 	// Ensure machines can be started when scaling to zero is enabled

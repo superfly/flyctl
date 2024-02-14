@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -194,7 +193,7 @@ func makeToken(ctx context.Context, apiClient *api.Client, orgID string, expiry 
 
 func runOrg(ctx context.Context) error {
 	var token string
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -226,7 +225,7 @@ func runOrg(ctx context.Context) error {
 func runOrgRead(ctx context.Context) error {
 	var (
 		token          string
-		apiClient      = client.FromContext(ctx).API()
+		apiClient      = api.ClientFromContext(ctx)
 		expiry         = ""
 		expiryDuration = flag.GetDuration(ctx, "expiry")
 		perm           []byte
@@ -321,7 +320,7 @@ func runOrgRead(ctx context.Context) error {
 
 func runDeploy(ctx context.Context) (err error) {
 	var token string
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -356,7 +355,7 @@ func runDeploy(ctx context.Context) (err error) {
 
 func runLiteFSCloud(ctx context.Context) (err error) {
 	var token string
-	apiClient := client.FromContext(ctx).API()
+	apiClient := api.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {

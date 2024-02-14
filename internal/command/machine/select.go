@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/superfly/fly-go/api"
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -138,7 +137,7 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		// NOTE: assuming that we validated the command line arguments
 		// correctly, we must have at least one machine ID when no app
 		// is set.
-		client := client.FromContext(ctx).API()
+		client := api.ClientFromContext(ctx)
 		var gqlMachine *api.GqlMachine
 		gqlMachine, err = client.GetMachine(ctx, machineIDs[0])
 		if err != nil {

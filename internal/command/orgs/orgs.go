@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/fly-go/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/fly-go/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -77,7 +76,7 @@ func slugFromArgOrSelect(ctx context.Context, orgSlug string, filters ...api.Org
 		return
 	}
 
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	var orgs []api.Organization
 	if orgs, err = client.GetOrganizations(ctx, filters...); err != nil {
@@ -118,7 +117,7 @@ func OrgFromFlagOrSelect(ctx context.Context, filters ...api.OrganizationFilter)
 }
 
 func OrgFromSlug(ctx context.Context, slug string) (*api.Organization, error) {
-	client := client.FromContext(ctx).API()
+	client := api.ClientFromContext(ctx)
 
 	org, err := client.GetOrganizationBySlug(ctx, slug)
 	if err != nil {
