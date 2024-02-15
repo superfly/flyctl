@@ -49,7 +49,7 @@ func runMachineUncordon(ctx context.Context) (err error) {
 
 	for _, machineID := range machineIDs {
 		fmt.Fprintf(io.Out, "Deactivating cordon on machine %s...\n", machineID)
-		if err = flapsClient.Uncordon(ctx, machineID); err != nil {
+		if err = flapsClient.Uncordon(ctx, machineID, ""); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "done!\n")
