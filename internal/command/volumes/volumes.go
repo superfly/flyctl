@@ -63,6 +63,7 @@ func printVolume(w io.Writer, vol *api.Volume, appName string) error {
 	fmt.Fprintf(&buf, "%20s: %t\n", "Encrypted", vol.Encrypted)
 	fmt.Fprintf(&buf, "%20s: %s\n", "Created at", vol.CreatedAt.Format(time.RFC822))
 	fmt.Fprintf(&buf, "%20s: %d\n", "Snapshot retention", vol.SnapshotRetention)
+	fmt.Fprintf(&buf, "%20s: %t\n", "Scheduled snapshots", vol.AutoBackupEnabled)
 
 	_, err := buf.WriteTo(w)
 
