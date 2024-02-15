@@ -22,6 +22,8 @@ type commandStats struct {
 	GraphQLDuration float64 `json:"gd"`
 	FlapsCalls      int     `json:"fc"`
 	FlapsDuration   float64 `json:"fd"`
+	UsingGPU        bool    `json:"gpu"`
+	Failed          bool    `json:"f"`
 }
 
 func RecordCommandContext(ctx context.Context) {
@@ -35,7 +37,7 @@ func RecordCommandContext(ctx context.Context) {
 	commandContext = ctx
 }
 
-func RecordCommandFinish(cmd *cobra.Command) {
+func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 	mu.Lock()
 	defer mu.Unlock()
 
@@ -43,6 +45,7 @@ func RecordCommandFinish(cmd *cobra.Command) {
 
 	graphql := instrument.GraphQL.Get()
 	flaps := instrument.Flaps.Get()
+	usingGPU := instrument.UsingGPU
 
 	if commandContext != nil {
 		Send(commandContext, "command/stats", commandStats{
@@ -52,6 +55,8 @@ func RecordCommandFinish(cmd *cobra.Command) {
 			GraphQLDuration: graphql.Duration,
 			FlapsCalls:      flaps.Calls,
 			FlapsDuration:   flaps.Duration,
+			UsingGPU:        usingGPU,
+			Failed:          failed,
 		})
 	}
 }
