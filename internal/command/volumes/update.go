@@ -41,9 +41,9 @@ func newUpdate() *cobra.Command {
 			Name:        "snapshot-retention",
 			Description: "Snapshot retention in days (min 5)",
 		},
-		flag.Bool{
-			Name:        "auto-backup-enabled",
-			Description: "Disable/Enable scheduled snapshots",
+		flag.String{
+			Name:        "scheduled-snapshots",
+			Description: "Disable/Enable scheduled snapshots. --scheduled-snapshots=(true/false)",
 		},
 	)
 
@@ -83,15 +83,17 @@ func runUpdate(ctx context.Context) error {
 		snapshotRetention = fly.Pointer(flag.GetInt(ctx, "snapshot-retention"))
 	}
 
-	var autoBackupEnabled *bool
-	if flag.GetInt(ctx, "snapshot-retention") != 0 {
-		autoBackupEnabled = api.Pointer(flag.GetBool(ctx, "auto-backup-enabled"))
-	}
-
 	out := iostreams.FromContext(ctx).Out
 	input := fly.UpdateVolumeRequest{
 		SnapshotRetention: snapshotRetention,
-		AutoBackupEnabled: autoBackupEnabled,
+	}
+
+	if flag.GetString(ctx, "scheduled-snapshots") == "true" {
+		input.AutoBackupEnabled = api.BoolPointer(true)
+	} else if flag.GetString(ctx, "scheduled-snapshots") == "false" {
+		input.AutoBackupEnabled = api.BoolPointer(false)
+	} else if flag.GetString(ctx, "scheduled-snapshots") != "" {
+		return fmt.Errorf("--scheduled-snapshots=VALUE must be either `true` or `false`")
 	}
 
 	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)
