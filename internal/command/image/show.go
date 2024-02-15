@@ -7,17 +7,15 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newShow() *cobra.Command {
@@ -46,7 +44,7 @@ func newShow() *cobra.Command {
 
 func runShow(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -58,15 +56,18 @@ func runShow(ctx context.Context) error {
 	return showMachineImage(ctx, app)
 }
 
-func showMachineImage(ctx context.Context, app *api.AppCompact) error {
+func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = client.FromContext(ctx).API()
+		client   = fly.ClientFromContext(ctx)
 		cfg      = config.FromContext(ctx)
 	)
 
-	flaps, err := flaps.New(ctx, app)
+	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return err
 	}
@@ -143,9 +144,9 @@ func showMachineImage(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	// Tracks latest eligible version
-	var latest *api.ImageVersion
+	var latest *fly.ImageVersion
 
-	var updatable []*api.Machine
+	var updatable []*fly.Machine
 
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)

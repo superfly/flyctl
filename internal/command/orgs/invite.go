@@ -8,8 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -36,9 +35,9 @@ sent, and the user will be pending until they respond.
 }
 
 func runInvite(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 
-	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
+	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, fly.AdminOnly)
 	if err != nil {
 		return nil
 	}
@@ -69,7 +68,7 @@ func runInvite(ctx context.Context) error {
 	return nil
 }
 
-func printInvite(w io.Writer, in *api.Invitation, headers bool) {
+func printInvite(w io.Writer, in *fly.Invitation, headers bool) {
 	if headers {
 		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "Org", "Email", "Redeemed")
 		fmt.Fprintf(w, "%-20s %-20s %-10s\n", "----", "----", "----")

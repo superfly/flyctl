@@ -6,8 +6,7 @@ import (
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -41,7 +40,7 @@ func newAddFlycast() *cobra.Command {
 
 func runAddFlycast(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -96,11 +95,11 @@ func doAddFlycast(ctx context.Context) error {
 
 		conf := machine.Config
 		conf.Services =
-			[]api.MachineService{
+			[]fly.MachineService{
 				{
 					Protocol:     "tcp",
 					InternalPort: bouncerPort,
-					Ports: []api.MachinePort{
+					Ports: []fly.MachinePort{
 						{
 							Port: &bouncerPort,
 							Handlers: []string{
@@ -114,7 +113,7 @@ func doAddFlycast(ctx context.Context) error {
 				{
 					Protocol:     "tcp",
 					InternalPort: pgPort,
-					Ports: []api.MachinePort{
+					Ports: []fly.MachinePort{
 						{
 							Port: &pgPort,
 							Handlers: []string{
@@ -127,7 +126,7 @@ func doAddFlycast(ctx context.Context) error {
 				},
 			}
 
-		err = mach.Update(ctx, machine, &api.LaunchMachineInput{
+		err = mach.Update(ctx, machine, &fly.LaunchMachineInput{
 			Config: conf,
 		})
 		if err != nil {

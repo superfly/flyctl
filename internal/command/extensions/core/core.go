@@ -7,12 +7,13 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -30,7 +31,7 @@ type Extension struct {
 
 type ExtensionParams struct {
 	AppName      string
-	Organization *api.Organization
+	Organization *fly.Organization
 	Provider     string
 	Options      map[string]interface{}
 }
@@ -41,7 +42,7 @@ var SharedFlags = flag.Set{
 }
 
 func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension Extension, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := fly.ClientFromContext(ctx).GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -49,7 +50,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	var targetOrg gql.OrganizationData
 
 	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
-
 	if err != nil {
 		return
 	}
@@ -80,7 +80,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	} else {
 		resp, err := gql.GetOrganization(ctx, client, params.Organization.Slug)
-
 		if err != nil {
 			return extension, err
 		}
@@ -121,7 +120,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	if provider.SelectRegion {
 
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
-
 		if err != nil {
 			return extension, err
 		}
@@ -142,7 +140,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 				Message:             "Choose the primary region (can't be changed later)",
 				ExcludedRegionCodes: excludedRegions,
 			})
-
 			if err != nil {
 				return extension, err
 			}
@@ -158,7 +155,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	// Pass the detected platform family to the API
 	if provider.DetectPlatform {
 		absDir, err := filepath.Abs(".")
-
 		if err != nil {
 			return extension, err
 		}
@@ -179,7 +175,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	input.Options = params.Options
 	createResp, err := gql.CreateExtension(ctx, client, input)
-
 	if err != nil {
 		return
 	}
@@ -220,7 +215,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 }
 
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
-	client := client.FromContext(ctx).API().GenqClient
+	client := fly.ClientFromContext(ctx).GenqClient
 	out := iostreams.FromContext(ctx).Out
 
 	// Internal providers like kubernetes don't need ToS agreement
@@ -230,7 +225,6 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 
 	// Check if the provider ToS was agreed to already
 	agreed, err := AgreedToProviderTos(ctx, provider.Name)
-
 	if err != nil {
 		return err
 	}
@@ -266,7 +260,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 
 func WaitForProvision(ctx context.Context, name string) error {
 	io := iostreams.FromContext(ctx)
-	client := client.FromContext(ctx).API().GenqClient
+	client := fly.ClientFromContext(ctx).GenqClient
 
 	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
 	s.Writer = io.ErrOut
@@ -282,7 +276,6 @@ func WaitForProvision(ctx context.Context, name string) error {
 	for {
 
 		resp, err := gql.GetAddOn(ctx, client, name)
-
 		if err != nil {
 			return err
 		}
@@ -310,7 +303,6 @@ func WaitForProvision(ctx context.Context, name string) error {
 }
 
 func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData) (excludedRegions []string, err error) {
-
 	for _, region := range provider.ExcludedRegions {
 		excludedRegions = append(excludedRegions, region.Code)
 	}
@@ -319,12 +311,9 @@ func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData)
 }
 
 func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) (err error) {
-	var (
-		client = client.FromContext(ctx).API().GenqClient
-	)
+	client := fly.ClientFromContext(ctx).GenqClient
 
 	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
-
 	if err != nil {
 		return
 	}
@@ -338,7 +327,6 @@ func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) 
 	}
 
 	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, providerName)
-
 	if err != nil {
 		return err
 	}
@@ -360,12 +348,9 @@ func openUrl(ctx context.Context, url string) (err error) {
 }
 
 func OpenDashboard(ctx context.Context, extensionName string) (err error) {
-	var (
-		client = client.FromContext(ctx).API().GenqClient
-	)
+	client := fly.ClientFromContext(ctx).GenqClient
 
 	result, err := gql.GetAddOn(ctx, client, extensionName)
-
 	if err != nil {
 		return err
 	}
@@ -383,7 +368,7 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 }
 
 func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData, app *gql.AppData, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := fly.ClientFromContext(ctx).GenqClient
 	appName := appconfig.NameFromContext(ctx)
 
 	if len(flag.Args(ctx)) == 1 {
@@ -397,7 +382,6 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 
 	} else if appName != "" {
 		resp, err := gql.GetAppWithAddons(ctx, client, appName, provider)
-
 		if err != nil {
 			return nil, nil, err
 		}
@@ -418,7 +402,7 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
 	var (
 		io              = iostreams.FromContext(ctx)
-		client          = client.FromContext(ctx).API().GenqClient
+		client          = fly.ClientFromContext(ctx).GenqClient
 		setSecrets bool = true
 	)
 
@@ -431,7 +415,6 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 
 	if app.Name != "" {
 		appResp, err := gql.GetApp(ctx, client, app.Name)
-
 		if err != nil {
 			return err
 		}
@@ -453,15 +436,18 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		setSecrets = false
 	}
 
+	keys := lo.Keys(secrets)
+	sort.Strings(keys)
+
 	if setSecrets {
 		extension.SetsSecrets = true
 		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
 		input := gql.SetSecretsInput{
 			AppId: app.Id,
 		}
-		for key, value := range secrets {
-			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
-			fmt.Println(key)
+		for _, key := range keys {
+			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
+			fmt.Fprintln(io.Out, key)
 		}
 
 		fmt.Fprintln(io.Out)
@@ -472,20 +458,20 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 			return err
 		}
 	} else {
-		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
-		for key, value := range secrets {
-			fmt.Println(key + ": " + value.(string))
-		}
-	}
+		fmt.Fprintf(io.Out, "Set the following secrets on your target app.\n")
 
+		for _, key := range keys {
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+		}
+
+	}
 	return err
 }
 
 func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := fly.ClientFromContext(ctx).GenqClient
 
 	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName)
-
 	if err != nil {
 		return false, err
 	}
@@ -496,7 +482,6 @@ func Status(ctx context.Context, provider gql.AddOnType) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	extension, app, err := Discover(ctx, provider)
-
 	if err != nil {
 		return err
 	}

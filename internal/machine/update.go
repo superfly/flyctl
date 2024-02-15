@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/maps"
@@ -18,12 +18,12 @@ var cpusPerKind = map[string][]int{
 	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16},
 }
 
-func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) error {
+func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) error {
 	var (
 		flapsClient    = flaps.FromContext(ctx)
 		io             = iostreams.FromContext(ctx)
 		colorize       = io.ColorScheme()
-		updatedMachine *api.Machine
+		updatedMachine *fly.Machine
 		err            error
 	)
 
@@ -52,9 +52,9 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		var min_memory_size int
 
 		if input.Config.Guest.CPUKind == "shared" {
-			min_memory_size = api.MIN_MEMORY_MB_PER_SHARED_CPU * input.Config.Guest.CPUs
+			min_memory_size = fly.MIN_MEMORY_MB_PER_SHARED_CPU * input.Config.Guest.CPUs
 		} else if input.Config.Guest.CPUKind == "performance" {
-			min_memory_size = api.MIN_MEMORY_MB_PER_CPU * input.Config.Guest.CPUs
+			min_memory_size = fly.MIN_MEMORY_MB_PER_CPU * input.Config.Guest.CPUs
 		}
 
 		if min_memory_size > input.Config.Guest.MemoryMB {
@@ -65,9 +65,9 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 		var maxMemory int
 
 		if input.Config.Guest.CPUKind == "shared" {
-			maxMemory = input.Config.Guest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
+			maxMemory = input.Config.Guest.CPUs * fly.MAX_MEMORY_MB_PER_SHARED_CPU
 		} else if input.Config.Guest.CPUKind == "performance" {
-			maxMemory = input.Config.Guest.CPUs * api.MAX_MEMORY_MB_PER_CPU
+			maxMemory = input.Config.Guest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
 		}
 
 		if input.Config.Guest.MemoryMB > maxMemory {
@@ -101,7 +101,7 @@ func Update(ctx context.Context, m *api.Machine, input *api.LaunchMachineInput) 
 
 	if !input.SkipLaunch {
 		if !input.SkipHealthChecks {
-			if err := watch.MachinesChecks(ctx, []*api.Machine{updatedMachine}); err != nil {
+			if err := watch.MachinesChecks(ctx, []*fly.Machine{updatedMachine}); err != nil {
 				return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 			}
 		}
@@ -124,7 +124,7 @@ const (
 
 type InvalidConfigErr struct {
 	Reason invalidConfigReason
-	guest  *api.MachineGuest
+	guest  *fly.MachineGuest
 }
 
 func (e InvalidConfigErr) Description() string {
@@ -141,7 +141,6 @@ func (e InvalidConfigErr) Description() string {
 		return fmt.Sprintf("For %s VMs with %d CPUs, %dMiB of memory is too high", e.guest.CPUKind, e.guest.CPUs, e.guest.MemoryMB)
 	}
 	return string(e.Reason)
-
 }
 
 func (e InvalidConfigErr) Suggestion() string {
@@ -170,9 +169,9 @@ func (e InvalidConfigErr) Suggestion() string {
 		var min_memory_size int
 
 		if e.guest.CPUKind == "shared" {
-			min_memory_size = api.MIN_MEMORY_MB_PER_SHARED_CPU * e.guest.CPUs
+			min_memory_size = fly.MIN_MEMORY_MB_PER_SHARED_CPU * e.guest.CPUs
 		} else if e.guest.CPUKind == "performance" {
-			min_memory_size = api.MIN_MEMORY_MB_PER_CPU * e.guest.CPUs
+			min_memory_size = fly.MIN_MEMORY_MB_PER_CPU * e.guest.CPUs
 		}
 
 		return fmt.Sprintf("Try setting memory to a value >= %dMiB for the config changes requested", min_memory_size)
@@ -180,16 +179,15 @@ func (e InvalidConfigErr) Suggestion() string {
 	case memoryTooHigh:
 		var max_memory_size int
 		if e.guest.CPUKind == "shared" {
-			max_memory_size = api.MAX_MEMORY_MB_PER_SHARED_CPU * e.guest.CPUs
+			max_memory_size = fly.MAX_MEMORY_MB_PER_SHARED_CPU * e.guest.CPUs
 		} else if e.guest.CPUKind == "performance" {
-			max_memory_size = api.MAX_MEMORY_MB_PER_CPU * e.guest.CPUs
+			max_memory_size = fly.MAX_MEMORY_MB_PER_CPU * e.guest.CPUs
 		}
 
 		return fmt.Sprintf("Try setting memory to a value <= %dMiB for the config changes requested", max_memory_size)
 	}
 
 	return ""
-
 }
 
 func (e InvalidConfigErr) DocURL() string {

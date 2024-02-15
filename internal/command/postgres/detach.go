@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -42,7 +41,7 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
@@ -65,7 +64,7 @@ func runDetach(ctx context.Context) error {
 	return runMachineDetach(ctx, app, pgApp)
 }
 
-func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCompact) error {
+func runMachineDetach(ctx context.Context, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -94,9 +93,9 @@ func runMachineDetach(ctx context.Context, app *api.AppCompact, pgApp *api.AppCo
 }
 
 // TODO - This process needs to be re-written to suppport non-interactive terminals.
-func detachAppFromPostgres(ctx context.Context, leaderIP string, app *api.AppCompact, pgApp *api.AppCompact) error {
+func detachAppFromPostgres(ctx context.Context, leaderIP string, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
@@ -153,7 +152,7 @@ func detachAppFromPostgres(ctx context.Context, leaderIP string, app *api.AppCom
 		)
 	}
 
-	input := api.DetachPostgresClusterInput{
+	input := fly.DetachPostgresClusterInput{
 		AppID:                       app.Name,
 		PostgresClusterId:           pgApp.Name,
 		PostgresClusterAttachmentId: targetAttachment.ID,

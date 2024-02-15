@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func TestLoadTOMLAppConfigWithAppName(t *testing.T) {
@@ -66,16 +66,16 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 	want := []Service{{
 		Protocol:     "tcp",
 		InternalPort: 8080,
-		Ports: []api.MachinePort{
+		Ports: []fly.MachinePort{
 			{
-				Port: api.Pointer(80),
-				TLSOptions: &api.TLSOptions{
+				Port: fly.Pointer(80),
+				TLSOptions: &fly.TLSOptions{
 					ALPN:     []string{"h2", "http/1.1"},
 					Versions: []string{"TLSv1.2", "TLSv1.3"},
 				},
-				HTTPOptions: &api.HTTPOptions{
-					Compress: api.Pointer(true),
-					Response: &api.HTTPResponseOptions{
+				HTTPOptions: &fly.HTTPOptions{
+					Compress: fly.Pointer(true),
+					Response: &fly.HTTPResponseOptions{
 						Headers: map[string]any{
 							"fly-request-id": false,
 							"fly-wasnt-here": "yes, it was",
@@ -85,9 +85,9 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 				},
 			},
 			{
-				Port:     api.Pointer(82),
+				Port:     fly.Pointer(82),
 				Handlers: []string{"proxy_proto"},
-				ProxyProtoOptions: &api.ProxyProtoOptions{
+				ProxyProtoOptions: &fly.ProxyProtoOptions{
 					Version: "v2",
 				},
 			},
@@ -106,7 +106,7 @@ func TestLoadTOMLAppConfigServiceMulti(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 8081,
-			Concurrency: &api.MachineServiceConcurrency{
+			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "requests",
 				HardLimit: 22,
 				SoftLimit: 13,
@@ -115,7 +115,7 @@ func TestLoadTOMLAppConfigServiceMulti(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 9999,
-			Concurrency: &api.MachineServiceConcurrency{
+			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "connections",
 				HardLimit: 10,
 				SoftLimit: 8,
@@ -145,9 +145,9 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		configFilePath:   "./testdata/experimental-alt.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		KillTimeout:      api.MustParseDuration("3s"),
+		KillTimeout:      fly.MustParseDuration("3s"),
 		Metrics: []*Metrics{{
-			MachineMetrics: &api.MachineMetrics{
+			MachineMetrics: &fly.MachineMetrics{
 				Path: "/foo",
 				Port: 9000,
 			},
@@ -228,7 +228,7 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			Destination: "/data",
 		}},
 		Metrics: []*Metrics{{
-			MachineMetrics: &api.MachineMetrics{
+			MachineMetrics: &fly.MachineMetrics{
 				Port: 9999,
 				Path: "/metrics",
 			},
@@ -236,38 +236,38 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		Services: []Service{
 			{
 				InternalPort: 8080,
-				Ports: []api.MachinePort{
+				Ports: []fly.MachinePort{
 					{
-						Port:     api.Pointer(80),
+						Port:     fly.Pointer(80),
 						Handlers: []string{"http"},
 					},
 				},
-				Concurrency: &api.MachineServiceConcurrency{
+				Concurrency: &fly.MachineServiceConcurrency{
 					Type:      "requests",
 					HardLimit: 23,
 					SoftLimit: 12,
 				},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval: api.MustParseDuration("10s"),
-						Timeout:  api.MustParseDuration("2s"),
+						Interval: fly.MustParseDuration("10s"),
+						Timeout:  fly.MustParseDuration("2s"),
 					},
 					{
-						Interval: api.MustParseDuration("20s"),
-						Timeout:  api.MustParseDuration("3s"),
+						Interval: fly.MustParseDuration("20s"),
+						Timeout:  fly.MustParseDuration("3s"),
 					},
 				},
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
-						Interval: api.MustParseDuration("30s"),
-						Timeout:  api.MustParseDuration("4s"),
+						Interval: fly.MustParseDuration("30s"),
+						Timeout:  fly.MustParseDuration("4s"),
 						HTTPHeaders: map[string]string{
 							"origin": "http://localhost:8000",
 						},
 					},
 					{
-						Interval: api.MustParseDuration("20s"),
-						Timeout:  api.MustParseDuration("3s"),
+						Interval: fly.MustParseDuration("20s"),
+						Timeout:  fly.MustParseDuration("3s"),
 						HTTPHeaders: map[string]string{
 							"fly-healthcheck": "1",
 							"metoo":           "true",
@@ -304,9 +304,9 @@ func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 		AppName:          "foo",
 		Checks: map[string]*ToplevelCheck{
 			"pg": {
-				Port:     api.Pointer(5500),
-				Type:     api.Pointer("http"),
-				HTTPPath: api.Pointer("/flycheck/pg"),
+				Port:     fly.Pointer(5500),
+				Type:     fly.Pointer("http"),
+				HTTPPath: fly.Pointer("/flycheck/pg"),
 			},
 		},
 	}, cfg)
@@ -321,9 +321,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		configFilePath:   "./testdata/full-reference.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		KillSignal:       api.Pointer("SIGTERM"),
-		KillTimeout:      api.MustParseDuration("3s"),
-		SwapSizeMB:       api.Pointer(512),
+		KillSignal:       fly.Pointer("SIGTERM"),
+		KillTimeout:      fly.MustParseDuration("3s"),
+		SwapSizeMB:       fly.Pointer(512),
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
 		HostDedicationID: "06031957",
@@ -331,7 +331,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			{
 				Size:   "shared-cpu-1x",
 				Memory: "8gb",
-				MachineGuest: &api.MachineGuest{
+				MachineGuest: &fly.MachineGuest{
 					CPUKind:          "performance",
 					CPUs:             8,
 					MemoryMB:         8192,
@@ -343,7 +343,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Processes: []string{"app"},
 			},
 			{
-				MachineGuest: &api.MachineGuest{
+				MachineGuest: &fly.MachineGuest{
 					MemoryMB: 4096,
 				},
 			},
@@ -379,7 +379,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Deploy: &Deploy{
 			ReleaseCommand: "release command",
 			Strategy:       "rolling-eyes",
-			MaxUnavailable: api.Pointer(0.2),
+			MaxUnavailable: fly.Pointer(0.2),
 		},
 
 		Env: map[string]string{
@@ -388,13 +388,13 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Metrics: []*Metrics{
 			{
-				MachineMetrics: &api.MachineMetrics{
+				MachineMetrics: &fly.MachineMetrics{
 					Port: 9999,
 					Path: "/metrics",
 				},
 			},
 			{
-				MachineMetrics: &api.MachineMetrics{
+				MachineMetrics: &fly.MachineMetrics{
 					Port: 9998,
 					Path: "/metrics",
 				},
@@ -405,22 +405,22 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		HTTPService: &HTTPService{
 			InternalPort:       8080,
 			ForceHTTPS:         true,
-			AutoStartMachines:  api.Pointer(false),
-			AutoStopMachines:   api.Pointer(false),
-			MinMachinesRunning: api.Pointer(0),
-			Concurrency: &api.MachineServiceConcurrency{
+			AutoStartMachines:  fly.Pointer(false),
+			AutoStopMachines:   fly.Pointer(false),
+			MinMachinesRunning: fly.Pointer(0),
+			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "donuts",
 				HardLimit: 10,
 				SoftLimit: 4,
 			},
-			TLSOptions: &api.TLSOptions{
+			TLSOptions: &fly.TLSOptions{
 				ALPN:              []string{"h2", "http/1.1"},
 				Versions:          []string{"TLSv1.2", "TLSv1.3"},
-				DefaultSelfSigned: api.Pointer(false),
+				DefaultSelfSigned: fly.Pointer(false),
 			},
-			HTTPOptions: &api.HTTPOptions{
-				Compress: api.Pointer(true),
-				Response: &api.HTTPResponseOptions{
+			HTTPOptions: &fly.HTTPOptions{
+				Compress: fly.Pointer(true),
+				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
 						"fly-wasnt-here": "yes, it was",
@@ -430,14 +430,14 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 			HTTPChecks: []*ServiceHTTPCheck{
 				{
-					Interval:          api.MustParseDuration("81s"),
-					Timeout:           api.MustParseDuration("7s"),
-					GracePeriod:       api.MustParseDuration("2s"),
-					HTTPMethod:        api.Pointer("GET"),
-					HTTPPath:          api.Pointer("/"),
-					HTTPProtocol:      api.Pointer("https"),
-					HTTPTLSSkipVerify: api.Pointer(true),
-					HTTPTLSServerName: api.Pointer("sni2.com"),
+					Interval:          fly.MustParseDuration("81s"),
+					Timeout:           fly.MustParseDuration("7s"),
+					GracePeriod:       fly.MustParseDuration("2s"),
+					HTTPMethod:        fly.Pointer("GET"),
+					HTTPPath:          fly.Pointer("/"),
+					HTTPProtocol:      fly.Pointer("https"),
+					HTTPTLSSkipVerify: fly.Pointer(true),
+					HTTPTLSServerName: fly.Pointer("sni2.com"),
 					HTTPHeaders: map[string]string{
 						"My-Custom-Header": "whatever",
 					},
@@ -481,16 +481,16 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Checks: map[string]*ToplevelCheck{
 			"status": {
-				Port:              api.Pointer(2020),
-				Type:              api.Pointer("http"),
-				Interval:          api.MustParseDuration("10s"),
-				Timeout:           api.MustParseDuration("2s"),
-				GracePeriod:       api.MustParseDuration("27s"),
-				HTTPMethod:        api.Pointer("GET"),
-				HTTPPath:          api.Pointer("/status"),
-				HTTPProtocol:      api.Pointer("https"),
-				HTTPTLSSkipVerify: api.Pointer(true),
-				HTTPTLSServerName: api.Pointer("sni3.com"),
+				Port:              fly.Pointer(2020),
+				Type:              fly.Pointer("http"),
+				Interval:          fly.MustParseDuration("10s"),
+				Timeout:           fly.MustParseDuration("2s"),
+				GracePeriod:       fly.MustParseDuration("27s"),
+				HTTPMethod:        fly.Pointer("GET"),
+				HTTPPath:          fly.Pointer("/status"),
+				HTTPProtocol:      fly.Pointer("https"),
+				HTTPTLSSkipVerify: fly.Pointer(true),
+				HTTPTLSServerName: fly.Pointer("sni3.com"),
 				HTTPHeaders: map[string]string{
 					"Content-Type":  "application/json",
 					"Authorization": "super-duper-secret",
@@ -503,21 +503,21 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				InternalPort:       8081,
 				Protocol:           "tcp",
 				Processes:          []string{"app"},
-				AutoStartMachines:  api.Pointer(false),
-				AutoStopMachines:   api.Pointer(false),
-				MinMachinesRunning: api.Pointer(1),
+				AutoStartMachines:  fly.Pointer(false),
+				AutoStopMachines:   fly.Pointer(false),
+				MinMachinesRunning: fly.Pointer(1),
 
-				Concurrency: &api.MachineServiceConcurrency{
+				Concurrency: &fly.MachineServiceConcurrency{
 					Type:      "requests",
 					HardLimit: 22,
 					SoftLimit: 13,
 				},
 
-				Ports: []api.MachinePort{
+				Ports: []fly.MachinePort{
 					{
-						Port:       api.Pointer(80),
-						StartPort:  api.Pointer(100),
-						EndPort:    api.Pointer(200),
+						Port:       fly.Pointer(80),
+						StartPort:  fly.Pointer(100),
+						EndPort:    fly.Pointer(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
 					},
@@ -525,31 +525,31 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval:    api.MustParseDuration("21s"),
-						Timeout:     api.MustParseDuration("4s"),
-						GracePeriod: api.MustParseDuration("1s"),
+						Interval:    fly.MustParseDuration("21s"),
+						Timeout:     fly.MustParseDuration("4s"),
+						GracePeriod: fly.MustParseDuration("1s"),
 					},
 				},
 
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
-						Interval:          api.MustParseDuration("81s"),
-						Timeout:           api.MustParseDuration("7s"),
-						GracePeriod:       api.MustParseDuration("2s"),
-						HTTPMethod:        api.Pointer("GET"),
-						HTTPPath:          api.Pointer("/"),
-						HTTPProtocol:      api.Pointer("https"),
-						HTTPTLSSkipVerify: api.Pointer(true),
-						HTTPTLSServerName: api.Pointer("sni.com"),
+						Interval:          fly.MustParseDuration("81s"),
+						Timeout:           fly.MustParseDuration("7s"),
+						GracePeriod:       fly.MustParseDuration("2s"),
+						HTTPMethod:        fly.Pointer("GET"),
+						HTTPPath:          fly.Pointer("/"),
+						HTTPProtocol:      fly.Pointer("https"),
+						HTTPTLSSkipVerify: fly.Pointer(true),
+						HTTPTLSServerName: fly.Pointer("sni.com"),
 						HTTPHeaders: map[string]string{
 							"My-Custom-Header": "whatever",
 						},
 					},
 					{
-						Interval:   api.MustParseDuration("33s"),
-						Timeout:    api.MustParseDuration("10s"),
-						HTTPMethod: api.Pointer("POST"),
-						HTTPPath:   api.Pointer("/check2"),
+						Interval:   fly.MustParseDuration("33s"),
+						Timeout:    fly.MustParseDuration("10s"),
+						HTTPMethod: fly.Pointer("POST"),
+						HTTPPath:   fly.Pointer("/check2"),
 					},
 				},
 			},

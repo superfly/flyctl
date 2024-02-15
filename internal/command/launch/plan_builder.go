@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"unicode"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -39,9 +39,11 @@ func (e recoverableInUiError) String() string {
 	}
 	return e.base.Error()
 }
+
 func (e recoverableInUiError) Error() string {
 	return e.base.Error()
 }
+
 func (e recoverableInUiError) Unwrap() error {
 	return e.base
 }
@@ -72,7 +74,6 @@ func appNameTakenErr(appName string) error {
 }
 
 func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
-
 	io := iostreams.FromContext(ctx)
 
 	var recoverableInUiErrors []recoverableInUiError
@@ -144,12 +145,22 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
-	guest, guestExplanation, err := determineGuest(ctx, appConfig, srcInfo)
+	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
 		if err := tryRecoverErr(err); err != nil {
 			return nil, nil, err
 		}
 	}
+
+	// HACK: This is a temporary solution to work around the fact that the UI doesn't
+	//       understand the "compute" field. We want to move towards supporting the
+	//       full compute definition at some point.
+	appConfig.Compute = compute
+	fakeDefaultMachine, err := appConfig.ToMachineConfig(appConfig.DefaultProcessName(), nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	guest := fakeDefaultMachine.Guest
 
 	// TODO: Determine databases requested by the sourceInfo, and add them to the plan.
 
@@ -158,6 +169,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		OrgSlug:          org.Slug,
 		RegionCode:       region.Code,
 		HighAvailability: flag.GetBool(ctx, "ha"),
+		Compute:          compute,
 		CPUKind:          guest.CPUKind,
 		CPUs:             guest.CPUs,
 		MemoryMB:         guest.MemoryMB,
@@ -172,7 +184,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		appNameSource:  appNameExplanation,
 		regionSource:   regionExplanation,
 		orgSource:      orgExplanation,
-		guestSource:    guestExplanation,
+		computeSource:  computeExplanation,
 		postgresSource: "not requested",
 		redisSource:    "not requested",
 	}
@@ -221,18 +233,15 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		Plan:       lp,
 		PlanSource: planSource,
 	}, buildCache, err
-
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
-
 	var (
-		io        = iostreams.FromContext(ctx)
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
+		io     = iostreams.FromContext(ctx)
+		client = fly.ClientFromContext(ctx)
 	)
 
-	org, err := clientApi.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +249,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, clientApi, org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
 	}
 
 	var (
@@ -396,7 +405,6 @@ func validateAppName(appName string) error {
 
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
-
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
 		if prefix != "" {
@@ -462,12 +470,12 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 	// TODO: I believe this will only check apps that are visible to you.
 	//       We should probably expose a global uniqueness check.
 	_, err := client.GetAppBasic(ctx, name)
 	if err != nil {
-		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
+		if fly.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
 			return false, nil
 		}
 		return false, err
@@ -477,18 +485,15 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context) (*api.Organization, string, error) {
-	var (
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
-	)
+func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
+	client := fly.ClientFromContext(ctx)
 
-	orgs, err := clientApi.GetOrganizations(ctx)
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	bySlug := make(map[string]api.Organization, len(orgs))
+	bySlug := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
@@ -520,9 +525,8 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 //  1. the primary_region field of the config, if one exists
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
-func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
-
-	client := client.FromContext(ctx)
+func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
+	client := fly.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -533,7 +537,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	closestRegion, closestRegionErr := client.API().GetNearestRegion(ctx)
+	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
 
 	if regionCode != "" {
 		region, err := getRegionByCode(ctx, regionCode)
@@ -549,8 +553,8 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
-func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error) {
-	apiClient := client.FromContext(ctx).API()
+func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
+	apiClient := fly.ClientFromContext(ctx)
 
 	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {
@@ -565,34 +569,73 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 	return nil, fmt.Errorf("Unknown region '%s'. Run `fly platform regions` to see valid names", regionCode)
 }
 
-// determineGuest returns the guest type to use for a new app.
+// Applies the fields of the guest to the provided compute.
+// Ignores the guest's kernel arguments, host dedication, and GPU config,
+// leaving whatever the given compute originally had.
+//
+// This is because this function is meant for backwards compatibility with
+// the Web UI's guest definition, which doesn't have these fields.
+func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
+	for k, v := range fly.MachinePresets {
+		if reflect.DeepEqual(*v, *g) {
+			c.MachineGuest = nil
+			c.Memory = ""
+			c.Size = k
+			return
+		}
+	}
+
+	originalGuest := c.MachineGuest
+	clonedGuest := helpers.Clone(g)
+	c.MachineGuest = clonedGuest
+
+	// Canonicalize to human-readable memory strings when possible
+	var memStr string
+	if g.MemoryMB%1024 == 0 {
+		memStr = fmt.Sprintf("%dgb", g.MemoryMB/1024)
+	} else {
+		memStr = fmt.Sprintf("%dmb", g.MemoryMB)
+	}
+	c.Memory = memStr
+	c.MemoryMB = 0
+
+	// Restore original values for fields the Web UI does not return
+	if originalGuest != nil {
+		c.MachineGuest.KernelArgs = originalGuest.KernelArgs
+		c.MachineGuest.GPUs = originalGuest.GPUs
+		c.MachineGuest.HostDedicationID = originalGuest.HostDedicationID
+	}
+}
+
+func guestToCompute(g *fly.MachineGuest) *appconfig.Compute {
+	var c appconfig.Compute
+	applyGuestToCompute(&c, g)
+	return &c
+}
+
+// determineCompute returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
-func determineGuest(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) (*api.MachineGuest, string, error) {
-	def := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) ([]*appconfig.Compute, string, error) {
+	if len(config.Compute) > 0 {
+		return config.Compute, "from your fly.toml", nil
+	}
+
+	def := helpers.Clone(fly.MachinePresets["shared-cpu-1x"])
 	def.MemoryMB = 1024
 	reason := "most apps need about 1GB of RAM"
 
 	guest, err := flag.GetMachineGuest(ctx, helpers.Clone(def))
 	if err != nil {
-		return def, recoverableSpecifyInUi, recoverableInUiError{err}
-	}
-
-	if len(config.Compute) > 0 {
-		// We purposely don't copy GPU since there's no way to configure that in the web UI as of 01/19/2024
-		vm := config.Compute[0]
-		guest.CPUKind = vm.CPUKind
-		guest.CPUs = vm.CPUs
-		guest.MemoryMB = vm.MemoryMB
+		return []*appconfig.Compute{guestToCompute(def)}, recoverableSpecifyInUi, recoverableInUiError{err}
 	}
 
 	if def.CPUs != guest.CPUs || def.CPUKind != guest.CPUKind || def.MemoryMB != guest.MemoryMB {
 		reason = "specified on the command line"
 	}
-	return guest, reason, nil
+	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
-func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *api.Organization, print bool) bool {
-
+func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *fly.Organization, print bool) bool {
 	if !org.Billable && p.HighAvailability {
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")

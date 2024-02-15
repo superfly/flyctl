@@ -6,8 +6,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
@@ -16,7 +15,7 @@ type launchPlanSource struct {
 	appNameSource  string
 	regionSource   string
 	orgSource      string
-	guestSource    string
+	computeSource  string
 	postgresSource string
 	redisSource    string
 }
@@ -47,17 +46,16 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 	return val, nil
 }
 
-func (state *launchState) Org(ctx context.Context) (*api.Organization, error) {
-	apiClient := client.FromContext(ctx).API()
-	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*api.Organization, error) {
+func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
+	apiClient := fly.ClientFromContext(ctx)
+	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
 		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
 	})
 }
 
-func (state *launchState) Region(ctx context.Context) (api.Region, error) {
-
-	apiClient := client.FromContext(ctx).API()
-	regions, err := cacheGrab(state.cache, "regions", func() ([]api.Region, error) {
+func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
+	apiClient := fly.ClientFromContext(ctx)
+	regions, err := cacheGrab(state.cache, "regions", func() ([]fly.Region, error) {
 		regions, _, err := apiClient.PlatformRegions(ctx)
 		if err != nil {
 			return nil, err
@@ -65,10 +63,10 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 		return regions, nil
 	})
 	if err != nil {
-		return api.Region{}, err
+		return fly.Region{}, err
 	}
 
-	region, ok := lo.Find(regions, func(r api.Region) bool {
+	region, ok := lo.Find(regions, func(r fly.Region) bool {
 		return r.Code == state.Plan.RegionCode
 	})
 	if !ok {
@@ -80,8 +78,20 @@ func (state *launchState) Region(ctx context.Context) (api.Region, error) {
 // PlanSummary returns a human-readable summary of the launch plan.
 // Used to confirm the plan before executing it.
 func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
+	// It feels wrong to modify the appConfig here, but in well-formed states these should be identical anyway.
+	state.appConfig.Compute = state.Plan.Compute
 
-	guest := state.Plan.Guest()
+	// Expensive but should accurately simulate the whole machine building path, meaning we end up with the same
+	// guest description that will be deployed down the road :)
+	fakeMachine, err := state.appConfig.ToMachineConfig(state.appConfig.DefaultProcessName(), nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve machine guest config: %w", err)
+	}
+	guestStr := fakeMachine.Guest.String()
+
+	if len(state.appConfig.Compute) > 1 {
+		guestStr += fmt.Sprintf(", %d more", len(state.appConfig.Compute)-1)
+	}
 
 	org, err := state.Org(ctx)
 	if err != nil {
@@ -107,7 +117,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
 		{"Region", region.Name, state.PlanSource.regionSource},
-		{"App Machines", guest.String(), state.PlanSource.guestSource},
+		{"App Machines", guestStr, state.PlanSource.computeSource},
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
 	}

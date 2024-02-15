@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -176,7 +175,7 @@ func newLiteFSCloud() *cobra.Command {
 	return cmd
 }
 
-func makeToken(ctx context.Context, apiClient *api.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
+func makeToken(ctx context.Context, apiClient *fly.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
 		apiClient.GenqClient,
@@ -194,7 +193,7 @@ func makeToken(ctx context.Context, apiClient *api.Client, orgID string, expiry 
 
 func runOrg(ctx context.Context) error {
 	var token string
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -226,7 +225,7 @@ func runOrg(ctx context.Context) error {
 func runOrgRead(ctx context.Context) error {
 	var (
 		token          string
-		apiClient      = client.FromContext(ctx).API()
+		apiClient      = fly.ClientFromContext(ctx)
 		expiry         = ""
 		expiryDuration = flag.GetDuration(ctx, "expiry")
 		perm           []byte
@@ -321,7 +320,7 @@ func runOrgRead(ctx context.Context) error {
 
 func runDeploy(ctx context.Context) (err error) {
 	var token string
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -356,7 +355,7 @@ func runDeploy(ctx context.Context) (err error) {
 
 func runLiteFSCloud(ctx context.Context) (err error) {
 	var token string
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {

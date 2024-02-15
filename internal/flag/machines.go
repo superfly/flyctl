@@ -8,7 +8,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -21,14 +21,14 @@ var (
 )
 
 // Returns a MachineGuest based on the flags provided overwriting a default VM
-func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.MachineGuest, error) {
-	defaultVMSize := api.DefaultVMSize
+func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.MachineGuest, error) {
+	defaultVMSize := fly.DefaultVMSize
 	if IsSpecified(ctx, "vm-gpu-kind") {
-		defaultVMSize = api.DefaultGPUVMSize
+		defaultVMSize = fly.DefaultGPUVMSize
 	}
 
 	if guest == nil {
-		guest = &api.MachineGuest{}
+		guest = &fly.MachineGuest{}
 		guest.SetSize(defaultVMSize)
 	}
 

@@ -10,15 +10,15 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -135,6 +135,18 @@ func New() *cobra.Command {
 			Default:     true,
 			Hidden:      true,
 		},
+		flag.StringArray{
+			Name:        "file-local",
+			Description: "Set of files to write to the Machine, in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-literal",
+			Description: "Set of literals to write to the Machine, in the form of /path/inside/machine=VALUE pairs, where VALUE is the base64-encoded raw content. Can be specified multiple times.",
+		},
+		flag.StringArray{
+			Name:        "file-secret",
+			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
+		},
 		flag.VMSizeFlags,
 	)
 
@@ -145,7 +157,7 @@ func runConsole(ctx context.Context) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		apiClient = client.FromContext(ctx).API()
+		apiClient = fly.ClientFromContext(ctx)
 	)
 
 	app, err := apiClient.GetAppCompact(ctx, appName)
@@ -153,7 +165,10 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
 	}
@@ -208,7 +223,7 @@ func runConsole(ctx context.Context) error {
 	return ssh.Console(ctx, sshClient, consoleCommand, true)
 }
 
-func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
+func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.GetBool(ctx, "select") {
 		return promptForMachine(ctx, app, appConfig)
 	} else if flag.IsSpecified(ctx, "machine") {
@@ -222,7 +237,7 @@ func selectMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfi
 	}
 }
 
-func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config) (*api.Machine, func(), error) {
+func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "machine") {
 		return nil, nil, errors.New("--machine can't be used with -s/--select")
 	}
@@ -232,8 +247,8 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 	if err != nil {
 		return nil, nil, err
 	}
-	machines = lo.Filter(machines, func(machine *api.Machine, _ int) bool {
-		return machine.State == api.MachineStateStarted
+	machines = lo.Filter(machines, func(machine *fly.Machine, _ int) bool {
+		return machine.State == fly.MachineStateStarted
 	})
 
 	ephemeralGuest, err := determineEphemeralConsoleMachineGuest(ctx, appConfig)
@@ -259,7 +274,7 @@ func promptForMachine(ctx context.Context, app *api.AppCompact, appConfig *appco
 	}
 }
 
-func getMachineByID(ctx context.Context) (*api.Machine, func(), error) {
+func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 	if flag.IsSpecified(ctx, "vm-cpus") {
 		return nil, nil, errors.New("--vm-cpus can't be used with --machine")
 	}
@@ -276,7 +291,7 @@ func getMachineByID(ctx context.Context) (*api.Machine, func(), error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	if machine.State != api.MachineStateStarted {
+	if machine.State != fly.MachineStateStarted {
 		return nil, nil, fmt.Errorf("machine %s is not started", machineID)
 	}
 	if machine.IsFlyAppsReleaseCommand() {
@@ -286,8 +301,8 @@ func getMachineByID(ctx context.Context) (*api.Machine, func(), error) {
 	return machine, nil, nil
 }
 
-func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appConfig *appconfig.Config, guest *api.MachineGuest) (*api.Machine, func(), error) {
-	apiClient := client.FromContext(ctx).API()
+func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
+	apiClient := fly.ClientFromContext(ctx)
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {
 		return nil, nil, err
@@ -330,7 +345,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	}
 
 	if machConfig.DNS == nil {
-		machConfig.DNS = &api.DNSConfig{}
+		machConfig.DNS = &fly.DNSConfig{}
 	}
 	machConfig.DNS.SkipRegistration = flag.GetBool(ctx, "skip-dns-registration")
 
@@ -361,7 +376,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	}
 
 	input := &machine.EphemeralInput{
-		LaunchInput: api.LaunchMachineInput{
+		LaunchInput: fly.LaunchMachineInput{
 			Config: machConfig,
 			Region: config.FromContext(ctx).Region,
 		},
@@ -370,7 +385,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *api.AppCompact, appCo
 	return machine.LaunchEphemeral(ctx, input)
 }
 
-func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*api.MachineGuest, error) {
+func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*fly.MachineGuest, error) {
 	desiredGuest, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return nil, err
@@ -380,11 +395,11 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appco
 		var minMemory, maxMemory int
 		switch desiredGuest.CPUKind {
 		case "shared":
-			minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_SHARED_CPU
-			maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_SHARED_CPU
+			minMemory = desiredGuest.CPUs * fly.MIN_MEMORY_MB_PER_SHARED_CPU
+			maxMemory = desiredGuest.CPUs * fly.MAX_MEMORY_MB_PER_SHARED_CPU
 		case "performance":
-			minMemory = desiredGuest.CPUs * api.MIN_MEMORY_MB_PER_CPU
-			maxMemory = desiredGuest.CPUs * api.MAX_MEMORY_MB_PER_CPU
+			minMemory = desiredGuest.CPUs * fly.MIN_MEMORY_MB_PER_CPU
+			maxMemory = desiredGuest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
 		default:
 			return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", desiredGuest.CPUKind)
 		}

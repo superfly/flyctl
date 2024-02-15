@@ -7,16 +7,16 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
 type ToplevelCheck struct {
 	Port              *int              `json:"port,omitempty" toml:"port,omitempty"`
 	Type              *string           `json:"type,omitempty" toml:"type,omitempty"`
-	Interval          *api.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout           *api.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod       *api.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
+	Interval          *fly.Duration     `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout           *fly.Duration     `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod       *fly.Duration     `json:"grace_period,omitempty" toml:"grace_period,omitempty"`
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
@@ -26,7 +26,7 @@ type ToplevelCheck struct {
 	Processes         []string          `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
-func topLevelCheckFromMachineCheck(ctx context.Context, mc api.MachineCheck) *ToplevelCheck {
+func topLevelCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *ToplevelCheck {
 	headers := make(map[string]string)
 	for _, h := range mc.HTTPHeaders {
 		if len(h.Values) > 0 {
@@ -51,12 +51,12 @@ func topLevelCheckFromMachineCheck(ctx context.Context, mc api.MachineCheck) *To
 	}
 }
 
-func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
+func (chk *ToplevelCheck) toMachineCheck() (*fly.MachineCheck, error) {
 	if chk.Type == nil || !slices.Contains([]string{"http", "tcp"}, *chk.Type) {
 		return nil, fmt.Errorf("Missing or invalid check type, must be 'http' or 'tcp'")
 	}
 
-	res := &api.MachineCheck{
+	res := &fly.MachineCheck{
 		Type:              chk.Type,
 		Port:              chk.Port,
 		Interval:          chk.Interval,
@@ -68,12 +68,12 @@ func (chk *ToplevelCheck) toMachineCheck() (*api.MachineCheck, error) {
 		HTTPTLSServerName: chk.HTTPTLSServerName,
 	}
 	if chk.HTTPMethod != nil {
-		res.HTTPMethod = api.Pointer(strings.ToUpper(*chk.HTTPMethod))
+		res.HTTPMethod = fly.Pointer(strings.ToUpper(*chk.HTTPMethod))
 	}
 	if len(chk.HTTPHeaders) > 0 {
 		res.HTTPHeaders = lo.MapToSlice(
-			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
-				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+			chk.HTTPHeaders, func(k string, v string) fly.MachineHTTPHeader {
+				return fly.MachineHTTPHeader{Name: k, Values: []string{v}}
 			})
 	}
 	return res, nil

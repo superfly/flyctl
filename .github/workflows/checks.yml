@@ -30,21 +30,16 @@ jobs:
   lint:
     strategy:
       fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
-        # TODO[md]: run this on these once the horrendous performance on macos & windows is fixed
-        # os: [ubuntu-latest, macos-latest, windows-latest]
-        module: [".", "api"]
     name: lint
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: "${{ matrix.module }}/go.mod"
+          go-version-file: "go.mod"
           # check-latest: true
-      - uses: golangci/golangci-lint-action@v3
+      - uses: golangci/golangci-lint-action@v4
         with:
           version: v1.54
-          working-directory: ${{ matrix.module }}
+          working-directory: .
           skip-pkg-cache: true

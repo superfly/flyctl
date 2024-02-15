@@ -9,24 +9,22 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/sentry"
-
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/cmdutil"
 )
 
 var CommonFlags = flag.Set{
@@ -187,13 +185,15 @@ func run(ctx context.Context) error {
 	defer hook.Done()
 
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}
 	ctx = flaps.NewContext(ctx, flapsClient)
 
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 
 	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
 	defer span.End()
@@ -213,13 +213,24 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx), nil)
+	var gpuKinds, cpuKinds []string
+	for _, compute := range appConfig.Compute {
+		if compute != nil && compute.MachineGuest != nil {
+			gpuKinds = append(gpuKinds, compute.MachineGuest.GPUKind)
+			cpuKinds = append(cpuKinds, compute.MachineGuest.CPUKind)
+		}
+	}
+
+	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
+	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
+
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool, optionalGuest *api.MachineGuest) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
@@ -245,7 +256,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	fmt.Fprintf(io.Out, "\nWatch your deployment at https://fly.io/apps/%s/monitoring\n\n", appName)
-	if err := deployToMachines(ctx, appConfig, appCompact, img, optionalGuest); err != nil {
+	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
 
@@ -287,9 +298,8 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 func deployToMachines(
 	ctx context.Context,
 	appConfig *appconfig.Config,
-	appCompact *api.AppCompact,
+	appCompact *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
-	guest *api.MachineGuest,
 ) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -319,11 +329,9 @@ func deployToMachines(
 		return err
 	}
 
-	if guest == nil {
-		guest, err = flag.GetMachineGuest(ctx, nil)
-		if err != nil {
-			return err
-		}
+	guest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
 	}
 
 	excludeRegions := make(map[string]interface{})
@@ -346,7 +354,7 @@ func deployToMachines(
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
 	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		maxUnavailable = fly.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")

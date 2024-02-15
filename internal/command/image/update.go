@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -49,7 +49,7 @@ The update will perform a rolling restart against each VM, which may result in a
 func runUpdate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)

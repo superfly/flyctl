@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/PuerkitoBio/rehttp"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -50,7 +50,7 @@ func newHttpClient(dialer agent.Dialer) *http.Client {
 		rehttp.ExpJitterDelay(100*time.Millisecond, 1*time.Second),
 	)
 
-	logging := &api.LoggingTransport{
+	logging := &fly.LoggingTransport{
 		InnerTransport: retry,
 		Logger:         terminal.DefaultLogger,
 	}
@@ -80,9 +80,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, in interfac
 }
 
 func (c *Client) Do(ctx context.Context, method, path string, in, out interface{}) error {
-
 	body, err := c.doRequest(ctx, method, path, in)
-
 	if err != nil {
 		return err
 	}
@@ -91,18 +89,6 @@ func (c *Client) Do(ctx context.Context, method, path string, in, out interface{
 	}
 
 	return json.NewDecoder(body).Decode(out)
-}
-
-func (c *Client) DoPlaintext(ctx context.Context, method, path string, in interface{}) (string, error) {
-	body, err := c.doRequest(ctx, method, path, in)
-	if err != nil {
-		return "", err
-	}
-	data, err := io.ReadAll(body)
-	if err != nil {
-		return "", err
-	}
-	return string(data), nil
 }
 
 func (c *Client) NewRequest(path string, method string, in interface{}) (*http.Request, error) {

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/secrets"
@@ -36,7 +36,7 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
-		apiClient  = client.FromContext(ctx).API()
+		apiClient  = fly.ClientFromContext(ctx)
 		appName    = appconfig.NameFromContext(ctx)
 		secretName = flag.GetString(ctx, "variable-name")
 	)

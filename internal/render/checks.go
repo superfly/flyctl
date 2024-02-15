@@ -3,10 +3,10 @@ package render
 import (
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
-func MachineHealthChecksSummary(machines ...*api.Machine) string {
+func MachineHealthChecksSummary(machines ...*fly.Machine) string {
 	var total, pass, crit, warn int
 
 	for _, machine := range machines {
@@ -36,9 +36,9 @@ func MachineHealthChecksSummary(machines ...*api.Machine) string {
 	return checkStr
 }
 
-func passingChecks(checks []*api.MachineCheckStatus) (n int) {
+func passingChecks(checks []*fly.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == api.Passing {
+		if check.Status == fly.Passing {
 			n++
 		}
 	}
@@ -46,9 +46,9 @@ func passingChecks(checks []*api.MachineCheckStatus) (n int) {
 	return n
 }
 
-func warnChecks(checks []*api.MachineCheckStatus) (n int) {
+func warnChecks(checks []*fly.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == api.Warning {
+		if check.Status == fly.Warning {
 			n++
 		}
 	}
@@ -56,9 +56,9 @@ func warnChecks(checks []*api.MachineCheckStatus) (n int) {
 	return n
 }
 
-func critChecks(checks []*api.MachineCheckStatus) (n int) {
+func critChecks(checks []*fly.MachineCheckStatus) (n int) {
 	for _, check := range checks {
-		if check.Status == api.Critical {
+		if check.Status == fly.Critical {
 			n++
 		}
 	}

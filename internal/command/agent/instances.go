@@ -6,11 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/iostreams"
 
-	apiClient "github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
@@ -39,9 +38,9 @@ func runInstances(ctx context.Context) (err error) {
 	}
 
 	slug := flag.FirstArg(ctx)
-	apiClient := apiClient.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
-	var org *api.Organization
+	var org *fly.Organization
 	if org, err = apiClient.GetOrganizationBySlug(ctx, slug); err != nil {
 		err = fmt.Errorf("failed fetching org: %w", err)
 

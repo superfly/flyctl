@@ -5,17 +5,17 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
 var _ LeasableMachine = &mockLeasableMachine{}
 
 type mockLeasableMachine struct {
 	LeasableMachine
-	machine *api.Machine
+	machine *fly.Machine
 }
 
-func (m *mockLeasableMachine) Machine() *api.Machine {
+func (m *mockLeasableMachine) Machine() *fly.Machine {
 	return m.machine
 }
 
@@ -36,21 +36,21 @@ func TestRemoveMachines(t *testing.T) {
 			ms: &machineSet{
 				machines: []LeasableMachine{
 					&mockLeasableMachine{
-						machine: &api.Machine{ID: "1"},
+						machine: &fly.Machine{ID: "1"},
 					},
 					&mockLeasableMachine{
-						machine: &api.Machine{ID: "2"},
+						machine: &fly.Machine{ID: "2"},
 					},
 				},
 			},
 			input: []LeasableMachine{
 				&mockLeasableMachine{
-					machine: &api.Machine{ID: "1"},
+					machine: &fly.Machine{ID: "1"},
 				},
 			},
 			expect: []LeasableMachine{
 				&mockLeasableMachine{
-					machine: &api.Machine{ID: "2"},
+					machine: &fly.Machine{ID: "2"},
 				},
 			},
 		},
@@ -59,19 +59,19 @@ func TestRemoveMachines(t *testing.T) {
 			ms: &machineSet{
 				machines: []LeasableMachine{
 					&mockLeasableMachine{
-						machine: &api.Machine{ID: "1"},
+						machine: &fly.Machine{ID: "1"},
 					},
 					&mockLeasableMachine{
-						machine: &api.Machine{ID: "2"},
+						machine: &fly.Machine{ID: "2"},
 					},
 				},
 			},
 			input: []LeasableMachine{
 				&mockLeasableMachine{
-					machine: &api.Machine{ID: "1"},
+					machine: &fly.Machine{ID: "1"},
 				},
 				&mockLeasableMachine{
-					machine: &api.Machine{ID: "2"},
+					machine: &fly.Machine{ID: "2"},
 				},
 			},
 			expect: []LeasableMachine{},
@@ -81,20 +81,20 @@ func TestRemoveMachines(t *testing.T) {
 			ms: &machineSet{
 				machines: []LeasableMachine{
 					&mockLeasableMachine{
-						machine: &api.Machine{ID: "1"},
+						machine: &fly.Machine{ID: "1"},
 					},
 					&mockLeasableMachine{
-						machine: &api.Machine{ID: "2"},
+						machine: &fly.Machine{ID: "2"},
 					},
 				},
 			},
 			input: []LeasableMachine{},
 			expect: []LeasableMachine{
 				&mockLeasableMachine{
-					machine: &api.Machine{ID: "1"},
+					machine: &fly.Machine{ID: "1"},
 				},
 				&mockLeasableMachine{
-					machine: &api.Machine{ID: "2"},
+					machine: &fly.Machine{ID: "2"},
 				},
 			},
 		},

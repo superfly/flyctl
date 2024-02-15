@@ -11,7 +11,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 )
@@ -188,14 +188,14 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 	return extraInfo, err
 }
 
-func validateServiceCheckDurations(interval, timeout, gracePeriod *api.Duration, proto string) (extraInfo string) {
+func validateServiceCheckDurations(interval, timeout, gracePeriod *fly.Duration, proto string) (extraInfo string) {
 	extraInfo += validateSingleServiceCheckDuration(interval, false, proto, "an interval")
 	extraInfo += validateSingleServiceCheckDuration(timeout, false, proto, "a timeout")
 	extraInfo += validateSingleServiceCheckDuration(gracePeriod, true, proto, "a grace period")
 	return
 }
 
-func validateSingleServiceCheckDuration(d *api.Duration, zeroOK bool, proto, description string) (extraInfo string) {
+func validateSingleServiceCheckDuration(d *fly.Duration, zeroOK bool, proto, description string) (extraInfo string) {
 	switch {
 	case d == nil:
 		// Do nothing.

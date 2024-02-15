@@ -5,20 +5,24 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 )
 
 func queryMetricsToken(ctx context.Context) (string, error) {
-
 	// Manually construct an API client with the user's access token.
 	// We use this over the context API client because we're trying to
 	// authenticate the human user, not the specific credentials they're using.
 	cfg := config.FromContext(ctx)
-	apiClient := client.FromTokens(cfg.Tokens).API()
+	apiClient := fly.NewClientFromOptions(fly.ClientOptions{
+		Name:    buildinfo.Name(),
+		Version: buildinfo.Version().String(),
+		Tokens:  cfg.Tokens,
+	})
 
 	personal, err := apiClient.GetOrganizationBySlug(ctx, "personal")
 	if err != nil {

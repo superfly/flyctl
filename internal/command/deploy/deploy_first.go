@@ -6,7 +6,7 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -92,7 +92,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 	}
 
 	// md.setVolumes already queried for existent unattached volumes, do not create more
-	existentVolumes := lo.MapValues(md.volumes, func(vs []api.Volume, _ string) int {
+	existentVolumes := lo.MapValues(md.volumes, func(vs []fly.Volume, _ string) int {
 		return len(vs)
 	})
 
@@ -138,11 +138,11 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				initialSize, m.Source, groupName,
 			)
 
-			input := api.CreateVolumeRequest{
+			input := fly.CreateVolumeRequest{
 				Name:                m.Source,
 				Region:              groupConfig.PrimaryRegion,
-				SizeGb:              api.Pointer(initialSize),
-				Encrypted:           api.Pointer(true),
+				SizeGb:              fly.Pointer(initialSize),
+				Encrypted:           fly.Pointer(true),
 				ComputeRequirements: guest,
 			}
 

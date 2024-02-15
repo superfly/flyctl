@@ -4,8 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -72,7 +71,10 @@ func runAllocateIPAddressV4(ctx context.Context) error {
 	if flag.GetBool(ctx, "shared") {
 		addrType = "shared_v4"
 	} else if !flag.GetBool(ctx, "yes") {
-		switch confirmed, err := prompt.Confirm(ctx, "Looks like you're accessing a paid feature. Dedicated IPv4 addresses now cost $2/mo. Are you ok with this?"); {
+		msg := `Looks like you're accessing a paid feature. Dedicated IPv4 addresses now cost $2/mo.
+Are you ok with this? Alternatively, you could allocate a shared IPv4 address with the --shared flag.`
+
+		switch confirmed, err := prompt.Confirm(ctx, msg); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -90,7 +92,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	private := flag.GetBool(ctx, "private")
 	if private {
 		orgSlug := flag.GetOrg(ctx)
-		var org *api.Organization
+		var org *fly.Organization
 
 		if orgSlug != "" {
 			org, err = orgs.OrgFromSlug(ctx, orgSlug)
@@ -107,8 +109,8 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	return runAllocateIPAddress(ctx, "v6", nil, "")
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization, network string) (err error) {
-	client := client.FromContext(ctx).API()
+func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organization, network string) (err error) {
+	client := fly.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
@@ -130,7 +132,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organiz
 		return err
 	}
 
-	ipAddresses := []api.IPAddress{*ipAddress}
+	ipAddresses := []fly.IPAddress{*ipAddress}
 	renderListTable(ctx, ipAddresses)
 	return nil
 }

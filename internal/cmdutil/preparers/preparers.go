@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/instrument"
@@ -57,15 +57,19 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 
 	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
+	fly.SetBaseURL(cfg.APIBaseURL)
+	fly.SetErrorLog(cfg.LogGQLErrors)
+	fly.SetInstrumenter(instrument.ApiAdapter)
+	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := client.FromTokens(cfg.Tokens)
+	c := fly.NewClientFromOptions(fly.ClientOptions{
+		Name:    buildinfo.Name(),
+		Version: buildinfo.Version().String(),
+		Tokens:  cfg.Tokens,
+	})
 	logger.Debug("client initialized.")
 
-	return client.NewContext(ctx, c), nil
+	return fly.NewContextWithClient(ctx, c), nil
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {
@@ -87,7 +91,6 @@ func DetermineConfigDir(ctx context.Context) (context.Context, error) {
 //     This will set flag.Changed to true, as if it were specified manually.
 //   - If none of the flags were set, the main flag will remain its default value.
 func ApplyAliases(ctx context.Context) (context.Context, error) {
-
 	var (
 		invalidFlagNames []string
 		invalidTypes     []string

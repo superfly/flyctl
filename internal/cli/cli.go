@@ -16,7 +16,7 @@ import (
 	"github.com/kr/text"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -86,8 +86,8 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cmd, err = cmd.ExecuteContextC(ctx)
 
-	if err != nil {
-		metrics.RecordCommandFinish(cmd)
+	if cmd != nil {
+		metrics.RecordCommandFinish(cmd, err != nil)
 	}
 
 	// shutdown background tasks, giving up to 5s for them to finish

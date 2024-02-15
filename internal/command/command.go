@@ -12,12 +12,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api/tokens"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
@@ -25,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -64,6 +66,7 @@ var commonPreparers = []preparers.Preparer{
 	killOldAgent,
 	startMetrics,
 	preparers.SetOtelAuthenticationKey,
+	setUsingGPU,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -499,8 +502,8 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !client.FromContext(ctx).Authenticated() {
-		return nil, client.ErrNoAuthToken
+	if !fly.ClientFromContext(ctx).Authenticated() {
+		return nil, fly.ErrNoAuthToken
 	}
 
 	return updateMacaroons(ctx)
@@ -517,7 +520,6 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		tokens.WithUserURLCallback(tryOpenUserURL),
 		tokens.WithDebugger(log),
 	)
-
 	if err != nil {
 		log.Warn("Failed to upgrade authentication token. Command may fail.")
 		log.Debug(err)
@@ -693,4 +695,15 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func setUsingGPU(ctx context.Context) (context.Context, error) {
+	appConfig := appconfig.ConfigFromContext(ctx)
+	if appConfig != nil {
+		instrument.UsingGPU = lo.SomeBy(appConfig.Compute, func(x *appconfig.Compute) bool {
+			return x != nil && x.MachineGuest != nil && x.MachineGuest.GPUKind != ""
+		})
+	}
+
+	return ctx, nil
 }

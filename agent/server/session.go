@@ -19,9 +19,9 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -184,7 +184,7 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 
 var errNoSuchOrg = errors.New("no such organization")
 
-func (s *session) fetchOrg(ctx context.Context, slug string) (*api.Organization, error) {
+func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization, error) {
 	orgs, err := s.srv.Client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
@@ -310,7 +310,6 @@ func resolve(ctx context.Context, tunnel *wg.Tunnel, addr string) (string, error
 }
 
 func (s *session) lookupTxt(ctx context.Context, args ...string) {
-
 	if len(args) != 2 {
 		s.error(fmt.Errorf("lookupTxt: bad args"))
 		return

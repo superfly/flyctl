@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -61,7 +60,7 @@ func newListDbs() *cobra.Command {
 
 func runListDbs(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -81,7 +80,7 @@ func runListDbs(ctx context.Context) error {
 	return runMachineListDbs(ctx, app)
 }
 
-func runMachineListDbs(ctx context.Context, app *api.AppCompact) error {
+func runMachineListDbs(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresFlexVersion       = "0.0.3"

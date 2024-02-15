@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -64,7 +64,7 @@ func runMachineRestart(ctx context.Context) error {
 	)
 
 	// Resolve flags
-	input := &api.RestartMachineInput{
+	input := &fly.RestartMachineInput{
 		Timeout:          time.Duration(timeout) * time.Second,
 		ForceStop:        flag.GetBool(ctx, "force"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),

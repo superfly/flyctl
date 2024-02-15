@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -36,7 +36,7 @@ func runStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		name   = flag.FirstArg(ctx)
-		client = client.FromContext(ctx).API().GenqClient
+		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
 	response, err := gql.GetAddOn(ctx, client, name)

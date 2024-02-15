@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -98,7 +97,7 @@ func newCreate() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	var (
 		appName  = flag.GetString(ctx, "name")
-		client   = client.FromContext(ctx).API()
+		client   = fly.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 	)
@@ -112,7 +111,7 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	var org *api.Organization
+	var org *fly.Organization
 	org, err = prompt.Org(ctx)
 	if err != nil {
 		return
@@ -244,7 +243,7 @@ func run(ctx context.Context) (err error) {
 
 	params.PostgresConfiguration = *pgConfig
 
-	var region *api.Region
+	var region *fly.Region
 	region, err = prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
 		Message: "",
 	})
@@ -264,9 +263,9 @@ func run(ctx context.Context) (err error) {
 }
 
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
-func CreateCluster(ctx context.Context, org *api.Organization, region *api.Region, params *ClusterParams) (err error) {
+func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 
@@ -357,7 +356,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 				return err
 			}
 		}
-		input.VolumeSize = api.IntPointer(params.DiskGb)
+		input.VolumeSize = fly.IntPointer(params.DiskGb)
 		input.Autostart = params.Autostart
 	} else {
 		// Resolve configuration from pre-defined configuration.
@@ -367,7 +366,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 		}
 
 		input.VMSize = vmSize
-		input.VolumeSize = api.IntPointer(config.DiskGb)
+		input.VolumeSize = fly.IntPointer(config.DiskGb)
 		input.InitialClusterSize = config.InitialClusterSize
 		input.ImageRef = params.ImageRef
 		input.Autostart = params.Autostart
@@ -388,7 +387,7 @@ func CreateCluster(ctx context.Context, org *api.Organization, region *api.Regio
 	return launcher.LaunchMachinesPostgres(ctx, input, params.Detach)
 }
 
-func resolveVMSize(ctx context.Context, targetSize string) (*api.VMSize, error) {
+func resolveVMSize(ctx context.Context, targetSize string) (*fly.VMSize, error) {
 	// verify the specified size
 	if targetSize != "" {
 		for _, size := range MachineVMSizes() {
@@ -498,9 +497,9 @@ func flexConfigurations() []PostgresConfiguration {
 }
 
 // machineVMSizes represents the available VM configurations for Machines.
-func MachineVMSizes() []api.VMSize {
+func MachineVMSizes() []fly.VMSize {
 	// TODO - Eventually we will have a flaps endpoint for this.
-	return []api.VMSize{
+	return []fly.VMSize{
 		{
 			Name:     "shared-cpu-1x",
 			CPUClass: "shared",
@@ -567,7 +566,7 @@ func MachineVMSizes() []api.VMSize {
 	}
 }
 
-func resolveForkFromVolume(ctx context.Context, machines []*api.Machine) (string, error) {
+func resolveForkFromVolume(ctx context.Context, machines []*fly.Machine) (string, error) {
 	if len(machines) == 0 {
 		return "", fmt.Errorf("No machines associated with fork-from target. See `fly pg create --help` for more information")
 	}
@@ -593,7 +592,7 @@ func resolveForkFromVolume(ctx context.Context, machines []*api.Machine) (string
 	return "", fmt.Errorf("Failed to resolve the volume associated with the primary instance. See `fly pg create --help` for more information")
 }
 
-func resolveForkFromManager(ctx context.Context, machines []*api.Machine) string {
+func resolveForkFromManager(ctx context.Context, machines []*fly.Machine) string {
 	if flag.GetBool(ctx, "stolon") {
 		return flypg.StolonManager
 	}
@@ -610,7 +609,7 @@ func resolveForkFromManager(ctx context.Context, machines []*api.Machine) string
 	return flypg.StolonManager
 }
 
-func resolveImageFromForkVolume(vol *api.Volume, machines []*api.Machine) string {
+func resolveImageFromForkVolume(vol *fly.Volume, machines []*fly.Machine) string {
 	// Attempt to resolve the machine image that's associated with the volume
 	for _, m := range machines {
 		if m.Config.Mounts[0].Volume == vol.ID {

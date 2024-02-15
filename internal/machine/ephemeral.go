@@ -8,8 +8,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/spinner"
@@ -18,11 +18,11 @@ import (
 )
 
 type EphemeralInput struct {
-	LaunchInput api.LaunchMachineInput
+	LaunchInput fly.LaunchMachineInput
 	What        string
 }
 
-func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*api.Machine, func(), error) {
+func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, func(), error) {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -56,7 +56,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*api.Machine, 
 	defer t.Stop()
 
 	for {
-		err = flapsClient.Wait(ctx, machine, api.MachineStateStarted, waitTimeout)
+		err = flapsClient.Wait(ctx, machine, fly.MachineStateStarted, waitTimeout)
 		if err == nil {
 			return machine, makeCleanupFunc(ctx, machine), nil
 		}
@@ -86,18 +86,18 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*api.Machine, 
 	return nil, nil, err
 }
 
-func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr error) (bool, error) {
+func checkMachineDestruction(ctx context.Context, machine *fly.Machine, firstErr error) (bool, error) {
 	flapsClient := flaps.FromContext(ctx)
 	machine, err := flapsClient.Get(ctx, machine.ID)
 	if err != nil {
 		return false, fmt.Errorf("failed to check status of machine: %w", err)
 	}
 
-	if machine.State != api.MachineStateDestroyed && machine.State != api.MachineStateDestroying {
+	if machine.State != fly.MachineStateDestroyed && machine.State != fly.MachineStateDestroying {
 		return false, firstErr
 	}
 
-	var exitEvent *api.MachineEvent
+	var exitEvent *fly.MachineEvent
 	for _, event := range machine.Events {
 		if event.Type == "exit" {
 			exitEvent = event
@@ -117,7 +117,7 @@ func checkMachineDestruction(ctx context.Context, machine *api.Machine, firstErr
 	return true, fmt.Errorf("machine exited unexpectedly with code %v", exitCode)
 }
 
-func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
+func makeCleanupFunc(ctx context.Context, machine *fly.Machine) func() {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
@@ -133,9 +133,9 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 		stopCtx, cancel = ctrlc.HookCancelableContext(stopCtx, cancel)
 		defer cancel()
 
-		stopInput := api.StopMachineInput{
+		stopInput := fly.StopMachineInput{
 			ID:      machine.ID,
-			Timeout: api.Duration{Duration: stopTimeout},
+			Timeout: fly.Duration{Duration: stopTimeout},
 		}
 		if err := flapsClient.Stop(stopCtx, stopInput, ""); err != nil {
 			terminal.Warnf("Failed to stop ephemeral machine: %v", err)
@@ -145,7 +145,7 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 
 		if cmdutil.IsTerminal(os.Stdout) {
 			fmt.Fprintf(io.Out, "Waiting for ephemeral machine %s to be destroyed ...", colorize.Bold(machine.ID))
-			if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
+			if err := flapsClient.Wait(stopCtx, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
 				fmt.Fprintf(io.Out, " %s!\n", colorize.Red("failed"))
 				terminal.Warnf("Failed to wait for ephemeral machine to be destroyed: %v", err)
 				terminal.Warn("You may need to destroy it manually (`fly machine destroy`).")
@@ -153,7 +153,7 @@ func makeCleanupFunc(ctx context.Context, machine *api.Machine) func() {
 				fmt.Fprintf(io.Out, " %s.\n", colorize.Green("done"))
 			}
 		} else {
-			if err := flapsClient.Wait(stopCtx, machine, api.MachineStateDestroyed, stopTimeout); err != nil {
+			if err := flapsClient.Wait(stopCtx, machine, fly.MachineStateDestroyed, stopTimeout); err != nil {
 				fmt.Fprintf(io.ErrOut, "Attempt to destroy ephemeral machine %s failed: %v", machine.ID, err)
 				fmt.Fprint(io.ErrOut, "You may need to destroy it manually (`fly machine destroy`).")
 			}

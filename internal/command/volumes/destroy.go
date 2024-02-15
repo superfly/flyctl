@@ -5,16 +5,14 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newDestroy() *cobra.Command {
@@ -43,7 +41,7 @@ func newDestroy() *cobra.Command {
 func runDestroy(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 		volIDs = flag.Args(ctx)
 	)
 
@@ -60,7 +58,9 @@ func runDestroy(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -110,7 +110,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 	}
 
 	// fetch the volume so we can get the associated app
-	var volume *api.Volume
+	var volume *fly.Volume
 	if volume, err = flapsClient.GetVolume(ctx, volID); err != nil {
 		return false, err
 	}
@@ -121,7 +121,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 		return false, err
 	}
 
-	var msg = "Deleting a volume is not reversible."
+	msg := "Deleting a volume is not reversible."
 	if matches <= 2 {
 		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
 	}

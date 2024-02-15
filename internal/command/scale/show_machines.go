@@ -8,10 +8,11 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -20,7 +21,9 @@ func runMachinesScaleShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -31,7 +34,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 		return err
 	}
 
-	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
+	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
 
@@ -42,7 +45,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 	// TODO: Each machine can technically have a different Guest configuration.
 	// It's impractical to show the guest for each machine, but arbitrarily
 	// picking the first one is not ideal either.
-	representativeGuests := lo.MapValues(machineGroups, func(machines []*api.Machine, _ string) *api.MachineGuest {
+	representativeGuests := lo.MapValues(machineGroups, func(machines []*fly.Machine, _ string) *fly.MachineGuest {
 		if len(machines) == 0 {
 			return nil
 		}
@@ -59,7 +62,6 @@ func runMachinesScaleShow(ctx context.Context) error {
 			Regions map[string]int
 		}
 		groups := lo.FilterMap(groupNames, func(name string, _ int) (res groupData, ok bool) {
-
 			machines := machineGroups[name]
 			guest := representativeGuests[name]
 			if guest == nil {
@@ -71,7 +73,7 @@ func runMachinesScaleShow(ctx context.Context) error {
 				CPUKind: guest.CPUKind,
 				CPUs:    guest.CPUs,
 				Memory:  guest.MemoryMB,
-				Regions: lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
+				Regions: lo.CountValues(lo.Map(machines, func(m *fly.Machine, _ int) string {
 					return m.Region
 				})),
 			}, true
@@ -105,9 +107,9 @@ func runMachinesScaleShow(ctx context.Context) error {
 	return nil
 }
 
-func formatRegions(machines []*api.Machine) string {
+func formatRegions(machines []*fly.Machine) string {
 	regions := lo.Map(
-		lo.Entries(lo.CountValues(lo.Map(machines, func(m *api.Machine, _ int) string {
+		lo.Entries(lo.CountValues(lo.Map(machines, func(m *fly.Machine, _ int) string {
 			return m.Region
 		}))),
 		func(e lo.Entry[string, int], _ int) string {

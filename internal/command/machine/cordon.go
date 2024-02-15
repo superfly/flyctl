@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -49,7 +49,7 @@ func runMachineCordon(ctx context.Context) (err error) {
 
 	for _, machineID := range machineIDs {
 		fmt.Fprintf(io.Out, "Activating cordon on machine %s...\n", machineID)
-		if err = flapsClient.Cordon(ctx, machineID); err != nil {
+		if err = flapsClient.Cordon(ctx, machineID, ""); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "done!\n")

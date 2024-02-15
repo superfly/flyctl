@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -56,7 +56,7 @@ connects to the first Machine address returned by an internal DNS query on the a
 }
 
 func run(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	orgSlug := flag.GetOrg(ctx)
@@ -83,7 +83,7 @@ func run(ctx context.Context) (err error) {
 		orgSlug = org.Slug
 	}
 
-	// var app *api.App
+	// var app *fly.App
 	if appName != "" {
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {

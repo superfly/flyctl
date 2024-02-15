@@ -8,8 +8,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/config"
 )
 
@@ -18,7 +18,7 @@ type natsLogStream struct {
 	err error
 }
 
-func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions) (LogStream, error) {
+func NewNatsStream(ctx context.Context, apiClient *fly.Client, opts *LogOptions) (LogStream, error) {
 	app, err := apiClient.GetAppBasic(ctx, opts.AppName)
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching target app: %w", err)

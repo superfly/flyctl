@@ -13,7 +13,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/logger"
@@ -24,7 +24,7 @@ import (
 // EditInWebUi launches a web-based editor for the app plan
 func (state *launchState) EditInWebUi(ctx context.Context) error {
 
-	session, err := api.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.Plan.AppName), map[string]any{
+	session, err := fly.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.Plan.AppName), map[string]any{
 		"target":   "launch",
 		"metadata": state.Plan,
 	})
@@ -123,7 +123,7 @@ outer:
 }
 
 // TODO: this does NOT break on interrupts
-func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (session api.CLISession, err error) {
+func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (session fly.CLISession, err error) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
 	defer cancel()
 
@@ -133,7 +133,7 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 	s.Start()
 
 	for ctx.Err() == nil {
-		if session, err = api.GetCLISessionState(ctx, id); err != nil {
+		if session, err = fly.GetCLISessionState(ctx, id); err != nil {
 			logger.Debugf("failed retrieving token: %v", err)
 
 			pause.For(ctx, time.Second)

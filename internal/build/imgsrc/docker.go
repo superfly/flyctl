@@ -20,8 +20,8 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -36,11 +36,11 @@ type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
 	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
-	apiClient *api.Client
+	apiClient *fly.Client
 	appName   string
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient *api.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		var cachedDocker *dockerclient.Client
@@ -169,12 +169,11 @@ func (t DockerDaemonType) PrefersLocal() bool {
 }
 
 func NewLocalDockerClient() (*dockerclient.Client, error) {
-	c, err := dockerclient.NewClientWithOpts(dockerclient.WithAPIVersionNegotiation())
+	c, err := dockerclient.NewClientWithOpts(
+		dockerclient.FromEnv,
+		dockerclient.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := dockerclient.FromEnv(c); err != nil {
 		return nil, err
 	}
 
@@ -185,7 +184,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client")
 	defer span.End()
 
@@ -203,8 +202,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	}()
 
 	var host string
-	var app *api.App
-	var machine *api.GqlMachine
+	var app *fly.App
+	var machine *fly.GqlMachine
 	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
@@ -332,7 +331,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *api.Client, appName s
 	return cachedClient, nil
 }
 
-func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, host string) (opts []dockerclient.Opt, err error) {
+func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, host string) (opts []dockerclient.Opt, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_client_ops")
 	defer span.End()
 
@@ -361,7 +360,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *api.Client, appName, 
 		CheckRedirect: dockerclient.CheckRedirect,
 	}))
 
-	var app *api.AppBasic
+	var app *fly.AppBasic
 	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
 		tracing.RecordError(span, err, "error fetching target app")
 		return nil, fmt.Errorf("error fetching target app: %w", err)
@@ -538,7 +537,7 @@ func ResolveDockerfile(cwd string) string {
 	return ""
 }
 
-func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgSlug string) {
+func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgSlug string) {
 	// skip if local docker is available
 	if _, err := NewLocalDockerClient(); err == nil {
 		return
@@ -559,7 +558,7 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *api.Client, orgS
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient *api.Client, appName string) (*api.GqlMachine, *api.App, error) {
+func remoteBuilderMachine(ctx context.Context, apiClient *fly.Client, appName string) (*fly.GqlMachine, *fly.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}

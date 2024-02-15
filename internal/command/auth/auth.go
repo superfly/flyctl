@@ -15,7 +15,7 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
@@ -47,7 +47,7 @@ If you do have an account, begin with the AUTH LOGIN subcommand.
 }
 
 func runWebLogin(ctx context.Context, signup bool) (string, error) {
-	auth, err := api.StartCLISessionWebAuth(state.Hostname(ctx), signup)
+	auth, err := fly.StartCLISessionWebAuth(state.Hostname(ctx), signup)
 	if err != nil {
 		return "", err
 	}
@@ -89,7 +89,7 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 	s.Start()
 
 	for ctx.Err() == nil {
-		if token, err = api.GetAccessTokenForCLISession(ctx, id); err != nil {
+		if token, err = fly.GetAccessTokenForCLISession(ctx, id); err != nil {
 			logger.Debugf("failed retrieving token: %v", err)
 
 			pause.For(ctx, time.Second)

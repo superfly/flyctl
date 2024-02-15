@@ -15,7 +15,7 @@ import (
 	"github.com/google/shlex"
 	"github.com/oklog/ulid/v2"
 	"github.com/pelletier/go-toml/v2"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -295,18 +295,18 @@ func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 	return appName
 }
 
-func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
+func (f *FlyctlTestEnv) MachinesList(appName string) []*fly.Machine {
 	time.Sleep(800 * time.Millisecond) // fly m list is eventually consistent, yay!
 	cmdResult := f.Fly("machines list --app %s --json", appName)
 	cmdResult.AssertSuccessfulExit()
-	var machList []*api.Machine
+	var machList []*fly.Machine
 	cmdResult.StdOutJSON(&machList)
 	return machList
 }
 
-func (f *FlyctlTestEnv) VolumeList(appName string) []*api.Volume {
+func (f *FlyctlTestEnv) VolumeList(appName string) []*fly.Volume {
 	cmdResult := f.Fly("volume list --app %s --json", appName)
-	var list []*api.Volume
+	var list []*fly.Volume
 	cmdResult.StdOutJSON(&list)
 	return list
 }

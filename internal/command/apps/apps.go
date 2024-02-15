@@ -7,11 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 // New initializes and returns a new apps Command.
@@ -47,8 +47,8 @@ The LIST command will list all currently registered applications.
 }
 
 // BuildContext is a helper that builds out commonly required context requirements
-func BuildContext(ctx context.Context, app *api.AppCompact) (context.Context, error) {
-	client := client.FromContext(ctx).API()
+func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, error) {
+	client := fly.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -61,7 +61,10 @@ func BuildContext(ctx context.Context, app *api.AppCompact) (context.Context, er
 	}
 	ctx = agent.DialerWithContext(ctx, dialer)
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return nil, err
 	}

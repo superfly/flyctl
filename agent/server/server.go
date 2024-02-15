@@ -13,27 +13,24 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
-	"github.com/spf13/viper"
-	"golang.org/x/sync/errgroup"
-
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api/tokens"
-	"github.com/superfly/flyctl/flyctl"
-	"github.com/superfly/flyctl/wg"
-
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
+	"github.com/superfly/flyctl/wg"
+	"golang.org/x/sync/errgroup"
 )
 
 type Options struct {
-	Socket     string
-	Logger     *log.Logger
-	Client     *api.Client
-	Background bool
-	ConfigFile string
+	Socket           string
+	Logger           *log.Logger
+	Client           *fly.Client
+	Background       bool
+	ConfigFile       string
+	ConfigWebsockets bool
 }
 
 func Run(ctx context.Context, opt Options) (err error) {
@@ -223,7 +220,7 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *api.Organization, recycle bool) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -239,7 +236,7 @@ func (s *server) buildTunnel(ctx context.Context, org *api.Organization, recycle
 	}
 
 	// WIP: can't stay this way, need something more clever than this
-	if env.IsCI() || os.Getenv("WSWG") != "" || viper.GetBool(flyctl.ConfigWireGuardWebsockets) {
+	if env.IsCI() || os.Getenv("WSWG") != "" || s.Options.ConfigWebsockets {
 		if tunnel, err = wg.ConnectWS(context.Background(), state); err != nil {
 			return
 		}
