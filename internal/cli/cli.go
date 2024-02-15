@@ -87,7 +87,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd, err = cmd.ExecuteContextC(ctx)
 
 	if cmd != nil {
-		metrics.RecordCommandFinish(cmd)
+		metrics.RecordCommandFinish(cmd, err != nil)
 	}
 
 	// shutdown background tasks, giving up to 5s for them to finish
