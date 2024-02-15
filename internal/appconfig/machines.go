@@ -215,7 +215,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	mConfig.Files = nil
 	machine.MergeFiles(mConfig, c.MergedFiles)
 
-	if c.PersistentRootfsSize != src.PersistentRootfsSize {
+	if src != nil && src.PersistentRootfsSize != 0 && c.PersistentRootfsSize != src.PersistentRootfsSize {
 		return nil, errors.New("Changing persistent_rootfs_size is currently not supported.")
 	}
 
