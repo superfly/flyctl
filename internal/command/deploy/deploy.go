@@ -143,6 +143,11 @@ var CommonFlags = flag.Set{
 		Name:        "process-groups",
 		Description: "Deploy to machines only in these process groups",
 	},
+	flag.String{
+		Name:        "signal",
+		Shorthand:   "s",
+		Description: "Signal to stop the machine with for bluegreen strategy (default: SIGINT)",
+	},
 }
 
 func New() (cmd *cobra.Command) {
@@ -379,6 +384,7 @@ func deployToMachines(
 		SkipHealthChecks:       flag.GetDetach(ctx),
 		SkipDNSChecks:          flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
 		WaitTimeout:            waitTimeout,
+		StopSignal:             flag.GetString(ctx, "signal"),
 		ReleaseCmdTimeout:      releaseCmdTimeout,
 		LeaseTimeout:           leaseTimeout,
 		MaxUnavailable:         maxUnavailable,

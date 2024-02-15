@@ -240,3 +240,5 @@ require (
 )
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
+
+replace github.com/superfly/fly-go => /home/pbor/src/superfly/fly-go

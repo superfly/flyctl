@@ -49,7 +49,7 @@ func runMachineCordon(ctx context.Context) (err error) {
 
 	for _, machineID := range machineIDs {
 		fmt.Fprintf(io.Out, "Activating cordon on machine %s...\n", machineID)
-		if err = flapsClient.Cordon(ctx, machineID); err != nil {
+		if err = flapsClient.Cordon(ctx, machineID, ""); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "done!\n")

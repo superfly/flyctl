@@ -53,6 +53,7 @@ type MachineDeploymentArgs struct {
 	MaxUnavailable         *float64
 	RestartOnly            bool
 	WaitTimeout            *time.Duration
+	StopSignal             string
 	LeaseTimeout           *time.Duration
 	ReleaseCmdTimeout      *time.Duration
 	Guest                  *fly.MachineGuest
@@ -88,6 +89,7 @@ type machineDeployment struct {
 	maxUnavailable         float64
 	restartOnly            bool
 	waitTimeout            time.Duration
+	stopSignal             string
 	leaseTimeout           time.Duration
 	leaseDelayBetween      time.Duration
 	releaseCmdTimeout      time.Duration
@@ -206,6 +208,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		restartOnly:            args.RestartOnly,
 		maxUnavailable:         maxUnavailable,
 		waitTimeout:            waitTimeout,
+		stopSignal:             args.StopSignal,
 		leaseTimeout:           leaseTimeout,
 		leaseDelayBetween:      leaseDelayBetween,
 		releaseCmdTimeout:      releaseCmdTimeout,
