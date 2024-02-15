@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/client"
@@ -474,15 +475,12 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		}
 	} else {
 		fmt.Fprintf(io.Out, "Set the following secrets on your target app.\n")
-		var keys []string
 
-		for key := range secrets {
-			keys = append(keys, key)
-		}
+		keys := lo.Keys(secrets)
 		sort.Strings(keys)
 
 		for _, key := range keys {
-			fmt.Println(key + ": " + secrets[key].(string))
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
 		}
 
 	}
