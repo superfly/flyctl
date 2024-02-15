@@ -184,7 +184,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
 	}
-	metrics.Status(ctx, "remote_build_image", err == nil)
+	metrics.Status(ctx, "remote_build_image", map[string]bool{"success": err == nil})
 	if err == nil {
 		sendDurationMetrics()
 	}

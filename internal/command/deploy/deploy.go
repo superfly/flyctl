@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -306,7 +307,14 @@ func deployToMachines(
 
 	metrics.Started(ctx, "deploy_machines")
 	defer func() {
-		metrics.Status(ctx, "deploy_machines", err == nil)
+		usingGpu := lo.SomeBy(appConfig.Compute, func(x *appconfig.Compute) bool {
+			return x != nil && x.MachineGuest != nil && x.MachineGuest.GPUKind != ""
+		})
+
+		metrics.Status(ctx, "deploy_machines", map[string]bool{
+			"success":   err == nil,
+			"using_gpu": usingGpu,
+		})
 	}()
 
 	releaseCmdTimeout, err := parseDurationFlag(ctx, "release-command-timeout")
