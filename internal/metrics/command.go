@@ -5,7 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/instrument"
 )
 
@@ -45,7 +47,7 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 
 	graphql := instrument.GraphQL.Get()
 	flaps := instrument.Flaps.Get()
-	usingGPU := instrument.UsingGPU
+	usingGPU := isUsingGPU()
 
 	if commandContext != nil {
 		Send(commandContext, "command/stats", commandStats{
@@ -59,4 +61,16 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			Failed:          failed,
 		})
 	}
+}
+
+// I hate this, but I want to make sure that if we load the app config, I can grab it in metrisc
+var AppConfig *appconfig.Config = nil
+
+func isUsingGPU() bool {
+	if AppConfig != nil {
+		return lo.SomeBy(AppConfig.Compute, func(x *appconfig.Compute) bool {
+			return x != nil && x.MachineGuest != nil && x.MachineGuest.GPUKind != ""
+		})
+	}
+	return false
 }
