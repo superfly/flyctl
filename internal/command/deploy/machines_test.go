@@ -55,6 +55,7 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 			},
 		},
 	}, li)
+
 }
 
 // Test any LaunchMachineInput field that must not be set on a machine
