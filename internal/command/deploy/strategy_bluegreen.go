@@ -373,7 +373,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 		if bg.aborted.Load() {
 			return ErrAborted
 		}
-		err := bg.flaps.Uncordon(ctx, gm.Machine().ID)
+		err := bg.flaps.Uncordon(ctx, gm.Machine().ID, "")
 		if err != nil {
 			return err
 		}
