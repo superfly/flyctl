@@ -89,9 +89,9 @@ func runUpdate(ctx context.Context) error {
 	}
 
 	if flag.GetString(ctx, "scheduled-snapshots") == "true" {
-		input.AutoBackupEnabled = api.BoolPointer(true)
+		input.AutoBackupEnabled = fly.BoolPointer(true)
 	} else if flag.GetString(ctx, "scheduled-snapshots") == "false" {
-		input.AutoBackupEnabled = api.BoolPointer(false)
+		input.AutoBackupEnabled = fly.BoolPointer(false)
 	} else if flag.GetString(ctx, "scheduled-snapshots") != "" {
 		return fmt.Errorf("--scheduled-snapshots=VALUE must be either `true` or `false`")
 	}
