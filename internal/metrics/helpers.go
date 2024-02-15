@@ -37,7 +37,7 @@ func Started(ctx context.Context, metricSlug string) {
 
 }
 
-func Status(ctx context.Context, metricSlug string, success bool) {
+func Status(ctx context.Context, metricSlug string, data map[string]bool) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
 			delete(unmatchedStatuses, metricSlug)
@@ -50,7 +50,7 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 		return
 	}
 
-	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
+	Send(ctx, metricSlug+"/status", data)
 }
 
 func Send[T any](ctx context.Context, metricSlug string, value T) {

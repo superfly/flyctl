@@ -466,7 +466,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
 		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
 	})
-	metrics.Status(ctx, "image_push", err == nil)
+	metrics.Status(ctx, "image_push", map[string]bool{"success": err == nil})
 
 	if err != nil {
 		return errors.Wrap(err, "error pushing image to registry")
