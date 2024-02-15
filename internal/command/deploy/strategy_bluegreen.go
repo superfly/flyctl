@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"go.opentelemetry.io/otel/attribute"
 
@@ -50,6 +52,7 @@ type blueGreen struct {
 	ctrlcHook           ctrlc.Handle
 	appConfig           *appconfig.Config
 	hangingBlueMachines []string
+	timestamp           string
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -67,6 +70,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		healthLock:          sync.RWMutex{},
 		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
+		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
@@ -87,6 +91,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	for _, mach := range bg.blueMachines {
 		launchInput := mach.launchInput
 		launchInput.SkipServiceRegistration = true
+		launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
 
 		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
 		if err != nil {
@@ -463,6 +468,13 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrOrgLimit
 	}
 
+	fmt.Fprintf(bg.io.ErrOut, "\nCleanup Previous Deployment\n")
+
+	err = bg.DeleteZombiesFromPreviousDeployment(ctx)
+	if err != nil {
+		return err
+	}
+
 	bg.attachCustomTopLevelChecks()
 
 	totalChecks := 0
@@ -475,7 +487,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		totalChecks++
 	}
 
-	if totalChecks == 0 {
+	if totalChecks == 0 && len(bg.blueMachines) != 0 {
 		fmt.Fprintf(bg.io.ErrOut, "\n\nYou need to define at least 1 check in order to use blue-green deployments. Refer to https://fly.io/docs/reference/configuration/#services-tcp_checks\n")
 		return ErrValidationError
 	}
@@ -549,6 +561,84 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 			return err
 		}
 	}
+
+	return nil
+}
+
+func getZombies(ids map[string]bool) (map[string]bool, error) {
+	numbers := []int{}
+	for str := range ids {
+		num, err := strconv.Atoi(str)
+		if err != nil {
+			return ids, err
+		}
+		numbers = append(numbers, num)
+	}
+
+	sort.Ints(numbers)
+
+	delete(ids, fmt.Sprint(numbers[0]))
+	return ids, nil
+}
+
+// detects zombie machines, deletes them, and update the list of machines to be updated
+func (bg *blueGreen) DeleteZombiesFromPreviousDeployment(ctx context.Context) error {
+	tags := map[string]bool{}
+
+	for _, mach := range bg.blueMachines {
+		if mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] == "" {
+			mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = "-1"
+		}
+		tags[mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag]] = true
+	}
+
+	if len(tags) == 1 {
+		fmt.Fprintf(bg.io.ErrOut, "  No hanging machines from a failed previous deployment\n")
+		return nil
+	}
+
+	zombies, err := getZombies(tags)
+	if err != nil {
+		return err
+	}
+
+	for _, mach := range bg.blueMachines {
+		if bg.aborted.Load() {
+			return ErrAborted
+		}
+
+		tag := mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag]
+		if ok := zombies[tag]; !ok {
+			continue
+		}
+
+		deleteFunc := func() error {
+			return mach.leasableMachine.Destroy(ctx, true)
+		}
+
+		err := retry.Do(deleteFunc,
+			retry.Context(ctx),
+			retry.Attempts(3),
+			retry.Delay(2*time.Second),
+			retry.DelayType(retry.FixedDelay),
+		)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(bg.io.ErrOut, "  Zombie Machine %s destroyed [%s]\n", bg.colorize.Bold(mach.leasableMachine.FormattedMachineId()), mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag])
+	}
+
+	nonZombies := []*machineUpdateEntry{}
+	for _, mach := range bg.blueMachines {
+		tag := mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag]
+		if zombies[tag] {
+			continue
+		}
+		nonZombies = append(nonZombies, mach)
+	}
+
+	bg.blueMachines = nonZombies
 
 	return nil
 }
