@@ -135,11 +135,24 @@ This module is used on Dockerfile to start the Gunicorn server process.
 	}
 
 	// check if settings.py file exists
-	settingsFiles, err := zglob.Glob(`./**/settings.py`)
+	allSettingsFiles, err := zglob.Glob(`./**/settings.py`)
 
-	if err == nil && len(settingsFiles) == 0 {
+	if err == nil && len(allSettingsFiles) == 0 {
 		// if no settings.py files are found, check if any *prod*.py (e.g. production.py, prod.py, settings_prod.py) exists in 'settings/' folder
-		settingsFiles, err = zglob.Glob(`./**/settings/*prod*.py`)
+		allSettingsFiles, err = zglob.Glob(`./**/settings/*prod*.py`)
+	}
+	var settingsFiles []string
+	if err == nil && len(allSettingsFiles) > 0 {
+		for _, settingsFile := range allSettingsFiles {
+			// When using a virtual environment to manage the dependencies (e.g. venv),
+			// the 'site-packages/' folder is created within the virtual environment
+			// folder. This folder contains all the (dependencies) packages installed
+			// within the virtual environment.
+			// Exclude dependencies matches that contain 'site-packages'.
+			if !strings.Contains(settingsFile, "site-packages") {
+				settingsFiles = append(settingsFiles, settingsFile)
+			}
+		}
 	}
 
 	if err == nil && len(settingsFiles) > 0 {
