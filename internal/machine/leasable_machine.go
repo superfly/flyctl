@@ -373,6 +373,7 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 	if lease.Data == nil {
 		return fmt.Errorf("missing data from lease response for machine %s, assuming not successful", lm.machine.ID)
 	}
+	terminal.Debugf("got lease on machine %s: %v\n", lm.machine.ID, lease)
 	lm.leaseNonce = lease.Data.Nonce
 	return nil
 }
@@ -390,6 +391,7 @@ func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Durat
 	} else if refreshedLease.Data.Nonce != lm.leaseNonce {
 		return fmt.Errorf("unexpectedly received a new nonce when trying to refresh lease on machine %s", lm.machine.ID)
 	}
+	terminal.Debugf("got lease on machine %s: %v\n", lm.machine.ID, refreshedLease)
 	return nil
 }
 
