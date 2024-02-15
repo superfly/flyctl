@@ -9,6 +9,7 @@ var (
 	mu         sync.Mutex
 	GraphQL    CallInstrumenter
 	Flaps      CallInstrumenter
+	UsingGPU   = false
 	ApiAdapter = &ApiInstrumenter{metrics: &GraphQL.metrics}
 )
 
