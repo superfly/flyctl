@@ -15,9 +15,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
 
@@ -31,7 +30,7 @@ import (
 
 func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
@@ -105,12 +104,12 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	return img, nil
 }
 
-func DetermineServices(ctx context.Context, services []api.MachineService) ([]api.MachineService, error) {
+func DetermineServices(ctx context.Context, services []fly.MachineService) ([]fly.MachineService, error) {
 	svcKey := func(internalPort int, protocol string) string {
 		return fmt.Sprintf("%d/%s", internalPort, protocol)
 	}
-	servicesRef := lo.Map(services, func(s api.MachineService, _ int) *api.MachineService { return &s })
-	servicesMap := lo.KeyBy(servicesRef, func(s *api.MachineService) string {
+	servicesRef := lo.Map(services, func(s fly.MachineService, _ int) *fly.MachineService { return &s })
+	servicesMap := lo.KeyBy(servicesRef, func(s *fly.MachineService) string {
 		return svcKey(s.InternalPort, s.Protocol)
 	})
 
@@ -123,7 +122,7 @@ func DetermineServices(ctx context.Context, services []api.MachineService) ([]ap
 		// Look for existing services or append a new one
 		svc, ok := servicesMap[svcKey(internalPort, proto)]
 		if !ok {
-			svc = &api.MachineService{
+			svc = &fly.MachineService{
 				InternalPort: internalPort,
 				Protocol:     proto,
 			}
@@ -153,7 +152,7 @@ func DetermineServices(ctx context.Context, services []api.MachineService) ([]ap
 		}
 		// Or append new port definition
 		if !found {
-			svc.Ports = append(svc.Ports, api.MachinePort{
+			svc.Ports = append(svc.Ports, fly.MachinePort{
 				Port:      edgePort,
 				StartPort: edgeStartPort,
 				EndPort:   edgeEndPort,
@@ -163,11 +162,11 @@ func DetermineServices(ctx context.Context, services []api.MachineService) ([]ap
 	}
 
 	// Remove any service without exposed ports
-	services = lo.FilterMap(servicesRef, func(s *api.MachineService, _ int) (api.MachineService, bool) {
+	services = lo.FilterMap(servicesRef, func(s *fly.MachineService, _ int) (fly.MachineService, bool) {
 		if s != nil && len(s.Ports) > 0 {
 			return *s, true
 		}
-		return api.MachineService{}, false
+		return fly.MachineService{}, false
 	})
 
 	return services, nil
@@ -207,7 +206,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 			return
 		}
 
-		port = api.IntPointer(external_port)
+		port = fly.IntPointer(external_port)
 	} else if len(split) == 2 {
 		internal_port, err = strconv.Atoi(split[1])
 		if err != nil {
@@ -224,7 +223,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 				return
 			}
 
-			port = api.IntPointer(external_port)
+			port = fly.IntPointer(external_port)
 		} else if len(external_split) == 2 {
 			var start int
 			start, err = strconv.Atoi(external_split[0])
@@ -233,7 +232,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 				return
 			}
 
-			start_port = api.IntPointer(start)
+			start_port = fly.IntPointer(start)
 
 			var end int
 			end, err = strconv.Atoi(external_split[0])
@@ -242,7 +241,7 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 				return
 			}
 
-			end_port = api.IntPointer(end)
+			end_port = fly.IntPointer(end)
 		} else {
 			err = errors.New("external port must be at most 2 elements (port, or range start-end)")
 		}
@@ -253,12 +252,12 @@ func parsePorts(input string) (port, start_port, end_port *int, internal_port in
 	return
 }
 
-// FilesFromCommand checks the specified flags for files and returns a list of api.File to be used
+// FilesFromCommand checks the specified flags for files and returns a list of fly.File to be used
 // in the machine configuration.
-func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
-	machineFiles := []*api.File{}
+func FilesFromCommand(ctx context.Context) ([]*fly.File, error) {
+	machineFiles := []*fly.File{}
 
-	localFiles, err := parseFiles(ctx, "file-local", func(value string, file *api.File) error {
+	localFiles, err := parseFiles(ctx, "file-local", func(value string, file *fly.File) error {
 		content, err := os.ReadFile(value)
 		if err != nil {
 			return fmt.Errorf("could not read file %s: %w", value, err)
@@ -272,7 +271,7 @@ func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
 	}
 	machineFiles = append(machineFiles, localFiles...)
 
-	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *api.File) error {
+	literalFiles, err := parseFiles(ctx, "file-literal", func(value string, file *fly.File) error {
 		encodedValue := base64.StdEncoding.EncodeToString([]byte(value))
 		file.RawValue = &encodedValue
 		return nil
@@ -282,7 +281,7 @@ func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
 	}
 	machineFiles = append(machineFiles, literalFiles...)
 
-	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *api.File) error {
+	secretFiles, err := parseFiles(ctx, "file-secret", func(value string, file *fly.File) error {
 		file.SecretName = &value
 		return nil
 	})
@@ -294,13 +293,13 @@ func FilesFromCommand(ctx context.Context) ([]*api.File, error) {
 	return machineFiles, nil
 }
 
-func parseFiles(ctx context.Context, flagName string, cb func(value string, file *api.File) error) ([]*api.File, error) {
+func parseFiles(ctx context.Context, flagName string, cb func(value string, file *fly.File) error) ([]*fly.File, error) {
 	flagFiles := flag.GetStringArray(ctx, flagName)
-	machineFiles := make([]*api.File, 0, len(flagFiles))
+	machineFiles := make([]*fly.File, 0, len(flagFiles))
 
 	for _, f := range flagFiles {
 		guestPath, fileRef, ok := strings.Cut(f, "=")
-		file := api.File{
+		file := fly.File{
 			GuestPath: guestPath,
 		}
 		switch {
@@ -322,8 +321,8 @@ func parseFiles(ctx context.Context, flagName string, cb func(value string, file
 	return machineFiles, nil
 }
 
-func DetermineMounts(ctx context.Context, mounts []api.MachineMount, region string) ([]api.MachineMount, error) {
-	unattachedVolumes := make(map[string][]api.Volume)
+func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region string) ([]fly.MachineMount, error) {
+	unattachedVolumes := make(map[string][]fly.Volume)
 
 	pathIndex := make(map[string]int)
 	for idx, m := range mounts {
@@ -360,7 +359,7 @@ func DetermineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 		if idx, found := pathIndex[mountPath]; found {
 			mounts[idx].Volume = volID
 		} else {
-			mounts = append(mounts, api.MachineMount{
+			mounts = append(mounts, fly.MachineMount{
 				Volume: volID,
 				Path:   mountPath,
 			})
@@ -369,8 +368,8 @@ func DetermineMounts(ctx context.Context, mounts []api.MachineMount, region stri
 	return mounts, nil
 }
 
-func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]api.Volume, error) {
-	apiclient := client.FromContext(ctx).API()
+func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]fly.Volume, error) {
+	apiclient := fly.ClientFromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 
 	if regionCode == "" {
@@ -386,13 +385,13 @@ func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]
 		return nil, fmt.Errorf("Error fetching application volumes: %w", err)
 	}
 
-	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
+	unattached := lo.Filter(volumes, func(v fly.Volume, _ int) bool {
 		return !v.IsAttached() && (regionCode == v.Region)
 	})
 	if len(unattached) == 0 {
 		return nil, fmt.Errorf("No unattached volumes in region '%s'", regionCode)
 	}
 
-	unattachedMap := lo.GroupBy(unattached, func(v api.Volume) string { return v.Name })
+	unattachedMap := lo.GroupBy(unattached, func(v fly.Volume) string { return v.Name })
 	return unattachedMap, nil
 }

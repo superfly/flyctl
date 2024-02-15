@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -63,7 +62,7 @@ func newListUsers() *cobra.Command {
 
 func runListUsers(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -83,7 +82,7 @@ func runListUsers(ctx context.Context) error {
 	return runMachineListUsers(ctx, app)
 }
 
-func runMachineListUsers(ctx context.Context, app *api.AppCompact) (err error) {
+func runMachineListUsers(ctx context.Context, app *fly.AppCompact) (err error) {
 	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"

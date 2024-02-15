@@ -15,10 +15,10 @@ import (
 	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api/tokens"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
@@ -502,8 +502,8 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !client.FromContext(ctx).Authenticated() {
-		return nil, client.ErrNoAuthToken
+	if !fly.ClientFromContext(ctx).Authenticated() {
+		return nil, fly.ErrNoAuthToken
 	}
 
 	return updateMacaroons(ctx)
@@ -520,7 +520,6 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		tokens.WithUserURLCallback(tryOpenUserURL),
 		tokens.WithDebugger(log),
 	)
-
 	if err != nil {
 		log.Warn("Failed to upgrade authentication token. Command may fail.")
 		log.Debug(err)

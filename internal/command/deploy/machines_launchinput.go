@@ -5,17 +5,17 @@ import (
 	"strconv"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
 	Config := machine.CloneConfig(origMachineRaw.Config)
 	md.setMachineReleaseData(Config)
 
-	return &api.LaunchMachineInput{
+	return &fly.LaunchMachineInput{
 		ID:         origMachineRaw.ID,
 		Config:     Config,
 		Region:     origMachineRaw.Region,
@@ -23,7 +23,7 @@ func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) 
 	}
 }
 
-func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest, standbyFor []string) (*api.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, nil)
 	if err != nil {
 		return nil, err
@@ -57,14 +57,14 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
-	return &api.LaunchMachineInput{
+	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
 		SkipLaunch: len(standbyFor) > 0,
 	}, nil
 }
 
-func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
 	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
 	processGroup := origMachineRaw.Config.ProcessGroup()
@@ -164,7 +164,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
-	return &api.LaunchMachineInput{
+	return &fly.LaunchMachineInput{
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
@@ -173,37 +173,37 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	}, nil
 }
 
-func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
+func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
-		api.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
-		api.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
-		api.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.Version().String(),
+		fly.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
+		fly.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
+		fly.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.Version().String(),
 	})
 
 	// These defaults should come from appConfig.ToMachineConfig() and set on launch;
 	// leave them here for the moment becase very old machines may not have them
 	// and we want to set in case of simple app restarts
-	if _, ok := mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; !ok {
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion] = api.MachineFlyPlatformVersion2
+	if _, ok := mConfig.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; !ok {
+		mConfig.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion] = fly.MachineFlyPlatformVersion2
 	}
-	if _, ok := mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; !ok {
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupApp
+	if _, ok := mConfig.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]; !ok {
+		mConfig.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup] = fly.MachineProcessGroupApp
 	}
 
 	// FIXME: Move this as extra metadata read from a machineDeployment argument
 	// It is not clear we have to cleanup the postgres metadata
 	if md.app.IsPostgresApp() {
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
+		mConfig.Metadata[fly.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	} else {
-		delete(mConfig.Metadata, api.MachineConfigMetadataKeyFlyManagedPostgres)
+		delete(mConfig.Metadata, fly.MachineConfigMetadataKeyFlyManagedPostgres)
 	}
 }
 
 // Skip launching currently-stopped machines if any services
 // use autoscaling (autostop or autostart).
-func skipStopped(origMachineRaw *api.Machine, mConfig *api.MachineConfig) bool {
-	return origMachineRaw.State == api.MachineStateStopped &&
-		lo.SomeBy(mConfig.Services, func(s api.MachineService) bool {
+func skipStopped(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+	return origMachineRaw.State == fly.MachineStateStopped &&
+		lo.SomeBy(mConfig.Services, func(s fly.MachineService) bool {
 			return (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart)
 		})
 }

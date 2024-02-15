@@ -16,7 +16,7 @@ import (
 	"github.com/kr/text"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"

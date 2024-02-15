@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -22,12 +22,12 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	require.Equal(f, 1, len(ml))
 
 	m := ml[0]
-	want := []api.MachineService{{
+	want := []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 81,
-		Autostop:     api.Pointer(true),
-		Ports: []api.MachinePort{{
-			Port:       api.Pointer(80),
+		Autostop:     fly.Pointer(true),
+		Ports: []fly.MachinePort{{
+			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
 		}},
 	}}
@@ -36,13 +36,13 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 
 	f.Fly("machine update -a %s %s --autostart -y", appName, m.ID)
 	m = f.MachinesList(appName)[0]
-	want = []api.MachineService{{
+	want = []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 81,
-		Autostart:    api.Pointer(true),
-		Autostop:     api.Pointer(true),
-		Ports: []api.MachinePort{{
-			Port:       api.Pointer(80),
+		Autostart:    fly.Pointer(true),
+		Autostop:     fly.Pointer(true),
+		Ports: []fly.MachinePort{{
+			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
 		}},
 	}}
@@ -51,13 +51,13 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 
 	f.Fly("machine update -a %s %s --autostart=false --autostop=false -y", appName, m.ID)
 	m = f.MachinesList(appName)[0]
-	want = []api.MachineService{{
+	want = []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 81,
-		Autostart:    api.Pointer(false),
-		Autostop:     api.Pointer(false),
-		Ports: []api.MachinePort{{
-			Port:       api.Pointer(80),
+		Autostart:    fly.Pointer(false),
+		Autostop:     fly.Pointer(false),
+		Ports: []fly.MachinePort{{
+			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
 		}},
 	}}
@@ -70,7 +70,7 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
-	findNewMachine := func(machineList []*api.Machine, knownIDs []string) *api.Machine {
+	findNewMachine := func(machineList []*fly.Machine, knownIDs []string) *fly.Machine {
 		for _, m := range machineList {
 			if !slices.Contains(knownIDs, m.ID) {
 				return m
@@ -78,7 +78,7 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 		}
 		return nil
 	}
-	findMachineByID := func(machineList []*api.Machine, ID string) *api.Machine {
+	findMachineByID := func(machineList []*fly.Machine, ID string) *fly.Machine {
 		for _, m := range machineList {
 			if m.ID == ID {
 				return m
@@ -137,11 +137,11 @@ func TestFlyMachineRun_port(t *testing.T) {
 	require.Equal(f, 1, len(ml))
 
 	m := ml[0]
-	want := []api.MachineService{{
+	want := []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 80,
-		Ports: []api.MachinePort{{
-			Port:     api.Pointer(443),
+		Ports: []fly.MachinePort{{
+			Port:     fly.Pointer(443),
 			Handlers: []string{"http", "tls"},
 		}},
 	}}
@@ -150,32 +150,32 @@ func TestFlyMachineRun_port(t *testing.T) {
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:http --port 1001/udp", appName, m.ID)
 	m = f.MachinesList(appName)[0]
-	want = []api.MachineService{{
+	want = []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 80,
-		Ports: []api.MachinePort{{
-			Port:     api.Pointer(443),
+		Ports: []fly.MachinePort{{
+			Port:     fly.Pointer(443),
 			Handlers: []string{"http", "tls"},
 		}, {
-			Port:     api.Pointer(80),
+			Port:     fly.Pointer(80),
 			Handlers: []string{"http"},
 		}},
 	}, {
 		Protocol:     "udp",
 		InternalPort: 1001,
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(1001),
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(1001),
 		}},
 	}}
 	require.Equal(f, want, m.Config.Services)
 
 	f.Fly("machine update -a %s %s -y --port 80/tcp:- --port 1001/udp:tls", appName, m.ID)
 	m = f.MachinesList(appName)[0]
-	want = []api.MachineService{{
+	want = []fly.MachineService{{
 		Protocol:     "udp",
 		InternalPort: 1001,
-		Ports: []api.MachinePort{{
-			Port:     api.Pointer(1001),
+		Ports: []fly.MachinePort{{
+			Port:     fly.Pointer(1001),
 			Handlers: []string{"tls"},
 		}},
 	}}

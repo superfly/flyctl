@@ -12,8 +12,8 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -51,7 +51,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func printVolume(w io.Writer, vol *api.Volume, appName string) error {
+func printVolume(w io.Writer, vol *fly.Volume, appName string) error {
 	var buf bytes.Buffer
 
 	fmt.Fprintf(&buf, "%20s: %s\n", "ID", vol.ID)
@@ -71,7 +71,7 @@ func printVolume(w io.Writer, vol *api.Volume, appName string) error {
 
 func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, error) {
 	var (
-		volumes []api.Volume
+		volumes []fly.Volume
 		err     error
 
 		flapsClient = flaps.FromContext(ctx)
@@ -91,7 +91,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, out io.Writer) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer) error {
 	rows := make([][]string, 0, len(volumes))
 	for _, volume := range volumes {
 		var attachedVMID string
@@ -116,7 +116,7 @@ func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, o
 	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
 }
 
-func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *api.AppBasic) (*api.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBasic) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}

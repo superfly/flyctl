@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -81,7 +81,11 @@ func runLogin(ctx context.Context) error {
 		return err
 	}
 
-	user, err := client.FromToken(token).API().GetCurrentUser(ctx)
+	user, err := fly.NewClientFromOptions(fly.ClientOptions{
+		AccessToken: token,
+		Name:        buildinfo.Name(),
+		Version:     buildinfo.Version().String(),
+	}).GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving current user: %w", err)
 	}
@@ -133,7 +137,7 @@ func runShellLogin(ctx context.Context, email, password, otp string) (string, er
 		}
 	}
 
-	token, err := api.GetAccessToken(ctx, email, password, otp)
+	token, err := fly.GetAccessToken(ctx, email, password, otp)
 	if err != nil {
 		err = fmt.Errorf("failed retrieving access token: %w", err)
 

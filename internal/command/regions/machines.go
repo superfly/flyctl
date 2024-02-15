@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -15,7 +16,9 @@ import (
 func v2RunRegionsList(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}

@@ -4,12 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func Test_formatRegions(t *testing.T) {
 	assert.Equal(t,
-		formatRegions([]*api.Machine{
+		formatRegions([]*fly.Machine{
 			{Region: "fra"},
 			{Region: "fra"},
 			{Region: "fra"},

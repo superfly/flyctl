@@ -6,9 +6,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -74,7 +73,7 @@ func runAttach(ctx context.Context) error {
 	var (
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		client    = client.FromContext(ctx).API()
+		client    = fly.ClientFromContext(ctx)
 	)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
@@ -126,7 +125,7 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 
 		pgAppName = params.PgAppName
 		appName   = params.AppName
@@ -165,11 +164,10 @@ func AttachCluster(ctx context.Context, params AttachParams) error {
 		}
 	}
 	return machineAttachCluster(ctx, params, flycast)
-
 }
 
 func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
-	//Minimum image version requirements
+	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresStandaloneVersion = "0.0.7"
@@ -199,7 +197,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 
 func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams, flycast *string) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 
@@ -228,13 +226,13 @@ func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams,
 
 	dbName = strings.ToLower(strings.ReplaceAll(dbName, "-", "_"))
 
-	input := api.AttachPostgresClusterInput{
+	input := fly.AttachPostgresClusterInput{
 		AppID:                appName,
 		PostgresClusterAppID: pgAppName,
 		ManualEntry:          true,
-		DatabaseName:         api.StringPointer(dbName),
-		DatabaseUser:         api.StringPointer(dbUser),
-		VariableName:         api.StringPointer(varName),
+		DatabaseName:         fly.StringPointer(dbName),
+		DatabaseUser:         fly.StringPointer(dbUser),
+		VariableName:         fly.StringPointer(varName),
 	}
 
 	pgclient := flypg.NewFromInstance(leaderIP, dialer)

@@ -18,7 +18,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	dockerclient "github.com/docker/docker/client"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -26,7 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -97,7 +96,6 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 	}
 
 	return attrs
-
 }
 
 type RefOptions struct {
@@ -144,7 +142,7 @@ func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 
 type Resolver struct {
 	dockerFactory *dockerClientFactory
-	apiClient     *api.Client
+	apiClient     *fly.Client
 }
 
 type StopSignal struct {
@@ -310,7 +308,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
-	gqlClient := client.FromContext(ctx).API().GenqClient
+	gqlClient := fly.ClientFromContext(ctx).GenqClient
 	_ = `# @genqlient
 	mutation ResolverCreateBuild($input:CreateBuildInput!) {
 		createBuild(input:$input) {
@@ -513,7 +511,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
 		return nil, nil
 	}
-	gqlClient := client.FromContext(ctx).API().GenqClient
+	gqlClient := fly.ClientFromContext(ctx).GenqClient
 	_ = `# @genqlient
 	mutation ResolverFinishBuild($input:FinishBuildInput!) {
 		finishBuild(input:$input) {
@@ -730,7 +728,7 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient *api.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient *fly.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
 	return &Resolver{
 		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams),
 		apiClient:     apiClient,

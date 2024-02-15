@@ -5,19 +5,17 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newCreate() *cobra.Command {
@@ -83,14 +81,16 @@ func newCreate() *cobra.Command {
 func runCreate(ctx context.Context) error {
 	var (
 		cfg    = config.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
 		count      = flag.GetInt(ctx, "count")
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -100,7 +100,7 @@ func runCreate(ctx context.Context) error {
 	prompt.PlatformRegions(ctx)
 
 	// fetch AppBasic in the background while we prompt for confirmation
-	appFuture := future.Spawn(func() (*api.AppBasic, error) {
+	appFuture := future.Spawn(func() (*fly.AppBasic, error) {
 		return client.GetAppBasic(ctx, appName)
 	})
 
@@ -115,7 +115,7 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	var region *api.Region
+	var region *fly.Region
 	if region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
@@ -124,7 +124,7 @@ func runCreate(ctx context.Context) error {
 
 	var snapshotID *string
 	if flag.GetString(ctx, "snapshot-id") != "" {
-		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
+		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
 	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
@@ -132,15 +132,15 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	input := api.CreateVolumeRequest{
+	input := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              api.Pointer(flag.GetInt(ctx, "size")),
-		Encrypted:           api.Pointer(!flag.GetBool(ctx, "no-encryption")),
-		RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		SizeGb:              fly.Pointer(flag.GetInt(ctx, "size")),
+		Encrypted:           fly.Pointer(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
-		SnapshotRetention:   api.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {

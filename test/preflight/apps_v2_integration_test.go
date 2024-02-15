@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
@@ -214,7 +214,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		return cmd
 	}
 
-	expectMachinesInGroups := func(machines []*api.Machine, expected map[string]int) {
+	expectMachinesInGroups := func(machines []*fly.Machine, expected map[string]int) {
 		found := map[string]int{}
 		for _, m := range machines {
 			if m.Config == nil || m.Config.Metadata == nil {
@@ -223,7 +223,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 			// When apps machines are deployed, blank process groups should be canonicalized to
 			// "app". If they are blank or unset, this is an error state.
 			group := "[unspecified]"
-			if val, ok := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; ok {
+			if val, ok := m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]; ok {
 				group = val
 			}
 			found[group]++
@@ -300,7 +300,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	webMachId := ""
 	barWebMachId := ""
 	for _, m := range machines {
-		group := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		group := m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]
 		switch group {
 		case "web":
 			webMachId = m.ID

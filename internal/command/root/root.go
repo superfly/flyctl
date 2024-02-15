@@ -8,7 +8,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/agent"
@@ -190,7 +190,7 @@ func run(ctx context.Context) error {
 	cmd.Printf("  %s\n", "flyctl [command]")
 	cmd.Println()
 
-	if !client.FromContext(ctx).Authenticated() {
+	if !fly.ClientFromContext(ctx).Authenticated() {
 		msg := `It doesn't look like you're logged in. Try "fly auth signup" to create an account, or "fly auth login" to log in to an existing account.`
 		cmd.Println(text.Wrap(msg, 80))
 		cmd.Println()

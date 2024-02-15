@@ -4,8 +4,7 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -93,7 +92,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	private := flag.GetBool(ctx, "private")
 	if private {
 		orgSlug := flag.GetOrg(ctx)
-		var org *api.Organization
+		var org *fly.Organization
 
 		if orgSlug != "" {
 			org, err = orgs.OrgFromSlug(ctx, orgSlug)
@@ -110,8 +109,8 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 	return runAllocateIPAddress(ctx, "v6", nil, "")
 }
 
-func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organization, network string) (err error) {
-	client := client.FromContext(ctx).API()
+func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organization, network string) (err error) {
+	client := fly.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
@@ -133,7 +132,7 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *api.Organiz
 		return err
 	}
 
-	ipAddresses := []api.IPAddress{*ipAddress}
+	ipAddresses := []fly.IPAddress{*ipAddress}
 	renderListTable(ctx, ipAddresses)
 	return nil
 }

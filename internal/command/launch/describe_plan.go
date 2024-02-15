@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/redis"
 )
@@ -16,7 +16,7 @@ import (
 
 const descriptionNone = "<none>"
 
-func describePostgresPlan(ctx context.Context, p plan.PostgresPlan, org *api.Organization) (string, error) {
+func describePostgresPlan(ctx context.Context, p plan.PostgresPlan, org *fly.Organization) (string, error) {
 
 	switch provider := p.Provider().(type) {
 	case *plan.FlyPostgresPlan:
@@ -25,14 +25,14 @@ func describePostgresPlan(ctx context.Context, p plan.PostgresPlan, org *api.Org
 	return descriptionNone, nil
 }
 
-func describeFlyPostgresPlan(ctx context.Context, p *plan.FlyPostgresPlan, org *api.Organization) (string, error) {
+func describeFlyPostgresPlan(ctx context.Context, p *plan.FlyPostgresPlan, org *fly.Organization) (string, error) {
 
 	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
 	nodesStr := fmt.Sprintf("%d Node%s", p.Nodes, nodePlural)
 
 	guestStr := p.VmSize
 	if p.VmRam > 0 {
-		guest := api.MachinePresets[p.VmSize]
+		guest := fly.MachinePresets[p.VmSize]
 		if guest.MemoryMB != p.VmRam {
 			guestStr = fmt.Sprintf("%s (%dGB RAM)", guest, p.VmRam/1024)
 		}
@@ -48,7 +48,7 @@ func describeFlyPostgresPlan(ctx context.Context, p *plan.FlyPostgresPlan, org *
 	return strings.Join(info, ", "), nil
 }
 
-func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *api.Organization) (string, error) {
+func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *fly.Organization) (string, error) {
 
 	switch provider := p.Provider().(type) {
 	case *plan.UpstashRedisPlan:
@@ -57,7 +57,7 @@ func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *api.Organizat
 	return descriptionNone, nil
 }
 
-func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org *api.Organization) (string, error) {
+func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org *fly.Organization) (string, error) {
 
 	plan, err := redis.DeterminePlan(ctx, org)
 	if err != nil {

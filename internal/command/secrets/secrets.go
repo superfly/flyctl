@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/spf13/cobra"
 )
 
 var sharedFlags = flag.Set{
@@ -49,7 +49,7 @@ func New() *cobra.Command {
 	return secrets
 }
 
-func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach bool) error {
+func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
 
 	if stage {
@@ -57,7 +57,10 @@ func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach 
 		return nil
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}
@@ -96,5 +99,4 @@ func DeploySecrets(ctx context.Context, app *api.AppCompact, stage bool, detach 
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
 	}
 	return err
-
 }

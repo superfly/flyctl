@@ -7,7 +7,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -134,7 +134,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Perform update
-	input := &api.LaunchMachineInput{
+	input := &fly.LaunchMachineInput{
 		Name:             machine.Name,
 		Region:           machine.Region,
 		Config:           machineConf,
@@ -158,7 +158,7 @@ func runUpdate(ctx context.Context) (err error) {
 	if !(input.SkipLaunch || flag.GetDetach(ctx)) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
+		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)

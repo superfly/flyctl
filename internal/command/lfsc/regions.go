@@ -6,7 +6,7 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -33,7 +33,7 @@ func newRegions() (cmd *cobra.Command) {
 }
 
 func runRegions(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 
 	flyRegions, _, err := client.PlatformRegions(ctx)
 	if err != nil {

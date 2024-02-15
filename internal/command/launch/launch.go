@@ -4,17 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
 func (state *launchState) Launch(ctx context.Context) error {
-
 	io := iostreams.FromContext(ctx)
 
 	// TODO(Allison): are we still supporting the launch-into usecase?
@@ -84,7 +83,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 // Apply the freestanding Guest fields to the appConfig's Compute field
 // This is temporary, but allows us to start using Compute-based plans in flyctl *now* while the UI catches up in time.
 func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Context) error {
-
 	if len(state.Plan.Compute) != 0 {
 		// If the UI returns a compute field, then we don't need to do any forward-compat patching.
 		return nil
@@ -118,9 +116,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		if state.appConfig.HTTPService == nil {
 			state.appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
-				AutoStartMachines:  api.Pointer(true),
-				AutoStopMachines:   api.Pointer(true),
-				MinMachinesRunning: api.Pointer(0),
+				AutoStartMachines:  fly.Pointer(true),
+				AutoStopMachines:   fly.Pointer(true),
+				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}
 		}
@@ -132,13 +130,13 @@ func (state *launchState) updateConfig(ctx context.Context) {
 }
 
 // createApp creates the fly.io app for the plan
-func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
-	apiClient := client.FromContext(ctx).API()
+func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
+	apiClient := fly.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
 		return nil, err
 	}
-	app, err := apiClient.CreateApp(ctx, api.CreateAppInput{
+	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
 		Name:            state.Plan.AppName,
 		PreferredRegion: &state.Plan.RegionCode,
@@ -148,7 +146,10 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 		return nil, err
 	}
 
-	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	if err != nil {
+		return nil, err
+	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 

@@ -6,7 +6,7 @@ package appconfig
 import (
 	"time"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func (c *Config) SetInternalPort(port int) {
@@ -25,33 +25,33 @@ func (c *Config) SetHttpCheck(path string, headers map[string]string) {
 			c.Checks = make(map[string]*ToplevelCheck)
 		}
 		c.Checks["status"] = &ToplevelCheck{
-			Port:              api.Pointer(c.HTTPService.InternalPort),
-			Type:              api.Pointer("http"),
-			HTTPMethod:        api.StringPointer("GET"),
-			HTTPPath:          api.StringPointer(path),
-			HTTPProtocol:      api.StringPointer("http"),
-			HTTPTLSSkipVerify: api.BoolPointer(false),
-			Interval:          &api.Duration{Duration: 10 * time.Second},
-			Timeout:           &api.Duration{Duration: 2 * time.Second},
-			GracePeriod:       &api.Duration{Duration: 5 * time.Second},
+			Port:              fly.Pointer(c.HTTPService.InternalPort),
+			Type:              fly.Pointer("http"),
+			HTTPMethod:        fly.StringPointer("GET"),
+			HTTPPath:          fly.StringPointer(path),
+			HTTPProtocol:      fly.StringPointer("http"),
+			HTTPTLSSkipVerify: fly.BoolPointer(false),
+			Interval:          &fly.Duration{Duration: 10 * time.Second},
+			Timeout:           &fly.Duration{Duration: 2 * time.Second},
+			GracePeriod:       &fly.Duration{Duration: 5 * time.Second},
 			HTTPHeaders:       headers,
 		}
 	case len(c.Services) > 0:
 		service := &c.Services[0]
 		service.HTTPChecks = append(service.HTTPChecks, &ServiceHTTPCheck{
-			HTTPMethod:        api.StringPointer("GET"),
-			HTTPPath:          api.StringPointer(path),
-			HTTPProtocol:      api.StringPointer("http"),
-			HTTPTLSSkipVerify: api.BoolPointer(false),
-			Interval:          &api.Duration{Duration: 10 * time.Second},
-			Timeout:           &api.Duration{Duration: 2 * time.Second},
-			GracePeriod:       &api.Duration{Duration: 5 * time.Second},
+			HTTPMethod:        fly.StringPointer("GET"),
+			HTTPPath:          fly.StringPointer(path),
+			HTTPProtocol:      fly.StringPointer("http"),
+			HTTPTLSSkipVerify: fly.BoolPointer(false),
+			Interval:          &fly.Duration{Duration: 10 * time.Second},
+			Timeout:           &fly.Duration{Duration: 2 * time.Second},
+			GracePeriod:       &fly.Duration{Duration: 5 * time.Second},
 		})
 	}
 }
 
 func (c *Config) SetConcurrency(soft int, hard int) {
-	concurrency := &api.MachineServiceConcurrency{
+	concurrency := &fly.MachineServiceConcurrency{
 		Type:      "connections",
 		HardLimit: hard,
 		SoftLimit: soft,

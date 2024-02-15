@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -40,7 +40,7 @@ func newClustersCreate() *cobra.Command {
 }
 
 func runClustersCreate(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	orgID, err := getOrgID(ctx)
 	if err != nil {

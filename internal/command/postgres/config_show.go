@@ -7,9 +7,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -44,7 +43,7 @@ func newConfigShow() (cmd *cobra.Command) {
 
 func runConfigShow(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -64,7 +63,7 @@ func runConfigShow(ctx context.Context) error {
 	return runMachineConfigShow(ctx, app)
 }
 
-func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) {
+func runMachineConfigShow(ctx context.Context, app *fly.AppCompact) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.19"
 		MinPostgresStandaloneVersion = "0.0.7"
@@ -98,7 +97,7 @@ func runMachineConfigShow(ctx context.Context, app *api.AppCompact) (err error) 
 	return showSettings(ctx, app, manager, leader.PrivateIP)
 }
 
-func showSettings(ctx context.Context, app *api.AppCompact, manager string, leaderIP string) error {
+func showSettings(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -168,5 +167,4 @@ func showSettings(ctx context.Context, app *api.AppCompact, manager string, lead
 	}
 
 	return nil
-
 }

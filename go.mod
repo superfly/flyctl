@@ -13,7 +13,6 @@ require (
 	github.com/briandowns/spinner v1.23.0
 	github.com/buildpacks/pack v0.32.1
 	github.com/cavaliergopher/grab/v3 v3.0.1
-	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
 	github.com/containerd/console v1.0.4
@@ -56,7 +55,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.18.2
 	github.com/stretchr/testify v1.8.4
-	github.com/superfly/flyctl/api v0.0.0
+	github.com/superfly/fly-go v0.0.0-20240214224902-9c23a376e83e
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.10
@@ -115,6 +114,7 @@ require (
 	github.com/awslabs/amazon-ecr-credential-helper/ecr-login v0.0.0-20230522190001-adf1bafd791a // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/buildpacks/imgutil v0.0.0-20231102131059-84d632186b59 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/log v0.1.0 // indirect
@@ -197,7 +197,7 @@ require (
 	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/go-querystring v1.1.0
+	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.3.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -238,9 +238,5 @@ require (
 	google.golang.org/protobuf v1.32.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
-
-replace github.com/superfly/flyctl/api => ./api
-
-// replace github.com/superfly/lfsc-go => ../lfsc-go
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936

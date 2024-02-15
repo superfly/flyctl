@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -82,7 +82,7 @@ func regionFlag() flag.String {
 
 // newLFSCClient returns an lfsc.Client with a temporary auth token.
 func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	// Determine the org via flag or environment variable first.
 	// If neither is available, use the local app's org, if available.
@@ -110,7 +110,7 @@ func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error
 }
 
 func getOrgID(ctx context.Context) (string, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	if slug := flag.GetOrg(ctx); slug != "" {
 		org, err := apiClient.GetOrganizationBySlug(ctx, slug)

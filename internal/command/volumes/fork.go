@@ -5,17 +5,15 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newFork() *cobra.Command {
@@ -68,15 +66,17 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
-	var vol *api.Volume
+	var vol *fly.Volume
 	if volID == "" {
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
@@ -100,17 +100,17 @@ func runFork(ctx context.Context) error {
 
 	var machinesOnly *bool
 	if flag.IsSpecified(ctx, "machines-only") {
-		machinesOnly = api.Pointer(flag.GetBool(ctx, "machines-only"))
+		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
 	}
 
 	var requireUniqueZone *bool
 	if flag.IsSpecified(ctx, "require-unique-zone") {
-		requireUniqueZone = api.Pointer(flag.GetBool(ctx, "require-unique-zone"))
+		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
 	}
 
 	region := flag.GetString(ctx, "region")
 
-	var attachedMachineGuest *api.MachineGuest
+	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
 		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
 		if err != nil {
@@ -124,7 +124,7 @@ func runFork(ctx context.Context) error {
 		return err
 	}
 
-	input := api.CreateVolumeRequest{
+	input := fly.CreateVolumeRequest{
 		Name:                name,
 		MachinesOnly:        machinesOnly,
 		RequireUniqueZone:   requireUniqueZone,
