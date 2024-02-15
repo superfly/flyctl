@@ -699,6 +699,11 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 }
 
 func setUsingGPU(ctx context.Context) (context.Context, error) {
+	ctx, err := LoadAppConfigIfPresent(ctx)
+	if err != nil {
+		return ctx, err
+	}
+
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig != nil {
 		instrument.UsingGPU = lo.SomeBy(appConfig.Compute, func(x *appconfig.Compute) bool {
