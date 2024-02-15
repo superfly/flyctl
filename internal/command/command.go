@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/api/tokens"
@@ -704,14 +705,9 @@ func setUsingGPU(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	usingGPU := false
-	for _, compute := range appConfig.Compute {
-		if compute != nil && compute.GPUKind != "" {
-			usingGPU = true
-			break
-		}
-	}
-	instrument.UsingGPU = usingGPU
+	instrument.UsingGPU = lo.SomeBy(appConfig.Compute, func(x *appconfig.Compute) bool {
+		return x != nil && x.MachineGuest != nil && x.MachineGuest.GPUKind != ""
+	})
 
 	return ctx, nil
 }
