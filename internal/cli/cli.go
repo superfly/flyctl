@@ -86,7 +86,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 
 	cmd, err = cmd.ExecuteContextC(ctx)
 
-	if err != nil {
+	if cmd != nil {
 		metrics.RecordCommandFinish(cmd)
 	}
 
