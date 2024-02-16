@@ -23,6 +23,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -153,8 +154,9 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 			propagation.Baggage{},
 		),
 	)
-
 	otel.SetLogger(otelLogger(ctx))
+
+	otel.SetErrorHandler(errorHandler(ctx))
 
 	return tp, nil
 }
@@ -182,4 +184,12 @@ func otelLogger(ctx context.Context) logr.Logger {
 	handler := slog.NewTextHandler(io.ErrOut, opts)
 
 	return logr.FromSlogHandler(handler)
+}
+
+func errorHandler(ctx context.Context) otel.ErrorHandler {
+	logger := logger.FromContext(ctx)
+
+	return otel.ErrorHandlerFunc(func(err error) {
+		logger.Debug("trace exporter", "error", err)
+	})
 }
