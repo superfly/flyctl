@@ -51,7 +51,7 @@ type blueGreen struct {
 	clearLinesAbove     func(count int)
 	timeout             time.Duration
 	stopSignal          string
-	aborted             atomic.Bool
+	aborted             chan struct{}
 	healthLock          sync.RWMutex
 	stateLock           sync.RWMutex
 	ctrlcHook           ctrlc.Handle
@@ -72,7 +72,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		io:                  md.io,
 		colorize:            md.colorize,
 		clearLinesAbove:     md.logClearLinesAbove,
-		aborted:             atomic.Bool{},
+		aborted:             make(chan struct{}),
 		healthLock:          sync.RWMutex{},
 		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
@@ -81,11 +81,29 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
 	ctrlc.ClearHandlers()
-	bg.ctrlcHook = ctrlc.Hook(func() {
-		bg.aborted.Store(true)
-	})
+	bg.ctrlcHook = ctrlc.Hook(sync.OnceFunc(func() {
+		close(bg.aborted)
+	}))
 
 	return bg
+}
+
+func (bg *blueGreen) isAborted() bool {
+	select {
+	case <-bg.aborted:
+		return true
+	default:
+		return false
+	}
+}
+
+func (bg *blueGreen) sleepAbortable(d time.Duration) bool {
+	select {
+	case <-time.After(d):
+		return false
+	case <-bg.aborted:
+		return true
+	}
 }
 
 func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
@@ -199,7 +217,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 			return nil
 		}
 
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 
@@ -355,7 +373,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 			break
 		}
 
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 
@@ -378,7 +396,7 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 	defer span.End()
 
 	for _, gm := range bg.greenMachines.machines() {
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 		err := bg.flaps.Uncordon(ctx, gm.Machine().ID, "")
@@ -397,7 +415,7 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 	defer span.End()
 
 	for _, gm := range bg.blueMachines {
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 		err := gm.leasableMachine.Cordon(ctx)
@@ -417,7 +435,7 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 	defer span.End()
 
 	for _, gm := range bg.blueMachines {
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 		err := gm.leasableMachine.Stop(ctx, bg.stopSignal)
@@ -467,7 +485,7 @@ func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
 			return merr.ErrorOrNil()
 		}
 
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 
@@ -490,7 +508,7 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	defer span.End()
 
 	for _, gm := range bg.blueMachines {
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 		err := gm.leasableMachine.Destroy(ctx, true)
@@ -547,7 +565,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	defer bg.ctrlcHook.Done()
 
-	if bg.aborted.Load() {
+	if bg.isAborted() {
 		return ErrAborted
 	}
 
@@ -593,7 +611,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrCreateGreenMachine.Error())
 	}
 
-	if bg.aborted.Load() {
+	if bg.isAborted() {
 		return ErrAborted
 	}
 
@@ -606,7 +624,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrWaitForStartedState.Error())
 	}
 
-	if bg.aborted.Load() {
+	if bg.isAborted() {
 		return ErrAborted
 	}
 
@@ -616,7 +634,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrWaitForHealthy.Error())
 	}
 
-	if bg.aborted.Load() {
+	if bg.isAborted() {
 		return ErrAborted
 	}
 
@@ -626,13 +644,15 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
 
-	if bg.aborted.Load() {
+	if bg.isAborted() {
 		return ErrAborted
 	}
 
 	// Wait a bit to let fly-proxy see the new machines
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting before cordoning all blue machines\n")
-	time.Sleep(10 * time.Second)
+	if bg.sleepAbortable(10 * time.Second) {
+		return ErrAborted
+	}
 
 	// Stop fly-proxy from sending new traffic to the old machines
 	if err := bg.CordonBlueMachines(ctx); err != nil {
@@ -640,13 +660,15 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrCordonBlueMachines.Error())
 	}
 
-	if bg.aborted.Load() {
+	if bg.isAborted() {
 		return ErrAborted
 	}
 
 	// Wait a bit to let fly-proxy forget about the old machines
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting before stopping all blue machines\n")
-	time.Sleep(10 * time.Second)
+	if bg.sleepAbortable(10 * time.Second) {
+		return ErrAborted
+	}
 
 	// Stop blue machine first to let the app react to SIGTERM and gracefully
 	// terminate existing connections
@@ -739,7 +761,7 @@ func (bg *blueGreen) DeleteZombiesFromPreviousDeployment(ctx context.Context) er
 	}
 
 	for _, mach := range bg.blueMachines {
-		if bg.aborted.Load() {
+		if bg.isAborted() {
 			return ErrAborted
 		}
 
