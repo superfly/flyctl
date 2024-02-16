@@ -12,14 +12,14 @@ import (
 )
 
 func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
-	Config := machine.CloneConfig(origMachineRaw.Config)
-	md.setMachineReleaseData(Config)
+	mConfig := machine.CloneConfig(origMachineRaw.Config)
+	md.setMachineReleaseData(mConfig)
 
 	return &fly.LaunchMachineInput{
 		ID:         origMachineRaw.ID,
-		Config:     Config,
+		Config:     mConfig,
 		Region:     origMachineRaw.Region,
-		SkipLaunch: skipStopped(origMachineRaw, Config),
+		SkipLaunch: skipLaunch(origMachineRaw, mConfig),
 	}
 }
 
@@ -168,7 +168,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          len(mConfig.Standbys) > 0 || skipStopped(origMachineRaw, mConfig),
+		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
 	}, nil
 }
@@ -199,11 +199,21 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	}
 }
 
-// Skip launching currently-stopped machines if any services
-// use autoscaling (autostop or autostart).
-func skipStopped(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
-	return origMachineRaw.State == fly.MachineStateStopped &&
-		lo.SomeBy(mConfig.Services, func(s fly.MachineService) bool {
-			return (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart)
-		})
+// Skip launching currently-stopped machines if:
+// * any services use autoscaling (autostop or autostart).
+// * it is a standby machine
+func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+	switch {
+	case origMachineRaw.State == fly.MachineStateStarted:
+		return false
+	case len(mConfig.Standbys) > 0:
+		return true
+	case origMachineRaw.State == fly.MachineStateStopped:
+		for _, s := range mConfig.Services {
+			if (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart) {
+				return true
+			}
+		}
+	}
+	return false
 }

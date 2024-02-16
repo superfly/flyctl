@@ -7,9 +7,11 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
@@ -434,15 +436,18 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		setSecrets = false
 	}
 
+	keys := lo.Keys(secrets)
+	sort.Strings(keys)
+
 	if setSecrets {
 		extension.SetsSecrets = true
 		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
 		input := gql.SetSecretsInput{
 			AppId: app.Id,
 		}
-		for key, value := range secrets {
-			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
-			fmt.Println(key)
+		for _, key := range keys {
+			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
+			fmt.Fprintln(io.Out, key)
 		}
 
 		fmt.Fprintln(io.Out)
@@ -453,12 +458,13 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 			return err
 		}
 	} else {
-		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
-		for key, value := range secrets {
-			fmt.Println(key + ": " + value.(string))
-		}
-	}
+		fmt.Fprintf(io.Out, "Set the following secrets on your target app.\n")
 
+		for _, key := range keys {
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+		}
+
+	}
 	return err
 }
 

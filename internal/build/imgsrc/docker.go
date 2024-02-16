@@ -169,12 +169,11 @@ func (t DockerDaemonType) PrefersLocal() bool {
 }
 
 func NewLocalDockerClient() (*dockerclient.Client, error) {
-	c, err := dockerclient.NewClientWithOpts(dockerclient.WithAPIVersionNegotiation())
+	c, err := dockerclient.NewClientWithOpts(
+		dockerclient.FromEnv,
+		dockerclient.WithAPIVersionNegotiation(),
+	)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := dockerclient.FromEnv(c); err != nil {
 		return nil, err
 	}
 
