@@ -3,6 +3,7 @@ package tracing
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -20,7 +21,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 
+	"github.com/go-logr/logr"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 const (
@@ -150,6 +154,42 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 			propagation.Baggage{},
 		),
 	)
+	otel.SetLogger(otelLogger(ctx))
+
+	otel.SetErrorHandler(errorHandler(ctx))
 
 	return tp, nil
+}
+
+func otelLogger(ctx context.Context) logr.Logger {
+	io := iostreams.FromContext(ctx)
+
+	var level slog.Level
+	switch os.Getenv("LOG_LEVEL") {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
+	}
+
+	opts := &slog.HandlerOptions{
+		Level: level,
+	}
+	handler := slog.NewTextHandler(io.ErrOut, opts)
+
+	return logr.FromSlogHandler(handler)
+}
+
+func errorHandler(ctx context.Context) otel.ErrorHandler {
+	logger := logger.FromContext(ctx)
+
+	return otel.ErrorHandlerFunc(func(err error) {
+		logger.Debug("trace exporter", "error", err)
+	})
 }
