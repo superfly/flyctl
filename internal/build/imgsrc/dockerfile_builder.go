@@ -481,11 +481,11 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 
 	err = retry.Do(pushFn,
 		retry.Context(ctx),
-		retry.Attempts(5),
+		retry.Attempts(0),
 		retry.Delay(3*time.Second),
 		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, err error) {
-			terminal.Info("retrying push")
+			terminal.Infof("retrying push because of err=%s", err.Error())
 		}),
 	)
 

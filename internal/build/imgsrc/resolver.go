@@ -642,7 +642,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		tracing.RecordError(span, err, "failed to get http request")
 		return nil, nil
 	}
-	heartbeatReq.SetBasicAuth("griff-custom-rchab", config.Tokens(ctx).Docker())
+	heartbeatReq.SetBasicAuth("griff-rchab", config.Tokens(ctx).Docker())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)

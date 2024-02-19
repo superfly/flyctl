@@ -350,7 +350,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, 
 		terminal.Debug("connecting to remote docker daemon over host wireguard tunnel")
 
 		opts = append(opts, dockerclient.WithHTTPHeaders(map[string]string{
-			"Authorization": "Basic " + basicAuth("griff-custom-rchab", config.Tokens(ctx).Docker()),
+			"Authorization": "Basic " + basicAuth("griff-rchab", config.Tokens(ctx).Docker()),
 		}))
 		return
 	}
