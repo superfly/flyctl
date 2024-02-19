@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
@@ -275,6 +276,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.PushFinish()
 
 		tb.Done("Pushing image done")
+		os.Exit(1)
 	}
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
@@ -460,30 +462,39 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 		}
 	}()
 
-	metrics.Started(ctx, "image_push")
-	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
+	pushFn := func() error {
+		pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
+			RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
+		})
 
-	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
-	})
-	metrics.Status(ctx, "image_push", err == nil)
-
-	if err != nil {
-		return errors.Wrap(err, "error pushing image to registry")
-	}
-	defer pushResp.Close() // skipcq: GO-S2307
-	sendImgPushMetrics()
-
-	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
-	if err != nil {
-		var msgerr *jsonmessage.JSONError
-
-		if errors.As(err, &msgerr) {
-			if msgerr.Message == "denied: requested access to the resource is denied" {
-				return &RegistryUnauthorizedError{Tag: tag}
-			}
+		if err != nil {
+			return errors.Wrap(err, "error pushing image to registry")
 		}
-		return errors.Wrap(err, "error rendering push status stream")
+
+		if err := jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil); err != nil {
+			return errors.Wrap(err, "error rendering push status stream")
+		}
+
+		pushResp.Close()
+		return nil
+	}
+
+	err = retry.Do(pushFn,
+		retry.Context(ctx),
+		retry.Attempts(5),
+		retry.Delay(3*time.Second),
+		retry.DelayType(retry.FixedDelay),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Info("retrying push")
+		}),
+	)
+
+	var msgerr *jsonmessage.JSONError
+
+	if errors.As(err, &msgerr) {
+		if msgerr.Message == "denied: requested access to the resource is denied" {
+			return &RegistryUnauthorizedError{Tag: tag}
+		}
 	}
 
 	return nil
