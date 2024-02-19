@@ -41,6 +41,10 @@ func newUpdate() *cobra.Command {
 			Name:        "snapshot-retention",
 			Description: "Snapshot retention in days (min 5)",
 		},
+		flag.Bool{
+			Name:        "scheduled-snapshots",
+			Description: "Disable/Enable scheduled snapshots",
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -82,6 +86,10 @@ func runUpdate(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	input := fly.UpdateVolumeRequest{
 		SnapshotRetention: snapshotRetention,
+	}
+
+	if flag.IsSpecified(ctx, "scheduled-snapshots") {
+		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
 	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)
