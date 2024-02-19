@@ -26,7 +26,9 @@ type LeasableMachine interface {
 	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
 	Update(context.Context, fly.LaunchMachineInput) error
 	Start(context.Context) error
+	Stop(context.Context, string) error
 	Destroy(context.Context, bool) error
+	Cordon(context.Context) error
 	WaitForState(context.Context, string, time.Duration, bool) error
 	WaitForSmokeChecksToPass(context.Context) error
 	WaitForHealthchecksToPass(context.Context, time.Duration) error
@@ -71,6 +73,19 @@ func (lm *leasableMachine) Update(ctx context.Context, input fly.LaunchMachineIn
 	return nil
 }
 
+func (lm *leasableMachine) Stop(ctx context.Context, signal string) error {
+	if lm.IsDestroyed() {
+		return fmt.Errorf("cannon stop machine %s that was already destroyed", lm.machine.ID)
+	}
+
+	input := fly.StopMachineInput{
+		ID:     lm.machine.ID,
+		Signal: signal,
+	}
+
+	return lm.flapsClient.Stop(ctx, input, lm.leaseNonce)
+}
+
 func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 	if lm.IsDestroyed() {
 		return nil
@@ -85,6 +100,14 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 	}
 	lm.destroyed = true
 	return nil
+}
+
+func (lm *leasableMachine) Cordon(ctx context.Context) error {
+	if lm.IsDestroyed() {
+		return fmt.Errorf("cannon cordon machine %s that was already destroyed", lm.machine.ID)
+	}
+
+	return lm.flapsClient.Cordon(ctx, lm.machine.ID, lm.leaseNonce)
 }
 
 func (lm *leasableMachine) FormattedMachineId() string {

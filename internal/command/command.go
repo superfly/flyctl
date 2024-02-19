@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -26,7 +25,6 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -66,7 +64,6 @@ var commonPreparers = []preparers.Preparer{
 	killOldAgent,
 	startMetrics,
 	preparers.SetOtelAuthenticationKey,
-	setUsingGPU,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -555,6 +552,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	// Shortcut to avoid unmarshaling and querying Web when
 	// LoadAppConfigIfPresent is chained with RequireAppName
 	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+		metrics.AppConfig = cfg
 		return ctx, nil
 	}
 
@@ -566,6 +564,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
+			metrics.AppConfig = cfg
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
@@ -695,15 +694,4 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
-}
-
-func setUsingGPU(ctx context.Context) (context.Context, error) {
-	appConfig := appconfig.ConfigFromContext(ctx)
-	if appConfig != nil {
-		instrument.UsingGPU = lo.SomeBy(appConfig.Compute, func(x *appconfig.Compute) bool {
-			return x != nil && x.MachineGuest != nil && x.MachineGuest.GPUKind != ""
-		})
-	}
-
-	return ctx, nil
 }

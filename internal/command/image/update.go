@@ -15,9 +15,9 @@ import (
 
 func newUpdate() *cobra.Command {
 	const (
-		long = `This will update the application's image to the latest available version.
-The update will perform a rolling restart against each VM, which may result in a brief service disruption.`
-		short = "Updates the app's image to the latest available version. (Fly Postgres only)"
+		long = `Update the app's image to the latest available version.
+The update will perform a rolling restart against each Machine, which may result in a brief service disruption.`
+		short = "Updates the app's image to the latest available version."
 		usage = "update"
 	)
 
