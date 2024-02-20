@@ -218,6 +218,7 @@ func (c *Config) updateMachineConfig(src *api.MachineConfig) (*api.MachineConfig
 	if src != nil && src.PersistentRootfsSize != 0 && c.PersistentRootfsSize != src.PersistentRootfsSize {
 		return nil, errors.New("Changing persistent_rootfs_size is currently not supported.")
 	}
+	mConfig.PersistentRootfsSize = c.PersistentRootfsSize
 
 	// Guest
 	if guest, err := c.toMachineGuest(); err != nil {
