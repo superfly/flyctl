@@ -292,7 +292,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		return nil, err
 	}
 
-	client, err := dockerclient.NewClientWithOpts(opts...)
+	hostURL, _ := dockerclient.ParseHostURL(host)
+
+	tcpOpts := append(opts, dockerclient.WithHost("tcp://"+hostURL.Host))
+	client, err := dockerclient.NewClientWithOpts(tcpOpts...)
 	if err != nil {
 		streams.StopProgressIndicator()
 
@@ -303,7 +306,39 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		return nil, err
 	}
 
-	switch up, err := waitForDaemon(ctx, client); {
+	httpOpts := append(opts, dockerclient.WithHost("http://"+hostURL.Host))
+	_httpClient, err := dockerclient.NewClientWithOpts(httpOpts...)
+	if err != nil {
+		streams.StopProgressIndicator()
+
+		err = fmt.Errorf("failed creating docker client: %w", err)
+		captureError(err)
+		tracing.RecordError(span, err, "failed to initialize remote client")
+
+		return nil, err
+	}
+
+	httpClient = _httpClient
+
+	// _, err = func() (types.Info, error) {
+	// 	infoCtx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*2))
+	// 	defer cancel()
+	// 	return httpClient.Info(infoCtx)
+	// }()
+
+	// _, err = func() (types.Info, error) {
+	// 	infoCtx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*2))
+	// 	defer cancel()
+	// 	return httpClient.Info(infoCtx)
+	// }()
+
+	// _, err = func() (types.Info, error) {
+	// 	infoCtx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*2))
+	// 	defer cancel()
+	// 	return httpClient.Info(infoCtx)
+	// }()
+
+	switch up, err := waitForDaemon(ctx, httpClient); {
 	case err != nil:
 		streams.StopProgressIndicator()
 
@@ -344,6 +379,7 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, 
 	opts = []dockerclient.Opt{
 		dockerclient.WithAPIVersionNegotiation(),
 		dockerclient.WithHost(host),
+		dockerclient.WithTimeout(5 * time.Minute),
 	}
 
 	if os.Getenv("FLY_REMOTE_BUILDER_HOST_WG") != "" {

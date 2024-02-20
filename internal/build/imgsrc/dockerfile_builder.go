@@ -35,6 +35,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+var (
+	httpClient *dockerclient.Client
+)
+
 type dockerfileBuilder struct{}
 
 func (*dockerfileBuilder) Name() string {
@@ -157,7 +161,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 	defer docker.Close() // skipcq: GO-S2307
 
-	buildkitEnabled, err := buildkitEnabled(docker)
+	buildkitEnabled, err := buildkitEnabled(httpClient)
 	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
 	if err != nil {
 		build.BuildFinish()
@@ -174,7 +178,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// run concurrent builds from CI that end up racing with each other
 		// and one of them failing with 404 while calling docker.ImageInspectWithRaw
 		if dockerFactory.IsLocal() {
-			clearDeploymentTags(ctx, docker, opts.Tag)
+			clearDeploymentTags(ctx, httpClient, opts.Tag)
 		}
 	}()
 
@@ -210,20 +214,22 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.ImageBuildStart()
 	terminal.Debug("fetching docker server info")
-	serverInfo, err := func() (types.Info, error) {
-		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		return docker.Info(infoCtx)
-	}()
-	if err != nil {
-		if dockerFactory.IsRemote() {
-			metrics.SendNoData(ctx, "remote_builder_failure")
-		}
-		build.ImageBuildFinish()
-		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to fetch docker server info")
-		return nil, "", errors.Wrap(err, "error fetching docker server info")
-	}
+	// serverInfo, err := func() (types.Info, error) {
+	// 	infoCtx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*2))
+	// 	defer cancel()
+	// 	return httpClient.Info(infoCtx)
+	// }()
+	// if err != nil {
+	// 	if dockerFactory.IsRemote() {
+	// 		metrics.SendNoData(ctx, "remote_builder_failure")
+	// 	}
+	// 	build.ImageBuildFinish()
+	// 	build.BuildFinish()
+	// 	tracing.RecordError(span, err, "failed to fetch docker server info")
+	// 	return nil, "", errors.Wrap(err, "error fetching docker server info")
+	// }
+
+	serverInfo := types.Info{}
 
 	docker_tb := render.NewTextBlock(ctx, "Building image with Docker")
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
@@ -239,18 +245,18 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
-		if err != nil {
-			if dockerFactory.IsRemote() {
-				metrics.SendNoData(ctx, "remote_builder_failure")
-			}
-			build.ImageBuildFinish()
-			build.BuildFinish()
-			tracing.RecordError(span, err, "failed to build image")
-			return nil, "", errors.Wrap(err, "error building")
-		}
+		// imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
+		// if err != nil {
+		// 	if dockerFactory.IsRemote() {
+		// 		metrics.SendNoData(ctx, "remote_builder_failure")
+		// 	}
+		// 	build.ImageBuildFinish()
+		// 	build.BuildFinish()
+		// 	tracing.RecordError(span, err, "failed to build image")
+		// 	return nil, "", errors.Wrap(err, "error building")
+		// }
 	} else {
-		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
+		imageID, err = runClassicBuild(ctx, streams, httpClient, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -266,18 +272,48 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	// opts.Publish = false
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		// fmt.Println(opts.Tag, "taggy")
+		if err := pushToFly(ctx, httpClient, streams, "registry.fly.io/griff-rchab:deployment-01HQ3JXFCFG2PQ8NEX63GGP47P"); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
 		build.PushFinish()
 
 		tb.Done("Pushing image done")
-		os.Exit(1)
 	}
+	// serverInfo, err = func() (types.Info, error) {
+	// 	infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// 	defer cancel()
+	// 	return httpClient.Info(infoCtx)
+	// }()
+	// if err != nil {
+	// 	if dockerFactory.IsRemote() {
+	// 		metrics.SendNoData(ctx, "remote_builder_failure")
+	// 	}
+	// 	build.ImageBuildFinish()
+	// 	build.BuildFinish()
+	// 	tracing.RecordError(span, err, "failed to fetch docker server info")
+	// 	return nil, "", errors.Wrap(err, "error fetching docker server info")
+	// }
+	// serverInfo, err = func() (types.Info, error) {
+	// 	infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// 	defer cancel()
+	// 	return httpClient.Info(infoCtx)
+	// }()
+	// if err != nil {
+	// 	if dockerFactory.IsRemote() {
+	// 		metrics.SendNoData(ctx, "remote_builder_failure")
+	// 	}
+	// 	build.ImageBuildFinish()
+	// 	build.BuildFinish()
+	// 	tracing.RecordError(span, err, "failed to fetch docker server info")
+	// 	return nil, "", errors.Wrap(err, "error fetching docker server info")
+	// }
+	os.Exit(1)
 
 	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
@@ -481,7 +517,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 
 	err = retry.Do(pushFn,
 		retry.Context(ctx),
-		retry.Attempts(0),
+		retry.Attempts(1),
 		retry.Delay(3*time.Second),
 		retry.DelayType(retry.FixedDelay),
 		retry.OnRetry(func(n uint, err error) {
