@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 COPY go.mod go.sum ./
 RUN go mod download && go mod verify
 COPY . .
-RUN CGO_ENABLED=1 go build -v -o /run-app .
+RUN go build -v -o /run-app .
 
 
 FROM debian:bookworm
