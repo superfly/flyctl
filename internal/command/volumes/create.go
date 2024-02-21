@@ -131,10 +131,13 @@ func runCreate(ctx context.Context) error {
 		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
-	fsType := flag.GetString(ctx, "fs-type")
-
-	if fsType != "ext4" && fsType != "raw" {
-		return fmt.Errorf("FSType '%s' is not one of ext4 or raw", fsType)
+	var fsType *string
+	if flag.IsSpecified(ctx, "fs-type") {
+		s := flag.GetString(ctx, "fs-type")
+		if s != "ext4" && s != "raw" {
+			return fmt.Errorf(`filesystem %q must be either "ext4" or "raw"`, s)
+		}
+		fsType = &s
 	}
 
 	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
@@ -151,7 +154,7 @@ func runCreate(ctx context.Context) error {
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
-		FSType:              &fsType,
+		FSType:              fsType,
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
