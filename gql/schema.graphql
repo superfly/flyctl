@@ -358,6 +358,11 @@ enum AddOnType {
   An Upstash Redis database
   """
   upstash_redis
+
+  """
+  An Upstash Kafka cluster
+  """
+  upstash_kafka
 }
 
 """
