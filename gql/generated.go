@@ -66,6 +66,8 @@ const (
 	AddOnTypeTigris AddOnType = "tigris"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
+	// An Upstash Kafka cluster
+	AddOnTypeUpstashKafka AddOnType = "upstash_kafka"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
