@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps.Client, error) {
@@ -47,6 +48,10 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 
 	if opts.Tokens == nil {
 		opts.Tokens = config.Tokens(ctx)
+	}
+
+	if v := logger.MaybeFromContext(ctx); v != nil {
+		opts.Logger = v
 	}
 
 	return flaps.NewWithOptions(ctx, opts)
