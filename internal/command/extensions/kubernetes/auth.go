@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -15,7 +16,10 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 )
 
-const execInfoEnv = "KUBERNETES_EXEC_INFO"
+const (
+	execInfoEnv = "KUBERNETES_EXEC_INFO"
+	tokenPrefix = "FlyV1 "
+)
 
 type response struct {
 	APIVersion string `json:"apiVersion"`
@@ -80,12 +84,15 @@ func runAuth(ctx context.Context) error {
 		return err
 	}
 
-	resp.Status.Token = tokenResp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+	token := tokenResp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+	token = strings.TrimPrefix(token, tokenPrefix)
+	resp.Status.Token = token
 	var buffer bytes.Buffer
 	if err := json.NewEncoder(&buffer).Encode(resp); err != nil {
 		return err
 	}
 
+	fmt.Fprint(os.Stderr, buffer.String())
 	fmt.Println(buffer.String())
 	return nil
 }
