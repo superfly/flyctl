@@ -37,7 +37,8 @@ type status struct {
 }
 
 type PartialExecCredential struct {
-	Spec struct {
+	APIVersion string `json:"apiVersion"`
+	Spec       struct {
 		Cluster struct {
 			Config map[string]interface{} `json:"config"`
 		} `json:"cluster"`
@@ -58,13 +59,7 @@ func kubectlToken() (cmd *cobra.Command) {
 }
 
 func runAuth(ctx context.Context) error {
-	var (
-		client = fly.ClientFromContext(ctx)
-		resp   = response{
-			APIVersion: "client.authentication.k8s.io/v1",
-			Kind:       "ExecCredential",
-		}
-	)
+	client := fly.ClientFromContext(ctx)
 
 	execInfo := os.Getenv(execInfoEnv)
 	if execInfo == "" {
@@ -74,10 +69,19 @@ func runAuth(ctx context.Context) error {
 	var execCredential PartialExecCredential
 	err := json.Unmarshal([]byte(execInfo), &execCredential)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decode ExecCredential: %w", err)
 	}
 
-	orgSlug := execCredential.Spec.Cluster.Config["org"].(string)
+	resp := response{
+		APIVersion: execCredential.APIVersion,
+		Kind:       "ExecCredential",
+	}
+
+	orgSlug, ok := execCredential.Spec.Cluster.Config["org"].(string)
+	if !ok {
+		return errors.New("org not found in cluster config")
+	}
+
 	org, err := orgs.OrgFromSlug(ctx, orgSlug)
 	if err != nil {
 		return fmt.Errorf("could not find org id for org %s", orgSlug)
@@ -85,8 +89,7 @@ func runAuth(ctx context.Context) error {
 
 	configDir, err := helpers.GetConfigDirectory()
 	if err != nil {
-		fmt.Println("Error accessing home directory", err)
-		return err
+		return fmt.Errorf("Error accessing home directory: %w", err)
 	}
 
 	fksConfigDir := filepath.Join(configDir, "fks", orgSlug)
@@ -102,9 +105,6 @@ func runAuth(ctx context.Context) error {
 	err = v.ReadInConfig()
 	if err != nil {
 		// Generate a new token
-		// TODO: Remove
-		fmt.Fprintf(os.Stderr, "No existing token, generating new one for the first time")
-
 		if !helpers.DirectoryExists(fksConfigDir) {
 			if err := os.MkdirAll(fksConfigDir, 0o700); err != nil {
 				return err
@@ -117,15 +117,10 @@ func runAuth(ctx context.Context) error {
 		}
 	} else {
 		// Use existing token
-		// TODO: REMOVE
-		fmt.Fprintf(os.Stderr, "Using existing token")
-
 		token = v.GetString("auth.token")
 		expiry = int64(v.GetInt("auth.expiration"))
 		if time.Now().Unix() > expiry {
 			// expired, generate a new token
-			// TODO: Remove
-			fmt.Fprintf(os.Stderr, "Token expired, generating new token")
 			token, expiry, err = makeOrgToken(ctx, client, org.ID)
 			if err != nil {
 				return err
@@ -136,7 +131,7 @@ func runAuth(ctx context.Context) error {
 	v.Set("auth.token", token)
 	v.Set("auth.expiration", expiry)
 	if err := v.WriteConfig(); err != nil {
-		return fmt.Errorf("could not write fks config file (error: %s)", err)
+		return fmt.Errorf("could not write fks config file: %w", err)
 	}
 
 	resp.Status.Token = token
@@ -147,7 +142,6 @@ func runAuth(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Fprint(os.Stderr, buffer.String())
 	fmt.Println(buffer.String())
 	return nil
 }
