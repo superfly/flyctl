@@ -103,40 +103,39 @@ func runAuth(ctx context.Context) error {
 
 	var token string
 	var expiry int64
-	now := time.Now().UTC()
 
-	switch err := v.ReadInConfig(); err {
-	case nil:
-		fmt.Fprintf(os.Stderr, "Using existing token")
-		token = v.GetString("auth.token")
-		expiry = int64(v.GetInt("auth.expiration"))
-		if time.Now().Unix() > expiry {
-			fmt.Fprintf(os.Stderr, "Token expired, generating new token")
-			tokenResp, err := makeOrgToken(ctx, client, org.ID, (time.Hour).String())
-			if err != nil {
-				return err
-			}
-
-			token = tokenResp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-			token = strings.TrimPrefix(token, tokenPrefix)
-			expiry = now.Add(time.Hour).Unix()
-		}
-	default:
+	err = v.ReadInConfig()
+	if err != nil {
+		// Generate a new token
+		// TODO: Remove
 		fmt.Fprintf(os.Stderr, "No existing token, generating new one for the first time")
-		// path doesn't exist, create the path
+
 		if !helpers.DirectoryExists(fksConfigDir) {
 			if err := os.MkdirAll(fksConfigDir, 0o700); err != nil {
 				return err
 			}
 		}
-		tokenResp, err := makeOrgToken(ctx, client, org.ID, (time.Hour).String())
+
+		token, expiry, err = makeOrgToken(ctx, client, org.ID)
 		if err != nil {
 			return err
 		}
+	} else {
+		// Use existing token
+		// TODO: REMOVE
+		fmt.Fprintf(os.Stderr, "Using existing token")
 
-		token = tokenResp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-		token = strings.TrimPrefix(token, tokenPrefix)
-		expiry = now.Add(time.Hour).Unix()
+		token = v.GetString("auth.token")
+		expiry = int64(v.GetInt("auth.expiration"))
+		if time.Now().Unix() > expiry {
+			// expired, generate a new token
+			// TODO: Remove
+			fmt.Fprintf(os.Stderr, "Token expired, generating new token")
+			token, expiry, err = makeOrgToken(ctx, client, org.ID)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
 	v.Set("auth.token", token)
@@ -158,7 +157,7 @@ func runAuth(ctx context.Context) error {
 	return nil
 }
 
-func makeOrgToken(ctx context.Context, apiClient *fly.Client, orgID string, expiration string) (*gql.CreateLimitedAccessTokenResponse, error) {
+func makeOrgToken(ctx context.Context, apiClient *fly.Client, orgID string) (string, int64, error) {
 	options := gql.LimitedAccessTokenOptions{}
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
@@ -167,10 +166,14 @@ func makeOrgToken(ctx context.Context, apiClient *fly.Client, orgID string, expi
 		orgID,
 		"deploy_organization",
 		&options,
-		expiration,
+		(time.Hour).String(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating deploy token: %w", err)
+		return "", 0, fmt.Errorf("failed creating deploy token: %w", err)
 	}
-	return resp, nil
+
+	token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+	token = strings.TrimPrefix(token, tokenPrefix)
+	expiry := time.Now().UTC().Add(time.Hour).Unix()
+	return token, expiry, nil
 }
