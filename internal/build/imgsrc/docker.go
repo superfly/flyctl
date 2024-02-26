@@ -294,7 +294,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 
 	hostURL, _ := dockerclient.ParseHostURL(host)
 
-	tcpOpts := append(opts, dockerclient.WithHost("tcp://"+hostURL.Host+":8080"), dockerclient.WithScheme("https"))
+	tcpOpts := append(opts, dockerclient.WithHost("tcp://"+hostURL.Host+":8080"))
 	client, err := dockerclient.NewClientWithOpts(tcpOpts...)
 	if err != nil {
 		streams.StopProgressIndicator()

@@ -400,11 +400,20 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	)
 	defer span.End()
 
+	myc, _ := dockerclient.NewClientWithOpts(
+		dockerclient.WithAPIVersionNegotiation(),
+		// dockerclient.WithHost("tcp://griff-rchab.fly.dev:8080"),
+		dockerclient.WithScheme("https"),
+		dockerclient.WithHTTPHeaders(map[string]string{
+			"Authorization": "Basic " + basicAuth("griff-rchab", config.Tokens(ctx).Docker()),
+		}),
+	)
+
 	// Connect to Docker Engine's embedded Buildkit.
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
-		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
+		return myc.DialHijack(ctx, "https://griff-rchab.fly.dev:443/grpc", "h2c", map[string][]string{})
 	}
-	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
+	bc, err := client.New(ctx, "tcp://griff-rchab.fly.dev:8080", client.WithContextDialer(dialer), client.WithFailFast())
 	if err != nil {
 		return "", err
 	}
