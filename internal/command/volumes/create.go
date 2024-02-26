@@ -64,6 +64,12 @@ func newCreate() *cobra.Command {
 			Name:        "snapshot-id",
 			Description: "Create the volume from the specified snapshot",
 		},
+		flag.String{
+			Name:        "fs-type",
+			Description: "Filesystem of this volume. It must be either ext4 or raw. Default is ext4.",
+			Hidden:      true,
+			Default:     "ext4",
+		},
 		flag.Yes(),
 		flag.Int{
 			Name:        "count",
@@ -127,6 +133,15 @@ func runCreate(ctx context.Context) error {
 		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
+	var fsType *string
+	if flag.IsSpecified(ctx, "fs-type") {
+		s := flag.GetString(ctx, "fs-type")
+		if s != "ext4" && s != "raw" {
+			return fmt.Errorf(`filesystem %q must be either "ext4" or "raw"`, s)
+		}
+		fsType = &s
+	}
+
 	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return err
@@ -141,6 +156,7 @@ func runCreate(ctx context.Context) error {
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		FSType:              fsType,
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
