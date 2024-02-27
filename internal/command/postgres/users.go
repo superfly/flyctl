@@ -32,7 +32,6 @@ func newUsers() *cobra.Command {
 		newListUsers(),
 	)
 
-	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 
@@ -55,6 +54,7 @@ func newListUsers() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 	)
 
 	return cmd
