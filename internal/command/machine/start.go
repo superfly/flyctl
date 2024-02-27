@@ -3,13 +3,15 @@ package machine
 import (
 	"context"
 	"fmt"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -44,37 +46,43 @@ func runMachineStart(ctx context.Context) (err error) {
 		args = flag.Args(ctx)
 	)
 
-	machineIDs, ctx, err := selectManyMachineIDs(ctx, args)
+	machines, ctx, err := selectManyMachines(ctx, args)
 	if err != nil {
 		return err
 	}
 
-	for _, machineID := range machineIDs {
-		if err = Start(ctx, machineID); err != nil {
+	machines, release, err := mach.AcquireLeases(ctx, machines)
+	if err != nil {
+		return err
+	}
+	defer release()
+
+	for _, machine := range machines {
+		if err = Start(ctx, machine); err != nil {
 			return
 		}
-		fmt.Fprintf(io.Out, "%s has been started\n", machineID)
+		fmt.Fprintf(io.Out, "%s has been started\n", machine.ID)
 	}
 	return
 }
 
-func Start(ctx context.Context, machineID string) (err error) {
-	machine, err := flaps.FromContext(ctx).Start(ctx, machineID, "")
+func Start(ctx context.Context, machine *fly.Machine) (err error) {
+	res, err := flaps.FromContext(ctx).Start(ctx, machine.ID, machine.LeaseNonce)
 	if err != nil {
 		//TODO(dov): just do the clone
 		switch {
 		case strings.Contains(err.Error(), " for machine"):
-			return fmt.Errorf("could not start machine due to lack of capacity. Try 'flyctl machine clone %s -a %s'", machineID, appconfig.NameFromContext(ctx))
+			return fmt.Errorf("could not start machine due to lack of capacity. Try 'flyctl machine clone %s -a %s'", machine.ID, appconfig.NameFromContext(ctx))
 		default:
-			if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
+			if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 				return err
 			}
-			return fmt.Errorf("could not start machine %s: %w", machineID, err)
+			return fmt.Errorf("could not start machine %s: %w", machine.ID, err)
 		}
 	}
 
-	if machine.Status == "error" {
-		return fmt.Errorf("machine could not be started: %s", machine.Message)
+	if res.Status == "error" {
+		return fmt.Errorf("machine could not be started: %s", res.Message)
 	}
 	return
 }
