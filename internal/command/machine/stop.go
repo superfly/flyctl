@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -62,25 +63,31 @@ func runMachineStop(ctx context.Context) (err error) {
 		timeout = flag.GetInt(ctx, "timeout")
 	)
 
-	machineIDs, ctx, err := selectManyMachineIDs(ctx, args)
+	machines, ctx, err := selectManyMachines(ctx, args)
 	if err != nil {
 		return err
 	}
 
-	for _, machineID := range machineIDs {
-		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...\n", machineID)
+	machines, release, err := mach.AcquireLeases(ctx, machines)
+	if err != nil {
+		return err
+	}
+	defer release()
 
-		if err = Stop(ctx, machineID, signal, timeout); err != nil {
+	for _, machine := range machines {
+		fmt.Fprintf(io.Out, "Sending kill signal to machine %s...\n", machine.ID)
+
+		if err = Stop(ctx, machine, signal, timeout); err != nil {
 			return
 		}
-		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machineID)
+		fmt.Fprintf(io.Out, "%s has been successfully stopped\n", machine.ID)
 	}
 	return
 }
 
-func Stop(ctx context.Context, machineID string, signal string, timeout int) (err error) {
+func Stop(ctx context.Context, machine *fly.Machine, signal string, timeout int) (err error) {
 	machineStopInput := fly.StopMachineInput{
-		ID:     machineID,
+		ID:     machine.ID,
 		Signal: strings.ToUpper(signal),
 	}
 
@@ -91,22 +98,22 @@ func Stop(ctx context.Context, machineID string, signal string, timeout int) (er
 	waitTimeout := flag.GetDuration(ctx, "wait-timeout")
 
 	client := flaps.FromContext(ctx)
-	err = client.Stop(ctx, machineStopInput, "")
+	err = client.Stop(ctx, machineStopInput, machine.LeaseNonce)
 	if err != nil {
-		if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
+		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {
 			return err
 		}
-		return fmt.Errorf("could not stop machine %s: %w", machineID, err)
+		return fmt.Errorf("could not stop machine %s: %w", machine.ID, err)
 	}
 
 	if waitTimeout != 0 {
-		machine, err := client.Get(ctx, machineID)
+		machine, err := client.Get(ctx, machine.ID)
 		if err != nil {
-			return fmt.Errorf("could not get machine %s to wait for stop: %w", machineID, err)
+			return fmt.Errorf("could not get machine %s to wait for stop: %w", machine.ID, err)
 		}
 		err = client.Wait(ctx, machine, "stopped", waitTimeout)
 		if err != nil {
-			return fmt.Errorf("machine %s did not stop within the wait timeout: %w", machineID, err)
+			return fmt.Errorf("machine %s did not stop within the wait timeout: %w", machine.ID, err)
 		}
 	}
 

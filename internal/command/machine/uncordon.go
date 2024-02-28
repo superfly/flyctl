@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,16 +41,22 @@ func runMachineUncordon(ctx context.Context) (err error) {
 		args = flag.Args(ctx)
 	)
 
-	machineIDs, ctx, err := selectManyMachineIDs(ctx, args)
+	machines, ctx, err := selectManyMachines(ctx, args)
 	if err != nil {
 		return err
 	}
 
+	machines, release, err := mach.AcquireLeases(ctx, machines)
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	flapsClient := flaps.FromContext(ctx)
 
-	for _, machineID := range machineIDs {
-		fmt.Fprintf(io.Out, "Deactivating cordon on machine %s...\n", machineID)
-		if err = flapsClient.Uncordon(ctx, machineID, ""); err != nil {
+	for _, machine := range machines {
+		fmt.Fprintf(io.Out, "Deactivating cordon on machine %s...\n", machine.ID)
+		if err = flapsClient.Uncordon(ctx, machine.ID, machine.LeaseNonce); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "done!\n")

@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -52,6 +53,12 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+		machine, release, err := mach.AcquireLease(ctx, machine)
+		if err != nil {
+			return err
+		}
+		defer release()
+
 		err = singleDestroyRun(ctx, machine)
 		if err != nil {
 			return err
@@ -61,6 +68,12 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
+
+		machines, release, err := mach.AcquireLeases(ctx, machines)
+		if err != nil {
+			return err
+		}
+		defer release()
 
 		for _, machine := range machines {
 			err = singleDestroyRun(ctx, machine)
