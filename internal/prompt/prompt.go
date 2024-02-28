@@ -47,6 +47,25 @@ func String(ctx context.Context, dst *string, msg, def string, required bool) er
 	return survey.AskOne(p, dst, opts...)
 }
 
+func StringWithHelp(ctx context.Context, dst *string, msg, def, help string, required bool) error {
+	opt, err := newSurveyIO(ctx)
+	if err != nil {
+		return err
+	}
+
+	p := &survey.Input{
+		Message: msg,
+		Help:    help,
+		Default: def,
+	}
+
+	opts := []survey.AskOpt{opt}
+	if required {
+		opts = append(opts, survey.WithValidator(survey.Required))
+	}
+	return survey.AskOne(p, dst, opts...)
+}
+
 func Int(ctx context.Context, dst *int, msg string, def int, required bool) error {
 	opt, err := newSurveyIO(ctx)
 	if err != nil {

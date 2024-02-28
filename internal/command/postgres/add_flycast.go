@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -12,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func newAddFlycast() *cobra.Command {
@@ -80,12 +80,10 @@ func doAddFlycast(ctx context.Context) error {
 			}
 		}
 
-		confirm := false
-		prompt := &survey.Confirm{
-			Message: "This will overwrite existing services you have manually added. Continue?",
-			Default: true,
-		}
-		if err := survey.AskOne(prompt, &confirm); err != nil {
+		message := "This will overwrite existing services you have manually added. Continue?"
+
+		confirm, err := prompt.Confirm(ctx, message)
+		if err != nil {
 			return err
 		}
 

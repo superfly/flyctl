@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
@@ -20,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
@@ -296,13 +296,7 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 
 		selected := 0
 
-		prompt := &survey.Select{
-			Message:  "Select VM:",
-			Options:  namesWithRegion,
-			PageSize: 15,
-		}
-
-		if err := survey.AskOne(prompt, &selected); err != nil {
+		if prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
 			return "", fmt.Errorf("selecting VM: %w", err)
 		}
 
