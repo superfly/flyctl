@@ -173,17 +173,17 @@ func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err e
 	return
 }
 
-var errNonInteractive = errors.New("prompt: non interactive")
+var ErrNonInteractive = errors.New("prompt: non interactive")
 
 func IsNonInteractive(err error) bool {
-	return errors.Is(err, errNonInteractive)
+	return errors.Is(err, ErrNonInteractive)
 }
 
 type NonInteractiveError string
 
 func (e NonInteractiveError) Error() string { return string(e) }
 
-func (NonInteractiveError) Unwrap() error { return errNonInteractive }
+func (NonInteractiveError) Unwrap() error { return ErrNonInteractive }
 
 func isInteractive(ctx context.Context) bool {
 	io := iostreams.FromContext(ctx)
@@ -193,17 +193,17 @@ func isInteractive(ctx context.Context) bool {
 func newSurveyIO(ctx context.Context) (survey.AskOpt, error) {
 	io := iostreams.FromContext(ctx)
 	if !io.IsInteractive() {
-		return nil, errNonInteractive
+		return nil, ErrNonInteractive
 	}
 
 	in, ok := io.In.(terminal.FileReader)
 	if !ok {
-		return nil, errNonInteractive
+		return nil, ErrNonInteractive
 	}
 
 	out, ok := io.Out.(terminal.FileWriter)
 	if !ok {
-		return nil, errNonInteractive
+		return nil, ErrNonInteractive
 	}
 
 	surveyCore.TemplateFuncsWithColor["color"] = func(style string) string {
