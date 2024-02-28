@@ -7,8 +7,8 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 )
@@ -18,10 +18,8 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 	// We use this over the context API client because we're trying to
 	// authenticate the human user, not the specific credentials they're using.
 	cfg := config.FromContext(ctx)
-	apiClient := fly.NewClientFromOptions(fly.ClientOptions{
-		Name:    buildinfo.Name(),
-		Version: buildinfo.Version().String(),
-		Tokens:  cfg.Tokens,
+	apiClient := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
+		Tokens: cfg.Tokens,
 	})
 
 	personal, err := apiClient.GetOrganizationBySlug(ctx, "personal")
