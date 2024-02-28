@@ -10,7 +10,7 @@ import (
 	"github.com/google/shlex"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -25,10 +25,8 @@ func main() {
 func run() error {
 	var (
 		ctx       = context.TODO()
-		apiClient = fly.NewClientFromOptions(fly.ClientOptions{
+		apiClient = flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
 			AccessToken: os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
-			Name:        buildinfo.Name(),
-			Version:     buildinfo.Version().String(),
 			BaseURL:     "https://api.fly.io",
 			Logger:      logger.FromEnv(iostreams.System().ErrOut),
 		})
