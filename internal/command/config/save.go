@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -99,12 +98,11 @@ func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configP
 	}
 
 	if !flag.GetYes(ctx) {
-		confirm := false
 		fmt.Fprintf(io.Out, "\nSome sections of the config file are not kept remotely, such as the [build] section.\n")
-		prompt := &survey.Confirm{
-			Message: "Would you like to transfer the [build] section from the current config to the new one?",
-		}
-		err := survey.AskOne(prompt, &confirm)
+
+		message := "Would you like to transfer the [build] section from the current config to the new one?"
+
+		confirm, err := prompt.Confirm(ctx, message)
 		if err != nil {
 			return err
 		}

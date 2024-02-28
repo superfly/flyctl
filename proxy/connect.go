@@ -6,9 +6,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/AlecAivazis/survey/v2"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
 )
@@ -136,13 +136,7 @@ func selectInstance(ctx context.Context, org, app string, c *agent.Client) (inst
 	}
 
 	selected := 0
-	prompt := &survey.Select{
-		Message:  "Select instance:",
-		Options:  instances.Labels,
-		PageSize: 15,
-	}
-
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	if err := prompt.Select(ctx, &selected, "Select instance:", "", instances.Labels...); err != nil {
 		return "", fmt.Errorf("selecting instance: %w", err)
 	}
 

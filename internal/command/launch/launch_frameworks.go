@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -101,9 +100,11 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 		} else if secret.Value != "" {
 			val = secret.Value
 		} else {
-			prompt := fmt.Sprintf("Set secret %s:", secret.Key)
-			surveyInput := &survey.Input{Message: prompt, Help: secret.Help}
-			survey.AskOne(surveyInput, &val)
+			message := fmt.Sprintf("Set secret %s:", secret.Key)
+			err = prompt.StringWithHelp(ctx, &val, message, "", secret.Help, false)
+			if err != nil {
+				return err
+			}
 		}
 
 		if val != "" {
