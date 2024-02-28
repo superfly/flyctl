@@ -13,9 +13,9 @@ import (
 	"github.com/spf13/pflag"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
@@ -62,11 +62,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := fly.NewClientFromOptions(fly.ClientOptions{
-		Name:    buildinfo.Name(),
-		Version: buildinfo.Version().String(),
-		Tokens:  cfg.Tokens,
-	})
+	c := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
 	logger.Debug("client initialized.")
 
 	return fly.NewContextWithClient(ctx, c), nil
