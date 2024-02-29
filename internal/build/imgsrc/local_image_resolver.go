@@ -43,20 +43,20 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 	span.SetAttributes(opts.ToSpanAttributes()...)
 
 	build.BuilderInitStart()
-	docker, err := dockerFactory.buildFn(ctx, build)
+	clients, err := dockerFactory.buildFn(ctx, build)
 	build.BuilderInitFinish()
 	if err != nil {
 		build.BuildFinish()
 		return nil, "", err
 	}
-	defer docker.Close() // skipcq: GO-S2307
+	defer clients.wireguardClient.Close() // skipcq: GO-S2307
 
-	serverInfo, err := docker.Info(ctx)
+	serverInfo, err := clients.wireguardClient.Info(ctx)
 	if err != nil {
 		span.AddEvent(fmt.Sprintf("error fetching docker server info:%s", err.Error()))
 		terminal.Debug("error fetching docker server info:", err)
 	} else {
-		buildkitEnabled, err := buildkitEnabled(docker)
+		buildkitEnabled, err := buildkitEnabled(clients.wireguardClient)
 		terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
 		span.SetAttributes(attribute.Bool("docker.buildkit_enabled", buildkitEnabled))
 		if err == nil {
@@ -66,7 +66,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 	fmt.Fprintf(streams.ErrOut, "Searching for image '%s' locally...\n", opts.ImageRef)
 
-	img, err := findImageWithDocker(ctx, docker, opts.ImageRef)
+	img, err := findImageWithDocker(ctx, clients.wireguardClient, opts.ImageRef)
 	if err != nil {
 		build.BuildFinish()
 		tracing.RecordError(span, err, "failed to find image with docker")
@@ -85,18 +85,18 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 	if opts.Publish {
 		build.PushStart()
-		err = docker.ImageTag(ctx, img.ID, opts.Tag)
+		err = clients.wireguardClient.ImageTag(ctx, img.ID, opts.Tag)
 		if err != nil {
 			build.PushFinish()
 			tracing.RecordError(span, err, "failed to tag image")
 			return nil, "", errors.Wrap(err, "error tagging image")
 		}
 
-		defer clearDeploymentTags(ctx, docker, opts.Tag)
+		defer clearDeploymentTags(ctx, clients.wireguardClient, opts.Tag)
 
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, clients.wireguardClient, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
