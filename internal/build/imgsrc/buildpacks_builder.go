@@ -56,27 +56,27 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	span.SetAttributes(attribute.String("builder", builder))
 
 	build.BuilderInitStart()
-	clients, err := dockerFactory.buildFn(ctx, build)
+	docker, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
 		return nil, "", err
 	}
 
-	defer clients.wireguardClient.Close() // skipcq: GO-S2307
-	defer clearDeploymentTags(ctx, clients.wireguardClient, opts.Tag)
+	defer docker.Close() // skipcq: GO-S2307
+	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := packclient.NewClient(packclient.WithDockerClient(clients.wireguardClient), packclient.WithLogger(newPackLogger(streams.Out)))
+	packClient, err := packclient.NewClient(packclient.WithDockerClient(docker), packclient.WithLogger(newPackLogger(streams.Out)))
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to create packet client")
+		tracing.RecordError(span, err, "failed to create packet docker")
 		return nil, "", err
 	}
 	build.BuilderInitFinish()
 
 	build.ImageBuildStart()
-	serverInfo, err := clients.wireguardClient.Info(ctx)
+	serverInfo, err := docker.Info(ctx)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to fetch docker server info")
 		terminal.Debug("error fetching docker server info:", err)
@@ -154,7 +154,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, clients.wireguardClient, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
@@ -163,7 +163,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
-	img, err := findImageWithDocker(ctx, clients.wireguardClient, opts.Tag)
+	img, err := findImageWithDocker(ctx, docker, opts.Tag)
 	if err != nil {
 		return nil, "", err
 	}
