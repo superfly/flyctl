@@ -32,10 +32,15 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+type Client struct {
+	wireguardlessCient *dockerclient.Client
+	wireguardClient    *dockerclient.Client
+}
+
 type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
-	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
+	buildFn   func(ctx context.Context, build *build) (*Client, error)
 	apiClient *fly.Client
 	appName   string
 }
@@ -43,13 +48,13 @@ type dockerClientFactory struct {
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
-		var cachedDocker *dockerclient.Client
+		var cachedClient *Client
 
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
-			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker)
+			buildFn: func(ctx context.Context, build *build) (*Client, error) {
+				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedClient)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -62,9 +67,11 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, 
 		if c != nil && err == nil {
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
-				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+				buildFn: func(ctx context.Context, build *build) (*Client, error) {
 					build.SetBuilderMetaPart1(false, "", "")
-					return c, nil
+					return &Client{
+						wireguardClient: c,
+					}, nil
 				},
 				appName: appName,
 			}
@@ -90,7 +97,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, 
 
 	return &dockerClientFactory{
 		mode: DockerDaemonTypeNone,
-		buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+		buildFn: func(ctx context.Context, build *build) (*Client, error) {
 			return nil, errors.New("no docker daemon available")
 		},
 	}
@@ -184,7 +191,7 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *Client) (c *Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client")
 	defer span.End()
 
@@ -327,7 +334,9 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		}
 	}
 
-	cachedClient = client
+	cachedClient = &Client{
+		wireguardClient: client,
+	}
 	return cachedClient, nil
 }
 
