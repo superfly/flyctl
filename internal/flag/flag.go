@@ -399,6 +399,21 @@ func GetRemoteOnly(ctx context.Context) bool {
 	return GetBool(ctx, remoteOnlyName)
 }
 
+const wireguard = "wg"
+
+// Wireguard returns a boolean flag indicating whether to build over wireguard or not
+func Wireguard() Bool {
+	return Bool{
+		Name:        wireguard,
+		Description: "Determines whether communication with remote builders are conducted over wireguard or plain internet(https)",
+		Default:     true,
+	}
+}
+
+func GetWireguard(ctx context.Context) bool {
+	return GetBool(ctx, wireguard)
+}
+
 const localOnlyName = "local-only"
 
 // RemoteOnly returns a boolean flag for deploying remotely

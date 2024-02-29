@@ -148,15 +148,15 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	span.SetAttributes(attribute.String("relative_dockerfile_path", relDockerfile))
 
 	build.BuilderInitStart()
-	clients, err := dockerFactory.buildFn(ctx, build)
+	docker, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
 		build.BuildFinish()
 		build.BuilderInitFinish()
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
-	defer clients.wireguardClient.Close() // skipcq: GO-S2307
+	defer docker.Close() // skipcq: GO-S2307
 
-	buildkitEnabled, err := buildkitEnabled(clients.wireguardClient)
+	buildkitEnabled, err := buildkitEnabled(docker)
 	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
 	if err != nil {
 		build.BuildFinish()
@@ -173,7 +173,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// run concurrent builds from CI that end up racing with each other
 		// and one of them failing with 404 while calling docker.ImageInspectWithRaw
 		if dockerFactory.IsLocal() {
-			clearDeploymentTags(ctx, clients.wireguardClient, opts.Tag)
+			clearDeploymentTags(ctx, docker, opts.Tag)
 		}
 	}()
 
@@ -212,7 +212,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	serverInfo, err := func() (types.Info, error) {
 		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		return clients.wireguardClient.Info(infoCtx)
+		return docker.Info(infoCtx)
 	}()
 	if err != nil {
 		if dockerFactory.IsRemote() {
@@ -238,7 +238,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, clients.wireguardClient, opts, dockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -249,7 +249,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			return nil, "", errors.Wrap(err, "error building")
 		}
 	} else {
-		imageID, err = runClassicBuild(ctx, streams, clients.wireguardClient, buildContext, opts, relDockerfile, buildArgs)
+		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -268,7 +268,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, clients.wireguardClient, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
@@ -277,7 +277,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		tb.Done("Pushing image done")
 	}
 
-	img, _, err := clients.wireguardClient.ImageInspectWithRaw(ctx, imageID)
+	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
 		return nil, "", errors.Wrap(err, "count not find built image")
 	}
