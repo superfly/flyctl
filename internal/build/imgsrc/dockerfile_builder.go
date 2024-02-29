@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -153,13 +154,13 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	span.SetAttributes(attribute.String("relative_dockerfile_path", relDockerfile))
 
 	build.BuilderInitStart()
-	docker, err := dockerFactory.buildFn(ctx, build)
+	tcpDockerclient, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
 		build.BuildFinish()
 		build.BuilderInitFinish()
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
-	defer docker.Close() // skipcq: GO-S2307
+	defer tcpDockerclient.Close() // skipcq: GO-S2307
 
 	buildkitEnabled, err := buildkitEnabled(httpClient)
 	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
@@ -243,7 +244,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, tcpDockerclient, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -284,12 +285,12 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		tb.Done("Pushing image done")
 	}
 
-	os.Exit(1)
-
-	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
+	img, _, err := httpClient.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
 		return nil, "", errors.Wrap(err, "count not find built image")
 	}
+
+	os.Exit(1)
 
 	di := DeploymentImage{
 		ID:   img.ID,
@@ -402,18 +403,19 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 
 	myc, _ := dockerclient.NewClientWithOpts(
 		dockerclient.WithAPIVersionNegotiation(),
-		// dockerclient.WithHost("tcp://griff-rchab.fly.dev:8080"),
-		dockerclient.WithScheme("https"),
+		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return tls.Dial("tcp", "griff-rchay.fly.dev:443", &tls.Config{})
+		}),
 		dockerclient.WithHTTPHeaders(map[string]string{
-			"Authorization": "Basic " + basicAuth("griff-rchab", config.Tokens(ctx).Docker()),
+			"Authorization": "Basic " + basicAuth("griff-rchay", config.Tokens(ctx).Docker()),
 		}),
 	)
 
 	// Connect to Docker Engine's embedded Buildkit.
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
-		return myc.DialHijack(ctx, "https://griff-rchab.fly.dev:443/grpc", "h2c", map[string][]string{})
+		return myc.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
 	}
-	bc, err := client.New(ctx, "tcp://griff-rchab.fly.dev:8080", client.WithContextDialer(dialer), client.WithFailFast())
+	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
 	if err != nil {
 		return "", err
 	}
