@@ -66,6 +66,7 @@ func InitClient(ctx context.Context) (context.Context, error) {
 		Name:    buildinfo.Name(),
 		Version: buildinfo.Version().String(),
 		Tokens:  cfg.Tokens,
+		Logger:  logger,
 	})
 	logger.Debug("client initialized.")
 
