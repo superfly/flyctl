@@ -12,10 +12,10 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/publicsuffix"
 )
@@ -206,11 +206,9 @@ func runCertificatesRemove(ctx context.Context) error {
 	hostname := flag.FirstArg(ctx)
 
 	if !flag.GetYes(ctx) {
-		confirm := false
-		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Remove certificate %s from app %s?", hostname, appName),
-		}
-		err := survey.AskOne(prompt, &confirm)
+		message := fmt.Sprintf("Remove certificate %s from app %s?", hostname, appName)
+
+		confirm, err := prompt.Confirm(ctx, message)
 		if err != nil {
 			return err
 		}

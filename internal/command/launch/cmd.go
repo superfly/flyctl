@@ -8,13 +8,13 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -185,17 +185,14 @@ func run(ctx context.Context) (err error) {
 	)
 
 	editInUi := false
-	if io.IsInteractive() && !flag.GetBool(ctx, "yes") {
-		prompt := &survey.Confirm{
-			Message: lo.Ternary(
-				incompleteLaunchManifest,
-				"Would you like to continue in the web UI?",
-				"Do you want to tweak these settings before proceeding?",
-			),
-		}
-		err = survey.AskOne(prompt, &editInUi)
-		if err != nil {
-			// TODO(allison): This should probably not just return the error
+	if !flag.GetBool(ctx, "yes") {
+		message := lo.Ternary(
+			incompleteLaunchManifest,
+			"Would you like to continue in the web UI?",
+			"Do you want to tweak these settings before proceeding?",
+		)
+		editInUi, err = prompt.Confirm(ctx, message)
+		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err
 		}
 	}
