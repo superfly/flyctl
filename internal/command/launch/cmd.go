@@ -192,7 +192,7 @@ func run(ctx context.Context) (err error) {
 			"Do you want to tweak these settings before proceeding?",
 		)
 		editInUi, err = prompt.Confirm(ctx, message)
-		if err != nil {
+		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err
 		}
 	}
