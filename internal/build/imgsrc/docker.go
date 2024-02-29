@@ -2,9 +2,11 @@ package imgsrc
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,37 +26,34 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
-
-type Client struct {
-	wireguardlessCient *dockerclient.Client
-	wireguardClient    *dockerclient.Client
-}
 
 type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
-	buildFn   func(ctx context.Context, build *build) (*Client, error)
+	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
 	apiClient *fly.Client
 	appName   string
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, appName string, streams *iostreams.IOStreams) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard bool) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
-		var cachedClient *Client
+		var cachedDocker *dockerclient.Client
 
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
-			buildFn: func(ctx context.Context, build *build) (*Client, error) {
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedClient)
+			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
+				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard)
 			},
 			apiClient: apiClient,
 			appName:   appName,
@@ -67,11 +66,9 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, 
 		if c != nil && err == nil {
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
-				buildFn: func(ctx context.Context, build *build) (*Client, error) {
+				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 					build.SetBuilderMetaPart1(false, "", "")
-					return &Client{
-						wireguardClient: c,
-					}, nil
+					return c, nil
 				},
 				appName: appName,
 			}
@@ -97,7 +94,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, 
 
 	return &dockerClientFactory{
 		mode: DockerDaemonTypeNone,
-		buildFn: func(ctx context.Context, build *build) (*Client, error) {
+		buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 			return nil, errors.New("no docker daemon available")
 		},
 	}
@@ -191,8 +188,10 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *Client) (c *Client, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client")
+func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool) (c *dockerclient.Client, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
+		attribute.Bool("connect_over_wireguard", connectOverWireguard),
+	))
 	defer span.End()
 
 	if cachedClient != nil {
@@ -220,10 +219,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 	remoteBuilderOrg := app.Organization.Slug
 
 	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
-
-	if host != "" {
-		terminal.Debugf("Remote Docker builder host: %s\n", host)
-	}
 
 	if msg := fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName); streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)
@@ -263,6 +258,17 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		}
 	}
 
+	if !connectOverWireguard {
+		oldHost := host
+		host = "https://" + remoteBuilderAppName + ".fly.dev"
+		terminal.Infof("Override builder host with: %s (was %s)\n", host, oldHost)
+
+		span.SetAttributes(
+			attribute.String("builder.old_host", oldHost),
+			attribute.String("builder.host", host),
+		)
+	}
+
 	span.SetAttributes(
 		attribute.String("builder.name", remoteBuilderAppName),
 		attribute.String("builder.id", machine.ID),
@@ -298,7 +304,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		return nil, err
 	}
 
-	client, err := dockerclient.NewClientWithOpts(opts...)
+	wireguardHttpClient, err := dockerclient.NewClientWithOpts(opts...)
 	if err != nil {
 		streams.StopProgressIndicator()
 
@@ -309,7 +315,32 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		return nil, err
 	}
 
-	switch up, err := waitForDaemon(ctx, client); {
+	wglessOpts, err := buildWireguardlessClientOpts(ctx, host, appName)
+	if err != nil {
+		streams.StopProgressIndicator()
+
+		err = fmt.Errorf("failed building wgless options: %w", err)
+		captureError(err)
+		return nil, err
+	}
+
+	wireguardlessHttpsClient, err := dockerclient.NewClientWithOpts(wglessOpts...)
+	if err != nil {
+		streams.StopProgressIndicator()
+
+		err = fmt.Errorf("failed creating wgLessHttpClient: %w", err)
+		captureError(err)
+		tracing.RecordError(span, err, "failed to initialize wgLessHttpClient")
+
+		return nil, err
+	}
+
+	cachedClient = wireguardHttpClient
+	if !connectOverWireguard {
+		cachedClient = wireguardlessHttpsClient
+	}
+
+	switch up, err := waitForDaemon(ctx, cachedClient); {
 	case err != nil:
 		streams.StopProgressIndicator()
 
@@ -334,10 +365,35 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		}
 	}
 
-	cachedClient = &Client{
-		wireguardClient: client,
-	}
 	return cachedClient, nil
+}
+
+func basicAuth(username, password string) string {
+	auth := username + ":" + password
+	return base64.StdEncoding.EncodeToString([]byte(auth))
+}
+
+func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]dockerclient.Opt, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "build_wgless_client_ops")
+	defer span.End()
+
+	parsedHostUrl, err := dockerclient.ParseHostURL(host)
+	if err != nil {
+		return []dockerclient.Opt{}, fmt.Errorf("failed to parse host: %w", err)
+	}
+
+	opts := []dockerclient.Opt{
+		dockerclient.WithAPIVersionNegotiation(),
+		dockerclient.WithHTTPHeaders(map[string]string{
+			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
+		}),
+		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return tls.Dial("tcp", parsedHostUrl.Host+":443", &tls.Config{})
+		}),
+	}
+
+	return opts, nil
+
 }
 
 func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, host string) (opts []dockerclient.Opt, err error) {
