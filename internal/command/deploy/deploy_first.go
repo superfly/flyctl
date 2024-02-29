@@ -148,7 +148,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)
 			if err != nil {
-				return fmt.Errorf("failed creating volume: %w", err)
+				return err
 			}
 
 			md.volumes[m.Source] = append(md.volumes[m.Source], *vol)

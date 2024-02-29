@@ -146,7 +146,7 @@ func runCreate(ctx context.Context) error {
 	for i := 0; i < count; i++ {
 		volume, err := flapsClient.CreateVolume(ctx, input)
 		if err != nil {
-			return fmt.Errorf("failed creating volume: %w", err)
+			return err
 		}
 
 		if cfg.JSONOutput {
