@@ -507,18 +507,45 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "destroy_blue_machines")
 	defer span.End()
 
-	for _, gm := range bg.blueMachines {
-		if bg.isAborted() {
-			return ErrAborted
-		}
-		err := gm.leasableMachine.Destroy(ctx, true)
-		if err != nil {
-			bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
-			continue
-		}
+	const parallelism = 8
 
-		fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+	ch := make(chan *machineUpdateEntry, len(bg.blueMachines))
+	for _, gm := range bg.blueMachines {
+		ch <- gm
 	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	for i := 0; i < parallelism; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for gm := range ch {
+				if bg.isAborted() {
+					return
+				}
+
+				err := gm.leasableMachine.Destroy(ctx, true)
+				if err != nil {
+					mu.Lock()
+					bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
+					mu.Unlock()
+					continue
+				}
+
+				mu.Lock()
+				fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+				mu.Unlock()
+			}
+		}()
+	}
+
+	wg.Wait()
+	if bg.isAborted() {
+		return ErrAborted
+	}
+
 	return nil
 }
 
