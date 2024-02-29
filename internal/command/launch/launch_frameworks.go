@@ -2,7 +2,6 @@ package launch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -102,15 +101,8 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 			val = secret.Value
 		default:
 			message := fmt.Sprintf("Set secret %s:", secret.Key)
-			err = prompt.StringWithHelp(ctx, &val, message, "", secret.Help, false)
-			switch {
-			case errors.Is(err, prompt.ErrNonInteractive):
-				// do nothing
-			case err != nil:
-				return err
-			default:
-				// do nothing
-			}
+			_ = prompt.StringWithHelp(ctx, &val, message, "", secret.Help, false) // ignore error for now
+
 		}
 		if val != "" {
 			secrets[secret.Key] = val
