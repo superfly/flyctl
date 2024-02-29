@@ -112,15 +112,15 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	}
 
 	build.BuilderInitStart()
-	clients, err := dockerFactory.buildFn(ctx, build)
+	client, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
 		return nil, "", err
 	}
-	defer clients.wireguardClient.Close() // skipcq: GO-S2307
+	defer client.Close() // skipcq: GO-S2307
 
-	dockerHost := clients.wireguardClient.DaemonHost()
+	dockerHost := client.DaemonHost()
 
 	if dockerFactory.IsRemote() {
 		agentclient, err := agent.Establish(ctx, dockerFactory.apiClient)
@@ -192,7 +192,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	defer clearDeploymentTags(ctx, clients.wireguardClient, opts.Tag)
+	defer clearDeploymentTags(ctx, client, opts.Tag)
 	build.BuilderInitFinish()
 
 	build.ImageBuildStart()
@@ -223,13 +223,13 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	build.BuildFinish()
 
 	build.PushStart()
-	if err := pushToFly(ctx, clients.wireguardClient, streams, opts.Tag); err != nil {
+	if err := pushToFly(ctx, client, streams, opts.Tag); err != nil {
 		build.PushFinish()
 		return nil, "", err
 	}
 	build.PushFinish()
 
-	img, err := findImageWithDocker(ctx, clients.wireguardClient, opts.Tag)
+	img, err := findImageWithDocker(ctx, client, opts.Tag)
 	if err != nil {
 		return nil, "", err
 	}

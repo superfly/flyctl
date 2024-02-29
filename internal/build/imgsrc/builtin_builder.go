@@ -48,16 +48,16 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	}
 
 	build.BuilderInitStart()
-	clients, err := dockerFactory.buildFn(ctx, build)
+	client, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
-	defer clients.wireguardClient.Close() // skipcq: GO-S2307
+	defer client.Close() // skipcq: GO-S2307
 
 	build.BuilderInitFinish()
-	defer clearDeploymentTags(ctx, clients.wireguardClient, opts.Tag)
+	defer clearDeploymentTags(ctx, client, opts.Tag)
 
 	build.ContextBuildStart()
 	cmdfmt.PrintBegin(streams.ErrOut, "Creating build context")
@@ -90,7 +90,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 	build.ImageBuildStart()
 	var imageID string
 
-	serverInfo, err := clients.wireguardClient.Info(ctx)
+	serverInfo, err := client.Info(ctx)
 	if err != nil {
 		terminal.Debug("error fetching docker server info:", err)
 	} else {
@@ -108,7 +108,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
-	imageID, err = runClassicBuild(ctx, streams, clients.wireguardClient, r, opts, "", buildArgs)
+	imageID, err = runClassicBuild(ctx, streams, client, r, opts, "", buildArgs)
 	if err != nil {
 		if dockerFactory.IsRemote() {
 			metrics.SendNoData(ctx, "remote_builder_failure")
@@ -126,7 +126,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, clients.wireguardClient, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, client, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
@@ -135,7 +135,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		cmdfmt.PrintDone(streams.ErrOut, "Pushing image done")
 	}
 
-	img, _, err := clients.wireguardClient.ImageInspectWithRaw(ctx, imageID)
+	img, _, err := client.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
 		return nil, "", errors.Wrap(err, "count not find built image")
 	}
