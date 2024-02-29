@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -92,20 +91,19 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 
 	for _, secret := range state.sourceInfo.Secrets {
 		val := ""
-		// If a secret should be a random default, just generate it without displaying
-		// Otherwise, prompt to type it in
-		if secret.Generate != nil {
+
+		switch {
+		case secret.Generate != nil:
 			if val, err = secret.Generate(); err != nil {
 				return fmt.Errorf("could not generate random string: %w", err)
 			}
-		} else if secret.Value != "" {
+		case secret.Value != "":
 			val = secret.Value
-		} else {
-			prompt := fmt.Sprintf("Set secret %s:", secret.Key)
-			surveyInput := &survey.Input{Message: prompt, Help: secret.Help}
-			survey.AskOne(surveyInput, &val)
-		}
+		default:
+			message := fmt.Sprintf("Set secret %s:", secret.Key)
+			_ = prompt.StringWithHelp(ctx, &val, message, "", secret.Help, false) // ignore error for now
 
+		}
 		if val != "" {
 			secrets[secret.Key] = val
 		}
