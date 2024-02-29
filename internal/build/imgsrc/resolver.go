@@ -642,13 +642,13 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		tracing.RecordError(span, err, "failed to get http request")
 		return nil, nil
 	}
-	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.Tokens(ctx).Docker())
+	heartbeatReq.SetBasicAuth("griff-rchay", config.Tokens(ctx).Docker())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = heartbeat(ctx, dockerClient, heartbeatReq)
+	err = heartbeat(ctx, httpClient, heartbeatReq)
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
@@ -695,7 +695,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 				return
 			case <-pulse.C:
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
-				err := heartbeat(ctx, dockerClient, heartbeatReq)
+				err := heartbeat(ctx, httpClient, heartbeatReq)
 				if err != nil {
 					terminal.Debugf("Remote builder heartbeat pulse failed: %v\n", err)
 				}
@@ -713,8 +713,8 @@ func getHeartbeatUrl(dockerClient *dockerclient.Client) (string, error) {
 	}
 	hostPort := parsed.Host
 	host, _, _ := net.SplitHostPort(hostPort)
-	parsed.Host = host + ":8080"
-	parsed.Scheme = "http"
+	parsed.Host = host
+	parsed.Scheme = "https"
 	parsed.Path = "/flyio/v1/extendDeadline"
 	return parsed.String(), nil
 }

@@ -2,6 +2,7 @@ package imgsrc
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
@@ -32,6 +34,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
+)
+
+var (
+	httpClient *dockerclient.Client
 )
 
 type dockerfileBuilder struct{}
@@ -148,15 +154,15 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	span.SetAttributes(attribute.String("relative_dockerfile_path", relDockerfile))
 
 	build.BuilderInitStart()
-	docker, err := dockerFactory.buildFn(ctx, build)
+	tcpDockerclient, err := dockerFactory.buildFn(ctx, build)
 	if err != nil {
 		build.BuildFinish()
 		build.BuilderInitFinish()
 		return nil, "", errors.Wrap(err, "error connecting to docker")
 	}
-	defer docker.Close() // skipcq: GO-S2307
+	defer tcpDockerclient.Close() // skipcq: GO-S2307
 
-	buildkitEnabled, err := buildkitEnabled(docker)
+	buildkitEnabled, err := buildkitEnabled(httpClient)
 	terminal.Debugf("buildkitEnabled %v", buildkitEnabled)
 	if err != nil {
 		build.BuildFinish()
@@ -173,7 +179,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		// run concurrent builds from CI that end up racing with each other
 		// and one of them failing with 404 while calling docker.ImageInspectWithRaw
 		if dockerFactory.IsLocal() {
-			clearDeploymentTags(ctx, docker, opts.Tag)
+			clearDeploymentTags(ctx, httpClient, opts.Tag)
 		}
 	}()
 
@@ -210,9 +216,9 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ImageBuildStart()
 	terminal.Debug("fetching docker server info")
 	serverInfo, err := func() (types.Info, error) {
-		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		infoCtx, cancel := context.WithDeadline(ctx, time.Now().Add(time.Second*2))
 		defer cancel()
-		return docker.Info(infoCtx)
+		return httpClient.Info(infoCtx)
 	}()
 	if err != nil {
 		if dockerFactory.IsRemote() {
@@ -238,7 +244,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, tcpDockerclient, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -249,7 +255,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			return nil, "", errors.Wrap(err, "error building")
 		}
 	} else {
-		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
+		imageID, err = runClassicBuild(ctx, streams, httpClient, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -265,10 +271,12 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.BuildFinish()
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
+	// opts.Publish = false
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		// fmt.Println(opts.Tag, "taggy")
+		if err := pushToFly(ctx, httpClient, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
@@ -277,10 +285,12 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		tb.Done("Pushing image done")
 	}
 
-	img, _, err := docker.ImageInspectWithRaw(ctx, imageID)
+	img, _, err := httpClient.ImageInspectWithRaw(ctx, imageID)
 	if err != nil {
 		return nil, "", errors.Wrap(err, "count not find built image")
 	}
+
+	os.Exit(1)
 
 	di := DeploymentImage{
 		ID:   img.ID,
@@ -391,9 +401,19 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	)
 	defer span.End()
 
+	myc, _ := dockerclient.NewClientWithOpts(
+		dockerclient.WithAPIVersionNegotiation(),
+		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return tls.Dial("tcp", "griff-rchay.fly.dev:443", &tls.Config{})
+		}),
+		dockerclient.WithHTTPHeaders(map[string]string{
+			"Authorization": "Basic " + basicAuth("griff-rchay", config.Tokens(ctx).Docker()),
+		}),
+	)
+
 	// Connect to Docker Engine's embedded Buildkit.
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
-		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
+		return myc.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
 	}
 	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
 	if err != nil {
@@ -460,30 +480,39 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 		}
 	}()
 
-	metrics.Started(ctx, "image_push")
-	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
+	pushFn := func() error {
+		pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
+			RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
+		})
 
-	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
-	})
-	metrics.Status(ctx, "image_push", err == nil)
-
-	if err != nil {
-		return errors.Wrap(err, "error pushing image to registry")
-	}
-	defer pushResp.Close() // skipcq: GO-S2307
-	sendImgPushMetrics()
-
-	err = jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil)
-	if err != nil {
-		var msgerr *jsonmessage.JSONError
-
-		if errors.As(err, &msgerr) {
-			if msgerr.Message == "denied: requested access to the resource is denied" {
-				return &RegistryUnauthorizedError{Tag: tag}
-			}
+		if err != nil {
+			return errors.Wrap(err, "error pushing image to registry")
 		}
-		return errors.Wrap(err, "error rendering push status stream")
+
+		if err := jsonmessage.DisplayJSONMessagesStream(pushResp, streams.ErrOut, streams.StderrFd(), streams.IsStderrTTY(), nil); err != nil {
+			return errors.Wrap(err, "error rendering push status stream")
+		}
+
+		pushResp.Close()
+		return nil
+	}
+
+	err = retry.Do(pushFn,
+		retry.Context(ctx),
+		retry.Attempts(1),
+		retry.Delay(3*time.Second),
+		retry.DelayType(retry.FixedDelay),
+		retry.OnRetry(func(n uint, err error) {
+			terminal.Infof("retrying push because of err=%s", err.Error())
+		}),
+	)
+
+	var msgerr *jsonmessage.JSONError
+
+	if errors.As(err, &msgerr) {
+		if msgerr.Message == "denied: requested access to the resource is denied" {
+			return &RegistryUnauthorizedError{Tag: tag}
+		}
 	}
 
 	return nil
