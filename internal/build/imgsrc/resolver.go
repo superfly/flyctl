@@ -728,9 +728,9 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient *fly.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient *fly.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard bool) *Resolver {
 	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams),
+		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard),
 		apiClient:     apiClient,
 	}
 }
