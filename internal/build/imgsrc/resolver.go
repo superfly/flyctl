@@ -623,12 +623,12 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	}
 
 	errMsg := "Failed to start remote builder heartbeat: %v\n"
-	dockerClient, err := r.dockerFactory.buildFn(ctx, nil)
+	docker, err := r.dockerFactory.buildFn(ctx, nil)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
 		return nil, nil
 	}
-	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
+	heartbeatUrl, err := getHeartbeatUrl(docker)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
 		tracing.RecordError(span, err, "failed to get heartbeaturl")
@@ -648,7 +648,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = heartbeat(ctx, dockerClient, heartbeatReq)
+	err = heartbeat(ctx, docker, heartbeatReq)
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
@@ -663,7 +663,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	}
 
 	span.AddEvent("sending second heartbeat")
-	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
+	resp, err := docker.HTTPClient().Do(heartbeatReq)
 	if err != nil {
 		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
@@ -682,7 +682,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	time.AfterFunc(maxTime, func() { done.Stop() })
 
 	go func() {
-		defer dockerClient.Close() // skipcq: GO-S2307
+		defer docker.Close() // skipcq: GO-S2307
 		pulse := time.NewTicker(pulseInterval)
 		defer pulse.Stop()
 		defer done.Stop()
@@ -695,7 +695,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 				return
 			case <-pulse.C:
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
-				err := heartbeat(ctx, dockerClient, heartbeatReq)
+				err := heartbeat(ctx, docker, heartbeatReq)
 				if err != nil {
 					terminal.Debugf("Remote builder heartbeat pulse failed: %v\n", err)
 				}
@@ -728,9 +728,9 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient *fly.Client, appName string, iostreams *iostreams.IOStreams) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient *fly.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard bool) *Resolver {
 	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams),
+		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard),
 		apiClient:     apiClient,
 	}
 }
