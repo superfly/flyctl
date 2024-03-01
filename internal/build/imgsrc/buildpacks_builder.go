@@ -70,7 +70,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
-		tracing.RecordError(span, err, "failed to create packet client")
+		tracing.RecordError(span, err, "failed to create packet docker")
 		return nil, "", err
 	}
 	build.BuilderInitFinish()
