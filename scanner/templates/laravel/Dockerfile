@@ -40,6 +40,11 @@ RUN if grep -Fq "laravel/octane" /var/www/html/composer.json; then \
         ln -sf /etc/nginx/sites-available/default-octane /etc/nginx/sites-enabled/default; \
     fi
 
+# If we're using Filament...
+RUN if grep -Fq "filament/filament" /var/www/html/composer.json; then \
+        php artisan icons:cache && php artisan filament:cache-components; \
+    fi
+    
 # Multi-stage build: Build static assets
 # This allows us to not include Node within the final container
 FROM node:${NODE_VERSION} as node_modules_go_brrr
