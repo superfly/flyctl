@@ -13,6 +13,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/go-multierror"
 	"github.com/pkg/errors"
+	"github.com/sourcegraph/conc/pool"
 	"go.opentelemetry.io/otel/attribute"
 
 	fly "github.com/superfly/fly-go"
@@ -507,18 +508,37 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "destroy_blue_machines")
 	defer span.End()
 
-	for _, gm := range bg.blueMachines {
-		if bg.isAborted() {
-			return ErrAborted
-		}
-		err := gm.leasableMachine.Destroy(ctx, true)
-		if err != nil {
-			bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
-			continue
-		}
+	p := pool.New().
+		WithErrors().
+		WithFirstError().
+		WithMaxGoroutines(16)
 
-		fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+	var mu sync.Mutex
+	for _, gm := range bg.blueMachines {
+		p.Go(func() error {
+			if bg.isAborted() {
+				return ErrAborted
+			}
+
+			err := gm.leasableMachine.Destroy(ctx, true)
+
+			mu.Lock()
+			defer mu.Unlock()
+
+			if err != nil {
+				bg.hangingBlueMachines = append(bg.hangingBlueMachines, gm.launchInput.ID)
+				return nil
+			}
+
+			fmt.Fprintf(bg.io.ErrOut, "  Machine %s destroyed\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+			return nil
+		})
 	}
+
+	if err := p.Wait(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
