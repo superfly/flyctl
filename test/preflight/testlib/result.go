@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+// FlyctlResult is the result of running a flyctl command
 type FlyctlResult struct {
 	t                     testingTWrapper
 	argsStr               string

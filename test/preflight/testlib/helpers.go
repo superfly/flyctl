@@ -96,7 +96,7 @@ func socketSafeTempDir(t testing.TB) string {
 	return shorterTempDir
 }
 
-func tryToStopAgentsInOriginalHomeDir(t testing.TB, flyctlBin string) {
+func tryToStopAgentsInOriginalHomeDir(flyctlBin string) {
 	testIostreams, _, _, _ := iostreams.Test()
 	cmd := exec.Command(flyctlBin, "agent", "stop")
 	cmd.Stdin = testIostreams.In
@@ -295,6 +295,7 @@ func writeToml(path string, data map[string]any) error {
 	return nil
 }
 
+// OverwriteConfig overwrites app config fields with the given data.
 func OverwriteConfig(path string, data map[string]any) error {
 	cfg, err := readToml(path)
 	if err != nil {
@@ -318,6 +319,7 @@ func OverwriteConfig(path string, data map[string]any) error {
 
 	cfg["app"] = data["app"]
 	cfg["env"] = cfgEnv
+	cfg["primary_region"] = data["region"]
 
 	err = writeToml(path, cfg)
 	if err != nil {
