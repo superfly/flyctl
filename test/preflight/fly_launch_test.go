@@ -294,7 +294,8 @@ func TestFlyLaunchBasicNodeApp(t *testing.T) {
 	require.NotEmpty(t, appName)
 
 	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
-		"app": appName,
+		"app":    appName,
+		"region": f.PrimaryRegion(),
 		"env": map[string]string{
 			"TEST_ID": f.ID(),
 		},
