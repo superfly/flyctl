@@ -65,7 +65,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		// Provide an extra second to try to update the release status.
 		status = "interrupted"
 		var cancel func()
-		ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel = context.WithTimeout(ctx, time.Second)
 		defer cancel()
 	default:
 		status = "failed"
