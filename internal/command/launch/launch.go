@@ -65,6 +65,11 @@ func (state *launchState) Launch(ctx context.Context) error {
 		state.appConfig.SetInternalPort(n)
 	}
 
+	// Sentry
+	if err = state.launchSentry(ctx, app.Name); err != nil {
+		return err
+	}
+
 	// Finally write application configuration to fly.toml
 	state.appConfig.SetConfigFilePath(state.configPath)
 	if err := state.appConfig.WriteToDisk(ctx, state.configPath); err != nil {
