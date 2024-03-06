@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/samber/lo"
@@ -18,6 +19,7 @@ type launchPlanSource struct {
 	computeSource  string
 	postgresSource string
 	redisSource    string
+	sentrySource   string
 }
 
 type LaunchManifest struct {
@@ -120,6 +122,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"App Machines", guestStr, state.PlanSource.computeSource},
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
+		{"Sentry", strconv.FormatBool(state.Plan.Sentry), state.PlanSource.sentrySource},
 	}
 
 	for _, row := range rows {
