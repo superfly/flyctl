@@ -289,5 +289,9 @@ func (c *Config) toMachineGuest() (*fly.MachineGuest, error) {
 		}
 	}
 
+	if c.Experimental != nil {
+		guest.KernelArgs = c.Experimental.KernelArgs
+	}
+
 	return guest, nil
 }

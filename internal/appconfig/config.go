@@ -27,7 +27,7 @@ func NewConfig() *Config {
 }
 
 // Config wraps the properties of app configuration.
-// NOTE: If you any new setting here, please also add a value for it at testdata/rull-reference.toml
+// NOTE: If you any new setting here, please also add a value for it at testdata/full-reference.toml
 type Config struct {
 	AppName        string        `toml:"app,omitempty" json:"app,omitempty"`
 	PrimaryRegion  string        `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
@@ -147,6 +147,7 @@ type Experimental struct {
 	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
 	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	KernelArgs   []string `toml:"kernel_args,omitempty" json:"kernel_args,omitempty"`
 }
 
 type Compute struct {

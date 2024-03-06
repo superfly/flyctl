@@ -13,6 +13,7 @@ host_dedication_id = "06031957"
   auto_rollback = true
   enable_consul = true
   enable_etcd = true
+  kernel_args = ["LOG_FILTER=debug"]
 
 [build]
   builder = "dockerfile"
