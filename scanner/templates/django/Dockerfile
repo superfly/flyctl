@@ -47,8 +47,14 @@ RUN python manage.py collectstatic --noinput
 {{ end }}
 EXPOSE 8000
 
-{{ if .wsgiFound -}}
+{{ if and .wsgiFound .hasGunicorn -}}
 CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "{{ .wsgiName }}.wsgi"]
+{{ else if and .asgiFound .hasDaphne -}}
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "{{ .asgiName }}.asgi:application"]
+{{ else if .wsgiFound -}}
+CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "{{ .wsgiName }}.wsgi"]
+{{ else if .asgiFound -}}
+CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "{{ .asgiName }}.asgi:application"]
 {{ else -}}
 # TODO: replace demo.wsgi with <project_name>.wsgi
 CMD ["gunicorn", "--bind", ":8000", "--workers", "2", "demo.wsgi"]
