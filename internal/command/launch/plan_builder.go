@@ -187,6 +187,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		computeSource:  computeExplanation,
 		postgresSource: "not requested",
 		redisSource:    "not requested",
+		sentrySource:   "not requested",
 	}
 
 	buildCache := &planBuildCache{
