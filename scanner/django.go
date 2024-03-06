@@ -134,6 +134,18 @@ This module is used on Dockerfile to start the Gunicorn server process.
 		}
 	}
 
+	if checksPass(sourceDir, dirContains("requirements.txt", "gunicorn")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "gunicorn")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "gunicorn")) {
+		vars["hasGunicorn"] = true
+	}
+
+	if checksPass(sourceDir, dirContains("requirements.txt", "daphne")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "daphne")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "daphne")) {
+		vars["hasDaphne"] = true
+	}
+
 	asgiFiles, err := zglob.Glob(`./**/asgi.py`)
 
 	if err == nil && len(asgiFiles) > 0 {
@@ -161,7 +173,7 @@ This module is used on Dockerfile to start the Gunicorn server process.
 Multiple asgi.py files were found in your Django application:
 [%s]
 Before proceeding, make sure '%s' is the module containing a ASGI application object named 'application'. If not, update your Dockefile.
-This module is used on Dockerfile to start the Gunicorn server process.
+This module is used on Dockerfile to start the Daphne server process.
 `, strings.Join(asgiFilesProject, ", "), dirPath)
 			}
 		}
