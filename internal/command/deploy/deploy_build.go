@@ -65,7 +65,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		terminal.Warnf("%s\n", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
+	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, flag.GetWireguard(ctx))
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {

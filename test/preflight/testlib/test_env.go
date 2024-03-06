@@ -126,7 +126,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 			flyctlBin = "fly"
 		}
 	}
-	tryToStopAgentsInOriginalHomeDir(t, flyctlBin)
+	tryToStopAgentsInOriginalHomeDir(flyctlBin)
 	// tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
 	cfg.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
 	if cfg.logLevel != "" {
@@ -178,14 +178,17 @@ type testingTWrapper interface {
 	TempDir() string
 }
 
+// Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
+// FlyAllowExitFailure runs a flyctl command and returns the result, but does not fail the test if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
 
+// FlyC runs a flyctl command with a context and returns the result
 func (f *FlyctlTestEnv) FlyC(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
 }
@@ -328,6 +331,7 @@ func (f *FlyctlTestEnv) ReadFile(path string) string {
 	return string(content)
 }
 
+// WriteFlyToml writes a fly.toml file with the given format and values
 func (f *FlyctlTestEnv) WriteFlyToml(format string, vals ...any) {
 	f.WriteFile("fly.toml", format, vals...)
 }
