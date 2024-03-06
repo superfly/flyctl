@@ -34,6 +34,7 @@ var CommonFlags = flag.Set{
 	flag.RemoteOnly(false),
 	flag.LocalOnly(),
 	flag.Push(),
+	flag.Wireguard(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
