@@ -33,6 +33,7 @@ type ExtensionParams struct {
 	AppName      string
 	Organization *fly.Organization
 	Provider     string
+	PlanID       string
 	Options      map[string]interface{}
 }
 
@@ -112,6 +113,10 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		Name:           name,
 		AppId:          targetApp.Id,
 		Type:           gql.AddOnType(provider.Name),
+	}
+
+	if params.PlanID != "" {
+		input.PlanId = params.PlanID
 	}
 
 	var inExcludedRegion bool
