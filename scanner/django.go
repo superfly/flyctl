@@ -134,6 +134,51 @@ This module is used on Dockerfile to start the Gunicorn server process.
 		}
 	}
 
+	if checksPass(sourceDir, dirContains("requirements.txt", "gunicorn")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "gunicorn")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "gunicorn")) {
+		vars["hasGunicorn"] = true
+	}
+
+	if checksPass(sourceDir, dirContains("requirements.txt", "daphne")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "daphne")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "daphne")) {
+		vars["hasDaphne"] = true
+	}
+
+	asgiFiles, err := zglob.Glob(`./**/asgi.py`)
+
+	if err == nil && len(asgiFiles) > 0 {
+		var asgiFilesProject []string
+		for _, asgiPath := range asgiFiles {
+			// When using a virtual environment to manage the dependencies (e.g. venv),
+			// the 'site-packages/' folder is created within the virtual environment
+			// folder. This folder contains all the (dependencies) packages installed
+			// within the virtual environment.
+			// Exclude dependencies matches that contain 'site-packages'.
+			if !strings.Contains(asgiPath, "site-packages") {
+				asgiFilesProject = append(asgiFilesProject, asgiPath)
+			}
+		}
+
+		if len(asgiFilesProject) > 0 {
+			asgiFilesLen := len(asgiFilesProject)
+			dirPath, _ := path.Split(asgiFilesProject[asgiFilesLen-1])
+			dirName := path.Base(dirPath)
+			vars["asgiName"] = dirName
+			vars["asgiFound"] = true
+			if asgiFilesLen > 1 {
+				// Warning: multiple asgi.py files found.
+				s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
+Multiple asgi.py files were found in your Django application:
+[%s]
+Before proceeding, make sure '%s' is the module containing a ASGI application object named 'application'. If not, update your Dockefile.
+This module is used on Dockerfile to start the Daphne server process.
+`, strings.Join(asgiFilesProject, ", "), dirPath)
+			}
+		}
+	}
+
 	// check if settings.py file exists
 	allSettingsFiles, err := zglob.Glob(`./**/settings.py`)
 
