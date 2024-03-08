@@ -24,6 +24,7 @@ func create() (cmd *cobra.Command) {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Org(),
+		flag.Region(),
 		extensions_core.SharedFlags,
 		SharedFlags,
 		flag.String{
@@ -53,7 +54,7 @@ func runCreate(ctx context.Context) (err error) {
 	var options gql.AddOnOptions
 
 	params.Options = options
-
+	params.PlanID = "AP2kg5qPx3ggOIoRp2BMKwp" // PAYG is the only plan for now
 	params.Provider = "upstash_kafka"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 	if err != nil {
