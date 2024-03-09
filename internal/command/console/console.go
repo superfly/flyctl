@@ -42,6 +42,7 @@ func New() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
+		flag.Wireguard(),
 		flag.String{
 			Name:        "machine",
 			Description: "Run the console in the existing machine with the specified ID",
