@@ -224,6 +224,7 @@ func newRun() *cobra.Command {
 		cmd,
 		runOrCreateFlags,
 		sharedFlags,
+		flag.Wireguard(),
 		flag.String{
 			Name:        "user",
 			Description: "Used with --shell. The username, if we're shelling into the Machine now.",
