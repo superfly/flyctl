@@ -51,7 +51,7 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 	var index int
 	var options []string
 
-	result, err := gql.ListAddOns(ctx, client.GenqClient, "redis")
+	result, err := gql.ListAddOns(ctx, client.GenqClient, "upstash_redis")
 	if err != nil {
 		return nil, "", err
 	}
