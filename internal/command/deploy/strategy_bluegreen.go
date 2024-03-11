@@ -602,12 +602,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrOrgLimit
 	}
 
-	fmt.Fprintf(bg.io.ErrOut, "\nCleanup Previous Deployment\n")
+	/*
+		fmt.Fprintf(bg.io.ErrOut, "\nCleanup Previous Deployment\n")
 
-	err = bg.DeleteZombiesFromPreviousDeployment(ctx)
-	if err != nil {
-		return err
-	}
+		err = bg.DeleteZombiesFromPreviousDeployment(ctx)
+		if err != nil {
+			return err
+		}
+	*/
 
 	bg.attachCustomTopLevelChecks()
 
@@ -734,7 +736,7 @@ func getZombies(ids map[string]bool) (map[string]bool, error) {
 
 	sort.Ints(numbers)
 
-	delete(ids, fmt.Sprint(numbers[0]))
+	delete(ids, fmt.Sprint(numbers[len(numbers)-1]))
 	return ids, nil
 }
 
