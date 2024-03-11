@@ -42,11 +42,12 @@ func runList(ctx context.Context) (err error) {
 		rows = append(rows, []string{
 			extension.Name,
 			extension.Organization.Slug,
+			extension.PrimaryRegion,
 		})
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	_ = render.Table(out, "", rows, "Name", "Org")
+	_ = render.Table(out, "", rows, "Name", "Org", "Region")
 
 	return nil
 }

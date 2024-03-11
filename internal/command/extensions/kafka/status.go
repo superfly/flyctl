@@ -2,7 +2,6 @@ package kafka
 
 import (
 	"context"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
@@ -48,44 +47,11 @@ func runStatus(ctx context.Context) (err error) {
 		{
 			extension.Name,
 			extension.Status,
+			extension.PrimaryRegion,
 		},
 	}
 
-	var cols []string = []string{"Name", "Status"}
-
-	options, _ := extension.Options.(map[string]interface{})
-	optionKeys := []string{}
-	for _, key := range optionKeys {
-		value := "False"
-		keys := strings.Split(key, ".")
-		var opt interface{}
-		var ok bool
-
-		if len(keys) > 1 {
-			nestedMap, exists := options[keys[0]].(map[string]interface{})
-			if exists {
-				opt, ok = nestedMap[keys[1]]
-			} else {
-				break
-			}
-		} else {
-			opt, ok = options[key]
-		}
-
-		if ok {
-			switch v := opt.(type) {
-			case bool:
-				if v {
-					value = "True"
-				}
-			case string:
-				value = v
-			}
-		}
-		obj[0] = append(obj[0], value)
-		colName := strings.Title(strings.Replace(strings.Join(keys, " "), "_", " ", -1))
-		cols = append(cols, colName)
-	}
+	var cols []string = []string{"Name", "Status", "Region"}
 
 	if app != nil {
 		obj[0] = append(obj[0], app.Name)
