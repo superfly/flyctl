@@ -722,27 +722,6 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	return nil
 }
 
-func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
-	defer span.End()
-
-	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
-		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
-		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
-		return nil
-	}
-
-	for _, mach := range bg.greenMachines.machines() {
-		err := mach.Destroy(ctx, true)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to destroy green machine")
-			return err
-		}
-	}
-
-	return nil
-}
-
 func getZombies(ids map[string]bool) (map[string]bool, error) {
 	numbers := []int{}
 	for str := range ids {
