@@ -76,6 +76,7 @@ jobs:
         with:
           name: checksums
           path: dist/checksums.txt
+          overwrite: true
 
   sync_docs:
     needs: release

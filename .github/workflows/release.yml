@@ -49,6 +49,7 @@ jobs:
           name: build-artifacts
           path: |
             release.json
+          overwrite: true
 
   build:
     needs: meta
@@ -116,6 +117,7 @@ jobs:
             dist/**/*.zip
             dist/**/*.tar.gz
           retention-days: 1
+          overwrite: true
       - name: Upload to flypkgs
         env:
           FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
