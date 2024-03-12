@@ -131,5 +131,6 @@ func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region s
 		RequireUniqueZone:   fly.Pointer(false),
 		SnapshotID:          d.snapshotID,
 		ComputeRequirements: mConfig.Guest,
+		ComputeImage:        mConfig.Image,
 	}
 }
