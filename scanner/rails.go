@@ -86,10 +86,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// mysql
 		s.DatabaseDesired = DatabaseKindMySQL
 		s.SkipDatabase = false
-	} else {
+	} else if !checksPass(sourceDir, fileExists("Dockerfile")) || checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
 		// postgresql
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
+	} else {
+		// sqlite
+		s.DatabaseDesired = DatabaseKindSqlite
+		s.SkipDatabase = true
 	}
 
 	// enable redis if there are any action cable / anycable channels
