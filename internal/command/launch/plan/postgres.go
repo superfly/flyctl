@@ -61,3 +61,17 @@ type SupabasePostgresPlan struct {
 	DbName string `json:"db_name"`
 	Region string `json:"region"`
 }
+
+func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
+	if p.DbName == "" {
+		return plan.AppName + "-db"
+	}
+	return p.DbName
+}
+
+func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
+	if p.Region == "" {
+		return plan.RegionCode
+	}
+	return p.Region
+}

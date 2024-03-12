@@ -105,7 +105,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	postgresStr, err := describePostgresPlan(ctx, state.Plan.Postgres, org)
+	postgresStr, err := describePostgresPlan(state.Plan)
 	if err != nil {
 		return "", err
 	}
