@@ -50,6 +50,7 @@ type ImageOptions struct {
 	Label                map[string]string
 	BuildpacksDockerHost string
 	BuildpacksVolumes    []string
+	UseOverlaybd         bool
 }
 
 func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
