@@ -250,7 +250,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		// "touch" fly.toml
 		file, err := os.Create(flyToml)
 		if err != nil {
-			log.Fatal(err)
+			log.Panic(err)
 		}
 		file.Close()
 
