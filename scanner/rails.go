@@ -3,7 +3,6 @@ package scanner
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -203,8 +202,8 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 				file, err := os.CreateTemp(match[1], ".flyctl.probe")
 				if err == nil {
 					writable = true
+					file.Close()
 					defer os.Remove(file.Name())
-					defer file.Close()
 				}
 			}
 		}
@@ -250,7 +249,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		// "touch" fly.toml
 		file, err := os.Create(flyToml)
 		if err != nil {
-			log.Panic(err)
+			return errors.Wrap(err, "Failed to create fly.toml")
 		}
 		file.Close()
 
@@ -286,7 +285,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	}
 
 	// run command
-	fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
+	fmt.Printf("installing: %s\n", strings.Join(args, " "))
 	cmd := exec.Command(ruby, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -317,7 +316,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 
 	// extract workdir
 	workdir := "$"
-	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
+	re = regexp.MustCompile(`(?m).*WORKDIR\s+(?P<dir>/\S+)`)
 	m = re.FindStringSubmatch(string(dockerfile))
 
 	for i, name := range re.SubexpNames() {
