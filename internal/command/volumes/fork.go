@@ -110,6 +110,7 @@ func runFork(ctx context.Context) error {
 
 	region := flag.GetString(ctx, "region")
 
+	var attachedMachineImage string
 	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
 		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
@@ -117,6 +118,7 @@ func runFork(ctx context.Context) error {
 			return err
 		}
 		attachedMachineGuest = m.Config.Guest
+		attachedMachineImage = m.FullImageRef()
 	}
 
 	computeRequirements, err := flag.GetMachineGuest(ctx, attachedMachineGuest)
@@ -130,6 +132,7 @@ func runFork(ctx context.Context) error {
 		RequireUniqueZone:   requireUniqueZone,
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
+		ComputeImage:        attachedMachineImage,
 		Region:              region,
 	}
 
