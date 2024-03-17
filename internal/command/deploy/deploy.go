@@ -456,7 +456,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		return nil, err
 	}
 
-	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.Strategy != "canary" && cfg.Deploy.MaxUnavailable != nil {
 		if !config.FromContext(ctx).JSONOutput {
 			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
 		}
