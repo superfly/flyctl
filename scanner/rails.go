@@ -3,7 +3,6 @@ package scanner
 import (
 	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -192,27 +191,47 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 
 func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
 	// install dockerfile-rails gem, if not already included
+	writable := false
 	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {
 		panic(err)
 	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
-		cmd := exec.Command(bundle, "add", "dockerfile-rails",
-			"--optimistic", "--group", "development", "--skip-install")
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
+		// check for writable gem installation directory
+		out, err := exec.Command("gem", "environment").Output()
+		if err == nil {
+			regexp := regexp.MustCompile(`INSTALLATION DIRECTORY: (.*)\n`)
+			for _, match := range regexp.FindAllStringSubmatch(string(out), -1) {
+				// Testing to see if a directory is writable is OS dependent, so
+				// we use a brute force method: attempt it and see if it works.
+				file, err := os.CreateTemp(match[1], ".flyctl.probe")
+				if err == nil {
+					writable = true
+					file.Close()
+					defer os.Remove(file.Name())
+				}
+			}
 		}
 
-		cmd = exec.Command(bundle, "install", "--quiet")
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		// install dockerfile-rails gem if the gem installation directory is writable
+		if writable {
+			cmd := exec.Command(bundle, "add", "dockerfile-rails",
+				"--optimistic", "--group", "development", "--skip-install")
+			cmd.Stdin = nil
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
+			}
+
+			cmd = exec.Command(bundle, "install", "--quiet")
+			cmd.Stdin = nil
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
+			}
 		}
 	}
 
@@ -234,7 +253,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		// "touch" fly.toml
 		file, err := os.Create(flyToml)
 		if err != nil {
-			log.Fatal(err)
+			return errors.Wrap(err, "Failed to create fly.toml")
 		}
 		file.Close()
 
@@ -253,6 +272,10 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	_, err = os.Stat("Dockerfile")
 	if !errors.Is(err, fs.ErrNotExist) {
 		args = append(args, "--skip")
+
+		if !writable {
+			return errors.Wrap(err, "No Dockerfile found and unable to install dockerfile-rails gem")
+		}
 	}
 
 	// add postgres
@@ -266,7 +289,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	}
 
 	// run command
-	fmt.Printf("installing: %s\n", strings.Join(args[:], " "))
+	fmt.Printf("installing: %s\n", strings.Join(args, " "))
 	cmd := exec.Command(ruby, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -297,7 +320,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 
 	// extract workdir
 	workdir := "$"
-	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
+	re = regexp.MustCompile(`(?m).*WORKDIR\s+(?P<dir>/\S+)`)
 	m = re.FindStringSubmatch(string(dockerfile))
 
 	for i, name := range re.SubexpNames() {
