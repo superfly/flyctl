@@ -233,6 +233,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 				return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
 			}
 		}
+	} else {
+		// proceed as if the gem installation directory is writable
+		writable = true
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
@@ -314,27 +317,6 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 			{
 				Source:      m[3], // last part of path
 				Destination: m[2], // full path
-			},
-		}
-	}
-
-	// extract workdir
-	workdir := "$"
-	re = regexp.MustCompile(`(?m).*WORKDIR\s+(?P<dir>/\S+)`)
-	m = re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "dir" {
-			workdir = m[i]
-		}
-	}
-
-	// add Statics if workdir is found and doesn't contain a variable reference
-	if !strings.Contains(workdir, "$") {
-		srcInfo.Statics = []Static{
-			{
-				GuestPath: workdir + "/public",
-				UrlPrefix: "/",
 			},
 		}
 	}
