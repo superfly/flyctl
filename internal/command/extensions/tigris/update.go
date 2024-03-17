@@ -123,6 +123,12 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
+	if flag.GetBool(ctx, "clear-custom-domain") {
+		options["website"] = map[string]interface{}{
+			"domain_name": "",
+		}
+	}
+
 	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
 	if err != nil {
 		return
