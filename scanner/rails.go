@@ -233,6 +233,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 				return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
 			}
 		}
+	} else {
+		// proceed as if the gem installation directory is writable
+		writable = true
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
