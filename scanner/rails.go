@@ -318,27 +318,6 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		}
 	}
 
-	// extract workdir
-	workdir := "$"
-	re = regexp.MustCompile(`(?m).*WORKDIR\s+(?P<dir>/\S+)`)
-	m = re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "dir" {
-			workdir = m[i]
-		}
-	}
-
-	// add Statics if workdir is found and doesn't contain a variable reference
-	if !strings.Contains(workdir, "$") {
-		srcInfo.Statics = []Static{
-			{
-				GuestPath: workdir + "/public",
-				UrlPrefix: "/",
-			},
-		}
-	}
-
 	// add HealthCheck (if found)
 	srcInfo.HttpCheckPath = <-healthcheck_channel
 	if srcInfo.HttpCheckPath != "" {
