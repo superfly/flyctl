@@ -116,9 +116,16 @@ func runUpdate(ctx context.Context) (err error) {
 	if flag.IsSpecified(ctx, "custom-domain") {
 		domain := flag.GetString(ctx, "custom-domain")
 
-		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".tigris.dev")
+		if domain != addOn.Name {
+			return fmt.Errorf("The custom domain must match the bucket name: %s != %s", domain, addOn.Name)
+		}
+		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
 
-		prompt.Confirm(ctx, "Continue with the update?")
+		confirm, err := prompt.Confirm(ctx, "Continue with the update?")
+
+		if err != nil || !confirm {
+			return err
+		}
 
 		options["website"] = map[string]interface{}{
 			"domain_name": domain,
