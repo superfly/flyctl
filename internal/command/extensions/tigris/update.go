@@ -29,7 +29,8 @@ func update() (cmd *cobra.Command) {
 
 		flag.String{
 			Name:        "custom-domain",
-			Description: "A custom domain name pointing at your nucket",
+			Description: "A custom domain name pointing at your bucket",
+			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -40,6 +41,7 @@ func update() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "clear-custom-domain",
 			Description: "Remove a custom domain from a bucket",
+			Hidden:      true,
 		},
 
 		flag.Bool{
