@@ -10,6 +10,8 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func update() (cmd *cobra.Command) {
@@ -25,9 +27,21 @@ func update() (cmd *cobra.Command) {
 		flag.Org(),
 		extensions_core.SharedFlags,
 
+		flag.String{
+			Name:        "custom-domain",
+			Description: "A custom domain name pointing at your bucket",
+			Hidden:      true,
+		},
+
 		flag.Bool{
 			Name:        "clear-shadow",
 			Description: "Remove an existing shadow bucket",
+		},
+
+		flag.Bool{
+			Name:        "clear-custom-domain",
+			Description: "Remove a custom domain from a bucket",
+			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -40,6 +54,8 @@ func update() (cmd *cobra.Command) {
 }
 
 func runUpdate(ctx context.Context) (err error) {
+	io := iostreams.FromContext(ctx)
+
 	client := fly.ClientFromContext(ctx).GenqClient
 
 	id := flag.FirstArg(ctx)
@@ -95,6 +111,24 @@ func runUpdate(ctx context.Context) (err error) {
 		options["accelerate"] = false
 	} else if flag.IsSpecified(ctx, "accelerate") {
 		options["accelerate"] = flag.GetBool(ctx, "accelerate")
+	}
+
+	if flag.IsSpecified(ctx, "custom-domain") {
+		domain := flag.GetString(ctx, "custom-domain")
+
+		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".tigris.dev")
+
+		prompt.Confirm(ctx, "Continue with the update?")
+
+		options["website"] = map[string]interface{}{
+			"domain_name": domain,
+		}
+	}
+
+	if flag.GetBool(ctx, "clear-custom-domain") {
+		options["website"] = map[string]interface{}{
+			"domain_name": "",
+		}
 	}
 
 	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
