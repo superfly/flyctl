@@ -2,13 +2,19 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/gql"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 // Let's *try* to keep this struct backwards-compatible as we change it
@@ -156,4 +162,77 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		ret += fmt.Sprintf("%s: %s%s %s(%s)\n", label, labelSpaces, value, valueSpaces, source)
 	}
 	return ret, nil
+}
+
+func (state *launchState) validateExtensions(ctx context.Context) error {
+
+	// This is written a little awkwardly with the expectation
+	// that we'll probably need more validation in the future.
+	// When that happens we can just errors.Join(a(), b(), c()...)
+
+	io := iostreams.FromContext(ctx)
+	noConfirm := !io.IsInteractive() || flag.GetBool(ctx, "now")
+
+	org, err := state.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	validateSupabase := func() error {
+
+		supabase := state.Plan.Postgres.SupabasePostgres
+		if supabase == nil {
+			return nil
+		}
+
+		// We're using Supabase. Ensure that we're within plan limits.
+		client := fly.ClientFromContext(ctx).GenqClient
+
+		response, err := gql.ListAddOns(ctx, client, "supabase")
+		if err != nil {
+			return fmt.Errorf("failed to list Supabase databases: %w", err)
+		}
+
+		// TODO: We'd like to be able to query the user's plan to see if they're on a paid plan.
+		//       For now, we'll just nag when they create their second database, every time.
+
+		if len(response.AddOns.Nodes) != 1 {
+			// If we're at zero databases, we're within the free plan.
+			// If we're at >=2 databases, we know we're on a paid plan.
+			// It's only 1 existing database where we need to validate the plan.
+			return nil
+		}
+
+		if noConfirm {
+			// We can't validate this any further until we can query the plan info.
+			// Assume it's okay, and let the launch fail if it's not.
+
+			// TODO: Once we can query whether or not the user is on a paid plan,
+			//       we'll be able to early-exit in non-interactive mode and prevent a failed launch.
+			return nil
+		}
+
+		fmt.Fprintf(io.Out, "You're about to create a second Supabase database. This requires a paid plan.\n")
+		fmt.Fprintf(io.Out, "Please check to ensure that your plan supports this, otherwise your launch may fail.\n")
+		openDashboard, err := prompt.Confirm(ctx, "Open the dashboard to check your plan?")
+		if err != nil {
+			return err
+		}
+		if openDashboard {
+			if err = extensions_core.OpenOrgDashboard(ctx, org.Slug, "supabase"); err != nil {
+				return err
+			}
+		}
+		confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Continue launching %s?", state.Plan.AppName))
+		if err != nil {
+			return err
+		}
+		if !confirm {
+			return errors.New("aborted by user")
+		}
+
+		return nil
+	}
+
+	return validateSupabase()
 }
