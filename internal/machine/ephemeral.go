@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -33,7 +34,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 		return nil, nil, errors.New("ephemeral machines must be configured to auto-destroy (this is a bug)")
 	}
 
-	machine, err := flapsClient.Launch(ctx, input.LaunchInput)
+	machine, err := flapsutil.Launch(ctx, flapsClient, input.LaunchInput)
 	if err != nil {
 		return nil, nil, err
 	}
