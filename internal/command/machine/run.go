@@ -780,7 +780,7 @@ func determineMachineConfig(
 	if err != nil {
 		return machineConf, err
 	}
-	mach.MergeFiles(machineConf, machineFiles)
+	fly.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
 }

@@ -608,8 +608,8 @@ github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsT
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
-github.com/superfly/fly-go v0.1.2 h1:CnXzm2ddZfcbXW1Dv7/r4QKXfciM3nh4a2gIC4pzDQI=
-github.com/superfly/fly-go v0.1.2/go.mod h1:5WiuvjaHg5zzdCxhV5mPElADEqIAKbLMhVI18vM+OeY=
+github.com/superfly/fly-go v0.1.3 h1:lKx8hozCTtKTb4ceoXDmrFrAOu0C4eiVm9gehuYpBz0=
+github.com/superfly/fly-go v0.1.3/go.mod h1:5WiuvjaHg5zzdCxhV5mPElADEqIAKbLMhVI18vM+OeY=
 github.com/superfly/graphql v0.2.4 h1:Av8hSk4x8WvKJ6MTnEwrLknSVSGPc7DWpgT3z/kt3PU=
 github.com/superfly/graphql v0.2.4/go.mod h1:CVfDl31srm8HnJ9udwLu6hFNUW/P6GUM2dKcG1YQ8jc=
 github.com/superfly/lfsc-go v0.1.1 h1:dGjLgt81D09cG+aR9lJZIdmonjZSR5zYCi7s54+ZU2Q=

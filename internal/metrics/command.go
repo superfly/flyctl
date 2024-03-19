@@ -5,9 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/instrument"
 )
 
@@ -16,6 +14,8 @@ var (
 	commandContext   context.Context
 	mu               sync.Mutex
 )
+
+var IsUsingGPU bool
 
 type commandStats struct {
 	Command         string  `json:"c"`
@@ -47,7 +47,6 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 
 	graphql := instrument.GraphQL.Get()
 	flaps := instrument.Flaps.Get()
-	usingGPU := isUsingGPU()
 
 	if commandContext != nil {
 		Send(commandContext, "command/stats", commandStats{
@@ -57,20 +56,8 @@ func RecordCommandFinish(cmd *cobra.Command, failed bool) {
 			GraphQLDuration: graphql.Duration,
 			FlapsCalls:      flaps.Calls,
 			FlapsDuration:   flaps.Duration,
-			UsingGPU:        usingGPU,
+			UsingGPU:        IsUsingGPU,
 			Failed:          failed,
 		})
 	}
-}
-
-// I hate this, but I want to make sure that if we load the app config, I can grab it in metrisc
-var AppConfig *appconfig.Config = nil
-
-func isUsingGPU() bool {
-	if AppConfig != nil {
-		return lo.SomeBy(AppConfig.Compute, func(x *appconfig.Compute) bool {
-			return x != nil && x.MachineGuest != nil && x.MachineGuest.GPUKind != ""
-		})
-	}
-	return false
 }
