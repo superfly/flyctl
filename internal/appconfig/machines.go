@@ -10,7 +10,6 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/machine"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -212,7 +211,7 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 
 	// Files
 	mConfig.Files = nil
-	machine.MergeFiles(mConfig, c.MergedFiles)
+	fly.MergeFiles(mConfig, c.MergedFiles)
 
 	// Guest
 	if guest, err := c.toMachineGuest(); err != nil {
