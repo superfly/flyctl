@@ -408,11 +408,15 @@ func validateAppName(appName string) error {
 func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
+		// Remove any existing haikus so we don't keep adding to the end.
+		b := haikunator.Haikunator().Delimiter(delimiter)
+		prefix = b.TrimSuffix(prefix)
+
 		if prefix != "" {
 			prefix += delimiter
 		}
 		for i := 1; i < 10; i++ {
-			outName := prefix + haikunator.Haikunator().Delimiter(delimiter).String()
+			outName := prefix + b.String()
 			if taken, _ := appNameTaken(ctx, outName); !taken {
 				return outName, true
 			}

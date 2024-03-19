@@ -81,9 +81,9 @@ func runCreate(ctx context.Context) (err error) {
 		}
 	}
 
-	// Always include 'website'
+	// Always include 'website' because the Tigris API expects it
 	options["website"] = map[string]interface{}{
-		"domain_name": flag.GetString(ctx, "website-domain-name"),
+		"domain_name": "",
 	}
 
 	// Assign the options to params

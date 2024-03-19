@@ -218,6 +218,7 @@ func runMachineClone(ctx context.Context) (err error) {
 				SnapshotID:          snapshotID,
 				RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
 				ComputeRequirements: targetConfig.Guest,
+				ComputeImage:        targetConfig.Image,
 			}
 			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {

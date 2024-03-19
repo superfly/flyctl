@@ -135,7 +135,7 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 			cfg, err := appconfig.LoadConfig(state.sourceInfo.MergeConfig.Name)
 			if err == nil {
 				// In theory, any part of the configuration could be merged here, but for now
-				// we will only copy over the processes, release command, and volume
+				// we will only copy over the processes, release command, volume, and statics
 				if state.sourceInfo.Processes == nil {
 					state.sourceInfo.Processes = cfg.Processes
 				}
@@ -146,6 +146,10 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 
 				if len(state.sourceInfo.Volumes) == 0 && len(cfg.Mounts) > 0 {
 					state.sourceInfo.Volumes = []scanner.Volume{cfg.Mounts[0]}
+				}
+
+				if len(state.sourceInfo.Statics) == 0 && len(cfg.Statics) > 0 {
+					state.sourceInfo.Statics = cfg.Statics
 				}
 			}
 		}

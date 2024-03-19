@@ -242,12 +242,10 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		return err
 	}
 
-	for _, potentialSecretSubstr := range commonSecretSubstrings {
-		for env := range appConfig.Env {
-			if strings.Contains(env, potentialSecretSubstr) {
-				warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), env)
-				fmt.Fprintln(io.ErrOut, warning)
-			}
+	for env := range appConfig.Env {
+		if containsCommonSecretSubstring(env) {
+			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), env)
+			fmt.Fprintln(io.ErrOut, warning)
 		}
 	}
 
@@ -456,7 +454,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		return nil, err
 	}
 
-	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.Strategy != "canary" && cfg.Deploy.MaxUnavailable != nil {
 		if !config.FromContext(ctx).JSONOutput {
 			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
 		}
