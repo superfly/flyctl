@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
@@ -113,23 +112,4 @@ func configCompare(ctx context.Context, original fly.MachineConfig, new fly.Mach
 	}
 	// We know the objects are different, if we can't cleanup return the best we have got
 	return str
-}
-
-// MergeFiles merges the files parsed from the command line or fly.toml into the machine configuration.
-func MergeFiles(machineConf *fly.MachineConfig, files []*fly.File) {
-	for _, f := range files {
-		idx := slices.IndexFunc(machineConf.Files, func(i *fly.File) bool {
-			return i.GuestPath == f.GuestPath
-		})
-
-		switch {
-		case idx == -1:
-			machineConf.Files = append(machineConf.Files, f)
-			continue
-		case f.RawValue == nil && f.SecretName == nil:
-			machineConf.Files = slices.Delete(machineConf.Files, idx, idx+1)
-		default:
-			machineConf.Files = slices.Replace(machineConf.Files, idx, idx+1, f)
-		}
-	}
 }
