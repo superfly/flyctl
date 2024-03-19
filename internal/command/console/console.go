@@ -354,7 +354,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed parsing filest: %w", err)
 	}
-	machine.MergeFiles(machConfig, machineFiles)
+	fly.MergeFiles(machConfig, machineFiles)
 
 	machConfig.Guest = guest
 
