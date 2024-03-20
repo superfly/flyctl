@@ -715,15 +715,15 @@ func determineMachineConfig(
 	// default restart policy to always unless otherwise specified
 	switch flag.GetString(ctx, "restart") {
 	case "no":
-		machineConf.Restart = fly.MachineRestart{
+		machineConf.Restart = &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		}
 	case "on-fail":
-		machineConf.Restart = fly.MachineRestart{
+		machineConf.Restart = &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyOnFailure,
 		}
 	case "always":
-		machineConf.Restart = fly.MachineRestart{
+		machineConf.Restart = &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
 		}
 	case "":
@@ -737,15 +737,15 @@ func determineMachineConfig(
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
 				machineConf.Restart.Policy = fly.MachineRestartPolicyOnFailure
-				machineConf.Restart = fly.MachineRestart{
+				machineConf.Restart = &fly.MachineRestart{
 					Policy: "",
 				}
 			} else if !input.updating {
 				// This is a new machine; apply the default.
 				if machineConf.Schedule != "" {
-					machineConf.Restart = fly.MachineRestart{Policy: fly.MachineRestartPolicyOnFailure}
+					machineConf.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyOnFailure}
 				} else {
-					machineConf.Restart = fly.MachineRestart{Policy: fly.MachineRestartPolicyAlways}
+					machineConf.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyAlways}
 				}
 			}
 		}
