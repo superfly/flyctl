@@ -48,6 +48,9 @@ var CommonFlags = flag.Set{
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
 	flag.BpVolume(),
+	flag.Yes(),
+	flag.RestartPolicy(),
+	flag.RestartCount(),
 	flag.Bool{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
@@ -57,7 +60,6 @@ var CommonFlags = flag.Set{
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
-	flag.Yes(),
 	flag.String{
 		Name:        "wait-timeout",
 		Description: "Time duration to wait for individual machines to transition states and become healthy.",
