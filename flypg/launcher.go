@@ -338,7 +338,9 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 	}
 
 	// Restart policy
-	machineConfig.Restart.Policy = fly.MachineRestartPolicyAlways
+	machineConfig.Restart = &fly.MachineRestart{
+		Policy: fly.MachineRestartPolicyAlways,
+	}
 
 	if config.ScaleToZero {
 		machineConfig.Restart.Policy = fly.MachineRestartPolicyOnFailure

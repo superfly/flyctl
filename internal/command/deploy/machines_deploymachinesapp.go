@@ -269,7 +269,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 
 	processGroupMachineDiff := md.resolveProcessGroupChanges()
-	md.warnAboutProcessGroupChanges(ctx, processGroupMachineDiff)
+	md.warnAboutProcessGroupChanges(processGroupMachineDiff)
 
 	if md.strategy == "canary" && !md.isFirstDeploy {
 		if err := md.deployCanaryMachines(ctx); err != nil {
@@ -877,7 +877,7 @@ func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 	return output
 }
 
-func (md *machineDeployment) warnAboutProcessGroupChanges(ctx context.Context, diff ProcessGroupsDiff) {
+func (md *machineDeployment) warnAboutProcessGroupChanges(diff ProcessGroupsDiff) {
 	willAddMachines := len(diff.groupsNeedingMachines) != 0
 	willRemoveMachines := diff.machinesToRemove != nil
 

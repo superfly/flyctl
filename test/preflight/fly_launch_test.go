@@ -50,6 +50,10 @@ func TestFlyLaunchV2(t *testing.T) {
 			"min_machines_running": int64(0),
 			"processes":            []any{"app"},
 		},
+		"restart": map[string]any{
+			"policy":  "always",
+			"retries": int64(5),
+		},
 	}
 	require.EqualValues(f, want, toml)
 }
