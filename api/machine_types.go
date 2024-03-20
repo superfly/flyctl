@@ -5,6 +5,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/superfly/fly-go"
 )
 
 const (
@@ -270,9 +272,9 @@ type MachineExitEvent struct {
 }
 
 type StopMachineInput struct {
-	ID      string   `json:"id,omitempty"`
-	Signal  string   `json:"signal,omitempty"`
-	Timeout Duration `json:"timeout,omitempty"`
+	ID      string       `json:"id,omitempty"`
+	Signal  string       `json:"signal,omitempty"`
+	Timeout fly.Duration `json:"timeout,omitempty"`
 }
 
 type RestartMachineInput struct {
@@ -439,11 +441,11 @@ type MachineCheck struct {
 	// tcp or http
 	Type *string `json:"type,omitempty"`
 	// The time between connectivity checks
-	Interval *Duration `json:"interval,omitempty"`
+	Interval *fly.Duration `json:"interval,omitempty"`
 	// The maximum time a connection can take before being reported as failing its health check
-	Timeout *Duration `json:"timeout,omitempty"`
+	Timeout *fly.Duration `json:"timeout,omitempty"`
 	// The time to wait after a VM starts before checking its health
-	GracePeriod *Duration `json:"grace_period,omitempty"`
+	GracePeriod *fly.Duration `json:"grace_period,omitempty"`
 	// For http checks, the HTTP method to use to when making the request
 	HTTPMethod *string `json:"method,omitempty"`
 	// For http checks, the path to send the request to
@@ -670,8 +672,8 @@ type dnsOption struct {
 }
 
 type StopConfig struct {
-	Timeout *Duration `json:"timeout,omitempty"`
-	Signal  *string   `json:"signal,omitempty"`
+	Timeout *fly.Duration `json:"timeout,omitempty"`
+	Signal  *string       `json:"signal,omitempty"`
 }
 
 // @description A file that will be written to the Machine. One of RawValue or SecretName must be set.

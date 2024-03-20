@@ -333,7 +333,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Schedule:    "24/7",
 			AutoDestroy: true,
-			Restart: fly.MachineRestart{
+			Restart: &fly.MachineRestart{
 				Policy: fly.MachineRestartPolicyNo,
 			},
 			Guest: &fly.MachineGuest{

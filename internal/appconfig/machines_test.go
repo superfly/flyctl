@@ -50,7 +50,7 @@ func TestToMachineConfig(t *testing.T) {
 		Init: fly.MachineInit{
 			SwapSizeMB: fly.Pointer(512),
 		},
-		Restart: fly.MachineRestart{
+		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
 		},
 	}
@@ -64,7 +64,7 @@ func TestToMachineConfig(t *testing.T) {
 		Guest:       &fly.MachineGuest{CPUs: 3},
 		Schedule:    "24/7",
 		AutoDestroy: true,
-		Restart:     fly.MachineRestart{Policy: "always"},
+		Restart:     &fly.MachineRestart{Policy: "always"},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		Env:         map[string]string{"removed": "by-update"},
 		Mounts:      []fly.MachineMount{{Name: "removed", Path: "/by/update"}},
@@ -162,7 +162,7 @@ func TestToReleaseMachineConfig(t *testing.T) {
 			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		AutoDestroy: true,
-		Restart:     fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		StopConfig: &fly.StopConfig{
 			Timeout: fly.MustParseDuration("10s"),
@@ -195,7 +195,7 @@ func TestToConsoleMachineConfig(t *testing.T) {
 			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		AutoDestroy: true,
-		Restart: fly.MachineRestart{
+		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		},
 		DNS: &fly.DNSConfig{SkipRegistration: true},
