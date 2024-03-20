@@ -201,11 +201,13 @@ func runBarmanCreate(ctx context.Context) error {
 	var vol *fly.Volume
 
 	volInput := fly.CreateVolumeRequest{
-		Name:              volumeName,
-		Region:            region.Code,
-		SizeGb:            fly.Pointer(flag.GetInt(ctx, "volume-size")),
-		Encrypted:         fly.Pointer(true),
-		RequireUniqueZone: fly.Pointer(true),
+		Name:                volumeName,
+		Region:              region.Code,
+		SizeGb:              fly.Pointer(flag.GetInt(ctx, "volume-size")),
+		Encrypted:           fly.Pointer(true),
+		RequireUniqueZone:   fly.Pointer(true),
+		ComputeRequirements: machineConfig.Guest,
+		ComputeImage:        machineConfig.Image,
 	}
 
 	if *volInput.SizeGb == 0 {
