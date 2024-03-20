@@ -16,7 +16,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 
 	cfg, err := getAppV2ConfigFromReleases(ctx, apiClient, appName)
 	if cfg == nil {
-		cfg, err = getAppV2ConfigFromMachines(ctx, apiClient, appName)
+		cfg, err = getAppV2ConfigFromMachines(ctx, appName)
 	}
 	if err != nil {
 		return nil, err
@@ -28,7 +28,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 	return cfg, nil
 }
 
-func getAppV2ConfigFromMachines(ctx context.Context, apiClient *fly.Client, appName string) (*Config, error) {
+func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, error) {
 	flapsClient := flaps.FromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
