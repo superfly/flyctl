@@ -187,6 +187,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			Encrypted:         fly.Pointer(true),
 			RequireUniqueZone: fly.Pointer(false),
 			SnapshotID:        snapshot,
+			ComputeRequirements: &fly.MachineGuest{
+				MemoryMB: machineConf.Guest.MemoryMB,
+				CPUKind:  machineConf.Guest.CPUKind,
+				CPUs:     machineConf.Guest.CPUs,
+			},
+			ComputeImage: machineConf.Image,
 		}
 		var action string
 

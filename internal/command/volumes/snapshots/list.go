@@ -60,7 +60,7 @@ func runList(ctx context.Context) error {
 	if appName == "" {
 		n, err := client.GetAppNameFromVolume(ctx, volID)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed getting app name from volume: %w", err)
 		}
 		appName = *n
 	}
