@@ -21,7 +21,8 @@ func DefaultObjectStorage(plan *LaunchPlan) ObjectStoragePlan {
 }
 
 type TigrisObjectStoragePlan struct {
-	Name       string `json:"name"`
-	Public     bool   `json:"public"`
-	Accelerate bool   `json:"accelerate"`
+	Name              string `json:"name"`
+	Public            bool   `json:"public"`
+	Accelerate        bool   `json:"accelerate"`
+	WebsiteDomainName string `json:"website_domain_name"`
 }
