@@ -33,10 +33,6 @@ type LaunchPlan struct {
 	Sentry        bool              `json:"sentry"`
 	ObjectStorage ObjectStoragePlan `json:"object_storage"`
 
-	// We don't want to send the actual credentials back and forth, so this
-	// indicates to the UI whether the user specified shadow bucket credentials via the command line.
-	ObjectStorageHasShadowBucketCredentials bool `json:"object_storage_has_shadow_bucket_credentials"`
-
 	ScannerFamily string          `json:"scanner_family"`
 	FlyctlVersion version.Version `json:"flyctl_version"`
 }

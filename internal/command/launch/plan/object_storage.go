@@ -20,16 +20,8 @@ func DefaultObjectStorage(plan *LaunchPlan) ObjectStoragePlan {
 	}
 }
 
-type TigrisShadowBucketConfig struct {
-	Region       string `json:"region"`
-	Name         string `json:"name"`
-	Endpoint     string `json:"endpoint"`
-	WriteThrough bool   `json:"write_through"`
-}
-
 type TigrisObjectStoragePlan struct {
-	Name               string                    `json:"name"`
-	Public             bool                      `json:"public"`
-	Accelerate         bool                      `json:"accelerate"`
-	ShadowBucketConfig *TigrisShadowBucketConfig `json:"shadow_bucket"`
+	Name       string `json:"name"`
+	Public     bool   `json:"public"`
+	Accelerate bool   `json:"accelerate"`
 }
