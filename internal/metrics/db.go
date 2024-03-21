@@ -35,7 +35,6 @@ func FlushMetrics(ctx context.Context) error {
 	json, err := json.Marshal(metrics)
 	if err != nil {
 		return err
-
 	}
 
 	iostream := iostreams.FromContext(ctx)

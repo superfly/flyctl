@@ -35,7 +35,7 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 			Policy: fly.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,
-		DNS: &fly.DNSConfig{
+		DNS: fly.DNSConfig{
 			SkipRegistration: true,
 		},
 		Metadata: map[string]string{
