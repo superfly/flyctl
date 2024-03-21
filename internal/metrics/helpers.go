@@ -34,7 +34,6 @@ func Started(ctx context.Context, metricSlug string) {
 	}
 
 	SendNoData(ctx, metricSlug+"/started")
-
 }
 
 func Status(ctx context.Context, metricSlug string, success bool) {
@@ -53,8 +52,46 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
 }
 
-func Send[T any](ctx context.Context, metricSlug string, value T) {
+func LaunchStatus(ctx context.Context, metricSlug string, payload LaunchStatusPayload) {
+	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
+		if _, ok := unmatchedStatuses[metricSlug]; ok {
+			delete(unmatchedStatuses, metricSlug)
+			return true
+		}
+		return false
+	})
+	if !ok {
+		terminal.Debugf("Metrics: Attempted to send launch status for %s, but no start event was sent", metricSlug)
+		return
+	}
 
+	Send(ctx, metricSlug+"/status", payload)
+}
+
+type LaunchStatusPayload struct {
+	Error    string        `json:"error"`
+	Duration time.Duration `json:"duration"`
+
+	AppName          string `json:"app"`
+	OrgSlug          string `json:"org"`
+	Region           string `json:"region"`
+	HighAvailability bool   `json:"ha"`
+
+	VM struct {
+		Size     string `json:"size"`
+		Memory   string `json:"memory"`
+		ProcessN int    `json:"processCount"`
+	} `json:"vm"`
+
+	HasPostgres bool `json:"hasPostgres"`
+	HasRedis    bool `json:"hasRedis"`
+	HasSentry   bool `json:"hasSentry"`
+
+	ScannerFamily string `json:"scanner_family"`
+	FlyctlVersion string `json:"flyctlVersion"`
+}
+
+func Send[T any](ctx context.Context, metricSlug string, value T) {
 	valJson, err := json.Marshal(value)
 	if err != nil {
 		return
