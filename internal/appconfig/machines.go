@@ -31,7 +31,7 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 			Cmd:        releaseCmd,
 			SwapSizeMB: c.SwapSizeMB,
 		},
-		Restart: fly.MachineRestart{
+		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,
@@ -72,7 +72,7 @@ func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 			Exec:       []string{"/bin/sleep", "inf"},
 			SwapSizeMB: c.SwapSizeMB,
 		},
-		Restart: fly.MachineRestart{
+		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -14,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -122,11 +124,20 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
+	startTime := time.Now()
+	var status metrics.LaunchStatusPayload
+	metrics.Started(ctx, "launch")
+	defer func() {
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.Duration = time.Since(startTime)
+		metrics.LaunchStatus(ctx, "launch", status)
+	}()
+
 	if err := warnLegacyBehavior(ctx); err != nil {
 		return err
 	}
-
-	// TODO: Metrics
 
 	var (
 		launchManifest *LaunchManifest
@@ -161,6 +172,25 @@ func run(ctx context.Context) (err error) {
 			return jsonEncoder.Encode(launchManifest)
 		}
 	}
+
+	status.AppName = launchManifest.Plan.AppName
+	status.OrgSlug = launchManifest.Plan.OrgSlug
+	status.Region = launchManifest.Plan.RegionCode
+	status.HighAvailability = launchManifest.Plan.HighAvailability
+
+	if len(launchManifest.Plan.Compute) > 0 {
+		vm := launchManifest.Plan.Compute[0]
+		status.VM.Size = vm.Size
+		status.VM.Memory = vm.Memory
+		status.VM.ProcessN = len(vm.Processes)
+	}
+
+	status.HasPostgres = launchManifest.Plan.Postgres.FlyPostgres != nil
+	status.HasRedis = launchManifest.Plan.Redis.UpstashRedis != nil
+	status.HasSentry = launchManifest.Plan.Sentry
+
+	status.ScannerFamily = launchManifest.Plan.ScannerFamily
+	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
 	state, err := stateFromManifest(ctx, *launchManifest, cache)
 	if err != nil {
@@ -232,7 +262,6 @@ func warnLegacyBehavior(ctx context.Context) error {
 	// TODO(Allison): We probably want to support re-configuring an existing app, but
 	// that is different from the launch-into behavior of reuse-app, which basically just deployed.
 	if flag.IsSpecified(ctx, "reuse-app") {
-
 		return flyerr.GenericErr{
 			Err:     "the --reuse-app flag is no longer supported. you are likely looking for 'fly deploy'",
 			Suggest: "for now, you can use 'fly launch --legacy --reuse-app', but this will be removed in a future release",
