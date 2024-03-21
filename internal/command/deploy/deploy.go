@@ -303,12 +303,12 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 // in a rare twist, the guest param takes precedence over CLI flags!
 func deployToMachines(
 	ctx context.Context,
-	appConfig *appconfig.Config,
-	appCompact *fly.AppCompact,
+	cfg *appconfig.Config,
+	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
-	ctx = appconfig.WithConfig(ctx, appConfig)
+	ctx = appconfig.WithConfig(ctx, cfg)
 
 	metrics.Started(ctx, "deploy_machines")
 	defer func() {
@@ -376,11 +376,11 @@ func deployToMachines(
 	}
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:             appCompact,
+		AppCompact:             app,
 		DeploymentImage:        img.Tag,
 		Strategy:               flag.GetString(ctx, "strategy"),
 		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:      appConfig.PrimaryRegion,
+		PrimaryRegionFlag:      cfg.PrimaryRegion,
 		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:       flag.GetDetach(ctx),
 		SkipDNSChecks:          flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
@@ -401,13 +401,13 @@ func deployToMachines(
 		ProcessGroups:          processGroups,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 	}
 	return err
 }
@@ -449,7 +449,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 
 	err, extraInfo := cfg.Validate(ctx)
 	if extraInfo != "" {
-		fmt.Fprintf(io.Out, extraInfo)
+		fmt.Fprint(io.Out, extraInfo)
 	}
 	if err != nil {
 		tracing.RecordError(span, err, "validate config")

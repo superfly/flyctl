@@ -198,7 +198,7 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 
 		services := groupConfig.AllServices()
 		for _, s := range services {
-			if s.AutoStopMachines != nil && *s.AutoStopMachines == true {
+			if s.AutoStopMachines != nil && *s.AutoStopMachines {
 				groupsWithAutostopEnabled[name] = true
 			}
 		}

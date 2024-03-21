@@ -80,10 +80,12 @@ func TestFromDefinition(t *testing.T) {
 	assert.Equal(t, &Config{
 		KillSignal:  fly.Pointer("SIGINT"),
 		KillTimeout: fly.MustParseDuration("5s"),
-		Restart: &Restart{
-			Policy:     RestartPolicyAlways,
-			MaxRetries: 3,
-			Processes:  []string{"app"},
+		Restart: []Restart{
+			{
+				Policy:     RestartPolicyAlways,
+				MaxRetries: 3,
+				Processes:  []string{"app"},
+			},
 		},
 		Experimental: &Experimental{
 			AutoRollback: true,

@@ -130,14 +130,6 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		}
 	}
 
-	if dst.Restart != nil {
-		if matchesGroups(dst.Restart.Processes) {
-			dst.Restart.Processes = []string{groupName}
-		} else {
-			dst.Restart = nil
-		}
-	}
-
 	// [[services]]
 	dst.Services = lo.Filter(dst.Services, func(s Service, _ int) bool {
 		return matchesGroups(s.Processes)
@@ -168,6 +160,13 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	})
 	for i := range dst.Metrics {
 		dst.Metrics[i].Processes = []string{groupName}
+	}
+
+	dst.Restart = lo.Filter(dst.Restart, func(x Restart, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+	for i := range c.Restart {
+		dst.Restart[i].Processes = []string{groupName}
 	}
 
 	// [[vm]]

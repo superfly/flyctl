@@ -327,19 +327,33 @@ func (cfg *Config) validateRestartPolicy() (extraInfo string, err error) {
 		return
 	}
 
-	switch cfg.Restart.Policy {
-	case RestartPolicyAlways, RestartPolicyNever, RestartPolicyOnFailure:
-		// do nothing
-	default:
-		extraInfo += fmt.Sprintf("Restart policy '%s' is not supported\n", cfg.Restart.Policy)
-		err = ValidationError
+	for _, restart := range cfg.Restart {
+		validGroupNames := cfg.ProcessNames()
 
+		// first make sure restart.Processes matches a valid process name.
+		for _, processName := range restart.Processes {
+			if !slices.Contains(validGroupNames, processName) {
+				extraInfo += fmt.Sprintf("Restart policy specifies '%s' as one of its processes, but no processes are defined with that name; "+
+					"update fly.toml [processes] to add '%s' process or remove it from restart policy's processes list\n",
+					processName, processName,
+				)
+				err = ValidationError
+			}
+		}
+
+		switch restart.Policy {
+		case RestartPolicyAlways, RestartPolicyNever, RestartPolicyOnFailure:
+			// do nothing
+		default:
+			extraInfo += fmt.Sprintf("'%s' is not a valid restart policy\n", restart.Policy)
+			err = ValidationError
+
+		}
+		if restart.MaxRetries < 0 {
+			extraInfo += "restart.MaxRetries must be a positive number\n"
+			err = ValidationError
+		}
 	}
 
-	// make sure restart.Attempts is a positive number
-	if cfg.Restart.MaxRetries < 0 {
-		extraInfo += fmt.Sprintf("Restart attempts '%d' is not supported\n", cfg.Restart.MaxRetries)
-		err = ValidationError
-	}
 	return
 }
