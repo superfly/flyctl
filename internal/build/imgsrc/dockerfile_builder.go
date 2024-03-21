@@ -362,7 +362,7 @@ func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclie
 	if err != nil {
 		return nil, fmt.Errorf("failed to post to /buildOverlaybdImage: %w", err)
 	}
-	defer res.Body.Close()
+	defer res.Body.Close() //skipcq: GO-S2307
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(res.Body)
