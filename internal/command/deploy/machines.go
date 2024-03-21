@@ -263,7 +263,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	return md, nil
 }
 
-func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
+func (md *machineDeployment) setFirstDeploy(_ context.Context) error {
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
 	// by checking for any existent machine.
 	// This is not exaustive as the app could still be scaled down to zero but the

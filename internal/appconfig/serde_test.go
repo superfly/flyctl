@@ -357,10 +357,12 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			EnableEtcd:   true,
 		},
 
-		Restart: &Restart{
-			Policy:     "always",
-			MaxRetries: 3,
-			Processes:  []string{"web"},
+		Restart: []Restart{
+			{
+				Policy:     "always",
+				MaxRetries: 3,
+				Processes:  []string{"web"},
+			},
 		},
 
 		Build: &Build{
