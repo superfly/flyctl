@@ -66,6 +66,8 @@ type MachineDeploymentArgs struct {
 	ImmediateMaxConcurrent int
 	VolumeInitialSize      int
 	ProcessGroups          map[string]interface{}
+	RestartPolicy          *fly.MachineRestartPolicy
+	RestartMaxRetries      int
 }
 
 type machineDeployment struct {
