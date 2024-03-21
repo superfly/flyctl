@@ -26,6 +26,7 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -293,7 +294,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 
 	if opts.UseOverlaybd && dockerFactory.IsRemote() {
-		obdImage, err := buildOverlaybdImage(ctx, docker, opts)
+		obdImage, err := buildOverlaybdImage(ctx, dockerFactory.appName, docker, opts)
 		if err != nil {
 			terminal.Warnf("failed to build lazy-loaded image, not using lazy-loading: %v", err)
 		} else {
@@ -306,7 +307,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	return &di, "", nil
 }
 
-func buildOverlaybdImage(ctx context.Context, docker *dockerclient.Client, opts ImageOptions) (*DeploymentImage, error) {
+func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclient.Client, opts ImageOptions) (*DeploymentImage, error) {
 	if !opts.Publish {
 		return nil, errors.New("lazy loaded images require --push")
 	}
@@ -354,7 +355,10 @@ func buildOverlaybdImage(ctx context.Context, docker *dockerclient.Client, opts 
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	res, err := http.DefaultClient.Do(req)
+	req.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+	req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
+
+	res, err := docker.HTTPClient().Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post to /buildOverlaybdImage: %w", err)
 	}
