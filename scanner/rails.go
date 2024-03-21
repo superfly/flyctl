@@ -158,7 +158,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	s.SkipDeploy = true
 	s.DeployDocs = `
 Your Rails app is prepared for deployment.
 
