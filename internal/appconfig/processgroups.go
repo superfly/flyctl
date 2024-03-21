@@ -90,7 +90,7 @@ func (c *Config) flattenGroupsMatch(target string, toCheck []string) bool {
 
 // Flatten generates a machine config specific to a process_group.
 //
-// Only services, mounts, checks, metrics & files specific to the provided process group will be in the returned config.
+// Only services, mounts, checks, metrics, files and restarts specific to the provided process group will be in the returned config.
 func (c *Config) Flatten(groupName string) (*Config, error) {
 	if err := c.SetMachinesPlatform(); err != nil {
 		return nil, fmt.Errorf("can not flatten an invalid v2 application config: %w", err)
@@ -165,7 +165,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 	dst.Restart = lo.Filter(dst.Restart, func(x Restart, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
-	for i := range c.Restart {
+	for i := range dst.Restart {
 		dst.Restart[i].Processes = []string{groupName}
 	}
 

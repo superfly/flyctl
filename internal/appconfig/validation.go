@@ -61,7 +61,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	return nil, extra_info
 }
 
-func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extra_info string) {
+func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extraInfo string) {
 	if len(groups) == 0 {
 		return cfg.Validate(ctx)
 	}
@@ -71,7 +71,7 @@ func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err err
 		if err != nil {
 			return
 		}
-		err, extra_info = config.Validate(ctx)
+		err, extraInfo = config.Validate(ctx)
 		if err != nil {
 			return
 		}
