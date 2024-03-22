@@ -18,6 +18,14 @@ const (
 	DefaultConfigFileName = "fly.toml"
 )
 
+type RestartPolicy string
+
+const (
+	RestartPolicyAlways    RestartPolicy = "always"
+	RestartPolicyNever     RestartPolicy = "never"
+	RestartPolicyOnFailure RestartPolicy = "on-failure"
+)
+
 func NewConfig() *Config {
 	return &Config{
 		defaultGroupName: fly.MachineProcessGroupApp,
@@ -49,6 +57,8 @@ type Config struct {
 	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
+
+	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
 
 	Compute []*Compute `toml:"vm,omitempty" json:"vm,omitempty"`
 
@@ -153,6 +163,11 @@ type Compute struct {
 	Memory            string `json:"memory,omitempty" toml:"memory,omitempty"`
 	*fly.MachineGuest `toml:",inline" json:",inline"`
 	Processes         []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+type Restart struct {
+	Policy     RestartPolicy `toml:"policy,omitempty" json:"policy,omitempty"`
+	MaxRetries int           `toml:"retries,omitempty" json:"retries,omitempty"`
+	Processes  []string      `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func (c *Config) ConfigFilePath() string {
