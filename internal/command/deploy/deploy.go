@@ -49,8 +49,7 @@ var CommonFlags = flag.Set{
 	flag.BpDockerHost(),
 	flag.BpVolume(),
 	flag.Yes(),
-	flag.RestartPolicy(),
-	flag.RestartCount(),
+	flag.VMSizeFlags,
 	flag.Bool{
 		Name:        "provision-extensions",
 		Description: "Provision any extensions assigned as a default to first deployments",
@@ -141,7 +140,6 @@ var CommonFlags = flag.Set{
 		Name:        "volume-initial-size",
 		Description: "The initial size in GB for volumes created on first deploy",
 	},
-	flag.VMSizeFlags,
 	flag.StringSlice{
 		Name:        "process-groups",
 		Description: "Deploy to machines only in these process groups",

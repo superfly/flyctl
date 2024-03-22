@@ -588,25 +588,3 @@ Repeat for each volume in order (comma-separated lists not accepted)
 `,
 	}
 }
-
-func RestartPolicy() String {
-	return String{
-		Name:        "restart-policy",
-		Description: "The restart policy for the process. Options are never, on-failure, or always. Default is on-failure.",
-	}
-}
-
-func GetRestartPolicy(ctx context.Context) string {
-	return GetString(ctx, "restart-policy")
-}
-
-func RestartCount() Int {
-	return Int{
-		Name:        "restart-count",
-		Description: "The number of times the process has been restarted",
-	}
-}
-
-func GetRestartCount(ctx context.Context) int {
-	return GetInt(ctx, "restart-count")
-}
