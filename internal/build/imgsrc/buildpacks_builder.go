@@ -114,6 +114,8 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			attribute.Bool("is_remote", dockerFactory.IsRemote()),
 		),
 	)
+	var gid = -1
+	var uid = -1
 	err = packClient.Build(buildCtx, packclient.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
@@ -122,6 +124,8 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		DockerHost:     opts.BuildpacksDockerHost,
 		Buildpacks:     buildpacks,
 		Env:            normalizeBuildArgs(opts.BuildArgs),
+		UserID:         uid,
+		GroupID:        gid,
 		TrustBuilder:   returnTrue,
 		AdditionalTags: []string{opts.Tag},
 		ProjectDescriptor: projectTypes.Descriptor{
