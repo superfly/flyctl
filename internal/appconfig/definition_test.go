@@ -19,13 +19,15 @@ var GetConfigJSON = []byte(`
   "kill_signal": "SIGINT",
   "kill_timeout": 5,
   "processes": [],
-  "restart" : {
-	"policy": "always",
-	"retries": 3,
-	"processes": [
-        "app"
-    ]
-  },
+  "restart" : [
+	{
+		"policy": "always",
+		"retries": 3,
+		"processes": [
+			"app"
+		]
+	}
+  ],
   "services": [
     {
       "concurrency": {
