@@ -41,7 +41,7 @@ host_dedication_id = "06031957"
   FOO = "BAR"
 
 
-[restart]
+[[restart]]
   policy = "always"
   retries = 3
   processes = ["web"]

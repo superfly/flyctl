@@ -178,10 +178,12 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 
-		"restart": map[string]any{
-			"policy":    "always",
-			"retries":   int64(3),
-			"processes": []any{"web"},
+		"restart": []any{
+			map[string]any{
+				"policy":    "always",
+				"retries":   int64(3),
+				"processes": []any{"web"},
+			},
 		},
 
 		"http_service": map[string]any{

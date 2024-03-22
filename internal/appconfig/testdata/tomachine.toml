@@ -7,7 +7,7 @@ swap_size_mb = 512
 [deploy]
   release_command = "migrate-db"
 
-[restart]
+[[restart]]
   policy = "always"
 
 [env]
