@@ -82,7 +82,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	}
 
 	// We found Phoenix, so lets check if its a recent version.
-	releaseCmd := exec.Command("mix", "run", "-e", "\"true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)\"")
+	releaseCmd := exec.Command("mix", "run", "-e", "true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)")
 	releaseCmd.Stdout = os.Stdout
 	releaseCmd.Stderr = os.Stderr
 	err = releaseCmd.Run()
