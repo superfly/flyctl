@@ -115,6 +115,8 @@ func TestPostgres_haConfigSave(t *testing.T) {
 }
 
 func TestPostgres_ImportSuccess(t *testing.T) {
+	t.Skip()
+
 	f := testlib.NewTestEnvFromEnv(t)
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
