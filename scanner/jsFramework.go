@@ -72,7 +72,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 
 	srcInfo := &SourceInfo{
 		Family:     "NodeJS",
-		SkipDeploy: true,
 		Callback:   JsFrameworkCallback,
 	}
 

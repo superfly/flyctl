@@ -19,6 +19,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
 	"github.com/jpillora/backoff"
+	"github.com/morikuni/aec"
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -36,6 +37,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+var (
+	cachedDocker     *dockerclient.Client
+	wglessCompatible bool
+)
+
 type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
@@ -47,8 +53,6 @@ type dockerClientFactory struct {
 func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard bool) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
-		var cachedDocker *dockerclient.Client
-
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
@@ -188,12 +192,19 @@ func NewLocalDockerClient() (*dockerclient.Client, error) {
 	return c, nil
 }
 
+func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
+	if streams.IsInteractive() {
+		builder := aec.EmptyBuilder
+		str := builder.Up(uint(count)).EraseLine(aec.EraseModes.All).ANSI
+		fmt.Fprint(streams.Out, str.String())
+	}
+}
+
 func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
 	defer span.End()
-
 	if cachedClient != nil {
 		span.AddEvent("using cached docker client")
 		return cachedClient, nil
@@ -215,6 +226,61 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		tracing.RecordError(span, err, "failed to init remote builder machine")
 		return nil, err
 	}
+
+	if !connectOverWireguard && !wglessCompatible {
+		client := &http.Client{
+			Transport: &http.Transport{
+				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+					return tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", app.Name), &tls.Config{})
+				},
+			},
+		}
+
+		url := fmt.Sprintf("http://%s.fly.dev/flyio/v1/settings", app.Name)
+		// url := fmt.Sprintf("http://%s.fly.dev/flyio/v1/prune?since='12h'", app.Name)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+		if err != nil {
+			tracing.RecordError(span, err, "failed to create remote builder request")
+			return nil, err
+		}
+
+		req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
+
+		fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("👀 checking remote builder compatibility with wireguardless deploys ..."))
+
+		res, err := client.Do(req)
+		if err != nil {
+			tracing.RecordError(span, err, "failed to get remote builder settings")
+			return nil, err
+		}
+
+		if res.StatusCode == http.StatusNotFound {
+			logClearLinesAbove(streams, 1)
+			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 automatically deleting and recreating builder"))
+
+			err := apiClient.DeleteApp(ctx, app.Name)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
+				return nil, err
+			}
+
+			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
+			machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to init remote builder machine")
+				return nil, err
+			}
+			logClearLinesAbove(streams, 1)
+			fmt.Fprintln(streams.Out, streams.ColorScheme().Green("✓ compatible remote builder created"))
+		} else {
+			logClearLinesAbove(streams, 1)
+			fmt.Fprintln(streams.Out, streams.ColorScheme().Green("✓ compatible remote builder found"))
+		}
+
+		wglessCompatible = true
+	}
+
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
 
