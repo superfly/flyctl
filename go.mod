@@ -4,7 +4,7 @@ go 1.21.7
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
-	github.com/Khan/genqlient v0.6.0
+	github.com/Khan/genqlient v0.7.0
 	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.5.1
@@ -185,7 +185,7 @@ require (
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
-	golang.org/x/tools v0.17.0 // indirect
+	golang.org/x/tools v0.18.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240123012728-ef4313101c80 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240123012728-ef4313101c80 // indirect
