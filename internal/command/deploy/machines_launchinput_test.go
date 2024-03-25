@@ -333,7 +333,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Schedule:    "24/7",
 			AutoDestroy: true,
-			Restart: fly.MachineRestart{
+			Restart: &fly.MachineRestart{
 				Policy: fly.MachineRestartPolicyNo,
 			},
 			Guest: &fly.MachineGuest{
@@ -353,7 +353,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	assert.Equal(t, "ord", li.Region)
 	assert.Equal(t, "24/7", li.Config.Schedule)
 	assert.Equal(t, true, li.Config.AutoDestroy)
-	assert.Equal(t, fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}, li.Config.Restart)
+	assert.Equal(t, &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}, li.Config.Restart)
 	assert.Equal(t, &fly.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, li.Config.DNS)
 	assert.Equal(t, []fly.MachineProcess{{CmdOverride: []string{"foo"}}}, li.Config.Processes)
@@ -363,7 +363,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	assert.Equal(t, "ord", li.Region)
 	assert.Equal(t, "24/7", li.Config.Schedule)
 	assert.Equal(t, true, li.Config.AutoDestroy)
-	assert.Equal(t, fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}, li.Config.Restart)
+	assert.Equal(t, &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}, li.Config.Restart)
 	assert.Equal(t, &fly.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, li.Config.DNS)
 	assert.Equal(t, []fly.MachineProcess{{CmdOverride: []string{"foo"}}}, li.Config.Processes)
