@@ -156,7 +156,7 @@ func runImport(ctx context.Context) error {
 		DNS: &fly.DNSConfig{
 			SkipRegistration: true,
 		},
-		Restart: fly.MachineRestart{
+		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,
