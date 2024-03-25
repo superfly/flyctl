@@ -99,6 +99,7 @@ func runImport(ctx context.Context) error {
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
+		AppName:    appName,
 	})
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
