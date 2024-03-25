@@ -552,7 +552,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	// Shortcut to avoid unmarshaling and querying Web when
 	// LoadAppConfigIfPresent is chained with RequireAppName
 	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
-		metrics.AppConfig = cfg
+		metrics.IsUsingGPU = cfg.IsUsingGPU()
 		return ctx, nil
 	}
 
@@ -564,7 +564,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
-			metrics.AppConfig = cfg
+			metrics.IsUsingGPU = cfg.IsUsingGPU()
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)

@@ -35,4 +35,8 @@ lint:
 pre:
 	pre-commit run --all-files
 
+# Installs a "production" build. Can be used to test metrics against production data.
+install-fake-production:
+	go install -tags production -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=2000-01-01T00:00:00Z' -X 'github.com/superfly/flyctl/internal/buildinfo.buildVersion=9.9.9'" .
+
 FORCE:

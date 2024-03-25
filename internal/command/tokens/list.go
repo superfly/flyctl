@@ -59,7 +59,7 @@ func runList(ctx context.Context) (err error) {
 		}
 
 		for _, token := range tokens {
-			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
 
 	case "org":
@@ -69,9 +69,9 @@ func runList(ctx context.Context) (err error) {
 		}
 
 		for _, token := range org.LimitedAccessTokens.Nodes {
-			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
 	}
-	_ = render.Table(out, "", rows, "ID", "Name", "Expires At")
+	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At")
 	return nil
 }

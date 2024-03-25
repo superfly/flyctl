@@ -35,6 +35,10 @@ type ExtensionParams struct {
 	Provider     string
 	PlanID       string
 	Options      map[string]interface{}
+
+	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
+	OverrideRegion string
+	OverrideName   string
 }
 
 // Common flags that should be used for all extension commands
@@ -92,7 +96,11 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	// Prompt to name the provisioned resource, or use the target app name like in Sentry's case
 	if provider.SelectName {
-		name = flag.GetString(ctx, "name")
+		name = params.OverrideName
+
+		if name == "" {
+			name = flag.GetString(ctx, "name")
+		}
 
 		if name == "" {
 			if provider.NameSuffix != "" && targetApp.Name != "" {
@@ -129,11 +137,17 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			return extension, err
 		}
 
-		cfg := appconfig.ConfigFromContext(ctx)
+		desiredRegion := params.OverrideRegion
+		if desiredRegion != "" {
+			cfg := appconfig.ConfigFromContext(ctx)
+			if cfg != nil && cfg.PrimaryRegion != "" {
+				desiredRegion = cfg.PrimaryRegion
+			}
+		}
 
-		if cfg != nil && cfg.PrimaryRegion != "" {
+		if desiredRegion != "" {
 
-			primaryRegion = cfg.PrimaryRegion
+			primaryRegion = desiredRegion
 
 			if slices.Contains(excludedRegions, primaryRegion) {
 				inExcludedRegion = true

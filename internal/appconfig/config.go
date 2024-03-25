@@ -11,7 +11,6 @@ import (
 	"slices"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/machine"
 )
 
 const (
@@ -185,6 +184,16 @@ func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
 	return false
 }
 
+// IsUsingGPU returns true if any VMs have a gpu-kind set.
+func (c *Config) IsUsingGPU() bool {
+	for _, vm := range c.Compute {
+		if vm != nil && vm.MachineGuest != nil && vm.MachineGuest.GPUKind != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Config) HasUdpService() bool {
 	for _, service := range c.Services {
 		if service.Protocol == "udp" {
@@ -317,7 +326,7 @@ func (cfg *Config) MergeFiles(files []*fly.File) error {
 	mConfig := &fly.MachineConfig{
 		Files: cfgFiles,
 	}
-	machine.MergeFiles(mConfig, files)
+	fly.MergeFiles(mConfig, files)
 
 	// Persist the merged files back to the config to be used later for deploying.
 	cfg.MergedFiles = mConfig.Files
