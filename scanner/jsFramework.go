@@ -71,8 +71,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	}
 
 	srcInfo := &SourceInfo{
-		Family:     "NodeJS",
-		Callback:   JsFrameworkCallback,
+		Family:   "NodeJS",
+		Callback: JsFrameworkCallback,
 	}
 
 	_, err = os.Stat("bun.lockb")
