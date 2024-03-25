@@ -5,7 +5,8 @@ import (
 )
 
 type PostgresPlan struct {
-	FlyPostgres *FlyPostgresPlan `json:"fly_postgres"`
+	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
+	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -15,11 +16,15 @@ func (p *PostgresPlan) Provider() any {
 	if p.FlyPostgres != nil {
 		return p.FlyPostgres
 	}
+	if p.SupabasePostgres != nil {
+		return p.SupabasePostgres
+	}
 	return nil
 }
 
 func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 	return PostgresPlan{
+		// TODO: Once supabase is GA, we want to default to Supabase
 		FlyPostgres: &FlyPostgresPlan{
 			// NOTE: Until Legacy Launch is removed, we have to maintain
 			//       "%app_name%-db" as the app name for the database.
@@ -50,4 +55,23 @@ func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {
 		guest.MemoryMB = p.VmRam
 	}
 	return &guest
+}
+
+type SupabasePostgresPlan struct {
+	DbName string `json:"db_name"`
+	Region string `json:"region"`
+}
+
+func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
+	if p.DbName == "" {
+		return plan.AppName + "-db"
+	}
+	return p.DbName
+}
+
+func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
+	if p.Region == "" {
+		return plan.RegionCode
+	}
+	return p.Region
 }
