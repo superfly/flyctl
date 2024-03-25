@@ -28,9 +28,10 @@ type LaunchPlan struct {
 
 	HttpServicePort int `json:"http_service_port,omitempty"`
 
-	Postgres PostgresPlan `json:"postgres"`
-	Redis    RedisPlan    `json:"redis"`
-	Sentry   bool         `json:"sentry"`
+	Postgres      PostgresPlan      `json:"postgres"`
+	Redis         RedisPlan         `json:"redis"`
+	Sentry        bool              `json:"sentry"`
+	ObjectStorage ObjectStoragePlan `json:"object_storage"`
 
 	ScannerFamily string          `json:"scanner_family"`
 	FlyctlVersion version.Version `json:"flyctl_version"`
