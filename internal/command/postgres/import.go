@@ -84,13 +84,6 @@ func runImport(ctx context.Context) error {
 		imageRef  = flag.GetString(ctx, "image")
 	)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
 
@@ -104,6 +97,13 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return fmt.Errorf("could not retrieve machines: %w", err)
@@ -112,8 +112,8 @@ func runImport(ctx context.Context) error {
 	if len(machines) == 0 {
 		return fmt.Errorf("no machines are available on this app %s", appName)
 	}
-	// It doesn't matter which machine we choose
-	machineID := machines[0].ID
+	leader, _ := machinesNodeRoles(ctx, machines)
+	machineID := leader.ID
 
 	// Resolve region
 	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
