@@ -9,12 +9,14 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -95,6 +97,24 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
 
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("could not retrieve machines: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines are available on this app %s", appName)
+	}
+	leader, _ := machinesNodeRoles(ctx, machines)
+	machineID := leader.ID
+
 	// Resolve region
 	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "Choose a region to deploy the migration machine:",
@@ -125,6 +145,7 @@ func runImport(ctx context.Context) error {
 	machineConfig := &fly.MachineConfig{
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": "pass",
+			"PG_MACHINE_ID":     machineID,
 		},
 		Guest: &fly.MachineGuest{
 			CPUKind:  vmSize.CPUClass,
