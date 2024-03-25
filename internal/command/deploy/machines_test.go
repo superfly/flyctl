@@ -55,7 +55,6 @@ func Test_resolveUpdatedMachineConfig_Basic(t *testing.T) {
 			},
 		},
 	}, li)
-
 }
 
 // Test any LaunchMachineInput field that must not be set on a machine
@@ -67,11 +66,13 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			"PRIMARY_REGION": "scl",
 			"OTHER":          "value",
 		},
-		Metrics: []*appconfig.Metrics{{
-			MachineMetrics: &fly.MachineMetrics{
-				Port: 9000,
-				Path: "/prometheus",
-			}},
+		Metrics: []*appconfig.Metrics{
+			{
+				MachineMetrics: &fly.MachineMetrics{
+					Port: 9000,
+					Path: "/prometheus",
+				},
+			},
 		},
 		Deploy: &appconfig.Deploy{
 			ReleaseCommand: "touch sky",
@@ -168,7 +169,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"fly_release_version":  "0",
 				"fly_flyctl_version":   buildinfo.Version().String(),
 			},
-			Restart: fly.MachineRestart{
+			Restart: &fly.MachineRestart{
 				Policy: fly.MachineRestartPolicyNo,
 			},
 			AutoDestroy: true,
@@ -186,7 +187,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 				"PRIMARY_REGION": "different-region",
 			},
 			AutoDestroy: false,
-			Restart: fly.MachineRestart{
+			Restart: &fly.MachineRestart{
 				Policy: fly.MachineRestartPolicyOnFailure,
 			},
 			Init: fly.MachineInit{
@@ -216,7 +217,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			Init: fly.MachineInit{
 				Cmd: []string{"touch", "sky"},
 			},
-			Restart: fly.MachineRestart{
+			Restart: &fly.MachineRestart{
 				Policy: fly.MachineRestartPolicyNo,
 			},
 			AutoDestroy: true,
