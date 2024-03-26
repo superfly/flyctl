@@ -46,6 +46,11 @@ func newFailover() *cobra.Command {
 			Default:     false,
 			Shorthand:   "F",
 		},
+		flag.Bool{
+			Name:        "allow-secondary-region",
+			Description: "Allow failover to a machine in a secondary region. This is useful when the primary region is unavailable, but the secondary region is still healthy. This is only available for flex machines.",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -90,6 +95,7 @@ func runFailover(ctx context.Context) (err error) {
 	if len(machines) <= 1 {
 		return fmt.Errorf("failover is not available for standalone postgres")
 	}
+
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
@@ -97,7 +103,9 @@ func runFailover(ctx context.Context) (err error) {
 
 	if IsFlex(leader) {
 		force := flag.GetBool(ctx, "force")
-		if failoverErr := flexFailover(ctx, machines, app, force); failoverErr != nil {
+		allowSecondaryRegion := flag.GetBool(ctx, "allow-secondary-region")
+
+		if failoverErr := flexFailover(ctx, machines, app, force, allowSecondaryRegion); failoverErr != nil {
 			if err := handleFlexFailoverFail(ctx, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
@@ -125,6 +133,7 @@ func runFailover(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			} else if machineRole(leader) == "leader" {
+
 				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
 			}
 			return nil
@@ -143,7 +152,7 @@ func runFailover(ctx context.Context) (err error) {
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force bool) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force, allowSecondaryRegion bool) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
 	}
@@ -194,7 +203,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		return fmt.Errorf("Could not find primary region for app")
 	}
 
-	newLeader, err := pickNewLeader(ctx, app, primaryCandidates, secondaryCandidates)
+	newLeader, err := pickNewLeader(ctx, app, primaryCandidates, secondaryCandidates, allowSecondaryRegion)
 	if err != nil {
 		return err
 	}
@@ -351,11 +360,17 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine) (*fly.Machine, error) {
+func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
 	// We should go for the primary canddiates first, but the secondary candidates are also valid
-	candidates := append(primaryCandidates, secondaryCandidates...)
+	var candidates []*fly.Machine
+	switch allowSecondaryRegion {
+	case true:
+		candidates = append(primaryCandidates, secondaryCandidates...)
+	case false:
+		candidates = primaryCandidates
+	}
 
 	for _, machine := range candidates {
 		isValid := true
@@ -379,6 +394,11 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 	for machineID, reason := range machineReasons {
 		err = fmt.Sprintf("%s%s: %s\n", err, machineID, reason)
 	}
+
+	if len(candidates) == 0 && len(secondaryCandidates) > 0 && !allowSecondaryRegion {
+		err += "No primary candidates were found, but secondary candidates were found. If you would like to failover to a secondary region, please run this command with the `--allow-secondary-region` flag\n"
+	}
+
 	err += "\nplease fix one or more of the above issues, and try again\n"
 
 	return nil, fmt.Errorf(err)
