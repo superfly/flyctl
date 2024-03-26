@@ -40,6 +40,17 @@ func newFailover() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "force",
+			Description: "Force a failover even if we can't connect to the active leader",
+			Default:     false,
+			Shorthand:   "F",
+		},
+		flag.Bool{
+			Name:        "allow-secondary-region",
+			Description: "Allow failover to a machine in a secondary region. This is useful when the primary region is unavailable, but the secondary region is still healthy. This is only available for flex machines.",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -91,7 +102,10 @@ func runFailover(ctx context.Context) (err error) {
 	}
 
 	if IsFlex(leader) {
-		if failoverErr := flexFailover(ctx, machines, app); failoverErr != nil {
+		force := flag.GetBool(ctx, "force")
+		allowSecondaryRegion := flag.GetBool(ctx, "allow-secondary-region")
+
+		if failoverErr := flexFailover(ctx, machines, app, force, allowSecondaryRegion); failoverErr != nil {
 			if err := handleFlexFailoverFail(ctx, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
@@ -119,6 +133,7 @@ func runFailover(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			} else if machineRole(leader) == "leader" {
+
 				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
 			}
 			return nil
@@ -137,7 +152,7 @@ func runFailover(ctx context.Context) (err error) {
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force, allowSecondaryRegion bool) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
 	}
@@ -152,7 +167,8 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 
 	primaryRegion := ""
-	candidates := make([]*fly.Machine, 0)
+	primaryCandidates := make([]*fly.Machine, 0)
+	secondaryCandidates := make([]*fly.Machine, 0)
 
 	for _, machine := range machines {
 		machinePrimaryRegion, ok := machine.Config.Env["PRIMARY_REGION"]
@@ -170,24 +186,24 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 			return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
 		}
 
-		// Ignore any machines residing outside of the primary region
-		if primaryRegion != machine.Region {
-			continue
-		}
-
 		// We don't need to consider the existing leader here.
 		if machine == oldLeader {
 			continue
 		}
 
-		candidates = append(candidates, machine)
+		// Ignore any machines residing outside of the primary region
+		if primaryRegion == machine.Region {
+			primaryCandidates = append(primaryCandidates, machine)
+		} else {
+			secondaryCandidates = append(secondaryCandidates, machine)
+		}
 	}
 
 	if primaryRegion == "" {
 		return fmt.Errorf("Could not find primary region for app")
 	}
 
-	newLeader, err := pickNewLeader(ctx, app, candidates)
+	newLeader, err := pickNewLeader(ctx, app, primaryCandidates, secondaryCandidates)
 	if err != nil {
 		return err
 	}
@@ -211,6 +227,11 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		return err
 	}
 
+	cmd := "repmgr standby promote --siblings-follow -f /data/repmgr.conf"
+	if force {
+		cmd += " -F"
+	}
+
 	fmt.Println("Promoting new leader... ", newLeader.ID)
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
@@ -218,7 +239,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),
-		Cmd:      "repmgr standby promote --siblings-follow -f /data/repmgr.conf",
+		Cmd:      cmd,
 		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
 		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 		Stdin:    nil,
@@ -339,10 +360,19 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *fly.AppCompact, machinesWithinPrimaryRegion []*fly.Machine) (*fly.Machine, error) {
+func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine, allowSecondaryRegion bool) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
-	for _, machine := range machinesWithinPrimaryRegion {
+	// We should go for the primary canddiates first, but the secondary candidates are also valid
+	var candidates []*fly.Machine
+	switch allowSecondaryRegion {
+	case true:
+		candidates = append(primaryCandidates, secondaryCandidates...)
+	case false:
+		candidates = primaryCandidates
+	}
+
+	for _, machine := range candidates {
 		isValid := true
 		if isLeader(machine) {
 			isValid = false
@@ -353,7 +383,6 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, machinesWithinPrima
 		} else if !passesDryRun(ctx, app, machine) {
 			isValid = false
 			machineReasons[machine.ID] = fmt.Sprintf("Running a dry run of `repmgr standby switchover` failed. Try running `fly ssh console -u postgres -C 'repmgr standby switchover -f /data/repmgr.conf --dry-run' -s -a %s` for more information. This was most likely due to the requirements for quorum not being met.", app.Name)
-
 		}
 
 		if isValid {
@@ -365,6 +394,11 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, machinesWithinPrima
 	for machineID, reason := range machineReasons {
 		err = fmt.Sprintf("%s%s: %s\n", err, machineID, reason)
 	}
+
+	if len(candidates) == 0 && len(secondaryCandidates) > 0 && !allowSecondaryRegion {
+		err += "No primary candidates were found, but secondary candidates were found. If you would like to failover to a secondary region, please run this command with the `--allow-secondary-region` flag\n"
+	}
+
 	err += "\nplease fix one or more of the above issues, and try again\n"
 
 	return nil, fmt.Errorf(err)
