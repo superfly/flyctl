@@ -3,6 +3,7 @@ package config
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -127,6 +128,9 @@ func unmarshalUnlocked(path string, v interface{}) (err error) {
 	}()
 
 	err = yaml.NewDecoder(f).Decode(v)
+	if err == io.EOF {
+		err = nil
+	}
 
 	return
 }
