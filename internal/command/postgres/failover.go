@@ -40,6 +40,12 @@ func newFailover() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "force",
+			Description: "Force a failover even if we can't connect to the active leader",
+			Default:     false,
+			Shorthand:   "F",
+		},
 	)
 
 	return cmd
@@ -84,14 +90,14 @@ func runFailover(ctx context.Context) (err error) {
 	if len(machines) <= 1 {
 		return fmt.Errorf("failover is not available for standalone postgres")
 	}
-
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
 	}
 
 	if IsFlex(leader) {
-		if failoverErr := flexFailover(ctx, machines, app); failoverErr != nil {
+		force := flag.GetBool(ctx, "force")
+		if failoverErr := flexFailover(ctx, machines, app, force); failoverErr != nil {
 			if err := handleFlexFailoverFail(ctx, machines); err != nil {
 				fmt.Fprintf(io.ErrOut, "Failed to handle failover failure, please manually configure PG cluster primary")
 			}
@@ -137,7 +143,7 @@ func runFailover(ctx context.Context) (err error) {
 	return
 }
 
-func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact) error {
+func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppCompact, force bool) error {
 	if len(machines) < 3 {
 		return fmt.Errorf("Not enough machines to meet quorum requirements")
 	}
@@ -212,6 +218,11 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		return err
 	}
 
+	cmd := "repmgr standby promote --siblings-follow -f /data/repmgr.conf"
+	if force {
+		cmd += "-F"
+	}
+
 	fmt.Println("Promoting new leader... ", newLeader.ID)
 	err = ssh.SSHConnect(&ssh.SSHParams{
 		Ctx:      ctx,
@@ -219,7 +230,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		App:      app.Name,
 		Username: "postgres",
 		Dialer:   agent.DialerFromContext(ctx),
-		Cmd:      "repmgr standby promote --siblings-follow -f /data/repmgr.conf",
+		Cmd:      cmd,
 		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
 		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 		Stdin:    nil,
