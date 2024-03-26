@@ -152,7 +152,8 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 	fmt.Fprintf(io.Out, "Performing a failover\n")
 
 	primaryRegion := ""
-	candidates := make([]*fly.Machine, 0)
+	primaryCandidates := make([]*fly.Machine, 0)
+	secondaryCandidates := make([]*fly.Machine, 0)
 
 	for _, machine := range machines {
 		machinePrimaryRegion, ok := machine.Config.Env["PRIMARY_REGION"]
@@ -170,24 +171,24 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 			return fmt.Errorf("Machines don't agree on a primary region. Cannot safely perform a failover until that's fixed")
 		}
 
-		// Ignore any machines residing outside of the primary region
-		if primaryRegion != machine.Region {
-			continue
-		}
-
 		// We don't need to consider the existing leader here.
 		if machine == oldLeader {
 			continue
 		}
 
-		candidates = append(candidates, machine)
+		// Ignore any machines residing outside of the primary region
+		if primaryRegion == machine.Region {
+			primaryCandidates = append(primaryCandidates, machine)
+		} else {
+			secondaryCandidates = append(secondaryCandidates, machine)
+		}
 	}
 
 	if primaryRegion == "" {
 		return fmt.Errorf("Could not find primary region for app")
 	}
 
-	newLeader, err := pickNewLeader(ctx, app, candidates)
+	newLeader, err := pickNewLeader(ctx, app, primaryCandidates, secondaryCandidates)
 	if err != nil {
 		return err
 	}
@@ -339,10 +340,13 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 	return nil
 }
 
-func pickNewLeader(ctx context.Context, app *fly.AppCompact, machinesWithinPrimaryRegion []*fly.Machine) (*fly.Machine, error) {
+func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates []*fly.Machine, secondaryCandidates []*fly.Machine) (*fly.Machine, error) {
 	machineReasons := make(map[string]string)
 
-	for _, machine := range machinesWithinPrimaryRegion {
+	// We should go for the primary canddiates first, but the secondary candidates are also valid
+	candidates := append(primaryCandidates, secondaryCandidates...)
+
+	for _, machine := range candidates {
 		isValid := true
 		if isLeader(machine) {
 			isValid = false
@@ -353,7 +357,6 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, machinesWithinPrima
 		} else if !passesDryRun(ctx, app, machine) {
 			isValid = false
 			machineReasons[machine.ID] = fmt.Sprintf("Running a dry run of `repmgr standby switchover` failed. Try running `fly ssh console -u postgres -C 'repmgr standby switchover -f /data/repmgr.conf --dry-run' -s -a %s` for more information. This was most likely due to the requirements for quorum not being met.", app.Name)
-
 		}
 
 		if isValid {
