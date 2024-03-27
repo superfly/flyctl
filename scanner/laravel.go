@@ -132,10 +132,8 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			if !dockerfileExists {
-				return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
-			}
+		if err := cmd.Run(); err != nil && !dockerfileExists {
+			return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
 		}
 	}
 
