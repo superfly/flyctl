@@ -190,7 +190,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 }
 
 func getFirstFlyDevNameserver(dnsClient *dns.Client) (string, error) {
-	const resolver = "9.9.9.9:53"
+	const resolver = "8.8.8.8:53"
 	msg := &dns.Msg{}
 	flydev := "fly.dev"
 	msg.SetQuestion(dns.Fqdn(flydev), dns.TypeNS)
