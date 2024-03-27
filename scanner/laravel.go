@@ -96,54 +96,59 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan)
 	}
 
 	// generate Dockerfile if it doesn't already exist
+	dockerfileExists := true
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) {
+		dockerfileExists = false
+	}
 
-		// check first to see if the package is already installed
-		installed := false
+	// check first to see if the package is already installed
+	installed := false
 
-		data, err := os.ReadFile("composer.json")
+	data, err := os.ReadFile("composer.json")
+	if err == nil {
+		var composerJson map[string]interface{}
+		err = json.Unmarshal(data, &composerJson)
 		if err == nil {
-			var composerJson map[string]interface{}
-			err = json.Unmarshal(data, &composerJson)
-			if err == nil {
-				// check for the package in the composer.json
-				require, ok := composerJson["require"].(map[string]interface{})
-				if ok && require["fly-apps/dockerfile-laravel"] != nil {
-					installed = true
-				}
+			// check for the package in the composer.json
+			require, ok := composerJson["require"].(map[string]interface{})
+			if ok && require["fly-apps/dockerfile-laravel"] != nil {
+				installed = true
+			}
 
-				requireDev, ok := composerJson["require-dev"].(map[string]interface{})
-				if ok && requireDev["fly-apps/dockerfile-laravel"] != nil {
-					installed = true
-				}
+			requireDev, ok := composerJson["require-dev"].(map[string]interface{})
+			if ok && requireDev["fly-apps/dockerfile-laravel"] != nil {
+				installed = true
 			}
 		}
+	}
 
-		// install fly-apps/dockerfile-laravel if it's not already installed
-		if !installed {
-			args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
-			fmt.Printf("installing: %s\n", strings.Join(args, " "))
-			cmd := exec.Command(args[0], args[1:]...)
-			cmd.Stdin = os.Stdin
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to install fly-apps/dockerfile-laravel: %w", err)
-			}
-		}
-
-		args := []string{"vendor/bin/dockerfile-laravel", "generate"}
-		fmt.Printf("Running: %s\n", strings.Join(args, " "))
+	// install fly-apps/dockerfile-laravel if it's not already installed
+	if !installed {
+		args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
+		fmt.Printf("installing: %s\n", strings.Join(args, " "))
 		cmd := exec.Command(args[0], args[1:]...)
 		cmd.Stdin = os.Stdin
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to generate Dockerfile: %w", err)
+		if err := cmd.Run(); err != nil && !dockerfileExists {
+			return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
 		}
+	}
+
+	args := []string{"vendor/bin/dockerfile-laravel", "generate"}
+	if dockerfileExists {
+		args = append(args, "--skip")
+	}
+	fmt.Printf("Running: %s\n", strings.Join(args, " "))
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to generate Dockerfile: %w", err)
 	}
 
 	// provide some advice
