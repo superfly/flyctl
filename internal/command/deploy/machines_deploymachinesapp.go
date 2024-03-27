@@ -1083,7 +1083,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			m.SetQuestion(fqdn, dns.TypeA)
 			span.SetAttributes(attribute.String("v4_question", m.String()))
-			answerv4, _, err := c.Exchange(m, "9.9.9.9:53")
+			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
 				return err
@@ -1095,7 +1095,7 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 
 			m.SetQuestion(fqdn, dns.TypeAAAA)
 			span.SetAttributes(attribute.String("v6_question", m.String()))
-			answerv6, _, err := c.Exchange(m, "9.9.9.9:53")
+			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
 				return err
