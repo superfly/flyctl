@@ -79,6 +79,7 @@ type SourceInfo struct {
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
 	AutoInstrumentErrors         bool
+	FailureCallback              func(msg string) string
 }
 
 type SourceFile struct {

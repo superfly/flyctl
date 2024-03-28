@@ -72,6 +72,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
+		FailureCallback:      RailsFailureCallback,
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
@@ -327,4 +328,13 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	}
 
 	return nil
+}
+
+func RailsFailureCallback(msg string) string {
+	if !strings.Contains(msg, "https://") {
+		msg += "\n\nSee https://fly.io/docs/rails/getting-started/existing/#common-initial-deployment-issues\n" +
+			"for suggestions on how to resolve common deployment issues."
+	}
+
+	return msg
 }
