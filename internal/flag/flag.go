@@ -3,6 +3,7 @@ package flag
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"time"
 
@@ -10,6 +11,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
+
+type extraArgsContextKey struct{}
 
 func makeAlias[T any](template T, name string) T {
 	var ret T
@@ -587,4 +590,20 @@ func BpVolume() StringSlice {
 Repeat for each volume in order (comma-separated lists not accepted)
 `,
 	}
+}
+
+// WithExtraArgs derives a context that carries extraArgs from ctx.
+func WithExtraArgs(ctx context.Context, extraArgs []string) context.Context {
+	return context.WithValue(ctx, extraArgsContextKey{}, extraArgs)
+}
+
+// ExtraArgsFromContext returns the extraArgs ctx carries.
+func ExtraArgsFromContext(ctx context.Context) []string {
+	if extraArgs, ok := ctx.Value(extraArgsContextKey{}).([]string); ok {
+		return extraArgs
+	}
+
+	fmt.Printf("unable to get extra args from context\n")
+
+	return []string{}
 }
