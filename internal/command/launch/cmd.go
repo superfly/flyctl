@@ -127,10 +127,18 @@ func run(ctx context.Context) (err error) {
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
 	metrics.Started(ctx, "launch")
+
+	var state *launchState = nil
+
 	defer func() {
 		if err != nil {
 			status.Error = err.Error()
+
+			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
+				err = errors.New(state.sourceInfo.FailureCallback(status.Error))
+			}
 		}
+
 		status.Duration = time.Since(startTime)
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
@@ -192,7 +200,7 @@ func run(ctx context.Context) (err error) {
 	status.ScannerFamily = launchManifest.Plan.ScannerFamily
 	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
-	state, err := stateFromManifest(ctx, *launchManifest, cache)
+	state, err = stateFromManifest(ctx, *launchManifest, cache)
 	if err != nil {
 		return err
 	}
