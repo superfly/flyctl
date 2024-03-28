@@ -76,7 +76,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	return s, nil
 }
 
-func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
+func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)
@@ -141,6 +141,12 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan)
 	if dockerfileExists {
 		args = append(args, "--skip")
 	}
+
+	// add additional flags from launch command
+	if len(flags) > 0 {
+		args = append(args, flags...)
+	}
+
 	fmt.Printf("Running: %s\n", strings.Join(args, " "))
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = os.Stdin
