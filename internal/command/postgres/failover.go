@@ -44,7 +44,6 @@ func newFailover() *cobra.Command {
 			Name:        "force",
 			Description: "Force a failover even if we can't connect to the active leader",
 			Default:     false,
-			Shorthand:   "F",
 		},
 		flag.Bool{
 			Name:        "allow-secondary-region",
@@ -365,10 +364,9 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 
 	// We should go for the primary canddiates first, but the secondary candidates are also valid
 	var candidates []*fly.Machine
-	switch allowSecondaryRegion {
-	case true:
+	if allowSecondaryRegion {
 		candidates = append(primaryCandidates, secondaryCandidates...)
-	case false:
+	} else {
 		candidates = primaryCandidates
 	}
 
