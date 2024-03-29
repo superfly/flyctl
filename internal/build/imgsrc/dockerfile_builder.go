@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -483,7 +482,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
 		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
 	}
-	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
+	bc, err := client.New(ctx, "", client.WithContextDialer(dialer))
 	if err != nil {
 		return "", err
 	}
@@ -492,21 +491,16 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	statusCh := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		var (
-			con console.Console
-			err error
-		)
-		// On GitHub Actions, os.Stderr is not console.
-		// https://community.fly.io/t/error-failed-to-fetch-an-image-or-build-from-source-error-building-provided-file-is-not-a-console/14273
-		con, err = console.ConsoleFromFile(os.Stderr)
+		var err error
+
+		display, err := progressui.NewDisplay(os.Stderr, "auto")
 		if err != nil {
-			// It should be nil, but just in case.
-			con = nil
+			return err
 		}
 		// Don't use `ctx` here.
 		// Cancelling the context kills the reader of statusCh which blocks bc.Solve below.
-		// bc.Solve closes statusCh at the end and DisplaySolveStatus returns by reading the closed channel.
-		_, err = progressui.DisplaySolveStatus(context.Background(), con, os.Stdout, statusCh)
+		// bc.Solve closes statusCh at the end and UpdateFrom returns by reading the closed channel.
+		_, err = display.UpdateFrom(context.Background(), statusCh)
 		return err
 	})
 	var res *client.SolveResponse
