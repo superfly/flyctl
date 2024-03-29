@@ -5,16 +5,12 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/command/auth/webauth"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/internal/state"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newLogin() *cobra.Command {
@@ -66,33 +62,13 @@ func runLogin(ctx context.Context) error {
 	case interactive, email != "", password != "", otp != "":
 		token, err = runShellLogin(ctx, email, password, otp)
 	default:
-		token, err = runWebLogin(ctx, false)
+		token, err = webauth.RunWebLogin(ctx, false)
 	}
 	if err != nil {
 		return err
 	}
 
-	if ac, err := agent.DefaultClient(ctx); err == nil {
-		_ = ac.Kill(ctx)
-	}
-	config.Clear(state.ConfigFile(ctx))
-
-	if err := persistAccessToken(ctx, token); err != nil {
-		return err
-	}
-
-	user, err := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
-		AccessToken: token,
-	}).GetCurrentUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving current user: %w", err)
-	}
-
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "successfully logged in as %s\n", colorize.Bold(user.Email))
-
-	return nil
+	return webauth.SaveToken(ctx, token)
 }
 
 type requiredWhenNonInteractive string
