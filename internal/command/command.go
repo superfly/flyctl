@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -60,9 +62,12 @@ var commonPreparers = []preparers.Preparer{
 	preparers.LoadConfig,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
+	startMetrics,
+}
+
+var authPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
-	startMetrics,
 	preparers.SetOtelAuthenticationKey,
 }
 
@@ -94,6 +99,11 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 
 		// run the common preparers
 		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
+			return
+		}
+
+		// run the preparers that perform or require authorization
+		if ctx, err = prepare(ctx, authPreparers...); err != nil {
 			return
 		}
 
@@ -500,7 +510,45 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
 	if !fly.ClientFromContext(ctx).Authenticated() {
-		return nil, fly.ErrNoAuthToken
+		io := iostreams.FromContext(ctx)
+		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
+		if io.IsInteractive() &&
+			!env.IsCI() &&
+			!flag.GetBool(ctx, "now") &&
+			!flag.GetBool(ctx, "json") &&
+			!flag.GetBool(ctx, "quiet") &&
+			!flag.GetBool(ctx, "yes") {
+
+			// Ask before we start opening things
+			confirmed, err := prompt.Confirm(ctx, "You must be logged in to do this. Would you like to sign in?")
+			if err != nil {
+				return nil, err
+			}
+			if !confirmed {
+				return nil, fly.ErrNoAuthToken
+			}
+
+			// Attempt to log the user in
+			token, err := webauth.RunWebLogin(ctx, false)
+			if err != nil {
+				return nil, err
+			}
+			if err := webauth.SaveToken(ctx, token); err != nil {
+				return nil, err
+			}
+
+			// Reload the config
+			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
+				return nil, err
+			}
+
+			// Re-run the auth preparers to update the client with the new token
+			if ctx, err = prepare(ctx, authPreparers...); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fly.ErrNoAuthToken
+		}
 	}
 
 	return updateMacaroons(ctx)

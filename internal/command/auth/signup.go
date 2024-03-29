@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/command/auth/webauth"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
@@ -24,12 +25,12 @@ and sends the user to a form to provide appropriate credentials.
 }
 
 func runSignup(ctx context.Context) error {
-	token, err := runWebLogin(ctx, true)
+	token, err := webauth.RunWebLogin(ctx, true)
 	if err != nil {
 		return err
 	}
 
-	if err := persistAccessToken(ctx, token); err != nil {
+	if err := webauth.SaveToken(ctx, token); err != nil {
 		return err
 	}
 
