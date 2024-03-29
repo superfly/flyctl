@@ -513,6 +513,7 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		io := iostreams.FromContext(ctx)
 		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
 		if io.IsInteractive() &&
+			!env.IsCI() &&
 			!flag.GetBool(ctx, "now") &&
 			!flag.GetBool(ctx, "json") &&
 			!flag.GetBool(ctx, "quiet") &&
