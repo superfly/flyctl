@@ -152,7 +152,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", fmt.Errorf("could not find machine IP")
 		}
 
-		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug)
+		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug, false)
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
@@ -232,6 +232,9 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	img, err := findImageWithDocker(ctx, docker, opts.Tag)
 	if err != nil {
 		return nil, "", err
+	}
+	if img == nil {
+		return nil, "", fmt.Errorf("no image found")
 	}
 
 	return &DeploymentImage{

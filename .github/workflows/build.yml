@@ -1,0 +1,41 @@
+name: Build
+on:
+  schedule:
+    - cron: '21 */2 * * *'
+  push:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+
+jobs:
+  test_build:
+    runs-on: ubuntu-latest-m
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: "Place wintun.dll"
+        run: cp deps/wintun/bin/amd64/wintun.dll ./
+      - name: build
+        uses: goreleaser/goreleaser-action@v5
+        env:
+          BUILD_ENV: "development"
+        with:
+          version: latest
+          args: build --clean --snapshot --verbose
+      - name: Upload flyctl for preflight
+        uses: actions/upload-artifact@v4
+        with:
+          name: flyctl
+          path: dist/default_linux_amd64_v1/flyctl
+          overwrite: true
+
+  preflight:
+    needs: test_build
+    uses: ./.github/workflows/preflight.yml
+    secrets: inherit

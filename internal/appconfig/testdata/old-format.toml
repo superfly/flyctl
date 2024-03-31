@@ -34,10 +34,20 @@ build_target = "thalayer"
     interval = 30000
     timeout = 4000
 
+    [[services.http_checks.headers]]
+      name = "origin"
+      value = "http://localhost:8000"
+
   [[services.http_checks]]
     # Additional check of same type to ensure it is not overriden
     interval = "20s"
     timeout = "3s"
+    grace_period = "" # empty duration must be ignored
+
+    [services.http_checks.headers]
+      fly-healthcheck = 1
+      metoo = true
+      astring = "string"
 
 [experimental]
   # GQL GetConfig always returns an experimental section even if empty
@@ -49,3 +59,8 @@ build_target = "thalayer"
   # singular mount
   source = "data"
   destination = "/data"
+
+[metrics]
+  # singular metrics
+  port = 9999
+  path = "/metrics"

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -41,7 +41,7 @@ func newLeaseView() *cobra.Command {
 	const (
 		short = "View machine leases"
 		long  = short + "\n"
-		usage = "view <machine-id>"
+		usage = "view [machine-id]"
 	)
 
 	cmd := command.New(usage, short, long, runLeaseView,
@@ -66,7 +66,7 @@ func newLeaseClear() *cobra.Command {
 	const (
 		short = "Clear machine leases"
 		long  = short + "\n"
-		usage = "clear <machine-id>"
+		usage = "clear [machine-id]"
 	)
 
 	cmd := command.New(usage, short, long, runLeaseClear,
@@ -99,7 +99,7 @@ func runLeaseView(ctx context.Context) (err error) {
 	}
 	flapsClient := flaps.FromContext(ctx)
 
-	var leases = make(map[string]*api.MachineLease)
+	var leases = make(map[string]*fly.MachineLease)
 
 	for _, machine := range machines {
 		lease, err := flapsClient.FindLease(ctx, machine.ID)

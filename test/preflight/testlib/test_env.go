@@ -5,7 +5,6 @@ package testlib
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/BurntSushi/toml"
 	"github.com/google/shlex"
-	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	"github.com/oklog/ulid/v2"
+	"github.com/pelletier/go-toml/v2"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -29,8 +28,10 @@ type FlyctlTestEnv struct {
 	orgSlug             string
 	primaryRegion       string
 	otherRegions        []string
+	env                 map[string]string
 	cmdHistory          []*FlyctlResult
 	noHistoryOnFail     bool
+	id                  string
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -39,6 +40,10 @@ func (f *FlyctlTestEnv) OrgSlug() string {
 
 func (f *FlyctlTestEnv) WorkDir() string {
 	return f.workDir
+}
+
+func (f *FlyctlTestEnv) ID() string {
+	return f.id
 }
 
 func (f *FlyctlTestEnv) PrimaryRegion() string {
@@ -51,6 +56,25 @@ func (f *FlyctlTestEnv) SecondaryRegion() string {
 
 func (f *FlyctlTestEnv) OtherRegions() []string {
 	return f.otherRegions
+}
+
+// Great name I know
+func NewTestEnvFromEnvWithEnv(t testing.TB, envVariables map[string]string) *FlyctlTestEnv {
+	tempDir := socketSafeTempDir(t)
+	_, noHistoryOnFail := os.LookupEnv("FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL")
+	testEnv := NewTestEnvFromConfig(t, TestEnvConfig{
+		homeDir:         tempDir,
+		workDir:         tempDir,
+		flyctlBin:       os.Getenv("FLY_PREFLIGHT_TEST_FLYCTL_BINARY_PATH"),
+		orgSlug:         os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"),
+		primaryRegion:   primaryRegionFromEnv(),
+		otherRegions:    otherRegionsFromEnv(),
+		accessToken:     os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
+		logLevel:        os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
+		noHistoryOnFail: noHistoryOnFail,
+		envVariables:    envVariables,
+	})
+	return testEnv
 }
 
 func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
@@ -66,7 +90,14 @@ func NewTestEnvFromEnv(t testing.TB) *FlyctlTestEnv {
 		accessToken:     os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
 		logLevel:        os.Getenv("FLY_PREFLIGHT_TEST_LOG_LEVEL"),
 		noHistoryOnFail: noHistoryOnFail,
+		envVariables:    make(map[string]string),
 	})
+
+	// annotate github actions output with cli errors
+	env.Setenv("FLY_GHA_ERROR_ANNOTATION", "1")
+	env.Setenv("GITHUB_ACTIONS", os.Getenv("GITHUB_ACTIONS"))
+
+	fmt.Println("workdir", env.workDir)
 	return env
 }
 
@@ -80,6 +111,11 @@ type TestEnvConfig struct {
 	accessToken     string
 	logLevel        string
 	noHistoryOnFail bool
+	envVariables    map[string]string
+}
+
+func (t *TestEnvConfig) Setenv(name string, value string) {
+	t.envVariables[name] = value
 }
 
 func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
@@ -90,19 +126,19 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 			flyctlBin = "fly"
 		}
 	}
-	tryToStopAgentsInOriginalHomeDir(t, flyctlBin)
-	tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
-	t.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
+	tryToStopAgentsInOriginalHomeDir(flyctlBin)
+	// tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
+	cfg.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
 	if cfg.logLevel != "" {
-		t.Setenv("LOG_LEVEL", cfg.logLevel)
+		cfg.Setenv("LOG_LEVEL", cfg.logLevel)
 	}
-	t.Setenv("HOME", cfg.homeDir)
-	require.Nil(t, os.Chdir(cfg.workDir))
+	cfg.Setenv("HOME", cfg.homeDir)
 	primaryReg := cfg.primaryRegion
 	if primaryReg == "" {
 		primaryReg = defaultRegion
 	}
 	testEnv := &FlyctlTestEnv{
+		id:                  ulid.Make().String(),
 		t:                   t,
 		flyctlBin:           flyctlBin,
 		primaryRegion:       primaryReg,
@@ -112,6 +148,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		workDir:             cfg.workDir,
 		originalAccessToken: cfg.accessToken,
 		noHistoryOnFail:     cfg.noHistoryOnFail,
+		env:                 cfg.envVariables,
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -141,13 +178,24 @@ type testingTWrapper interface {
 	TempDir() string
 }
 
+// Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
+// FlyAllowExitFailure runs a flyctl command and returns the result, but does not fail the test if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
+
+// FlyC runs a flyctl command with a context and returns the result
+func (f *FlyctlTestEnv) FlyC(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
+}
+
+// func (f *FlyctlTestEnv) FlyAllowExitFailure(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
+// 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
+// }
 
 type FlyCmdConfig struct {
 	NoAssertSuccessfulExit bool
@@ -171,6 +219,15 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 		stdErr:        stdErr,
 	}
 	cmd := exec.CommandContext(ctx, f.flyctlBin, res.args...)
+
+	var env []string
+
+	for key, val := range f.env {
+		env = append(env, fmt.Sprintf("%s=%s", key, val))
+	}
+
+	cmd.Dir = f.workDir
+	cmd.Env = env
 	cmd.Stdin = testIostreams.In
 	cmd.Stdout = testIostreams.Out
 	cmd.Stderr = testIostreams.ErrOut
@@ -216,10 +273,7 @@ func (f *FlyctlTestEnv) verifyTestOrgExists() {
 	result := f.Fly("orgs list --json")
 	result.AssertSuccessfulExit()
 	var orgMap map[string]string
-	err := json.Unmarshal(result.stdOut.Bytes(), &orgMap)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.stdOut.String())
-	}
+	result.StdOutJSON(&orgMap)
 	if _, present := orgMap[f.orgSlug]; !present {
 		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
@@ -244,24 +298,19 @@ func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 	return appName
 }
 
-func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
+func (f *FlyctlTestEnv) MachinesList(appName string) []*fly.Machine {
 	time.Sleep(800 * time.Millisecond) // fly m list is eventually consistent, yay!
 	cmdResult := f.Fly("machines list --app %s --json", appName)
 	cmdResult.AssertSuccessfulExit()
-	var machList []*api.Machine
-	err := json.Unmarshal(cmdResult.stdOut.Bytes(), &machList)
-	if err != nil {
-		f.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
-	}
+	var machList []*fly.Machine
+	cmdResult.StdOutJSON(&machList)
 	return machList
 }
 
-func (f *FlyctlTestEnv) VolumeList(appName string) []*api.Volume {
+func (f *FlyctlTestEnv) VolumeList(appName string) []*fly.Volume {
 	cmdResult := f.Fly("volume list --app %s --json", appName)
-	var list []*api.Volume
-	if err := json.Unmarshal(cmdResult.stdOut.Bytes(), &list); err != nil {
-		f.Fatalf("failed to unmarshal machines list json for app %s:\n%s", appName, cmdResult.stdOut.String())
-	}
+	var list []*fly.Volume
+	cmdResult.StdOutJSON(&list)
 	return list
 }
 
@@ -282,6 +331,7 @@ func (f *FlyctlTestEnv) ReadFile(path string) string {
 	return string(content)
 }
 
+// WriteFlyToml writes a fly.toml file with the given format and values
 func (f *FlyctlTestEnv) WriteFlyToml(format string, vals ...any) {
 	f.WriteFile("fly.toml", format, vals...)
 }
@@ -359,7 +409,7 @@ func (f *FlyctlTestEnv) Name() string {
 }
 
 func (f *FlyctlTestEnv) Setenv(key, value string) {
-	f.t.Setenv(key, value)
+	f.env[key] = value
 }
 
 func (f *FlyctlTestEnv) Skip(args ...any) {

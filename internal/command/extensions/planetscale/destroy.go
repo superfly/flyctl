@@ -6,11 +6,12 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -20,15 +21,17 @@ func destroy() (cmd *cobra.Command) {
 		long = `Permanently destroy a PlanetScale MySQL database`
 
 		short = long
-		usage = "destroy <name>"
+		usage = "destroy [name]"
 	)
 
-	cmd = command.New(usage, short, long, runDestroy, command.RequireSession)
+	cmd = command.New(usage, short, long, runDestroy, command.RequireSession, command.LoadAppNameIfPresent)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
-		flag.Yes(),
+		flag.App(),
+		flag.AppConfig(),
+		extensions_core.SharedFlags,
 	)
 
 	return cmd
@@ -37,13 +40,17 @@ func destroy() (cmd *cobra.Command) {
 func runDestroy(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	appName := flag.FirstArg(ctx)
+
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
+	if err != nil {
+		return err
+	}
 
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying a PlanetScale database is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Destroy PlanetScale database %s?", appName); {
+		switch confirmed, err := prompt.Confirmf(ctx, "Destroy PlanetScale database %s?", extension.Name); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -57,18 +64,16 @@ func runDestroy(ctx context.Context) (err error) {
 
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API().GenqClient
+		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
-	name := flag.FirstArg(ctx)
-
-	_, err = gql.DeleteAddOn(ctx, client, name)
+	_, err = gql.DeleteAddOn(ctx, client, extension.Name)
 
 	if err != nil {
 		return
 	}
 
-	fmt.Fprintf(out, "Your PlanetScale database %s was destroyed\n", name)
+	fmt.Fprintf(out, "Your PlanetScale database %s was destroyed\n", extension.Name)
 
 	return
 }

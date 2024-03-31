@@ -7,8 +7,7 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -28,6 +27,8 @@ Notice: this feature is deprecated and no longer supported.
 You can still view existing domains, but registration is no longer possible.`
 	)
 	cmd := command.New("domains", short, long, nil)
+	cmd.Deprecated = "`fly domains` will be removed in a future release"
+	cmd.Hidden = true
 	cmd.AddCommand(
 		newDomainsList(),
 		newDomainsShow(),
@@ -100,7 +101,7 @@ func newDomainsRegister() *cobra.Command {
 
 func runDomainsList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	args := flag.Args(ctx)
 	var orgSlug string
@@ -137,7 +138,7 @@ func runDomainsList(ctx context.Context) error {
 
 func runDomainsShow(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	name := flag.FirstArg(ctx)
 
 	domain, err := apiClient.GetDomain(ctx, name)
@@ -179,9 +180,9 @@ func runDomainsShow(ctx context.Context) error {
 
 func runDomainsCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
-	var org *api.Organization
+	var org *fly.Organization
 	var name string
 	var err error
 

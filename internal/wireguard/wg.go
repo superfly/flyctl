@@ -12,8 +12,10 @@ import (
 	"github.com/oklog/ulid/v2"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/flyctl/wg"
 	"golang.org/x/crypto/curve25519"
@@ -21,7 +23,7 @@ import (
 
 var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 
-func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error) {
+func generatePeerName(ctx context.Context, apiClient *fly.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return "", err
@@ -38,18 +40,17 @@ func generatePeerName(ctx context.Context, apiClient *api.Client) (string, error
 	return name, nil
 }
 
-func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !recycle {
+	if state != nil && !recycle && state.Region == regionCode {
 		return state, nil
 	}
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	ctx := context.TODO()
 	if name == "" {
 		n, err := generatePeerName(ctx, apiClient)
 		if err != nil {
@@ -64,14 +65,14 @@ func StateForOrg(apiClient *api.Client, org *api.Organization, regionCode string
 		return nil, err
 	}
 
-	if err := setWireGuardStateForOrg(org.Slug, stateb); err != nil {
+	if err := setWireGuardStateForOrg(ctx, org.Slug, stateb); err != nil {
 		return nil, err
 	}
 
 	return stateb, nil
 }
 
-func Create(apiClient *api.Client, org *api.Organization, regionCode, name string) (*wg.WireGuardState, error) {
+func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -159,16 +160,17 @@ func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
 	return states[orgSlug], nil
 }
 
-func setWireGuardState(s WireGuardStates) error {
+func setWireGuardState(ctx context.Context, s WireGuardStates) error {
 	viper.Set(flyctl.ConfigWireGuardState, s)
-	if err := flyctl.SaveConfig(); err != nil {
+	configPath := state.ConfigFile(ctx)
+	if err := config.SetWireGuardState(configPath, s); err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
 
 	return nil
 }
 
-func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
+func setWireGuardStateForOrg(ctx context.Context, orgSlug string, s *wg.WireGuardState) error {
 	states, err := GetWireGuardState()
 	if err != nil {
 		return err
@@ -176,10 +178,10 @@ func setWireGuardStateForOrg(orgSlug string, s *wg.WireGuardState) error {
 
 	states[orgSlug] = s
 
-	return setWireGuardState(states)
+	return setWireGuardState(ctx, states)
 }
 
-func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
+func PruneInvalidPeers(ctx context.Context, apiClient *fly.Client) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil
@@ -204,5 +206,5 @@ func PruneInvalidPeers(ctx context.Context, apiClient *api.Client) error {
 		}
 	}
 
-	return setWireGuardState(state)
+	return setWireGuardState(ctx, state)
 }

@@ -7,40 +7,38 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/sourcegraph/conc/pool"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/maps"
-	"golang.org/x/exp/slices"
 )
+
+const maxConcurrentActions = 5
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flaps.FromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
 
-	var latestCompleteRelease api.Release
-
-	releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1)
-	if err != nil {
+	var latestCompleteRelease fly.Release
+	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
+	case err != nil:
 		return err
-	}
-
-	if len(releases) > 0 {
-		latestCompleteRelease = releases[0]
-	} else {
+	case len(releases) == 0:
 		return fmt.Errorf("this app has no complete releases. Run `fly deploy` to create one and rerun this command")
+	default:
+		latestCompleteRelease = releases[0]
 	}
 
 	var regions []string
@@ -48,19 +46,24 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		regions = strings.Split(v, ",")
 	}
 	if len(regions) == 0 {
-		regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string { return m.Region }))
+		regions = lo.Uniq(lo.Map(machines, func(m *fly.Machine, _ int) string { return m.Region }))
 		if len(regions) == 0 {
 			regions = []string{appConfig.PrimaryRegion}
 		}
 	}
 
-	machines, releaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseFunc(ctx, machines)
+	volumes, err := flapsClient.GetVolumes(ctx)
 	if err != nil {
 		return err
 	}
 
-	defaults := newDefaults(appConfig, latestCompleteRelease, machines)
+	defaultGuest, err := flag.GetMachineGuest(ctx, nil)
+	if err != nil {
+		return err
+	}
+
+	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
+		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
@@ -74,23 +77,20 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 
 	fmt.Fprintf(io.Out, "App '%s' is going to be scaled according to this plan:\n", appName)
 
-	needsVolumes := map[string]bool{}
 	for _, action := range actions {
-		size := action.MachineConfig.Guest.ToSize()
-		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' with size '%s'\n", action.Delta, action.GroupName, action.Region, size)
-		if len(action.MachineConfig.Mounts) > 0 && action.Delta > 0 {
-			needsVolumes[action.GroupName] = true
-		}
-	}
+		fmt.Fprintf(io.Out, "%+4d machines for group '%s' on region '%s' of size '%s'\n",
+			action.Delta, action.GroupName, action.Region, action.MachineSize())
 
-	if len(needsVolumes) > 0 {
-		groupNames := maps.Keys(needsVolumes)
-		slices.Sort(groupNames)
-		return fmt.Errorf(
-			"'fly scale count' can't scale up groups with mounts, "+
-				"use 'fly machine clone' to add machines for: %s",
-			strings.Join(groupNames, " "),
-		)
+		volumesToReuse := len(action.Volumes)
+		volumesToCreate := action.VolumesDelta()
+		switch {
+		case volumesToReuse > 0 && volumesToCreate > 0:
+			fmt.Fprintf(io.Out, "%+4d volumes and %d unattached volumes assigned to group '%s' in region '%s'\n", volumesToCreate, volumesToReuse, action.GroupName, action.Region)
+		case volumesToReuse > 0:
+			fmt.Fprintf(io.Out, "% 4d unattached volumes to be assigned to group '%s' in region '%s'\n", volumesToReuse, action.GroupName, action.Region)
+		case volumesToCreate > 0:
+			fmt.Fprintf(io.Out, "%+4d volumes  for group '%s' in region '%s'\n", volumesToCreate, action.GroupName, action.Region)
+		}
 	}
 
 	if !flag.GetYes(ctx) {
@@ -106,45 +106,101 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
+	// XXX: Don't acquire the leases until the user confirms it wants to execute any action
+	//      The downside is that AcquireLeases has the side effect of fetching an updated copy of machine config
+	//      that we don't use here, but it also updates the `LeaseNonce` field of the original machine which we rely on
+	_, releaseFunc, err := mach.AcquireLeases(ctx, machines)
+	defer releaseFunc() // It's important to call the release func even in case of errors
+	if err != nil {
+		return err
+	}
+
+	updatePool := pool.New().
+		WithErrors().
+		WithMaxGoroutines(maxConcurrentActions).
+		WithContext(ctx)
+
 	fmt.Fprintf(io.Out, "Executing scale plan\n")
 	for _, action := range actions {
+		action := action
 		switch {
 		case action.Delta > 0:
 			for i := 0; i < action.Delta; i++ {
-				m, err := launchMachine(ctx, action)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				updatePool.Go(func(ctx context.Context) error {
+					m, err := launchMachine(ctx, action, i)
+					if err != nil {
+						return err
+					}
+
+					fmt.Fprintf(io.Out, "  Created %s group:%s region:%s size:%s",
+						m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize(),
+					)
+					if len(m.Config.Mounts) > 0 {
+						fmt.Fprintf(io.Out, " volume:%s", m.Config.Mounts[0].Volume)
+					}
+					fmt.Fprintln(io.Out)
+					return nil
+				})
 			}
 		case action.Delta < 0:
 			for i := 0; i > action.Delta; i-- {
-				m := action.Machines[-i]
-				err := destroyMachine(ctx, m)
-				if err != nil {
-					return err
-				}
-				fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+				updatePool.Go(func(ctx context.Context) error {
+					m := action.Machines[-i]
+					err := destroyMachine(ctx, m)
+					if err != nil {
+						return err
+					}
+					fmt.Fprintf(io.Out, "  Destroyed %s group:%s region:%s size:%s\n", m.ID, action.GroupName, action.Region, m.Config.Guest.ToSize())
+					return nil
+				})
 			}
 		}
 	}
 
-	return nil
+	return updatePool.Wait()
 }
 
-func launchMachine(ctx context.Context, action *planItem) (*api.Machine, error) {
+func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine, error) {
 	flapsClient := flaps.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
 
-	input := api.LaunchMachineInput{
-		Region: action.Region,
-		Config: action.MachineConfig,
+	input := helpers.Clone(*action.LaunchMachineInput)
+
+	if len(input.Config.Mounts) > 0 {
+		var volume *fly.Volume
+
+		switch {
+		case idx < len(action.Volumes):
+			volume = action.Volumes[idx]
+		case action.CreateVolumeRequest != nil:
+			cvr := action.CreateVolumeRequest
+			fmt.Fprintf(io.Out, "  Creating volume %s region:%s", colorize.Bold(cvr.Name), cvr.Region)
+			if cvr.SizeGb != nil {
+				fmt.Fprintf(io.Out, " size:%dGiB", *cvr.SizeGb)
+			}
+			if cvr.SnapshotID != nil {
+				fmt.Fprintf(io.Out, " from-snapshot:%s", colorize.Bold(*cvr.SnapshotID))
+			}
+			fmt.Fprintln(io.Out)
+
+			var err error
+			volume, err = flapsClient.CreateVolume(ctx, *cvr)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("Launching the machine requires a volume but there is no volume to attach or create")
+		}
+		input.Config.Mounts[0].Volume = volume.ID
 	}
+
 	return flapsClient.Launch(ctx, input)
 }
 
-func destroyMachine(ctx context.Context, machine *api.Machine) error {
+func destroyMachine(ctx context.Context, machine *fly.Machine) error {
 	flapsClient := flaps.FromContext(ctx)
-	input := api.RemoveMachineInput{
+	input := fly.RemoveMachineInput{
 		ID:   machine.ID,
 		Kill: true,
 	}
@@ -152,17 +208,42 @@ func destroyMachine(ctx context.Context, machine *api.Machine) error {
 }
 
 type planItem struct {
-	GroupName     string
-	Region        string
-	Delta         int
-	Machines      []*api.Machine
-	MachineConfig *api.MachineConfig
+	GroupName string
+	Region    string
+	// The number of machines to add or remove
+	Delta              int
+	Machines           []*fly.Machine
+	LaunchMachineInput *fly.LaunchMachineInput
+	// Volumes to reuse
+	Volumes []*fly.Volume
+	// Input used to create new volumes
+	CreateVolumeRequest *fly.CreateVolumeRequest
 }
 
-func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func (pi *planItem) VolumesDelta() int {
+	if pi.CreateVolumeRequest == nil {
+		return 0
+	}
+	return pi.Delta - len(pi.Volumes)
+}
+
+func (pi *planItem) MachineSize() string {
+	if pi.Delta > 0 {
+		return pi.LaunchMachineInput.Config.Guest.ToSize()
+	}
+	if len(pi.Machines) > 0 {
+		return pi.Machines[0].Config.Guest.ToSize()
+	}
+	if guest := pi.LaunchMachineInput.Config.Guest; guest != nil {
+		return guest.ToSize()
+	}
+	return ""
+}
+
+func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
-	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
+	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
 
@@ -174,11 +255,11 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		}
 		seenGroups[groupName] = true
 
-		perRegionMachines := lo.GroupBy(groupMachines, func(m *api.Machine) string {
+		perRegionMachines := lo.GroupBy(groupMachines, func(m *fly.Machine) string {
 			return m.Region
 		})
 
-		currentPerRegionCount := lo.MapEntries(perRegionMachines, func(k string, v []*api.Machine) (string, int) {
+		currentPerRegionCount := lo.MapEntries(perRegionMachines, func(k string, v []*fly.Machine) (string, int) {
 			return k, len(v)
 		})
 
@@ -191,13 +272,15 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
 
-		for regionName, delta := range regionDiffs {
+		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName:     groupName,
-				Region:        regionName,
-				Delta:         delta,
-				Machines:      perRegionMachines[regionName],
-				MachineConfig: mConfig,
+				GroupName:           groupName,
+				Region:              region,
+				Delta:               delta,
+				Machines:            perRegionMachines[region],
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
+				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
+				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
 			})
 		}
 	}
@@ -218,12 +301,14 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 			return nil, err
 		}
 
-		for regionName, delta := range regionDiffs {
+		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
-				GroupName:     groupName,
-				Region:        regionName,
-				Delta:         delta,
-				MachineConfig: mConfig,
+				GroupName:           groupName,
+				Region:              region,
+				Delta:               delta,
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
+				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
+				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
 			})
 		}
 	}

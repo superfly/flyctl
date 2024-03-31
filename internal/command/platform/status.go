@@ -9,7 +9,7 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -57,7 +57,7 @@ func runStatus(ctx context.Context) error {
 	}
 
 	if cfg.JSONOutput {
-		httpClient, err := api.NewHTTPClient(logger.MaybeFromContext(ctx), httptracing.NewTransport(http.DefaultTransport))
+		httpClient, err := fly.NewHTTPClient(logger.MaybeFromContext(ctx), httptracing.NewTransport(http.DefaultTransport))
 		if err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func runStatus(ctx context.Context) error {
 		defer res.Body.Close() //skipcq: GO-S2307
 
 		if res.StatusCode != 200 {
-			err = api.ErrorFromResp(res)
+			err = fly.ErrorFromResp(res)
 			return fmt.Errorf("failed to retrieve status: %w", err)
 		}
 

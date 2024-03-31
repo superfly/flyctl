@@ -16,7 +16,9 @@ var configPatches = []patchFuncType{
 	patchProcesses,
 	patchExperimental,
 	patchTopLevelChecks,
+	patchCompute,
 	patchMounts,
+	patchMetrics,
 	patchTopFields,
 	patchBuild,
 }
@@ -114,9 +116,33 @@ func _patchEnv(raw any) (map[string]string, error) {
 func patchProcesses(cfg map[string]any) (map[string]any, error) {
 	if raw, ok := cfg["processes"]; ok {
 		switch cast := raw.(type) {
-		case []any, []map[string]any:
-			// GQL GetConfig returns an empty array when there are not processes
-			delete(cfg, "processes")
+		case []any:
+			processes := []map[string]any{}
+			for _, item := range cast {
+				if v, ok := item.(map[string]any); ok {
+					processes = append(processes, v)
+				}
+			}
+			cfg["processes"] = processes
+			return patchProcesses(cfg)
+
+		case []map[string]any:
+			processes := make(map[string]string)
+			for _, item := range cast {
+				if rawk, kok := item["name"]; kok {
+					k := castToString(rawk)
+					if v, vok := item["command"]; vok {
+						processes[k] = castToString(v)
+					} else {
+						processes[k] = ""
+					}
+				}
+			}
+			if len(processes) > 0 {
+				cfg["processes"] = processes
+			} else {
+				delete(cfg, "processes")
+			}
 		case map[string]any:
 			// Nothing to do here
 		default:
@@ -196,6 +222,27 @@ func patchExperimental(cfg map[string]any) (map[string]any, error) {
 	return cfg, nil
 }
 
+func patchCompute(cfg map[string]any) (map[string]any, error) {
+	var compute []map[string]any
+	for _, k := range []string{"compute", "computes", "vm"} {
+		if raw, ok := cfg[k]; ok {
+			cast, err := ensureArrayOfMap(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing compute: %w", err)
+			}
+			delete(cfg, k)
+			compute = append(compute, cast...)
+		}
+	}
+	for idx, c := range compute {
+		if v, ok := c["memory"]; ok {
+			compute[idx]["memory"] = castToString(v)
+		}
+	}
+	cfg["vm"] = compute
+	return cfg, nil
+}
+
 func patchMounts(cfg map[string]any) (map[string]any, error) {
 	var mounts []map[string]any
 	for _, k := range []string{"mount", "mounts"} {
@@ -204,10 +251,31 @@ func patchMounts(cfg map[string]any) (map[string]any, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Error processing mounts: %w", err)
 			}
+			delete(cfg, k)
 			mounts = append(mounts, cast...)
 		}
 	}
+	for idx, x := range mounts {
+		if v, ok := x["initial_size"]; ok {
+			mounts[idx]["initial_size"] = castToString(v)
+		}
+	}
 	cfg["mounts"] = mounts
+	return cfg, nil
+}
+
+func patchMetrics(cfg map[string]any) (map[string]any, error) {
+	var metrics []map[string]any
+	for _, k := range []string{"metric", "metrics"} {
+		if raw, ok := cfg[k]; ok {
+			cast, err := ensureArrayOfMap(raw)
+			if err != nil {
+				return nil, fmt.Errorf("Error processing mounts: %w", err)
+			}
+			metrics = append(metrics, cast...)
+		}
+	}
+	cfg["metrics"] = metrics
 	return cfg, nil
 }
 
@@ -359,7 +427,7 @@ func _patchService(service map[string]any) (map[string]any, error) {
 		if rawChecks, ok := service[checkType]; ok {
 			checks, err := _patchChecks(rawChecks)
 			if err != nil {
-				return nil, fmt.Errorf("Error processing tcp_checks: %T", rawChecks)
+				return nil, fmt.Errorf("Error processing %s: %w", checkType, err)
 			}
 			if len(checks) > 0 {
 				service[checkType] = checks
@@ -399,20 +467,64 @@ func _patchChecks(rawChecks any) ([]map[string]any, error) {
 }
 
 func _patchCheck(check map[string]any) (map[string]any, error) {
-	for _, attr := range []string{"interval", "timeout"} {
+	for _, attr := range []string{"interval", "timeout", "grace_period"} {
 		if v, ok := check[attr]; ok {
 			check[attr] = _castDuration(v, time.Millisecond)
 		}
 	}
+
 	if v, ok := check["headers"]; ok {
-		switch cast := v.(type) {
-		case []any:
-			if len(cast) == 0 {
-				delete(check, "headers")
-			}
+		headers, err := _patchCheckHeaders(v)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(headers) > 0 {
+			check["headers"] = headers
+		} else {
+			delete(check, "headers")
 		}
 	}
 	return check, nil
+}
+
+func _patchCheckHeaders(rawHeaders any) (map[string]string, error) {
+	headers := make(map[string]string)
+	switch cast := rawHeaders.(type) {
+	case []any:
+		acc := []map[string]any{}
+		for _, item := range cast {
+			m, ok := item.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("Can't cast %#v into map[string]any", item)
+			}
+			acc = append(acc, m)
+		}
+		return _patchCheckHeaders(acc)
+
+	case []map[string]any:
+		for _, m := range cast {
+			if k, ok := m["name"]; ok {
+				if v, ok := m["value"]; ok {
+					headers[castToString(k)] = castToString(v)
+				} else {
+					headers[castToString(k)] = ""
+				}
+			} else {
+				return nil, fmt.Errorf("Unsupported headers format %#v", m)
+			}
+		}
+
+	case map[string]any:
+		for name, rawValue := range cast {
+			headers[name] = castToString(rawValue)
+		}
+
+	default:
+		return nil, fmt.Errorf("Unsupported headers format: %#v", rawHeaders)
+	}
+
+	return headers, nil
 }
 
 func _castDuration(v any, shift time.Duration) (ret *string) {
@@ -471,6 +583,13 @@ func castToInt(num any) (int, error) {
 		return 0, fmt.Errorf("Unknown type for cast: %T", cast)
 
 	}
+}
+
+func castToString(rawValue any) string {
+	if v, ok := rawValue.(string); ok {
+		return v
+	}
+	return fmt.Sprintf("%v", rawValue)
 }
 
 func ensureArrayOfMap(raw any) ([]map[string]any, error) {

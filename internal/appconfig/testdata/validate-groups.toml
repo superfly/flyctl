@@ -1,0 +1,37 @@
+app = "foo"
+primary_region = "ord"
+
+[processes]
+app = "run-nginx"
+vpn = "run-tailscale"
+foo = "keep me alive"
+
+[http_service]
+internal_port = 8080
+processes = ["app"]
+
+[[services]]
+internal_port = 9999
+protocol = "udp"
+processes = ["vpn"]
+
+[[services.ports]]
+port = 80
+
+[[services]]
+internal_port = 1111
+protocol = "tcp"
+processes = ["vpn", "app", "foo"]
+
+[[services.ports]]
+port = 81
+
+[checks.listening]
+port = 8080
+type = "tcp"
+processes = ["app", "foo"]
+
+[[mounts]]
+source = "foo"
+destination = "bar"
+processes = ["app"]

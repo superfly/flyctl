@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -20,7 +20,7 @@ func (e *ErrNoConfigChangesFound) Error() string {
 	return "no config changes found"
 }
 
-func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfig api.MachineConfig, customPrompt string) (bool, error) {
+func ConfirmConfigChanges(ctx context.Context, machine *fly.Machine, targetConfig fly.MachineConfig, customPrompt string) (bool, error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -46,7 +46,7 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 			return false, nil
 		}
 	case prompt.IsNonInteractive(err):
-		return false, prompt.NonInteractiveError("auto-confirm flag must be specified when not running interactively")
+		return false, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 	default:
 		return false, err
 	}
@@ -56,7 +56,7 @@ func ConfirmConfigChanges(ctx context.Context, machine *api.Machine, targetConfi
 
 // CloneConfig deep-copies a MachineConfig.
 // If CloneConfig is called on a nil config, nil is returned.
-func CloneConfig(orig *api.MachineConfig) *api.MachineConfig {
+func CloneConfig(orig *fly.MachineConfig) *fly.MachineConfig {
 	if orig == nil {
 		return nil
 	}
@@ -72,7 +72,7 @@ var cmpOptions = cmp.Options{
 			})),
 }
 
-func configCompare(ctx context.Context, original api.MachineConfig, new api.MachineConfig) string {
+func configCompare(ctx context.Context, original fly.MachineConfig, new fly.MachineConfig) string {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 

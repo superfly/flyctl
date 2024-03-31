@@ -4,13 +4,11 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func newPrivate() *cobra.Command {
@@ -33,25 +31,20 @@ func newPrivate() *cobra.Command {
 }
 
 func runPrivateIPAddressesList(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
-
 	appName := appconfig.NameFromContext(ctx)
-	appstatus, err := client.GetAppStatus(ctx, appName, false)
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
-	_, backupRegions, err := client.ListAppRegions(ctx, appName)
+	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
+	renderPrivateTableMachines(ctx, machines)
 
-	out := iostreams.FromContext(ctx).Out
-	if conf := config.FromContext(ctx); conf.JSONOutput {
-		_ = render.JSON(out, appstatus.Allocations)
-		return nil
-	}
-
-	renderPrivateTable(ctx, appstatus.Allocations, backupRegions)
 	return nil
 }

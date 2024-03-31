@@ -1,16 +1,16 @@
 package scanner
 
 import (
+	"fmt"
 	"io/fs"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 var healthcheck_channel = make(chan string)
@@ -70,14 +70,47 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	s := &SourceInfo{
-		Family:         "Rails",
-		Callback:       RailsCallback,
-		ConsoleCommand: "/rails/bin/rails console",
+		Family:               "Rails",
+		Callback:             RailsCallback,
+		Port:                 3000,
+		ConsoleCommand:       "/rails/bin/rails console",
+		AutoInstrumentErrors: true,
 	}
 
-	// don't prompt for pg, redis if litestack is in the Gemfile
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
+		// don't prompt for pg, redis if litestack is in the Gemfile
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.SkipDatabase = true
+	} else if checksPass(sourceDir, dirContains("Gemfile", "mysql")) {
+		// mysql
+		s.DatabaseDesired = DatabaseKindMySQL
+		s.SkipDatabase = false
+	} else if !checksPass(sourceDir, fileExists("Dockerfile")) || checksPass(sourceDir, dirContains("Dockerfile", "libpq-dev", "postgres")) {
+		// postgresql
+		s.DatabaseDesired = DatabaseKindPostgres
+		s.SkipDatabase = false
+	} else {
+		// sqlite
+		s.DatabaseDesired = DatabaseKindSqlite
+		s.SkipDatabase = true
+	}
+
+	// enable redis if there are any action cable / anycable channels
+	redis := false
+	files, err := filepath.Glob("app/channels/*.rb")
+	if err == nil && len(files) > 0 {
+		redis = true
+	}
+
+	// enable redis if redis is used for caching
+	prodEnv, err := os.ReadFile("config/environments/production.rb")
+	if err == nil && strings.Contains(string(prodEnv), "redis") {
+		redis = true
+	}
+
+	if redis {
+		s.RedisDesired = true
+		s.SkipDatabase = false
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
@@ -125,7 +158,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	s.SkipDeploy = true
 	s.DeployDocs = `
 Your Rails app is prepared for deployment.
 
@@ -156,30 +188,53 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool) error {
+func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
 	// install dockerfile-rails gem, if not already included
+	writable := false
 	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {
 		panic(err)
 	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
-		cmd := exec.Command(bundle, "add", "dockerfile-rails",
-			"--optimistic", "--group", "development", "--skip-install")
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
+		// check for writable gem installation directory
+		out, err := exec.Command("gem", "environment").Output()
+		if err == nil {
+			regexp := regexp.MustCompile(`INSTALLATION DIRECTORY: (.*)\n`)
+			for _, match := range regexp.FindAllStringSubmatch(string(out), -1) {
+				// Testing to see if a directory is writable is OS dependent, so
+				// we use a brute force method: attempt it and see if it works.
+				file, err := os.CreateTemp(match[1], ".flyctl.probe")
+				if err == nil {
+					writable = true
+					file.Close()
+					defer os.Remove(file.Name())
+				}
+			}
 		}
 
-		cmd = exec.Command(bundle, "install", "--quiet")
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
+		// install dockerfile-rails gem if the gem installation directory is writable
+		if writable {
+			cmd := exec.Command(bundle, "add", "dockerfile-rails",
+				"--optimistic", "--group", "development", "--skip-install")
+			cmd.Stdin = nil
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
 
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
+			}
+
+			cmd = exec.Command(bundle, "install", "--quiet")
+			cmd.Stdin = nil
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+
+			if err := cmd.Run(); err != nil {
+				return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
+			}
 		}
+	} else {
+		// proceed as if the gem installation directory is writable
+		writable = true
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
@@ -192,59 +247,58 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		}
 	}
 
-	// generate Dockerfile if it doesn't already exist
+	// ensure fly.toml exists.  If present, the rails dockerfile generator will
+	// add volumes, processes, release command and potentailly other configuration.
+	flyToml := "fly.toml"
+	_, err = os.Stat(flyToml)
+	if os.IsNotExist(err) {
+		// "touch" fly.toml
+		file, err := os.Create(flyToml)
+		if err != nil {
+			return errors.Wrap(err, "Failed to create fly.toml")
+		}
+		file.Close()
+
+		// inform caller of the presence of this file
+		srcInfo.MergeConfig = &MergeConfigStruct{
+			Name:      flyToml,
+			Temporary: true,
+		}
+	}
+
+	// base generate command
+	args := []string{"./bin/rails", "generate", "dockerfile",
+		"--label=fly_launch_runtime:rails"}
+
+	// skip prompt to replace files if Dockerfile already exists
 	_, err = os.Stat("Dockerfile")
-	if errors.Is(err, fs.ErrNotExist) {
-		flyToml := "fly.toml"
-		_, err := os.Stat(flyToml)
-		if os.IsNotExist(err) {
-			// "touch" fly.toml
-			file, err := os.Create(flyToml)
-			if err != nil {
-				log.Fatal(err)
-			}
-			file.Close()
+	if !errors.Is(err, fs.ErrNotExist) {
+		args = append(args, "--skip")
 
-			// inform caller of the presence of this file
-			srcInfo.MergeConfig = &MergeConfigStruct{
-				Name:      flyToml,
-				Temporary: true,
-			}
+		if !writable {
+			return errors.Wrap(err, "No Dockerfile found and unable to install dockerfile-rails gem")
 		}
+	}
 
-		args := []string{"./bin/rails", "generate", "dockerfile",
-			"--label=fly_launch_runtime:rails"}
+	// add postgres
+	if postgres := plan.Postgres.Provider(); postgres != nil {
+		args = append(args, "--postgresql", "--no-prepare")
+	}
 
-		if options["postgresql"] {
-			args = append(args, "--postgresql")
-		}
+	// add redis
+	if redis := plan.Redis.Provider(); redis != nil {
+		args = append(args, "--redis")
+	}
 
-		if options["redis"] {
-			args = append(args, "--redis")
-		}
+	// run command
+	fmt.Printf("installing: %s\n", strings.Join(args, " "))
+	cmd := exec.Command(ruby, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-		cmd := exec.Command(ruby, args...)
-		cmd.Stdin = nil
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return errors.Wrap(err, "Failed to generate Dockerfile")
-		}
-	} else {
-		if options["postgresql"] && !strings.Contains(string(gemfile), "pg") {
-			cmd := exec.Command(bundle, "add", "pg")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install pg gem")
-			}
-		}
-
-		if options["redis"] && !strings.Contains(string(gemfile), "redis") {
-			cmd := exec.Command(bundle, "add", "redis")
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install redis gem")
-			}
-		}
+	if err := cmd.Run(); err != nil {
+		return errors.Wrap(err, "Failed to generate Dockerfile")
 	}
 
 	// read dockerfile
@@ -253,24 +307,9 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		return errors.Wrap(err, "Dockerfile not found")
 	}
 
-	// extract port
-	port := 3000
-	re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
-	m := re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "port" {
-			port, err = strconv.Atoi(m[i])
-			if err != nil {
-				panic(err)
-			}
-		}
-	}
-	srcInfo.Port = port
-
 	// extract volume - handle both plain string and JSON format, but only allow one path
-	re = regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
-	m = re.FindStringSubmatch(string(dockerfile))
+	re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+	m := re.FindStringSubmatch(string(dockerfile))
 
 	if len(m) > 0 {
 		srcInfo.Volumes = []Volume{
@@ -281,29 +320,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, options map[string]bool)
 		}
 	}
 
-	// extract workdir
-	workdir := "$"
-	re = regexp.MustCompile(`(?m).*^WORKDIR\s+(?P<dir>/\S+)`)
-	m = re.FindStringSubmatch(string(dockerfile))
-
-	for i, name := range re.SubexpNames() {
-		if len(m) > 0 && name == "dir" {
-			workdir = m[i]
-		}
-	}
-
-	// add Statics if workdir is found and doesn't contain a variable reference
-	if !strings.Contains(workdir, "$") {
-		srcInfo.Statics = []Static{
-			{
-				GuestPath: workdir + "/public",
-				UrlPrefix: "/",
-			},
-		}
-	}
-
 	// add HealthCheck (if found)
 	srcInfo.HttpCheckPath = <-healthcheck_channel
+	if srcInfo.HttpCheckPath != "" {
+		srcInfo.HttpCheckHeaders = map[string]string{"X-Forwarded-Proto": "https"}
+	}
 
 	return nil
 }

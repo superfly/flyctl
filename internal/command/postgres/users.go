@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -33,7 +32,6 @@ func newUsers() *cobra.Command {
 		newListUsers(),
 	)
 
-	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
 
@@ -56,6 +54,7 @@ func newListUsers() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.JSONOutput(),
 	)
 
 	return cmd
@@ -63,7 +62,7 @@ func newListUsers() *cobra.Command {
 
 func runListUsers(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -80,18 +79,10 @@ func runListUsers(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-
-	switch app.PlatformVersion {
-	case "machines":
-		return runMachineListUsers(ctx, app)
-	case "nomad":
-		return runNomadListUsers(ctx, app)
-	default:
-		return fmt.Errorf("unknown platform version")
-	}
+	return runMachineListUsers(ctx, app)
 }
 
-func runMachineListUsers(ctx context.Context, app *api.AppCompact) (err error) {
+func runMachineListUsers(ctx context.Context, app *fly.AppCompact) (err error) {
 	// Minimum image version requirements
 	var (
 		MinPostgresHaVersion         = "0.0.19"
@@ -114,37 +105,6 @@ func runMachineListUsers(ctx context.Context, app *api.AppCompact) (err error) {
 	}
 
 	return renderUsers(ctx, leader.PrivateIP)
-}
-
-func runNomadListUsers(ctx context.Context, app *api.AppCompact) (err error) {
-	var (
-		MinPostgresHaVersion = "0.0.19"
-		client               = client.FromContext(ctx).API()
-	)
-
-	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresHaVersion); err != nil {
-		return err
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("failed to establish agent: %w", err)
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-	}
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-	}
-
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	return renderUsers(ctx, leaderIP)
 }
 
 func renderUsers(ctx context.Context, leaderIP string) error {

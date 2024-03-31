@@ -22,7 +22,7 @@ jobs:
           excludes: prerelease, draft
           token: ${{ secrets.FLYIO_FLYCTL_BOT_GITHUB_TOKEN }}
       - run: 'echo "Latest release: ${{ steps.latest_release.outputs.release }}"'
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - id: version_compare
         run: |
           set -exo pipefail
@@ -49,7 +49,7 @@ jobs:
         run: if [ ${{ env.SLACK_WEBHOOK_EXISTS }} != "true" ] ; then echo "No webhook url :-(" ; fi
       - name: Post failure to slack
         if: ${{ failure() && steps.version_compare.outputs.VERSION_STATUS == 'update_needed' }}
-        uses: slackapi/slack-github-action@007b2c3c751a190b6f0f040e47ed024deaa72844
+        uses: slackapi/slack-github-action@6c661ce58804a1a20f6dc5fbee7f0381b469e001
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.HOMEBREW_SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

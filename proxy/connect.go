@@ -6,9 +6,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/AlecAivazis/survey/v2"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
 )
@@ -17,6 +17,7 @@ type ConnectParams struct {
 	AppName          string
 	OrganizationSlug string
 	Dialer           agent.Dialer
+	BindAddr         string
 	Ports            []string
 	RemoteHost       string
 	PromptInstance   bool
@@ -52,12 +53,13 @@ func Start(ctx context.Context, p *ConnectParams) error {
 
 func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 	var (
-		io         = iostreams.FromContext(ctx)
-		client     = client.FromContext(ctx).API()
-		orgSlug    = p.OrganizationSlug
-		localPort  = p.Ports[0]
-		remotePort = localPort
-		remoteAddr string
+		io            = iostreams.FromContext(ctx)
+		client        = fly.ClientFromContext(ctx)
+		orgSlug       = p.OrganizationSlug
+		localBindAddr = p.BindAddr
+		localPort     = p.Ports[0]
+		remotePort    = localPort
+		remoteAddr    string
 	)
 
 	if len(p.Ports) > 1 {
@@ -96,7 +98,7 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 
 	if _, err := strconv.Atoi(localPort); err == nil {
 		// just numbers
-		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("127.0.0.1:%s", localPort))
+		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", localBindAddr, localPort))
 		if err != nil {
 			return nil, err
 		}
@@ -134,13 +136,7 @@ func selectInstance(ctx context.Context, org, app string, c *agent.Client) (inst
 	}
 
 	selected := 0
-	prompt := &survey.Select{
-		Message:  "Select instance:",
-		Options:  instances.Labels,
-		PageSize: 15,
-	}
-
-	if err := survey.AskOne(prompt, &selected); err != nil {
+	if err := prompt.Select(ctx, &selected, "Select instance:", "", instances.Labels...); err != nil {
 		return "", fmt.Errorf("selecting instance: %w", err)
 	}
 

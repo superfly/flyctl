@@ -8,12 +8,12 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 // TODO: make internal once the open command has been deprecated
@@ -46,25 +46,25 @@ func runOpen(ctx context.Context) error {
 	iostream := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	app, err := client.FromContext(ctx).API().GetAppCompact(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
-		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+		return fmt.Errorf("could not create flaps client: %w", err)
 	}
-
-	if !app.Deployed && app.PlatformVersion != "machines" {
-		return errors.New("app has not been deployed yet. Please try deploying your app first")
-	}
+	ctx = flaps.NewContext(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
-		if appConfig, err = appconfig.FromAppCompact(ctx, app); err != nil {
+		appConfig, err = appconfig.FromRemoteApp(ctx, appName)
+		if err != nil {
 			return errors.New("The app config could not be found")
 		}
 	}
 
 	appURL := appConfig.URL()
 	if appURL == nil {
-		return errors.New("The app doesn't exspose a public http service")
+		return errors.New("The app doesn't expose a public http service")
 	}
 
 	if relURI := flag.FirstArg(ctx); relURI != "" {

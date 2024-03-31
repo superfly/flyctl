@@ -4,40 +4,27 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strings"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func runAppCheckList(ctx context.Context) error {
-	web := client.FromContext(ctx).API()
 	appName := appconfig.NameFromContext(ctx)
-
-	app, err := web.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app: %w", err)
-	}
-
-	if app.PlatformVersion == "machines" {
-		return runMachinesAppCheckList(ctx, app)
-	}
-	return runNomadAppCheckList(ctx)
-}
-
-func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 	out := iostreams.FromContext(ctx).Out
 	nameFilter := flag.GetString(ctx, "check-name")
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -51,9 +38,9 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 	})
 
 	if config.FromContext(ctx).JSONOutput {
-		checks := map[string][]api.MachineCheckStatus{}
+		checks := map[string][]fly.MachineCheckStatus{}
 		for _, machine := range machines {
-			checks[machine.ID] = make([]api.MachineCheckStatus, len(machine.Checks))
+			checks[machine.ID] = make([]fly.MachineCheckStatus, len(machine.Checks))
 			for i, check := range machine.Checks {
 				checks[machine.ID][i] = *check
 			}
@@ -61,7 +48,7 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 		return render.JSON(out, checks)
 	}
 
-	fmt.Fprintf(out, "Health Checks for %s\n", app.Name)
+	fmt.Fprintf(out, "Health Checks for %s\n", appName)
 	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Machine", "Last Updated", "Output"})
 	table.SetRowLine(true)
 	for _, machine := range machines {
@@ -79,45 +66,4 @@ func runMachinesAppCheckList(ctx context.Context, app *api.AppCompact) error {
 	table.Render()
 
 	return nil
-}
-
-func runNomadAppCheckList(ctx context.Context) error {
-	appName := appconfig.NameFromContext(ctx)
-	out := iostreams.FromContext(ctx).Out
-	web := client.FromContext(ctx).API()
-
-	var nameFilter *string
-	if val := flag.GetString(ctx, "check-name"); val != "" {
-		nameFilter = api.StringPointer(val)
-	}
-
-	checks, err := web.GetAppHealthChecks(ctx, appName, nameFilter, nil, api.BoolPointer(false))
-	if err != nil {
-		return err
-	}
-
-	if config.FromContext(ctx).JSONOutput {
-		return render.JSON(out, checks)
-	}
-
-	fmt.Fprintf(out, "Health Checks for %s\n", appName)
-	table := helpers.MakeSimpleTable(out, []string{"Name", "Status", "Allocation", "Region", "Type", "Last Updated", "Output"})
-	for _, check := range checks {
-		formattedOutput := formatOutput(check.Output)
-		table.Append([]string{check.Name, check.Status, check.Allocation.IDShort, check.Allocation.Region, check.Type, format.RelativeTime(check.UpdatedAt), formattedOutput})
-	}
-	table.Render()
-
-	return nil
-}
-
-func formatOutput(output string) string {
-	var newstr string
-	output = strings.ReplaceAll(output, "\n", "")
-	output = strings.ReplaceAll(output, "] ", "]")
-	v := strings.Split(output, "[✓]")
-	for _, attr := range v {
-		newstr += fmt.Sprintf("%s[✓]\n\n", attr)
-	}
-	return newstr
 }

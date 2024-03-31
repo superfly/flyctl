@@ -2,11 +2,12 @@ package appconfig
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
 func TestLoadTOMLAppConfigWithAppName(t *testing.T) {
@@ -65,23 +66,32 @@ func TestLoadTOMLAppConfigServicePorts(t *testing.T) {
 	want := []Service{{
 		Protocol:     "tcp",
 		InternalPort: 8080,
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80),
-			TLSOptions: &api.TLSOptions{
-				ALPN:     []string{"h2", "http/1.1"},
-				Versions: []string{"TLSv1.2", "TLSv1.3"},
-			},
-			HTTPOptions: &api.HTTPOptions{
-				Compress: api.Pointer(true),
-				Response: &api.HTTPResponseOptions{
-					Headers: map[string]any{
-						"fly-request-id": false,
-						"fly-wasnt-here": "yes, it was",
-						"multi-valued":   []any{"value1", "value2"},
+		Ports: []fly.MachinePort{
+			{
+				Port: fly.Pointer(80),
+				TLSOptions: &fly.TLSOptions{
+					ALPN:     []string{"h2", "http/1.1"},
+					Versions: []string{"TLSv1.2", "TLSv1.3"},
+				},
+				HTTPOptions: &fly.HTTPOptions{
+					Compress: fly.Pointer(true),
+					Response: &fly.HTTPResponseOptions{
+						Headers: map[string]any{
+							"fly-request-id": false,
+							"fly-wasnt-here": "yes, it was",
+							"multi-valued":   []any{"value1", "value2"},
+						},
 					},
 				},
 			},
-		}},
+			{
+				Port:     fly.Pointer(82),
+				Handlers: []string{"proxy_proto"},
+				ProxyProtoOptions: &fly.ProxyProtoOptions{
+					Version: "v2",
+				},
+			},
+		},
 	}}
 
 	assert.Equal(t, want, p.Services)
@@ -96,7 +106,7 @@ func TestLoadTOMLAppConfigServiceMulti(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 8081,
-			Concurrency: &api.MachineServiceConcurrency{
+			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "requests",
 				HardLimit: 22,
 				SoftLimit: 13,
@@ -105,7 +115,7 @@ func TestLoadTOMLAppConfigServiceMulti(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 9999,
-			Concurrency: &api.MachineServiceConcurrency{
+			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "connections",
 				HardLimit: 10,
 				SoftLimit: 8,
@@ -123,51 +133,7 @@ func TestLoadTOMLAppConfigInvalidV2(t *testing.T) {
 	assert.Equal(t, &Config{
 		configFilePath:   "./testdata/always-invalid-v2.toml",
 		v2UnmarshalError: fmt.Errorf("Unknown type for service concurrency: int64"),
-
-		AppName: "unsupported-format",
-		Build: &Build{
-			Builder:           "dockerfile",
-			Image:             "foo/fighter",
-			Builtin:           "whatisthis",
-			Dockerfile:        "Dockerfile",
-			Ignorefile:        ".gitignore",
-			DockerBuildTarget: "target",
-			Buildpacks:        []string{"packme", "well"},
-			Settings: map[string]any{
-				"foo":   "bar",
-				"other": int64(2),
-			},
-
-			Args: map[string]string{
-				"param1": "value1",
-				"param2": "value2",
-			},
-		},
-
-		RawDefinition: map[string]any{
-			"app": "unsupported-format",
-			"build": map[string]any{
-				"builder":      "dockerfile",
-				"image":        "foo/fighter",
-				"builtin":      "whatisthis",
-				"dockerfile":   "Dockerfile",
-				"ignorefile":   ".gitignore",
-				"build-target": "target",
-				"buildpacks":   []any{"packme", "well"},
-				"args": map[string]any{
-					"param1": "value1",
-					"param2": "value2",
-				},
-				"settings": map[string]any{
-					"foo":   "bar",
-					"other": int64(2),
-				},
-			},
-			"services": []map[string]any{{
-				"concurrency":   int64(20),
-				"internal_port": "8080",
-			}},
-		},
+		AppName:          "unsupported-format",
 	}, cfg)
 }
 
@@ -179,26 +145,17 @@ func TestLoadTOMLAppConfigExperimental(t *testing.T) {
 		configFilePath:   "./testdata/experimental-alt.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		KillTimeout:      api.MustParseDuration("3s"),
-		Metrics: &api.MachineMetrics{
-			Path: "/foo",
-			Port: 9000,
-		},
+		KillTimeout:      fly.MustParseDuration("3s"),
+		Metrics: []*Metrics{{
+			MachineMetrics: &fly.MachineMetrics{
+				Path: "/foo",
+				Port: 9000,
+			},
+		}},
 		Experimental: &Experimental{
 			Cmd:        []string{"cmd"},
 			Entrypoint: []string{"entrypoint"},
 			Exec:       []string{"exec"},
-		},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"experimental": map[string]any{
-				"cmd":          "cmd",
-				"entrypoint":   "entrypoint",
-				"exec":         "exec",
-				"kill_timeout": int64(3),
-				"metrics_path": "/foo",
-				"metrics_port": int64(9000),
-			},
 		},
 	}, cfg)
 }
@@ -215,13 +172,26 @@ func TestLoadTOMLAppConfigMountsArray(t *testing.T) {
 			Source:      "pg_data",
 			Destination: "/data",
 		}},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"mounts": []map[string]any{{
-				"source":      "pg_data",
-				"destination": "/data",
-			}},
-		},
+	}, cfg)
+}
+
+func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
+	const path = "./testdata/format-quirks.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+
+	assert.Equal(t, &Config{
+		configFilePath:   "./testdata/format-quirks.toml",
+		defaultGroupName: "app",
+		AppName:          "foo",
+		Compute: []*Compute{{
+			Memory: "512",
+		}},
+		Mounts: []Mount{{
+			Source:      "data",
+			Destination: "/data",
+			InitialSize: "200",
+		}},
 	}, cfg)
 }
 
@@ -257,72 +227,69 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 			Source:      "data",
 			Destination: "/data",
 		}},
+		Metrics: []*Metrics{{
+			MachineMetrics: &fly.MachineMetrics{
+				Port: 9999,
+				Path: "/metrics",
+			},
+		}},
 		Services: []Service{
 			{
 				InternalPort: 8080,
-				Ports: []api.MachinePort{
+				Ports: []fly.MachinePort{
 					{
-						Port:     api.Pointer(80),
+						Port:     fly.Pointer(80),
 						Handlers: []string{"http"},
 					},
 				},
-				Concurrency: &api.MachineServiceConcurrency{
+				Concurrency: &fly.MachineServiceConcurrency{
 					Type:      "requests",
 					HardLimit: 23,
 					SoftLimit: 12,
 				},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval: api.MustParseDuration("10s"),
-						Timeout:  api.MustParseDuration("2s"),
+						Interval: fly.MustParseDuration("10s"),
+						Timeout:  fly.MustParseDuration("2s"),
 					},
 					{
-						Interval: api.MustParseDuration("20s"),
-						Timeout:  api.MustParseDuration("3s"),
+						Interval: fly.MustParseDuration("20s"),
+						Timeout:  fly.MustParseDuration("3s"),
 					},
 				},
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
-						Interval: api.MustParseDuration("30s"),
-						Timeout:  api.MustParseDuration("4s"),
+						Interval: fly.MustParseDuration("30s"),
+						Timeout:  fly.MustParseDuration("4s"),
+						HTTPHeaders: map[string]string{
+							"origin": "http://localhost:8000",
+						},
 					},
 					{
-						Interval: api.MustParseDuration("20s"),
-						Timeout:  api.MustParseDuration("3s"),
+						Interval: fly.MustParseDuration("20s"),
+						Timeout:  fly.MustParseDuration("3s"),
+						HTTPHeaders: map[string]string{
+							"fly-healthcheck": "1",
+							"metoo":           "true",
+							"astring":         "string",
+						},
 					},
 				},
 			},
 		},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"build": map[string]any{
-				"build_target": "thalayer",
-			},
-			"env": map[string]any{
-				"FOO": "STRING",
-				"BAR": int64(123),
-			},
-			"experimental": map[string]any{},
-			"mount": map[string]any{
-				"source":      "data",
-				"destination": "/data",
-			},
-			"processes": []map[string]any{{}},
-			"services": []map[string]any{{
-				"internal_port": "8080",
-				"ports": []map[string]any{
-					{"port": "80", "handlers": []any{"http"}},
-				},
-				"concurrency": "12,23",
-				"tcp_checks": []map[string]any{
-					{"interval": int64(10000), "timeout": int64(2000)},
-					{"interval": "20s", "timeout": "3s"},
-				},
-				"http_checks": []map[string]any{
-					{"interval": int64(30000), "timeout": int64(4000)},
-					{"interval": "20s", "timeout": "3s"},
-				},
-			}},
+	}, cfg)
+}
+
+func TestLoadTOMLAppConfigOldProcesses(t *testing.T) {
+	const path = "./testdata/old-processes.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	assert.Equal(t, &Config{
+		configFilePath:   "./testdata/old-processes.toml",
+		defaultGroupName: "app",
+		Processes: map[string]string{
+			"web":    "./web",
+			"worker": "./worker",
 		},
 	}, cfg)
 }
@@ -337,20 +304,9 @@ func TestLoadTOMLAppConfigOldChecksFormat(t *testing.T) {
 		AppName:          "foo",
 		Checks: map[string]*ToplevelCheck{
 			"pg": {
-				Port:     api.Pointer(5500),
-				Type:     api.Pointer("http"),
-				HTTPPath: api.Pointer("/flycheck/pg"),
-			},
-		},
-		RawDefinition: map[string]any{
-			"app": "foo",
-			"checks": map[string]any{
-				"pg": map[string]any{
-					"type":    "http",
-					"port":    int64(5500),
-					"path":    "/flycheck/pg",
-					"headers": []any{},
-				},
+				Port:     fly.Pointer(5500),
+				Type:     fly.Pointer("http"),
+				HTTPPath: fly.Pointer("/flycheck/pg"),
 			},
 		},
 	}, cfg)
@@ -361,17 +317,37 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 	cfg, err := LoadConfig(path)
 	require.NoError(t, err)
 
-	// Nullify cfg.RawDefinition because it won't mutate per test in TestLoadTOMLAppConfigOldFormat
-	cfg.RawDefinition = nil
-
 	assert.Equal(t, &Config{
 		configFilePath:   "./testdata/full-reference.toml",
 		defaultGroupName: "app",
 		AppName:          "foo",
-		KillSignal:       api.Pointer("SIGTERM"),
-		KillTimeout:      api.MustParseDuration("3s"),
+		KillSignal:       fly.Pointer("SIGTERM"),
+		KillTimeout:      fly.MustParseDuration("3s"),
+		SwapSizeMB:       fly.Pointer(512),
 		PrimaryRegion:    "sea",
 		ConsoleCommand:   "/bin/bash",
+		HostDedicationID: "06031957",
+		Compute: []*Compute{
+			{
+				Size:   "shared-cpu-1x",
+				Memory: "8gb",
+				MachineGuest: &fly.MachineGuest{
+					CPUKind:          "performance",
+					CPUs:             8,
+					MemoryMB:         8192,
+					GPUs:             2,
+					GPUKind:          "a100-pcie-40gb",
+					HostDedicationID: "isolated-xxx",
+					KernelArgs:       []string{"quiet"},
+				},
+				Processes: []string{"app"},
+			},
+			{
+				MachineGuest: &fly.MachineGuest{
+					MemoryMB: 4096,
+				},
+			},
+		},
 		Experimental: &Experimental{
 			Cmd:          []string{"cmd"},
 			Entrypoint:   []string{"entrypoint"},
@@ -403,33 +379,48 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Deploy: &Deploy{
 			ReleaseCommand: "release command",
 			Strategy:       "rolling-eyes",
+			MaxUnavailable: fly.Pointer(0.2),
 		},
 
 		Env: map[string]string{
 			"FOO": "BAR",
 		},
 
-		Metrics: &api.MachineMetrics{
-			Port: 9999,
-			Path: "/metrics",
+		Metrics: []*Metrics{
+			{
+				MachineMetrics: &fly.MachineMetrics{
+					Port: 9999,
+					Path: "/metrics",
+				},
+			},
+			{
+				MachineMetrics: &fly.MachineMetrics{
+					Port: 9998,
+					Path: "/metrics",
+				},
+				Processes: []string{"web"},
+			},
 		},
 
 		HTTPService: &HTTPService{
-			InternalPort: 8080,
-			ForceHTTPS:   true,
-			Concurrency: &api.MachineServiceConcurrency{
+			InternalPort:       8080,
+			ForceHTTPS:         true,
+			AutoStartMachines:  fly.Pointer(false),
+			AutoStopMachines:   fly.Pointer(false),
+			MinMachinesRunning: fly.Pointer(0),
+			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "donuts",
 				HardLimit: 10,
 				SoftLimit: 4,
 			},
-			TLSOptions: &api.TLSOptions{
+			TLSOptions: &fly.TLSOptions{
 				ALPN:              []string{"h2", "http/1.1"},
 				Versions:          []string{"TLSv1.2", "TLSv1.3"},
-				DefaultSelfSigned: api.Pointer(false),
+				DefaultSelfSigned: fly.Pointer(false),
 			},
-			HTTPOptions: &api.HTTPOptions{
-				Compress: api.Pointer(true),
-				Response: &api.HTTPResponseOptions{
+			HTTPOptions: &fly.HTTPOptions{
+				Compress: fly.Pointer(true),
+				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
 						"fly-wasnt-here": "yes, it was",
@@ -437,19 +428,16 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					},
 				},
 			},
-			ProxyProtoOptions: &api.ProxyProtoOptions{
-				Version: "v2",
-			},
 			HTTPChecks: []*ServiceHTTPCheck{
 				{
-					Interval:          api.MustParseDuration("81s"),
-					Timeout:           api.MustParseDuration("7s"),
-					GracePeriod:       api.MustParseDuration("2s"),
-					RestartLimit:      4,
-					HTTPMethod:        api.Pointer("GET"),
-					HTTPPath:          api.Pointer("/"),
-					HTTPProtocol:      api.Pointer("https"),
-					HTTPTLSSkipVerify: api.Pointer(true),
+					Interval:          fly.MustParseDuration("81s"),
+					Timeout:           fly.MustParseDuration("7s"),
+					GracePeriod:       fly.MustParseDuration("2s"),
+					HTTPMethod:        fly.Pointer("GET"),
+					HTTPPath:          fly.Pointer("/"),
+					HTTPProtocol:      fly.Pointer("https"),
+					HTTPTLSSkipVerify: fly.Pointer(true),
+					HTTPTLSServerName: fly.Pointer("sni2.com"),
 					HTTPHeaders: map[string]string{
 						"My-Custom-Header": "whatever",
 					},
@@ -464,9 +452,26 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 
+		Files: []File{
+			{
+				GuestPath: "/path/to/hello.txt",
+				RawValue:  "aGVsbG8gd29ybGQK",
+			},
+			{
+				GuestPath:  "/path/to/secret.txt",
+				SecretName: "SUPER_SECRET",
+			},
+			{
+				GuestPath: "/path/to/config.yaml",
+				LocalPath: "/local/path/config.yaml",
+				Processes: []string{"web"},
+			},
+		},
+
 		Mounts: []Mount{{
 			Source:      "data",
 			Destination: "/data",
+			InitialSize: "30gb",
 		}},
 
 		Processes: map[string]string{
@@ -476,15 +481,16 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Checks: map[string]*ToplevelCheck{
 			"status": {
-				Port:              api.Pointer(2020),
-				Type:              api.Pointer("http"),
-				Interval:          api.MustParseDuration("10s"),
-				Timeout:           api.MustParseDuration("2s"),
-				GracePeriod:       api.MustParseDuration("27s"),
-				HTTPMethod:        api.Pointer("GET"),
-				HTTPPath:          api.Pointer("/status"),
-				HTTPProtocol:      api.Pointer("https"),
-				HTTPTLSSkipVerify: api.Pointer(true),
+				Port:              fly.Pointer(2020),
+				Type:              fly.Pointer("http"),
+				Interval:          fly.MustParseDuration("10s"),
+				Timeout:           fly.MustParseDuration("2s"),
+				GracePeriod:       fly.MustParseDuration("27s"),
+				HTTPMethod:        fly.Pointer("GET"),
+				HTTPPath:          fly.Pointer("/status"),
+				HTTPProtocol:      fly.Pointer("https"),
+				HTTPTLSSkipVerify: fly.Pointer(true),
+				HTTPTLSServerName: fly.Pointer("sni3.com"),
 				HTTPHeaders: map[string]string{
 					"Content-Type":  "application/json",
 					"Authorization": "super-duper-secret",
@@ -494,21 +500,24 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Services: []Service{
 			{
-				InternalPort: 8081,
-				Protocol:     "tcp",
-				Processes:    []string{"app"},
+				InternalPort:       8081,
+				Protocol:           "tcp",
+				Processes:          []string{"app"},
+				AutoStartMachines:  fly.Pointer(false),
+				AutoStopMachines:   fly.Pointer(false),
+				MinMachinesRunning: fly.Pointer(1),
 
-				Concurrency: &api.MachineServiceConcurrency{
+				Concurrency: &fly.MachineServiceConcurrency{
 					Type:      "requests",
 					HardLimit: 22,
 					SoftLimit: 13,
 				},
 
-				Ports: []api.MachinePort{
+				Ports: []fly.MachinePort{
 					{
-						Port:       api.Pointer(80),
-						StartPort:  api.Pointer(100),
-						EndPort:    api.Pointer(200),
+						Port:       fly.Pointer(80),
+						StartPort:  fly.Pointer(100),
+						EndPort:    fly.Pointer(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
 					},
@@ -516,35 +525,52 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Interval:     api.MustParseDuration("21s"),
-						Timeout:      api.MustParseDuration("4s"),
-						GracePeriod:  api.MustParseDuration("1s"),
-						RestartLimit: 3,
+						Interval:    fly.MustParseDuration("21s"),
+						Timeout:     fly.MustParseDuration("4s"),
+						GracePeriod: fly.MustParseDuration("1s"),
 					},
 				},
 
 				HTTPChecks: []*ServiceHTTPCheck{
 					{
-						Interval:          api.MustParseDuration("81s"),
-						Timeout:           api.MustParseDuration("7s"),
-						GracePeriod:       api.MustParseDuration("2s"),
-						RestartLimit:      4,
-						HTTPMethod:        api.Pointer("GET"),
-						HTTPPath:          api.Pointer("/"),
-						HTTPProtocol:      api.Pointer("https"),
-						HTTPTLSSkipVerify: api.Pointer(true),
+						Interval:          fly.MustParseDuration("81s"),
+						Timeout:           fly.MustParseDuration("7s"),
+						GracePeriod:       fly.MustParseDuration("2s"),
+						HTTPMethod:        fly.Pointer("GET"),
+						HTTPPath:          fly.Pointer("/"),
+						HTTPProtocol:      fly.Pointer("https"),
+						HTTPTLSSkipVerify: fly.Pointer(true),
+						HTTPTLSServerName: fly.Pointer("sni.com"),
 						HTTPHeaders: map[string]string{
 							"My-Custom-Header": "whatever",
 						},
 					},
 					{
-						Interval:   api.MustParseDuration("33s"),
-						Timeout:    api.MustParseDuration("10s"),
-						HTTPMethod: api.Pointer("POST"),
-						HTTPPath:   api.Pointer("/check2"),
+						Interval:   fly.MustParseDuration("33s"),
+						Timeout:    fly.MustParseDuration("10s"),
+						HTTPMethod: fly.Pointer("POST"),
+						HTTPPath:   fly.Pointer("/check2"),
 					},
 				},
 			},
 		},
 	}, cfg)
+}
+
+func TestIsSameTOMLAppConfigReferenceFormat(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	flyToml := filepath.Join(t.TempDir(), "fly.toml")
+	cfg.WriteToFile(flyToml)
+
+	actual, err := LoadConfig(flyToml)
+	require.NoError(t, err)
+	require.NoError(t, actual.SetMachinesPlatform())
+
+	cfg.configFilePath = ""
+	actual.configFilePath = ""
+	require.Equal(t, cfg, actual)
 }

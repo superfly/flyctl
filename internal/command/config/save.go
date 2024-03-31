@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -43,7 +43,9 @@ func runSave(ctx context.Context) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -83,7 +85,6 @@ func runSave(ctx context.Context) error {
 }
 
 func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configPath string) error {
-
 	io := iostreams.FromContext(ctx)
 
 	oldCfg, err := loadPrevConfig(configPath)
@@ -97,12 +98,11 @@ func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configP
 	}
 
 	if !flag.GetYes(ctx) {
-		confirm := false
 		fmt.Fprintf(io.Out, "\nSome sections of the config file are not kept remotely, such as the [build] section.\n")
-		prompt := &survey.Confirm{
-			Message: "Would you like to transfer the [build] section from the current config to the new one?",
-		}
-		err := survey.AskOne(prompt, &confirm)
+
+		message := "Would you like to transfer the [build] section from the current config to the new one?"
+
+		confirm, err := prompt.Confirm(ctx, message)
 		if err != nil {
 			return err
 		}
@@ -111,9 +111,7 @@ func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configP
 		}
 	}
 
-	// Inherit the [build] section from the old config.
-	// This is the only section from definition.SanitizedDefinition()
-	// that is supported by the nomad platform and not synthesized.
+	// Inherit the [build] section from the local config.
 	currentCfg.Build = oldCfg.Build
 
 	return nil

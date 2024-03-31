@@ -6,13 +6,13 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/flyctl"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/update"
 )
@@ -49,6 +49,14 @@ type Cache interface {
 	// is set to has no effect.
 	SetLatestRelease(channel string, r *update.Release)
 
+	// SetCurrentVersionInvalid sets the current version of flyctl as invalid
+	// because of the given error.
+	SetCurrentVersionInvalid(err error)
+
+	// IsCurrentVersionInvalid returns an error message if the given version
+	// of flyctl is currently invalid. If not, it returns an empty string.
+	IsCurrentVersionInvalid() string
+
 	// Save writes the YAML-encoded representation of c to the named file path via
 	// os.WriteFile.
 	Save(path string) error
@@ -69,19 +77,11 @@ type cache struct {
 	channel       string
 	lastCheckedAt time.Time
 	latestRelease *update.Release
+	invalidVer    *invalidVer
 }
 
 func (c *cache) Channel() string {
-	return normalizeChannel(c.channel)
-}
-
-func normalizeChannel(c string) string {
-	const pre = "pre"
-	if strings.Contains(c, pre) {
-		return pre
-	}
-
-	return "latest"
+	return update.NormalizeChannel(c.channel)
 }
 
 func (c *cache) Dirty() bool {
@@ -97,7 +97,7 @@ func (c *cache) SetChannel(channel string) string {
 
 	c.dirty = true
 
-	if channel = normalizeChannel(channel); c.channel != channel {
+	if channel = update.NormalizeChannel(channel); c.channel != channel {
 		// purge timestamp & release since we're changing channels
 		c.lastCheckedAt = time.Time{}
 		c.latestRelease = nil
@@ -126,7 +126,7 @@ func (c *cache) SetLatestRelease(channel string, r *update.Release) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if channel = normalizeChannel(channel); channel != c.channel {
+	if channel = update.NormalizeChannel(channel); channel != c.channel {
 		return
 	}
 
@@ -136,10 +136,40 @@ func (c *cache) SetLatestRelease(channel string, r *update.Release) {
 	c.lastCheckedAt = time.Now()
 }
 
+type invalidVer struct {
+	Ver    string
+	Reason string
+}
+
+func (c *cache) SetCurrentVersionInvalid(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.dirty = true
+
+	c.invalidVer = &invalidVer{Ver: buildinfo.Version().String(), Reason: err.Error()}
+}
+
+func (c *cache) IsCurrentVersionInvalid() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	if c.invalidVer == nil {
+		return ""
+	}
+
+	if c.invalidVer.Ver != buildinfo.Version().String() {
+		return ""
+	}
+
+	return c.invalidVer.Reason
+}
+
 type wrapper struct {
 	Channel       string          `yaml:"channel,omitempty"`
 	LastCheckedAt time.Time       `yaml:"last_checked_at,omitempty"`
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
+	InvalidVer    *invalidVer
 }
 
 func lockPath() string {
@@ -158,6 +188,10 @@ func (c *cache) Save(path string) (err error) {
 		Channel:       c.channel,
 		LastCheckedAt: c.lastCheckedAt,
 		LatestRelease: c.latestRelease,
+		InvalidVer:    c.invalidVer,
+	}
+	if c.invalidVer != nil && c.IsCurrentVersionInvalid() == "" {
+		w.InvalidVer = nil
 	}
 
 	if err = yaml.NewEncoder(&b).Encode(w); err != nil {
@@ -208,6 +242,7 @@ func Load(path string) (c Cache, err error) {
 			channel:       w.Channel,
 			lastCheckedAt: w.LastCheckedAt,
 			latestRelease: w.LatestRelease,
+			invalidVer:    w.InvalidVer,
 		}
 	}
 

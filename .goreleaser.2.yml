@@ -1,0 +1,84 @@
+# This config targets the new flypkgs distribution system. Once all releases are
+# being served by flypkgs, this file will replace .goreleaser.yml and .goreleaser.dev.yml
+
+env:
+  - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
+
+before:
+  hooks:
+    - go mod download
+    - go generate ./...
+
+builds:
+  - id: linux
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
+
+  - id: macos
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
+
+  - id: windows
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - windows
+    goarch:
+      - arm64
+      - amd64
+    ldflags:
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
+
+archives:
+  - id: linux
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_Linux_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    builds: [linux]
+    files: [only-the-binary*]
+    wrap_in_directory: false
+    format: tar.gz
+
+  - id: macos
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_macOS_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    builds: [macos]
+    files: [only-the-binary*]
+    wrap_in_directory: false
+    format: tar.gz
+
+  - id: windows
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_Windows_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    builds: [windows]
+    files: [wintun.dll]
+    wrap_in_directory: false
+    format: zip
+
+release:
+  disable: true

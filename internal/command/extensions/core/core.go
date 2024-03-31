@@ -4,95 +4,112 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
+	"reflect"
+	"slices"
+	"sort"
+	"time"
 
+	"github.com/briandowns/spinner"
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/scanner"
 )
 
-type ExtensionOptions struct {
-	Provider     string
-	SelectName   bool
-	SelectRegion bool
-	NameSuffix   string
+type Extension struct {
+	Data        gql.ExtensionData
+	App         *gql.AppData
+	SetsSecrets bool
 }
 
-func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *gql.AddOn, err error) {
-	client := client.FromContext(ctx).API().GenqClient
-	appName := appconfig.NameFromContext(ctx)
+type ExtensionParams struct {
+	AppName      string
+	Organization *fly.Organization
+	Provider     string
+	PlanID       string
+	Options      map[string]interface{}
+
+	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
+	OverrideRegion string
+	OverrideName   string
+}
+
+// Common flags that should be used for all extension commands
+var SharedFlags = flag.Set{
+	flag.Yes(),
+}
+
+func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension Extension, err error) {
+	client := fly.ClientFromContext(ctx).GenqClient
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	// Fetch the target organization from the app
-	appResponse, err := gql.GetAppWithAddons(ctx, client, appName, gql.AddOnType(options.Provider))
 
+	var targetApp gql.AppData
+	var targetOrg gql.OrganizationData
+
+	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	targetApp := appResponse.App.AppData
-	targetOrg := targetApp.Organization
-	resp, err := gql.GetAddOnProvider(ctx, client, options.Provider)
+	provider := resp.AddOnProvider.ExtensionProviderData
+
+	// Ensure users have agreed to the provider terms of service
+	err = AgreeToProviderTos(ctx, provider)
 
 	if err != nil {
-		return nil, err
+		return extension, err
 	}
 
-	addOnProvider := resp.AddOnProvider
-
-	tosResp, err := gql.AgreedToProviderTos(ctx, client, options.Provider, targetOrg.Id)
-
-	if err != nil {
-		return nil, err
-	}
-
-	if !tosResp.Organization.AgreedToProviderTos {
+	if params.AppName != "" {
+		appResponse, err := gql.GetAppWithAddons(ctx, client, params.AppName, gql.AddOnType(params.Provider))
 		if err != nil {
-			return nil, err
+			return extension, err
 		}
 
-		confirmTos, err := prompt.Confirm(ctx, fmt.Sprintf("To continue, your organization must agree to the %s Terms Of Service (%s). Do you agree?", addOnProvider.DisplayName, resp.AddOnProvider.TosUrl))
+		targetApp = appResponse.App.AppData
+		targetOrg = appResponse.App.Organization.OrganizationData
 
+		if len(appResponse.App.AddOns.Nodes) > 0 {
+			existsError := fmt.Errorf("A %s %s named %s already exists for app %s", provider.DisplayName, provider.ResourceName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name), colorize.Green(params.AppName))
+
+			return extension, existsError
+		}
+
+	} else {
+		resp, err := gql.GetOrganization(ctx, client, params.Organization.Slug)
 		if err != nil {
-			return nil, err
+			return extension, err
 		}
 
-		if confirmTos {
-			_, err := gql.CreateTosAgreement(ctx, client, gql.CreateExtensionTosAgreementInput{
-				OrganizationId:    targetOrg.Id,
-				AddOnProviderName: options.Provider,
-			})
-
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, nil
-		}
-	}
-
-	if len(appResponse.App.AddOns.Nodes) > 0 {
-		errMsg := fmt.Sprintf("A %s extension named %s already exists for this app", addOnProvider.DisplayName, colorize.Green(appResponse.App.AddOns.Nodes[0].Name))
-		return nil, errors.New(errMsg)
+		targetOrg = resp.Organization.OrganizationData
 	}
 
 	var name string
 
-	if options.SelectName {
-		var name = flag.GetString(ctx, "name")
+	// Prompt to name the provisioned resource, or use the target app name like in Sentry's case
+	if provider.SelectName {
+		name = params.OverrideName
 
 		if name == "" {
-			if options.NameSuffix != "" {
-				name = targetApp.Name + "-" + options.NameSuffix
+			name = flag.GetString(ctx, "name")
+		}
+
+		if name == "" {
+			if provider.NameSuffix != "" && targetApp.Name != "" {
+				name = targetApp.Name + "-" + provider.NameSuffix
 			}
 			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
 			if err != nil {
-				return nil, err
+				return
 			}
 		}
 	} else {
@@ -103,24 +120,38 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 		OrganizationId: targetOrg.Id,
 		Name:           name,
 		AppId:          targetApp.Id,
-		Type:           gql.AddOnType(options.Provider),
+		Type:           gql.AddOnType(provider.Name),
 	}
 
-	if options.SelectRegion {
+	if params.PlanID != "" {
+		input.PlanId = params.PlanID
+	}
 
-		var primaryRegion string
+	var inExcludedRegion bool
+	var primaryRegion string
 
-		excludedRegions, err := GetExcludedRegions(ctx, options.Provider)
+	if provider.SelectRegion {
 
+		excludedRegions, err := GetExcludedRegions(ctx, provider)
 		if err != nil {
-			return addOn, err
+			return extension, err
 		}
 
-		cfg := appconfig.ConfigFromContext(ctx)
+		desiredRegion := params.OverrideRegion
+		if desiredRegion != "" {
+			cfg := appconfig.ConfigFromContext(ctx)
+			if cfg != nil && cfg.PrimaryRegion != "" {
+				desiredRegion = cfg.PrimaryRegion
+			}
+		}
 
-		if cfg != nil && cfg.PrimaryRegion != "" {
+		if desiredRegion != "" {
 
-			primaryRegion = cfg.PrimaryRegion
+			primaryRegion = desiredRegion
+
+			if slices.Contains(excludedRegions, primaryRegion) {
+				inExcludedRegion = true
+			}
 
 		} else {
 
@@ -128,9 +159,8 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 				Message:             "Choose the primary region (can't be changed later)",
 				ExcludedRegionCodes: excludedRegions,
 			})
-
 			if err != nil {
-				return addOn, err
+				return extension, err
 			}
 
 			primaryRegion = region.Code
@@ -139,64 +169,479 @@ func ProvisionExtension(ctx context.Context, options ExtensionOptions) (addOn *g
 		input.PrimaryRegion = primaryRegion
 	}
 
-	createAddOnResponse, err := gql.CreateAddOn(ctx, client, input)
+	var detectedPlatform *scanner.SourceInfo
 
+	// Pass the detected platform family to the API
+	if provider.DetectPlatform {
+		absDir, err := filepath.Abs(".")
+		if err != nil {
+			return extension, err
+		}
+
+		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
+
+		if err != nil {
+			return extension, err
+		}
+
+		if detectedPlatform != nil && PlatformMap[detectedPlatform.Family] != "" {
+			if params.Options == nil {
+				params.Options = gql.AddOnOptions{}
+			}
+			params.Options["platform"] = PlatformMap[detectedPlatform.Family]
+		}
+	}
+
+	input.Options = params.Options
+	createResp, err := gql.CreateExtension(ctx, client, input)
 	if err != nil {
-		return nil, err
+		return
 	}
 
-	addOn = &createAddOnResponse.CreateAddOn.AddOn
+	extension.Data = createResp.CreateAddOn.AddOn.ExtensionData
+	extension.App = &targetApp
 
-	if options.SelectRegion {
-		fmt.Fprintf(io.Out, "Created %s in the %s region for app %s\n\n", colorize.Green(addOn.Name), colorize.Green(addOn.PrimaryRegion), colorize.Green(appName))
-	}
-	fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", appName)
-
-	env := make(map[string]string)
-	for key, value := range addOn.Environment.(map[string]interface{}) {
-		env[key] = value.(string)
-		fmt.Println(key)
+	if provider.AsyncProvisioning {
+		err = WaitForProvision(ctx, extension.Data.Name)
+		if err != nil {
+			return
+		}
 	}
 
-	secrets.SetSecretsAndDeploy(ctx, gql.ToAppCompact(targetApp), env, false, false)
+	// Display provisioning notification to user
 
-	return addOn, nil
+	provisioningMsg := fmt.Sprintf("Your %s %s", provider.DisplayName, provider.ResourceName)
+
+	if provider.SelectName {
+		provisioningMsg = provisioningMsg + fmt.Sprintf(" (%s)", colorize.Green(extension.Data.Name))
+	}
+
+	if provider.SelectRegion {
+		provisioningMsg = provisioningMsg + fmt.Sprintf(" in %s", colorize.Green(extension.Data.PrimaryRegion))
+	}
+
+	fmt.Fprintf(io.Out, provisioningMsg+" is ready. See details and next steps with: %s\n\n", colorize.Green(provider.ProvisioningInstructions))
+
+	if inExcludedRegion {
+		fmt.Fprintf(io.ErrOut,
+			"Note: Your app is deployed in %s which isn't a supported %s region. Expect database request latency of 10ms or more.\n\n",
+			colorize.Green(primaryRegion), provider.DisplayName)
+	}
+
+	setSecretsFromExtension(ctx, &targetApp, &extension)
+
+	return extension, nil
 }
 
-func GetExcludedRegions(ctx context.Context, provider string) (excludedRegions []string, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
+	client := fly.ClientFromContext(ctx).GenqClient
+	out := iostreams.FromContext(ctx).Out
 
-	response, err := gql.GetAddOnProvider(ctx, client, provider)
-
-	if err != nil {
-		return nil, err
+	// Internal providers like kubernetes don't need ToS agreement
+	if provider.Internal {
+		return nil
 	}
 
-	for _, region := range response.AddOnProvider.ExcludedRegions {
+	// Check if the provider ToS was agreed to already
+	agreed, err := AgreedToProviderTos(ctx, provider.Name)
+	if err != nil {
+		return err
+	}
+
+	if agreed {
+		return nil
+	}
+
+	fmt.Fprint(out, "\n"+provider.TosAgreement+"\n\n")
+
+	// Prompt the user to agree to the provider ToS, or display the ToS agreement copy
+	// for non-interactive sessions
+	if !flag.GetYes(ctx) {
+		switch confirmTos, err := prompt.Confirm(ctx, "Do you agree?"); {
+		case err == nil:
+			if !confirmTos {
+				return errors.New("You must agree to continue.")
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("To agree, the --yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	} else {
+		fmt.Fprintln(out, "By specifying the --yes flag, you have agreed to the terms displayed above.")
+		return nil
+	}
+
+	_, err = gql.CreateTosAgreement(ctx, client, provider.Name)
+
+	return err
+}
+
+func WaitForProvision(ctx context.Context, name string) error {
+	io := iostreams.FromContext(ctx)
+	client := fly.ClientFromContext(ctx).GenqClient
+
+	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
+	s.Writer = io.ErrOut
+	s.Prefix = "Waiting for provisioning to complete "
+	s.Start()
+
+	defer s.Stop()
+	timeout := time.After(4 * time.Minute)
+	ticker := time.NewTicker(2 * time.Second)
+
+	defer ticker.Stop()
+
+	for {
+
+		resp, err := gql.GetAddOn(ctx, client, name)
+		if err != nil {
+			return err
+		}
+
+		if resp.AddOn.Status == "error" {
+			if resp.AddOn.ErrorMessage != "" {
+				return errors.New(resp.AddOn.ErrorMessage)
+			} else {
+				return errors.New("provisioning failed")
+			}
+		}
+
+		if resp.AddOn.Status == "ready" {
+			return nil
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timeout:
+			return errors.New("timed out waiting for provisioning to complete")
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData) (excludedRegions []string, err error) {
+	for _, region := range provider.ExcludedRegions {
 		excludedRegions = append(excludedRegions, region.Code)
 	}
 
 	return
 }
 
+func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) (err error) {
+	client := fly.ClientFromContext(ctx).GenqClient
+
+	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
+	if err != nil {
+		return
+	}
+
+	provider := resp.AddOnProvider.ExtensionProviderData
+
+	err = AgreeToProviderTos(ctx, provider)
+
+	if err != nil {
+		return err
+	}
+
+	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, providerName)
+	if err != nil {
+		return err
+	}
+
+	err = openUrl(ctx, result.Organization.ExtensionSsoLink)
+
+	return
+}
+
+func openUrl(ctx context.Context, url string) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
+
+	if err := open.Run(url); err != nil {
+		return fmt.Errorf("failed opening %s: %w", url, err)
+	}
+	return
+}
+
 func OpenDashboard(ctx context.Context, extensionName string) (err error) {
-	var (
-		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API().GenqClient
-	)
+	client := fly.ClientFromContext(ctx).GenqClient
 
 	result, err := gql.GetAddOn(ctx, client, extensionName)
+	if err != nil {
+		return err
+	}
+
+	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
 
 	if err != nil {
 		return err
 	}
 
 	url := result.AddOn.SsoLink
-	fmt.Fprintf(io.Out, "Opening %s ...\n", url)
+	openUrl(ctx, url)
 
-	if err := open.Run(url); err != nil {
-		return fmt.Errorf("failed opening %s: %w", url, err)
+	return
+}
+
+func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData, app *gql.AppData, err error) {
+	client := fly.ClientFromContext(ctx).GenqClient
+	appName := appconfig.NameFromContext(ctx)
+
+	if len(flag.Args(ctx)) == 1 {
+
+		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		addOn = &response.AddOn.AddOnData
+
+	} else if appName != "" {
+		resp, err := gql.GetAppWithAddons(ctx, client, appName, provider)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if len(resp.App.AddOns.Nodes) == 0 {
+			return nil, nil, fmt.Errorf("No project found. Provision one with 'flyctl ext %s create'.", provider)
+		}
+
+		addOn = &resp.App.AddOns.Nodes[0].AddOnData
+		app = &resp.App.AppData
+	} else {
+		return nil, nil, errors.New("Run this command in a Fly app directory or pass a name as the first argument.")
 	}
 
 	return
+}
+
+func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
+	var (
+		io              = iostreams.FromContext(ctx)
+		client          = fly.ClientFromContext(ctx).GenqClient
+		setSecrets bool = true
+	)
+
+	environment := extension.Data.Environment
+	if environment == nil || reflect.ValueOf(environment).IsNil() {
+		return nil
+	}
+
+	secrets := extension.Data.Environment.(map[string]interface{})
+
+	if app.Name != "" {
+		appResp, err := gql.GetApp(ctx, client, app.Name)
+		if err != nil {
+			return err
+		}
+
+		var matchingNames []string
+
+		for _, s := range appResp.App.Secrets {
+			if _, exists := secrets[s.Name]; exists {
+				matchingNames = append(matchingNames, s.Name)
+			}
+		}
+
+		if len(matchingNames) > 0 {
+			fmt.Fprintf(io.Out, "Secrets %v already exist on app %s. They won't be set automatically.\n\n", matchingNames, app.Name)
+			setSecrets = false
+		}
+
+	} else {
+		setSecrets = false
+	}
+
+	keys := lo.Keys(secrets)
+	sort.Strings(keys)
+
+	if setSecrets {
+		extension.SetsSecrets = true
+		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
+		input := gql.SetSecretsInput{
+			AppId: app.Id,
+		}
+		for _, key := range keys {
+			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
+			fmt.Fprintln(io.Out, key)
+		}
+
+		fmt.Fprintln(io.Out)
+
+		_, err = gql.SetSecrets(ctx, client, input)
+
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Fprintf(io.Out, "Set the following secrets on your target app.\n")
+
+		for _, key := range keys {
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+		}
+
+	}
+	return err
+}
+
+func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error) {
+	client := fly.ClientFromContext(ctx).GenqClient
+
+	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName)
+	if err != nil {
+		return false, err
+	}
+	return tosResp.Viewer.(*gql.AgreedToProviderTosViewerUser).AgreedToProviderTos, nil
+}
+
+func Status(ctx context.Context, provider gql.AddOnType) (err error) {
+	io := iostreams.FromContext(ctx)
+
+	extension, app, err := Discover(ctx, provider)
+	if err != nil {
+		return err
+	}
+
+	obj := [][]string{
+		{
+			extension.Name,
+			extension.PrimaryRegion,
+			extension.Status,
+		},
+	}
+
+	var cols []string = []string{"Name", "Primary Region", "Status"}
+
+	if app != nil {
+		obj[0] = append(obj[0], app.Name)
+		cols = append(cols, "App")
+	}
+
+	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
+		return
+	}
+
+	return
+}
+
+// Supported Sentry Platforms from https://github.com/getsentry/sentry/blob/master/src/sentry/utils/platform_categories.py
+// If other extensions require platform detection, this list can be abstracted further
+var Platforms = []string{
+	"android",
+	"apple-ios",
+	"apple-macos",
+	"capacitor",
+	"cocoa-objc",
+	"cocoa-swift",
+	"cordova",
+	"csharp",
+	"dart",
+	"dart-flutter",
+	"dotnet",
+	"dotnet-aspnet",
+	"dotnet-aspnetcore",
+	"dotnet-awslambda",
+	"dotnet-gcpfunctions",
+	"dotnet-maui",
+	"dotnet-winforms",
+	"dotnet-wpf",
+	"dotnet-xamarin",
+	"electron",
+	"elixir",
+	"flutter",
+	"go",
+	"go-http",
+	"ionic",
+	"java",
+	"java-android",
+	"java-appengine",
+	"java-log4j",
+	"java-log4j2",
+	"java-logback",
+	"java-logging",
+	"java-spring",
+	"java-spring-boot",
+	"javascript",
+	"javascript-angular",
+	"javascript-angularjs",
+	"javascript-backbone",
+	"javascript-capacitor",
+	"javascript-cordova",
+	"javascript-electron",
+	"javascript-ember",
+	"javascript-gatsby",
+	"javascript-nextjs",
+	"javascript-react",
+	"javascript-remix",
+	"javascript-svelte",
+	"javascript-vue",
+	"kotlin",
+	"minidump",
+	"native",
+	"native-breakpad",
+	"native-crashpad",
+	"native-minidump",
+	"native-qt",
+	"node",
+	"node-awslambda",
+	"node-azurefunctions",
+	"node-connect",
+	"node-express",
+	"node-gcpfunctions",
+	"node-koa",
+	"perl",
+	"php",
+	"php-laravel",
+	"php-monolog",
+	"php-symfony2",
+	"python",
+	"python-awslambda",
+	"python-azurefunctions",
+	"python-bottle",
+	"python-celery",
+	"python-django",
+	"python-fastapi",
+	"python-flask",
+	"python-gcpfunctions",
+	"python-pylons",
+	"python-pyramid",
+	"python-rq",
+	"python-sanic",
+	"python-starlette",
+	"python-tornado",
+	"react-native",
+	"ruby",
+	"ruby-rack",
+	"ruby-rails",
+	"rust",
+	"unity",
+	"unreal",
+}
+
+var PlatformMap = map[string]string{
+	"AdonisJS":      "node",
+	"Bun":           "javascript",
+	"Django":        "python-django",
+	"Deno":          "node",
+	".NET":          "dotnet",
+	"Elixir":        "elixir",
+	"Gatsby":        "node",
+	"Go":            "go",
+	"NodeJS":        "node",
+	"NodeJS/Prisma": "node",
+	"Laravel":       "php-laravel",
+	"NestJS":        "node",
+	"NextJS":        "javascript-nextjs",
+	"Nuxt":          "javascript-vue",
+	"NuxtJS":        "javascript-vue",
+	"Phoenix":       "elixir",
+	"Python":        "python",
+	"Rails":         "ruby-rails",
+	"RedwoodJS":     "javascript-react",
+	"Remix":         "javascript-remix",
+	"Remix/Prisma":  "javascript-remix",
+	"Ruby":          "ruby",
 }

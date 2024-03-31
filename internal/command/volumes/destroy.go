@@ -5,32 +5,34 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `Destroy a volume Requires the volume's ID
-number to operate. This can be found through the volumes list command`
+		short = "Destroy one or more volumes."
 
-		short = "Destroy a volume"
+		long = short + " When you destroy a volume, you permanently delete all its data."
 	)
 
-	cmd := command.New("destroy <id>", short, long, runDestroy,
+	cmd := command.New("destroy [flags] ID ID ...", short, long, runDestroy,
 		command.RequireSession,
+		command.LoadAppNameIfPresent,
 	)
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.ArbitraryArgs
 	cmd.Aliases = []string{"delete", "rm"}
 
 	flag.Add(cmd,
 		flag.Yes(),
+		flag.App(),
+		flag.AppConfig(),
 	)
 
 	return cmd
@@ -39,31 +41,66 @@ number to operate. This can be found through the volumes list command`
 func runDestroy(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = client.FromContext(ctx).API()
-		volID  = flag.FirstArg(ctx)
+		client = fly.ClientFromContext(ctx)
+		volIDs = flag.Args(ctx)
 	)
 
-	if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
-		return err
-	} else if !confirm {
-		return nil
+	appName := appconfig.NameFromContext(ctx)
+	if len(volIDs) == 0 && appName == "" {
+		return fmt.Errorf("volume ID or app required")
 	}
 
-	data, err := client.DeleteVolume(ctx, volID, "")
+	if appName == "" {
+		n, err := client.GetAppNameFromVolume(ctx, volIDs[0])
+		if err != nil {
+			return err
+		}
+		appName = *n
+	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
-		return fmt.Errorf("failed destroying volume: %w", err)
+		return err
+	}
+	ctx = flaps.NewContext(ctx, flapsClient)
+
+	if len(volIDs) == 0 {
+		app, err := client.GetAppBasic(ctx, appName)
+		if err != nil {
+			return err
+		}
+		volume, err := selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+		volIDs = append(volIDs, volume.ID)
 	}
 
-	fmt.Fprintf(io.Out, "Destroyed volume %s from %s\n", volID, data.Name)
+	for _, volID := range volIDs {
+		if confirm, err := confirmVolumeDelete(ctx, volID); err != nil {
+			return err
+		} else if !confirm {
+			return nil
+		}
+
+		data, err := flapsClient.DeleteVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("failed destroying volume: %w", err)
+		}
+
+		fmt.Fprintf(io.Out, "Destroyed volume ID: %s name: %s\n", volID, data.Name)
+	}
 
 	return nil
 }
 
 func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 	var (
-		client   = client.FromContext(ctx).API()
-		io       = iostreams.FromContext(ctx)
-		colorize = io.ColorScheme()
+		flapsClient = flaps.FromContext(ctx)
+		io          = iostreams.FromContext(ctx)
+		colorize    = io.ColorScheme()
 
 		err error
 	)
@@ -73,20 +110,20 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 	}
 
 	// fetch the volume so we can get the associated app
-	var volume *api.Volume
-	if volume, err = client.GetVolume(ctx, volID); err != nil {
+	var volume *fly.Volume
+	if volume, err = flapsClient.GetVolume(ctx, volID); err != nil {
 		return false, err
 	}
 
 	// fetch the set of volumes for this app. If > 0 we skip the prompt
 	var matches int32
-	if matches, err = countVolumesMatchingName(ctx, volume.App.Name, volume.Name); err != nil {
+	if matches, err = countVolumesMatchingName(ctx, volume.Name); err != nil {
 		return false, err
 	}
 
-	var msg = "Deleting a volume is not reversible."
+	msg := "Deleting a volume is not reversible."
 	if matches <= 2 {
-		msg = fmt.Sprintf("Warning! Individual volumes are pinned to individual hosts. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
+		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
 	}
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 

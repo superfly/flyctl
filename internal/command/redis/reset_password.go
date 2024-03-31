@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 )
@@ -33,7 +33,7 @@ func newReset() (cmd *cobra.Command) {
 func runReset(ctx context.Context) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
-		client   = client.FromContext(ctx).API().GenqClient
+		client   = fly.ClientFromContext(ctx).GenqClient
 		colorize = io.ColorScheme()
 		out      = io.Out
 	)

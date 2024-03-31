@@ -6,13 +6,16 @@ import (
 	"io"
 	"os"
 
-	"github.com/buildpacks/pack"
+	packclient "github.com/buildpacks/pack/pkg/client"
 	projectTypes "github.com/buildpacks/pack/pkg/project/types"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type buildpacksBuilder struct{}
@@ -21,10 +24,18 @@ func (*buildpacksBuilder) Name() string {
 	return "Buildpacks"
 }
 
+func returnTrue(s string) bool {
+	return true
+}
+
 func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFactory, streams *iostreams.IOStreams, opts ImageOptions, build *build) (*DeploymentImage, string, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "buildpacks_builder", trace.WithAttributes(opts.ToSpanAttributes()...))
+	defer span.End()
+
 	build.BuildStart()
 	if !dockerFactory.mode.IsAvailable() {
 		note := "docker daemon not available, skipping"
+		span.AddEvent(note)
 		terminal.Debug(note)
 		build.BuildFinish()
 		return nil, note, nil
@@ -33,12 +44,16 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if opts.Builder == "" {
 		note := "no buildpack builder configured, skipping"
 		terminal.Debug(note)
+		span.AddEvent(note)
 		build.BuildFinish()
 		return nil, note, nil
 	}
 
 	builder := opts.Builder
 	buildpacks := opts.Buildpacks
+
+	span.SetAttributes(attribute.StringSlice("buildpacks", buildpacks))
+	span.SetAttributes(attribute.String("builder", builder))
 
 	build.BuilderInitStart()
 	docker, err := dockerFactory.buildFn(ctx, build)
@@ -51,10 +66,11 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	defer docker.Close() // skipcq: GO-S2307
 	defer clearDeploymentTags(ctx, docker, opts.Tag)
 
-	packClient, err := pack.NewClient(pack.WithDockerClient(docker), pack.WithLogger(newPackLogger(streams.Out)))
+	packClient, err := packclient.NewClient(packclient.WithDockerClient(docker), packclient.WithLogger(newPackLogger(streams.Out)))
 	if err != nil {
 		build.BuilderInitFinish()
 		build.BuildFinish()
+		tracing.RecordError(span, err, "failed to create packet client")
 		return nil, "", err
 	}
 	build.BuilderInitFinish()
@@ -62,6 +78,7 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	build.ImageBuildStart()
 	serverInfo, err := docker.Info(ctx)
 	if err != nil {
+		tracing.RecordError(span, err, "failed to fetch docker server info")
 		terminal.Debug("error fetching docker server info:", err)
 	} else {
 		build.SetBuilderMetaPart2(false, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
@@ -71,39 +88,69 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	msg := fmt.Sprintf("docker host: %s %s %s", serverInfo.ServerVersion, serverInfo.OSType, serverInfo.Architecture)
 	cmdfmt.PrintDone(streams.ErrOut, msg)
 
+	span.AddEvent(msg)
+
 	build.ContextBuildStart()
 	excludes, err := readDockerignore(opts.WorkingDir, opts.IgnorefilePath, "")
 	if err != nil {
+		tracing.RecordError(span, err, "error reading .dockerignore")
 		build.ContextBuildFinish()
 		build.BuildFinish()
 		return nil, "", errors.Wrap(err, "error reading .dockerignore")
 	}
 	build.ContextBuildFinish()
 
-	err = packClient.Build(ctx, pack.BuildOptions{
+	if opts.BuildpacksDockerHost != "" {
+		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks docker host: %v", opts.BuildpacksDockerHost))
+	}
+	if len(opts.BuildpacksVolumes) > 0 {
+		cmdfmt.PrintDone(streams.ErrOut, fmt.Sprintf("buildpacks volumes: %+v", opts.BuildpacksVolumes))
+	}
+
+	buildCtx, buildSpan := tracing.GetTracer().Start(ctx, "build_image",
+		trace.WithAttributes(opts.ToSpanAttributes()...),
+		trace.WithAttributes(
+			attribute.String("type", "buildpack"),
+			attribute.Bool("is_remote", dockerFactory.IsRemote()),
+		),
+	)
+	var gid = -1
+	var uid = -1
+	err = packClient.Build(buildCtx, packclient.BuildOptions{
 		AppPath:        opts.WorkingDir,
 		Builder:        builder,
 		ClearCache:     opts.NoCache,
 		Image:          newCacheTag(opts.AppName),
+		DockerHost:     opts.BuildpacksDockerHost,
 		Buildpacks:     buildpacks,
 		Env:            normalizeBuildArgs(opts.BuildArgs),
-		TrustBuilder:   true,
+		UserID:         uid,
+		GroupID:        gid,
+		TrustBuilder:   returnTrue,
 		AdditionalTags: []string{opts.Tag},
 		ProjectDescriptor: projectTypes.Descriptor{
 			Build: projectTypes.Build{
 				Exclude: excludes,
 			},
 		},
+		ContainerConfig: packclient.ContainerConfig{
+			Volumes: opts.BuildpacksVolumes,
+		},
 	})
 	build.ImageBuildFinish()
 	build.BuildFinish()
-
 	if err != nil {
 		if dockerFactory.IsRemote() {
+			buildSpan.AddEvent("bad build caused by remote builder failure")
 			metrics.SendNoData(ctx, "remote_builder_failure")
 		}
+		buildSpan.SetAttributes(attribute.Bool("is_remote", dockerFactory.IsRemote()))
+		tracing.RecordError(buildSpan, err, "failed to build image")
+		buildSpan.End()
 		return nil, "", err
 	}
+
+	buildSpan.End()
 
 	cmdfmt.PrintDone(streams.ErrOut, "Building image done")
 
@@ -124,12 +171,20 @@ func (*buildpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if err != nil {
 		return nil, "", err
 	}
+	if img == nil {
+		tracing.RecordError(span, err, "no image found")
+		return nil, "", fmt.Errorf("no image found")
+	}
 
-	return &DeploymentImage{
+	di := DeploymentImage{
 		ID:   img.ID,
 		Tag:  opts.Tag,
 		Size: img.Size,
-	}, "", nil
+	}
+
+	span.SetAttributes(di.ToSpanAttributes()...)
+
+	return &di, "", nil
 }
 
 func normalizeBuildArgs(buildArgs map[string]string) map[string]string {

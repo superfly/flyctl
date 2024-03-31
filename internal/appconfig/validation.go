@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -21,78 +22,10 @@ var (
 )
 
 func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) {
-	appName := NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
-
 	if cfg == nil {
 		return errors.New("App config file not found"), ""
 	}
 
-	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
-
-	platformVersion := cfg.platformVersion
-	if platformVersion == "" {
-		app, err := apiClient.GetAppBasic(ctx, appName)
-		switch {
-		case err == nil:
-			platformVersion = app.PlatformVersion
-			extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
-		case strings.Contains(err.Error(), "Could not find App"):
-			platformVersion = NomadPlatform
-			extra_info += fmt.Sprintf("WARNING: Failed to fetch platform version: %s\n", err)
-		default:
-			return err, extra_info
-		}
-	} else {
-		extra_info += fmt.Sprintf("Platform: %s\n", platformVersion)
-	}
-
-	switch platformVersion {
-	case MachinesPlatform:
-		platErr, platExtra := cfg.ValidateForMachinesPlatform(ctx)
-		return platErr, extra_info + platExtra
-	case NomadPlatform:
-		platErr, platExtra := cfg.ValidateForNomadPlatform(ctx)
-		return platErr, extra_info + platExtra
-	case "", DetachedPlatform:
-		return nil, ""
-	default:
-		return fmt.Errorf("Unknown platform version '%s' for app '%s'", platformVersion, appName), extra_info
-	}
-}
-
-func (cfg *Config) ValidateForNomadPlatform(ctx context.Context) (err error, extra_info string) {
-	if extra, _ := cfg.validateBuildStrategies(); extra != "" {
-		extra_info += extra
-	}
-
-	appName := NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
-	serverCfg, err := apiClient.ValidateConfig(ctx, appName, cfg.SanitizedDefinition())
-	if err != nil {
-		return err, extra_info
-	}
-
-	if _, haveHTTPService := cfg.RawDefinition["http_service"]; haveHTTPService {
-		// TODO: eventually make this fail validation
-		msg := fmt.Sprintf("%s the http_service section is ignored for Nomad apps", aurora.Yellow("WARN"))
-		extra_info += msg + "\n"
-		sentry.CaptureException(errors.New(msg))
-	}
-
-	if serverCfg.Valid {
-		extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
-		return nil, extra_info
-	} else {
-		for _, errStr := range serverCfg.Errors {
-			extra_info += fmt.Sprintf("   %s%s\n", aurora.Red("✘"), errStr)
-		}
-		extra_info += "\n"
-		return errors.New("App configuration is not valid"), extra_info
-	}
-}
-
-func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, extra_info string) {
 	validators := []func() (string, error){
 		cfg.validateBuildStrategies,
 		cfg.validateDeploySection,
@@ -101,7 +34,10 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		cfg.validateProcessesSection,
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
+		cfg.validateMounts,
 	}
+
+	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
 
 	for _, vFunc := range validators {
 		info, vErr := vFunc()
@@ -111,8 +47,8 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 		}
 	}
 
-	if vErr := cfg.EnsureV2Config(); vErr != nil {
-		err = vErr
+	if cfg.v2UnmarshalError != nil {
+		err = cfg.v2UnmarshalError
 	}
 
 	if err != nil {
@@ -122,6 +58,24 @@ func (cfg *Config) ValidateForMachinesPlatform(ctx context.Context) (err error, 
 
 	extra_info += fmt.Sprintf("%s Configuration is valid\n", aurora.Green("✓"))
 	return nil, extra_info
+}
+
+func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extra_info string) {
+	if len(groups) == 0 {
+		return cfg.Validate(ctx)
+	}
+	var config *Config
+	for _, group := range groups {
+		config, err = cfg.Flatten(group)
+		if err != nil {
+			return
+		}
+		err, extra_info = config.Validate(ctx)
+		if err != nil {
+			return
+		}
+	}
+	return
 }
 
 func (cfg *Config) validateBuildStrategies() (extraInfo string, err error) {
@@ -212,6 +166,17 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 			}
 		}
 
+		if len(service.Ports) == 0 {
+			// XXX: Warn about services without ports instead of hard failing so users have time to
+			//      fix fly.toml configuration -- 2024-01-15
+			extraInfo += fmt.Sprintf(
+				"WARNING: Service must expose at least one port. Add a [[services.ports]] section to fly.toml; " +
+					"Check docs at https://fly.io/docs/reference/configuration/#services-ports \n " +
+					"Validation for _services without ports_ will hard fail after February 15, 2024.",
+			)
+			//err = ValidationError
+		}
+
 		for _, check := range service.TCPChecks {
 			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "TCP")
 		}
@@ -223,14 +188,14 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 	return extraInfo, err
 }
 
-func validateServiceCheckDurations(interval, timeout, gracePeriod *api.Duration, proto string) (extraInfo string) {
+func validateServiceCheckDurations(interval, timeout, gracePeriod *fly.Duration, proto string) (extraInfo string) {
 	extraInfo += validateSingleServiceCheckDuration(interval, false, proto, "an interval")
 	extraInfo += validateSingleServiceCheckDuration(timeout, false, proto, "a timeout")
 	extraInfo += validateSingleServiceCheckDuration(gracePeriod, true, proto, "a grace period")
 	return
 }
 
-func validateSingleServiceCheckDuration(d *api.Duration, zeroOK bool, proto, description string) (extraInfo string) {
+func validateSingleServiceCheckDuration(d *fly.Duration, zeroOK bool, proto, description string) (extraInfo string) {
 	switch {
 	case d == nil:
 		// Do nothing.
@@ -286,6 +251,72 @@ func (cfg *Config) validateConsoleCommand() (extraInfo string, err error) {
 	if _, vErr := shlex.Split(cfg.ConsoleCommand); vErr != nil {
 		extraInfo += fmt.Sprintf("Can't shell split console command: '%s'\n", cfg.ConsoleCommand)
 		err = ValidationError
+	}
+	return
+}
+
+func (cfg *Config) validateMounts() (extraInfo string, err error) {
+	if cfg.configFilePath == "--flatten--" && len(cfg.Mounts) > 1 {
+		extraInfo += fmt.Sprintf("group '%s' has more than one [[mounts]] section defined\n", cfg.defaultGroupName)
+		err = ValidationError
+	}
+
+	for _, m := range cfg.Mounts {
+		if m.InitialSize != "" {
+			v, vErr := helpers.ParseSize(m.InitialSize, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with initial_size '%s' will fail because of: %s\n", m.Source, m.InitialSize, vErr)
+				err = ValidationError
+			case v < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an initial_size '%s' value which is smaller than 1GB\n", m.Source, m.InitialSize)
+				err = ValidationError
+			}
+		}
+
+		var autoExtendSizeIncrement, autoExtendSizeLimit int
+		var vErr error
+		if m.AutoExtendSizeIncrement != "" {
+			autoExtendSizeIncrement, vErr = helpers.ParseSize(m.AutoExtendSizeIncrement, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_increment '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeIncrement, vErr)
+				err = ValidationError
+			case autoExtendSizeIncrement < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_increment '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeIncrement)
+				err = ValidationError
+			}
+		}
+		if m.AutoExtendSizeLimit != "" {
+			autoExtendSizeLimit, vErr = helpers.ParseSize(m.AutoExtendSizeLimit, units.FromHumanSize, units.GB)
+			switch {
+			case vErr != nil:
+				extraInfo += fmt.Sprintf("mount '%s' with auto_extend_size_limit '%s' will fail because of: %s\n", m.Source, m.AutoExtendSizeLimit, vErr)
+				err = ValidationError
+			case autoExtendSizeLimit < 1:
+				extraInfo += fmt.Sprintf("mount '%s' has an auto_extend_size_limit '%s' value which is smaller than 1GB\n", m.Source, m.AutoExtendSizeLimit)
+				err = ValidationError
+			}
+		}
+
+		if m.AutoExtendSizeThreshold != 0 || autoExtendSizeIncrement != 0 || autoExtendSizeLimit != 0 {
+			if m.AutoExtendSizeThreshold != 0 && autoExtendSizeIncrement == 0 && autoExtendSizeLimit == 0 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold, auto_extend_size_increment and auto_extend_size_limit must be all defined or none\n", m.Source)
+				err = ValidationError
+			}
+			if m.AutoExtendSizeThreshold < 50 || m.AutoExtendSizeThreshold > 99 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_threshold must be between 50 and 99\n", m.Source)
+				err = ValidationError
+			}
+			if autoExtendSizeIncrement < 1 || autoExtendSizeIncrement > 100 {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_increment must be between 1GB and 100GB\n", m.Source)
+				err = ValidationError
+			}
+			if autoExtendSizeLimit != 0 && (autoExtendSizeLimit < 1 || autoExtendSizeLimit > 500) {
+				extraInfo += fmt.Sprintf("mount '%s' auto_extend_size_limit must be between 1GB and 500GB\n", m.Source)
+				err = ValidationError
+			}
+		}
 	}
 	return
 }

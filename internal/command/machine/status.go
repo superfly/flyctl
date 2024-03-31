@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
-	"time"
 )
 
 func newStatus() *cobra.Command {
@@ -18,7 +19,7 @@ func newStatus() *cobra.Command {
 		short = "Show current status of a running machine"
 		long  = short + "\n"
 
-		usage = "status <id>"
+		usage = "status [id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineStatus,
@@ -57,7 +58,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	machine, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

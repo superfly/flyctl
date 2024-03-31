@@ -5,24 +5,24 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newFork() *cobra.Command {
 	const (
-		long = `Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data,
-but is currently restricted to same-host forks and may not be available for near-capacity hosts.`
-		short = "Forks the specified volume"
-		usage = "fork <id>"
+		short = "Fork the specified volume."
+
+		long = short + ` Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
+
+		usage = "fork [id]"
 	)
 
 	cmd := command.New(usage, short, long, runFork,
@@ -30,7 +30,7 @@ but is currently restricted to same-host forks and may not be available for near
 		command.RequireAppName,
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MaximumNArgs(1)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -38,14 +38,23 @@ but is currently restricted to same-host forks and may not be available for near
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "Name of the new volume",
+			Description: "The name of the new volume",
 		},
 		flag.Bool{
-			Name:        "remote-fork",
-			Description: "Enables experimental cross-host volume forking",
+			Name:        "machines-only",
+			Description: "volume will be visible to Machines platform only",
 			Hidden:      true,
-			Default:     false,
 		},
+		flag.Bool{
+			Name:        "require-unique-zone",
+			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+		},
+		flag.String{
+			Name:        "region",
+			Shorthand:   "r",
+			Description: "The target region. By default, the new volume will be created in the source volume's region.",
+		},
+		flag.VMSizeFlags,
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -56,22 +65,32 @@ func runFork(ctx context.Context) error {
 	var (
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
-		client  = client.FromContext(ctx).API()
 		volID   = flag.FirstArg(ctx)
+		client  = fly.ClientFromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
-	if app.IsPostgresApp() {
-		return fmt.Errorf("This feature is not available for Postgres apps")
-	}
-
-	vol, err := client.GetVolume(ctx, volID)
-	if err != nil {
-		return fmt.Errorf("failed to get volume: %w", err)
+	var vol *fly.Volume
+	if volID == "" {
+		app, err := client.GetAppBasic(ctx, appName)
+		if err != nil {
+			return err
+		}
+		vol, err = selectVolume(ctx, flapsClient, app)
+		if err != nil {
+			return err
+		}
+	} else {
+		vol, err = flapsClient.GetVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("failed to get volume: %w", err)
+		}
 	}
 
 	name := vol.Name
@@ -79,15 +98,45 @@ func runFork(ctx context.Context) error {
 		name = flag.GetString(ctx, "name")
 	}
 
-	input := api.ForkVolumeInput{
-		AppID:          app.ID,
-		SourceVolumeID: vol.ID,
-		Name:           name,
-		MachinesOnly:   app.PlatformVersion == "machines",
-		Remote:         flag.GetBool(ctx, "remote-fork"),
+	var machinesOnly *bool
+	if flag.IsSpecified(ctx, "machines-only") {
+		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
 	}
 
-	volume, err := client.ForkVolume(ctx, input)
+	var requireUniqueZone *bool
+	if flag.IsSpecified(ctx, "require-unique-zone") {
+		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
+	}
+
+	region := flag.GetString(ctx, "region")
+
+	var attachedMachineImage string
+	var attachedMachineGuest *fly.MachineGuest
+	if vol.AttachedMachine != nil {
+		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
+		if err != nil {
+			return err
+		}
+		attachedMachineGuest = m.Config.Guest
+		attachedMachineImage = m.FullImageRef()
+	}
+
+	computeRequirements, err := flag.GetMachineGuest(ctx, attachedMachineGuest)
+	if err != nil {
+		return err
+	}
+
+	input := fly.CreateVolumeRequest{
+		Name:                name,
+		MachinesOnly:        machinesOnly,
+		RequireUniqueZone:   requireUniqueZone,
+		SourceVolumeID:      &vol.ID,
+		ComputeRequirements: computeRequirements,
+		ComputeImage:        attachedMachineImage,
+		Region:              region,
+	}
+
+	volume, err := flapsClient.CreateVolume(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed to fork volume: %w", err)
 	}
@@ -98,7 +147,7 @@ func runFork(ctx context.Context) error {
 		return render.JSON(out, volume)
 	}
 
-	if err := printVolume(out, volume); err != nil {
+	if err := printVolume(out, volume, appName); err != nil {
 		return err
 	}
 

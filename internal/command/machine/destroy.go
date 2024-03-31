@@ -5,22 +5,22 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func newDestroy() *cobra.Command {
 	const (
-		short = "Destroy a Fly machine."
-		long  = `Destroy a Fly machine.
+		short = "Destroy Fly machines"
+		long  = `Destroy one or more Fly machines.
 This command requires a machine to be in a stopped state unless the force flag is used.
 `
-		usage = "destroy <id>"
+		usage = "destroy [flags] ID ID ..."
 	)
 
 	cmd := command.New(usage, short, long, runMachineDestroy,
@@ -42,48 +42,82 @@ This command requires a machine to be in a stopped state unless the force flag i
 		},
 	)
 
-	cmd.Args = cobra.RangeArgs(0, 1)
+	cmd.Args = cobra.ArbitraryArgs
 
 	return cmd
 }
 
 func runMachineDestroy(ctx context.Context) (err error) {
+	if len(flag.Args(ctx)) == 0 {
+		machine, ctx, err := selectOneMachine(ctx, "", "", false)
+		if err != nil {
+			return err
+		}
+		machine, release, err := mach.AcquireLease(ctx, machine)
+		if err != nil {
+			return err
+		}
+		defer release()
+
+		err = singleDestroyRun(ctx, machine)
+		if err != nil {
+			return err
+		}
+	} else {
+		machines, ctx, err := selectManyMachines(ctx, flag.Args(ctx))
+		if err != nil {
+			return err
+		}
+
+		machines, release, err := mach.AcquireLeases(ctx, machines)
+		if err != nil {
+			return err
+		}
+		defer release()
+
+		for _, machine := range machines {
+			err = singleDestroyRun(ctx, machine)
+			if err != nil {
+				return err
+			}
+		}
+
+	}
+
+	return nil
+}
+
+func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	var (
 		out   = iostreams.FromContext(ctx).Out
 		force = flag.GetBool(ctx, "force")
 	)
 
-	machineID := flag.FirstArg(ctx)
-	haveMachineID := len(flag.Args(ctx)) > 0
-	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
-	if err != nil {
-		return err
-	}
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
 	}
 
-	err = Destroy(ctx, app, current, force)
+	err = Destroy(ctx, app, machine, force)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(out, "%s has been destroyed\n", current.ID)
+	fmt.Fprintf(out, "%s has been destroyed\n", machine.ID)
 
 	return nil
 }
 
-func Destroy(ctx context.Context, app *api.AppCompact, machine *api.Machine, force bool) error {
+func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, force bool) error {
 	var (
 		out         = iostreams.FromContext(ctx).Out
 		flapsClient = flaps.FromContext(ctx)
 
-		input = api.RemoveMachineInput{
+		input = fly.RemoveMachineInput{
 			ID:   machine.ID,
 			Kill: force,
 		}

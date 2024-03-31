@@ -8,12 +8,13 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -21,7 +22,7 @@ import (
 
 func runWireguardList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -58,18 +59,21 @@ func runWireguardList(ctx context.Context) error {
 func runWireguardWebsockets(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
+	var (
+		configPath = state.ConfigFile(ctx)
+		err        error
+	)
 	switch flag.FirstArg(ctx) {
 	case "enable":
 		viper.Set(flyctl.ConfigWireGuardWebsockets, true)
-
+		err = config.SetWireGuardWebsocketsEnabled(configPath, true)
 	case "disable":
 		viper.Set(flyctl.ConfigWireGuardWebsockets, false)
-
+		err = config.SetWireGuardWebsocketsEnabled(configPath, false)
 	default:
 		fmt.Fprintf(io.Out, "bad arg: flyctl wireguard websockets (enable|disable)\n")
 	}
-
-	if err := flyctl.SaveConfig(); err != nil {
+	if err != nil {
 		return errors.Wrap(err, "error saving config file")
 	}
 
@@ -101,13 +105,13 @@ func runWireguardReset(ctx context.Context) error {
 		return err
 	}
 
-	apiClient := client.FromContext(ctx).API()
-	agentclient, err := agent.Establish(config.NewContext(context.Background(), config.FromContext(ctx)), apiClient)
+	apiClient := fly.ClientFromContext(ctx)
+	agentclient, err := agent.Establish(ctx, apiClient)
 	if err != nil {
 		return err
 	}
 
-	conf, err := agentclient.Reestablish(context.Background(), org.Slug)
+	conf, err := agentclient.Reestablish(ctx, org.Slug)
 	if err != nil {
 		return err
 	}
@@ -118,7 +122,7 @@ func runWireguardReset(ctx context.Context) error {
 
 func runWireguardCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -170,7 +174,7 @@ func runWireguardCreate(ctx context.Context) error {
 
 func runWireguardRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {

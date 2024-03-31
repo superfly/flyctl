@@ -5,8 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -15,7 +14,7 @@ import (
 
 func newScaleVm() *cobra.Command {
 	const (
-		short = "Change an app's VM to a named size (eg. shared-cpu-1x, dedicated-cpu-1x, dedicated-cpu-2x...)"
+		short = "Change an app's VM to a named size (eg. shared-cpu-1x, performance-1x, performance-2x...)"
 		long  = `Change an application's VM size to one of the named VM sizes.
 
 For a full list of supported sizes use the command 'flyctl platform vm-sizes'
@@ -39,7 +38,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 			Default:     0,
 			Aliases:     []string{"memory"},
 		},
-		flag.String{Name: "group", Description: "The process group to apply the VM size to"},
+		flag.ProcessGroup("The process group to apply the VM size to"),
 	)
 	return cmd
 }
@@ -47,7 +46,7 @@ For pricing, see https://fly.io/docs/about/pricing/`
 func runScaleVM(ctx context.Context) error {
 	sizeName := flag.FirstArg(ctx)
 	memoryMB := flag.GetInt(ctx, "vm-memory")
-	group := flag.GetString(ctx, "group")
+	group := flag.GetProcessGroup(ctx)
 	return scaleVertically(ctx, group, sizeName, memoryMB)
 }
 
@@ -55,17 +54,7 @@ func scaleVertically(ctx context.Context, group, sizeName string, memoryMB int) 
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
-	isV2, err := command.IsMachinesPlatform(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	var size *api.VMSize
-	if isV2 {
-		size, err = v2ScaleVM(ctx, appName, group, sizeName, memoryMB)
-	} else {
-		size, err = v1ScaleVM(ctx, appName, group, sizeName, memoryMB)
-	}
+	size, err := v2ScaleVM(ctx, appName, group, sizeName, memoryMB)
 	if err != nil {
 		return err
 	}
@@ -81,32 +70,16 @@ func scaleVertically(ctx context.Context, group, sizeName string, memoryMB int) 
 	return nil
 }
 
-func formatCores(size api.VMSize) string {
+func formatCores(size fly.VMSize) string {
 	if size.CPUCores < 1.0 {
 		return fmt.Sprintf("%.2f", size.CPUCores)
 	}
 	return fmt.Sprintf("%d", int(size.CPUCores))
 }
 
-func formatMemory(size api.VMSize) string {
+func formatMemory(size fly.VMSize) string {
 	if size.MemoryGB < 1.0 {
 		return fmt.Sprintf("%d MB", size.MemoryMB)
 	}
 	return fmt.Sprintf("%d GB", int(size.MemoryGB))
-}
-
-func v1ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*api.VMSize, error) {
-	apiClient := client.FromContext(ctx).API()
-
-	// API doesn't allow memory setting on own yet, so get get the current size for the mutation
-	if sizeName == "" {
-		currentsize, _, _, err := apiClient.AppVMResources(ctx, appName)
-		if err != nil {
-			return nil, err
-		}
-		sizeName = currentsize.Name
-	}
-
-	size, err := apiClient.SetAppVMSize(ctx, appName, group, sizeName, int64(memoryMB))
-	return &size, err
 }

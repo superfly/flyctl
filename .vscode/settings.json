@@ -7,5 +7,9 @@
         "toc",
         "winbuild"
     ],
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "go.buildFlags": [
+        "-tags",
+        "integration"
+    ]
 }

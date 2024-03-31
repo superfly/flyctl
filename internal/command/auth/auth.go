@@ -15,8 +15,7 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
@@ -47,49 +46,36 @@ If you do have an account, begin with the AUTH LOGIN subcommand.
 	return auth
 }
 
-func runWebLogin(ctx context.Context, signup bool) error {
-	auth, err := api.StartCLISessionWebAuth(state.Hostname(ctx), signup)
+func runWebLogin(ctx context.Context, signup bool) (string, error) {
+	auth, err := fly.StartCLISessionWebAuth(state.Hostname(ctx), signup)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	io := iostreams.FromContext(ctx)
-	if err := open.Run(auth.AuthURL); err != nil {
+	if err := open.Run(auth.URL); err != nil {
 		fmt.Fprintf(io.ErrOut,
 			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			auth.AuthURL,
+			auth.URL,
 		)
 	}
 
 	logger := logger.FromContext(ctx)
 
 	colorize := io.ColorScheme()
-	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.AuthURL))
+	fmt.Fprintf(io.Out, "Opening %s ...\n\n", colorize.Bold(auth.URL))
 
 	token, err := waitForCLISession(ctx, logger, io.ErrOut, auth.ID)
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
-		return errors.New("Login expired, please try again")
+		return "", errors.New("Login expired, please try again")
 	case err != nil:
-		return err
+		return "", err
 	case token == "":
-		return errors.New("failed to log in, please try again")
+		return "", errors.New("failed to log in, please try again")
 	}
 
-	if err := persistAccessToken(ctx, token); err != nil {
-		return err
-	}
-
-	client := client.FromToken(token).API()
-
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving current user: %w", err)
-	}
-
-	fmt.Fprintf(io.Out, "successfully logged in as %s\n", colorize.Bold(user.Email))
-
-	return nil
+	return token, nil
 }
 
 // TODO: this does NOT break on interrupts
@@ -103,7 +89,7 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 	s.Start()
 
 	for ctx.Err() == nil {
-		if token, err = api.GetAccessTokenForCLISession(ctx, id); err != nil {
+		if token, err = fly.GetAccessTokenForCLISession(ctx, id); err != nil {
 			logger.Debugf("failed retrieving token: %v", err)
 
 			pause.For(ctx, time.Second)

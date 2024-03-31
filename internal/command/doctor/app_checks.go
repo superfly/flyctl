@@ -11,8 +11,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -26,10 +25,10 @@ type AppChecker struct {
 	checks     map[string]string
 	color      *iostreams.ColorScheme
 	ctx        context.Context
-	app        *api.AppCompact
+	app        *fly.AppCompact
 	workDir    string
 	appConfig  *appconfig.Config
-	apiClient  *api.Client
+	apiClient  *fly.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) (*AppChecker, error) {
@@ -41,7 +40,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil, nil
 	}
 
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -60,11 +59,6 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		workDir:    state.WorkingDirectory(ctx),
 		app:        nil,
 		appConfig:  nil,
-	}
-
-	if !appCompact.Deployed && appCompact.PlatformVersion != "machines" {
-		ac.lprint(color.Yellow, "%s app has not been deployed yet. Skipping app checks. Deploy using `flyctl deploy`.\n", appName)
-		return nil, nil
 	}
 
 	ac.app = appCompact
@@ -109,7 +103,7 @@ func (ac *AppChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
+func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
 	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
@@ -132,22 +126,23 @@ func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
 	return ipAddresses
 }
 
-func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
 		switch ip.Type {
-		case "v4":
-		case "shared_v4":
+		case "v4", "shared_v4":
 			v4s[ip.Address] = true
 		case "v6":
 			v6s[ip.Address] = true
+		case "private_v6":
+			// This is a valid type, but not of interest here.
 		default:
-			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=", ip.Address, ip.Type)
+			ac.lprint(nil, "Ip address %s has unexpected type '%s'. Please file a bug with this message at https://github.com/superfly/flyctl/issues/new?assignees=&labels=bug&template=flyctl-bug-report.md&title=\n", ip.Address, ip.Type)
 		}
 	}
 	if len(v4s) == 0 && len(v6s) == 0 {
-		ac.lprint(nil, "No ipv4 or ipv6 ip addresses allocated to app %s", ac.app.Name)
+		ac.lprint(nil, "No public ipv4 or ipv6 ip addresses allocated to app %s\n", ac.app.Name)
 		return
 	}
 
@@ -195,7 +190,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
 }
 
 func getFirstFlyDevNameserver(dnsClient *dns.Client) (string, error) {
-	const resolver = "9.9.9.9:53"
+	const resolver = "8.8.8.8:53"
 	msg := &dns.Msg{}
 	flydev := "fly.dev"
 	msg.SetQuestion(dns.Fqdn(flydev), dns.TypeNS)

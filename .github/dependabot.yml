@@ -1,0 +1,29 @@
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    labels:
+      - "dependencies"
+      - "go"
+    schedule:
+      interval: "daily"
+    groups:
+      tracing:
+        patterns:
+          - "go.opentelemetry.io/*"
+      golangx:
+        patterns:
+          - "golang.org/x/*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    labels:
+      - "dependencies"
+      - "actions"
+    schedule:
+      interval: "daily"
+    groups:
+      artifacts:
+        patterns:
+          - "action/upload-artifact"
+          - "action/download-artifact"

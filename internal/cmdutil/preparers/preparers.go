@@ -11,14 +11,15 @@ import (
 	"strings"
 
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
-	"github.com/superfly/flyctl/internal/httptracing"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // Preparers are split between here and `command/command.go` because
@@ -56,36 +57,27 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 
 	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(httptracing.NewTransport(http.DefaultTransport))
+	fly.SetBaseURL(cfg.APIBaseURL)
+	fly.SetErrorLog(cfg.LogGQLErrors)
+	fly.SetInstrumenter(instrument.ApiAdapter)
+	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := client.FromToken(cfg.AccessToken)
+	c := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
 	logger.Debug("client initialized.")
 
-	return client.NewContext(ctx, c), nil
+	return fly.NewContextWithClient(ctx, c), nil
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {
-	dir := filepath.Join(state.UserHomeDirectory(ctx), ".fly")
+	dir, err := helpers.GetConfigDirectory()
+	if err != nil {
+		return ctx, err
+	}
 
 	logger.FromContext(ctx).
 		Debugf("determined config directory: %q", dir)
 
 	return state.WithConfigDirectory(ctx, dir), nil
-}
-
-func DetermineUserHomeDir(ctx context.Context) (context.Context, error) {
-	wd, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed determining user home directory: %w", err)
-	}
-
-	logger.FromContext(ctx).
-		Debugf("determined user home directory: %q", wd)
-
-	return state.WithUserHomeDirectory(ctx, wd), nil
 }
 
 // ApplyAliases consolidates flags with aliases into a single source-of-truth flag.
@@ -95,7 +87,6 @@ func DetermineUserHomeDir(ctx context.Context) (context.Context, error) {
 //     This will set flag.Changed to true, as if it were specified manually.
 //   - If none of the flags were set, the main flag will remain its default value.
 func ApplyAliases(ctx context.Context) (context.Context, error) {
-
 	var (
 		invalidFlagNames []string
 		invalidTypes     []string
@@ -156,4 +147,20 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 		}
 	}
 	return ctx, err
+}
+
+// This method sets the user auth token as an environment variable called FLY_OTEL_AUTH_KEY
+// Why is this necessary? It's quite difficult to get the auth token when we initialize the tracer.
+// There's no assurance it will exist at the time of creation, so we use this preparer to set it
+// And then in the tracer, we use a GRPC interceptor to pull it out when sending the traces.
+// *Another approach would be to load the config in the interceptor, and pull the tokens from it.
+// except it only came to my mind after writing this so let's stick with this for now.
+func SetOtelAuthenticationKey(ctx context.Context) (context.Context, error) {
+	token := config.Tokens(ctx).Flaps()
+	if token == "" {
+		token = os.Getenv("FLY_API_TOKEN")
+	}
+
+	os.Setenv("FLY_OTEL_AUTH_KEY", token)
+	return ctx, nil
 }

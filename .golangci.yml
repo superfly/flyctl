@@ -40,7 +40,7 @@ linters:
 
 # options for analysis running
 run:
-  go: "1.20"
+  go: "1.21"
 
   # default concurrency is a available CPU number
   concurrency: 4
@@ -57,13 +57,6 @@ run:
   # list of build tags, all linters use it. Default is empty list.
   #build-tags:
   #  - mytag
-
-  # which dirs to skip: issues from them won't be reported;
-  # can use regexp here: generated.*, regexp is applied on full path;
-  # default value is empty list, but default dirs are skipped independently
-  # from this option's value (see skip-dirs-use-default).
-  skip-dirs:
-    - api/
 
   # default is true. Enables skipping of directories:
   #   vendor$, third_party$, testdata$, examples$, Godeps$, builtin$
@@ -118,7 +111,7 @@ linters-settings:
     # [deprecated] comma-separated list of pairs of the form pkg:regex
     # the regex is used to ignore names within pkg. (default "fmt:.*").
     # see https://github.com/kisielk/errcheck#the-deprecated-method for details
-    ignore: fmt:.*,io/ioutil:^Read.*,io:Close
+    ignore: fmt:.*,io:Close
 
     # path to a file containing a list of functions to exclude from checking
     # see https://github.com/kisielk/errcheck#excluding-functions for details

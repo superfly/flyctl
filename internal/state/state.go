@@ -14,7 +14,6 @@ const (
 	_ contextKeyType = iota
 	hostnameKey
 	workDirKey
-	userHomeDirKey
 	configDirKey
 )
 
@@ -39,18 +38,6 @@ func WithWorkingDirectory(ctx context.Context, wd string) context.Context {
 // ctx carries no working directory.
 func WorkingDirectory(ctx context.Context) string {
 	return get(ctx, workDirKey).(string)
-}
-
-// WithUserHomeDirectory derives a Context that carries the given user home
-// directory from ctx.
-func WithUserHomeDirectory(ctx context.Context, uhd string) context.Context {
-	return set(ctx, userHomeDirKey, uhd)
-}
-
-// UserHomeDirectory returns the user home directory ctx carries. It panics in
-// case ctx carries no user home directory.
-func UserHomeDirectory(ctx context.Context) string {
-	return get(ctx, userHomeDirKey).(string)
 }
 
 // WithConfigDir derives a Context that carries the given config directory from

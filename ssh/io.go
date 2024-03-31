@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"runtime"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
@@ -48,26 +47,20 @@ func getFd(reader io.Reader) (fd int, ok bool) {
 }
 
 func (s *SessionIO) attach(ctx context.Context, sess *ssh.Session, cmd string) error {
+
 	if s.AllocPTY {
 		width, height := DefaultWidth, DefaultHeight
+
 		if fd, ok := getFd(s.Stdin); ok {
 			state, err := term.MakeRaw(fd)
 			if err != nil {
 				return err
 			}
 			defer term.Restore(fd, state)
+		}
 
-			// BUG(tqbf): this is a temporary hack to work around a windows
-			// terminal handling problem that is probably trivial to fix, but
-			// winch isn't handled yet there anyways
-			if runtime.GOOS != "windows" {
-				width, height, err = term.GetSize(fd)
-				if err != nil {
-					return err
-				}
-
-				go watchWindowSize(ctx, fd, sess)
-			}
+		if w, h, err := s.getAndWatchSize(ctx, sess); err == nil {
+			width, height = w, h
 		}
 
 		if err := sess.RequestPty(s.TermEnv, height, width, modes); err != nil {

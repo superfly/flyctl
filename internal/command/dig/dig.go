@@ -14,10 +14,10 @@ import (
 	"github.com/miekg/dns"
 	"github.com/spf13/cobra"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -63,7 +63,7 @@ attached to the current app (you can pass an app in with -a <appname>).`
 
 func run(ctx context.Context) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 
 		err error

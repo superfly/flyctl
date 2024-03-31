@@ -5,28 +5,35 @@ import (
 	"strconv"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/terminal"
 )
 
-func (md *machineDeployment) launchInputForRestart(origMachineRaw *api.Machine) *api.LaunchMachineInput {
-	Config := machine.CloneConfig(origMachineRaw.Config)
-	md.setMachineReleaseData(Config)
+func (md *machineDeployment) launchInputForRestart(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+	mConfig := machine.CloneConfig(origMachineRaw.Config)
+	md.setMachineReleaseData(mConfig)
 
-	return &api.LaunchMachineInput{
-		ID:     origMachineRaw.ID,
-		Config: Config,
-		Region: origMachineRaw.Region,
+	return &fly.LaunchMachineInput{
+		ID:         origMachineRaw.ID,
+		Config:     mConfig,
+		Region:     origMachineRaw.Region,
+		SkipLaunch: skipLaunch(origMachineRaw, mConfig),
 	}
 }
 
-func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *api.MachineGuest, standbyFor []string) (*api.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fly.MachineGuest, standbyFor []string) (*fly.LaunchMachineInput, error) {
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, nil)
 	if err != nil {
 		return nil, err
 	}
-	mConfig.Guest = guest
+
+	// Obey the Guest if already set from [[compute]] section
+	if mConfig.Guest == nil {
+		mConfig.Guest = guest
+	}
+
 	mConfig.Image = md.img
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
@@ -46,16 +53,20 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *ap
 		mConfig.Standbys = standbyFor
 	}
 
-	return &api.LaunchMachineInput{
+	if hdid := md.appConfig.HostDedicationID; hdid != "" {
+		mConfig.Guest.HostDedicationID = hdid
+	}
+
+	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
 		SkipLaunch: len(standbyFor) > 0,
 	}, nil
 }
 
-func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (*api.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
-	machineShouldBeReplaced := false
+	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
 	processGroup := origMachineRaw.Config.ProcessGroup()
 
 	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
@@ -74,6 +85,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 	mMounts := mConfig.Mounts
 	oMounts := origMachineRaw.Config.Mounts
 	if len(oMounts) != 0 {
+		var latestExtendThresholdPercent, latestAddSizeGb, latestSizeGbLimit int
+		if len(mMounts) > 0 {
+			latestExtendThresholdPercent = mMounts[0].ExtendThresholdPercent
+			latestAddSizeGb = mMounts[0].AddSizeGb
+			latestSizeGbLimit = mMounts[0].SizeGbLimit
+		}
 		switch {
 		case len(mMounts) == 0:
 			// The mounts section was removed from fly.toml
@@ -108,6 +125,12 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 			// In any other case retain the existing machine mounts
 			mMounts[0] = oMounts[0]
 		}
+
+		if len(mMounts) > 0 {
+			mMounts[0].ExtendThresholdPercent = latestExtendThresholdPercent
+			mMounts[0].AddSizeGb = latestAddSizeGb
+			mMounts[0].SizeGbLimit = latestSizeGbLimit
+		}
 	} else if len(mMounts) != 0 {
 		// Replace the machine because [mounts] section was added to fly.toml
 		// and it is not possible to attach a volume to an existing machine.
@@ -127,36 +150,70 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *api.Machine) (
 		mConfig.Standbys = nil
 	}
 
-	return &api.LaunchMachineInput{
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != origMachineRaw.Config.Guest.HostDedicationID {
+		if len(oMounts) > 0 && len(mMounts) > 0 {
+			// Attempting to rellocate a machine with a volume attached to a different host
+			return nil, fmt.Errorf("can't rellocate machine '%s' to dedication id '%s' because it has an attached volume."+
+				" Retry after forking the volume with `fly volume fork --host-dedication-id %s %s`", mID, hdid, hdid, mMounts[0].Volume)
+		}
+		machineShouldBeReplaced = true
+		// Set HostDedicationID here for the apps that doesn't have a [[compute]] section in fly.toml
+		// but sets it as a top level directive.
+		// This also works when top level HDID is different than [compute.host_dedication_id]
+		// because a flatten config also overrides the top level directive
+		mConfig.Guest.HostDedicationID = hdid
+	}
+
+	return &fly.LaunchMachineInput{
 		ID:                  mID,
 		Region:              origMachineRaw.Region,
 		Config:              mConfig,
-		SkipLaunch:          len(mConfig.Standbys) > 0,
+		SkipLaunch:          skipLaunch(origMachineRaw, mConfig),
 		RequiresReplacement: machineShouldBeReplaced,
 	}, nil
 }
 
-func (md *machineDeployment) setMachineReleaseData(mConfig *api.MachineConfig) {
+func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	mConfig.Metadata = lo.Assign(mConfig.Metadata, map[string]string{
-		api.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
-		api.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
+		fly.MachineConfigMetadataKeyFlyReleaseId:      md.releaseId,
+		fly.MachineConfigMetadataKeyFlyReleaseVersion: strconv.Itoa(md.releaseVersion),
+		fly.MachineConfigMetadataKeyFlyctlVersion:     buildinfo.Version().String(),
 	})
 
 	// These defaults should come from appConfig.ToMachineConfig() and set on launch;
 	// leave them here for the moment becase very old machines may not have them
 	// and we want to set in case of simple app restarts
-	if _, ok := mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; !ok {
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion] = api.MachineFlyPlatformVersion2
+	if _, ok := mConfig.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; !ok {
+		mConfig.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion] = fly.MachineFlyPlatformVersion2
 	}
-	if _, ok := mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; !ok {
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = api.MachineProcessGroupApp
+	if _, ok := mConfig.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]; !ok {
+		mConfig.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup] = fly.MachineProcessGroupApp
 	}
 
 	// FIXME: Move this as extra metadata read from a machineDeployment argument
 	// It is not clear we have to cleanup the postgres metadata
 	if md.app.IsPostgresApp() {
-		mConfig.Metadata[api.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
+		mConfig.Metadata[fly.MachineConfigMetadataKeyFlyManagedPostgres] = "true"
 	} else {
-		delete(mConfig.Metadata, api.MachineConfigMetadataKeyFlyManagedPostgres)
+		delete(mConfig.Metadata, fly.MachineConfigMetadataKeyFlyManagedPostgres)
 	}
+}
+
+// Skip launching currently-stopped machines if:
+// * any services use autoscaling (autostop or autostart).
+// * it is a standby machine
+func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+	switch {
+	case origMachineRaw.State == fly.MachineStateStarted:
+		return false
+	case len(mConfig.Standbys) > 0:
+		return true
+	case origMachineRaw.State == fly.MachineStateStopped:
+		for _, s := range mConfig.Services {
+			if (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart) {
+				return true
+			}
+		}
+	}
+	return false
 }

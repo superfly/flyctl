@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -16,8 +16,10 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error {
@@ -47,20 +49,27 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
 func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
+	defer span.End()
+
 	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
+	span.SetAttributes(attribute.String("daemon_type", daemonType.String()))
+
 	if err := multipleDockerfile(ctx, appConfig); err != nil {
+		span.AddEvent("found multiple dockerfiles")
 		terminal.Warnf("%s\n", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io)
+	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, flag.GetWireguard(ctx))
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
+		tracing.RecordError(span, err, "failed to fetch image ref")
 		return
 	}
 
@@ -74,8 +83,14 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 			ImageLabel: flag.GetString(ctx, "image-label"),
 		}
 
+		span.SetAttributes(opts.ToSpanAttributes()...)
 		img, err = resolver.ResolveReference(ctx, io, opts)
+		if err != nil {
+			tracing.RecordError(span, err, "failed to resolve reference for prebuilt docker image")
+			return
+		}
 
+		span.AddEvent("using pre-built docker image")
 		return
 	}
 
@@ -84,21 +99,32 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		build = new(appconfig.Build)
 	}
 
+	span.AddEvent("building from source")
+
 	// We're building from source
 	opts := imgsrc.ImageOptions{
-		AppName:         appConfig.AppName,
-		WorkingDir:      state.WorkingDirectory(ctx),
-		Publish:         flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
-		ImageLabel:      flag.GetString(ctx, "image-label"),
-		NoCache:         flag.GetBool(ctx, "no-cache"),
-		BuiltIn:         build.Builtin,
-		BuiltInSettings: build.Settings,
-		Builder:         build.Builder,
-		Buildpacks:      build.Buildpacks,
+		AppName:              appConfig.AppName,
+		WorkingDir:           state.WorkingDirectory(ctx),
+		Publish:              flag.GetBool(ctx, "push") || !flag.GetBuildOnly(ctx),
+		ImageLabel:           flag.GetString(ctx, "image-label"),
+		NoCache:              flag.GetBool(ctx, "no-cache"),
+		BuiltIn:              build.Builtin,
+		BuiltInSettings:      build.Settings,
+		Builder:              build.Builder,
+		Buildpacks:           build.Buildpacks,
+		BuildpacksDockerHost: flag.GetString(ctx, flag.BuildpacksDockerHost),
+		BuildpacksVolumes:    flag.GetStringSlice(ctx, flag.BuildpacksVolume),
 	}
 
+	if appConfig.Experimental != nil {
+		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+	}
+
+	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.
+	// https://docs.docker.com/engine/reference/commandline/buildx_build/#secret
 	cliBuildSecrets, err := cmdutil.ParseKVStringsToMap(flag.GetStringArray(ctx, "build-secret"))
 	if err != nil {
+		tracing.RecordError(span, err, "failed to generate cliBuildSecrets")
 		return
 	}
 
@@ -106,18 +132,37 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		opts.BuildSecrets = cliBuildSecrets
 	}
 
+	arrLabels := flag.GetStringArray(ctx, "label")
+	labels, err := cmdutil.ParseKVStringsToMap(arrLabels)
+	if err != nil {
+		tracing.RecordError(span, err, "failed to parse labels")
+		return
+	}
+	if env.IS_GH_ACTION() {
+		labels["GH_SHA"] = env.GitCommitSHA()
+		labels["GH_ACTION_NAME"] = env.GitActionName()
+		labels["GH_REPO"] = env.GitRepoAndOwner()
+		labels["GH_EVENT_NAME"] = env.GitActionEventName()
+	}
+	if labels != nil {
+		opts.Label = labels
+	}
+
 	var buildArgs map[string]string
 	if buildArgs, err = mergeBuildArgs(ctx, build.Args); err != nil {
+		tracing.RecordError(span, err, "failed to merge build args")
 		return
 	}
 
 	opts.BuildArgs = buildArgs
 
 	if opts.DockerfilePath, err = resolveDockerfilePath(ctx, appConfig); err != nil {
+		tracing.RecordError(span, err, "failed to resolveDockerfilePath")
 		return
 	}
 
 	if opts.IgnorefilePath, err = resolveIgnorefilePath(ctx, appConfig); err != nil {
+		tracing.RecordError(span, err, "failed to resolveIgnorefilePath")
 		return
 	}
 
@@ -126,6 +171,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	} else if target := flag.GetString(ctx, "build-target"); target != "" {
 		opts.Target = target
 	}
+
+	span.SetAttributes(opts.ToSpanAttributes()...)
 
 	// finally, build the image
 	heartbeat, err := resolver.StartHeartbeat(ctx)

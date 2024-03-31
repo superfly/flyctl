@@ -13,6 +13,9 @@ const (
 	// LocalOnly denotes the name of the local-only flag.
 	LocalOnly = "local-only"
 
+	// Debug denotes the name of the debug flag.
+	Debug = "debug"
+
 	// Org denotes the name of the org flag.
 	Org = "org"
 
@@ -42,4 +45,10 @@ const (
 
 	// DetachName denotes the name of the detach flag.
 	Detach = "detach"
+
+	// BindAddr denotes the name of the local bind address flag.
+	BindAddr = "bind-addr"
+
+	// ProcessGroup denotes the name of the process group flag.
+	ProcessGroup = "process-group"
 )

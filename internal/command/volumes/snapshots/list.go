@@ -4,17 +4,20 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newList() *cobra.Command {
@@ -37,16 +40,39 @@ func newList() *cobra.Command {
 	return cmd
 }
 
+func timeToString(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return humanize.Time(t)
+}
+
 func runList(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
 		cfg    = config.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		client = fly.ClientFromContext(ctx)
 	)
 
 	volID := flag.FirstArg(ctx)
 
-	snapshots, err := client.GetVolumeSnapshots(ctx, volID)
+	appName := appconfig.NameFromContext(ctx)
+	if appName == "" {
+		n, err := client.GetAppNameFromVolume(ctx, volID)
+		if err != nil {
+			return fmt.Errorf("failed getting app name from volume: %w", err)
+		}
+		appName = *n
+	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return err
+	}
+
+	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
@@ -67,12 +93,18 @@ func runList(ctx context.Context) error {
 
 	rows := make([][]string, 0, len(snapshots))
 	for _, snapshot := range snapshots {
+		id := snapshot.ID
+		if id == "" {
+			id = "(pending)"
+		}
+
 		rows = append(rows, []string{
-			snapshot.ID,
-			snapshot.Size,
-			humanize.Time(snapshot.CreatedAt),
+			id,
+			snapshot.Status,
+			strconv.Itoa(snapshot.Size),
+			timeToString(snapshot.CreatedAt),
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Size", "Created At")
+	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At")
 }

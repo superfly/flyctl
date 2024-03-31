@@ -22,10 +22,7 @@ ensure it is correct and meaningful to the platform.`
 		command.RequireAppName,
 	)
 	cmd.Args = cobra.NoArgs
-	flag.Add(cmd, flag.App(), flag.AppConfig(),
-		flag.Bool{Name: "machines", Description: "Forces apps v2 config validation"},
-		flag.Bool{Name: "nomad", Description: "Forces apps v1 config validation"},
-	)
+	flag.Add(cmd, flag.App(), flag.AppConfig())
 	return
 }
 
@@ -33,11 +30,8 @@ func runValidate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	cfg := appconfig.ConfigFromContext(ctx)
 
-	switch {
-	case flag.GetBool(ctx, "machines"):
-		cfg.SetMachinesPlatform()
-	case flag.GetBool(ctx, "nomad"):
-		cfg.SetNomadPlatform()
+	if err := cfg.SetMachinesPlatform(); err != nil {
+		return err
 	}
 	err, extra_info := cfg.Validate(ctx)
 	fmt.Fprintln(io.Out, extra_info)

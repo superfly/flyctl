@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
@@ -306,14 +305,14 @@ func (s *IOStreams) ReadUserFile(fn string) ([]byte, error) {
 		}
 	}
 	defer r.Close()
-	return ioutil.ReadAll(r)
+	return io.ReadAll(r)
 }
 
 func (s *IOStreams) TempFile(dir, pattern string) (*os.File, error) {
 	if s.TempFileOverride != nil {
 		return s.TempFileOverride, nil
 	}
-	return ioutil.TempFile(dir, pattern)
+	return os.CreateTemp(dir, pattern)
 }
 
 func (s *IOStreams) CreateLink(text string, url string) string {
@@ -332,6 +331,16 @@ type writerWithFd struct {
 
 func (w writerWithFd) Fd() uintptr {
 	return w.orig.Fd()
+}
+
+func IsTerminalWriter(w io.Writer) bool {
+	if w == os.Stdout || w == os.Stderr {
+		return true
+	}
+	if wf, ok := w.(writerWithFd); ok {
+		return wf.Fd() == os.Stdout.Fd() || wf.Fd() == os.Stderr.Fd()
+	}
+	return false
 }
 
 // colorableOut transforms a file writer into one where it is safe to write ANSI escape codes to.
@@ -386,7 +395,7 @@ func Test() (*IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
 	return &IOStreams{
-		In:     ioutil.NopCloser(in),
+		In:     io.NopCloser(in),
 		Out:    out,
 		ErrOut: errOut,
 	}, in, out, errOut

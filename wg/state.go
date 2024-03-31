@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/terminal"
 	"golang.zx2c4.com/wireguard/device"
 )
@@ -16,7 +17,7 @@ type WireGuardState struct {
 	LocalPublic  string                   `json:"localprivate"`
 	LocalPrivate string                   `json:"localpublic"`
 	DNS          string                   `json:"dns"`
-	Peer         api.CreatedWireGuardPeer `json:"peer"`
+	Peer         fly.CreatedWireGuardPeer `json:"peer"`
 }
 
 // BUG(tqbf): Obviously all this needs to go, and I should just
@@ -59,10 +60,10 @@ func (s *WireGuardState) TunnelConfig() *Config {
 	wgr := IPNet(*rnet)
 
 	var wgLogLevel int
-	switch terminal.DefaultLogger.GetLogLevel() {
-	case terminal.LevelDebug:
+	switch terminal.GetLogLevel() {
+	case logger.Debug:
 		wgLogLevel = device.LogLevelVerbose
-	case terminal.LevelInfo | terminal.LevelWarn | terminal.LevelError:
+	case logger.Info | logger.Warn | logger.Error:
 		wgLogLevel = device.LogLevelError
 	}
 

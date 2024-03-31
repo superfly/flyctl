@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
@@ -24,6 +24,8 @@ func New() *cobra.Command {
 		long  = "Manage DNS records within a domain"
 	)
 	cmd := command.New("dns-records", short, long, nil)
+	cmd.Deprecated = "`fly dns-records` will be removed in a future release"
+	cmd.Hidden = true
 	cmd.AddCommand(
 		newDNSRecordsList(),
 		newDNSRecordsExport(),
@@ -40,6 +42,7 @@ func newDNSRecordsList() *cobra.Command {
 	cmd := command.New("list <domain>", short, long, runDNSRecordsList,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly dns-records list` will be removed in a future release"
 	flag.Add(cmd,
 		flag.JSONOutput(),
 	)
@@ -55,6 +58,7 @@ func newDNSRecordsExport() *cobra.Command {
 	cmd := command.New("export <domain> [filename]", short, long, runDNSRecordsExport,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly dns-records export` will be removed in a future release"
 	cmd.Args = cobra.RangeArgs(1, 2)
 	return cmd
 }
@@ -67,13 +71,14 @@ func newDNSRecordsImport() *cobra.Command {
 	cmd := command.New("import <domain> [filename]", short, long, runDNSRecordsImport,
 		command.RequireSession,
 	)
+	cmd.Deprecated = "`fly dns-records import` will be removed in a future release"
 	cmd.Args = cobra.RangeArgs(1, 2)
 	return cmd
 }
 
 func runDNSRecordsList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	name := flag.FirstArg(ctx)
 
@@ -112,7 +117,7 @@ func runDNSRecordsList(ctx context.Context) error {
 
 func runDNSRecordsExport(ctx context.Context) error {
 	name := flag.FirstArg(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	domain, err := apiClient.GetDomain(ctx, name)
 	if err != nil {
@@ -148,7 +153,7 @@ func runDNSRecordsExport(ctx context.Context) error {
 
 func runDNSRecordsImport(ctx context.Context) error {
 	name := flag.FirstArg(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	var filename string
 

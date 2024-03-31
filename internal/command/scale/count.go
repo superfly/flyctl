@@ -3,18 +3,20 @@ package scale
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/iostreams"
-	"golang.org/x/exp/slices"
+	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"golang.org/x/exp/maps"
 )
 
 func newScaleCount() *cobra.Command {
@@ -33,16 +35,21 @@ For pricing, see https://fly.io/docs/about/pricing/`
 		flag.App(),
 		flag.AppConfig(),
 		flag.Yes(),
+		flag.ProcessGroup("The process group to scale"),
 		flag.Int{Name: "max-per-region", Description: "Max number of VMs per region", Default: -1},
-		flag.String{Name: "region", Description: "Comma separated list of regions to act on. Defaults to all regions where there is at least one machine running for the app"},
-		flag.String{Name: "process-group", Description: "The process group to scale"},
+		flag.String{Name: "region", Shorthand: "r", Description: "Comma separated list of regions to act on. Defaults to all regions where there is at least one machine running for the app", CompletionFn: completion.CompleteRegions},
+		flag.Bool{Name: "with-new-volumes", Description: "New machines each get a new volumes even if there are unattached volumes available"},
+		flag.String{Name: "from-snapshot", Description: "New volumes are restored from snapshot, use 'last' for most recent snapshot. The default is an empty volume"},
+		flag.VMSizeFlags,
 	)
 	return cmd
 }
 
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -56,17 +63,10 @@ func runScaleCount(ctx context.Context) error {
 	args := flag.Args(ctx)
 
 	processNames := appConfig.ProcessNames()
-	groupName := flag.GetString(ctx, "process-group")
+	groupName := flag.GetProcessGroup(ctx)
 
 	if groupName == "" {
-		groupName = api.MachineProcessGroupApp
-		if !slices.Contains(processNames, groupName) {
-			return fmt.Errorf("--process-group flag is required when no group named 'app' is defined")
-		}
-	}
-
-	if !slices.Contains(processNames, groupName) {
-		return fmt.Errorf("process group '%s' not found", groupName)
+		groupName = fly.MachineProcessGroupApp
 	}
 
 	groups, err := parseGroupCounts(args, groupName)
@@ -74,16 +74,22 @@ func runScaleCount(ctx context.Context) error {
 		return err
 	}
 
+	unknownNames := lo.Filter(maps.Keys(groups), func(x string, _ int) bool {
+		return !slices.Contains(processNames, x)
+	})
+	if len(unknownNames) > 0 {
+		return fmt.Errorf(
+			"Attempting to scale unknown process groups %v but valid names are %v.\n"+
+				" Use `fly scale count COUNT --process-group=NAME` \n"+
+				" or multi group syntax `fly scale count NAME1=COUNT1 NAME2=COUNT2 ...`",
+			unknownNames,
+			processNames,
+		)
+	}
+
 	maxPerRegion := flag.GetInt(ctx, "max-per-region")
 
-	isV2, err := command.IsMachinesPlatform(ctx, appName)
-	if err != nil {
-		return err
-	}
-	if isV2 {
-		return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
-	}
-	return runNomadScaleCount(ctx, appName, groups, maxPerRegion)
+	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 }
 
 func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, error) {
@@ -114,29 +120,4 @@ func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, e
 	}
 
 	return groups, nil
-}
-
-func runNomadScaleCount(ctx context.Context, appName string, groups map[string]int, maxPerRegion int) error {
-	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
-
-	var maxPerRegionPtr *int
-	if maxPerRegion >= 0 {
-		maxPerRegionPtr = &maxPerRegion
-	}
-
-	counts, warnings, err := apiClient.SetAppVMCount(ctx, appName, groups, maxPerRegionPtr)
-	if err != nil {
-		return err
-	}
-
-	if len(warnings) > 0 {
-		for _, warning := range warnings {
-			fmt.Fprintln(io.Out, "Warning:", warning)
-		}
-		fmt.Fprintln(io.Out)
-	}
-
-	fmt.Fprintf(io.Out, "Count changed to %s\n", countMessage(counts))
-	return nil
 }

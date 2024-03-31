@@ -5,12 +5,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -54,7 +55,9 @@ func runMachineList(ctx context.Context) (err error) {
 		cfg     = config.FromContext(ctx)
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
@@ -64,15 +67,15 @@ func runMachineList(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
+	if cfg.JSONOutput {
+		return render.JSON(io.Out, machines)
+	}
+
 	if len(machines) == 0 {
 		if !silence {
 			fmt.Fprintf(io.Out, "No machines are available on this app %s\n", appName)
 		}
 		return nil
-	}
-
-	if cfg.JSONOutput {
-		return render.JSON(io.Out, machines)
 	}
 
 	rows := [][]string{}
@@ -81,7 +84,6 @@ func runMachineList(ctx context.Context) (err error) {
 
 	if !silence {
 		fmt.Fprintf(io.Out, "%d machines have been retrieved from app %s.\n%s\n\n", len(machines), appName, listOfMachinesLink)
-
 	}
 	if silence {
 		for _, machine := range machines {
@@ -100,14 +102,12 @@ func runMachineList(ctx context.Context) (err error) {
 			size := ""
 
 			if machine.Config != nil {
-				if platformVersion, ok := machine.Config.Metadata[api.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
+				if platformVersion, ok := machine.Config.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
 					appPlatform = platformVersion
-
 				}
 
 				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
-
 				}
 
 				if machine.Config.Guest != nil {

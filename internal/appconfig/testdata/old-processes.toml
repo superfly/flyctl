@@ -1,0 +1,7 @@
+[[processes]]
+name = "web"
+command = "./web"
+
+[[processes]]
+name = "worker"
+command = "./worker"

@@ -8,8 +8,8 @@ import (
 
 	"github.com/nats-io/nats.go"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
 	"github.com/superfly/flyctl/internal/config"
 )
 
@@ -18,7 +18,7 @@ type natsLogStream struct {
 	err error
 }
 
-func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions) (LogStream, error) {
+func NewNatsStream(ctx context.Context, apiClient *fly.Client, opts *LogOptions) (LogStream, error) {
 	app, err := apiClient.GetAppBasic(ctx, opts.AppName)
 	if err != nil {
 		return nil, fmt.Errorf("failed fetching target app: %w", err)
@@ -38,7 +38,7 @@ func NewNatsStream(ctx context.Context, apiClient *api.Client, opts *LogOptions)
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
-	nc, err := newNatsClient(ctx, dialer, app.Organization.Slug)
+	nc, err := newNatsClient(ctx, dialer, app.Organization.RawSlug)
 	if err != nil {
 		return nil, fmt.Errorf("failed creating nats connection: %w", err)
 	}
@@ -75,7 +75,7 @@ func newNatsClient(ctx context.Context, dialer agent.Dialer, orgSlug string) (*n
 	natsIP := net.IP(natsIPBytes[:])
 
 	url := fmt.Sprintf("nats://[%s]:4223", natsIP.String())
-	conn, err := nats.Connect(url, nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(orgSlug, config.FromContext(ctx).AccessToken))
+	conn, err := nats.Connect(url, nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(orgSlug, config.Tokens(ctx).NATS()))
 	if err != nil {
 		return nil, fmt.Errorf("failed connecting to nats: %w", err)
 	}

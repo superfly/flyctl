@@ -7,27 +7,31 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
+// We now prompt for a machine automatically when no machine IDs are
+// provided. This flag is retained for backward compatability.
 var selectFlag = flag.Bool{
 	Name:        "select",
 	Description: "Select from a list of machines",
+	Hidden:      true,
 }
 
-func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string, haveMachineID bool) (*api.Machine, context.Context, error) {
-	if err := checkSelectCmdline(ctx, haveMachineID); err != nil {
+func selectOneMachine(ctx context.Context, appName string, machineID string, haveMachineID bool) (*fly.Machine, context.Context, error) {
+	if err := checkSelectConditions(ctx, haveMachineID); err != nil {
 		return nil, nil, err
 	}
 
 	var err error
-	if app != nil {
-		ctx, err = buildContextFromApp(ctx, app)
+	if appName != "" {
+		ctx, err = buildContextFromAppName(ctx, appName)
 	} else {
 		ctx, err = buildContextFromAppNameOrMachineID(ctx, machineID)
 	}
@@ -35,8 +39,8 @@ func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string
 		return nil, nil, err
 	}
 
-	var machine *api.Machine
-	if flag.GetBool(ctx, "select") {
+	var machine *fly.Machine
+	if shouldPrompt(ctx, haveMachineID) {
 		machine, err = promptForOneMachine(ctx)
 		if err != nil {
 			return nil, nil, err
@@ -53,9 +57,9 @@ func selectOneMachine(ctx context.Context, app *api.AppCompact, machineID string
 	return machine, ctx, nil
 }
 
-func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machine, context.Context, error) {
+func selectManyMachines(ctx context.Context, machineIDs []string) ([]*fly.Machine, context.Context, error) {
 	haveMachineIDs := len(machineIDs) > 0
-	if err := checkSelectCmdline(ctx, haveMachineIDs); err != nil {
+	if err := checkSelectConditions(ctx, haveMachineIDs); err != nil {
 		return nil, nil, err
 	}
 
@@ -64,8 +68,8 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machin
 		return nil, nil, err
 	}
 
-	var machines []*api.Machine
-	if flag.GetBool(ctx, "select") {
+	var machines []*fly.Machine
+	if shouldPrompt(ctx, haveMachineIDs) {
 		machines, err = promptForManyMachines(ctx)
 		if err != nil {
 			return nil, nil, err
@@ -88,7 +92,7 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machin
 
 func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, context.Context, error) {
 	haveMachineIDs := len(machineIDs) > 0
-	if err := checkSelectCmdline(ctx, haveMachineIDs); err != nil {
+	if err := checkSelectConditions(ctx, haveMachineIDs); err != nil {
 		return nil, nil, err
 	}
 
@@ -97,7 +101,7 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 		return nil, nil, err
 	}
 
-	if flag.GetBool(ctx, "select") {
+	if shouldPrompt(ctx, haveMachineIDs) {
 		// NOTE: machineIDs must be empty in this case.
 		machines, err := promptForManyMachines(ctx)
 		if err != nil {
@@ -110,8 +114,10 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 	return machineIDs, ctx, nil
 }
 
-func buildContextFromApp(ctx context.Context, app *api.AppCompact) (context.Context, error) {
-	flapsClient, err := flaps.New(ctx, app)
+func buildContextFromAppName(ctx context.Context, appName string) (context.Context, error) {
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
@@ -131,16 +137,21 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		// NOTE: assuming that we validated the command line arguments
 		// correctly, we must have at least one machine ID when no app
 		// is set.
-		client := client.FromContext(ctx).API()
-		var gqlMachine *api.GqlMachine
+		client := fly.ClientFromContext(ctx)
+		var gqlMachine *fly.GqlMachine
 		gqlMachine, err = client.GetMachine(ctx, machineIDs[0])
 		if err != nil {
 			return nil, fmt.Errorf("could not get machine from GraphQL to determine app name: %w", err)
 		}
 		ctx = appconfig.WithName(ctx, gqlMachine.App.Name)
-		flapsClient, err = flaps.New(ctx, gqlMachine.App)
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppCompact: gqlMachine.App,
+			AppName:    gqlMachine.App.Name,
+		})
 	} else {
-		flapsClient, err = flaps.NewFromAppName(ctx, appName)
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: appName,
+		})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
@@ -150,7 +161,7 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 	return ctx, nil
 }
 
-func promptForOneMachine(ctx context.Context) (*api.Machine, error) {
+func promptForOneMachine(ctx context.Context) (*fly.Machine, error) {
 	machines, err := flaps.FromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
@@ -166,7 +177,7 @@ func promptForOneMachine(ctx context.Context) (*api.Machine, error) {
 	return machines[selection], nil
 }
 
-func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
+func promptForManyMachines(ctx context.Context) ([]*fly.Machine, error) {
 	machines, err := flaps.FromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
@@ -180,7 +191,7 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 		return nil, fmt.Errorf("could not prompt for machines: %w", err)
 	}
 
-	var selectedMachines []*api.Machine
+	var selectedMachines []*fly.Machine
 	for _, selection := range selections {
 		selectedMachines = append(selectedMachines, machines[selection])
 	}
@@ -190,7 +201,7 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 	return selectedMachines, nil
 }
 
-func sortAndBuildOptions(machines []*api.Machine) []string {
+func sortAndBuildOptions(machines []*fly.Machine) []string {
 	sort.Slice(machines, func(i, j int) bool {
 		return machines[i].ID < machines[j].ID
 	})
@@ -210,13 +221,13 @@ func sortAndBuildOptions(machines []*api.Machine) []string {
 	return options
 }
 
-func getMachineRole(machine *api.Machine) string {
-	if machine.State != api.MachineStateStarted {
+func getMachineRole(machine *fly.Machine) string {
+	if machine.State != fly.MachineStateStarted {
 		return ""
 	}
 	for _, check := range machine.Checks {
 		if check.Name == "role" {
-			if check.Status == api.Passing {
+			if check.Status == fly.Passing {
 				return check.Output
 			} else {
 				return "error"
@@ -235,17 +246,23 @@ func rewriteMachineNotFoundErrors(ctx context.Context, err error, machineID stri
 	}
 }
 
-func checkSelectCmdline(ctx context.Context, haveMachineIDs bool) error {
+func checkSelectConditions(ctx context.Context, haveMachineIDs bool) error {
 	haveSelectFlag := flag.GetBool(ctx, "select")
 	appName := appconfig.NameFromContext(ctx)
 	switch {
 	case haveSelectFlag && haveMachineIDs:
 		return errors.New("machine IDs can't be used with --select")
-	case !haveSelectFlag && !haveMachineIDs:
-		return errors.New("a machine ID must be provided unless --select is used")
 	case haveSelectFlag && appName == "":
 		return errors.New("an app name must be specified to use --select")
+	case !haveMachineIDs && appName == "":
+		return errors.New("a machine ID or an app name is required")
+	case shouldPrompt(ctx, haveMachineIDs) && !iostreams.FromContext(ctx).IsInteractive():
+		return errors.New("a machine ID must be specified when not running interactively")
 	default:
 		return nil
 	}
+}
+
+func shouldPrompt(ctx context.Context, haveMachineIDs bool) bool {
+	return flag.GetBool(ctx, "select") || !haveMachineIDs
 }

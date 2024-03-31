@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
@@ -35,7 +35,7 @@ func newProxy() *cobra.Command {
 }
 
 func runMachineProxy(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {
@@ -64,7 +64,7 @@ func runMachineProxy(ctx context.Context) error {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug)
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, flag.GetBool(ctx, "quiet"))
 	if err != nil {
 		return err
 	}
@@ -72,6 +72,7 @@ func runMachineProxy(ctx context.Context) error {
 	// ports := strings.Split(args[0], ":")
 
 	params := &proxy.ConnectParams{
+		BindAddr:         flag.GetBindAddr(ctx),
 		Ports:            []string{"4280"},
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,

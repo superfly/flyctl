@@ -2,16 +2,15 @@ package config
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -32,7 +31,7 @@ secrets and another for config file defined environment variables.`
 }
 
 func runEnv(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
@@ -41,19 +40,16 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	secretRows := lo.Map(secrets, func(s api.Secret, _ int) []string {
+	secretRows := lo.Map(secrets, func(s fly.Secret, _ int) []string {
 		return []string{s.Name, s.Digest, s.CreatedAt.Format("2006-01-02T15:04:05")}
 	})
 	if err := render.Table(io.Out, "Secrets", secretRows, "Name", "Digest", "Created At"); err != nil {
 		return err
 	}
 
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app: %w", err)
-	}
-
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
@@ -64,21 +60,8 @@ func runEnv(ctx context.Context) error {
 		return err
 	}
 
-	if cfg.ForMachines() {
-		envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
-			return []string{e.Key, e.Value}
-		})
-		return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
-	} else {
-		vars, ok := cfg.RawDefinition["env"].(map[string]any)
-		if !ok {
-			return nil
-		}
-
-		envRows := lo.Map(lo.Entries(vars), func(e lo.Entry[string, any], _ int) []string {
-			return []string{e.Key, fmt.Sprintf("%s", e.Value)}
-		})
-
-		return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
-	}
+	envRows := lo.Map(lo.Entries(cfg.Env), func(e lo.Entry[string, string], _ int) []string {
+		return []string{e.Key, e.Value}
+	})
+	return render.Table(io.Out, "Environment Variables", envRows, "Name", "Value")
 }

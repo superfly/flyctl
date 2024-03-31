@@ -4,14 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyerr"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 )
@@ -21,7 +23,7 @@ func newUpdate() *cobra.Command {
 		short = "Update a machine"
 		long  = short + "\n"
 
-		usage = "update <machine_id>"
+		usage = "update [machine_id]"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,
@@ -36,6 +38,11 @@ func newUpdate() *cobra.Command {
 		flag.Yes(),
 		selectFlag,
 		flag.Bool{
+			Name:        "skip-start",
+			Description: "Updates machine without starting it.",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "skip-health-checks",
 			Description: "Updates machine without waiting for health checks.",
 			Default:     false,
@@ -48,6 +55,11 @@ func newUpdate() *cobra.Command {
 		flag.String{
 			Name:        "mount-point",
 			Description: "New volume mount point",
+		},
+		flag.Int{
+			Name:        "wait-timeout",
+			Description: "Seconds to wait for individual machines to transition states and become healthy. (default 300)",
+			Default:     300,
 		},
 	)
 
@@ -63,13 +75,14 @@ func runUpdate(ctx context.Context) (err error) {
 
 		autoConfirm      = flag.GetBool(ctx, "yes")
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
+		skipStart        = flag.GetBool(ctx, "skip-start")
 		image            = flag.GetString(ctx, "image")
 		dockerfile       = flag.GetString(ctx, flag.Dockerfile().Name)
 	)
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	machine, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	machine, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}
@@ -77,7 +90,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	// Acquire lease
 	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
-	defer releaseLeaseFunc(ctx, machine)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}
@@ -121,21 +134,31 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	// Perform update
-	input := &api.LaunchMachineInput{
+	input := &fly.LaunchMachineInput{
 		Name:             machine.Name,
 		Region:           machine.Region,
 		Config:           machineConf,
-		SkipLaunch:       len(machineConf.Standbys) > 0,
+		SkipLaunch:       len(machineConf.Standbys) > 0 || skipStart,
 		SkipHealthChecks: skipHealthChecks,
+		Timeout:          flag.GetInt(ctx, "wait-timeout"),
 	}
 	if err := mach.Update(ctx, machine, input); err != nil {
+		var timeoutErr mach.WaitTimeoutErr
+		if errors.As(err, &timeoutErr) {
+			return flyerr.GenericErr{
+				Err:      timeoutErr.Error(),
+				Descript: timeoutErr.Description(),
+				Suggest:  "Try increasing the --wait-timeout",
+			}
+
+		}
 		return err
 	}
 
 	if !(input.SkipLaunch || flag.GetDetach(ctx)) {
 		fmt.Fprintln(io.Out, colorize.Green("==> "+"Monitoring health checks"))
 
-		if err := watch.MachinesChecks(ctx, []*api.Machine{machine}); err != nil {
+		if err := watch.MachinesChecks(ctx, []*fly.Machine{machine}); err != nil {
 			return err
 		}
 		fmt.Fprintln(io.Out)

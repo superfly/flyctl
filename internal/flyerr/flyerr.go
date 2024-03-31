@@ -8,6 +8,41 @@ import (
 	"github.com/logrusorgru/aurora"
 )
 
+type GenericErr struct {
+	Err      string
+	Descript string
+	Suggest  string
+	DocUrl   string
+}
+
+func (e GenericErr) Error() string {
+	return e.Err
+}
+
+func (e GenericErr) FlyDocURL() string {
+	return e.DocUrl
+}
+
+func (e GenericErr) Suggestion() string {
+	return e.Suggest
+}
+
+func (e GenericErr) Description() string {
+	return e.Descript
+}
+
+type FlyDocUrl interface {
+	DocURL() string
+}
+
+func GetErrorDocUrl(err error) string {
+	var ferr FlyDocUrl
+	if errors.As(err, &ferr) {
+		return ferr.DocURL()
+	}
+	return ""
+}
+
 // ErrAbort is an error for when the CLI aborts
 var ErrAbort = errors.New("abort")
 
@@ -55,7 +90,7 @@ func PrintCLIOutput(err error) {
 	suggestion := GetErrorSuggestion(err)
 
 	if description != "" {
-		fmt.Printf("\n%s", description)
+		fmt.Printf("\n\n%s", description)
 	}
 
 	if suggestion != "" {

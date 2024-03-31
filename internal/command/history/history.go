@@ -2,20 +2,10 @@
 package history
 
 import (
-	"context"
-	"fmt"
-
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/format"
-	"github.com/superfly/flyctl/internal/render"
 )
 
 func New() (cmd *cobra.Command) {
@@ -26,10 +16,12 @@ events and their results.
 		short = "List an app's change history"
 	)
 
-	cmd = command.New("history", short, long, run,
+	cmd = command.New("history", short, long, nil,
 		command.RequireSession,
 		command.RequireAppName,
 	)
+	cmd.Deprecated = "Use `flyctl apps releases` instead"
+	cmd.Hidden = true
 
 	cmd.Args = cobra.NoArgs
 
@@ -40,38 +32,4 @@ events and their results.
 	)
 
 	return
-}
-
-func run(ctx context.Context) error {
-	appName := appconfig.NameFromContext(ctx)
-	client := client.FromContext(ctx).API()
-
-	changes, err := client.GetAppChanges(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed retrieving history for %s: %w", appName, err)
-	}
-
-	out := iostreams.FromContext(ctx).Out
-	if config.FromContext(ctx).JSONOutput {
-		return render.JSON(out, changes)
-	}
-
-	var rows [][]string
-	for _, change := range changes {
-		rows = append(rows, []string{
-			change.Actor.Type,
-			change.Status,
-			change.Description,
-			change.User.Email,
-			format.RelativeTime(change.CreatedAt),
-		})
-	}
-
-	return render.Table(out, "", rows,
-		"Type",
-		"Status",
-		"Description",
-		"User",
-		"Date",
-	)
 }

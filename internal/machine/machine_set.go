@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 type MachineSet interface {
@@ -27,7 +28,7 @@ type machineSet struct {
 	machines []LeasableMachine
 }
 
-func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*api.Machine) *machineSet {
+func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
 		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))
@@ -106,7 +107,7 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 	if contextWasAlreadyCanceled {
 		var cancel context.CancelFunc
 		cancelTimeout := 500 * time.Millisecond
-		ctx, cancel = context.WithTimeout(context.TODO(), cancelTimeout)
+		ctx, cancel = context.WithTimeout(ctx, cancelTimeout)
 		terminal.Infof("detected canceled context and allowing %s to release machine leases\n", cancelTimeout)
 		defer cancel()
 	}
@@ -139,6 +140,9 @@ func (ms *machineSet) ReleaseLeases(ctx context.Context) error {
 }
 
 func (ms *machineSet) StartBackgroundLeaseRefresh(ctx context.Context, leaseDuration time.Duration, delayBetween time.Duration) {
+	ctx, span := tracing.GetTracer().Start(ctx, "start_background_lease_refresh")
+	defer span.End()
+
 	for _, m := range ms.machines {
 		m.StartBackgroundLeaseRefresh(ctx, leaseDuration, delayBetween)
 	}

@@ -3,26 +3,24 @@ package volumes
 import (
 	"context"
 	"fmt"
-	"strconv"
 
-	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newList() *cobra.Command {
 	const (
-		long = "List all the volumes associated with this application."
+		short = "List the volumes associated with an app."
 
-		short = "List the volumes for app"
+		long = short
 	)
 
 	cmd := command.New("list", short, long, runList,
@@ -43,11 +41,23 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
-	volumes, err := client.GetVolumes(ctx, appName)
+	app, err := apiClient.GetAppBasic(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return err
+	}
+
+	volumes, err := flapsClient.GetVolumes(ctx)
 	if err != nil {
 		return fmt.Errorf("failed retrieving volumes: %w", err)
 	}
@@ -58,36 +68,5 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, volumes)
 	}
 
-	rows := make([][]string, 0, len(volumes))
-	for _, volume := range volumes {
-		var attachedVMID string
-
-		if volume.App.PlatformVersion == "machines" {
-			if volume.AttachedMachine != nil {
-				attachedVMID = volume.AttachedMachine.ID
-			}
-		} else {
-			if volume.AttachedAllocation != nil {
-				attachedVMID = volume.AttachedAllocation.IDShort
-
-				if volume.AttachedAllocation.TaskName != "app" {
-					attachedVMID = fmt.Sprintf("%s (%s)", volume.AttachedAllocation.IDShort, volume.AttachedAllocation.TaskName)
-				}
-			}
-		}
-
-		rows = append(rows, []string{
-			volume.ID,
-			volume.State,
-			volume.Name,
-			strconv.Itoa(volume.SizeGb) + "GB",
-			volume.Region,
-			volume.Host.ID,
-			fmt.Sprint(volume.Encrypted),
-			attachedVMID,
-			humanize.Time(volume.CreatedAt),
-		})
-	}
-
-	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
+	return renderTable(ctx, volumes, app, out)
 }

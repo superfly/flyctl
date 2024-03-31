@@ -2,20 +2,18 @@ package secrets
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/sentry"
-	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/spf13/cobra"
 )
 
 var sharedFlags = flag.Set{
@@ -45,47 +43,24 @@ func New() *cobra.Command {
 		newSet(),
 		newUnset(),
 		newImport(),
+		newDeploy(),
 	)
 
 	return secrets
 }
 
-func deployForSecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
-	switch app.PlatformVersion {
-	case appconfig.MachinesPlatform:
-		return v2deploySecrets(ctx, app, release, stage, detach)
-	default:
-		return v1deploySecrets(ctx, app, release, stage, detach)
-	}
-}
-
-func v1deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
+func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach bool) error {
 	out := iostreams.FromContext(ctx).Out
-	if stage {
-		return errors.New("--stage isn't available for Nomad apps")
-	}
 
-	if !app.Deployed {
-		fmt.Fprintln(out, "Secrets are staged for the first deployment")
-		return nil
-	}
-
-	fmt.Fprintf(out, "Release v%d created\n", release.Version)
-	if flag.GetBool(ctx, "detach") {
-		return nil
-	}
-
-	return watch.Deployment(ctx, app.Name, release.EvaluationID)
-}
-
-func v2deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Release, stage bool, detach bool) error {
-	out := iostreams.FromContext(ctx).Out
 	if stage {
 		fmt.Fprint(out, "Secrets have been staged, but not set on VMs. Deploy or update machines in this app for the secrets to take effect.\n")
 		return nil
 	}
 
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}
@@ -115,13 +90,13 @@ func v2deploySecrets(ctx context.Context, app *api.AppCompact, release *api.Rele
 		SkipHealthChecks: detach,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(err, "secrets", app)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "secrets", app)
 	}
 	return err
 }

@@ -1,3 +1,6 @@
+env:
+  - BUILD_ENV={{if index .Env "BUILD_ENV"}}{{.Env.BUILD_ENV}}{{else}}production{{end}}
+
 before:
   hooks:
     - go mod download
@@ -16,10 +19,11 @@ builds:
       - goos: linux
         goarch: 386
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
 
   - id: windows
     env:
@@ -30,10 +34,11 @@ builds:
       - goos: windows
         goarch: 386
     ldflags:
-      - -X github.com/superfly/flyctl/internal/buildinfo.environment=production
-      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{ .Date }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.version={{ .Version }}
-      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{ .ShortCommit }}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildDate={{.CommitDate}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.buildVersion={{.Version}}
+      - -X github.com/superfly/flyctl/internal/buildinfo.commit={{.ShortCommit}}
+    tags:
+      - "{{.Env.BUILD_ENV}}"
 
 archives:
   - id: windows
@@ -73,13 +78,15 @@ dockers:
     image_templates:
       - "flyio/flyctl:latest"
       - "flyio/flyctl:v{{ .Version }}"
+      - "ghcr.io/superfly/flyctl:latest"
+      - "ghcr.io/superfly/flyctl:v{{ .Version }}"
     skip_push: auto
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{.Branch}}-{{.ShortCommit}}"
+  name_template: "{{.Version}}-{{.Branch}}.{{.CommitTimestamp}}"
 
 changelog:
   sort: asc
@@ -89,7 +96,7 @@ changelog:
       - "^test:"
 
 brews:
-  - tap:
+  - repository:
       owner: superfly
       name: homebrew-tap
     folder: Formula

@@ -4,7 +4,6 @@
 package preflight
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -15,11 +14,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jpillora/backoff"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/retry"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -28,47 +25,22 @@ func TestAppsV2Example(t *testing.T) {
 		t.Skip()
 	}
 
-	var (
-		err    error
-		result *testlib.FlyctlResult
-		resp   *http.Response
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	appUrl := fmt.Sprintf("https://%s.fly.dev", appName)
 
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-		appUrl  = fmt.Sprintf("https://%s.fly.dev", appName)
-	)
-
-	result = f.Fly(
-		"launch --org %s --name %s --region %s --image nginx --force-machines --internal-port 80 --now --auto-confirm --ha=false",
+	result := f.Fly(
+		"launch --org %s --name %s --region %s --image nginx --internal-port 80 --now --auto-confirm --ha=false",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
-	require.Contains(f, result.StdOut().String(), "Using image nginx")
-	require.Contains(f, result.StdOut().String(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
-	require.Contains(f, result.StdOut().String(), "Wrote config file fly.toml")
+	require.Contains(f, result.StdOutString(), "Using image nginx")
+	require.Contains(f, result.StdOutString(), fmt.Sprintf("Created app '%s' in organization '%s'", appName, f.OrgSlug()))
+	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 
-	time.Sleep(10 * time.Second)
-	f.Fly("status")
-
-	lastStatusCode := -1
-	attempts := 10
-	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 5 * time.Second}
-	for i := 0; i < attempts; i++ {
-		resp, err = http.Get(appUrl)
-		if err == nil {
-			lastStatusCode = resp.StatusCode
-		}
-		if lastStatusCode == http.StatusOK {
-			break
-		} else {
-			time.Sleep(b.Duration())
-		}
-	}
-	if lastStatusCode == -1 {
-		f.Fatalf("error calling GET %s: %v", appUrl, err)
-	}
-	if lastStatusCode != http.StatusOK {
-		f.Fatalf("GET %s never returned 200 OK response after %d tries; last status code was: %d", appUrl, attempts, lastStatusCode)
-	}
+	require.Eventually(t, func() bool {
+		resp, err := http.Get(appUrl)
+		return err == nil && resp.StatusCode == http.StatusOK
+	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", appUrl)
 
 	machList := f.MachinesList(appName)
 	require.Equal(t, len(machList), 1, "There should be exactly one machine")
@@ -89,7 +61,7 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m clone --region %s %s", secondReg, firstMachine.ID)
 
 	result = f.Fly("status")
-	require.Equal(f, 2, strings.Count(result.StdOut().String(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
+	require.Equal(f, 2, strings.Count(result.StdOutString(), "started"), "expected 2 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOutString())
 
 	thirdReg := secondReg
 	if len(f.OtherRegions()) > 1 {
@@ -98,11 +70,11 @@ func TestAppsV2Example(t *testing.T) {
 	f.Fly("m clone --region %s %s", thirdReg, firstMachine.ID)
 
 	result = f.Fly("status")
-	require.Equal(f, 3, strings.Count(result.StdOut().String(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOut().String())
+	require.Equal(f, 3, strings.Count(result.StdOutString(), "started"), "expected 3 machines to be started after cloning the original, instead %s showed: %s", result.CmdString(), result.StdOutString())
 
 	f.Fly("secrets set PREFLIGHT_TESTING_SECRET=foo")
 	result = f.Fly("secrets list")
-	require.Contains(f, result.StdOut().String(), "PREFLIGHT_TESTING_SECRET")
+	require.Contains(f, result.StdOutString(), "PREFLIGHT_TESTING_SECRET")
 
 	f.Fly("apps restart %s", appName)
 
@@ -111,7 +83,7 @@ func TestAppsV2Example(t *testing.T) {
 ENV BUILT_BY_DOCKERFILE=true
 `
 	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
-	err = os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
 	if err != nil {
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
@@ -120,51 +92,41 @@ ENV BUILT_BY_DOCKERFILE=true
 }
 
 func TestAppsV2ConfigChanges(t *testing.T) {
-	var (
-		err            error
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppName()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
 	f.Fly(
-		"launch --org %s --name %s --region %s --image nginx --internal-port 8080 --force-machines --now --env FOO=BAR",
+		"launch --org %s --name %s --region %s --image nginx --internal-port 8080 --ha=false --now --env FOO=BAR",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
-	if err != nil {
-		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
-	}
+	require.NoError(t, err, "error trying to read %s after running fly config save", configFilePath)
 
-	newConfigFile := strings.Replace(string(configFileBytes), `FOO = "BAR"`, `BAR = "QUX"`, 1)
+	newConfigFile := strings.Replace(string(configFileBytes), `FOO = 'BAR'`, `BAR = "QUX"`, 1)
+	require.Contains(f, newConfigFile, `BAR = "QUX"`)
+
 	err = os.WriteFile(configFilePath, []byte(newConfigFile), 0666)
-	if err != nil {
-		f.Fatalf("error trying to write to fly.toml: %s", err)
-	}
+	require.NoError(t, err)
 
 	f.Fly("deploy --detach")
 
 	result := f.Fly("config show -a %s", appName)
-	require.Contains(f, result.StdOut().String(), `"internal_port": 80`)
+	require.Contains(f, result.StdOutString(), `"internal_port": 80`)
 
 	f.Fly("config save -a %s -y", appName)
 	configFileBytes, err = os.ReadFile(configFilePath)
-	if err != nil {
-		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
-	}
-
-	require.Contains(f, string(configFileBytes), `BAR = "QUX"`)
+	require.NoError(t, err, "error trying to read %s after running fly config save", configFilePath)
+	require.Contains(f, string(configFileBytes), `BAR = 'QUX'`)
 }
 
 func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
-	var (
-		err            error
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppMachines()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+
 	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
 	f.Fly("m run -a %s --env ENV=preflight --  nginx nginx -g 'daemon off;'", appName)
 	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
@@ -176,7 +138,7 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 	}
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
 	require.Contains(f, configFileContent, `app = "nginx -g 'daemon off;'"`)
 	require.Contains(f, result.StdErr().String(), "Found these additional commands on some machines")
@@ -184,12 +146,10 @@ func TestAppsV2ConfigSave_ProcessGroups(t *testing.T) {
 }
 
 func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
-	var (
-		err            error
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppMachines()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
+
 	f.Fly("m run -a %s --env ENV=preflight --  nginx tail -F /dev/null", appName)
 	if _, err := os.Stat(configFilePath); !errors.Is(err, os.ErrNotExist) {
 		f.Fatalf("config file exists at %s :-(", configFilePath)
@@ -197,47 +157,37 @@ func TestAppsV2ConfigSave_OneMachineNoAppConfig(t *testing.T) {
 	f.Fly("status -a %s", appName)
 	f.Fly("config save -a %s", appName)
 	configFileBytes, err := os.ReadFile(configFilePath)
-	if err != nil {
-		f.Fatalf("error trying to read %s after running fly config save: %v", configFilePath, err)
-	}
+	require.NoError(t, err, "error trying to read %s after running fly config save", configFilePath)
+
 	configFileContent := string(configFileBytes)
 	require.Contains(f, configFileContent, "[env]")
-	require.Contains(f, configFileContent, `ENV = "preflight"`)
+	require.Contains(f, configFileContent, `ENV = 'preflight'`)
 	require.Contains(f, configFileContent, `[processes]`)
-	require.Contains(f, configFileContent, `app = "tail -F /dev/null"`)
+	require.Contains(f, configFileContent, `app = 'tail -F /dev/null'`)
 }
 
 func TestAppsV2Config_ParseExperimental(t *testing.T) {
-	var (
-		err            error
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppName()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
 	config := `
 	[experimental]
 	  auto_rollback = true
 	`
 
-	err = os.WriteFile(configFilePath, []byte(config), 0644)
-	if err != nil {
-		f.Fatalf("Failed to write config: %s", err)
-	}
+	err := os.WriteFile(configFilePath, []byte(config), 0644)
+	require.NoError(t, err, "error trying to write %s", configFilePath)
 
-	result := f.Fly("launch --no-deploy --force-machines --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
-	stdout := result.StdOut().String()
-	require.Contains(f, stdout, "Created app")
-	require.Contains(f, stdout, "Wrote config file fly.toml")
+	result := f.Fly("launch --no-deploy --ha=false --name %s --region ord --copy-config --org %s", appName, f.OrgSlug())
+	require.Contains(f, result.StdOutString(), "Created app")
+	require.Contains(f, result.StdOutString(), "Wrote config file fly.toml")
 }
 
 func TestAppsV2Config_ProcessGroups(t *testing.T) {
-	var (
-		f              = testlib.NewTestEnvFromEnv(t)
-		appName        = f.CreateRandomAppMachines()
-		configFilePath = filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
-		deployOut      *testlib.FlyctlResult
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+	configFilePath := filepath.Join(f.WorkDir(), appconfig.DefaultConfigFileName)
 
 	// High level view:
 	//  1. Create an app with no process groups
@@ -258,15 +208,13 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 	deployToml := func(toml string) *testlib.FlyctlResult {
 		toml = "app = \"" + appName + "\"\n" + toml
 		err := os.WriteFile(configFilePath, []byte(toml), 0666)
-		if err != nil {
-			f.Fatalf("error trying to write %s: %v", configFilePath, err)
-		}
+		require.NoError(t, err, "error trying to write %s", configFilePath)
 		cmd := f.Fly("deploy --detach --now --image nginx --ha=false")
 		cmd.AssertSuccessfulExit()
 		return cmd
 	}
 
-	expectMachinesInGroups := func(machines []*api.Machine, expected map[string]int) {
+	expectMachinesInGroups := func(machines []*fly.Machine, expected map[string]int) {
 		found := map[string]int{}
 		for _, m := range machines {
 			if m.Config == nil || m.Config.Metadata == nil {
@@ -275,7 +223,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 			// When apps machines are deployed, blank process groups should be canonicalized to
 			// "app". If they are blank or unset, this is an error state.
 			group := "[unspecified]"
-			if val, ok := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; ok {
+			if val, ok := m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]; ok {
 				group = val
 			}
 			found[group]++
@@ -301,14 +249,17 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 
 	// Step 1: No process groups defined, should make one "app" machine
 
-	deployOut = deployToml(`
+	deployOut := deployToml(`
 [[services]]
   http_checks = []
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
+
+		[[services.ports]]
+		port = 80
 `)
-	require.Contains(t, deployOut.StdOut().String(), `create 1 "app" machine`)
+	require.Contains(t, deployOut.StdOutString(), `create 1 "app" machine`)
 
 	machines := f.MachinesList(appName)
 
@@ -331,11 +282,13 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
+
+		[[services.ports]]
+		port = 80
 `)
-	stdout := deployOut.StdOut().String()
-	require.Contains(t, stdout, `destroy 1 "app" machine`)
-	require.Contains(t, stdout, `create 1 "web" machine`)
-	require.Contains(t, stdout, `create 1 "bar_web" machine`)
+	require.Contains(t, deployOut.StdOutString(), `destroy 1 "app" machine`)
+	require.Contains(t, deployOut.StdOutString(), `create 1 "web" machine`)
+	require.Contains(t, deployOut.StdOutString(), `create 1 "bar_web" machine`)
 
 	machines = f.MachinesList(appName)
 
@@ -347,7 +300,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	webMachId := ""
 	barWebMachId := ""
 	for _, m := range machines {
-		group := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		group := m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]
 		switch group {
 		case "web":
 			webMachId = m.ID
@@ -382,8 +335,11 @@ web = "nginx -g 'daemon off;'"
   internal_port = 8080
   protocol = "tcp"
   script_checks = []
+
+		[[services.ports]]
+		port = 80
 `)
-	require.Contains(t, deployOut.StdOut().String(), `destroy 2 "bar_web" machines`)
+	require.Contains(t, deployOut.StdOutString(), `destroy 2 "bar_web" machines`)
 	machines = f.MachinesList(appName)
 
 	expectMachinesInGroups(machines, map[string]int{
@@ -422,157 +378,117 @@ web = "nginx -g 'daemon off;'"
 	require.Equal(t, idMatchFound, true, "could not find 'web' machine with matching machine ID")
 }
 
-func TestAppsV2MigrateToV2(t *testing.T) {
-	var (
-		err     error
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(3 * time.Second)
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
-
-	var statusMap map[string]any
-	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-	platformVersion, _ := statusMap["PlatformVersion"].(string)
-	require.Equal(f, "machines", platformVersion)
-}
-
-// This test takes forever. I'm sorry.
-func TestAppsV2MigrateToV2_Volumes(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
-	f := testlib.NewTestEnvFromEnv(t)
-	f.Skipf("not reliably working")
-	appName := f.CreateRandomAppName()
-
-	f.Fly("apps create %s -o %s --nomad", appName, f.OrgSlug())
-	f.WriteFlyToml(`
-app = "%s"
-primary_region = "%s"
-
-[build]
-  image = "nginx"
-
-[mounts]
-	source = "vol_test"
-	destination = "/vol"
-	`, appName, f.PrimaryRegion())
-
-	f.Fly("vol create -y -s 2 --region %s vol_test", f.PrimaryRegion())
-	f.Fly("deploy --now --force-nomad")
-
-	// Give
-	time.Sleep(2 * time.Second)
-	f.Fly("ssh console -C 'dd if=/dev/random of=/vol/flag.txt bs=1M count=10'")
-	f.Fly("ssh console -C 'sync -f /vol/'")
-
-	assertHasFlag := func() {
-		err := retry.RetryBackoff(func() error {
-			r := f.FlyAllowExitFailure("ssh console -q -C 'test -r /vol/flag.txt'")
-			if r.ExitCode() != 0 {
-				return fmt.Errorf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.ExitCode(), r.CmdString(), r.StdOut().String(), r.StdErr().String())
-			} else {
-				return nil
-			}
-		}, 5, &backoff.Backoff{
-			Factor: 2,
-			Jitter: true,
-			Min:    500 * time.Millisecond,
-			Max:    10 * time.Second,
-		})
-		if err != nil {
-			t.Fatal(err.Error())
-		}
-	}
-	time.Sleep(2 * time.Second)
-	assertHasFlag()
-
-	// time.Sleep(9 * time.Second)
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
-
-	var statusMap map[string]any
-	if err := json.Unmarshal(result.StdOut().Bytes(), &statusMap); err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-	platformVersion, _ := statusMap["PlatformVersion"].(string)
-	require.Equal(f, "machines", platformVersion)
-
-	assertHasFlag()
-}
-
-// this test is really slow :(
-func TestAppsV2MigrateToV2_Autoscaling(t *testing.T) {
-	var (
-		err     error
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-nomad --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(3 * time.Second)
-	f.Fly("autoscale set min=3 max=10")
-	f.Fly("migrate-to-v2 --primary-region %s --yes", f.PrimaryRegion())
-	result := f.Fly("status --json")
-
-	var statusMap map[string]any
-	err = json.Unmarshal(result.StdOut().Bytes(), &statusMap)
-	if err != nil {
-		f.Fatalf("failed to parse json: %v [output]: %s\n", err, result.StdOut().String())
-	}
-	platformVersion, _ := statusMap["PlatformVersion"].(string)
-	require.Equal(f, "machines", platformVersion)
-
-	machines := f.MachinesList(appName)
-	require.Equal(f, 10, len(machines))
-
-	for _, machine := range machines {
-		services := machine.Config.Services
-		require.Equal(f, 1, len(services))
-
-		service := services[0]
-		require.Equal(f, *service.MinMachinesRunning, 3)
-	}
-
-	result = f.Fly("config show -a %s", appName)
-
-	require.Contains(f, result.StdOut().String(), `"min_machines_running": 3,`)
-	require.Contains(f, result.StdOut().String(), `"auto_start_machines": true,`)
-	require.Contains(f, result.StdOut().String(), `"auto_stop_machines": true,`)
-
-}
-
 func TestNoPublicIPDeployMachines(t *testing.T) {
-	var (
-		result *testlib.FlyctlResult
-
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
-
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --force-machines --image nginx --auto-confirm --no-public-ips", f.OrgSlug(), appName, f.PrimaryRegion())
-	result = f.Fly("ips list --json")
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --ha=false --image nginx --auto-confirm --no-public-ips", f.OrgSlug(), appName, f.PrimaryRegion())
+	result := f.Fly("ips list --json")
 	// There should be no ips allocated
-	require.Equal(f, "[]\n", result.StdOut().String())
+	require.Equal(f, "[]\n", result.StdOutString())
 }
 
 func TestLaunchCpusMem(t *testing.T) {
-	var (
-		f       = testlib.NewTestEnvFromEnv(t)
-		appName = f.CreateRandomAppName()
-	)
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpukind performance", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --vm-cpus 4 --vm-memory 8192 --vm-cpu-kind performance", f.OrgSlug(), appName, f.PrimaryRegion())
 	machines := f.MachinesList(appName)
-	firstMachineGuest := machines[0].Config.Guest
+	require.GreaterOrEqual(f, len(machines), 1)
 
+	firstMachineGuest := machines[0].Config.Guest
 	require.Equal(f, 4, firstMachineGuest.CPUs)
 	require.Equal(f, 8192, firstMachineGuest.MemoryMB)
 	require.Equal(f, "performance", firstMachineGuest.CPUKind)
+}
+
+func TestLaunchDetach(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	res := f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --detach", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.NotContains(f, res.StdOutString(), "success")
+
+	res = f.Fly("apps destroy --yes %s", appName)
+
+	res = f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.Contains(f, res.StdOutString(), "success")
+}
+
+func TestDeployDetach(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	res := f.Fly("deploy --detach")
+	require.NotContains(f, res.StdOutString(), "started")
+
+	res = f.Fly("deploy")
+	require.Contains(f, res.StdOutString(), "started")
+}
+
+func TestDeployDetachBatching(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("scale count 6 --yes")
+
+	res := f.Fly("deploy --detach")
+	require.NotContains(f, res.StdOutString(), "started", false)
+
+	res = f.Fly("deploy")
+	require.Contains(f, res.StdOutString(), "started", false)
+}
+
+func TestErrOutput(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	machList := f.MachinesList(appName)
+	firstMachine := machList[0]
+
+	res := f.FlyAllowExitFailure("machine update --vm-cpus 3 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "invalid number of CPUs")
+
+	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "invalid memory size")
+
+	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+
+	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "memory size for config is too low")
+
+	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "memory size for config is too high")
+
+	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+}
+
+func TestImageLabel(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	dockerfileContent := `FROM nginx:1.23.3
+
+ENV BUILT_BY_DOCKERFILE=true
+`
+	dockerfilePath := filepath.Join(f.WorkDir(), "Dockerfile")
+	err := os.WriteFile(dockerfilePath, []byte(dockerfileContent), 0644)
+	if err != nil {
+		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
+	}
+
+	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("deploy --label Z=ZZZ -a %s", appName)
+	res := f.Fly("image show -a %s --json", appName)
+
+	var machineImages []map[string]string
+	res.StdOutJSON(&machineImages)
+
+	for _, image := range machineImages {
+		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
+	}
 }

@@ -1,10 +1,11 @@
 package appconfig
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/sentry"
 )
 
@@ -16,33 +17,30 @@ type Service struct {
 	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
-	Ports              []api.MachinePort              `json:"ports,omitempty" toml:"ports"`
-	Concurrency        *api.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
+	Ports              []fly.MachinePort              `json:"ports,omitempty" toml:"ports"`
+	Concurrency        *fly.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TCPChecks          []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type ServiceTCPCheck struct {
-	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+	Interval    *fly.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *fly.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *fly.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
-	Interval    *api.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
-	Timeout     *api.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
-	GracePeriod *api.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
-	// RestartLimit is only supported on V1 Apps
-	RestartLimit int `toml:"restart_limit,omitempty" json:"restart_limit,omitempty"`
+	Interval    *fly.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
+	Timeout     *fly.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
+	GracePeriod *fly.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
 
 	// HTTP Specifics
 	HTTPMethod        *string           `json:"method,omitempty" toml:"method,omitempty"`
 	HTTPPath          *string           `json:"path,omitempty" toml:"path,omitempty"`
 	HTTPProtocol      *string           `json:"protocol,omitempty" toml:"protocol,omitempty"`
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
+	HTTPTLSServerName *string           `json:"tls_server_name,omitempty" toml:"tls_server_name,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
@@ -54,10 +52,9 @@ type HTTPService struct {
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
-	Concurrency        *api.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
-	TLSOptions         *api.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
-	HTTPOptions        *api.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
-	ProxyProtoOptions  *api.ProxyProtoOptions         `json:"proxy_proto_options,omitempty" toml:"proxy_proto_options,omitempty"`
+	Concurrency        *fly.MachineServiceConcurrency `toml:"concurrency,omitempty" json:"concurrency,omitempty"`
+	TLSOptions         *fly.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
+	HTTPOptions        *fly.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"checks,omitempty" toml:"checks,omitempty"`
 }
 
@@ -68,18 +65,16 @@ func (s *HTTPService) ToService() *Service {
 		Concurrency:  s.Concurrency,
 		Processes:    s.Processes,
 		HTTPChecks:   s.HTTPChecks,
-		Ports: []api.MachinePort{{
-			Port:              api.IntPointer(80),
-			Handlers:          []string{"http"},
-			ForceHTTPS:        s.ForceHTTPS,
-			HTTPOptions:       s.HTTPOptions,
-			ProxyProtoOptions: s.ProxyProtoOptions,
+		Ports: []fly.MachinePort{{
+			Port:        fly.IntPointer(80),
+			Handlers:    []string{"http"},
+			ForceHTTPS:  s.ForceHTTPS,
+			HTTPOptions: s.HTTPOptions,
 		}, {
-			Port:              api.IntPointer(443),
-			Handlers:          []string{"http", "tls"},
-			HTTPOptions:       s.HTTPOptions,
-			TLSOptions:        s.TLSOptions,
-			ProxyProtoOptions: s.ProxyProtoOptions,
+			Port:        fly.IntPointer(443),
+			Handlers:    []string{"http", "tls"},
+			HTTPOptions: s.HTTPOptions,
+			TLSOptions:  s.TLSOptions,
 		}},
 		AutoStopMachines:   s.AutoStopMachines,
 		AutoStartMachines:  s.AutoStartMachines,
@@ -95,8 +90,8 @@ func (c *Config) AllServices() (services []Service) {
 	return services
 }
 
-func (svc *Service) toMachineService() *api.MachineService {
-	s := &api.MachineService{
+func (svc *Service) toMachineService() *fly.MachineService {
+	s := &fly.MachineService{
 		Protocol:           svc.Protocol,
 		InternalPort:       svc.InternalPort,
 		Ports:              svc.Ports,
@@ -115,9 +110,9 @@ func (svc *Service) toMachineService() *api.MachineService {
 	return s
 }
 
-func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
-	return &api.MachineCheck{
-		Type:              api.Pointer("http"),
+func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineCheck {
+	return &fly.MachineCheck{
+		Type:              fly.Pointer("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
 		GracePeriod:       chk.GracePeriod,
@@ -125,9 +120,10 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *api.MachineCheck {
 		HTTPPath:          chk.HTTPPath,
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
+		HTTPTLSServerName: chk.HTTPTLSServerName,
 		HTTPHeaders: lo.MapToSlice(
-			chk.HTTPHeaders, func(k string, v string) api.MachineHTTPHeader {
-				return api.MachineHTTPHeader{Name: k, Values: []string{v}}
+			chk.HTTPHeaders, func(k string, v string) fly.MachineHTTPHeader {
+				return fly.MachineHTTPHeader{Name: k, Values: []string{v}}
 			}),
 	}
 }
@@ -136,9 +132,9 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 	return fmt.Sprintf("http-%d-%v", port, chk.HTTPMethod)
 }
 
-func (chk *ServiceTCPCheck) toMachineCheck() *api.MachineCheck {
-	return &api.MachineCheck{
-		Type:        api.Pointer("tcp"),
+func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineCheck {
+	return &fly.MachineCheck{
+		Type:        fly.Pointer("tcp"),
 		Interval:    chk.Interval,
 		Timeout:     chk.Timeout,
 		GracePeriod: chk.GracePeriod,
@@ -149,7 +145,7 @@ func (chk *ServiceTCPCheck) String(port int) string {
 	return fmt.Sprintf("tcp-%d", port)
 }
 
-func serviceFromMachineService(ms api.MachineService, processes []string) *Service {
+func serviceFromMachineService(ctx context.Context, ms fly.MachineService, processes []string) *Service {
 	var (
 		tcpChecks  []*ServiceTCPCheck
 		httpChecks []*ServiceHTTPCheck
@@ -159,9 +155,9 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 		case "tcp":
 			tcpChecks = append(tcpChecks, tcpCheckFromMachineCheck(check))
 		case "http":
-			httpChecks = append(httpChecks, httpCheckFromMachineCheck(check))
+			httpChecks = append(httpChecks, httpCheckFromMachineCheck(ctx, check))
 		default:
-			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type))
+			sentry.CaptureException(fmt.Errorf("unknown check type '%s' when converting from machine service", *check.Type), sentry.WithTraceID(ctx))
 		}
 	}
 	return &Service{
@@ -178,34 +174,33 @@ func serviceFromMachineService(ms api.MachineService, processes []string) *Servi
 	}
 }
 
-func tcpCheckFromMachineCheck(mc api.MachineCheck) *ServiceTCPCheck {
+func tcpCheckFromMachineCheck(mc fly.MachineCheck) *ServiceTCPCheck {
 	return &ServiceTCPCheck{
-		Interval:     mc.Interval,
-		Timeout:      mc.Timeout,
-		GracePeriod:  nil,
-		RestartLimit: 0,
+		Interval:    mc.Interval,
+		Timeout:     mc.Timeout,
+		GracePeriod: nil,
 	}
 }
 
-func httpCheckFromMachineCheck(mc api.MachineCheck) *ServiceHTTPCheck {
+func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *ServiceHTTPCheck {
 	headers := make(map[string]string)
 	for _, h := range mc.HTTPHeaders {
 		if len(h.Values) > 0 {
 			headers[h.Name] = h.Values[0]
 		}
 		if len(h.Values) > 1 {
-			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"))
+			sentry.CaptureException(fmt.Errorf("bug: more than one header value provided by MachineCheck, but can only support one value for fly.toml"), sentry.WithTraceID(ctx))
 		}
 	}
 	return &ServiceHTTPCheck{
 		Interval:          mc.Interval,
 		Timeout:           mc.Timeout,
 		GracePeriod:       nil,
-		RestartLimit:      0,
 		HTTPMethod:        mc.HTTPMethod,
 		HTTPPath:          mc.HTTPPath,
 		HTTPProtocol:      mc.HTTPProtocol,
 		HTTPTLSSkipVerify: mc.HTTPSkipTLSVerify,
+		HTTPTLSServerName: mc.HTTPTLSServerName,
 		HTTPHeaders:       headers,
 	}
 }

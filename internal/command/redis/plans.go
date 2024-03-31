@@ -6,7 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -32,7 +32,7 @@ func newPlans() (cmd *cobra.Command) {
 func runPlans(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API().GenqClient
+		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
 	_ = `# @genqlient

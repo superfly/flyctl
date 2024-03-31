@@ -5,9 +5,11 @@ package preflight
 
 import (
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -58,7 +60,7 @@ func TestPostgres_FlexFailover(t *testing.T) {
 
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
-	findLeaderID := func(ml []*api.Machine) string {
+	findLeaderID := func(ml []*fly.Machine) string {
 		for _, mach := range ml {
 			for _, chk := range mach.Checks {
 				if chk.Name == "role" && chk.Output == "primary" {
@@ -110,4 +112,69 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	require.Equal(f, 3, len(ml))
 	require.Equal(f, "shared-cpu-1x", ml[0].Config.Guest.ToSize())
 	f.Fly("config validate")
+}
+
+func TestPostgres_ImportSuccess(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	firstAppName := f.CreateRandomAppName()
+	secondAppName := f.CreateRandomAppName()
+
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
+		f.OrgSlug(), firstAppName, f.PrimaryRegion(),
+	)
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
+	)
+
+	f.Fly(
+		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'CREATE TABLE app_name (app_name TEXT)'\"",
+		firstAppName,
+	)
+	f.Fly(
+		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c \\\"INSERT INTO app_name VALUES ('%s')\\\"\"",
+		firstAppName, firstAppName,
+	)
+
+	f.Fly(
+		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/postgres",
+		secondAppName, f.PrimaryRegion(), firstAppName,
+	)
+
+	result := f.Fly(
+		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT app_name FROM app_name'\"",
+		secondAppName,
+	)
+	output := result.StdOut().String()
+	require.Contains(f, output, firstAppName)
+
+	// Wait for the importer machine to be destroyed.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(secondAppName)
+		require.Equal(c, 1, len(ml))
+	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+}
+
+func TestPostgres_ImportFailure(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+
+	result := f.FlyAllowExitFailure(
+		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
+		appName, f.PrimaryRegion(), appName,
+	)
+	require.NotEqual(f, 0, result.ExitCode())
+	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
+
+	// Wait for the importer machine to be destroyed.
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 1, len(ml))
+	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
 }

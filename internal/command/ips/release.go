@@ -6,7 +6,7 @@ import (
 	"net"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -14,11 +14,11 @@ import (
 
 func newRelease() *cobra.Command {
 	const (
-		long  = `Releases an IP address from the application`
-		short = `Release an IP address`
+		long  = `Releases one or more IP addresses from the application`
+		short = `Release IP addresses`
 	)
 
-	cmd := command.New("release [ADDRESS]", short, long, runReleaseIPAddress,
+	cmd := command.New("release [flags] ADDRESS ADDRESS ...", short, long, runReleaseIPAddress,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -28,25 +28,27 @@ func newRelease() *cobra.Command {
 		flag.AppConfig(),
 	)
 
-	cmd.Args = cobra.ExactArgs(1)
+	cmd.Args = cobra.MinimumNArgs(1)
 	return cmd
 }
 
 func runReleaseIPAddress(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
-	address := flag.Args(ctx)[0]
 
-	if ip := net.ParseIP(address); ip == nil {
-		return fmt.Errorf("Invalid IP address: '%s'", address)
+	for _, address := range flag.Args(ctx) {
+
+		if ip := net.ParseIP(address); ip == nil {
+			return fmt.Errorf("Invalid IP address: '%s'", address)
+		}
+
+		if err := client.ReleaseIPAddress(ctx, appName, address); err != nil {
+			return err
+		}
+
+		fmt.Printf("Released %s from %s\n", address, appName)
 	}
-
-	if err := client.ReleaseIPAddress(ctx, appName, address); err != nil {
-		return err
-	}
-
-	fmt.Printf("Released %s from %s\n", address, appName)
 
 	return nil
 }

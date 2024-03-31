@@ -15,7 +15,7 @@ import (
 
 	"github.com/pkg/sftp"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -44,12 +44,12 @@ func NewSFTP() *cobra.Command {
 
 func newSFTPShell() *cobra.Command {
 	const (
-		long  = `The SFTP SHELL command brings up an interactive SFTP session to fetch and push files from/to a VM:.`
+		long  = `The SFTP SHELL command brings up an interactive SFTP session to fetch and push files from/to a VM.`
 		short = long
 		usage = "shell"
 	)
 
-	cmd := command.New(usage, short, long, runShell, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runShell, command.RequireSession, command.RequireAppName)
 
 	stdArgsSSH(cmd)
 
@@ -63,7 +63,7 @@ func newFind() *cobra.Command {
 		usage = "find [path]"
 	)
 
-	cmd := command.New(usage, short, long, runLs, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runLs, command.RequireSession, command.RequireAppName)
 
 	stdArgsSSH(cmd)
 
@@ -77,7 +77,7 @@ func newGet() *cobra.Command {
 		usage = "get <path>"
 	)
 
-	cmd := command.New(usage, short, long, runGet, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd := command.New(usage, short, long, runGet, command.RequireSession, command.RequireAppName)
 
 	cmd.Args = cobra.MaximumNArgs(2)
 
@@ -87,7 +87,7 @@ func newGet() *cobra.Command {
 }
 
 func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
-	client := client.FromContext(ctx).API()
+	client := fly.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -111,11 +111,12 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		Dialer:         dialer,
 		Username:       DefaultSshUsername,
 		DisableSpinner: true,
+		AppNames:       []string{app.Name},
 	}
 
 	conn, err := Connect(params, addr)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, err
 	}
 

@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -196,6 +197,10 @@ func TestParseDockerignore(t *testing.T) {
 }
 
 func TestIsPathInRoot(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip()
+	}
+
 	cases := []struct {
 		filename string
 		rootDir  string

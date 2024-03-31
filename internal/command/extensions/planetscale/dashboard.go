@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
@@ -12,20 +13,31 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the PlanetScale database dashboard`
+		long = `Visit the PlanetScale MySQL database dashboard`
 
 		short = long
-		usage = "dashboard <database_name>"
+		usage = "dashboard [database_name]"
 	)
 
-	cmd = command.New(usage, short, long, runDashboard, command.RequireSession)
+	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
 
-	flag.Add(cmd)
-	cmd.Args = cobra.ExactArgs(1)
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		extensions_core.SharedFlags,
+	)
+	cmd.Args = cobra.MaximumNArgs(1)
 	return cmd
 }
 
 func runDashboard(ctx context.Context) (err error) {
-	err = extensions_core.OpenDashboard(ctx, flag.FirstArg(ctx))
+
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
+
+	if err != nil {
+		return err
+	}
+
+	err = extensions_core.OpenDashboard(ctx, extension.Name)
 	return
 }

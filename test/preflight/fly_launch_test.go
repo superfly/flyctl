@@ -4,13 +4,14 @@
 package preflight
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/jpillora/backoff"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
@@ -19,24 +20,28 @@ import (
 // - sourceInfo remote dockerfile vs local
 // END
 
-// Launch a new app and iterate rerunning `fly launch` to reuse the same app name and config
+// Launch a new app using `fly launch`
 //
 // - Create a V2 app
 // - Must contain [http_service] section (no [[services]])
 // - primary_region set and updated on subsequent 'fly launch --region other' calls
 // - Internal port is set in first call and not replaced unless --internal-port is passed again
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
-// - As we are reusing an existing app, the --org param is not needed after the first call
-func TestFlyLaunch_case01(t *testing.T) {
+func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
 	toml := f.UnmarshalFlyToml()
 	want := map[string]any{
 		"app":            appName,
 		"primary_region": f.PrimaryRegion(),
 		"build":          map[string]any{"image": "nginx"},
+		"vm": []any{map[string]any{
+			"cpu_kind": "shared",
+			"cpus":     int64(1),
+			"memory":   "1gb",
+		}},
 		"http_service": map[string]any{
 			"force_https":          true,
 			"internal_port":        int64(8080),
@@ -47,82 +52,10 @@ func TestFlyLaunch_case01(t *testing.T) {
 		},
 	}
 	require.EqualValues(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable", appName, f.SecondaryRegion())
-	toml = f.UnmarshalFlyToml()
-	want["primary_region"] = f.SecondaryRegion()
-	if build, ok := want["build"].(map[string]any); true {
-		require.True(f, ok)
-		build["image"] = "nginx:stable"
-	}
-	require.Equal(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999", appName)
-	toml = f.UnmarshalFlyToml()
-	if service, ok := want["http_service"].(map[string]any); true {
-		require.True(f, ok)
-		service["internal_port"] = int64(9999)
-	}
-	require.EqualValues(f, want, toml)
-}
-
-// Same as case01 but for Nomad apps
-func TestFlyLaunch_case02(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
-
-	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx --internal-port 80 --force-nomad", f.OrgSlug(), appName, f.PrimaryRegion())
-	toml := f.UnmarshalFlyToml()
-	want := map[string]any{
-		"app":            appName,
-		"build":          map[string]any{"image": "nginx"},
-		"env":            map[string]any{},
-		"experimental":   map[string]any{"auto_rollback": true},
-		"kill_signal":    "SIGINT",
-		"kill_timeout":   int64(5),
-		"primary_region": f.PrimaryRegion(),
-		"processes":      []any{},
-		"services": []map[string]any{{
-			"concurrency":   map[string]any{"hard_limit": int64(25), "soft_limit": int64(20), "type": "connections"},
-			"http_checks":   []any{},
-			"internal_port": int64(80),
-			"ports": []map[string]any{
-				{"force_https": true, "handlers": []any{"http"}, "port": int64(80)},
-				{"handlers": []any{"tls", "http"}, "port": int64(443)},
-			},
-			"processes":     []any{"app"},
-			"protocol":      "tcp",
-			"script_checks": []any{},
-			"tcp_checks": []map[string]any{{
-				"grace_period":  "1s",
-				"interval":      "15s",
-				"timeout":       "2s",
-				"restart_limit": int64(0),
-			}},
-		}},
-	}
-	require.EqualValues(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --region %s --image nginx:stable --force-nomad", appName, f.SecondaryRegion())
-	toml = f.UnmarshalFlyToml()
-	want["primary_region"] = f.SecondaryRegion()
-	if build, ok := want["build"].(map[string]any); true {
-		require.True(f, ok)
-		build["image"] = "nginx:stable"
-	}
-	require.EqualValues(f, want, toml)
-
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image nginx:stable --internal-port 9999 --force-nomad", appName)
-	toml = f.UnmarshalFlyToml()
-	if services, ok := want["services"].([]map[string]any); true {
-		require.True(f, ok)
-		services[0]["internal_port"] = int64(9999)
-	}
-	require.EqualValues(f, want, toml)
 }
 
 // Run fly launch from a template Fly App directory (fly.toml without app name)
-func TestFlyLaunch_case03(t *testing.T) {
+func TestFlyLaunchWithTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -135,7 +68,7 @@ func TestFlyLaunch_case03(t *testing.T) {
 	port = 5500
 	`)
 
-	f.Fly("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --no-deploy --org %s --name %s --region %s --ha=false --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
 	toml := f.UnmarshalFlyToml()
 	want := map[string]any{
 		"app":            appName,
@@ -144,21 +77,17 @@ func TestFlyLaunch_case03(t *testing.T) {
 		"checks": map[string]any{
 			"status": map[string]any{"type": "tcp", "port": int64(5500)},
 		},
-	}
-	require.EqualValues(f, want, toml)
-
-	// reuse the config and app but update the image
-	f.Fly("launch --no-deploy --reuse-app --copy-config --name %s --image superfly/postgres:14", appName)
-	toml = f.UnmarshalFlyToml()
-	if build, ok := want["build"].(map[string]any); true {
-		require.True(f, ok)
-		build["image"] = "superfly/postgres:14"
+		"vm": []any{map[string]any{
+			"cpu_kind": "shared",
+			"cpus":     int64(1),
+			"memory":   "1gb",
+		}},
 	}
 	require.EqualValues(f, want, toml)
 }
 
 // Trying to import an invalid fly.toml should fail before creating the app
-func TestFlyLaunch_case04(t *testing.T) {
+func TestFlyLaunchWithInvalidTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -170,36 +99,12 @@ app = "foo"
 	protocol = "tcp"
 	`)
 
-	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --force-machines --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `Can not use configuration for Apps V2, check fly.toml`)
-}
-
-// Fail if the existing app doesn't match the forced platform version
-// V2 app forced as V1
-func TestFlyLaunch_case05a(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-
-	appName := f.CreateRandomAppName()
-	f.Fly("apps create %s --machines -o %s", appName, f.OrgSlug())
-	x := f.FlyAllowExitFailure("launch --no-deploy --reuse-app --name %s --region %s --force-nomad", appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `--force-nomad won't work for existing app in machines platform`)
-}
-
-// V1 app forced as V2
-func TestFlyLaunch_case05b(t *testing.T) {
-	f := testlib.NewTestEnvFromEnv(t)
-
-	appName := f.CreateRandomAppName()
-	// Sadly creating a new app with --nomad doesn't set its platform to Nomad until first deploy
-	f.Fly("apps create %s -o %s --nomad", appName, f.OrgSlug())
-	f.Fly("launch --now --image nginx --name %s --reuse-app --region=%s --force-nomad", appName, f.PrimaryRegion())
-
-	x := f.FlyAllowExitFailure("launch --no-deploy --copy-config=false --reuse-app --name %s --region %s --force-machines", appName, f.PrimaryRegion())
-	require.Contains(f, x.StdErr().String(), `--force-machines won't work for existing app in nomad platform`)
+	x := f.FlyAllowExitFailure("launch --no-deploy --org %s --name %s --region %s --ha=false --copy-config", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.Contains(f, x.StdErrString(), `can not use configuration for Fly Launch, check fly.toml`)
 }
 
 // test --generate-name, --name and reuse imported name
-func TestFlyLaunch_case06(t *testing.T) {
+func TestFlyLaunchReuseName(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// V2 app forced as V1
@@ -230,7 +135,7 @@ primary_region = "%s"
 }
 
 // test volumes are created on first launch
-func TestFlyLaunch_case07(t *testing.T) {
+func TestFlyLaunchWithVolumes(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -254,16 +159,16 @@ func TestFlyLaunch_case07(t *testing.T) {
 	processes = ["other"]
 `)
 
-	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
 }
 
 // test --vm-size sets the machine guest on first deploy
-func TestFlyLaunch_case08(t *testing.T) {
+func TestFlyLaunchWithSize(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"launch --ha=false --now -o %s --name %s --region %s --force-machines --image nginx --vm-size shared-cpu-4x",
+		"launch --ha=false --now -o %s --name %s --region %s --ha=false --image nginx --vm-size shared-cpu-4x",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
@@ -273,7 +178,7 @@ func TestFlyLaunch_case08(t *testing.T) {
 }
 
 // test default HA setup
-func TestFlyLaunch_case09(t *testing.T) {
+func TestFlyLaunchHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -298,16 +203,16 @@ func TestFlyLaunch_case09(t *testing.T) {
 	processes = ["app"]
 `)
 
-	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
-	time.Sleep(500 * time.Millisecond)
-	ml := f.MachinesList(appName)
-	b := &backoff.Backoff{Factor: 2, Jitter: true, Min: 100 * time.Millisecond, Max: 3 * time.Second}
-	for i := 0; len(ml) < 5 || i < 5; i++ {
-		time.Sleep(b.Duration())
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	var ml []*fly.Machine
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml = f.MachinesList(appName)
-	}
-	require.Equal(f, 5, len(ml), "want 5 machines, which includes two standbys")
-	groups := lo.GroupBy(ml, func(m *api.Machine) string {
+		assert.Equal(c, 5, len(ml), "want 5 machines, which includes two standbys")
+	}, 10*time.Second, 1*time.Second)
+
+	groups := lo.GroupBy(ml, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
 
@@ -316,19 +221,21 @@ func TestFlyLaunch_case09(t *testing.T) {
 	require.Equal(f, 2, len(groups["task"]))
 	require.Equal(f, 1, len(groups["disk"]))
 
-	isStandby := func(m *api.Machine) bool { return len(m.Config.Standbys) > 0 }
+	isStandby := func(m *fly.Machine) bool { return len(m.Config.Standbys) > 0 }
+
 	require.Equal(f, 0, lo.CountBy(groups["app"], isStandby))
 	require.Equal(f, 1, lo.CountBy(groups["task"], isStandby))
 	require.Equal(f, 0, lo.CountBy(groups["disk"], isStandby))
 
-	hasServices := func(m *api.Machine) bool { return len(m.Config.Services) > 0 }
+	hasServices := func(m *fly.Machine) bool { return len(m.Config.Services) > 0 }
+
 	require.Equal(f, 2, lo.CountBy(groups["app"], hasServices))
 	require.Equal(f, 0, lo.CountBy(groups["task"], hasServices))
 	require.Equal(f, 0, lo.CountBy(groups["disk"], hasServices))
 }
 
 // test first deploy with single mount for multiple processes
-func TestFlyLaunch_case10(t *testing.T) {
+func TestFlyLaunchSingleMount(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -346,9 +253,58 @@ func TestFlyLaunch_case10(t *testing.T) {
 	processes = ["app", "task"]
 `)
 
-	f.Fly("launch --now --copy-config -o %s --name %s --region %s --force-machines", f.OrgSlug(), appName, f.PrimaryRegion())
-	ml := f.MachinesList(appName)
-	require.Equal(f, 2, len(ml))
-	vl := f.VolumeList(appName)
-	require.Equal(f, 2, len(vl))
+	f.Fly("launch --now --copy-config -o %s --name %s --region %s", f.OrgSlug(), appName, f.PrimaryRegion())
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ml := f.MachinesList(appName)
+		assert.Equal(c, 2, len(ml))
+	}, 15*time.Second, 1*time.Second, "want 2 machines, one for each process")
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		vl := f.VolumeList(appName)
+		assert.Equal(c, 2, len(vl))
+	}, 15*time.Second, 1*time.Second, "want 2 volumes, one for each process")
+}
+
+func TestFlyLaunchWithBuildSecrets(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	// secrets are mounted under /run/secrets by default.
+	// https://docs.docker.com/engine/reference/builder/#run---mounttypesecret
+	f.WriteFile("Dockerfile", `FROM nginx
+RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
+`)
+
+	f.Fly("launch --org %s --name %s --region %s --internal-port 80 --ha=false --now --build-secret secret1=SECRET1 --remote-only", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		ssh := f.Fly("ssh console -C 'cat /tmp/secrets.txt'")
+		assert.Equal(c, "SECRET1", ssh.StdOut().String())
+	}, 10*time.Second, 1*time.Second)
+}
+
+func TestFlyLaunchBasicNodeApp(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	require.NoError(t, err)
+
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+
+	appName := f.CreateRandomAppName()
+	require.NotEmpty(t, appName)
+
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app":    appName,
+		"region": f.PrimaryRegion(),
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
+
+	f.Fly("launch --ha=false --copy-config --name %s --region %s --org %s --now", appName, f.PrimaryRegion(), f.OrgSlug())
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }

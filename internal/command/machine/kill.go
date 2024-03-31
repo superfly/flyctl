@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
@@ -16,7 +16,7 @@ func newKill() *cobra.Command {
 		short = "Kill (SIGKILL) a Fly machine"
 		long  = short + "\n"
 
-		usage = "kill <id>"
+		usage = "kill [id]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineKill,
@@ -41,7 +41,7 @@ func runMachineKill(ctx context.Context) (err error) {
 
 	machineID := flag.FirstArg(ctx)
 	haveMachineID := len(flag.Args(ctx)) > 0
-	current, ctx, err := selectOneMachine(ctx, nil, machineID, haveMachineID)
+	current, ctx, err := selectOneMachine(ctx, "", machineID, haveMachineID)
 	if err != nil {
 		return err
 	}

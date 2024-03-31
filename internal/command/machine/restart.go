@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	mach "github.com/superfly/flyctl/internal/machine"
@@ -18,7 +18,7 @@ func newRestart() *cobra.Command {
 		short = "Restart one or more Fly machines"
 		long  = short + "\n"
 
-		usage = "restart <id> [<id>...]"
+		usage = "restart [<id>...]"
 	)
 
 	cmd := command.New(usage, short, long, runMachineRestart,
@@ -64,7 +64,7 @@ func runMachineRestart(ctx context.Context) error {
 	)
 
 	// Resolve flags
-	input := &api.RestartMachineInput{
+	input := &fly.RestartMachineInput{
 		Timeout:          time.Duration(timeout) * time.Second,
 		ForceStop:        flag.GetBool(ctx, "force"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
@@ -78,7 +78,7 @@ func runMachineRestart(ctx context.Context) error {
 
 	// Acquire leases
 	machines, releaseLeaseFunc, err := mach.AcquireLeases(ctx, machines)
-	defer releaseLeaseFunc(ctx, machines)
+	defer releaseLeaseFunc()
 	if err != nil {
 		return err
 	}

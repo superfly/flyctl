@@ -3,17 +3,16 @@ package apps
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -40,18 +39,18 @@ be shown with its name, owner and when it was last deployed.
 }
 
 func runList(ctx context.Context) (err error) {
-	client := client.FromContext(ctx)
+	client := fly.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
 
-	var apps []api.App
+	var apps []fly.App
 	if org != nil {
-		apps, err = client.API().GetAppsForOrganization(ctx, org.ID)
+		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 	} else {
-		apps, err = client.API().GetApps(ctx, nil)
+		apps, err = client.GetApps(ctx, nil)
 	}
 
 	if err != nil {
@@ -65,6 +64,8 @@ func runList(ctx context.Context) (err error) {
 		return
 	}
 
+	verbose := flag.GetBool(ctx, "verbose")
+
 	rows := make([][]string, 0, len(apps))
 	for _, app := range apps {
 		latestDeploy := ""
@@ -72,23 +73,27 @@ func runList(ctx context.Context) (err error) {
 			latestDeploy = format.RelativeTime(app.CurrentRelease.CreatedAt)
 		}
 
+		if !verbose && strings.HasPrefix(app.Name, "flyctl-interactive-shells-") {
+			app.Name = "(interactive shells app)"
+		}
+
 		rows = append(rows, []string{
 			app.Name,
 			app.Organization.Slug,
 			app.Status,
-			app.PlatformVersion,
 			latestDeploy,
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Platform", "Latest Deploy")
+	_ = render.Table(out, "", rows, "Name", "Owner", "Status", "Latest Deploy")
 
 	return
 }
 
-func getOrg(ctx context.Context) (*api.Organization, error) {
-	client := client.FromContext(ctx).API()
-	orgName := flag.GetString(ctx, flagnames.Org)
+func getOrg(ctx context.Context) (*fly.Organization, error) {
+	client := fly.ClientFromContext(ctx)
+
+	orgName := flag.GetOrg(ctx)
 
 	if orgName == "" {
 		return nil, nil

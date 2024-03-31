@@ -33,8 +33,11 @@ out
 /.idea/modules.xml
 /.idea/vcs.xml
 .vscode/launch.json
-fly.toml
 .DS_Store
 
 .direnv/
 /ci-preflight-test-results.njson
+.tool-versions
+
+# generated release meta
+release.json

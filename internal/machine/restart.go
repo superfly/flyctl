@@ -5,27 +5,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func RollingRestart(ctx context.Context, input *api.RestartMachineInput) error {
-	machines, releaseFunc, err := AcquireAllLeases(ctx)
-	defer releaseFunc(ctx, machines)
-	if err != nil {
-		return err
-	}
-
-	for _, m := range machines {
-		Restart(ctx, m, input, m.LeaseNonce)
-	}
-
-	return nil
-}
-
-func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput, nonce string) error {
+func Restart(ctx context.Context, m *fly.Machine, input *fly.RestartMachineInput, nonce string) error {
 	var (
 		flapsClient = flaps.FromContext(ctx)
 		io          = iostreams.FromContext(ctx)
@@ -38,12 +24,12 @@ func Restart(ctx context.Context, m *api.Machine, input *api.RestartMachineInput
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 
-	if err := WaitForStartOrStop(ctx, &api.Machine{ID: input.ID}, "start", time.Minute*5); err != nil {
+	if err := WaitForStartOrStop(ctx, &fly.Machine{ID: input.ID}, "start", time.Minute*5); err != nil {
 		return err
 	}
 
 	if !input.SkipHealthChecks {
-		if err := watch.MachinesChecks(ctx, []*api.Machine{m}); err != nil {
+		if err := watch.MachinesChecks(ctx, []*fly.Machine{m}); err != nil {
 			return fmt.Errorf("failed to wait for health checks to pass: %w", err)
 		}
 	}

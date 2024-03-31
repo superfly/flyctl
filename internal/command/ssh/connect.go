@@ -10,9 +10,8 @@ import (
 
 	"github.com/briandowns/spinner"
 	"github.com/pkg/errors"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ssh"
@@ -21,18 +20,18 @@ import (
 
 const DefaultSshUsername = "root"
 
-func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, quiet bool) (*agent.Client, agent.Dialer, error) {
+func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, quiet bool) (*agent.Client, agent.Dialer, error) {
 	io := iostreams.FromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, nil, errors.Wrap(err, "can't establish agent")
 	}
 
 	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
 	if err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, nil, fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
 	}
 
@@ -40,7 +39,7 @@ func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, 
 		io.StartProgressIndicatorMsg("Connecting to tunnel")
 	}
 	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
-		captureError(err, app)
+		captureError(ctx, err, app)
 		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
 	}
 	if !quiet {
@@ -52,16 +51,17 @@ func BringUpAgent(ctx context.Context, client *api.Client, app *api.AppCompact, 
 
 type ConnectParams struct {
 	Ctx            context.Context
-	Org            api.OrganizationImpl
+	Org            fly.OrganizationImpl
 	Username       string
 	Dialer         agent.Dialer
 	DisableSpinner bool
+	AppNames       []string
 }
 
 func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, p.AppNames)
 	if err != nil {
 		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
@@ -100,8 +100,8 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	return sshClient, nil
 }
 
-func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*api.IssuedCertificate, ed25519.PrivateKey, error) {
-	client := client.FromContext(ctx).API()
+func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appNames []string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
+	client := fly.ClientFromContext(ctx)
 	hours := 1
 
 	pub, priv, err := ed25519.GenerateKey(nil)
@@ -109,7 +109,7 @@ func singleUseSSHCertificate(ctx context.Context, org api.OrganizationImpl) (*ap
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, nil, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, appNames, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func newImport() *cobra.Command {
@@ -78,8 +76,7 @@ func newImport() *cobra.Command {
 
 func runImport(ctx context.Context) error {
 	var (
-		io      = iostreams.FromContext(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 
 		sourceURI = flag.FirstArg(ctx)
@@ -96,13 +93,28 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to resolve app: %w", err)
 	}
 
-	if app.PlatformVersion != "machines" {
-		return fmt.Errorf("This feature is only available on our Machines platform")
-	}
-
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("could not retrieve machines: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines are available on this app %s", appName)
+	}
+	leader, _ := machinesNodeRoles(ctx, machines)
+	machineID := leader.ID
 
 	// Resolve region
 	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
@@ -131,23 +143,23 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to build context: %s", err)
 	}
 
-	flapsClient := flaps.FromContext(ctx)
-
-	machineConfig := &api.MachineConfig{
+	machineConfig := &fly.MachineConfig{
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": "pass",
+			"PG_MACHINE_ID":     machineID,
 		},
-		Guest: &api.MachineGuest{
+		Guest: &fly.MachineGuest{
 			CPUKind:  vmSize.CPUClass,
 			CPUs:     int(vmSize.CPUCores),
 			MemoryMB: vmSize.MemoryMB,
 		},
-		DNS: &api.DNSConfig{
+		DNS: &fly.DNSConfig{
 			SkipRegistration: true,
 		},
-		Restart: api.MachineRestart{
-			Policy: api.MachineRestartPolicyNo,
+		Restart: &fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
 		},
+		AutoDestroy: true,
 	}
 
 	// If a custom migration image is not specified, resolve latest managed image.
@@ -159,22 +171,20 @@ func runImport(ctx context.Context) error {
 	}
 	machineConfig.Image = imageRef
 
-	launchInput := api.LaunchMachineInput{
-		Region: region.Code,
-		Config: machineConfig,
+	ephemeralInput := &mach.EphemeralInput{
+		LaunchInput: fly.LaunchMachineInput{
+			Region: region.Code,
+			Config: machineConfig,
+		},
+		What: "to run the import process",
 	}
 
-	// Create emphemeral machine
-	machine, err := flapsClient.Launch(ctx, launchInput)
+	// Create ephemeral machine
+	machine, cleanup, err := mach.LaunchEphemeral(ctx, ephemeralInput)
 	if err != nil {
 		return err
 	}
-
-	fmt.Fprintf(io.Out, "Waiting for machine %s to start...\n", machine.ID)
-	err = mach.WaitForStartOrStop(ctx, machine, "start", time.Minute*1)
-	if err != nil {
-		return err
-	}
+	defer cleanup()
 
 	// Initiate migration process
 	err = ssh.SSHConnect(&ssh.SSHParams{
@@ -190,23 +200,6 @@ func runImport(ctx context.Context) error {
 	}, machine.PrivateIP)
 	if err != nil {
 		return fmt.Errorf("failed to run ssh: %s", err)
-	}
-
-	// Stop Machine
-	if err := flapsClient.Stop(ctx, api.StopMachineInput{ID: machine.ID}, machine.LeaseNonce); err != nil {
-		return err
-	}
-
-	fmt.Fprintf(io.Out, "Waiting for machine %s to stop...\n", machine.ID)
-	err = mach.WaitForStartOrStop(ctx, machine, "stop", time.Minute*1)
-	if err != nil {
-		return fmt.Errorf("failed waiting for machine %s to stop: %s", machine.ID, err)
-	}
-
-	// Destroy machine
-	fmt.Fprintf(io.Out, "%s has been destroyed\n", machine.ID)
-	if err := flapsClient.Destroy(ctx, api.RemoveMachineInput{ID: machine.ID}, machine.LeaseNonce); err != nil {
-		return fmt.Errorf("failed to destroy machine %s: %s", machine.ID, err)
 	}
 
 	// Unset secret
@@ -226,19 +219,8 @@ func resolveImportCommand(ctx context.Context) string {
 		dataOnly = flag.GetBool(ctx, "data-only")
 	)
 
-	importCmd := "migrate "
-	if noOwner {
-		importCmd = importCmd + " -no-owner"
-	}
-	if clean {
-		importCmd = importCmd + " -clean"
-	}
-	if create {
-		importCmd = importCmd + " -create"
-	}
-	if dataOnly {
-		importCmd = importCmd + " -data-only"
-	}
-
-	return importCmd
+	return fmt.Sprintf(
+		"migrate -no-owner=%v -create=%v -clean=%v -data-only=%v",
+		noOwner, create, clean, dataOnly,
+	)
 }

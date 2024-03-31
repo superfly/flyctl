@@ -8,10 +8,9 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
@@ -59,7 +58,7 @@ func newConnect() *cobra.Command {
 
 func runConnect(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = fly.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -77,17 +76,10 @@ func runConnect(ctx context.Context) error {
 		return err
 	}
 
-	switch app.PlatformVersion {
-	case "machines":
-		return runMachineConnect(ctx, app)
-	case "nomad":
-		return runNomadConnect(ctx, app)
-	default:
-		return fmt.Errorf("unknown platform version")
-	}
+	return runMachineConnect(ctx, app)
 }
 
-func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
+func runMachineConnect(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		MinPostgresHaVersion         = "0.0.9"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -124,50 +116,4 @@ func runMachineConnect(ctx context.Context, app *api.AppCompact) error {
 		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
 		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
 	}, leader.PrivateIP)
-}
-
-func runNomadConnect(ctx context.Context, app *api.AppCompact) error {
-	var (
-		client = client.FromContext(ctx).API()
-
-		MinPostgresStandaloneVersion = "0.0.4"
-		MinPostgresHaVersion         = "0.0.9"
-
-		database = flag.GetString(ctx, "database")
-		user     = flag.GetString(ctx, "user")
-		password = flag.GetString(ctx, "password")
-	)
-
-	if err := hasRequiredVersionOnNomad(app, MinPostgresHaVersion, MinPostgresStandaloneVersion); err != nil {
-		return err
-	}
-
-	agentclient, err := agent.Establish(ctx, client)
-	if err != nil {
-		return fmt.Errorf("failed to establish agent: %w", err)
-	}
-
-	pgInstances, err := agentclient.Instances(ctx, app.Organization.Slug, app.Name)
-	if err != nil {
-		return fmt.Errorf("failed to lookup 6pn ip for %s app: %v", app.Name, err)
-	}
-	if len(pgInstances.Addresses) == 0 {
-		return fmt.Errorf("no 6pn ips found for %s app", app.Name)
-	}
-	leaderIP, err := leaderIpFromNomadInstances(ctx, pgInstances.Addresses)
-	if err != nil {
-		return err
-	}
-
-	return ssh.SSHConnect(&ssh.SSHParams{
-		Ctx:      ctx,
-		Org:      app.Organization,
-		Dialer:   agent.DialerFromContext(ctx),
-		App:      app.Name,
-		Username: ssh.DefaultSshUsername,
-		Cmd:      fmt.Sprintf("connect %s %s %s", database, user, password),
-		Stdin:    os.Stdin,
-		Stdout:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStdout(), func() error { return nil }),
-		Stderr:   ioutils.NewWriteCloserWrapper(colorable.NewColorableStderr(), func() error { return nil }),
-	}, leaderIP)
 }

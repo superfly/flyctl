@@ -1,7 +1,5 @@
 package buildinfo
 
-var environment = "development"
-
 func Environment() string {
 	return environment
 }

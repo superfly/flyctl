@@ -8,6 +8,8 @@ import (
 	"text/template"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 //go:embed templates templates/*/.dockerignore templates/**/.fly
@@ -32,6 +34,15 @@ type MergeConfigStruct struct {
 	Temporary bool
 }
 
+type DatabaseKind int
+
+const (
+	DatabaseKindNone DatabaseKind = iota
+	DatabaseKindPostgres
+	DatabaseKindMySQL
+	DatabaseKindSqlite
+)
+
 type SourceInfo struct {
 	Family                       string
 	Version                      string
@@ -42,6 +53,7 @@ type SourceInfo struct {
 	DockerCommand                string
 	DockerEntrypoint             string
 	KillSignal                   string
+	SwapSizeMB                   int
 	Buildpacks                   []string
 	Secrets                      []Secret
 	Files                        []SourceFile
@@ -58,26 +70,26 @@ type SourceInfo struct {
 	InitCommands                 []InitCommand
 	PostgresInitCommands         []InitCommand
 	PostgresInitCommandCondition bool
+	DatabaseDesired              DatabaseKind
+	RedisDesired                 bool
 	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, options map[string]bool) error
+	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error
 	HttpCheckPath                string
+	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
+	AutoInstrumentErrors         bool
 }
 
 type SourceFile struct {
 	Path     string
 	Contents []byte
 }
-type Static struct {
-	GuestPath string `toml:"guest_path" json:"guest_path"`
-	UrlPrefix string `toml:"url_prefix" json:"url_prefix"`
-}
-type Volume struct {
-	Source      string   `toml:"source" json:"source,omitempty"`
-	Destination string   `toml:"destination" json:"destination,omitempty"`
-	Processes   []string `json:"processes,omitempty" toml:"processes,omitempty"`
-}
+
+type Static = appconfig.Static
+
+type Volume = appconfig.Mount
+
 type ScannerConfig struct {
 	Mode         string
 	ExistingPort int
@@ -90,7 +102,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configurePhoenix,
 		configureRails,
 		configureRedwood,
-		configureNodeFramework,
+		configureJsFramework,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
@@ -99,12 +111,14 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
+		configureFlask,
 		configurePython,
 		configureDeno,
 		configureNuxt,
 		configureNextJs,
 		configureNode,
 		configureStatic,
+		configureDotnet,
 	}
 
 	for _, scanner := range scanners {
@@ -135,7 +149,6 @@ func templatesExecute(name string, vars map[string]interface{}) (files []SourceF
 		template := template.Must(template.New("name").Parse(string(input)))
 		result := strings.Builder{}
 		err := template.Execute(&result, vars)
-
 		if err != nil {
 			panic(err)
 		}

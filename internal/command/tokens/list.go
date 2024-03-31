@@ -3,8 +3,9 @@ package tokens
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
@@ -28,7 +29,6 @@ func newList() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
-		flag.JSONOutput(),
 		flag.String{
 			Name:        "scope",
 			Shorthand:   "s",
@@ -41,7 +41,7 @@ func newList() *cobra.Command {
 }
 
 func runList(ctx context.Context) (err error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	var rows [][]string
 
@@ -53,25 +53,25 @@ func runList(ctx context.Context) (err error) {
 			return command.ErrRequireAppName
 		}
 
-		app, err := apiClient.GetApp(ctx, appName)
+		tokens, err := apiClient.GetAppLimitedAccessTokens(ctx, appName)
 		if err != nil {
-			return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			return fmt.Errorf("failed retrieving tokens for app %s: %w", appName, err)
 		}
 
-		for _, token := range app.LimitedAccessTokens.Nodes {
-			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
+		for _, token := range tokens {
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
 
 	case "org":
-		org, err := orgs.OrgFromFirstArgOrSelect(ctx)
+		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
 		for _, token := range org.LimitedAccessTokens.Nodes {
-			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
 	}
-	_ = render.Table(out, "", rows, "ID", "Name", "Expires At")
+	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At")
 	return nil
 }

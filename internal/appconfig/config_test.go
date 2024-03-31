@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 )
 
@@ -133,18 +133,6 @@ func TestConfigPortGetter(t *testing.T) {
 func TestCloneAppconfig(t *testing.T) {
 	config := &Config{
 		AppName: "testcfg",
-		RawDefinition: map[string]any{
-			"mounts": []Mount{
-				{
-					Source:      "src-raw",
-					Destination: "dst-raw",
-				},
-				{
-					Source:      "src2",
-					Destination: "dst2",
-				},
-			},
-		},
 		Mounts: []Mount{{
 			Source:      "src",
 			Destination: "dst",
@@ -170,37 +158,37 @@ func TestHasNonHttpAndHttpsStandardServices(t *testing.T) {
 	port443 := 443
 
 	cfg1 := NewConfig()
-	cfg1.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+	cfg1.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port80, Handlers: []string{"http"}},
 	}}}
 	assert.False(t, cfg1.HasNonHttpAndHttpsStandardServices())
 
 	cfg2 := NewConfig()
-	cfg2.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+	cfg2.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "http"}},
 	}}}
 	assert.False(t, cfg2.HasNonHttpAndHttpsStandardServices())
 
 	cfg3 := NewConfig()
-	cfg3.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+	cfg3.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"http", "tls"}},
 	}}}
 	assert.False(t, cfg3.HasNonHttpAndHttpsStandardServices())
 
 	cfg4 := NewConfig()
-	cfg4.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+	cfg4.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "weird"}},
 	}}}
 	assert.True(t, cfg4.HasNonHttpAndHttpsStandardServices())
 
 	cfg5 := NewConfig()
-	cfg5.Services = []Service{{Protocol: "tcp", Ports: []api.MachinePort{
+	cfg5.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls"}},
 	}}}
 	assert.True(t, cfg5.HasNonHttpAndHttpsStandardServices())
 
 	cfg6 := NewConfig()
-	cfg6.Services = []Service{{Protocol: "udp", Ports: []api.MachinePort{
+	cfg6.Services = []Service{{Protocol: "udp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "http"}},
 	}}}
 	assert.True(t, cfg6.HasNonHttpAndHttpsStandardServices())
@@ -217,10 +205,10 @@ func TestURL(t *testing.T) {
 	cfg.AppName = "test"
 	cfg.Services = []Service{{
 		Protocol: "tcp",
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80), Handlers: []string{"http"},
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(80), Handlers: []string{"http"},
 		}, {
-			Port: api.Pointer(443), Handlers: []string{"http", "tls"},
+			Port: fly.Pointer(443), Handlers: []string{"http", "tls"},
 		}},
 	}}
 	assert.Equal(t, "https://test.fly.dev/", cfg.URL().String())
@@ -230,10 +218,10 @@ func TestURL(t *testing.T) {
 	cfg.AppName = "test"
 	cfg.Services = []Service{{
 		Protocol: "tcp",
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80), Handlers: []string{"http"},
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(80), Handlers: []string{"http"},
 		}, {
-			Port: api.Pointer(443), Handlers: []string{"tls"},
+			Port: fly.Pointer(443), Handlers: []string{"tls"},
 		}},
 	}}
 	assert.Equal(t, "http://test.fly.dev/", cfg.URL().String())
@@ -243,10 +231,10 @@ func TestURL(t *testing.T) {
 	cfg.AppName = "test"
 	cfg.Services = []Service{{
 		Protocol: "tcp",
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80), Handlers: []string{"http"},
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(80), Handlers: []string{"http"},
 		}, {
-			Port: api.Pointer(3443), Handlers: []string{"tls", "http"},
+			Port: fly.Pointer(3443), Handlers: []string{"tls", "http"},
 		}},
 	}}
 	assert.Equal(t, "http://test.fly.dev/", cfg.URL().String())
@@ -256,10 +244,10 @@ func TestURL(t *testing.T) {
 	cfg.AppName = "test"
 	cfg.Services = []Service{{
 		Protocol: "tcp",
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(8080), Handlers: []string{"http"},
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(8080), Handlers: []string{"http"},
 		}, {
-			Port: api.Pointer(3443), Handlers: []string{"tls", "http"},
+			Port: fly.Pointer(3443), Handlers: []string{"tls", "http"},
 		}},
 	}}
 	assert.Equal(t, "https://test.fly.dev:3443/", cfg.URL().String())
@@ -269,8 +257,8 @@ func TestURL(t *testing.T) {
 	cfg.AppName = "test"
 	cfg.Services = []Service{{
 		Protocol: "tcp",
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(8080), Handlers: []string{"http"},
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(8080), Handlers: []string{"http"},
 		}},
 	}}
 	assert.Equal(t, "http://test.fly.dev:8080/", cfg.URL().String())
@@ -280,10 +268,10 @@ func TestURL(t *testing.T) {
 	cfg.AppName = "test"
 	cfg.Services = []Service{{
 		Protocol: "tcp",
-		Ports: []api.MachinePort{{
-			Port: api.Pointer(80), Handlers: []string{"fancy"},
+		Ports: []fly.MachinePort{{
+			Port: fly.Pointer(80), Handlers: []string{"fancy"},
 		}, {
-			Port: api.Pointer(443), Handlers: []string{"foo"},
+			Port: fly.Pointer(443), Handlers: []string{"foo"},
 		}},
 	}}
 	assert.Nil(t, cfg.URL())

@@ -9,8 +9,7 @@ import (
 	"text/template"
 
 	"github.com/AlecAivazis/survey/v2"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -31,7 +30,7 @@ func argOrPrompt(ctx context.Context, nth int, prompt string) (string, error) {
 	return val, err
 }
 
-func orgByArg(ctx context.Context) (*api.Organization, error) {
+func orgByArg(ctx context.Context) (*fly.Organization, error) {
 	args := flag.Args(ctx)
 
 	if len(args) == 0 {
@@ -43,7 +42,7 @@ func orgByArg(ctx context.Context) (*api.Organization, error) {
 		return org, nil
 	}
 
-	apiClient := client.FromContext(ctx).API()
+	apiClient := fly.ClientFromContext(ctx)
 	return apiClient.GetOrganizationBySlug(ctx, args[0])
 }
 
@@ -76,7 +75,7 @@ func resolveOutputWriter(ctx context.Context, idx int, prompt string) (w io.Writ
 	}
 }
 
-func generateWgConf(peer *api.CreatedWireGuardPeer, privkey string, w io.Writer) {
+func generateWgConf(peer *fly.CreatedWireGuardPeer, privkey string, w io.Writer) {
 	templateStr := `
 [Interface]
 PrivateKey = {{.Meta.Privkey}}
@@ -91,7 +90,7 @@ PersistentKeepalive = 15
 
 `
 	data := struct {
-		Peer *api.CreatedWireGuardPeer
+		Peer *fly.CreatedWireGuardPeer
 		Meta struct {
 			Privkey    string
 			AllowedIPs string
@@ -118,7 +117,7 @@ PersistentKeepalive = 15
 	tmpl.Execute(w, &data)
 }
 
-func selectWireGuardPeer(ctx context.Context, client *api.Client, slug string) (string, error) {
+func selectWireGuardPeer(ctx context.Context, client *fly.Client, slug string) (string, error) {
 	peers, err := client.GetWireGuardPeers(ctx, slug)
 	if err != nil {
 		return "", err
