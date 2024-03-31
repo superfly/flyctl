@@ -222,8 +222,19 @@ func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPl
 
 	client := fly.ClientFromContext(ctx)
 
-	// All new databases are pay-as-you-go
-	planId := redisPlanPayAsYouGo
+	// List redis instances
+	// If there's already a redis instance in the org, return the "Pay-as-you-go" plan
+	// Otherwise, return the "Free" plan
+
+	planId := redisPlanFree
+	listRedisResp, err := gql.ListAddOns(ctx, client.GenqClient, "redis")
+	if err != nil {
+		return nil, err
+	}
+
+	if len(listRedisResp.AddOns.Nodes) != 0 {
+		planId = redisPlanPayAsYouGo
+	}
 
 	// Now that we have the Plan ID, look up the actual plan
 	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient)
