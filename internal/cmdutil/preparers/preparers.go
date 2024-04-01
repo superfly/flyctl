@@ -2,9 +2,7 @@ package preparers
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -33,19 +31,10 @@ type Preparer func(context.Context) (context.Context, error)
 func LoadConfig(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
-	cfg := config.New()
-
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	cfg, err := config.Load(ctx, filepath.Join(state.ConfigDirectory(ctx), config.FileName))
+	if err != nil {
 		return nil, err
 	}
-
-	// Apply config from the environment, overriding anything from the file
-	cfg.ApplyEnv()
-
-	// Finally, apply command line options, overriding any previous setting
-	cfg.ApplyFlags(flagctx.FromContext(ctx))
 
 	logger.Debug("config initialized.")
 
