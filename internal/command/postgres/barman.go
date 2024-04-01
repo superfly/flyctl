@@ -188,7 +188,10 @@ func runBarmanCreate(ctx context.Context) error {
 	}
 
 	// Restart policy
-	machineConfig.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyAlways}
+	machineConfig.Restart.Policy = fly.MachineRestartPolicyAlways
+	machineConfig.Restart = &fly.MachineRestart{
+		Policy: fly.MachineRestartPolicyAlways,
+	}
 
 	imageRepo := "flyio/postgres-flex"
 
