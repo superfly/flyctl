@@ -64,10 +64,10 @@ const (
 	AddOnTypeSupabase AddOnType = "supabase"
 	// A Tigris Data bucket
 	AddOnTypeTigris AddOnType = "tigris"
-	// An Upstash Redis database
-	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 	// An Upstash Kafka cluster
 	AddOnTypeUpstashKafka AddOnType = "upstash_kafka"
+	// An Upstash Redis database
+	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
@@ -977,6 +977,7 @@ type CreateAppInput struct {
 	AppRoleId string `json:"appRoleId"`
 	// A unique identifier for the client performing the mutation.
 	ClientMutationId string `json:"clientMutationId"`
+	EnableSubdomains bool   `json:"enableSubdomains"`
 	Heroku           bool   `json:"heroku"`
 	Machines         bool   `json:"machines"`
 	// The name of the new application. Defaults to a random name.
@@ -994,6 +995,9 @@ func (v *CreateAppInput) GetAppRoleId() string { return v.AppRoleId }
 
 // GetClientMutationId returns CreateAppInput.ClientMutationId, and is useful for accessing the field via an interface.
 func (v *CreateAppInput) GetClientMutationId() string { return v.ClientMutationId }
+
+// GetEnableSubdomains returns CreateAppInput.EnableSubdomains, and is useful for accessing the field via an interface.
+func (v *CreateAppInput) GetEnableSubdomains() bool { return v.EnableSubdomains }
 
 // GetHeroku returns CreateAppInput.Heroku, and is useful for accessing the field via an interface.
 func (v *CreateAppInput) GetHeroku() bool { return v.Heroku }
@@ -1697,6 +1701,7 @@ type GetAddOnAddOnAddOnPlan struct {
 	Id          string `json:"id"`
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
 }
 
 // GetId returns GetAddOnAddOnAddOnPlan.Id, and is useful for accessing the field via an interface.
@@ -1707,6 +1712,9 @@ func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
 
 // GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
+
+// GetDescription returns GetAddOnAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnPlan) GetDescription() string { return v.Description }
 
 // GetAddOnAddOnAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
 type GetAddOnAddOnAddOnProvider struct {
@@ -2742,6 +2750,7 @@ func (v *ListAddOnPlansAddOnPlansAddOnPlanConnection) GetNodes() []ListAddOnPlan
 // ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan struct {
 	Id            string `json:"id"`
+	Description   string `json:"description"`
 	DisplayName   string `json:"displayName"`
 	MaxDataSize   string `json:"maxDataSize"`
 	PricePerMonth int    `json:"pricePerMonth"`
@@ -2749,6 +2758,11 @@ type ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan struct {
 
 // GetId returns ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan.Id, and is useful for accessing the field via an interface.
 func (v *ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan) GetId() string { return v.Id }
+
+// GetDescription returns ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan) GetDescription() string {
+	return v.Description
+}
 
 // GetDisplayName returns ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan) GetDisplayName() string {
@@ -2840,11 +2854,17 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOns
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
 	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
 }
 
 // GetDisplayName returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDisplayName() string {
 	return v.DisplayName
+}
+
+// GetDescription returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDescription() string {
+	return v.Description
 }
 
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization includes the requested fields of the GraphQL type Organization.
@@ -4119,6 +4139,7 @@ query GetAddOn ($name: String) {
 			id
 			name
 			displayName
+			description
 		}
 	}
 }
@@ -4560,6 +4581,7 @@ query ListAddOnPlans {
 	addOnPlans {
 		nodes {
 			id
+			description
 			displayName
 			maxDataSize
 			pricePerMonth
@@ -4599,6 +4621,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			name
 			addOnPlan {
 				displayName
+				description
 			}
 			privateIp
 			primaryRegion

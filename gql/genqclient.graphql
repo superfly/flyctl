@@ -33,6 +33,7 @@ query GetAddOn($name: String) {
 			id
 			name
 			displayName
+			description
 		}
 	}
 }
@@ -243,6 +244,7 @@ query ListAddOns($addOnType: AddOnType) {
 			name
 			addOnPlan {
 				displayName
+				description
 			}
 			privateIp
 			primaryRegion
@@ -260,6 +262,18 @@ query ListAddOns($addOnType: AddOnType) {
 		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
 			addOn {
 				id
+			}
+		}
+  }
+
+ query ListAddOnPlans {
+		addOnPlans {
+			nodes {
+				id
+				description
+				displayName
+			  maxDataSize
+				pricePerMonth
 			}
 		}
   }

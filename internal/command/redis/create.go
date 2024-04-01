@@ -222,7 +222,6 @@ func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPl
 
 	client := fly.ClientFromContext(ctx)
 
-	// All new databases are pay-as-you-go
 	planId := redisPlanPayAsYouGo
 
 	// Now that we have the Plan ID, look up the actual plan
