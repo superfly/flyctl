@@ -245,4 +245,7 @@ require (
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259 // indirect
 )
 
-replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
+replace (
+	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
+	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
+)
