@@ -69,7 +69,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 
 	for _, plan := range result.AddOnPlans.Nodes {
-		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s Max Data Size, $%d/month/region", plan.DisplayName, plan.MaxDataSize, plan.PricePerMonth))
+		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description))
 	}
 
 	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", "", promptOptions...)
