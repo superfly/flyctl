@@ -6,7 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
+	"os/exec"
+	"path"
 	"time"
 
 	"github.com/samber/lo"
@@ -66,6 +69,10 @@ func New() (cmd *cobra.Command) {
 			Description: "Set internal_port for all services in the generated fly.toml",
 			Default:     -1,
 		},
+		flag.String{
+			Name:        "from",
+			Description: "A github repo URL to use as a template for the new app",
+		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -121,6 +128,37 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	return &manifest, nil
 }
 
+func setupFromTemplate(ctx context.Context) (context.Context, error) {
+	from := flag.GetString(ctx, "from")
+	if from == "" {
+		return ctx, nil
+	}
+
+	parsedUrl, err := url.Parse(from)
+	if err != nil {
+		return ctx, fmt.Errorf("invalid URL: %s", from)
+	}
+
+	dirName := path.Base(parsedUrl.Path)
+
+	fmt.Printf("Launching from git repo %s\n", from)
+
+	cmd := exec.Command("git", "clone", from, dirName)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return ctx, err
+	}
+
+	ctx, err = command.ChangeWorkingDirectory(ctx, dirName)
+	if err != nil {
+		return ctx, fmt.Errorf("failed to change directory to %s: %w", dirName, err)
+	}
+	ctx, err = command.LoadAppConfigIfPresent(ctx)
+	return ctx, err
+}
+
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
@@ -145,6 +183,12 @@ func run(ctx context.Context) (err error) {
 	)
 
 	launchManifest, err = getManifestArgument(ctx)
+	if err != nil {
+		return err
+	}
+
+	// "--from" arg handling
+	ctx, err = setupFromTemplate(ctx)
 	if err != nil {
 		return err
 	}

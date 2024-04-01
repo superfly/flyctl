@@ -16,19 +16,21 @@ import (
 
 const descriptionNone = "<none>"
 
-func describePostgresPlan(ctx context.Context, p plan.PostgresPlan, org *fly.Organization) (string, error) {
+func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 
-	switch provider := p.Provider().(type) {
+	switch provider := launchPlan.Postgres.Provider().(type) {
 	case *plan.FlyPostgresPlan:
-		return describeFlyPostgresPlan(ctx, provider, org)
+		return describeFlyPostgresPlan(provider)
+	case *plan.SupabasePostgresPlan:
+		return describeSupabasePostgresPlan(provider, launchPlan)
 	}
 	return descriptionNone, nil
 }
 
-func describeFlyPostgresPlan(ctx context.Context, p *plan.FlyPostgresPlan, org *fly.Organization) (string, error) {
+func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
 
 	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
-	nodesStr := fmt.Sprintf("%d Node%s", p.Nodes, nodePlural)
+	nodesStr := fmt.Sprintf("(Fly Postgres) %d Node%s", p.Nodes, nodePlural)
 
 	guestStr := p.VmSize
 	if p.VmRam > 0 {
@@ -46,6 +48,11 @@ func describeFlyPostgresPlan(ctx context.Context, p *plan.FlyPostgresPlan, org *
 	}
 
 	return strings.Join(info, ", "), nil
+}
+
+func describeSupabasePostgresPlan(p *plan.SupabasePostgresPlan, launchPlan *plan.LaunchPlan) (string, error) {
+
+	return fmt.Sprintf("(Supabase) %s in %s", p.GetDbName(launchPlan), p.GetRegion(launchPlan)), nil
 }
 
 func describeRedisPlan(ctx context.Context, p plan.RedisPlan, org *fly.Organization) (string, error) {

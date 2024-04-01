@@ -729,24 +729,14 @@ func determineMachineConfig(
 	case "":
 		if flag.IsSpecified(ctx, "restart") {
 			// An empty policy was explicitly requested.
-			machineConf.Restart.Policy = ""
+			machineConf.Restart = nil
 		} else if machineConf.AutoDestroy {
 			// Autodestroy only works when the restart policy is set to no, so unless otherwise specified, we set the restart policy to no.
-			machineConf.Restart.Policy = fly.MachineRestartPolicyNo
+			machineConf.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo}
 		} else if !input.updating {
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
 				machineConf.Restart.Policy = fly.MachineRestartPolicyOnFailure
-				machineConf.Restart = &fly.MachineRestart{
-					Policy: "",
-				}
-			} else if !input.updating {
-				// This is a new machine; apply the default.
-				if machineConf.Schedule != "" {
-					machineConf.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyOnFailure}
-				} else {
-					machineConf.Restart = &fly.MachineRestart{Policy: fly.MachineRestartPolicyAlways}
-				}
 			}
 		}
 	default:

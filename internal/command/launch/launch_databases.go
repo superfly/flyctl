@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/iostreams"
@@ -24,11 +25,19 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
+	if state.Plan.Postgres.SupabasePostgres != nil {
+		err := state.createSupabasePostgres(ctx)
+		if err != nil {
+			// TODO(Ali): Make error printing here better.
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Supabase Postgres database: %s\n", err)
+		}
+	}
+
 	if state.Plan.Redis.UpstashRedis != nil {
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
-			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Redis database: %s\n", err)
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
 		}
 	}
 
@@ -136,6 +145,31 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (state *launchState) createSupabasePostgres(ctx context.Context) error {
+	postgresPlan := state.Plan.Postgres.SupabasePostgres
+
+	org, err := state.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	params := extensions_core.ExtensionParams{
+		AppName:        state.Plan.AppName,
+		Organization:   org,
+		Provider:       "supabase",
+		OverrideName:   postgresPlan.GetDbName(state.Plan),
+		OverrideRegion: postgresPlan.GetRegion(state.Plan),
+	}
+
+	_, err = extensions_core.ProvisionExtension(ctx, params)
+
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 func (state *launchState) createUpstashRedis(ctx context.Context) error {

@@ -26,6 +26,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	state.updateConfig(ctx)
 
+	if err := state.validateExtensions(ctx); err != nil {
+		return err
+	}
+
 	org, err := state.Org(ctx)
 	if err != nil {
 		return err
