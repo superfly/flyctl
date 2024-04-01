@@ -35,19 +35,6 @@ func runPlans(ctx context.Context) (err error) {
 		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
-	_ = `# @genqlient
-  query ListAddOnPlans {
-		addOnPlans {
-			nodes {
-				id
-				displayName
-			  maxDataSize
-				pricePerMonth
-			}
-		}
-  }
-	`
-
 	result, err := gql.ListAddOnPlans(ctx, client)
 
 	var rows [][]string
@@ -58,7 +45,7 @@ func runPlans(ctx context.Context) (err error) {
 
 		row := []string{
 			plan.DisplayName,
-			plan.MaxDataSize,
+			plan.Description,
 		}
 
 		var price string
@@ -67,7 +54,7 @@ func runPlans(ctx context.Context) (err error) {
 		rows = append(rows, row)
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Max Data Size")
+	_ = render.Table(out, "", rows, "Name", "Description")
 
 	return
 }
