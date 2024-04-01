@@ -509,9 +509,11 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 // updateMacaroons prune any invalid/expired macaroons and fetch needed third
 // party discharges
 func updateMacaroons(ctx context.Context) (context.Context, error) {
-	log := logger.FromContext(ctx)
-
-	toks := config.Tokens(ctx)
+	var (
+		log  = logger.FromContext(ctx)
+		cfg  = config.FromContext(ctx)
+		toks = cfg.Tokens
+	)
 
 	updated, err := toks.Update(ctx,
 		tokens.WithUserURLCallback(tryOpenUserURL),
@@ -522,14 +524,32 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		log.Debug(err)
 	}
 
-	if !updated || toks.FromConfigFile == "" {
+	if toks.FromConfigFile == "" {
 		return ctx, nil
 	}
 
-	if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
-		log.Warn("Failed to persist authentication token.")
-		log.Debug(err)
+	if updated {
+		if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
+			log.Warn("Failed to persist authentication token.")
+			log.Debug(err)
+		}
 	}
+
+	sub, err := cfg.Watch(ctx)
+	if err != nil {
+		log.Warn("Failed to watch config file for changes.")
+		log.Debug(err)
+		return ctx, nil
+	}
+
+	go func() {
+		for newCfg := range sub {
+			if cfg.Tokens.All() != newCfg.Tokens.All() {
+				log.Debug("Authentication tokens updated from config file.")
+				cfg.Tokens.Replace(newCfg.Tokens)
+			}
+		}
+	}()
 
 	return ctx, nil
 }
