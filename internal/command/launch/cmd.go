@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"time"
 
 	"github.com/samber/lo"
@@ -134,16 +133,21 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	parsedUrl, err := url.Parse(from)
-	if err != nil {
-		return ctx, fmt.Errorf("invalid URL: %s", from)
+	if _, err := url.Parse(from); err != nil {
+		return ctx, fmt.Errorf("invalid URL: `%s'. Expected https:// git repo", from)
 	}
 
-	dirName := path.Base(parsedUrl.Path)
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		return ctx, fmt.Errorf("failed to read directory: %w", err)
+	}
+	if len(entries) > 0 {
+		return ctx, errors.New("directory not empty, refusing to clone from git")
+	}
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", from, dirName)
+	cmd := exec.Command("git", "clone", from, ".")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -151,10 +155,6 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 		return ctx, err
 	}
 
-	ctx, err = command.ChangeWorkingDirectory(ctx, dirName)
-	if err != nil {
-		return ctx, fmt.Errorf("failed to change directory to %s: %w", dirName, err)
-	}
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
 	return ctx, err
 }
