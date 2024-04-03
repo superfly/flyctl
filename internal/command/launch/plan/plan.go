@@ -26,7 +26,8 @@ type LaunchPlan struct {
 	// As of writing this, however, the UI does not return this field.
 	Compute []*appconfig.Compute `json:"compute"`
 
-	HttpServicePort int `json:"http_service_port,omitempty"`
+	HttpServicePort             int  `json:"http_service_port,omitempty"`
+	HttpServicePortSetByScanner bool `json:"http_service_port_set_by_scanner,omitempty"`
 
 	Postgres PostgresPlan `json:"postgres"`
 	Redis    RedisPlan    `json:"redis"`
