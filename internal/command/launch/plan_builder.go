@@ -180,6 +180,10 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		FlyctlVersion:    buildinfo.Info().Version,
 	}
 
+	if !copiedConfig && srcInfo.Port != 0 {
+		lp.HttpServicePort = srcInfo.Port
+	}
+
 	planSource := &launchPlanSource{
 		appNameSource:  appNameExplanation,
 		regionSource:   regionExplanation,
