@@ -35,6 +35,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
 		cfg.validateMounts,
+		cfg.validateRestartPolicy,
 	}
 
 	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
@@ -60,7 +61,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	return nil, extra_info
 }
 
-func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extra_info string) {
+func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extraInfo string) {
 	if len(groups) == 0 {
 		return cfg.Validate(ctx)
 	}
@@ -70,7 +71,7 @@ func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err err
 		if err != nil {
 			return
 		}
-		err, extra_info = config.Validate(ctx)
+		err, extraInfo = config.Validate(ctx)
 		if err != nil {
 			return
 		}
@@ -318,5 +319,34 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 	}
+	return
+}
+
+func (cfg *Config) validateRestartPolicy() (extraInfo string, err error) {
+	if cfg.Restart == nil {
+		return
+	}
+
+	for _, restart := range cfg.Restart {
+		validGroupNames := cfg.ProcessNames()
+
+		// first make sure restart.Processes matches a valid process name.
+		for _, processName := range restart.Processes {
+			if !slices.Contains(validGroupNames, processName) {
+				extraInfo += fmt.Sprintf("Restart policy specifies '%s' as one of its processes, but no processes are defined with that name; "+
+					"update fly.toml [processes] to add '%s' process or remove it from restart policy's processes list\n",
+					processName, processName,
+				)
+				err = ValidationError
+			}
+		}
+
+		_, vErr := parseRestartPolicy(restart.Policy)
+		if vErr != nil {
+			extraInfo += fmt.Sprintf("%s\n", vErr)
+			err = ValidationError
+		}
+	}
+
 	return
 }

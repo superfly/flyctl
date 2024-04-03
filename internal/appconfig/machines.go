@@ -221,7 +221,33 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig.Guest = guest
 	}
 
+	// Restart Policy
+	mConfig.Restart = nil
+
+	for _, restart := range c.Restart {
+		policy, err := parseRestartPolicy(restart.Policy)
+		if err != nil {
+			return nil, err
+		}
+		mConfig.Restart = &fly.MachineRestart{
+			Policy:     policy,
+			MaxRetries: restart.MaxRetries,
+		}
+	}
 	return mConfig, nil
+}
+
+func parseRestartPolicy(policy RestartPolicy) (fly.MachineRestartPolicy, error) {
+	switch policy {
+	case RestartPolicyAlways:
+		return fly.MachineRestartPolicyAlways, nil
+	case RestartPolicyOnFailure:
+		return fly.MachineRestartPolicyOnFailure, nil
+	case RestartPolicyNever:
+		return fly.MachineRestartPolicyNo, nil
+	default:
+		return "", fmt.Errorf("invalid restart policy: %s", policy)
+	}
 }
 
 func (c *Config) tomachineSetStopConfig(mConfig *fly.MachineConfig) error {
