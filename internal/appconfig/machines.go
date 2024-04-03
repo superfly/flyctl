@@ -1,7 +1,6 @@
 package appconfig
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/docker/go-units"
@@ -247,7 +246,7 @@ func parseRestartPolicy(policy RestartPolicy) (fly.MachineRestartPolicy, error) 
 	case RestartPolicyNever:
 		return fly.MachineRestartPolicyNo, nil
 	default:
-		return "", errors.New("invalid restart policy")
+		return "", fmt.Errorf("invalid restart policy: %s", policy)
 	}
 }
 

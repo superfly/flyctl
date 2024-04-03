@@ -341,16 +341,9 @@ func (cfg *Config) validateRestartPolicy() (extraInfo string, err error) {
 			}
 		}
 
-		switch restart.Policy {
-		case RestartPolicyAlways, RestartPolicyNever, RestartPolicyOnFailure:
-			// do nothing
-		default:
-			extraInfo += fmt.Sprintf("'%s' is not a valid restart policy\n", restart.Policy)
-			err = ValidationError
-
-		}
-		if restart.MaxRetries < 0 {
-			extraInfo += "restart.MaxRetries must be a positive number\n"
+		_, vErr := parseRestartPolicy(restart.Policy)
+		if vErr != nil {
+			extraInfo += fmt.Sprintf("%s\n", vErr)
 			err = ValidationError
 		}
 	}
