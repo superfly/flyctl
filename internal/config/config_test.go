@@ -61,10 +61,24 @@ func TestConfigWatch(t *testing.T) {
 	require.NoError(t, os.WriteFile(path, []byte(`access_token: fo1_bar`), 0644))
 
 	cfgs, errs = getConfigChanges(c1, c2)
-	require.Equal(t, 0, len(errs))
+	require.Equal(t, 0, len(errs), errs)
 	require.Equal(t, 2, len(cfgs))
 	require.Equal(t, cfgs[0], cfgs[1])
 	require.Equal(t, "fo1_bar", cfgs[0].Tokens.All())
+
+	// debouncing
+	require.NoError(t, os.WriteFile(path, []byte(`access_token: fo1_aaa`), 0644))
+	require.NoError(t, os.WriteFile(path, []byte(`access_token: fo1_bbb`), 0644))
+
+	cfgs, errs = getConfigChanges(c1, c2)
+	require.Equal(t, 0, len(errs))
+	require.Equal(t, 2, len(cfgs))
+	require.Equal(t, cfgs[0], cfgs[1])
+	require.Equal(t, "fo1_bbb", cfgs[0].Tokens.All())
+
+	cfgs, errs = getConfigChanges(c1, c2)
+	require.Equal(t, 2, len(errs))
+	require.Equal(t, 0, len(cfgs))
 
 	cfg.Unwatch(c1)
 
@@ -120,7 +134,7 @@ func getConfigChanges(chans ...chan *Config) ([]*Config, []error) {
 				} else {
 					errs = append(errs, errors.New("closed"))
 				}
-			case <-time.After(50 * time.Millisecond):
+			case <-time.After(100 * time.Millisecond):
 				m.Lock()
 				errs = append(errs, errors.New("timeout"))
 			}
