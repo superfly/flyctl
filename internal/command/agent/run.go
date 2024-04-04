@@ -27,7 +27,9 @@ func newRun() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("run", short, long, run)
+	cmd = command.New("run", short, long, run,
+		command.RequireSession,
+	)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Aliases = []string{"daemon-start"}
@@ -46,12 +48,6 @@ func run(ctx context.Context) error {
 	}
 	defer closeLogger()
 
-	apiClient := fly.ClientFromContext(ctx)
-	if !apiClient.Authenticated() {
-		logger.Println(fly.ErrNoAuthToken)
-		return fly.ErrNoAuthToken
-	}
-
 	unlock, err := lock(ctx, logger)
 	if err != nil {
 		return err
@@ -61,7 +57,7 @@ func run(ctx context.Context) error {
 	opt := server.Options{
 		Socket:           socketPath(ctx),
 		Logger:           logger,
-		Client:           apiClient,
+		Client:           fly.ClientFromContext(ctx),
 		Background:       logPath != "",
 		ConfigFile:       state.ConfigFile(ctx),
 		ConfigWebsockets: viper.GetBool(flyctl.ConfigWireGuardWebsockets),
