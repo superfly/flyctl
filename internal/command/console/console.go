@@ -352,7 +352,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 
 	machineFiles, err := command.FilesFromCommand(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed parsing filest: %w", err)
+		return nil, nil, fmt.Errorf("failed parsing files: %w", err)
 	}
 	fly.MergeFiles(machConfig, machineFiles)
 
