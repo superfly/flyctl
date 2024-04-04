@@ -252,6 +252,13 @@ func (cfg *Config) Watch(ctx context.Context) (chan *Config, error) {
 				cfg.subs = nil
 			}()
 
+			var (
+				notifyCtx                            = ctx
+				cancelNotify     context.CancelFunc  = func() {}
+				cancelLastNotify *context.CancelFunc = &cancelNotify
+			)
+			defer func() { (*cancelLastNotify)() }()
+
 			for {
 				select {
 				case e, open := <-watch.Events:
@@ -263,7 +270,17 @@ func (cfg *Config) Watch(ctx context.Context) (chan *Config, error) {
 						continue
 					}
 
-					go cfg.notifySubs(ctx)
+					// Debounce change notifications: notifySubs sleeps for 10ms
+					// before notifying subs. If we get another change before
+					// that, we preempt the previous notification attempt. This
+					// is necessary because we receive multiple notifications
+					// for a single config change on windows and the first event
+					// fires before the change is available to be read.
+					(*cancelLastNotify)()
+					notifyCtx, cancelNotify = context.WithCancel(ctx)
+					cancelLastNotify = &cancelNotify
+
+					go cfg.notifySubs(notifyCtx)
 				case err := <-watch.Errors:
 					cfg.mu.Lock()
 					defer cfg.mu.Unlock()
@@ -302,6 +319,13 @@ func (cfg *Config) Unwatch(sub chan *Config) {
 }
 
 func (cfg *Config) notifySubs(ctx context.Context) {
+	// sleep for 10ms to facilitate debouncing (described above)
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(10 * time.Millisecond):
+	}
+
 	newCfg, err := Load(ctx, cfg.path)
 	if err != nil {
 		return
