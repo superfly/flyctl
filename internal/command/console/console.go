@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
@@ -387,12 +388,23 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 }
 
 func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*fly.MachineGuest, error) {
-	groupConfig, err := appConfig.ToMachineConfig("console", nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check Machine configuration for the 'console' group: %w", err)
+	var guest *fly.MachineGuest
+
+	haveConsoleVMSection := 0 <= slices.IndexFunc(
+		appConfig.Compute,
+		func(c *appconfig.Compute) bool {
+			return slices.Index(c.Processes, "console") >= 0
+		},
+	)
+	if haveConsoleVMSection {
+		groupConfig, err := appConfig.ToMachineConfig("console", nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check Machine configuration for the 'console' group: %w", err)
+		}
+		guest = groupConfig.Guest
 	}
 
-	guest, err := flag.GetMachineGuest(ctx, groupConfig.Guest)
+	guest, err := flag.GetMachineGuest(ctx, guest)
 	if err != nil {
 		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
