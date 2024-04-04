@@ -5,11 +5,9 @@ import (
 	"context"
 	"io"
 	"os"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/wg"
 )
@@ -96,13 +94,13 @@ func set(path string, vals map[string]interface{}) error {
 	return marshal(path, m)
 }
 
-func lockPath() string {
-	return filepath.Join(flyctl.ConfigDir(), "flyctl.config.lock")
+func lockPath(path string) string {
+	return path + ".lock"
 }
 
 func unmarshal(path string, v interface{}) (err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.RLock(context.Background(), lockPath()); err != nil {
+	if unlock, err = filemu.RLock(context.Background(), lockPath(path)); err != nil {
 		return
 	}
 	defer func() {
@@ -137,7 +135,7 @@ func unmarshalUnlocked(path string, v interface{}) (err error) {
 
 func marshal(path string, v interface{}) (err error) {
 	var unlock filemu.UnlockFunc
-	if unlock, err = filemu.Lock(context.Background(), lockPath()); err != nil {
+	if unlock, err = filemu.Lock(context.Background(), lockPath(path)); err != nil {
 		return
 	}
 	defer func() {
