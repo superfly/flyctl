@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"time"
@@ -131,10 +130,6 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
 		return ctx, nil
-	}
-
-	if _, err := url.Parse(from); err != nil {
-		return ctx, fmt.Errorf("invalid URL: `%s'. Expected https:// git repo", from)
 	}
 
 	entries, err := os.ReadDir(".")
