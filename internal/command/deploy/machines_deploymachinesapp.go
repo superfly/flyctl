@@ -272,6 +272,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	md.warnAboutProcessGroupChanges(processGroupMachineDiff)
 
 	if md.strategy == "canary" && !md.isFirstDeploy {
+		// TODO do machine checks here
 		if err := md.deployCanaryMachines(ctx); err != nil {
 			return err
 		}
@@ -288,6 +289,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	}
 
 	if !md.updateOnly {
+		// TODO do machine checks here
 		if err := md.deployCreateMachinesForGroups(ctx, processGroupMachineDiff); err != nil {
 			return err
 		}
@@ -391,6 +393,13 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 		}
 	}
 
+	if !md.skipHealthChecks {
+		if err := md.runTestMachines(ctx); err != nil {
+			fmt.Printf("error nooooo: %s\n", err)
+			return err
+		}
+	}
+
 	if err := md.doSmokeChecks(ctx, lm); err != nil {
 		return err
 	}
@@ -427,8 +436,10 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	switch md.strategy {
 	case "bluegreen":
+		// TODO do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
+		// TODO do machine checks here
 		return md.updateUsingImmediateStrategy(ctx, updateEntries)
 	case "canary", "rolling":
 		fallthrough

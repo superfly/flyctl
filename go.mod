@@ -252,3 +252,5 @@ require (
 )
 
 replace github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
+
+replace github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.5-0.20240405174929-ec25c8e839e5
