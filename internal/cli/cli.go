@@ -82,7 +82,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 		index := slices.Index(args, "--")
 		if index >= 0 {
 			ctx = flag.WithExtraArgs(ctx, args[index+1:])
-			args = args[0:index]
+			args = args[:index]
 		}
 	}
 

@@ -3,7 +3,6 @@ package flag
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
@@ -602,8 +601,6 @@ func ExtraArgsFromContext(ctx context.Context) []string {
 	if extraArgs, ok := ctx.Value(extraArgsContextKey{}).([]string); ok {
 		return extraArgs
 	}
-
-	fmt.Printf("unable to get extra args from context\n")
 
 	return []string{}
 }
