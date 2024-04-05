@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ type FlyctlTestEnv struct {
 	cmdHistory          []*FlyctlResult
 	noHistoryOnFail     bool
 	id                  string
+	VMSize              string
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -149,6 +151,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		originalAccessToken: cfg.accessToken,
 		noHistoryOnFail:     cfg.noHistoryOnFail,
 		env:                 cfg.envVariables,
+		VMSize:              os.Getenv("FLY_PREFLIGHT_TEST_VM_SIZE"),
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -180,6 +183,12 @@ type testingTWrapper interface {
 
 // Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	if f.VMSize != "" {
+		if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
+			flyctlCmd += fmt.Sprintf(" --vm-size %s ", f.VMSize)
+		}
+	}
+
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
