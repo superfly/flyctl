@@ -21,6 +21,7 @@ type Service struct {
 	Concurrency        *fly.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TCPChecks          []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
+	MachineChecks      []*ServiceMachineCheck         `json:"machine_checks,omitempty" toml:"machine_checks,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
@@ -42,6 +43,11 @@ type ServiceHTTPCheck struct {
 	HTTPTLSSkipVerify *bool             `json:"tls_skip_verify,omitempty" toml:"tls_skip_verify,omitempty"`
 	HTTPTLSServerName *string           `json:"tls_server_name,omitempty" toml:"tls_server_name,omitempty"`
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
+}
+
+type ServiceMachineCheck struct {
+	Command string `json:"command,omitempty" toml:"command,omitempty"`
+	Image   string `json:"image,omitempty" toml:"image,omitempty"`
 }
 
 type HTTPService struct {
