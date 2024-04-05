@@ -182,7 +182,7 @@ type testingTWrapper interface {
 // Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
-		flyctlCmd += " --vm-gpu-kind a100-sxm4-80gb --vm-cpu-kind performance --vm-memory 2048 "
+		flyctlCmd += " --vm-gpu-kind a100-sxm4-80gb --vm-cpu-kind performance --vm-memory 8192 "
 	}
 
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
