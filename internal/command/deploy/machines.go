@@ -81,6 +81,7 @@ type machineDeployment struct {
 	img                    string
 	machineSet             machine.MachineSet
 	releaseCommandMachine  machine.MachineSet
+	testMachines           machine.MachineSet
 	volumes                map[string][]fly.Volume
 	strategy               string
 	releaseId              string
