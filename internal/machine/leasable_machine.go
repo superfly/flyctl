@@ -32,6 +32,7 @@ type LeasableMachine interface {
 	WaitForState(context.Context, string, time.Duration, bool) error
 	WaitForSmokeChecksToPass(context.Context) error
 	WaitForHealthchecksToPass(context.Context, time.Duration) error
+	WaitForEventType(context.Context, string, time.Duration, bool) (*fly.MachineEvent, error)
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*fly.MachineEvent, error)
 	FormattedMachineId() string
 	GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration)
@@ -332,6 +333,40 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		}
 		lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
 		return nil
+	}
+}
+
+func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType string, timeout time.Duration, allowInfinite bool) (*fly.MachineEvent, error) {
+	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
+	defer cancel()
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+	statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType))
+	for {
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			return nil, err
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
+		case err != nil:
+			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
+		}
+
+		exitEvent := updateMachine.GetLatestEventOfType(eventType)
+		if exitEvent != nil {
+			return exitEvent, nil
+		} else {
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+		}
 	}
 }
 

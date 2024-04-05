@@ -62,6 +62,49 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	return mConfig, nil
 }
 
+func (c *Config) ToTestMachineConfig(machineCommand, image, machineIP string) (*fly.MachineConfig, error) {
+	testCmd, err := shlex.Split(machineCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	mConfig := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        testCmd,
+			SwapSizeMB: c.SwapSizeMB,
+		},
+		Image: image,
+		Restart: &fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
+		},
+		AutoDestroy: true,
+		DNS: &fly.DNSConfig{
+			SkipRegistration: true,
+		},
+		Metadata: map[string]string{
+			fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
+			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
+			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppReleaseCommand,
+		},
+		Env: lo.Assign(c.Env),
+	}
+
+	if c.Experimental != nil {
+		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+	}
+
+	mConfig.Env["FLY_PROCESS_GROUP"] = fly.MachineProcessGroupFlyAppReleaseCommand
+	if c.PrimaryRegion != "" {
+		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+	mConfig.Env["FLY_TEST_MACHINE_IP"] = machineIP
+
+	// StopConfig
+	c.tomachineSetStopConfig(mConfig)
+
+	return mConfig, nil
+}
+
 func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{
