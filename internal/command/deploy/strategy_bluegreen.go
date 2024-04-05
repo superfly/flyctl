@@ -112,24 +112,38 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	defer span.End()
 
 	var greenMachines machineUpdateEntries
-
+	var lock sync.Mutex
+	p := pool.New().
+		WithErrors().
+		WithFirstError().
+		WithMaxGoroutines(16)
 	for _, mach := range bg.blueMachines {
-		launchInput := mach.launchInput
-		launchInput.SkipServiceRegistration = true
-		launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
+		p.Go(func() error {
+			launchInput := mach.launchInput
+			launchInput.SkipServiceRegistration = true
+			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
 
-		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to launch machine")
-			return err
-		}
+			newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to launch machine")
+				return err
+			}
 
-		greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
-		defer greenMachine.ReleaseLease(ctx)
+			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
+			defer greenMachine.ReleaseLease(ctx)
 
-		greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
+			lock.Lock()
+			defer lock.Unlock()
 
-		fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
+			greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
+
+			fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
+			return nil
+		})
+	}
+
+	if err := p.Wait(); err != nil {
+		return err
 	}
 
 	bg.greenMachines = greenMachines
