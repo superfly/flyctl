@@ -389,7 +389,7 @@ func runMachineRun(ctx context.Context) error {
 		interact:           interact,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to determine machine config: %s", err)
+		return err
 	}
 
 	if flag.GetBool(ctx, "build-only") {
