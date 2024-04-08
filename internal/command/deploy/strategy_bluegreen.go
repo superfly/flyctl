@@ -42,6 +42,12 @@ var (
 	ErrOrgLimit            = errors.New("app can't undergo bluegreen deployment due to org limits")
 )
 
+type RollbackLog struct {
+	// this ensures that aborts from after green machines are healthy
+	// doesn't cause the greeen machines to be removed. eg. if someone aborts after cordoning blue machines
+	canDeleteGreenMachines bool
+}
+
 type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
@@ -59,6 +65,8 @@ type blueGreen struct {
 	appConfig           *appconfig.Config
 	hangingBlueMachines []string
 	timestamp           string
+
+	rollbackLog RollbackLog
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -78,6 +86,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
+		rollbackLog:         RollbackLog{canDeleteGreenMachines: true},
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
@@ -666,6 +675,9 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
 	}
 
+	// after this point, a rollback should never delete green machines.
+	bg.rollbackLog.canDeleteGreenMachines = false
+
 	if bg.isAborted() {
 		return ErrAborted
 	}
@@ -798,6 +810,51 @@ func (bg *blueGreen) DeleteZombiesFromPreviousDeployment(ctx context.Context) er
 	}
 
 	bg.blueMachines = nonZombies
+
+	return nil
+}
+
+func (bg *blueGreen) CanDestroyGreenMachines(err error) bool {
+	validErrors := []error{
+		ErrCreateGreenMachine,
+		ErrWaitForStartedState,
+		ErrWaitForHealthy,
+		ErrMarkReadyForTraffic,
+	}
+
+	for _, validError := range validErrors {
+		if strings.Contains(err.Error(), validError.Error()) {
+			return true
+		}
+	}
+
+	// this ensures aborts after green machines are healthy don't delete green machines
+	if strings.Contains(err.Error(), ErrAborted.Error()) && bg.rollbackLog.canDeleteGreenMachines {
+		return true
+	}
+
+	return false
+}
+func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
+	defer span.End()
+
+	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
+		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
+		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
+		return nil
+	}
+
+	if bg.CanDestroyGreenMachines(err) {
+		fmt.Fprintf(bg.io.ErrOut, "\nRolling back failed deployment\n")
+		for _, mach := range bg.greenMachines.machines() {
+			err := mach.Destroy(ctx, true)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to destroy green machine")
+				return err
+			}
+		}
+	}
 
 	return nil
 }
