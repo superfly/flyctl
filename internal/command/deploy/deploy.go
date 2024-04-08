@@ -132,6 +132,11 @@ var CommonFlags = flag.Set{
 		Description: "Add custom metadata to an image via docker labels",
 	},
 	flag.Int{
+		Name:        "bluegreen-max-concurrent",
+		Description: "Maximum number of machines to operate on concurrently when using the bluegreen deployment strategy.",
+		Default:     16,
+	},
+	flag.Int{
 		Name:        "immediate-max-concurrent",
 		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
 		Default:     16,
@@ -394,6 +399,7 @@ func deployToMachines(
 		Files:                  files,
 		ExcludeRegions:         excludeRegions,
 		OnlyRegions:            onlyRegions,
+		BlueGreenMaxConcurrent: flag.GetInt(ctx, "bluegreen-max-concurrent"),
 		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
 		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:          processGroups,
