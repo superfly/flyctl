@@ -736,7 +736,9 @@ func determineMachineConfig(
 		} else if !input.updating {
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
-				machineConf.Restart.Policy = fly.MachineRestartPolicyOnFailure
+				machineConf.Restart = &fly.MachineRestart{
+					Policy: fly.MachineRestartPolicyOnFailure,
+				}
 			}
 		}
 	default:
