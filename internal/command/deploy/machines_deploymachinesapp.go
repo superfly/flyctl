@@ -442,10 +442,9 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 
-		if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
-			fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
-			fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
-			return err
+		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
+			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
+			return rollbackErr
 		}
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
