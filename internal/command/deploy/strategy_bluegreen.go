@@ -59,6 +59,7 @@ type blueGreen struct {
 	appConfig           *appconfig.Config
 	hangingBlueMachines []string
 	timestamp           string
+	maxConcurrent       int
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -78,6 +79,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
+		maxConcurrent:       md.bluegreenMaxConcurrent,
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
@@ -116,8 +118,9 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(16)
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, mach := range bg.blueMachines {
+		mach := mach
 		p.Go(func() error {
 			launchInput := mach.launchInput
 			launchInput.SkipServiceRegistration = true
@@ -413,8 +416,9 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(16)
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.greenMachines.machines() {
+		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -439,8 +443,9 @@ func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(16)
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
+		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -466,8 +471,9 @@ func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(16)
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
+		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
@@ -546,10 +552,11 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(16)
+		WithMaxGoroutines(bg.maxConcurrent)
 
 	var mu sync.Mutex
 	for _, gm := range bg.blueMachines {
+		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
