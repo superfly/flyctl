@@ -801,3 +801,44 @@ func (bg *blueGreen) DeleteZombiesFromPreviousDeployment(ctx context.Context) er
 
 	return nil
 }
+
+func (bg *blueGreen) CanDestroyGreenMachines(err error) bool {
+	validErrors := []error{
+		ErrCreateGreenMachine,
+		ErrWaitForStartedState,
+		ErrWaitForHealthy,
+		ErrMarkReadyForTraffic,
+		ErrAborted,
+	}
+
+	for _, validError := range validErrors {
+		if strings.Contains(err.Error(), validError.Error()) {
+			return true
+		}
+	}
+
+	return false
+}
+func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
+	defer span.End()
+
+	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
+		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
+		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
+		return nil
+	}
+
+	if bg.CanDestroyGreenMachines(err) {
+		fmt.Fprintf(bg.io.ErrOut, "\nRolling back failed deployment\n")
+		for _, mach := range bg.greenMachines.machines() {
+			err := mach.Destroy(ctx, true)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to destroy green machine")
+				return err
+			}
+		}
+	}
+
+	return nil
+}
