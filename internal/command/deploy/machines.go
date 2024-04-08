@@ -63,6 +63,7 @@ type MachineDeploymentArgs struct {
 	Files                  []*fly.File
 	ExcludeRegions         map[string]interface{}
 	OnlyRegions            map[string]interface{}
+	BlueGreenMaxConcurrent int
 	ImmediateMaxConcurrent int
 	VolumeInitialSize      int
 	ProcessGroups          map[string]interface{}
@@ -102,6 +103,7 @@ type machineDeployment struct {
 	updateOnly             bool
 	excludeRegions         map[string]interface{}
 	onlyRegions            map[string]interface{}
+	bluegreenMaxConcurrent int
 	immediateMaxConcurrent int
 	volumeInitialSize      int
 	processGroups          map[string]interface{}
@@ -191,6 +193,11 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
+	bluegreenMaxConcurrent := args.BlueGreenMaxConcurrent
+	if bluegreenMaxConcurrent < 1 {
+		bluegreenMaxConcurrent = 1
+	}
+
 	immedateMaxConcurrent := args.ImmediateMaxConcurrent
 	if immedateMaxConcurrent < 1 {
 		immedateMaxConcurrent = 1
@@ -220,6 +227,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		machineGuest:           args.Guest,
 		excludeRegions:         args.ExcludeRegions,
 		onlyRegions:            args.OnlyRegions,
+		bluegreenMaxConcurrent: bluegreenMaxConcurrent,
 		immediateMaxConcurrent: immedateMaxConcurrent,
 		volumeInitialSize:      args.VolumeInitialSize,
 		processGroups:          args.ProcessGroups,
@@ -653,6 +661,7 @@ func (md *machineDeployment) ToSpanAttributes() []attribute.KeyValue {
 		attribute.Float64("deployment.release_cmd_timeout", md.releaseCmdTimeout.Seconds()),
 		attribute.Bool("deployment.increased_availability", md.increasedAvailability),
 		attribute.Bool("deployment.update_only", md.updateOnly),
+		attribute.Int("deployment.bluegreen_max_concurrency", md.bluegreenMaxConcurrent),
 		attribute.Int("deployment.immediate_max_concurrency", md.immediateMaxConcurrent),
 		attribute.Int("deployment.volume_initial_size", md.volumeInitialSize),
 	}
