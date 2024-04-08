@@ -137,17 +137,19 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 		return nil
 	})
 
-	eg.Go(func() error {
-		if f := config.Tokens(ctx).FromConfigFile; f == "" {
-			s.print("monitoring for token expiration")
-			s.updateMacaroonsInMemory(ctx)
-		} else {
-			s.print("monitoring for token changes and expiration")
-			s.updateMacaroonsInFile(ctx, f)
-		}
+	if toks := config.Tokens(ctx); len(toks.MacaroonTokens) != 0 {
+		eg.Go(func() error {
+			if f := toks.FromConfigFile; f == "" {
+				s.print("monitoring for token expiration")
+				s.updateMacaroonsInMemory(ctx)
+			} else {
+				s.print("monitoring for token changes and expiration")
+				s.updateMacaroonsInFile(ctx, f)
+			}
 
-		return nil
-	})
+			return nil
+		})
+	}
 
 	eg.Go(func() (err error) {
 		s.printf("OK %d", os.Getpid())
@@ -399,26 +401,30 @@ func (s *server) updateMacaroonsInMemory(ctx context.Context) {
 	}
 }
 
-// updateMacaroons updates the agent's tokens as the config file changes. It
-// also prunes expired tokens and fetches discharge tokens as necessary. Those
-// updates are written back to the config file.
+// updateMacaroons prunes expired tokens and fetches discharge tokens as
+// necessary. Those updates are written back to the config file.
 func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
-	toks := config.Tokens(ctx)
+	configToks := config.Tokens(ctx)
 
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
 	var lastErr error
 
-	fiBefore, err := os.Stat(path)
-	if err != nil {
-		s.print("failed stating config file:", err)
-		s.updateMacaroonsInMemory(ctx)
-		return
-	}
-
 	for {
-		updated, err := toks.Update(ctx, tokens.WithDebugger(s))
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		// the tokens in the config are continually updated as the config file
+		// changes. We do our updates on a copy of the tokens so we can still
+		// tell if the tokens in the config changed out from under us.
+		configToksBefore := configToks.All()
+		localToks := tokens.Parse(configToksBefore)
+
+		updated, err := localToks.Update(ctx, tokens.WithDebugger(s))
 		if err != nil && err != lastErr {
 			s.print("failed upgrading authentication tokens:", err)
 			lastErr = err
@@ -426,48 +432,18 @@ func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
 			// Don't continue loop here! It might only be partial failure
 		}
 
-		if updated {
-			fiAfter, err := os.Stat(path)
-			if err != nil {
-				s.print("failed stating config file:", err)
+		// the consequences of a race here (agent and foreground command both
+		// fetching updates simultaneously) are low, so don't bother with a lock
+		// file.
+		if updated && configToks.All() == configToksBefore {
+			if err := config.SetAccessToken(path, localToks.All()); err != nil {
+				s.print("Failed to persist authentication token:", err)
 				s.updateMacaroonsInMemory(ctx)
 				return
 			}
 
-			// Don't write updates if the file changed out from under us. This
-			// isn't as strong of an assurance as a lockfile would be, but a
-			// race isn't that consequential.
-			if fiBefore.ModTime() == fiAfter.ModTime() {
-				if err := config.SetAccessToken(path, toks.All()); err != nil {
-					s.print("Failed to persist authentication token:", err)
-					s.updateMacaroonsInMemory(ctx)
-					return
-				}
-
-				s.print("Authentication tokens upgraded")
-			}
+			s.print("Authentication tokens upgraded")
 		}
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-
-		if fiBefore, err = os.Stat(path); err != nil {
-			s.print("failed stating config file:", err)
-			s.updateMacaroonsInMemory(ctx)
-			return
-		}
-
-		tok, err := config.ReadAccessToken(path)
-		if err != nil {
-			s.print("failed reading config file:", err)
-			s.updateMacaroonsInMemory(ctx)
-			return
-		}
-
-		toks.Replace(tokens.Parse(tok))
 	}
 }
 
