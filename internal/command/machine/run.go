@@ -389,7 +389,7 @@ func runMachineRun(ctx context.Context) error {
 		interact:           interact,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to determine machine config: %s", err)
 	}
 
 	if flag.GetBool(ctx, "build-only") {
@@ -736,7 +736,9 @@ func determineMachineConfig(
 		} else if !input.updating {
 			// This is a new machine; apply the default.
 			if machineConf.Schedule != "" {
-				machineConf.Restart.Policy = fly.MachineRestartPolicyOnFailure
+				machineConf.Restart = &fly.MachineRestart{
+					Policy: fly.MachineRestartPolicyOnFailure,
+				}
 			}
 		}
 	default:
