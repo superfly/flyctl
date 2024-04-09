@@ -460,8 +460,8 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 	defer sl.Destroy(false)
 
 	updatesPool := pool.New().WithErrors().WithContext(parentCtx)
-	if md.immediateMaxConcurrent > 0 {
-		updatesPool = updatesPool.WithMaxGoroutines(md.immediateMaxConcurrent)
+	if md.maxConcurrent > 0 {
+		updatesPool = updatesPool.WithMaxGoroutines(md.maxConcurrent)
 	}
 
 	for i, e := range updateEntries {
