@@ -27,6 +27,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+var defaultMaxConcurrent = 16
+
 var CommonFlags = flag.Set{
 	flag.Region(),
 	flag.Image(),
@@ -134,12 +136,12 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "max-concurrent",
 		Description: "Maximum number of machines to operate on concurrently.",
-		Default:     16,
+		Default:     defaultMaxConcurrent,
 	},
 	flag.Int{
 		Name:        "immediate-max-concurrent",
 		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
-		Default:     16,
+		Default:     defaultMaxConcurrent,
 		Hidden:      true,
 	},
 	flag.Int{
@@ -379,6 +381,12 @@ func deployToMachines(
 		}
 	}
 
+	maxConcurrent := flag.GetInt(ctx, "max-concurrent")
+	immediateMaxConcurrent := flag.GetInt(ctx, "immediate-max-concurrent")
+	if maxConcurrent == defaultMaxConcurrent && immediateMaxConcurrent != defaultMaxConcurrent {
+		maxConcurrent = immediateMaxConcurrent
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
@@ -400,7 +408,7 @@ func deployToMachines(
 		Files:                 files,
 		ExcludeRegions:        excludeRegions,
 		OnlyRegions:           onlyRegions,
-		MaxConcurrent:         flag.GetInt(ctx, "max-concurrent"),
+		MaxConcurrent:         maxConcurrent,
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
 	})
