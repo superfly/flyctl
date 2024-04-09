@@ -42,71 +42,69 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact             *fly.AppCompact
-	DeploymentImage        string
-	Strategy               string
-	EnvFromFlags           []string
-	PrimaryRegionFlag      string
-	SkipSmokeChecks        bool
-	SkipHealthChecks       bool
-	SkipDNSChecks          bool
-	MaxUnavailable         *float64
-	RestartOnly            bool
-	WaitTimeout            *time.Duration
-	StopSignal             string
-	LeaseTimeout           *time.Duration
-	ReleaseCmdTimeout      *time.Duration
-	Guest                  *fly.MachineGuest
-	IncreasedAvailability  bool
-	AllocPublicIP          bool
-	UpdateOnly             bool
-	Files                  []*fly.File
-	ExcludeRegions         map[string]interface{}
-	OnlyRegions            map[string]interface{}
-	BlueGreenMaxConcurrent int
-	ImmediateMaxConcurrent int
-	VolumeInitialSize      int
-	ProcessGroups          map[string]interface{}
-	RestartPolicy          *fly.MachineRestartPolicy
-	RestartMaxRetries      int
+	AppCompact            *fly.AppCompact
+	DeploymentImage       string
+	Strategy              string
+	EnvFromFlags          []string
+	PrimaryRegionFlag     string
+	SkipSmokeChecks       bool
+	SkipHealthChecks      bool
+	SkipDNSChecks         bool
+	MaxUnavailable        *float64
+	RestartOnly           bool
+	WaitTimeout           *time.Duration
+	StopSignal            string
+	LeaseTimeout          *time.Duration
+	ReleaseCmdTimeout     *time.Duration
+	Guest                 *fly.MachineGuest
+	IncreasedAvailability bool
+	AllocPublicIP         bool
+	UpdateOnly            bool
+	Files                 []*fly.File
+	ExcludeRegions        map[string]interface{}
+	OnlyRegions           map[string]interface{}
+	MaxConcurrent         int
+	VolumeInitialSize     int
+	ProcessGroups         map[string]interface{}
+	RestartPolicy         *fly.MachineRestartPolicy
+	RestartMaxRetries     int
 }
 
 type machineDeployment struct {
-	apiClient              *fly.Client
-	gqlClient              graphql.Client
-	flapsClient            *flaps.Client
-	io                     *iostreams.IOStreams
-	colorize               *iostreams.ColorScheme
-	app                    *fly.AppCompact
-	appConfig              *appconfig.Config
-	img                    string
-	machineSet             machine.MachineSet
-	releaseCommandMachine  machine.MachineSet
-	volumes                map[string][]fly.Volume
-	strategy               string
-	releaseId              string
-	releaseVersion         int
-	skipSmokeChecks        bool
-	skipHealthChecks       bool
-	skipDNSChecks          bool
-	maxUnavailable         float64
-	restartOnly            bool
-	waitTimeout            time.Duration
-	stopSignal             string
-	leaseTimeout           time.Duration
-	leaseDelayBetween      time.Duration
-	releaseCmdTimeout      time.Duration
-	isFirstDeploy          bool
-	machineGuest           *fly.MachineGuest
-	increasedAvailability  bool
-	listenAddressChecked   sync.Map
-	updateOnly             bool
-	excludeRegions         map[string]interface{}
-	onlyRegions            map[string]interface{}
-	bluegreenMaxConcurrent int
-	immediateMaxConcurrent int
-	volumeInitialSize      int
-	processGroups          map[string]interface{}
+	apiClient             *fly.Client
+	gqlClient             graphql.Client
+	flapsClient           *flaps.Client
+	io                    *iostreams.IOStreams
+	colorize              *iostreams.ColorScheme
+	app                   *fly.AppCompact
+	appConfig             *appconfig.Config
+	img                   string
+	machineSet            machine.MachineSet
+	releaseCommandMachine machine.MachineSet
+	volumes               map[string][]fly.Volume
+	strategy              string
+	releaseId             string
+	releaseVersion        int
+	skipSmokeChecks       bool
+	skipHealthChecks      bool
+	skipDNSChecks         bool
+	maxUnavailable        float64
+	restartOnly           bool
+	waitTimeout           time.Duration
+	stopSignal            string
+	leaseTimeout          time.Duration
+	leaseDelayBetween     time.Duration
+	releaseCmdTimeout     time.Duration
+	isFirstDeploy         bool
+	machineGuest          *fly.MachineGuest
+	increasedAvailability bool
+	listenAddressChecked  sync.Map
+	updateOnly            bool
+	excludeRegions        map[string]interface{}
+	onlyRegions           map[string]interface{}
+	maxConcurrent         int
+	volumeInitialSize     int
+	processGroups         map[string]interface{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -193,44 +191,38 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
-	bluegreenMaxConcurrent := args.BlueGreenMaxConcurrent
-	if bluegreenMaxConcurrent < 1 {
-		bluegreenMaxConcurrent = 1
-	}
-
-	immedateMaxConcurrent := args.ImmediateMaxConcurrent
-	if immedateMaxConcurrent < 1 {
-		immedateMaxConcurrent = 1
+	maxConcurrent := args.MaxConcurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
 	}
 
 	md := &machineDeployment{
-		apiClient:              apiClient,
-		gqlClient:              apiClient.GenqClient,
-		flapsClient:            flapsClient,
-		io:                     io,
-		colorize:               io.ColorScheme(),
-		app:                    args.AppCompact,
-		appConfig:              appConfig,
-		img:                    args.DeploymentImage,
-		skipSmokeChecks:        args.SkipSmokeChecks,
-		skipHealthChecks:       args.SkipHealthChecks,
-		skipDNSChecks:          args.SkipDNSChecks,
-		restartOnly:            args.RestartOnly,
-		maxUnavailable:         maxUnavailable,
-		waitTimeout:            waitTimeout,
-		stopSignal:             args.StopSignal,
-		leaseTimeout:           leaseTimeout,
-		leaseDelayBetween:      leaseDelayBetween,
-		releaseCmdTimeout:      releaseCmdTimeout,
-		increasedAvailability:  args.IncreasedAvailability,
-		updateOnly:             args.UpdateOnly,
-		machineGuest:           args.Guest,
-		excludeRegions:         args.ExcludeRegions,
-		onlyRegions:            args.OnlyRegions,
-		bluegreenMaxConcurrent: bluegreenMaxConcurrent,
-		immediateMaxConcurrent: immedateMaxConcurrent,
-		volumeInitialSize:      args.VolumeInitialSize,
-		processGroups:          args.ProcessGroups,
+		apiClient:             apiClient,
+		gqlClient:             apiClient.GenqClient,
+		flapsClient:           flapsClient,
+		io:                    io,
+		colorize:              io.ColorScheme(),
+		app:                   args.AppCompact,
+		appConfig:             appConfig,
+		img:                   args.DeploymentImage,
+		skipSmokeChecks:       args.SkipSmokeChecks,
+		skipHealthChecks:      args.SkipHealthChecks,
+		skipDNSChecks:         args.SkipDNSChecks,
+		restartOnly:           args.RestartOnly,
+		maxUnavailable:        maxUnavailable,
+		waitTimeout:           waitTimeout,
+		stopSignal:            args.StopSignal,
+		leaseTimeout:          leaseTimeout,
+		leaseDelayBetween:     leaseDelayBetween,
+		releaseCmdTimeout:     releaseCmdTimeout,
+		increasedAvailability: args.IncreasedAvailability,
+		updateOnly:            args.UpdateOnly,
+		machineGuest:          args.Guest,
+		excludeRegions:        args.ExcludeRegions,
+		onlyRegions:           args.OnlyRegions,
+		maxConcurrent:         maxConcurrent,
+		volumeInitialSize:     args.VolumeInitialSize,
+		processGroups:         args.ProcessGroups,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
@@ -661,8 +653,7 @@ func (md *machineDeployment) ToSpanAttributes() []attribute.KeyValue {
 		attribute.Float64("deployment.release_cmd_timeout", md.releaseCmdTimeout.Seconds()),
 		attribute.Bool("deployment.increased_availability", md.increasedAvailability),
 		attribute.Bool("deployment.update_only", md.updateOnly),
-		attribute.Int("deployment.bluegreen_max_concurrency", md.bluegreenMaxConcurrent),
-		attribute.Int("deployment.immediate_max_concurrency", md.immediateMaxConcurrent),
+		attribute.Int("deployment.max_concurrency", md.maxConcurrent),
 		attribute.Int("deployment.volume_initial_size", md.volumeInitialSize),
 	}
 

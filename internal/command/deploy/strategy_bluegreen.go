@@ -79,7 +79,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
-		maxConcurrent:       md.bluegreenMaxConcurrent,
+		maxConcurrent:       md.maxConcurrent,
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
