@@ -93,9 +93,9 @@ func printVersionUpgrade(ctx context.Context, oldVersion version.Version, homebr
 	)
 
 	if homebrew {
-		currentVer, err = getNewVersionFlyInstaller(ctx)
-	} else {
 		currentVer, err = getNewVersionHomebrew(ctx)
+	} else {
+		currentVer, err = getNewVersionFlyInstaller(ctx)
 	}
 	if err != nil {
 		if strings.Contains(err.Error(), "failed to parse version") {
