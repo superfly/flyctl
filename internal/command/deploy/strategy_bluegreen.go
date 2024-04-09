@@ -59,6 +59,7 @@ type blueGreen struct {
 	appConfig           *appconfig.Config
 	hangingBlueMachines []string
 	timestamp           string
+	maxConcurrent       int
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -78,6 +79,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		stateLock:           sync.RWMutex{},
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
+		maxConcurrent:       md.maxConcurrent,
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
@@ -112,24 +114,39 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	defer span.End()
 
 	var greenMachines machineUpdateEntries
-
+	var lock sync.Mutex
+	p := pool.New().
+		WithErrors().
+		WithFirstError().
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, mach := range bg.blueMachines {
-		launchInput := mach.launchInput
-		launchInput.SkipServiceRegistration = true
-		launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
+		mach := mach
+		p.Go(func() error {
+			launchInput := mach.launchInput
+			launchInput.SkipServiceRegistration = true
+			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
 
-		newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to launch machine")
-			return err
-		}
+			newMachineRaw, err := bg.flaps.Launch(ctx, *launchInput)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to launch machine")
+				return err
+			}
 
-		greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
-		defer greenMachine.ReleaseLease(ctx)
+			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
+			defer greenMachine.ReleaseLease(ctx)
 
-		greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
+			lock.Lock()
+			defer lock.Unlock()
 
-		fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
+			greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
+
+			fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
+			return nil
+		})
+	}
+
+	if err := p.Wait(); err != nil {
+		return err
 	}
 
 	bg.greenMachines = greenMachines
@@ -396,58 +413,82 @@ func (bg *blueGreen) MarkGreenMachinesAsReadyForTraffic(ctx context.Context) err
 	ctx, span := tracing.GetTracer().Start(ctx, "mark_green_machines_for_traffic")
 	defer span.End()
 
+	p := pool.New().
+		WithErrors().
+		WithFirstError().
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.greenMachines.machines() {
-		if bg.isAborted() {
-			return ErrAborted
-		}
-		err := bg.flaps.Uncordon(ctx, gm.Machine().ID, "")
-		if err != nil {
-			return err
-		}
+		gm := gm
+		p.Go(func() error {
+			if bg.isAborted() {
+				return ErrAborted
+			}
+			err := bg.flaps.Uncordon(ctx, gm.Machine().ID, "")
+			if err != nil {
+				return err
+			}
 
-		fmt.Fprintf(bg.io.ErrOut, "  Machine %s now ready\n", bg.colorize.Bold(gm.FormattedMachineId()))
+			fmt.Fprintf(bg.io.ErrOut, "  Machine %s now ready\n", bg.colorize.Bold(gm.FormattedMachineId()))
+			return nil
+		})
 	}
 
-	return nil
+	return p.Wait()
 }
 
 func (bg *blueGreen) CordonBlueMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "cordon_blue_machines")
 	defer span.End()
 
+	p := pool.New().
+		WithErrors().
+		WithFirstError().
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
-		if bg.isAborted() {
-			return ErrAborted
-		}
-		err := gm.leasableMachine.Cordon(ctx)
-		if err != nil {
-			// Just let the user know, it's not a critical error
-			fmt.Fprintf(bg.io.ErrOut, "  Failed to cordon machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
-			continue
-		}
+		gm := gm
+		p.Go(func() error {
+			if bg.isAborted() {
+				return ErrAborted
+			}
+			err := gm.leasableMachine.Cordon(ctx)
+			if err != nil {
+				// Just let the user know, it's not a critical error
+				fmt.Fprintf(bg.io.ErrOut, "  Failed to cordon machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
+				return nil
+			}
 
-		fmt.Fprintf(bg.io.ErrOut, "  Machine %s cordoned\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+			fmt.Fprintf(bg.io.ErrOut, "  Machine %s cordoned\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()))
+			return nil
+		})
 	}
-	return nil
+	return p.Wait()
 }
 
 func (bg *blueGreen) StopBlueMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "stop_blue_machines")
 	defer span.End()
 
+	p := pool.New().
+		WithErrors().
+		WithFirstError().
+		WithMaxGoroutines(bg.maxConcurrent)
 	for _, gm := range bg.blueMachines {
-		if bg.isAborted() {
-			return ErrAborted
-		}
-		err := gm.leasableMachine.Stop(ctx, bg.stopSignal)
-		if err != nil {
-			// Just let the user know, it's not a critical error as we are gonna destroy the
-			// machines with force later
-			fmt.Fprintf(bg.io.ErrOut, "  Failed to stop machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
-			continue
-		}
+		gm := gm
+		p.Go(func() error {
+			if bg.isAborted() {
+				return ErrAborted
+			}
+			err := gm.leasableMachine.Stop(ctx, bg.stopSignal)
+			if err != nil {
+				// Just let the user know, it's not a critical error as we are gonna destroy the
+				// machines with force later
+				fmt.Fprintf(bg.io.ErrOut, "  Failed to stop machine %s: %v\n", bg.colorize.Bold(gm.leasableMachine.FormattedMachineId()), err)
+				return nil
+			}
+			return nil
+		})
 	}
-	return nil
+	return p.Wait()
 }
 
 func (bg *blueGreen) WaitForBlueMachinesToBeStopped(ctx context.Context) error {
@@ -511,10 +552,11 @@ func (bg *blueGreen) DestroyBlueMachines(ctx context.Context) error {
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(16)
+		WithMaxGoroutines(bg.maxConcurrent)
 
 	var mu sync.Mutex
 	for _, gm := range bg.blueMachines {
+		gm := gm
 		p.Go(func() error {
 			if bg.isAborted() {
 				return ErrAborted
