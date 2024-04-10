@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/filemu"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/state"
@@ -27,9 +28,10 @@ func newRun() (cmd *cobra.Command) {
 		long  = short + "\n"
 	)
 
-	cmd = command.New("run", short, long, run,
-		command.RequireSession,
-	)
+	// Don't use RequireSession preparer. It does its own token monitoring and
+	// will try to run token discharge flows that would involve opening URLs in
+	// the  user's browser. We don't want to do that in a background agent.
+	cmd = command.New("run", short, long, run)
 
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Aliases = []string{"daemon-start"}
@@ -48,6 +50,14 @@ func run(ctx context.Context) error {
 	}
 	defer closeLogger()
 
+	apiClient := fly.ClientFromContext(ctx)
+	if !apiClient.Authenticated() {
+		logger.Println(fly.ErrNoAuthToken)
+		return fly.ErrNoAuthToken
+	}
+
+	config.MonitorTokens(ctx, config.Tokens(ctx), nil)
+
 	unlock, err := lock(ctx, logger)
 	if err != nil {
 		return err
@@ -57,7 +67,7 @@ func run(ctx context.Context) error {
 	opt := server.Options{
 		Socket:           socketPath(ctx),
 		Logger:           logger,
-		Client:           fly.ClientFromContext(ctx),
+		Client:           apiClient,
 		Background:       logPath != "",
 		ConfigFile:       state.ConfigFile(ctx),
 		ConfigWebsockets: viper.GetBool(flyctl.ConfigWireGuardWebsockets),
