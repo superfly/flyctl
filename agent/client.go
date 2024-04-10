@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -127,14 +128,53 @@ const (
 )
 
 type Client struct {
-	network string
-	address string
-	dialer  net.Dialer
+	network            string
+	address            string
+	dialer             net.Dialer
+	agentRefusedTokens bool
 }
 
 var errDone = errors.New("done")
 
-func (c *Client) do(parent context.Context, fn func(net.Conn) error) (err error) {
+func (c *Client) do(ctx context.Context, fn func(net.Conn) error) (err error) {
+	if c.agentRefusedTokens {
+		return c.doNoTokens(ctx, fn)
+	}
+
+	toks := config.Tokens(ctx)
+	if toks.All() == "" {
+		return c.doNoTokens(ctx, fn)
+	}
+
+	var tokArgs []string
+	if fcf := toks.FromConfigFile; fcf != "" {
+		tokArgs = append(tokArgs, "cfg", fcf)
+	} else {
+		tokArgs = append(tokArgs, "str", toks.All())
+	}
+
+	return c.doNoTokens(ctx, func(conn net.Conn) error {
+		if err := proto.Write(conn, "set-token", tokArgs...); err != nil {
+			return err
+		}
+
+		data, err := proto.Read(conn)
+
+		switch {
+		case err == nil && string(data) == "ok":
+			return fn(conn)
+		case err != nil:
+			return err
+		case isError(data):
+			c.agentRefusedTokens = true
+			return c.do(ctx, fn)
+		default:
+			return err
+		}
+	})
+}
+
+func (c *Client) doNoTokens(parent context.Context, fn func(net.Conn) error) (err error) {
 	var conn net.Conn
 	if conn, err = c.dialContext(parent); err != nil {
 		return err

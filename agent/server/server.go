@@ -14,8 +14,11 @@ import (
 
 	"github.com/azazeal/pause"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/wg"
@@ -25,7 +28,6 @@ import (
 type Options struct {
 	Socket           string
 	Logger           *log.Logger
-	Client           *fly.Client
 	Background       bool
 	ConfigFile       string
 	ConfigWebsockets bool
@@ -49,11 +51,19 @@ func Run(ctx context.Context, opt Options) (err error) {
 		return
 	}
 
+	toks := config.Tokens(ctx)
+
+	monitorCtx, cancelMonitor := context.WithCancel(ctx)
+	config.MonitorTokens(monitorCtx, toks, nil)
+
 	err = (&server{
-		Options:       opt,
-		listener:      l,
-		currentChange: latestChangeAt,
-		tunnels:       make(map[string]*wg.Tunnel),
+		Options:               opt,
+		listener:              l,
+		runCtx:                ctx,
+		currentChange:         latestChangeAt,
+		tunnels:               make(map[string]*wg.Tunnel),
+		tokens:                toks,
+		cancelTokenMonitoring: cancelMonitor,
 	}).serve(ctx, l)
 
 	return
@@ -105,9 +115,12 @@ type server struct {
 
 	listener net.Listener
 
-	mu            sync.Mutex
-	currentChange time.Time
-	tunnels       map[string]*wg.Tunnel
+	runCtx                context.Context
+	mu                    sync.Mutex
+	currentChange         time.Time
+	tunnels               map[string]*wg.Tunnel
+	tokens                *tokens.Tokens
+	cancelTokenMonitoring func()
 }
 
 type terminateError struct{ error }
@@ -206,7 +219,7 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool, client *fly.Client) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -217,7 +230,7 @@ func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle
 	}
 
 	var state *wg.WireGuardState
-	if state, err = wireguard.StateForOrg(ctx, s.Client, org, os.Getenv("FLY_AGENT_WG_REGION"), "", recycle); err != nil {
+	if state, err = wireguard.StateForOrg(ctx, client, org, os.Getenv("FLY_AGENT_WG_REGION"), "", recycle); err != nil {
 		return
 	}
 
@@ -349,7 +362,7 @@ func (s *server) clean(ctx context.Context) {
 			break
 		}
 
-		if err := wireguard.PruneInvalidPeers(ctx, s.Client); err != nil {
+		if err := wireguard.PruneInvalidPeers(ctx, s.GetClient(ctx)); err != nil {
 			s.printf("failed pruning invalid peers: %v", err)
 		}
 
@@ -359,6 +372,37 @@ func (s *server) clean(ctx context.Context) {
 
 		s.print("validated wireguard peers")
 	}
+}
+
+// GetClient returns an API client that uses the server's tokens. Sessions may
+// have their own tokens, so should use session.getClient instead.
+func (s *server) GetClient(ctx context.Context) *fly.Client {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+}
+
+// UpdateTokensFromClient replaces the server's tokens with those from the
+// client if the new ones seem better. Specifically, if the agent was started
+// with `FLY_API_TOKEN`, but a later client is using tokens form a config file.
+func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.tokens.FromConfigFile != "" || t.FromConfigFile == "" {
+		return
+	}
+
+	s.print("received new tokens from client")
+
+	s.cancelTokenMonitoring()
+
+	monitorCtx, cancelMonitor := context.WithCancel(s.runCtx)
+	config.MonitorTokens(monitorCtx, t, nil)
+
+	s.tokens = t
+	s.cancelTokenMonitoring = cancelMonitor
 }
 
 func (s *server) print(v ...interface{}) {
