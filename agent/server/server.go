@@ -142,9 +142,9 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 		return nil
 	})
 
-	if toks := config.Tokens(ctx); len(toks.MacaroonTokens) != 0 {
+	if toks := config.Tokens(ctx); len(toks.GetMacaroonTokens()) != 0 {
 		eg.Go(func() error {
-			if f := toks.FromConfigFile; f == "" {
+			if f := toks.FromFile(); f == "" {
 				s.print("monitoring for token expiration")
 				s.updateMacaroonsInMemory(ctx)
 			} else {
@@ -437,8 +437,8 @@ func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
 		// the tokens in the config are continually updated as the config file
 		// changes. We do our updates on a copy of the tokens so we can still
 		// tell if the tokens in the config changed out from under us.
-		configToksBefore := configToks.All()
-		localToks := tokens.Parse(configToksBefore)
+		configToksBefore := configToks.Copy()
+		localToks := configToks.Copy()
 
 		updated, err := localToks.Update(ctx, tokens.WithDebugger(s))
 		if err != nil && err != lastErr {
@@ -451,7 +451,7 @@ func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
 		// the consequences of a race here (agent and foreground command both
 		// fetching updates simultaneously) are low, so don't bother with a lock
 		// file.
-		if updated && configToks.All() == configToksBefore {
+		if updated && configToks.Equal(configToksBefore) {
 			if err := config.SetAccessToken(path, localToks.All()); err != nil {
 				s.print("Failed to persist authentication token:", err)
 				s.updateMacaroonsInMemory(ctx)

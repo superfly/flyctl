@@ -572,12 +572,12 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 		log.Debug(err)
 	}
 
-	if toks.FromConfigFile == "" {
+	if toks.FromFile() == "" {
 		return ctx, nil
 	}
 
 	if updated {
-		if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
+		if err := config.SetAccessToken(toks.FromFile(), toks.All()); err != nil {
 			log.Warn("Failed to persist authentication token.")
 			log.Debug(err)
 		}
@@ -592,7 +592,7 @@ func updateMacaroons(ctx context.Context) (context.Context, error) {
 
 	go func() {
 		for newCfg := range sub {
-			if cfg.Tokens.All() != newCfg.Tokens.All() {
+			if cfg.Tokens.Equal(newCfg.Tokens) {
 				log.Debug("Authentication tokens updated from config file.")
 				cfg.Tokens.Replace(newCfg.Tokens)
 			}
