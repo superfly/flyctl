@@ -14,9 +14,7 @@ import (
 
 	"github.com/azazeal/pause"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -136,20 +134,6 @@ func (s *server) serve(parent context.Context, l net.Listener) (err error) {
 
 		return nil
 	})
-
-	if toks := config.Tokens(ctx); len(toks.MacaroonTokens) != 0 {
-		eg.Go(func() error {
-			if f := toks.FromConfigFile; f == "" {
-				s.print("monitoring for token expiration")
-				s.updateMacaroonsInMemory(ctx)
-			} else {
-				s.print("monitoring for token changes and expiration")
-				s.updateMacaroonsInFile(ctx, f)
-			}
-
-			return nil
-		})
-	}
 
 	eg.Go(func() (err error) {
 		s.printf("OK %d", os.Getpid())
@@ -377,84 +361,10 @@ func (s *server) clean(ctx context.Context) {
 	}
 }
 
-// updateMacaroons prunes expired macaroons and attempts to fetch discharge
-// tokens as necessary.
-func (s *server) updateMacaroonsInMemory(ctx context.Context) {
-	toks := config.Tokens(ctx)
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	var lastErr error
-
-	for {
-		if _, err := toks.Update(ctx, tokens.WithDebugger(s)); err != nil && err != lastErr {
-			s.print("failed upgrading authentication tokens:", err)
-			lastErr = err
-		}
-
-		select {
-		case <-ticker.C:
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// updateMacaroons prunes expired tokens and fetches discharge tokens as
-// necessary. Those updates are written back to the config file.
-func (s *server) updateMacaroonsInFile(ctx context.Context, path string) {
-	configToks := config.Tokens(ctx)
-
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-
-	var lastErr error
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-		}
-
-		// the tokens in the config are continually updated as the config file
-		// changes. We do our updates on a copy of the tokens so we can still
-		// tell if the tokens in the config changed out from under us.
-		configToksBefore := configToks.All()
-		localToks := tokens.Parse(configToksBefore)
-
-		updated, err := localToks.Update(ctx, tokens.WithDebugger(s))
-		if err != nil && err != lastErr {
-			s.print("failed upgrading authentication tokens:", err)
-			lastErr = err
-
-			// Don't continue loop here! It might only be partial failure
-		}
-
-		// the consequences of a race here (agent and foreground command both
-		// fetching updates simultaneously) are low, so don't bother with a lock
-		// file.
-		if updated && configToks.All() == configToksBefore {
-			if err := config.SetAccessToken(path, localToks.All()); err != nil {
-				s.print("Failed to persist authentication token:", err)
-				s.updateMacaroonsInMemory(ctx)
-				return
-			}
-
-			s.print("Authentication tokens upgraded")
-		}
-	}
-}
-
 func (s *server) print(v ...interface{}) {
 	s.Logger.Print(v...)
 }
 
 func (s *server) printf(format string, v ...interface{}) {
 	s.Logger.Printf(format, v...)
-}
-
-func (s *server) Debug(v ...any) {
-	s.Logger.Print(v...)
 }
