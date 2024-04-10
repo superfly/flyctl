@@ -135,7 +135,7 @@ func run(ctx context.Context) (err error) {
 			status.Error = err.Error()
 
 			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
-				err = errors.New(state.sourceInfo.FailureCallback(status.Error))
+				err = state.sourceInfo.FailureCallback(err)
 			}
 		}
 
