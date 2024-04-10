@@ -20,11 +20,14 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/wg"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 type id uint64
@@ -38,6 +41,7 @@ type session struct {
 	conn   net.Conn
 	logger *log.Logger
 	id     id
+	tokens *tokens.Tokens
 }
 
 var errUnsupportedCommand = errors.New("unsupported command")
@@ -81,6 +85,10 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 		return
 	}
 
+	s.runCommand(ctx)
+}
+
+func (s *session) runCommand(ctx context.Context) {
 	buf, err := proto.Read(s.conn)
 	if len(buf) > 0 {
 		s.logger.Printf("<- (% 5d) %q", len(buf), redact(buf))
@@ -95,30 +103,37 @@ func runSession(ctx context.Context, srv *server, conn net.Conn, id id) {
 	}
 
 	args := strings.Split(string(buf), " ")
+	var handler func(*session, context.Context, ...string)
 
-	fn := handlers[args[0]]
-	if fn == nil {
+	switch args[0] {
+	case "kill":
+		handler = (*session).kill
+	case "ping":
+		handler = (*session).ping
+	case "establish":
+		handler = (*session).establish
+	case "reestablish":
+		handler = (*session).reestablish
+	case "connect":
+		handler = (*session).connect
+	case "probe":
+		handler = (*session).probe
+	case "instances":
+		handler = (*session).instances
+	case "resolve":
+		handler = (*session).resolve
+	case "lookupTxt":
+		handler = (*session).lookupTxt
+	case "ping6":
+		handler = (*session).ping6
+	case "set-token":
+		handler = (*session).setToken
+	default:
 		s.error(errUnsupportedCommand)
-
 		return
 	}
 
-	fn(s, ctx, args[1:]...)
-}
-
-type handlerFunc func(*session, context.Context, ...string)
-
-var handlers = map[string]handlerFunc{
-	"kill":        (*session).kill,
-	"ping":        (*session).ping,
-	"establish":   (*session).establish,
-	"reestablish": (*session).reestablish,
-	"connect":     (*session).connect,
-	"probe":       (*session).probe,
-	"instances":   (*session).instances,
-	"resolve":     (*session).resolve,
-	"lookupTxt":   (*session).lookupTxt,
-	"ping6":       (*session).ping6,
+	handler(s, ctx, args[1:]...)
 }
 
 var errMalformedKill = errors.New("malformed kill command")
@@ -161,7 +176,7 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(ctx, org, recycle)
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, s.getClient(ctx))
 	if err != nil {
 		s.error(err)
 
@@ -185,7 +200,7 @@ func (s *session) reestablish(ctx context.Context, args ...string) {
 var errNoSuchOrg = errors.New("no such organization")
 
 func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization, error) {
-	orgs, err := s.srv.Client.GetOrganizations(ctx)
+	orgs, err := s.Client(ctx).GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -533,6 +548,43 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 	}
 }
 
+var errMalformedSetToken = errors.New("malformed set-token command")
+
+// setToken instructs the agent which tokens to use for API calls.
+func (s *session) setToken(ctx context.Context, args ...string) {
+	s.exactArgs(2, args, errMalformedSetToken)
+
+	switch args[0] {
+	case "cfg":
+		tokStr, err := config.ReadAccessToken(args[1])
+		if err != nil {
+			s.error(err)
+			return
+		}
+
+		s.tokens = tokens.Parse(tokStr)
+		s.tokens.FromConfigFile = args[1]
+	case "str":
+		s.tokens = tokens.Parse(args[1])
+	}
+
+	go s.srv.UpdateTokensFromClient(s.tokens)
+
+	s.ok()
+
+	s.runCommand(ctx)
+}
+
+// getClient returns an API client that uses any API tokens sent by the client.
+// If not have been sent, it falls back to using the server's tokens.
+func (s *session) getClient(ctx context.Context) *fly.Client {
+	if s.tokens == nil {
+		return s.srv.GetClient(ctx)
+	}
+
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+}
+
 func (s *session) error(err error) bool {
 	return s.reply("err", err.Error())
 }
@@ -602,12 +654,22 @@ func (s *session) marshal(v interface{}) (ok bool) {
 	return
 }
 
+func (s *session) Client(ctx context.Context) *fly.Client {
+	return flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: s.tokens})
+}
+
 func isClosed(err error) bool {
 	return errors.Is(err, net.ErrClosed)
 }
 
-var redactRx = regexp.MustCompile(`(PrivateKey|private)":".*?"`)
+var (
+	redactPrivateKeyRx = regexp.MustCompile(`(PrivateKey|private)":".*?"`)
+	redactTokenRx      = regexp.MustCompile(`(fo1_|fm1[ar]_|fm2_)[a-zA-Z0-9/+_-]+=*`)
+)
 
 func redact(buf []byte) []byte {
-	return redactRx.ReplaceAll(buf, []byte(`PrivateKey":"[redacted]"`))
+	buf = redactPrivateKeyRx.ReplaceAll(buf, []byte(`PrivateKey":"[redacted]"`))
+	buf = redactTokenRx.ReplaceAll(buf, []byte(`$1[redacted]`))
+	return buf
+
 }
