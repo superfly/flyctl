@@ -1,0 +1,364 @@
+package config
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/flyio"
+	"golang.org/x/exp/maps"
+)
+
+// UserURLCallback is a function that opens a URL in the user's browser. This is
+// used for token discharge flows that require user interaction.
+type UserURLCallback func(ctx context.Context, url string) error
+
+// MonitorTokens does some housekeeping on the provided tokens. Then, in a
+// goroutine, it continues to keep the tokens updated and fresh. The call to
+// MonitorTokens will return as soon as the tokens are ready for use and the
+// background job will run until the context is cancelled. Token updates include
+//   - Keeping the tokens synced with the config file.
+//   - Refreshing any expired discharge tokens.
+//   - Pruning expired or invalid token.
+//   - Fetching macaroons for any organizations the user has been added to.
+//   - Pruning tokens for organizations the user is no longer a member of.
+func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCallback) {
+	log := logger.FromContext(monitorCtx)
+
+	updated1, err := fetchOrgTokens(monitorCtx, t)
+	if err != nil {
+		log.Debugf("failed to fetch missing tokens for user: %s", err)
+	}
+
+	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb)
+	if err != nil {
+		log.Debugf("failed to update discharge tokens: %s", err)
+
+	}
+
+	if t.FromConfigFile != "" && updated1 || updated2 {
+		if err := SetAccessToken(t.FromConfigFile, t.All()); err != nil {
+			log.Debugf("failed to persist updated tokens: %s", err)
+		}
+	}
+
+	task.FromContext(monitorCtx).Run(func(taskCtx context.Context) {
+		taskCtx, cancelTask := context.WithCancel(taskCtx)
+
+		var m sync.Mutex
+		var wg sync.WaitGroup
+
+		wg.Add(2)
+
+		if t.FromConfigFile != "" {
+			log.Debugf("monitoring tokens at %s", t.FromConfigFile)
+		} else {
+			log.Debug("monitoring tokens in memory")
+		}
+
+		go monitorConfigTokenChanges(taskCtx, &m, t, wg.Done)
+		go keepConfigTokensFresh(taskCtx, &m, t, uucb, wg.Done)
+
+		// shut down when the task manager is shutting down or when the
+		// ctx passed into MonitorTokens is cancelled.
+		select {
+		case <-taskCtx.Done():
+		case <-monitorCtx.Done():
+		}
+
+		log.Debug("done monitoring tokens")
+		cancelTask()
+		wg.Wait()
+	})
+}
+
+// monitorConfigTokenChanges watches for token changes in the config file. This can
+// happen if a foreground process updates the config file while the agent is
+// running.
+func monitorConfigTokenChanges(ctx context.Context, m *sync.Mutex, t *tokens.Tokens, done func()) error {
+	defer done()
+
+	fromConfigFile := tokensConfigFile(t, m)
+	if fromConfigFile == "" {
+		return nil
+	}
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			currentStr, err := ReadAccessToken(t.FromConfigFile)
+			if err != nil {
+				return err
+			}
+
+			current := tokens.Parse(currentStr)
+			current.FromConfigFile = fromConfigFile
+
+			m.Lock()
+			if t.All() != current.All() {
+
+				t.Replace(current)
+			}
+			m.Unlock()
+		}
+	}
+}
+
+// keepConfigTokensFresh periodically updates our tokens and syncs those to the config
+// file.
+func keepConfigTokensFresh(ctx context.Context, m *sync.Mutex, t *tokens.Tokens, uucb UserURLCallback, done func()) error {
+	defer done()
+
+	ticker := time.NewTicker(time.Minute)
+	defer ticker.Stop()
+
+	logger := logger.FromContext(ctx)
+	fromConfigFile := tokensConfigFile(t, m)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			beforeUpdate := t.All()
+			localCopy := tokens.Parse(beforeUpdate)
+
+			updated1, err := fetchOrgTokens(ctx, localCopy)
+			if err != nil {
+				logger.Debugf("failed to fetch missing tokens for user: %s", err)
+				// don't continue. might have been partial success
+			}
+
+			updated2, err := refreshDischargeTokens(ctx, localCopy, uucb)
+			if err != nil {
+				logger.Debugf("failed to update discharge tokens: %s", err)
+				// don't continue. might have been partial success
+			}
+
+			if !updated2 && !updated1 {
+				continue
+			}
+
+			m.Lock()
+			// don't clobber config file if it changed out from under us. the
+			// consequences of a race here (agent and foreground command both
+			// fetching updates simultaneously) are low, so don't bother with an
+			// extra lock file.
+			if t.All() == beforeUpdate {
+				t.Replace(localCopy)
+
+				if fromConfigFile != "" {
+					if err := SetAccessToken(fromConfigFile, t.All()); err != nil {
+						logger.Debugf("failed to persist updated tokens: %s", err)
+
+						// don't try again if we fail to write once
+						fromConfigFile = ""
+					}
+				}
+			}
+			m.Unlock()
+		}
+	}
+}
+
+// refreshDischargeTokens attempts to refresh any expired discharge tokens. It
+// returns true if any tokens were updated, which might be the case even if
+// there was an error for other tokens.
+//
+// Some discharges may require user interaction in the form of opening a URL in
+// the user's browser. Set the UserURLCallback package variable if you want to
+// support this.
+func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLCallback) (bool, error) {
+	updateOpts := []tokens.UpdateOption{tokens.WithDebugger(logger.FromContext(ctx))}
+
+	if uucb != nil {
+		updateOpts = append(updateOpts, tokens.WithUserURLCallback(uucb))
+	}
+
+	return t.Update(ctx, updateOpts...)
+}
+
+// fetchOrgTokens checks that we macaroons for all orgs the user is a member of.
+// It returns true if any new tokens were added, which might be the case even if
+// there was an error.
+func fetchOrgTokens(ctx context.Context, t *tokens.Tokens) (bool, error) {
+	return doFetchOrgTokens(ctx, t, defaultOrgFetcher, defaultTokenMinter)
+}
+
+func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetcher, mintToken tokenMinter) (bool, error) {
+	if len(t.MacaroonTokens) == 0 || len(t.UserTokens) == 0 {
+		return false, nil
+	}
+
+	userOnly := tokens.Parse(t.All())
+	userOnly.MacaroonTokens = nil
+
+	c := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: userOnly})
+
+	graphIDByNumericID, err := fetchOrgs(ctx, c)
+	if err != nil {
+		return false, err
+	}
+
+	log := logger.FromContext(ctx)
+
+	var tokensUpdated bool
+
+	tokOIDS := make(map[uint64]bool, len(t.MacaroonTokens))
+	t.MacaroonTokens = slices.DeleteFunc(t.MacaroonTokens, func(tok string) bool {
+		toks, err := macaroon.Parse(tok)
+		if err != nil {
+			log.Debugf("pruning token: failed to parse macaroon: %v", err)
+			tokensUpdated = true
+			return true
+		}
+
+		permMacs, _, _, _, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
+		if err != nil {
+			log.Debugf("pruning token: failed to find permission token: %v", err)
+			tokensUpdated = true
+			return true
+		}
+
+		// discharge token?
+		if len(permMacs) != 1 {
+			return false
+		}
+
+		oid, err := flyio.OrganizationScope(&permMacs[0].UnsafeCaveats)
+		if err != nil {
+			log.Debugf("pruning token: failed to calculate org scope: %v", err)
+			tokensUpdated = true
+			return true
+		}
+
+		if _, hasOrg := graphIDByNumericID[oid]; !hasOrg {
+			log.Debug("pruning token: user not in org")
+			tokensUpdated = true
+			return true
+		}
+
+		tokOIDS[oid] = true
+		return false
+	})
+
+	// find missing orgs by deleting the ones we found
+	for oid := range tokOIDS {
+		delete(graphIDByNumericID, oid)
+	}
+
+	var (
+		wg     sync.WaitGroup
+		wgErr  error
+		wgLock sync.Mutex
+	)
+
+	addErr := func(err error) {
+		wgLock.Lock()
+		defer wgLock.Unlock()
+		wgErr = errors.Join(wgErr, err)
+	}
+	addMac := func(m string) {
+		wgLock.Lock()
+		defer wgLock.Unlock()
+		t.MacaroonTokens = append(t.MacaroonTokens, m)
+		tokensUpdated = true
+	}
+	for _, slug := range maps.Values(graphIDByNumericID) {
+		slug := slug
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			log.Debugf("fetching macaroons for org %s", slug)
+			newToksStr, err := mintToken(ctx, c, slug)
+			if err != nil {
+				addErr(fmt.Errorf("failed to get macaroons for org %s: %w", slug, err))
+				return
+			}
+
+			newToks, err := macaroon.Parse(newToksStr)
+			if err != nil {
+				addErr(fmt.Errorf("bad macaroons for org %s: %w", slug, err))
+				return
+			}
+
+			for _, newTok := range newToks {
+				m, err := macaroon.Decode(newTok)
+				if err != nil {
+					addErr(fmt.Errorf("bad macaroon for org %s: %w", slug, err))
+					return
+				}
+
+				mStr, err := m.String()
+				if err != nil {
+					addErr(fmt.Errorf("failed encoding macaroon for org %s: %w", slug, err))
+					return
+				}
+
+				addMac(mStr)
+			}
+		}()
+	}
+	wg.Wait()
+
+	return tokensUpdated, wgErr
+}
+
+// orgFetcher allows us to stub out gql calls in tests
+type orgFetcher func(context.Context, *fly.Client) (map[uint64]string, error)
+
+func defaultOrgFetcher(ctx context.Context, c *fly.Client) (map[uint64]string, error) {
+	orgs, err := c.GetOrganizations(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	graphIDByNumericID := make(map[uint64]string, len(orgs))
+	for _, org := range orgs {
+		if uintID, err := strconv.ParseUint(org.InternalNumericID, 10, 64); err == nil {
+			graphIDByNumericID[uintID] = org.ID
+		}
+	}
+
+	return graphIDByNumericID, nil
+}
+
+// tokenMinter allows us to stub out gql calls in tests
+type tokenMinter func(context.Context, *fly.Client, string) (string, error)
+
+func defaultTokenMinter(ctx context.Context, c *fly.Client, id string) (string, error) {
+	resp, err := gql.CreateLimitedAccessToken(ctx, c.GenqClient, "flyctl", id, "deploy_organization", &gql.LimitedAccessTokenOptions{}, "10m")
+	if err != nil {
+		return "", err
+	}
+
+	return resp.CreateLimitedAccessToken.GetLimitedAccessToken().TokenHeader, nil
+}
+
+// tokensConfigFile locks the mutex and reads t.FromConfigFile. t.FromConfigFile
+// isn't safe for concurrent access, since it's just a struct member and
+// t.Replace changes it. We should move it behind an accessor method.
+func tokensConfigFile(t *tokens.Tokens, m *sync.Mutex) string {
+	m.Lock()
+	defer m.Unlock()
+
+	return t.FromConfigFile
+}
