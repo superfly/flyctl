@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 var healthcheck_channel = make(chan string)
@@ -72,6 +73,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
+		FailureCallback:      RailsFailureCallback,
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
@@ -332,4 +334,18 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	return nil
+}
+
+func RailsFailureCallback(err error) error {
+	suggestion := flyerr.GetErrorSuggestion(err)
+
+	if suggestion == "" {
+		err = flyerr.GenericErr{
+			Err: err.Error(),
+			Suggest: "\nSee https://fly.io/docs/rails/getting-started/existing/#common-initial-deployment-issues\n" +
+				"for suggestions on how to resolve common deployment issues.",
+		}
+	}
+
+	return err
 }
