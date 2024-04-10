@@ -188,7 +188,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
+func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	// install dockerfile-rails gem, if not already included
 	writable := false
 	gemfile, err := os.ReadFile("Gemfile")
@@ -288,6 +288,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	// add redis
 	if redis := plan.Redis.Provider(); redis != nil {
 		args = append(args, "--redis")
+	}
+
+	// add additional flags from launch command
+	if len(flags) > 0 {
+		args = append(args, flags...)
 	}
 
 	// run command

@@ -116,7 +116,7 @@ a Postgres database.
 	return s, nil
 }
 
-func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan) error {
+func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	envEExPath := "rel/env.sh.eex"
 	envEExContents := `
 # configure node for distributed erlang with IPV6 support
