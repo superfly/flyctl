@@ -50,13 +50,10 @@ func run(ctx context.Context) error {
 	}
 	defer closeLogger()
 
-	apiClient := fly.ClientFromContext(ctx)
-	if !apiClient.Authenticated() {
+	if config.Tokens(ctx).GraphQL() == "" {
 		logger.Println(fly.ErrNoAuthToken)
 		return fly.ErrNoAuthToken
 	}
-
-	config.MonitorTokens(ctx, config.Tokens(ctx), nil)
 
 	unlock, err := lock(ctx, logger)
 	if err != nil {
@@ -67,7 +64,6 @@ func run(ctx context.Context) error {
 	opt := server.Options{
 		Socket:           socketPath(ctx),
 		Logger:           logger,
-		Client:           apiClient,
 		Background:       logPath != "",
 		ConfigFile:       state.ConfigFile(ctx),
 		ConfigWebsockets: viper.GetBool(flyctl.ConfigWireGuardWebsockets),
