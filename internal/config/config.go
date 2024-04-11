@@ -173,9 +173,7 @@ func (cfg *Config) applyFile(path string) (err error) {
 	w.AutoUpdate = true
 
 	if err = unmarshal(path, &w); err == nil {
-		cfg.Tokens = tokens.Parse(w.AccessToken)
-		cfg.Tokens.FromConfigFile = path
-
+		cfg.Tokens = tokens.ParseFromFile(w.AccessToken, path)
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate

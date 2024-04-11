@@ -562,8 +562,7 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 			return
 		}
 
-		s.tokens = tokens.Parse(tokStr)
-		s.tokens.FromConfigFile = args[1]
+		s.tokens = tokens.ParseFromFile(tokStr, args[1])
 	case "str":
 		s.tokens = tokens.Parse(args[1])
 	}

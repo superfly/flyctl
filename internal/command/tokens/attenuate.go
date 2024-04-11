@@ -85,7 +85,7 @@ func getPermissionAndDischargeTokens(ctx context.Context) ([]*macaroon.Macaroon,
 }
 
 func getTokens(ctx context.Context) ([][]byte, error) {
-	token := config.Tokens(ctx).Macaroons()
+	token := config.Tokens(ctx).MacaroonsOnly().All()
 
 	if token == "" {
 		return nil, errors.New("pass a macaroon token (e.g. from `fly tokens deploy`) as the -t argument or in FLY_API_TOKEN")

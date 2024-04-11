@@ -142,13 +142,13 @@ func (c *Client) do(ctx context.Context, fn func(net.Conn) error) (err error) {
 	}
 
 	toks := config.Tokens(ctx)
-	if toks.All() == "" {
+	if toks.Empty() {
 		return c.doNoTokens(ctx, fn)
 	}
 
 	var tokArgs []string
-	if fcf := toks.FromConfigFile; fcf != "" {
-		tokArgs = append(tokArgs, "cfg", fcf)
+	if file := toks.FromFile(); file != "" {
+		tokArgs = append(tokArgs, "cfg", file)
 	} else {
 		tokArgs = append(tokArgs, "str", toks.All())
 	}
