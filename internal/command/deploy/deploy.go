@@ -258,7 +258,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	}
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
+	img, err := determineImage(ctx, appCompact, appConfig)
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
