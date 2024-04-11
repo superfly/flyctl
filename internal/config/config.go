@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"sync"
+	"time"
 
 	"github.com/spf13/pflag"
 
@@ -45,6 +46,11 @@ const (
 	defaultRegistryHost   = "registry.fly.io"
 	defaultMetricsBaseURL = "https://flyctl-metrics.fly.dev"
 )
+
+type CachedBuildToken struct {
+	Token      string
+	Expiration time.Time
+}
 
 // Config wraps the functionality of the configuration file.
 //
@@ -91,6 +97,10 @@ type Config struct {
 	// Tokens is the user's authentication token(s). They are used differently
 	// depending on where they need to be sent.
 	Tokens *tokens.Tokens
+
+	// CachedBuildTokens denotes the user's cached build token(s). They are created
+	// as needed. Because the cache is not persisted, it does not use the config mutex.
+	CachedBuildTokens map[uint64]CachedBuildToken
 
 	// MetricsToken denotes the user's metrics token.
 	MetricsToken string
