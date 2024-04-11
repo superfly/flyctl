@@ -36,6 +36,10 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+const (
+	registryHostForAuth = "registry.fly.io"
+)
+
 var (
 	cachedDocker     *dockerclient.Client
 	wglessCompatible bool
@@ -601,14 +605,14 @@ func registryAuth(token string) registry.AuthConfig {
 	return registry.AuthConfig{
 		Username:      "x",
 		Password:      token,
-		ServerAddress: "registry.fly.io",
+		ServerAddress: registryHostForAuth,
 	}
 }
 
 func authConfigs(token string) map[string]registry.AuthConfig {
 	authConfigs := map[string]registry.AuthConfig{}
 
-	authConfigs["registry.fly.io"] = registryAuth(token)
+	authConfigs[registryHostForAuth] = registryAuth(token)
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
