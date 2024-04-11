@@ -44,6 +44,23 @@ func getBuildToken(ctx context.Context, app *fly.AppCompact) (string, error) {
 	return token, nil
 }
 
+func RevokeBuildTokens(ctx context.Context, app *fly.AppCompact) error {
+	orgID, err := strconv.ParseUint(app.Organization.InternalNumericID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("failed to parse organization ID: %w", err)
+	}
+
+	cfg := config.FromContext(ctx)
+	cachedToken, ok := cfg.CachedBuildTokens[orgID]
+	if !ok {
+		return nil
+	}
+	delete(cfg.CachedBuildTokens, orgID)
+
+	apiClient := fly.ClientFromContext(ctx)
+	return apiClient.RevokeLimitedAccessToken(ctx, cachedToken.ID)
+}
+
 func addBuildTokenCaveats(m *macaroon.Macaroon, orgID uint64, includeExpiry bool) {
 	action := resset.ActionRead | resset.ActionWrite | resset.ActionCreate | resset.ActionDelete
 
@@ -138,6 +155,7 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 		cfg.CachedBuildTokens = make(map[uint64]config.CachedBuildToken)
 	}
 	cfg.CachedBuildTokens[orgID] = config.CachedBuildToken{
+		ID:         resp.CreateLimitedAccessToken.LimitedAccessToken.Id,
 		Token:      token,
 		Expiration: expiration,
 	}
