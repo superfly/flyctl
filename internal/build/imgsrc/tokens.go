@@ -76,8 +76,18 @@ func encodeMacaroons(toks [][]byte) string {
 }
 
 func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.OrganizationBasic) (string, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	cfg := config.FromContext(ctx)
 
+	// If we have an unexpired token for this organization, return it
+	if cachedToken, ok := cfg.CachedBuildTokens[orgID]; ok {
+		expired := time.Now().Add(time.Minute).After(cachedToken.Expiration)
+		if !expired {
+			return cachedToken.Token, nil
+		}
+	}
+
+	// Otherwise, we need to create a token for this organization
+	apiClient := fly.ClientFromContext(ctx)
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
 		apiClient.GenqClient,
@@ -96,7 +106,7 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 		return "", err
 	}
 
-	perms, _, _, diss, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
+	perms, _, disMacs, disToks, err := macaroon.FindPermissionAndDischargeTokens(toks, flyio.LocationPermission)
 	if err != nil {
 		return "", err
 	}
@@ -113,7 +123,26 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 		return "", err
 	}
 
-	return encodeMacaroons(append([][]byte{perm}, diss...)), nil
+	token := encodeMacaroons(append([][]byte{perm}, disToks...))
+
+	// Find the earliest time any of the tokens expire
+	expiration := m.Expiration()
+	for _, dis := range disMacs {
+		if e := dis.Expiration(); e.Before(expiration) {
+			expiration = e
+		}
+	}
+
+	// Cache token and expiration time
+	if cfg.CachedBuildTokens == nil {
+		cfg.CachedBuildTokens = make(map[uint64]config.CachedBuildToken)
+	}
+	cfg.CachedBuildTokens[orgID] = config.CachedBuildToken{
+		Token:      token,
+		Expiration: expiration,
+	}
+
+	return token, nil
 }
 
 func getBuildTokenFromMacaroons(orgID uint64, macaroons string) (string, error) {
