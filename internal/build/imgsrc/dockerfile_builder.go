@@ -520,15 +520,11 @@ func runBuildKitBuild(ctx context.Context, app *fly.AppCompact, docker *dockercl
 		for k, v := range opts.BuildSecrets {
 			secrets[k] = []byte(v)
 		}
-		token, err := getBuildToken(ctx, app)
-		if err != nil {
-			return fmt.Errorf("failed to get build token: %w", err)
-		}
 		options.Session = append(
 			options.Session,
 			// To pull images from local Docker Engine with Fly's access token,
 			// we need to pass the provider. Remote builders don't need that.
-			newBuildkitAuthProvider(token),
+			newBuildkitAuthProvider(ctx, app),
 			secretsprovider.FromMap(secrets),
 		)
 
