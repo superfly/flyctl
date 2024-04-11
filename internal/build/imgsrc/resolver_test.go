@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
 )
@@ -40,7 +41,10 @@ func TestStartHeartbeat(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name:         "myapp",
+				Organization: &fly.OrganizationBasic{ID: "myorg", InternalNumericID: "1"},
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
@@ -70,7 +74,10 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name:         "myapp",
+				Organization: &fly.OrganizationBasic{ID: "myorg", InternalNumericID: "1"},
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
@@ -102,7 +109,10 @@ func TestStartHeartbeatNoEndpoint(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name:         "myapp",
+				Organization: &fly.OrganizationBasic{ID: "myorg", InternalNumericID: "1"},
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
@@ -132,7 +142,10 @@ func TestStartHeartbeatWError(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name:         "myapp",
+				Organization: &fly.OrganizationBasic{ID: "myorg", InternalNumericID: "1"},
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
