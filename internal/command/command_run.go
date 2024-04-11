@@ -38,6 +38,7 @@ func DetermineImage(ctx context.Context, app *fly.AppCompact, imageOrPath string
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
 	resolver := imgsrc.NewResolver(daemonType, client, app, io, flag.GetWireguard(ctx), false)
+	defer imgsrc.RevokeBuildTokens(context.WithoutCancel(ctx), app)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
