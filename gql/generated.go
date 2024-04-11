@@ -980,7 +980,13 @@ func (v *CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessToke
 
 // CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayloadLimitedAccessToken includes the requested fields of the GraphQL type LimitedAccessToken.
 type CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayloadLimitedAccessToken struct {
+	Id          string `json:"id"`
 	TokenHeader string `json:"tokenHeader"`
+}
+
+// GetId returns CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayloadLimitedAccessToken.Id, and is useful for accessing the field via an interface.
+func (v *CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayloadLimitedAccessToken) GetId() string {
+	return v.Id
 }
 
 // GetTokenHeader returns CreateLimitedAccessTokenCreateLimitedAccessTokenCreateLimitedAccessTokenPayloadLimitedAccessToken.TokenHeader, and is useful for accessing the field via an interface.
@@ -3401,6 +3407,7 @@ const CreateLimitedAccessToken_Operation = `
 mutation CreateLimitedAccessToken ($name: String!, $organizationId: ID!, $profile: String!, $profileParams: JSON, $expiry: String!) {
 	createLimitedAccessToken(input: {name:$name,organizationId:$organizationId,profile:$profile,profileParams:$profileParams,expiry:$expiry}) {
 		limitedAccessToken {
+			id
 			tokenHeader
 		}
 	}
