@@ -28,7 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/state"
 )
 
-func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
+func DetermineImage(ctx context.Context, app *fly.AppCompact, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
 		client = fly.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
@@ -36,12 +36,12 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 	)
 
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx))
+	resolver := imgsrc.NewResolver(daemonType, client, app, io, flag.GetWireguard(ctx))
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
 		opts := imgsrc.ImageOptions{
-			AppName:              appName,
+			AppName:              app.Name,
 			WorkingDir:           path.Join(state.WorkingDirectory(ctx)),
 			Publish:              !flag.GetBuildOnly(ctx),
 			ImageLabel:           flag.GetString(ctx, "image-label"),
@@ -81,7 +81,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		}
 	} else {
 		opts := imgsrc.RefOptions{
-			AppName:    appName,
+			AppName:    app.Name,
 			WorkingDir: state.WorkingDirectory(ctx),
 			Publish:    !flag.GetBool(ctx, "build-only"),
 			ImageRef:   imageOrPath,

@@ -24,10 +24,10 @@ import (
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdfmt"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -242,7 +242,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.SetBuilderMetaPart2(buildkitEnabled, serverInfo.ServerVersion, fmt.Sprintf("%s/%s/%s", serverInfo.OSType, serverInfo.Architecture, serverInfo.OSVersion))
 	if buildkitEnabled {
-		imageID, err = runBuildKitBuild(ctx, docker, opts, dockerfile, buildArgs)
+		imageID, err = runBuildKitBuild(ctx, dockerFactory.app, docker, opts, dockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -253,7 +253,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 			return nil, "", errors.Wrap(err, "error building")
 		}
 	} else {
-		imageID, err = runClassicBuild(ctx, streams, docker, buildContext, opts, relDockerfile, buildArgs)
+		imageID, err = runClassicBuild(ctx, dockerFactory.app, streams, docker, buildContext, opts, relDockerfile, buildArgs)
 		if err != nil {
 			if dockerFactory.IsRemote() {
 				metrics.SendNoData(ctx, "remote_builder_failure")
@@ -272,7 +272,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	if opts.Publish {
 		build.PushStart()
 		tb := render.NewTextBlock(ctx, "Pushing image to fly")
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, dockerFactory.app, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
@@ -293,7 +293,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	}
 
 	if opts.UseOverlaybd && dockerFactory.IsRemote() {
-		obdImage, err := buildOverlaybdImage(ctx, dockerFactory.appName, docker, opts)
+		obdImage, err := buildOverlaybdImage(ctx, dockerFactory.app, docker, opts)
 		if err != nil {
 			terminal.Warnf("failed to build lazy-loaded image, not using lazy-loading: %v", err)
 		} else {
@@ -306,7 +306,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 	return &di, "", nil
 }
 
-func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclient.Client, opts ImageOptions) (*DeploymentImage, error) {
+func buildOverlaybdImage(ctx context.Context, app *fly.AppCompact, docker *dockerclient.Client, opts ImageOptions) (*DeploymentImage, error) {
 	if !opts.Publish {
 		return nil, errors.New("lazy loaded images require --push")
 	}
@@ -336,7 +336,12 @@ func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclie
 
 	terminal.Debugf("overlaybd repo: %s, version: %s", repo, version)
 
-	creds := registryAuth(config.Tokens(ctx).Docker())
+	token, err := getBuildToken(ctx, app)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get build token: %w", err)
+	}
+
+	creds := registryAuth(token)
 
 	body := map[string]string{
 		"repo":   repo,
@@ -355,7 +360,7 @@ func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclie
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
-	req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
+	req.SetBasicAuth(app.Name, token)
 
 	res, err := docker.HTTPClient().Do(req)
 	if err != nil {
@@ -391,17 +396,22 @@ func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*strin
 	return out, nil
 }
 
-func runClassicBuild(ctx context.Context, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
+func runClassicBuild(ctx context.Context, app *fly.AppCompact, streams *iostreams.IOStreams, docker *dockerclient.Client, r io.ReadCloser, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (imageID string, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_image",
 		trace.WithAttributes(opts.ToSpanAttributes()...),
 		trace.WithAttributes(attribute.String("type", "classic")),
 	)
 	defer span.End()
 
+	token, err := getBuildToken(ctx, app)
+	if err != nil {
+		return "", errors.Wrap(err, "failed to get build token")
+	}
+
 	options := types.ImageBuildOptions{
 		Tags:        []string{opts.Tag},
 		BuildArgs:   buildArgs,
-		AuthConfigs: authConfigs(config.Tokens(ctx).Docker()),
+		AuthConfigs: authConfigs(token),
 		Platform:    "linux/amd64",
 		Dockerfile:  dockerfilePath,
 		Target:      opts.Target,
@@ -471,7 +481,7 @@ func solveOptFromImageOptions(opts ImageOptions, dockerfilePath string, buildArg
 	}
 }
 
-func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (string, error) {
+func runBuildKitBuild(ctx context.Context, app *fly.AppCompact, docker *dockerclient.Client, opts ImageOptions, dockerfilePath string, buildArgs map[string]*string) (string, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_image",
 		trace.WithAttributes(opts.ToSpanAttributes()...),
 		trace.WithAttributes(attribute.String("type", "buildkit")),
@@ -510,11 +520,15 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 		for k, v := range opts.BuildSecrets {
 			secrets[k] = []byte(v)
 		}
+		token, err := getBuildToken(ctx, app)
+		if err != nil {
+			return fmt.Errorf("failed to get build token: %w", err)
+		}
 		options.Session = append(
 			options.Session,
 			// To pull images from local Docker Engine with Fly's access token,
 			// we need to pass the provider. Remote builders don't need that.
-			newBuildkitAuthProvider(config.Tokens(ctx).Docker()),
+			newBuildkitAuthProvider(token),
 			secretsprovider.FromMap(secrets),
 		)
 
@@ -532,7 +546,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	return res.ExporterResponse[exptypes.ExporterImageDigestKey], nil
 }
 
-func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
+func pushToFly(ctx context.Context, app *fly.AppCompact, docker *dockerclient.Client, streams *iostreams.IOStreams, tag string) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "push_image_to_registry", trace.WithAttributes(attribute.String("tag", tag)))
 	defer span.End()
 
@@ -545,8 +559,13 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	metrics.Started(ctx, "image_push")
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
 
+	token, err := getBuildToken(ctx, app)
+	if err != nil {
+		return errors.Wrap(err, "failed to get build token")
+	}
+
 	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
-		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
+		RegistryAuth: flyRegistryAuth(token),
 	})
 	metrics.Status(ctx, "image_push", err == nil)
 
