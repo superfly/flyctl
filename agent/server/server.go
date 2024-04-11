@@ -390,7 +390,7 @@ func (s *server) UpdateTokensFromClient(t *tokens.Tokens) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.tokens.FromConfigFile != "" || t.FromConfigFile == "" {
+	if s.tokens.FromFile() != "" || t.FromFile() == "" {
 		return
 	}
 

@@ -25,12 +25,12 @@ func TestFetchOrgTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	// no macaroons
-	created, err = doFetchOrgTokens(ctx, &tokens.Tokens{UserTokens: []string{"hi"}}, nil, nil)
+	created, err = doFetchOrgTokens(ctx, tokens.Parse("fo1_hi"), nil, nil)
 	require.False(t, created)
 	require.NoError(t, err)
 
 	// no user token
-	created, err = doFetchOrgTokens(ctx, &tokens.Tokens{MacaroonTokens: []string{"hi"}}, nil, nil)
+	created, err = doFetchOrgTokens(ctx, tokens.Parse("fm2_hi"), nil, nil)
 	require.False(t, created)
 	require.NoError(t, err)
 
@@ -178,7 +178,7 @@ func assertTokenOrgs(tb testing.TB, toks *tokens.Tokens, expectedOIDs ...uint64)
 	tb.Helper()
 
 	actualOIDs := make([]uint64, 0, len(expectedOIDs))
-	for _, mt := range toks.MacaroonTokens {
+	for _, mt := range toks.GetMacaroonTokens() {
 		mtoks, err := macaroon.Parse(mt)
 		require.NoError(tb, err)
 		require.Equal(tb, 1, len(mtoks))
