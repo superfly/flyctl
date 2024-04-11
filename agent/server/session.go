@@ -552,7 +552,9 @@ var errMalformedSetToken = errors.New("malformed set-token command")
 
 // setToken instructs the agent which tokens to use for API calls.
 func (s *session) setToken(ctx context.Context, args ...string) {
-	s.exactArgs(2, args, errMalformedSetToken)
+	if !s.exactArgs(2, args, errMalformedSetToken) {
+		return
+	}
 
 	switch args[0] {
 	case "cfg":
@@ -575,7 +577,7 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 }
 
 // getClient returns an API client that uses any API tokens sent by the client.
-// If not have been sent, it falls back to using the server's tokens.
+// If none have been sent, it falls back to using the server's tokens.
 func (s *session) getClient(ctx context.Context) *fly.Client {
 	if s.tokens == nil {
 		return s.srv.GetClient(ctx)
