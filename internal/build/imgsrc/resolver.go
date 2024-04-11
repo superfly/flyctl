@@ -21,7 +21,6 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -147,6 +146,7 @@ type Resolver struct {
 	dockerFactory *dockerClientFactory
 	apiClient     flyutil.Client
 	heartbeatFn   func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
+	buildTokenFn  func(ctx context.Context, app *fly.AppCompact) (string, error)
 }
 
 type StopSignal struct {
@@ -319,7 +319,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 		builderType = "remote"
 	}
 	input := fly.CreateBuildInput{
-		AppName:             r.dockerFactory.appName,
+		AppName:             r.dockerFactory.app.Name,
 		BuilderType:         builderType,
 		ImageOpts:           *imageOpts,
 		MachineId:           "",
@@ -516,7 +516,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 	}
 	input := fly.FinishBuildInput{
 		BuildId:             build.BuildId,
-		AppName:             r.dockerFactory.appName,
+		AppName:             r.dockerFactory.app.Name,
 		MachineId:           "",
 		Status:              status,
 		Logs:                limitLogs(logs),
@@ -539,7 +539,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 			sentry.WithTag("feature", "build-api-finish-build"),
 			sentry.WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
-					"name": r.dockerFactory.appName,
+					"name": r.dockerFactory.app.Name,
 				},
 				"sourceBuild": map[string]interface{}{
 					"id": build.BuildId,
@@ -614,7 +614,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		return nil, nil
 	}
 
-	span.SetAttributes(attribute.String("builder_app_name", r.dockerFactory.appName))
+	span.SetAttributes(attribute.String("builder_app_name", r.dockerFactory.app.Name))
 
 	errMsg := "Failed to start remote builder heartbeat: %v\n"
 	dockerClient, err := r.dockerFactory.buildFn(ctx, nil)
@@ -636,7 +636,15 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		tracing.RecordError(span, err, "failed to get http request")
 		return nil, err
 	}
-	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.Tokens(ctx).Docker())
+
+	token, err := r.buildTokenFn(ctx, r.dockerFactory.app)
+	if err != nil {
+		terminal.Warnf(errMsg, err)
+		tracing.RecordError(span, err, "failed to get build token")
+		return nil, nil
+	}
+
+	heartbeatReq.SetBasicAuth(r.dockerFactory.app.Name, token)
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
 
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
@@ -726,11 +734,12 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, app *fly.AppCompact, iostreams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *Resolver {
 	return &Resolver{
-		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard, recreateBuilder),
+		dockerFactory: newDockerClientFactory(daemonType, apiClient, app, iostreams, connectOverWireguard, recreateBuilder),
 		apiClient:     apiClient,
 		heartbeatFn:   heartbeat,
+		buildTokenFn:  getBuildToken,
 	}
 }
 

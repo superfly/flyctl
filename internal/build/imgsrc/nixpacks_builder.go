@@ -130,7 +130,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", err
 		}
 
-		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName, false)
+		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.app.Name, false)
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
@@ -216,7 +216,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 	build.BuildFinish()
 
 	build.PushStart()
-	if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+	if err := pushToFly(ctx, dockerFactory.app, docker, streams, opts.Tag); err != nil {
 		build.PushFinish()
 		return nil, "", err
 	}

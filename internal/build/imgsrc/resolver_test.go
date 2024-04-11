@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/assert"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/config"
 )
@@ -40,11 +41,16 @@ func TestStartHeartbeat(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name: "myapp",
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
 			return nil
+		},
+		buildTokenFn: func(ctx context.Context, app *fly.AppCompact) (string, error) {
+			return "", nil
 		},
 	}
 
@@ -70,7 +76,9 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name: "myapp",
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
@@ -79,6 +87,9 @@ func TestStartHeartbeatFirstRetry(t *testing.T) {
 				return errors.New("first error")
 			}
 			return nil
+		},
+		buildTokenFn: func(ctx context.Context, app *fly.AppCompact) (string, error) {
+			return "", nil
 		},
 	}
 
@@ -102,13 +113,18 @@ func TestStartHeartbeatNoEndpoint(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name: "myapp",
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
 			return &httpError{
 				StatusCode: http.StatusNotFound,
 			}
+		},
+		buildTokenFn: func(ctx context.Context, app *fly.AppCompact) (string, error) {
+			return "", nil
 		},
 	}
 
@@ -132,13 +148,18 @@ func TestStartHeartbeatWError(t *testing.T) {
 				return dc, nil
 			},
 			apiClient: nil,
-			appName:   "myapp",
+			app: &fly.AppCompact{
+				Name: "myapp",
+			},
 		},
 		apiClient: nil,
 		heartbeatFn: func(ctx context.Context, client *client.Client, req *http.Request) error {
 			return &httpError{
 				StatusCode: http.StatusBadRequest,
 			}
+		},
+		buildTokenFn: func(ctx context.Context, app *fly.AppCompact) (string, error) {
+			return "", nil
 		},
 	}
 
