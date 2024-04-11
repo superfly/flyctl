@@ -50,20 +50,20 @@ type dockerClientFactory struct {
 	remote    bool
 	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
 	apiClient flyutil.Client
-	appName   string
+	app       *fly.AppCompact
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, app *fly.AppCompact, streams *iostreams.IOStreams, connectOverWireguard, recreateBuilder bool) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		return &dockerClientFactory{
 			mode:   daemonType,
 			remote: true,
 			buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-				return newRemoteDockerClient(ctx, apiClient, appName, streams, build, cachedDocker, connectOverWireguard, recreateBuilder)
+				return newRemoteDockerClient(ctx, apiClient, app, streams, build, cachedDocker, connectOverWireguard, recreateBuilder)
 			},
 			apiClient: apiClient,
-			appName:   appName,
+			app:       app,
 		}
 	}
 
@@ -77,7 +77,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 					build.SetBuilderMetaPart1(false, "", "")
 					return c, nil
 				},
-				appName: appName,
+				app: app,
 			}
 		} else if err != nil && !dockerclient.IsErrConnectionFailed(err) {
 			terminal.Warn("Error connecting to local docker daemon:", err)
@@ -104,6 +104,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 		buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
 			return nil, errors.New("no docker daemon available")
 		},
+		app: app,
 	}
 }
 
@@ -203,7 +204,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, recreateBuilder bool) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appCompact *fly.AppCompact, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard, recreateBuilder bool) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -222,9 +223,9 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	}()
 
 	var host string
-	var app *fly.App
-	var machine *fly.Machine
-	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, recreateBuilder)
+	var builderApp *fly.App
+	var machine *fly.GqlMachine
+	machine, builderApp, err = remoteBuilderMachine(ctx, apiClient, appCompact.Name, recreateBuilder)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
 		return nil, err
@@ -234,13 +235,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		client := &http.Client{
 			Transport: &http.Transport{
 				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", app.Name), &tls.Config{})
+					return tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", builderApp.Name), &tls.Config{})
 				},
 			},
 		}
 
-		url := fmt.Sprintf("http://%s.fly.dev/flyio/v1/settings", app.Name)
-		// url := fmt.Sprintf("http://%s.fly.dev/flyio/v1/prune?since='12h'", app.Name)
+		url := fmt.Sprintf("http://%s.fly.dev/flyio/v1/settings", builderApp.Name)
+		// url := fmt.Sprintf("http://%s.fly.dev/flyio/v1/prune?since='12h'", builderApp.Name)
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
@@ -248,7 +249,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			return nil, err
 		}
 
-		req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
+		token, err := getBuildToken(ctx, appCompact)
+		if err != nil {
+			tracing.RecordError(span, err, "failed to get build token")
+			return nil, err
+		}
+
+		req.SetBasicAuth(appCompact.Name, token)
 
 		fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("👀 checking remote builder compatibility with wireguardless deploys ..."))
 		span.AddEvent("checking remote builder compatibility with wireguardless deploys")
@@ -264,14 +271,14 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 automatically deleting and recreating builder"))
 			span.AddEvent("automatically deleting and recreating builder")
 
-			err := apiClient.DeleteApp(ctx, app.Name)
+			err := apiClient.DeleteApp(ctx, builderApp.Name)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to destroy old incompatible remote builder")
 				return nil, err
 			}
 
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
-			machine, app, err = remoteBuilderMachine(ctx, apiClient, appName, false)
+			machine, builderApp, err = remoteBuilderMachine(ctx, apiClient, appCompact.Name, false)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to init remote builder machine")
 				return nil, err
@@ -286,8 +293,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		wglessCompatible = true
 	}
 
-	remoteBuilderAppName := app.Name
-	remoteBuilderOrg := app.Organization.Slug
+	remoteBuilderAppName := builderApp.Name
+	remoteBuilderOrg := builderApp.Organization.Slug
 
 	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
 
@@ -308,7 +315,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 			sentry.WithTraceID(ctx),
 			sentry.WithContexts(map[string]sentry.Context{
 				"app": map[string]interface{}{
-					"name": appName,
+					"name": appCompact.Name,
 				},
 				"organization": map[string]interface{}{
 					"name": remoteBuilderOrg,
@@ -361,7 +368,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	}
 
 	if connectOverWireguard {
-		wireguardOpts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
+		wireguardOpts, err := buildRemoteClientOpts(ctx, apiClient, appCompact, host)
 		if err != nil {
 			streams.StopProgressIndicator()
 			err = fmt.Errorf("failed building options: %w", err)
@@ -387,7 +394,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 
 		cachedClient = wireguardHttpClient
 	} else {
-		wglessOpts, err := buildWireguardlessClientOpts(ctx, host, appName)
+		wglessOpts, err := buildWireguardlessClientOpts(ctx, host, appCompact)
 		if err != nil {
 			streams.StopProgressIndicator()
 
@@ -453,7 +460,7 @@ func basicAuth(username, password string) string {
 	return base64.StdEncoding.EncodeToString([]byte(auth))
 }
 
-func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]dockerclient.Opt, error) {
+func buildWireguardlessClientOpts(ctx context.Context, host string, app *fly.AppCompact) ([]dockerclient.Opt, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_wgless_client_ops")
 	defer span.End()
 
@@ -462,10 +469,15 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 		return []dockerclient.Opt{}, fmt.Errorf("failed to parse host: %w", err)
 	}
 
+	token, err := getBuildToken(ctx, app)
+	if err != nil {
+		return []dockerclient.Opt{}, fmt.Errorf("failed to get build token: %w", err)
+	}
+
 	opts := []dockerclient.Opt{
 		dockerclient.WithAPIVersionNegotiation(),
 		dockerclient.WithHTTPHeaders(map[string]string{
-			"Authorization": "Basic " + basicAuth(appName, config.Tokens(ctx).Docker()),
+			"Authorization": "Basic " + basicAuth(app.Name, token),
 		}),
 		dockerclient.WithDialContext(func(ctx context.Context, network, addr string) (net.Conn, error) {
 			return tls.Dial("tcp", parsedHostUrl.Host+":443", &tls.Config{})
@@ -475,7 +487,7 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 	return opts, nil
 }
 
-func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appName, host string) (opts []dockerclient.Opt, err error) {
+func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, app *fly.AppCompact, host string) (opts []dockerclient.Opt, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_client_ops")
 	defer span.End()
 
@@ -503,12 +515,6 @@ func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appNam
 		Transport:     transport,
 		CheckRedirect: dockerclient.CheckRedirect,
 	}))
-
-	var app *fly.AppBasic
-	if app, err = apiClient.GetAppBasic(ctx, appName); err != nil {
-		tracing.RecordError(span, err, "error fetching target app")
-		return nil, fmt.Errorf("error fetching target app: %w", err)
-	}
 
 	var agentclient *agent.Client
 	if agentclient, err = agent.Establish(ctx, apiClient); err != nil {

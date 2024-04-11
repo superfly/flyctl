@@ -86,7 +86,14 @@ func runUpdate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
 	appName := appconfig.NameFromContext(ctx)
+	client := fly.ClientFromContext(ctx)
+
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return err
+	}
 
 	// Acquire lease
 	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
@@ -105,7 +112,7 @@ func runUpdate(ctx context.Context) (err error) {
 	// Identify configuration changes
 	machineConf, err := determineMachineConfig(ctx, &determineMachineConfigInput{
 		initialMachineConf: *machine.Config,
-		appName:            appName,
+		app:                app,
 		imageOrPath:        imageOrPath,
 		region:             machine.Region,
 		updating:           true,

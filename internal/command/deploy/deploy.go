@@ -302,7 +302,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	recreateBuilder := flag.GetRecreateBuilder(ctx)
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig, usingWireguard, recreateBuilder)
+	img, err := determineImage(ctx, appCompact, appConfig, usingWireguard, recreateBuilder)
 	if err != nil && usingWireguard && httpFailover {
 		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
 		span.AddEvent("using http failover")
