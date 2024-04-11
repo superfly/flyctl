@@ -66,6 +66,7 @@ func determineImage(ctx context.Context, app *fly.AppCompact, appConfig *appconf
 	}
 
 	resolver := imgsrc.NewResolver(daemonType, client, app, io, flag.GetWireguard(ctx))
+	defer imgsrc.RevokeBuildTokens(context.WithoutCancel(ctx), app)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {

@@ -51,6 +51,7 @@ const (
 )
 
 type CachedBuildToken struct {
+	ID         string
 	Token      string
 	Expiration time.Time
 }
