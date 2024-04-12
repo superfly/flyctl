@@ -329,7 +329,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 	}
 
 	if flag.IsSpecified(ctx, "image") {
-		img, err := command.DetermineImage(ctx, app.Name, flag.GetString(ctx, "image"))
+		img, err := command.DetermineImage(ctx, app, flag.GetString(ctx, "image"))
 		if err != nil {
 			return nil, nil, fmt.Errorf("failed to get image: %w", err)
 		}

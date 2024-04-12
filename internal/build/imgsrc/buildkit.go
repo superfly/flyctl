@@ -10,6 +10,7 @@ import (
 	dockerclient "github.com/docker/docker/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth"
+	"github.com/superfly/fly-go"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -31,14 +32,16 @@ func buildkitEnabled(docker *dockerclient.Client) (buildkitEnabled bool, err err
 	return buildkitEnabled, nil
 }
 
-func newBuildkitAuthProvider(token string) session.Attachable {
+func newBuildkitAuthProvider(ctx context.Context, app *fly.AppCompact) session.Attachable {
 	return &buildkitAuthProvider{
-		token: token,
+		ctx: ctx,
+		app: app,
 	}
 }
 
 type buildkitAuthProvider struct {
-	token string
+	ctx context.Context
+	app *fly.AppCompact
 }
 
 func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
@@ -46,7 +49,25 @@ func (ap *buildkitAuthProvider) Register(server *grpc.Server) {
 }
 
 func (ap *buildkitAuthProvider) Credentials(ctx context.Context, req *auth.CredentialsRequest) (*auth.CredentialsResponse, error) {
-	auths := authConfigs(ap.token)
+	var token string
+	var err error
+
+	if req.Host == registryHostForAuth {
+		// We need the build context to get a build token
+		buildCtx, cancel := context.WithCancelCause(ap.ctx)
+		// Cancel the build token request when the gRPC context is cancelled
+		stop := context.AfterFunc(ctx, func() {
+			cancel(context.Cause(ctx))
+		})
+		defer stop()
+
+		token, err = getBuildToken(buildCtx, ap.app)
+		if err != nil {
+			return nil, status.Errorf(codes.Unknown, "failed to get build token: %s", err)
+		}
+	}
+
+	auths := authConfigs(token)
 	res := &auth.CredentialsResponse{}
 	if a, ok := auths[req.Host]; ok {
 		res.Username = a.Username
