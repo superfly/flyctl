@@ -35,7 +35,7 @@ func runProbe(ctx context.Context) (err error) {
 		return
 	}
 
-	if err = client.Probe(ctx, flag.FirstArg(ctx)); err != nil {
+	if err = client.Probe(ctx, flag.FirstArg(ctx), ""); err != nil {
 		return
 	}
 

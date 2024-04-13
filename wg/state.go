@@ -20,6 +20,8 @@ type WireGuardState struct {
 	Peer         fly.CreatedWireGuardPeer `json:"peer"`
 }
 
+type States map[string]*WireGuardState
+
 // BUG(tqbf): Obviously all this needs to go, and I should just
 // make my code conform to the marshal/unmarshal protocol wireguard-go
 // uses, but in the service of landing this feature, I'm just going

@@ -456,7 +456,7 @@ func runConsole(ctx context.Context, cmd string) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+	agentclient, dialer, err := ssh.BringUpAgent(ctx, client, app, "", false)
 	if err != nil {
 		return err
 	}

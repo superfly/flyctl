@@ -29,7 +29,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 		return fmt.Errorf("wireguard ping gateway: can't get org %s: %w", orgSlug, err)
 	}
 
-	pinger, err := ac.Pinger(ctx, orgSlug)
+	pinger, err := ac.Pinger(ctx, orgSlug, "")
 	if err != nil {
 		return fmt.Errorf("wireguard ping gateway: %w", err)
 	}
@@ -98,7 +98,7 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
 	}
 
-	wgDialer, err := ac.ConnectToTunnel(ctx, org.Slug, true)
+	wgDialer, err := ac.ConnectToTunnel(ctx, org.Slug, "", true)
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: %w", err)
 	}
