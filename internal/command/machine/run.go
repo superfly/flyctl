@@ -137,6 +137,11 @@ var sharedFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "network",
+		Description: "The network to use for the machine",
+		Hidden:      true,
+	},
 	flag.VMSizeFlags,
 }
 
@@ -346,6 +351,11 @@ func runMachineRun(ctx context.Context) error {
 		}
 	}
 
+	network, err := client.GetAppNetwork(ctx, app.Name)
+	if err != nil {
+		return err
+	}
+
 	machineConf := &fly.MachineConfig{
 		AutoDestroy: destroy,
 		DNS: &fly.DNSConfig{
@@ -436,7 +446,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		_, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+		_, dialer, err := ssh.BringUpAgent(ctx, client, app, *network, false)
 		if err != nil {
 			return err
 		}
