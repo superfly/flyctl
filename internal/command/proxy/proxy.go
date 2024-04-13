@@ -98,12 +98,12 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// do this explicitly so we can get the DNS server address
-	_, err = agentclient.Establish(ctx, orgSlug)
+	_, err = agentclient.Establish(ctx, orgSlug, "")
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, flag.GetBool(ctx, "quiet"))
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, "", flag.GetBool(ctx, "quiet"))
 	if err != nil {
 		return err
 	}
