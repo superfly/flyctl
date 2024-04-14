@@ -137,11 +137,6 @@ var sharedFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
 	},
-	flag.String{
-		Name:        "network",
-		Description: "The network to use for the machine",
-		Hidden:      true,
-	},
 	flag.VMSizeFlags,
 }
 

@@ -614,8 +614,6 @@ github.com/stretchr/testify v1.9.0 h1:HtqpIVDClZ4nwg75+f6Lvsy/wHu+3BoSGCbBAcpTsT
 github.com/stretchr/testify v1.9.0/go.mod h1:r2ic/lqez/lEtzL7wO/rwa5dbSLXVDPFyf8C91i36aY=
 github.com/subosito/gotenv v1.6.0 h1:9NlTDc1FTs4qu0DDq7AEtTPNw6SVm7uBMsUCUjABIf8=
 github.com/subosito/gotenv v1.6.0/go.mod h1:Dk4QP5c2W3ibzajGcXpNraDfq2IrhjMIvMSWPKKo0FU=
-github.com/superfly/fly-go v0.1.5-0.20240412130949-55269e2468c8 h1:ZRWtri1m/n8TE1Y3vcYvBwVWgvZYP5OpEcdO/lYKhoo=
-github.com/superfly/fly-go v0.1.5-0.20240412130949-55269e2468c8/go.mod h1:MUKMuc5Tg+qmDmAi5jBMKcuitw4SNhrZ60fS4jqIZpQ=
 github.com/superfly/fly-go v0.1.5-0.20240413215828-21ef94bc21dc h1:Tk254Ggrt4kOZfaq6c3BWUwVuABFYaKXudB61aApniw=
 github.com/superfly/fly-go v0.1.5-0.20240413215828-21ef94bc21dc/go.mod h1:MUKMuc5Tg+qmDmAi5jBMKcuitw4SNhrZ60fS4jqIZpQ=
 github.com/superfly/graphql v0.2.4 h1:Av8hSk4x8WvKJ6MTnEwrLknSVSGPc7DWpgT3z/kt3PU=

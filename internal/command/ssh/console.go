@@ -86,7 +86,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
-		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
+		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}

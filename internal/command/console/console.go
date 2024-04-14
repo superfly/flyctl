@@ -51,7 +51,7 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "select",
 			Shorthand:   "s",
-			Description: "SELECT the machine ON which TO EXECUTE the console FROM a list",
+			Description: "Select the machine on which to execute the console from a list.",
 			Default:     false,
 		},
 		flag.String{

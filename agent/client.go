@@ -306,9 +306,9 @@ func (c *Client) Probe(ctx context.Context, slug, network string) error {
 	})
 }
 
-func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, err error) {
+func (c *Client) Resolve(ctx context.Context, slug, host, network string) (addr string, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "resolve", slug, host); err != nil {
+		if err = proto.Write(conn, "resolve", slug, host, network); err != nil {
 			return
 		}
 
@@ -382,7 +382,7 @@ func (c *Client) WaitForTunnel(parent context.Context, slug, network string) (er
 }
 
 // WaitForDNS waits for a Fly host internal DNS entry to register
-func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, host string) (err error) {
+func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug, host, network string) (err error) {
 	io := iostreams.FromContext(parent)
 
 	if !flag.GetBool(parent, "quiet") {
@@ -395,7 +395,7 @@ func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, 
 	}
 
 	for {
-		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrNoSuchHost) {
+		if _, err = c.Resolve(ctx, slug, host, network); !errors.Is(err, ErrNoSuchHost) {
 			break
 		}
 
