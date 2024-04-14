@@ -91,7 +91,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	d, err := agentclient.Dialer(ctx, orgSlug)
+	d, err := agentclient.Dialer(ctx, orgSlug, "")
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 // address of the nameserver.
 func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
-	ts, err := c.Establish(ctx, orgSlug)
+	ts, err := c.Establish(ctx, orgSlug, "")
 	if err != nil {
 		return nil, "", err
 	}
@@ -238,7 +238,7 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d, err := c.Dialer(ctx, orgSlug)
+			d, err := c.Dialer(ctx, orgSlug, "")
 			if err != nil {
 				return nil, err
 			}

@@ -51,7 +51,7 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "select",
 			Shorthand:   "s",
-			Description: "Select the machine on which to execute the console from a list",
+			Description: "Select the machine on which to execute the console from a list.",
 			Default:     false,
 		},
 		flag.String{
@@ -167,6 +167,11 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
+	network, err := apiClient.GetAppNetwork(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get app network: %w", err)
+	}
+
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
 		AppName:    app.Name,
@@ -198,7 +203,7 @@ func runConsole(ctx context.Context) error {
 		defer cleanup()
 	}
 
-	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, false)
+	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, *network, false)
 	if err != nil {
 		return err
 	}

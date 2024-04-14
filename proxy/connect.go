@@ -22,6 +22,7 @@ type ConnectParams struct {
 	RemoteHost       string
 	PromptInstance   bool
 	DisableSpinner   bool
+	Network          string
 }
 
 // Binds to a local port and runs a proxy to a remote address over Wireguard.
@@ -86,7 +87,7 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 		// If a host is specified that isn't an IpV6 address, assume it's a DNS entry and wait for that
 		// entry to resolve
 		if !ip.IsV6(p.RemoteHost) {
-			if err := agentclient.WaitForDNS(ctx, p.Dialer, orgSlug, p.RemoteHost); err != nil {
+			if err := agentclient.WaitForDNS(ctx, p.Dialer, orgSlug, p.RemoteHost, p.Network); err != nil {
 				return nil, fmt.Errorf("%s: %w", p.RemoteHost, err)
 			}
 		}

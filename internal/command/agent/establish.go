@@ -34,7 +34,7 @@ func runEstablish(ctx context.Context) (err error) {
 	}
 
 	var res *agent.EstablishResponse
-	if res, err = client.Establish(ctx, flag.FirstArg(ctx)); err == nil {
+	if res, err = client.Establish(ctx, flag.FirstArg(ctx), ""); err == nil {
 		out := iostreams.FromContext(ctx).Out
 		err = render.JSON(out, res)
 	}

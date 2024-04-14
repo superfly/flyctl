@@ -31,7 +31,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 			return nil, fmt.Errorf("error establishing agent: %w", err)
 		}
 
-		dialer, err := agentclient.Dialer(ctx, orgSlug)
+		dialer, err := agentclient.Dialer(ctx, orgSlug, "")
 		if err != nil {
 			return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", orgSlug, err)
 		}

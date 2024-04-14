@@ -29,12 +29,12 @@ func NewNatsStream(ctx context.Context, apiClient *fly.Client, opts *LogOptions)
 		return nil, fmt.Errorf("failed establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed establishing wireguard connection for %s organization: %w", app.Organization.Slug, err)
 	}
 
-	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
+	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug, ""); err != nil {
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
