@@ -150,9 +150,10 @@ func (s *session) ping(_ context.Context, args ...string) {
 var errMalformedEstablish = errors.New("malformed establish command")
 
 func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string) {
-	if !s.exactArgs(1, args, errMalformedEstablish) {
+	if !s.exactArgs(2, args, errMalformedEstablish) {
 		return
 	}
+	s.logger.Printf("establishing tunnel for %s, %s", args[0], args[1])
 
 	org, err := s.fetchOrg(ctx, args[0])
 	if err != nil {
@@ -161,7 +162,7 @@ func (s *session) doEstablish(ctx context.Context, recycle bool, args ...string)
 		return
 	}
 
-	tunnel, err := s.srv.buildTunnel(ctx, org, recycle)
+	tunnel, err := s.srv.buildTunnel(ctx, org, recycle, args[1])
 	if err != nil {
 		s.error(err)
 
@@ -203,11 +204,11 @@ func (s *session) fetchOrg(ctx context.Context, slug string) (*fly.Organization,
 var errMalformedProbe = errors.New("malformed probe command")
 
 func (s *session) probe(ctx context.Context, args ...string) {
-	if !s.exactArgs(1, args, errMalformedProbe) {
+	if !s.exactArgs(2, args, errMalformedProbe) {
 		return
 	}
 
-	if err := s.srv.probeTunnel(ctx, args[0]); err != nil {
+	if err := s.srv.probeTunnel(ctx, args[0], args[1]); err != nil {
 		s.error(err)
 
 		return
@@ -223,7 +224,7 @@ func (s *session) instances(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0])
+	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
 
@@ -253,11 +254,11 @@ func (s *session) instances(ctx context.Context, args ...string) {
 var errMalformedResolve = errors.New("malformed resolve command")
 
 func (s *session) resolve(ctx context.Context, args ...string) {
-	if !s.exactArgs(2, args, errMalformedResolve) {
+	if !s.exactArgs(3, args, errMalformedResolve) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0])
+	tunnel := s.srv.tunnelFor(args[0], args[2])
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
 
@@ -315,7 +316,7 @@ func (s *session) lookupTxt(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0])
+	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
 		return
@@ -348,7 +349,7 @@ var (
 )
 
 func (s *session) connect(ctx context.Context, args ...string) {
-	if !s.exactArgs(3, args, errMalformedConnect) {
+	if !s.exactArgs(4, args, errMalformedConnect) {
 		return
 	}
 
@@ -359,7 +360,7 @@ func (s *session) connect(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0])
+	tunnel := s.srv.tunnelFor(args[0], args[3])
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
 
@@ -430,7 +431,7 @@ func (s *session) ping6(ctx context.Context, args ...string) {
 		return
 	}
 
-	tunnel := s.srv.tunnelFor(args[0])
+	tunnel := s.srv.tunnelFor(args[0], "")
 	if tunnel == nil {
 		s.error(agent.ErrTunnelUnavailable)
 		return

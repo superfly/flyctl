@@ -20,7 +20,7 @@ import (
 
 const DefaultSshUsername = "root"
 
-func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, quiet bool) (*agent.Client, agent.Dialer, error) {
+func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, network string, quiet bool) (*agent.Client, agent.Dialer, error) {
 	io := iostreams.FromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -29,7 +29,7 @@ func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, 
 		return nil, nil, errors.Wrap(err, "can't establish agent")
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, network)
 	if err != nil {
 		captureError(ctx, err, app)
 		return nil, nil, fmt.Errorf("ssh: can't build tunnel for %s: %s\n", app.Organization.Slug, err)
@@ -38,7 +38,7 @@ func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, 
 	if !quiet {
 		io.StartProgressIndicatorMsg("Connecting to tunnel")
 	}
-	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
+	if err := agentclient.WaitForTunnel(ctx, app.Organization.Slug, network); err != nil {
 		captureError(ctx, err, app)
 		return nil, nil, errors.Wrapf(err, "tunnel unavailable")
 	}

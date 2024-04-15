@@ -172,7 +172,7 @@ func run(ctx context.Context) error {
 		}()
 	}
 
-	pinger, err := aClient.Pinger(ctx, orgSlug)
+	pinger, err := aClient.Pinger(ctx, orgSlug, "")
 	if err != nil {
 		return err
 	}
