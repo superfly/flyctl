@@ -235,6 +235,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
+	} else if devdeps["@sveltejs/kit"] != nil {
+		srcInfo.Family = "SvelteKit"
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
@@ -243,7 +245,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	return srcInfo, nil
 }
 
-func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
+func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)
@@ -352,6 +354,11 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			xcmdpath, err = filepath.Abs(xcmdpath)
 			if err != nil {
 				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
+			}
+
+			// add additional flags from launch command
+			if len(flags) > 0 {
+				args = append(args, flags...)
 			}
 
 			// execute (via npx, bunx, or bun x) the docker module

@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"os"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -71,6 +73,19 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	cmd := root.New()
 	cmd.SetOut(io.Out)
 	cmd.SetErr(io.ErrOut)
+
+	// Special case for the launch command, support `flyctl launch args -- [subargs]`
+	// Where the arguments after `--` are passed to the scanner/dockerfile generator.
+	// This isn't supported natively by cobra, so we have to manually split the args
+	// See: https://github.com/spf13/cobra/issues/739
+	if len(args) > 0 && args[0] == "launch" {
+		index := slices.Index(args, "--")
+		if index >= 0 {
+			ctx = flag.WithExtraArgs(ctx, args[index+1:])
+			args = args[:index]
+		}
+	}
+
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true
 

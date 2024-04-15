@@ -40,8 +40,8 @@ func generatePeerName(ctx context.Context, apiClient *fly.Client) (string, error
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organization, regionCode string, name string, recycle bool) (*wg.WireGuardState, error) {
-	state, err := getWireGuardStateForOrg(org.Slug)
+func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organization, regionCode string, name string, recycle bool, network string) (*wg.WireGuardState, error) {
+	state, err := getWireGuardStateForOrg(org.Slug, network)
 	if err != nil {
 		return nil, err
 	}
@@ -51,28 +51,19 @@ func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organizati
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	if name == "" {
-		n, err := generatePeerName(ctx, apiClient)
-		if err != nil {
-			return nil, err
-		}
-
-		name = fmt.Sprintf("interactive-agent-%s", n)
-	}
-
-	stateb, err := Create(apiClient, org, regionCode, name)
+	stateb, err := Create(apiClient, org, regionCode, name, network)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := setWireGuardStateForOrg(ctx, org.Slug, stateb); err != nil {
+	if err := setWireGuardStateForOrg(ctx, org.Slug, network, stateb); err != nil {
 		return nil, err
 	}
 
 	return stateb, nil
 }
 
-func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name string) (*wg.WireGuardState, error) {
+func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name, network string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -108,7 +99,7 @@ func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name strin
 
 	pubkey, privatekey := C25519pair()
 
-	data, err := apiClient.CreateWireGuardPeer(ctx, org, regionCode, name, pubkey)
+	data, err := apiClient.CreateWireGuardPeer(ctx, org, regionCode, name, pubkey, network)
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +130,8 @@ func C25519pair() (string, string) {
 		base64.StdEncoding.EncodeToString(private[:])
 }
 
-type WireGuardStates map[string]*wg.WireGuardState
-
-func GetWireGuardState() (WireGuardStates, error) {
-	states := WireGuardStates{}
+func GetWireGuardState() (wg.States, error) {
+	states := wg.States{}
 
 	if err := viper.UnmarshalKey(flyctl.ConfigWireGuardState, &states); err != nil {
 		return nil, errors.Wrap(err, "invalid wireguard state")
@@ -151,16 +140,21 @@ func GetWireGuardState() (WireGuardStates, error) {
 	return states, nil
 }
 
-func getWireGuardStateForOrg(orgSlug string) (*wg.WireGuardState, error) {
+func getWireGuardStateForOrg(orgSlug string, network string) (*wg.WireGuardState, error) {
 	states, err := GetWireGuardState()
 	if err != nil {
 		return nil, err
 	}
 
-	return states[orgSlug], nil
+	sk := orgSlug
+	if network != "" {
+		sk = fmt.Sprintf("%s-%s", orgSlug, network)
+	}
+
+	return states[sk], nil
 }
 
-func setWireGuardState(ctx context.Context, s WireGuardStates) error {
+func setWireGuardState(ctx context.Context, s wg.States) error {
 	viper.Set(flyctl.ConfigWireGuardState, s)
 	configPath := state.ConfigFile(ctx)
 	if err := config.SetWireGuardState(configPath, s); err != nil {
@@ -170,13 +164,18 @@ func setWireGuardState(ctx context.Context, s WireGuardStates) error {
 	return nil
 }
 
-func setWireGuardStateForOrg(ctx context.Context, orgSlug string, s *wg.WireGuardState) error {
+func setWireGuardStateForOrg(ctx context.Context, orgSlug, network string, s *wg.WireGuardState) error {
 	states, err := GetWireGuardState()
 	if err != nil {
 		return err
 	}
 
-	states[orgSlug] = s
+	sk := orgSlug
+	if network != "" {
+		sk = fmt.Sprintf("%s-%s", orgSlug, network)
+	}
+
+	states[sk] = s
 
 	return setWireGuardState(ctx, states)
 }

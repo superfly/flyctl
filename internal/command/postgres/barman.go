@@ -456,7 +456,7 @@ func runConsole(ctx context.Context, cmd string) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+	agentclient, dialer, err := ssh.BringUpAgent(ctx, client, app, "", false)
 	if err != nil {
 		return err
 	}
@@ -497,7 +497,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
-		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
+		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}

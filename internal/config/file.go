@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/superfly/flyctl/wg"
 	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
-	"github.com/superfly/flyctl/wg"
 )
 
 func ReadAccessToken(path string) (string, error) {
@@ -57,7 +57,7 @@ func SetAutoUpdate(path string, autoUpdate bool) error {
 	})
 }
 
-func SetWireGuardState(path string, state map[string]*wg.WireGuardState) error {
+func SetWireGuardState(path string, state wg.States) error {
 	return set(path, map[string]interface{}{
 		WireGuardStateFileKey: state,
 	})

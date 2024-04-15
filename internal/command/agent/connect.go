@@ -37,7 +37,7 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	var dialer agent.Dialer
-	if dialer, err = client.Dialer(ctx, flag.FirstArg(ctx)); err != nil {
+	if dialer, err = client.Dialer(ctx, flag.FirstArg(ctx), ""); err != nil {
 		return
 	}
 

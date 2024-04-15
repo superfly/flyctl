@@ -111,7 +111,7 @@ func runWireguardReset(ctx context.Context) error {
 		return err
 	}
 
-	conf, err := agentclient.Reestablish(ctx, org.Slug)
+	conf, err := agentclient.Reestablish(ctx, org.Slug, "")
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,10 @@ func runWireguardCreate(ctx context.Context) error {
 		name = args[2]
 	}
 
-	state, err := wireguard.Create(apiClient, org, region, name)
+	//TODO: allow custom network
+	network := ""
+
+	state, err := wireguard.Create(apiClient, org, region, name, network)
 	if err != nil {
 		return err
 	}

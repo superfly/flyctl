@@ -23,8 +23,8 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Create and configure a new app from source code or a Docker image`
-		short = long
+		long  = `Create and configure a new app from source code or a Docker image.  Options passed after double dashes ("--") will be passed to the language specific scanner/dockerfile generator.`
+		short = `Create and configure a new app from source code or a Docker image`
 	)
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
@@ -160,10 +160,18 @@ func run(ctx context.Context) (err error) {
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
 	metrics.Started(ctx, "launch")
+
+	var state *launchState = nil
+
 	defer func() {
 		if err != nil {
 			status.Error = err.Error()
+
+			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
+				err = state.sourceInfo.FailureCallback(err)
+			}
 		}
+
 		status.Duration = time.Since(startTime)
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
@@ -231,7 +239,7 @@ func run(ctx context.Context) (err error) {
 	status.ScannerFamily = launchManifest.Plan.ScannerFamily
 	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
-	state, err := stateFromManifest(ctx, *launchManifest, cache)
+	state, err = stateFromManifest(ctx, *launchManifest, cache)
 	if err != nil {
 		return err
 	}

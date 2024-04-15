@@ -346,6 +346,11 @@ func runMachineRun(ctx context.Context) error {
 		}
 	}
 
+	network, err := client.GetAppNetwork(ctx, app.Name)
+	if err != nil {
+		return err
+	}
+
 	machineConf := &fly.MachineConfig{
 		AutoDestroy: destroy,
 		DNS: &fly.DNSConfig{
@@ -436,7 +441,7 @@ func runMachineRun(ctx context.Context) error {
 	}
 
 	if interact {
-		_, dialer, err := ssh.BringUpAgent(ctx, client, app, false)
+		_, dialer, err := ssh.BringUpAgent(ctx, client, app, *network, false)
 		if err != nil {
 			return err
 		}

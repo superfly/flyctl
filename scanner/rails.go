@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 var healthcheck_channel = make(chan string)
@@ -72,6 +73,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
+		FailureCallback:      RailsFailureCallback,
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
@@ -188,7 +190,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
+func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	// install dockerfile-rails gem, if not already included
 	writable := false
 	gemfile, err := os.ReadFile("Gemfile")
@@ -290,6 +292,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		args = append(args, "--redis")
 	}
 
+	// add additional flags from launch command
+	if len(flags) > 0 {
+		args = append(args, flags...)
+	}
+
 	// run command
 	fmt.Printf("installing: %s\n", strings.Join(args, " "))
 	cmd := exec.Command(ruby, args...)
@@ -327,4 +334,18 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	}
 
 	return nil
+}
+
+func RailsFailureCallback(err error) error {
+	suggestion := flyerr.GetErrorSuggestion(err)
+
+	if suggestion == "" {
+		err = flyerr.GenericErr{
+			Err: err.Error(),
+			Suggest: "\nSee https://fly.io/docs/rails/getting-started/existing/#common-initial-deployment-issues\n" +
+				"for suggestions on how to resolve common deployment issues.",
+		}
+	}
+
+	return err
 }
