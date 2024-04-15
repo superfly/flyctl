@@ -15,7 +15,6 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/tokens"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -551,53 +550,7 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	return updateMacaroons(ctx)
-}
-
-// updateMacaroons prune any invalid/expired macaroons and fetch needed third
-// party discharges
-func updateMacaroons(ctx context.Context) (context.Context, error) {
-	var (
-		log  = logger.FromContext(ctx)
-		cfg  = config.FromContext(ctx)
-		toks = cfg.Tokens
-	)
-
-	updated, err := toks.Update(ctx,
-		tokens.WithUserURLCallback(tryOpenUserURL),
-		tokens.WithDebugger(log),
-	)
-	if err != nil {
-		log.Warn("Failed to upgrade authentication token. Command may fail.")
-		log.Debug(err)
-	}
-
-	if toks.FromConfigFile == "" {
-		return ctx, nil
-	}
-
-	if updated {
-		if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
-			log.Warn("Failed to persist authentication token.")
-			log.Debug(err)
-		}
-	}
-
-	sub, err := cfg.Watch(ctx)
-	if err != nil {
-		log.Warn("Failed to watch config file for changes.")
-		log.Debug(err)
-		return ctx, nil
-	}
-
-	go func() {
-		for newCfg := range sub {
-			if cfg.Tokens.All() != newCfg.Tokens.All() {
-				log.Debug("Authentication tokens updated from config file.")
-				cfg.Tokens.Replace(newCfg.Tokens)
-			}
-		}
-	}()
+	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
 }
