@@ -93,7 +93,7 @@ func newSSH() *cobra.Command {
 			Name:        "name",
 			Shorthand:   "n",
 			Description: "Token name",
-			Default:     "flyctl deploy token",
+			Default:     "flyctl ssh token",
 		},
 		flag.Duration{
 			Name:        "expiry",
