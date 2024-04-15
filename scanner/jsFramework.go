@@ -235,6 +235,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
+	} else if devdeps["@sveltejs/kit"] != nil {
+		srcInfo.Family = "SvelteKit"
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
