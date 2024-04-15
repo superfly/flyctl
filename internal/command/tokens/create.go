@@ -36,6 +36,7 @@ func newCreate() *cobra.Command {
 		newOrg(),
 		newOrgRead(),
 		newLiteFSCloud(),
+		newSSH(),
 	)
 
 	return cmd
@@ -67,6 +68,39 @@ func newOrg() *cobra.Command {
 			Default:     "Org deploy token",
 		},
 		flag.Org(),
+	)
+
+	return cmd
+}
+
+func newSSH() *cobra.Command {
+	const (
+		short = "Create token for SSH'ing to a single app"
+		long  = "Create token for SSH'ing to a single app. To be able to SSH to an app, this token is also allowed to connect to the org's wireguard network."
+		usage = "ssh"
+	)
+
+	cmd := command.New(usage, short, long, runSSH,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.JSONOutput(),
+		flag.String{
+			Name:        "name",
+			Shorthand:   "n",
+			Description: "Token name",
+			Default:     "flyctl ssh token",
+		},
+		flag.Duration{
+			Name:        "expiry",
+			Shorthand:   "x",
+			Description: "The duration that the token will be valid",
+			Default:     time.Hour * 24 * 365 * 20,
+		},
 	)
 
 	return cmd
@@ -186,7 +220,7 @@ func makeToken(ctx context.Context, apiClient *fly.Client, orgID string, expiry 
 		expiry,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating deploy token: %w", err)
+		return nil, fmt.Errorf("failed creating token: %w", err)
 	}
 	return resp, nil
 }
@@ -211,6 +245,79 @@ func runOrg(ctx context.Context) error {
 	}
 
 	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+
+	io := iostreams.FromContext(ctx)
+	if config.FromContext(ctx).JSONOutput {
+		render.JSON(io.Out, map[string]string{"token": token})
+	} else {
+		fmt.Fprintln(io.Out, token)
+	}
+
+	return nil
+}
+
+func runSSH(ctx context.Context) error {
+	var token string
+	apiClient := fly.ClientFromContext(ctx)
+
+	expiry := ""
+	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
+		expiry = expiryDuration.String()
+	}
+
+	appName := appconfig.NameFromContext(ctx)
+
+	app, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+	}
+
+	// start with app deploy token and then pare it down.
+	resp, err := makeToken(ctx, apiClient, app.Organization.ID, expiry, "deploy", &gql.LimitedAccessTokenOptions{
+		"app_id": app.ID,
+	})
+	if err != nil {
+		return err
+	}
+
+	token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+	macTok, disToks, err := flyio.ParsePermissionAndDischargeTokens(token)
+	if err != nil {
+		return fmt.Errorf("failed parsing token from API: %w", err)
+	}
+
+	// FindPermissionAndDischargeTokens returned parsed tokens, but we want to
+	// make two copies of the token and there's no API for doing a deep copy of
+	// a Macaroon.
+	orgAppReadMac, err := macaroon.Decode(macTok)
+	if err != nil {
+		return fmt.Errorf("failed decoding tokens from API: %w", err)
+	}
+
+	if err := orgAppReadMac.Add(ptr(resset.ActionRead)); err != nil {
+		return fmt.Errorf("failed to attenuate org-app-read token: %w", err)
+	}
+
+	orgAppReadTok, err := orgAppReadMac.Encode()
+	if err != nil {
+		return fmt.Errorf("failed encoding org-app-read token: %w", err)
+	}
+
+	mutationMac, err := macaroon.Decode(macTok)
+	if err != nil {
+		return fmt.Errorf("failed decoding tokens from API: %w", err)
+	}
+
+	if err := mutationMac.Add(&flyio.Mutations{Mutations: []string{"issueCertificate", "addWireGuardPeer"}}); err != nil {
+		return fmt.Errorf("failed to attenuate mutation token: %w", err)
+	}
+
+	mutationTok, err := mutationMac.Encode()
+	if err != nil {
+		return fmt.Errorf("failed encoding mutation token: %w", err)
+	}
+
+	token = macaroon.ToAuthorizationHeader(append([][]byte{orgAppReadTok, mutationTok}, disToks...)...)
 
 	io := iostreams.FromContext(ctx)
 	if config.FromContext(ctx).JSONOutput {
@@ -389,4 +496,8 @@ func runLiteFSCloud(ctx context.Context) (err error) {
 	}
 
 	return nil
+}
+
+func ptr[T any](t T) *T {
+	return &t
 }
