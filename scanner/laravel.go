@@ -123,6 +123,12 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		}
 	}
 
+	// check if executable is available
+	_, err = os.Stat("vendor/bin/dockerfile-laravel")
+	if os.IsNotExist(err) {
+		installed = false
+	}
+
 	// install fly-apps/dockerfile-laravel if it's not already installed
 	if !installed {
 		args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
