@@ -15,6 +15,10 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const (
+	betaMsg = "Fly Kubernetes is in beta, it is not recommended for critical production use cases. For help or feedback, email us at fks@fly.io"
+)
+
 func create() (cmd *cobra.Command) {
 
 	const (
@@ -38,12 +42,16 @@ func create() (cmd *cobra.Command) {
 
 func runK8sCreate(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+	fmt.Println(colorize.CyanBold(betaMsg))
+
 	client := fly.ClientFromContext(ctx).GenqClient
 	appName := appconfig.NameFromContext(ctx)
 	targetOrg, err := orgs.OrgFromFlagOrSelect(ctx)
 	if err != nil {
 		return err
 	}
+
 	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
 		AppName:      appName,
 		Provider:     "kubernetes",
