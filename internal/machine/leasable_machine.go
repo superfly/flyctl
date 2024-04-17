@@ -35,6 +35,8 @@ type LeasableMachine interface {
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*fly.MachineEvent, error)
 	FormattedMachineId() string
 	GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration)
+	SetMetadata(ctx context.Context, k, v string) error
+	GetMetadata(ctx context.Context) (map[string]string, error)
 }
 
 type leasableMachine struct {
@@ -496,4 +498,12 @@ func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, tim
 	}
 
 	return minInterval, minGracePeriod
+}
+
+func (lm *leasableMachine) GetMetadata(ctx context.Context) (map[string]string, error) {
+	return lm.flapsClient.GetMetadata(ctx, lm.machine.ID)
+}
+
+func (lm *leasableMachine) SetMetadata(ctx context.Context, k, v string) error {
+	return lm.flapsClient.SetMetadata(ctx, lm.machine.ID, k, v)
 }

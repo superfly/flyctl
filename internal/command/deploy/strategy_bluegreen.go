@@ -28,24 +28,28 @@ import (
 // TODO(ali): Use statuslogger here
 
 var (
-	ErrAborted             = errors.New("deployment aborted by user")
-	ErrWaitTimeout         = errors.New("wait timeout")
-	ErrCreateGreenMachine  = errors.New("failed to create green machines")
-	ErrWaitForStartedState = errors.New("could not get all green machines into started state")
-	ErrWaitForHealthy      = errors.New("could not get all green machines to be healthy")
-	ErrMarkReadyForTraffic = errors.New("failed to mark green machines as ready")
-	ErrCordonBlueMachines  = errors.New("failed to cordon blue machines")
-	ErrStopBlueMachines    = errors.New("failed to stop blue machines")
-	ErrWaitForStoppedState = errors.New("could not get all blue machines into stopped state")
-	ErrDestroyBlueMachines = errors.New("failed to destroy previous deployment")
-	ErrValidationError     = errors.New("app not in valid state for bluegreen deployments")
-	ErrOrgLimit            = errors.New("app can't undergo bluegreen deployment due to org limits")
+	ErrAborted               = errors.New("deployment aborted by user")
+	ErrWaitTimeout           = errors.New("wait timeout")
+	ErrCreateGreenMachine    = errors.New("failed to create green machines")
+	ErrWaitForStartedState   = errors.New("could not get all green machines into started state")
+	ErrWaitForHealthy        = errors.New("could not get all green machines to be healthy")
+	ErrMarkReadyForTraffic   = errors.New("failed to mark green machines as ready")
+	ErrCordonBlueMachines    = errors.New("failed to cordon blue machines")
+	ErrStopBlueMachines      = errors.New("failed to stop blue machines")
+	ErrWaitForStoppedState   = errors.New("could not get all blue machines into stopped state")
+	ErrDestroyBlueMachines   = errors.New("failed to destroy previous deployment")
+	ErrValidationError       = errors.New("app not in valid state for bluegreen deployments")
+	ErrOrgLimit              = errors.New("app can't undergo bluegreen deployment due to org limits")
+	ErrMultipleImageVersions = errors.New("found multiple image versions")
+
+	safeToDestroyValue = "safe_to_destroy"
 )
 
 type RollbackLog struct {
-	// this ensures that aborts from after green machines are healthy
+	// this ensures that user invoked aborts after green machines are healthy
 	// doesn't cause the greeen machines to be removed. eg. if someone aborts after cordoning blue machines
 	canDeleteGreenMachines bool
+	disableRollback        bool
 }
 
 type blueGreen struct {
@@ -88,7 +92,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
 		maxConcurrent:       md.maxConcurrent,
-		rollbackLog:         RollbackLog{canDeleteGreenMachines: true},
+		rollbackLog:         RollbackLog{canDeleteGreenMachines: true, disableRollback: true},
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
@@ -241,6 +245,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeStarted(ctx context.Context) error 
 
 	for {
 		if bg.allMachinesStarted(machineIDToState) {
+			render()
 			return nil
 		}
 
@@ -335,6 +340,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 	for _, gm := range bg.greenMachines {
 		if gm.launchInput.SkipLaunch {
+			machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &fly.HealthCheckStatus{Total: 1, Passing: 1}
 			continue
 		}
 
@@ -397,6 +403,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 	for {
 
 		if bg.allMachinesHealthy(machineIDToHealthStatus) {
+			render()
 			break
 		}
 
@@ -653,14 +660,13 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 		return ErrOrgLimit
 	}
 
-	/*
-		fmt.Fprintf(bg.io.ErrOut, "\nCleanup Previous Deployment\n")
+	fmt.Fprintf(bg.io.ErrOut, "\nVerifying if app can be safely deployed \n")
 
-		err = bg.DeleteZombiesFromPreviousDeployment(ctx)
-		if err != nil {
-			return err
-		}
-	*/
+	err = bg.DetectMultipleImageVersions(ctx)
+	if err != nil {
+		tracing.RecordError(span, ErrMultipleImageVersions, "failed to deploy, multiple_versions")
+		return err
+	}
 
 	bg.attachCustomTopLevelChecks()
 
@@ -719,6 +725,16 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	// after this point, a rollback should never delete green machines.
 	bg.rollbackLog.canDeleteGreenMachines = false
+
+	if bg.isAborted() {
+		return ErrAborted
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\nCheckpointing deployment, this may take a few seconds...\n")
+	if err := bg.TagBlueMachinesAsSafeForDeletion(ctx); err != nil {
+		tracing.RecordError(span, err, "failed to mark as ready for traffic")
+		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
+	}
 
 	if bg.isAborted() {
 		return ErrAborted
@@ -881,6 +897,10 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
 	defer span.End()
 
+	if bg.rollbackLog.disableRollback {
+		return nil
+	}
+
 	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
@@ -899,4 +919,61 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	}
 
 	return nil
+}
+
+// This method aggregates images for machines in an app
+// If they are greater than 1, it suggest how to remove them and unblock the app
+// It also uses the bg_deployment_tag to suggest blue machines that can be safely deleted.
+func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
+	imageToMachineIDs := map[string][]string{}
+	safeToDelete := map[string]int{}
+
+	for _, mach := range bg.blueMachines {
+		image := mach.leasableMachine.Machine().ImageRefWithVersion()
+		imageToMachineIDs[image] = append(imageToMachineIDs[image], mach.leasableMachine.Machine().ID)
+		if mach.launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] == safeToDestroyValue {
+			safeToDelete[image] = 1
+		}
+	}
+
+	if len(imageToMachineIDs) == 1 {
+		return nil
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\n  Found %d different images in your app (for bluegreen to work, all machines need to run a single image)\n", len(imageToMachineIDs))
+	for image, ids := range imageToMachineIDs {
+		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machines (%s)\n", image, len(ids), strings.Join(imageToMachineIDs[image], ","))
+	}
+
+	if len(safeToDelete) > 0 {
+		fmt.Fprintf(bg.io.ErrOut, "\n  These image(s) can be safely destroyed:\n")
+		for image := range safeToDelete {
+			fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machines ('fly machines destroy --image=%s')\n", image, len(imageToMachineIDs[image]), image)
+		}
+	}
+
+	fmt.Fprintf(bg.io.ErrOut, "\n  Here's how to fix your app so deployments can go through:\n")
+	fmt.Fprintf(bg.io.ErrOut, "    1. Find all the unwanted image versions from the list above.\n")
+	fmt.Fprintf(bg.io.ErrOut, "    2. For each old image version, run 'fly machines destroy --image=<insert-image-version>'\n")
+	fmt.Fprintf(bg.io.ErrOut, "    3. Retry the deployment with 'fly deploy'\n")
+	fmt.Fprintf(bg.io.ErrOut, "\n")
+
+	return ErrMultipleImageVersions
+}
+
+// This method tags blue-machines with a safe to destroy value.
+// This way, a user can easily remove blue machines that are hanging around from deployment.
+func (bg *blueGreen) TagBlueMachinesAsSafeForDeletion(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "tag_blue_machines")
+	defer span.End()
+
+	p := pool.New().WithErrors().WithFirstError().WithMaxGoroutines(bg.maxConcurrent)
+	for _, mach := range bg.blueMachines {
+		mach := mach
+		p.Go(func() error {
+			return mach.leasableMachine.SetMetadata(ctx, fly.MachineConfigMetadataKeyFlyctlBGTag, "safe_to_destroy")
+		})
+	}
+
+	return p.Wait()
 }
