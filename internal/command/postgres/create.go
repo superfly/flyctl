@@ -262,6 +262,17 @@ func run(ctx context.Context) (err error) {
 	return CreateCluster(ctx, org, region, params)
 }
 
+func showSingleNodeWarning(ctx context.Context) error {
+	ok, err := prompt.Confirm(ctx, "Single node databases have a real risk of data loss. (Learn more at https://fly.io/docs/reference/volumes). Continue?")
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("aborting")
+	}
+	return nil
+}
+
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
 func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
@@ -303,8 +314,15 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 		config = &postgresConfigurations(input.Manager)[selected]
 
+		if config.InitialClusterSize == 1 {
+			err = showSingleNodeWarning(ctx)
+			if err != nil {
+				return err
+			}
+		}
+
 		if input.Manager == flypg.ReplicationManager && config.VMSize == "shared-cpu-1x" {
-			confirm, err := prompt.Confirm(ctx, "Scale single node pg to zero after one hour?")
+			confirm, err := prompt.Confirm(ctx, "Scale single node DB to zero after one hour?")
 			if err != nil {
 				return err
 			}
@@ -334,6 +352,13 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 			}
 		}
 		input.InitialClusterSize = params.PostgresConfiguration.InitialClusterSize
+
+		if input.InitialClusterSize == 1 {
+			err = showSingleNodeWarning(ctx)
+			if err != nil {
+				return err
+			}
+		}
 
 		// Resolve VM size
 		vmSize, err := resolveVMSize(ctx, params.VMSize)
