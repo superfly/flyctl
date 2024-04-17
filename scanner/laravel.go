@@ -54,7 +54,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	// Min PHP version to use generator
 	minVersion, err := semver.Make("8.1.0")
-	if err!=nil{
+	if err != nil {
 		panic(err)
 	}
 
@@ -65,18 +65,18 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		// the broadest compatibility
 		phpVersion = "8.0"
 	}
-	
+
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
 		"NODE_VERSION": "18",
 	}
 
 	// Use default scanner templates if < min version(8.1.0)
-	phpNVersion, err := semver.Make(phpVersion+".0")
+	phpNVersion, err := semver.Make(phpVersion + ".0")
 	if err != nil || phpNVersion.LT(minVersion) {
 		s.Files = templates("templates/laravel")
-	}else{
-	// Else use dockerfile-laravel generator
+	} else {
+		// Else use dockerfile-laravel generator
 		s.Callback = LaravelCallback
 	}
 
