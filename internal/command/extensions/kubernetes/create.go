@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	betaMsg = "Fly Kubernetes is in beta, it is not recommended for critical production use cases. For help or feedback, email us at fks@fly.io"
+	betaMsg = "Fly Kubernetes is in beta, it is not recommended for critical production use cases. For help or feedback, email us at beta@fly.io"
 )
 
 func create() (cmd *cobra.Command) {
@@ -43,7 +43,7 @@ func create() (cmd *cobra.Command) {
 func runK8sCreate(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	fmt.Println(colorize.CyanBold(betaMsg))
+	fmt.Fprintln(io.Out, colorize.Yellow(betaMsg))
 
 	client := fly.ClientFromContext(ctx).GenqClient
 	appName := appconfig.NameFromContext(ctx)
