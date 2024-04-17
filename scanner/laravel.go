@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
@@ -49,11 +50,16 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		},
 		SkipDatabase:   true,
 		ConsoleCommand: "php /var/www/html/artisan tinker",
-		Callback:       LaravelCallback,
 	}
 
-	phpVersion, err := extractPhpVersion()
+	// Min PHP version to use generator
+	minVersion, err := semver.Make("8.1.0")
+	if err != nil {
+		panic(err)
+	}
 
+	// The detected PHP version
+	phpVersion, err := extractPhpVersion()
 	if err != nil || phpVersion == "" {
 		// Fallback to 8.0, which has
 		// the broadest compatibility
@@ -63,6 +69,15 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
 		"NODE_VERSION": "18",
+	}
+
+	// Use default scanner templates if < min version(8.1.0)
+	phpNVersion, err := semver.Make(phpVersion + ".0")
+	if err != nil || phpNVersion.LT(minVersion) {
+		s.Files = templates("templates/laravel")
+	} else {
+		// Else use dockerfile-laravel generator
+		s.Callback = LaravelCallback
 	}
 
 	// Extract DB, Redis config from dotenv
