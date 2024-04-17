@@ -218,6 +218,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 		if srcInfo.Port != 0 {
 			lp.HttpServicePort = srcInfo.Port
+			lp.HttpServicePortSetByScanner = true
 		}
 	}
 

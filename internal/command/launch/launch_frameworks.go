@@ -203,10 +203,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		return nil
 	}
 
-	if srcInfo.Port > 0 {
-		appConfig.SetInternalPort(srcInfo.Port)
-	}
-
 	if srcInfo.HttpCheckPath != "" {
 		appConfig.SetHttpCheck(srcInfo.HttpCheckPath, srcInfo.HttpCheckHeaders)
 	}
