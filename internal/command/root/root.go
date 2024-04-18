@@ -74,7 +74,7 @@ func New() *cobra.Command {
 		short = "The Fly.io command line interface"
 	)
 
-	root := command.New("fly", short, long, run)
+	root := command.New("flyctl", short, long, run)
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
