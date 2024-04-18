@@ -10,11 +10,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
-
+	
 	"github.com/blang/semver"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
@@ -140,7 +140,8 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	}
 
 	// check if executable is available
-	_, err = os.Stat("vendor/bin/dockerfile-laravel")
+	vendorPath := filepath.Join("vendor", "bin", "dockerfile-laravel")
+	_, err = os.Stat(vendorPath)
 	if os.IsNotExist(err) {
 		installed = false
 	}
@@ -159,12 +160,6 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		}
 	}
 
-	// Use correct path syntax to executable based on runtime!
-	vendorPath := "vendor/bin/dockerfile-laravel"
-	if runtime.GOOS == "windows" {
-		vendorPath = "vendor\\bin\\dockerfile-laravel"
-	}
-	
 	args := []string{vendorPath, "generate"}
 	if dockerfileExists {
 		args = append(args, "--skip")
