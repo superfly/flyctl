@@ -92,7 +92,7 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		hangingBlueMachines: []string{},
 		timestamp:           fmt.Sprintf("%d", time.Now().Unix()),
 		maxConcurrent:       md.maxConcurrent,
-		rollbackLog:         RollbackLog{canDeleteGreenMachines: true, disableRollback: true},
+		rollbackLog:         RollbackLog{canDeleteGreenMachines: true, disableRollback: false},
 	}
 
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
