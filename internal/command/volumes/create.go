@@ -22,10 +22,9 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-
+		long  = "Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/"
 		usage = "create <volumename>"
 	)
-	long := fmt.Sprintf("Volumes are persistent storage for Fly Machines. The default size is %d GB. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/", deploy.DefaultVolumeInitialSizeGB)
 
 	cmd := command.New(usage, short, long, runCreate,
 		command.RequireSession,
@@ -41,7 +40,7 @@ func newCreate() *cobra.Command {
 			Name:        "size",
 			Shorthand:   "s",
 			Default:     deploy.DefaultVolumeInitialSizeGB,
-			Description: fmt.Sprintf("The size of volume in gigabytes. The default is %d.", deploy.DefaultGPUVolumeInitialSizeGB),
+			Description: "The size of volume in gigabytes",
 		},
 		flag.Int{
 			Name:        "snapshot-retention",
