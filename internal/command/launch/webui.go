@@ -18,11 +18,14 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/logger"
 	state2 "github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // EditInWebUi launches a web-based editor for the app plan
 func (state *launchState) EditInWebUi(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "state.edit_in_web_ui")
+	defer span.End()
 
 	session, err := fly.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.Plan.AppName), map[string]any{
 		"target":   "launch",
