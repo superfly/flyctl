@@ -95,7 +95,11 @@ func getToken(ctx context.Context) string {
 	return token
 }
 
-func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
+func InitTraceProviderWithoutApp(ctx context.Context) (*sdktrace.TracerProvider, error) {
+	return InitTraceProvider(ctx, "")
+}
+
+func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerProvider, error) {
 	if tp != nil {
 		return tp, nil
 	}
@@ -132,6 +136,10 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 		attribute.String("build.info.os", buildinfo.OS()),
 		attribute.String("build.info.arch", buildinfo.Arch()),
 		attribute.String("build.info.commit", buildinfo.Commit()),
+	}
+
+	if appName != "" {
+		resourceAttrs = append(resourceAttrs, attribute.String("app.name", appName))
 	}
 
 	resource := resource.NewWithAttributes(
