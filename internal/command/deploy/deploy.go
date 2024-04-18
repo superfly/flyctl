@@ -192,11 +192,21 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
+
 	hook := ctrlc.Hook(func() {
 		metrics.FlushMetrics(ctx)
 	})
 
 	defer hook.Done()
+
+	tp, err := tracing.InitTraceProvider(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
