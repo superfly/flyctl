@@ -141,13 +141,17 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 		printGHAErrorAnnotation(cmd, err)
 	}
 
-	var requestId string
+	var requestId, traceID string
 
 	if requestId = flaps.GetErrorRequestID(err); requestId != "" {
 		requestId = fmt.Sprintf(" (Request ID: %s)", requestId)
 	}
 
-	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, "\n")
+	if traceID = flaps.GetErrorTraceID(err); traceID != "" {
+		traceID = fmt.Sprintf(" (Trace ID: %s)", traceID)
+	}
+
+	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, traceID, "\n")
 
 	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
 		fmt.Fprintln(io.ErrOut, description)
