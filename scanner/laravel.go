@@ -10,10 +10,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
-
+	
 	"github.com/blang/semver"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
@@ -139,7 +140,8 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	}
 
 	// check if executable is available
-	_, err = os.Stat("vendor/bin/dockerfile-laravel")
+	vendorPath := filepath.Join("vendor", "bin", "dockerfile-laravel")
+	_, err = os.Stat(vendorPath)
 	if os.IsNotExist(err) {
 		installed = false
 	}
@@ -158,7 +160,7 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		}
 	}
 
-	args := []string{"vendor/bin/dockerfile-laravel", "generate"}
+	args := []string{vendorPath, "generate"}
 	if dockerfileExists {
 		args = append(args, "--skip")
 	}
