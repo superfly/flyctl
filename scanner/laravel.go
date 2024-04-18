@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -158,7 +159,13 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		}
 	}
 
-	args := []string{"vendor/bin/dockerfile-laravel", "generate"}
+	// Use correct path syntax to executable based on runtime!
+	vendorPath := "vendor/bin/dockerfile-laravel"
+	if runtime.GOOS == "windows" {
+		vendorPath = "vendor\\bin\\dockerfile-laravel"
+	}
+	
+	args := []string{vendorPath, "generate"}
 	if dockerfileExists {
 		args = append(args, "--skip")
 	}
