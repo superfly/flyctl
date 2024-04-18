@@ -9,11 +9,15 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
 func (state *launchState) Launch(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "state.launch")
+	defer span.End()
+
 	io := iostreams.FromContext(ctx)
 
 	// TODO(Allison): are we still supporting the launch-into usecase?

@@ -87,6 +87,16 @@ func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanSt
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
 
+func CMDSpanWithoutApp(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+	startOpts := []trace.SpanStartOption{
+		trace.WithSpanKind(trace.SpanKindClient),
+	}
+
+	startOpts = append(startOpts, opts...)
+
+	return GetTracer().Start(ctx, spanName, startOpts...)
+}
+
 func getToken(ctx context.Context) string {
 	token := config.Tokens(ctx).Flaps()
 	if token == "" {
