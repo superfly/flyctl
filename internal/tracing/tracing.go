@@ -95,7 +95,7 @@ func getToken(ctx context.Context) string {
 	return token
 }
 
-func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
+func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerProvider, error) {
 	if tp != nil {
 		return tp, nil
 	}
@@ -128,6 +128,7 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 
 	resourceAttrs := []attribute.KeyValue{
 		semconv.ServiceNameKey.String("flyctl"),
+		attribute.String("app.name", appName),
 		attribute.String("build.info.version", buildinfo.Version().String()),
 		attribute.String("build.info.os", buildinfo.OS()),
 		attribute.String("build.info.arch", buildinfo.Arch()),
