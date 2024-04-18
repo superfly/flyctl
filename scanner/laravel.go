@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	
+
 	"github.com/blang/semver"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
