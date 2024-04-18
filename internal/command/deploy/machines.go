@@ -33,7 +33,7 @@ const (
 	DefaultReleaseCommandTimeout  = 5 * time.Minute
 	DefaultLeaseTtl               = 13 * time.Second
 	DefaultMaxUnavailable         = 0.33
-	DefaultVolumeInitialSizeGB    = 3
+	DefaultVolumeInitialSizeGB    = 1
 	DefaultGPUVolumeInitialSizeGB = 100
 )
 
