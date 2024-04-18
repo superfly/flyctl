@@ -74,12 +74,9 @@ func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 	})
 }
 
-func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func CMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("app.name", appName),
-		),
 	}
 
 	startOpts = append(startOpts, opts...)
@@ -87,14 +84,8 @@ func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanSt
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
 
-func CMDSpanWithoutApp(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
-	startOpts := []trace.SpanStartOption{
-		trace.WithSpanKind(trace.SpanKindClient),
-	}
-
-	startOpts = append(startOpts, opts...)
-
-	return GetTracer().Start(ctx, spanName, startOpts...)
+func CmdSpanWithApp(ctx context.Context, spanName string, appName string) (context.Context, trace.Span) {
+	return CMDSpan(ctx, spanName, trace.WithAttributes(attribute.String("app.name", appName)))
 }
 
 func getToken(ctx context.Context) string {

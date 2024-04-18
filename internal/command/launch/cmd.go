@@ -163,7 +163,7 @@ func run(ctx context.Context) (err error) {
 		client = fly.ClientFromContext(ctx)
 	)
 
-	tp, err := tracing.InitTraceProvider(ctx)
+	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
 		return err
@@ -171,7 +171,7 @@ func run(ctx context.Context) (err error) {
 
 	defer tp.Shutdown(ctx)
 
-	ctx, span := tracing.CMDSpanWithoutApp(ctx, "cmd.launch")
+	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
 	defer span.End()
 
 	startTime := time.Now()
