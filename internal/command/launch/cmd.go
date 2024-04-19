@@ -12,7 +12,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
@@ -158,10 +157,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 }
 
 func run(ctx context.Context) (err error) {
-	var (
-		io     = iostreams.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
-	)
+	var io = iostreams.FromContext(ctx)
 
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
@@ -193,7 +189,6 @@ func run(ctx context.Context) (err error) {
 		status.Duration = time.Since(startTime)
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
-
 
 	if err := warnLegacyBehavior(ctx); err != nil {
 		return err
