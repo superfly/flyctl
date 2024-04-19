@@ -19,7 +19,7 @@ require (
 	github.com/cenkalti/backoff v2.2.1+incompatible
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
-	github.com/docker/docker v25.0.3+incompatible
+	github.com/docker/docker v26.0.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
