@@ -5,10 +5,12 @@ package testlib
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +20,8 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+var vmSize = flag.String("vm-size", "", "VM size to override")
 
 type FlyctlTestEnv struct {
 	t                   testing.TB
@@ -180,6 +184,10 @@ type testingTWrapper interface {
 
 // Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
+		flyctlCmd += " --vm-size a100-40gb "
+	}
+
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 

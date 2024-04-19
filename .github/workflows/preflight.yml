@@ -17,6 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        vm_size: ["a100-40gb", ""]
         parallelism: [25]
         index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24]
     steps:
@@ -41,7 +42,7 @@ jobs:
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-          FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
+          FLY_PREFLIGHT_TEST_FLY_REGIONS: ord syd
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
         run: |
@@ -49,7 +50,7 @@ jobs:
           chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
-          ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
+          ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -v "${{matrix.vm_size}}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e
