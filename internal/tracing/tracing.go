@@ -84,9 +84,7 @@ func CMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
 
-func CmdSpanWithApp(ctx context.Context, spanName string, appName string) (context.Context, trace.Span) {
-	return CMDSpan(ctx, spanName, trace.WithAttributes(attribute.String("app.name", appName)))
-}
+we don't need this helper function then, whoever calls cmdSpan can pass the attribute directly as opts.
 
 func getToken(ctx context.Context) string {
 	token := config.Tokens(ctx).Flaps()
