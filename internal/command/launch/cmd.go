@@ -194,11 +194,6 @@ func run(ctx context.Context) (err error) {
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
 
-	user, err := client.GetCurrentUser(ctx)
-	if err != nil {
-		return fmt.Errorf("failed retrieving current user: %w", err)
-	}
-	span.SetAttributes(attribute.String("user.id", user.ID))
 
 	if err := warnLegacyBehavior(ctx); err != nil {
 		return err
