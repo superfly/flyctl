@@ -24,6 +24,22 @@ To upgrade to the latest version:
 brew upgrade flyctl
 ```
 
+#### Chocolatey (Windows)
+
+You can install `flyctl` via [Chocolatey](https://community.chocolatey.org/packages/flyctl).
+
+Run the following command in PowerShell as an administrator:
+
+```powershell
+choco install flyctl
+```
+
+To upgrade to the latest packaged version:
+
+```powershell
+choco upgrade flyctl
+```
+
 ### Install Script
 
 Download `flyctl` and install it into a local bin directory.
