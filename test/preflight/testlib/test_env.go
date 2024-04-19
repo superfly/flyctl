@@ -5,6 +5,7 @@ package testlib
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,6 +20,8 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+var vmSize = flag.String("vm-size", "", "VM size to override")
 
 type FlyctlTestEnv struct {
 	t                   testing.TB
