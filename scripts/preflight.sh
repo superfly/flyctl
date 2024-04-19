@@ -5,8 +5,9 @@ ref=
 total=
 index=
 out=
+vm_size=
 
-while getopts r:t:i:o: name
+while getopts r:t:i:o:v: name
 do
     case "$name" in
         r)
@@ -21,8 +22,11 @@ do
         o)
 	    out="$OPTARG"
 	    ;;
+        v)
+	    vm_size="$OPTARG"
+	    ;;
         ?)
-	    printf "Usage: %s: [-r REF] [-t TOTAL] [-i INDEX] [-o FILE]\n" $0
+	    printf "Usage: %s: [-r REF] [-t TOTAL] [-i INDEX] [-v VM-SIZE] [-o FILE]\n" $0
             exit 2
 	    ;;
     esac
@@ -30,9 +34,9 @@ done
 
 shift $(($OPTIND - 1))
 
-test_opts=
+test_opts="-vm-size '$vm_size' "
 if [[ "$ref" != "refs/heads/master" ]]; then
-    test_opts=-short
+    test_opts+=-short
 fi
 
 test_log="$(mktemp)"
