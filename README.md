@@ -14,6 +14,7 @@ During the transition, note that where you see `flyctl` as a command it can be r
 ```bash
 brew install flyctl
 ```
+
 To upgrade to the latest version:
 
 ```bash
@@ -48,10 +49,17 @@ curl -L https://fly.io/install.sh | sh -s 0.0.200
 
 Run the Powershell install script:
 
-```
+```powershell
 iwr https://fly.io/install.ps1 -useb | iex
 ```
 
+##### Installation via Chocolatey
+
+You can also install the `flyctl` package via Chocolatey. Run the following command in PowerShell as an administrator:
+
+```powershell
+choco install flyctl
+```
 
 ## Downloading from GitHub
 
@@ -81,7 +89,6 @@ fly status -a {app-name}
 
 `flyctl` will attempt to use the app name from a `fly.toml` file in the current directory. For example, if the current directory contains this file:
 
-
 ```bash
 $ cat fly.toml
 app: banana
@@ -98,6 +105,6 @@ There is a simple Powershell script, `winbuild.ps1`, which will run the code gen
 Run `scripts/build-dfly` to build a Docker image from the current branch. Then, use `scripts/dfly` to run it. This assumes you are already
 authenticated to Fly in your local environment.
 
-
 ## Contributing guide
+
 See [CONTRIBUTING.md](./CONTRIBUTING.md)
