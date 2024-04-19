@@ -74,18 +74,17 @@ func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 	})
 }
 
-func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func CMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("app.name", appName),
-		),
 	}
 
 	startOpts = append(startOpts, opts...)
 
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
+
+we don't need this helper function then, whoever calls cmdSpan can pass the attribute directly as opts.
 
 func getToken(ctx context.Context) string {
 	token := config.Tokens(ctx).Flaps()

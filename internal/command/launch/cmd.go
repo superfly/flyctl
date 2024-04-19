@@ -12,13 +12,16 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func New() (cmd *cobra.Command) {
@@ -155,7 +158,21 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 }
 
 func run(ctx context.Context) (err error) {
-	io := iostreams.FromContext(ctx)
+	var (
+		io     = iostreams.FromContext(ctx)
+		client = fly.ClientFromContext(ctx)
+	)
+
+	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
+
+	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
+	defer span.End()
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
@@ -172,9 +189,11 @@ func run(ctx context.Context) (err error) {
 			}
 		}
 
+		status.TraceID = span.SpanContext().TraceID().String()
 		status.Duration = time.Since(startTime)
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
+
 
 	if err := warnLegacyBehavior(ctx); err != nil {
 		return err
@@ -219,6 +238,8 @@ func run(ctx context.Context) (err error) {
 			return jsonEncoder.Encode(launchManifest)
 		}
 	}
+
+	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
 
 	status.AppName = launchManifest.Plan.AppName
 	status.OrgSlug = launchManifest.Plan.OrgSlug
