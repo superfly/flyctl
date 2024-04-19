@@ -53,7 +53,7 @@ Run the Powershell install script:
 iwr https://fly.io/install.ps1 -useb | iex
 ```
 
-##### Installation via Chocolatey
+#### Installation via Chocolatey
 
 You can also install the `flyctl` package via Chocolatey. Run the following command in PowerShell as an administrator:
 
