@@ -47,7 +47,7 @@ trap finish EXIT
 
 set +e
 
-echo gotesplit \
+gotesplit \
     -total "$total" \
     -index "$index" \
     github.com/superfly/flyctl/test/preflight/... \

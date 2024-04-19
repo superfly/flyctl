@@ -184,8 +184,10 @@ type testingTWrapper interface {
 
 // Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
-	if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
-		flyctlCmd += " --vm-size a100-40gb "
+	if *vmSize != "" {
+		if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
+			flyctlCmd += fmt.Sprintf(" --vm-size %s ", *vmSize)
+		}
 	}
 
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
