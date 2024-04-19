@@ -41,7 +41,7 @@ jobs:
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-          FLY_PREFLIGHT_TEST_FLY_REGIONS: iad syd
+          FLY_PREFLIGHT_TEST_FLY_REGIONS: ord syd
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
         run: |
