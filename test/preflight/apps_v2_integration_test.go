@@ -443,6 +443,10 @@ func TestDeployDetachBatching(t *testing.T) {
 
 func TestErrOutput(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
