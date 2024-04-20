@@ -24,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -136,6 +137,14 @@ func isUnchangedError(err error) bool {
 	return false
 }
 
+func isValidTraceID(id string) bool {
+	t, err := trace.TraceIDFromHex(id)
+	if err != nil {
+		return false
+	}
+	return t.IsValid()
+}
+
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
 	if env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
 		printGHAErrorAnnotation(cmd, err)
@@ -147,8 +156,11 @@ func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.C
 		requestId = fmt.Sprintf(" (Request ID: %s)", requestId)
 	}
 
-	if traceID = flaps.GetErrorTraceID(err); traceID != "" {
+	traceID = flaps.GetErrorTraceID(err)
+	if isValidTraceID(traceID) {
 		traceID = fmt.Sprintf(" (Trace ID: %s)", traceID)
+	} else {
+		traceID = ""
 	}
 
 	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, traceID, "\n")
