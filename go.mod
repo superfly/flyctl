@@ -7,7 +7,7 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
 	github.com/Khan/genqlient v0.6.0
 	github.com/MakeNowJust/heredoc/v2 v2.0.1
-	github.com/Microsoft/go-winio v0.6.1
+	github.com/Microsoft/go-winio v0.6.2
 	github.com/PuerkitoBio/rehttp v1.4.0
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.6.0
