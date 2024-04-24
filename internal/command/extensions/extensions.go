@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/extensions/enveloop"
 	"github.com/superfly/flyctl/internal/command/extensions/kafka"
 	"github.com/superfly/flyctl/internal/command/extensions/kubernetes"
 	"github.com/superfly/flyctl/internal/command/extensions/planetscale"
@@ -30,6 +31,7 @@ func New() (cmd *cobra.Command) {
 		tigris.New(),
 		kubernetes.New(),
 		kafka.New(),
+		enveloop.New(),
 	)
 	return
 }

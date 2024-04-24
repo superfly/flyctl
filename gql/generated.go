@@ -52,6 +52,8 @@ func (v *AddOnData) GetOptions() interface{} { return v.Options }
 type AddOnType string
 
 const (
+	// An Enveloop team
+	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
