@@ -584,10 +584,13 @@ func (e httpError) Error() string {
 }
 
 func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Request) error {
-	_, span := tracing.GetTracer().Start(ctx, "heartbeat")
+	ctx, span := tracing.GetTracer().Start(ctx, "heartbeat")
 	defer span.End()
 
-	resp, err := client.HTTPClient().Do(req)
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	resp, err := client.HTTPClient().Do(req.Clone(ctx))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to check heartbeat")
 		return err
