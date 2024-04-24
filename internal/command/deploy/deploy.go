@@ -219,7 +219,7 @@ func run(ctx context.Context) error {
 
 	client := fly.ClientFromContext(ctx)
 
-	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
 
 	user, err := client.GetCurrentUser(ctx)
