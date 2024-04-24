@@ -108,8 +108,9 @@ a Postgres database.
 `
 	}
 
-	// Add migration task if we find ecto
-	if checksPass(sourceDir, dirContains("mix.exs", "ecto")) {
+	// Add migration task if we find one of the dependencies that would run migrations.
+	// They are listed here: https://github.com/elixir-ecto/ecto?tab=readme-ov-file#usage
+	if checksPass(sourceDir, dirContains("mix.exs", "postgrex", "myxql", "tds")) {
 		s.ReleaseCmd = "/app/bin/migrate"
 	}
 
