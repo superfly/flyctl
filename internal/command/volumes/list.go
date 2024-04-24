@@ -68,5 +68,5 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, volumes)
 	}
 
-	return renderTable(ctx, volumes, app, out)
+	return renderTable(ctx, volumes, app, out, true)
 }
