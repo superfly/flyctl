@@ -942,19 +942,19 @@ func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\n  Found %d different images in your app (for bluegreen to work, all machines need to run a single image)\n", len(imageToMachineIDs))
 	for image, ids := range imageToMachineIDs {
-		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machines (%s)\n", image, len(ids), strings.Join(imageToMachineIDs[image], ","))
+		fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) (%s)\n", image, len(ids), strings.Join(imageToMachineIDs[image], ","))
 	}
 
 	if len(safeToDelete) > 0 {
 		fmt.Fprintf(bg.io.ErrOut, "\n  These image(s) can be safely destroyed:\n")
 		for image := range safeToDelete {
-			fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machines ('fly machines destroy --image=%s')\n", image, len(imageToMachineIDs[image]), image)
+			fmt.Fprintf(bg.io.ErrOut, "    [x] %s - %v machine(s) ('fly machines destroy --force --image=%s')\n", image, len(imageToMachineIDs[image]), image)
 		}
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\n  Here's how to fix your app so deployments can go through:\n")
 	fmt.Fprintf(bg.io.ErrOut, "    1. Find all the unwanted image versions from the list above.\n")
-	fmt.Fprintf(bg.io.ErrOut, "    2. For each old image version, run 'fly machines destroy --image=<insert-image-version>'\n")
+	fmt.Fprintf(bg.io.ErrOut, "    2. For each old image version, run 'fly machines destroy --force --image=<insert-image-version>'\n")
 	fmt.Fprintf(bg.io.ErrOut, "    3. Retry the deployment with 'fly deploy'\n")
 	fmt.Fprintf(bg.io.ErrOut, "\n")
 
