@@ -92,8 +92,9 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showWorkerStatus bool) error {
 	rows := make([][]string, 0, len(volumes))
+	unreachableVolumes := false
 	for _, volume := range volumes {
 		var attachedVMID string
 
@@ -101,8 +102,14 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 			attachedVMID = *volume.AttachedMachine
 		}
 
+		note := ""
+		if showWorkerStatus && volume.WorkerStatus == "unreachable" {
+			unreachableVolumes = true
+			note = "*"
+		}
+
 		rows = append(rows, []string{
-			volume.ID,
+			volume.ID + note,
 			volume.State,
 			volume.Name,
 			strconv.Itoa(volume.SizeGb) + "GB",
@@ -114,7 +121,13 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 		})
 	}
 
-	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
+	if err := render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At"); err != nil {
+		return err
+	}
+	if showWorkerStatus && unreachableVolumes {
+		fmt.Fprintln(out, "* The workers hosting these volumes could not be reached.")
+	}
+	return nil
 }
 
 func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBasic) (*fly.Volume, error) {
@@ -129,7 +142,7 @@ func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBa
 		return nil, fmt.Errorf("no volumes found in app '%s'", app.Name)
 	}
 	out := new(bytes.Buffer)
-	err = renderTable(ctx, volumes, app, out)
+	err = renderTable(ctx, volumes, app, out, false)
 	if err != nil {
 		return nil, err
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -91,6 +92,8 @@ func runMachineList(ctx context.Context) (err error) {
 		}
 		_ = render.Table(io.Out, "", rows)
 	} else {
+		unreachableMachines := false
+
 		for _, machine := range machines {
 			var volName string
 			if machine.Config != nil && len(machine.Config.Mounts) > 0 {
@@ -115,16 +118,23 @@ func runMachineList(ctx context.Context) (err error) {
 				}
 			}
 
+			note := ""
+			unreachable := machine.WorkerStatus == "unreachable"
+			if unreachable {
+				unreachableMachines = true
+				note = "*"
+			}
+
 			rows = append(rows, []string{
-				machine.ID,
+				machine.ID + note,
 				machine.Name,
 				machine.State,
 				machine.Region,
-				machine.ImageRefWithVersion(),
-				machine.PrivateIP,
+				lo.Ternary(unreachable, "", machine.ImageRefWithVersion()),
+				lo.Ternary(unreachable, "", machine.PrivateIP),
 				volName,
-				machine.CreatedAt,
-				machine.UpdatedAt,
+				lo.Ternary(unreachable, "", machine.CreatedAt),
+				lo.Ternary(unreachable, "", machine.UpdatedAt),
 				appPlatform,
 				machineProcessGroup,
 				size,
@@ -133,6 +143,9 @@ func runMachineList(ctx context.Context) (err error) {
 		}
 
 		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
+		if unreachableMachines {
+			fmt.Fprintln(io.Out, "* The workers hosting these Machines could not be reached.")
+		}
 	}
 	return nil
 }
