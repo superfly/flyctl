@@ -29,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 )
 
 const rollingStrategyMaxConcurrentGroups = 10
@@ -140,6 +141,8 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	sl := statuslogger.Create(ctx, total, true)
 	defer sl.Destroy(false)
 
+	errors, ctx := errgroup.WithContext(ctx)
+
 	for idx, name := range groupsInConfig {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
 		statuslogger.LogfStatus(ctx,
@@ -147,18 +150,35 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 			"Creating canary machine for group %s",
 			md.colorize.Bold(name),
 		)
-		machine, err := md.spawnMachineInGroup(ctx, name, nil,
-			withMeta(metadata{key: "fly_canary", value: "true"}),
-			withGuest(md.inferCanaryGuest(name)),
-			withDns(&fly.DNSConfig{SkipRegistration: true}),
-		)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to provision canary machine")
-			firstLine, _, _ := strings.Cut(err.Error(), "\n")
-			statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
-			return err
-		}
-		canaryMachines = append(canaryMachines, machine)
+
+		// variable name shadowing to make go-vet happy
+		name := name
+		errors.Go(func() error {
+			lm, err := md.spawnMachineInGroup(ctx, name, nil,
+				withMeta(metadata{key: "fly_canary", value: "true"}),
+				withGuest(md.inferCanaryGuest(name)),
+				withDns(&fly.DNSConfig{SkipRegistration: true}),
+			)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to provision canary machine")
+				firstLine, _, _ := strings.Cut(err.Error(), "\n")
+				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
+				return err
+			}
+
+			if err := md.runTestMachines(ctx, lm.Machine()); err != nil {
+				tracing.RecordError(span, err, "failed to run test machine for canary machine")
+				firstLine, _, _ := strings.Cut(err.Error(), "\n")
+				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
+				return err
+			}
+
+			return nil
+		})
+	}
+
+	if err := errors.Wait(); err != nil {
+		return err
 	}
 
 	fmt.Fprintf(md.io.Out, "Canary machines successfully created and healthy, destroying before continuing\n")
@@ -391,11 +411,8 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return err
 		}
-	}
 
-	if !md.skipHealthChecks {
-		if err := md.runTestMachines(ctx); err != nil {
-			fmt.Printf("error nooooo: %s\n", err)
+		if err := md.runTestMachines(ctx, e.leasableMachine.Machine()); err != nil {
 			return err
 		}
 	}
@@ -635,7 +652,6 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 				md.colorize.Green("succeeded"),
 			)
 		}
-
 		updateFunc := func(poolCtx context.Context) error {
 			ctx, span := tracing.GetTracer().Start(eCtx, "update", trace.WithAttributes(
 				attribute.Int("id", idx),
@@ -661,6 +677,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 				statusFailure(err)
 				return err
 			}
+
 			statusSuccess()
 			return nil
 		}
