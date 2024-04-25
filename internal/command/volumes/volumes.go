@@ -125,7 +125,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 		return err
 	}
 	if showWorkerStatus && unreachableVolumes {
-		fmt.Fprintln(out, "* The workers hosting these volumes could not be reached.")
+		fmt.Fprintln(out, "* These volumes' hosts could not be reached.")
 	}
 	return nil
 }
