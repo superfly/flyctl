@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type createdTestMachine struct {
@@ -21,7 +22,7 @@ type createdTestMachine struct {
 	err  error
 }
 
-func (md *machineDeployment) runTestMachines(ctx context.Context) (err error) {
+func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest *fly.Machine) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "run_test_machine")
 	var (
 		flaps = md.flapsClient
@@ -45,44 +46,47 @@ func (md *machineDeployment) runTestMachines(ctx context.Context) (err error) {
 
 	machines := lo.Map(machineChecks, func(machineCheck *appconfig.ServiceMachineCheck, _ int) createdTestMachine {
 		image := lo.Ternary(machineCheck.Image == "", md.img, machineCheck.Image)
-
-		fmt.Fprintf(md.io.ErrOut, "Running %s test command %s",
-			md.colorize.Bold(md.app.Name),
-			machineCheck.Command,
-		)
-		if image != md.img {
-			fmt.Fprintf(md.io.ErrOut, "using image %s", image)
-		}
-		fmt.Fprintln(md.io.ErrOut)
-
 		defer func() {
 			if err != nil {
 				statuslogger.Failed(ctx, err)
 			}
 		}()
 
-		mach, err := md.createTestMachine(ctx, machineCheck.Command, image)
+		mach, err := md.createTestMachine(ctx, machineCheck.Command, image, machineCheck.Entrypoint, machineToTest)
 		if err != nil {
 			err = fmt.Errorf("error running test machine %s: %w", machineCheck.Command, err)
 		}
 
 		return createdTestMachine{mach, err}
 	})
+
+	if m, hasErr := lo.Find(machines, func(m createdTestMachine) bool {
+		return m.err != nil
+	}); hasErr {
+		err := fmt.Errorf("error creating test machine %s: %w", m.mach.ID, m.err)
+		tracing.RecordError(span, err, "failed to create test machine")
+		return err
+	}
+
 	machineSet := machine.NewMachineSet(flaps, io, lo.FilterMap(machines, func(m createdTestMachine, _ int) (*fly.Machine, bool) {
+		if m.err != nil {
+			tracing.RecordError(span, m.err, "failed to create test machine")
+			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, fmt.Sprintf("failed to create test machine: %s", m.err))
+		}
 		return m.mach, m.err == nil
 	}))
 
-	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
+	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the output
 	err = md.waitForTestMachinesToFinish(ctx, machineSet)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to wait for test cmd machine")
-
 		return err
 	}
 
 	time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
 
 	for _, testMachine := range machineSet.GetMachines() {
+		statuslogger.Logf(ctx, "Checking test command machine %s", md.colorize.Bold(testMachine.Machine().ID))
 		lastExitEvent, err := testMachine.WaitForEventType(ctx, "exit", md.releaseCmdTimeout, true)
 		if err != nil {
 			return fmt.Errorf("error finding the test command machine %s exit event: %w", testMachine.Machine().ID, err)
@@ -91,8 +95,6 @@ func (md *machineDeployment) runTestMachines(ctx context.Context) (err error) {
 		if err != nil {
 			return fmt.Errorf("error get test command machine %s exit code: %w", testMachine.Machine().ID, err)
 		}
-
-		fmt.Println(exitCode)
 
 		if exitCode != 0 {
 			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "test command failed")
@@ -107,17 +109,17 @@ func (md *machineDeployment) runTestMachines(ctx context.Context) (err error) {
 				fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", testMachine.Machine().ID, md.appConfig.AppName, testMachine.Machine().ID)
 			} else {
 				if err != nil {
-					return fmt.Errorf("error getting test command logs: %w", err)
+					return fmt.Errorf("Error getting test command logs: %w", err)
 				}
 				for _, l := range testLogs {
 					fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
 				}
 			}
-			return fmt.Errorf("error test command machine %s exited with non-zero status of %d", testMachine.Machine().ID, exitCode)
+			return fmt.Errorf("Error test command machine %s exited with non-zero status of %d", testMachine.Machine().ID, exitCode)
 		}
 		statuslogger.LogfStatus(ctx,
 			statuslogger.StatusSuccess,
-			"test command %s completed successfully",
+			"Test command %s completed successfully",
 			md.colorize.Bold(testMachine.Machine().ID),
 		)
 	}
@@ -125,20 +127,21 @@ func (md *machineDeployment) runTestMachines(ctx context.Context) (err error) {
 	return nil
 }
 
-// TODO(billy): we need to check for entrypoint issues
-func (md *machineDeployment) createTestMachine(ctx context.Context, testCommand, image string) (*fly.Machine, error) {
+func (md *machineDeployment) createTestMachine(ctx context.Context, testCommand, image, entrypoint string, machineToTest *fly.Machine) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_test_machine")
 	defer span.End()
 
 	if testCommand == "" {
 		return nil, errors.New("test command is empty")
-
 	}
 
-	launchInput := md.launchInputForTestMachine(testCommand, image, nil)
+	launchInput, err := md.launchInputForTestMachine(testCommand, image, entrypoint, machineToTest)
+	if err != nil {
+		return nil, err
+	}
 	testMachine, err := md.flapsClient.Launch(ctx, *launchInput)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to get ip addresses")
+		tracing.RecordError(span, err, "failed to create test machines")
 		return nil, fmt.Errorf("error creating a test machine: %w", err)
 	}
 
@@ -146,15 +149,20 @@ func (md *machineDeployment) createTestMachine(ctx context.Context, testCommand,
 	return testMachine, nil
 }
 
-func (md *machineDeployment) launchInputForTestMachine(testCommand, image string, origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
+func (md *machineDeployment) launchInputForTestMachine(testCommand, image, entrypoint string, origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	if origMachineRaw == nil {
 		origMachineRaw = &fly.Machine{
 			Region: md.appConfig.PrimaryRegion,
 		}
 	}
+
+	machineIP := lo.Ternary(origMachineRaw == nil || origMachineRaw.PrivateIP == "", "", origMachineRaw.PrivateIP)
 	// We can ignore the error because ToReleaseMachineConfig fails only
 	// if it can't split the command and we test that at initialization
-	mConfig, _ := md.appConfig.ToTestMachineConfig(testCommand, image, origMachineRaw.PrivateIP)
+	mConfig, err := md.appConfig.ToTestMachineConfig(testCommand, image, entrypoint, machineIP)
+	if err != nil {
+		return nil, err
+	}
 	mConfig.Guest = md.inferTestMachineGuest()
 	mConfig.Image = image
 	md.setMachineReleaseData(mConfig)
@@ -166,7 +174,7 @@ func (md *machineDeployment) launchInputForTestMachine(testCommand, image string
 	return &fly.LaunchMachineInput{
 		Config: mConfig,
 		Region: origMachineRaw.Region,
-	}
+	}, nil
 }
 
 func (md *machineDeployment) inferTestMachineGuest() *fly.MachineGuest {
@@ -199,6 +207,9 @@ func (md *machineDeployment) inferTestMachineGuest() *fly.MachineGuest {
 }
 
 func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, testMachines machine.MachineSet) error {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
 	// I wish waitForMachines didn't 404, but I get why
 	badMachineIDs, err := testMachines.WaitForMachineSetState(ctx, fly.MachineStateStarted, md.waitTimeout, false, true)
 	if err != nil {
@@ -216,6 +227,15 @@ func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, te
 			err = fmt.Errorf("%w\n%s", err, mach)
 		}
 		return fmt.Errorf("error waiting for test command machines to finish running: %w", err)
+	}
+
+	machs := lo.FilterMap(testMachines.GetMachines(), func(lm machine.LeasableMachine, _ int) (*fly.Machine, bool) {
+		mach := lm.Machine()
+		m, err := md.flapsClient.Get(ctx, mach.ID)
+		return m, err == nil
+	})
+	for _, mach := range machs {
+		statuslogger.Logf(ctx, "Test Machine %s: %s", colorize.Bold(mach.ID), mach.State)
 	}
 
 	return nil
