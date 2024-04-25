@@ -68,14 +68,8 @@ func (c *Config) ToTestMachineConfig(machineCommand, machineImage, machineEntryp
 	if err != nil {
 		return nil, err
 	}
+	command := []string{machineCommand}
 
-	command, err := shlex.Split(machineCommand)
-	if err != nil {
-		return nil, err
-	}
-
-	//entrypoint := []string{machineEntrypoint}
-	//command := []string{machineCommand}
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        command,
