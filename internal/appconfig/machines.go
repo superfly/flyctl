@@ -62,14 +62,27 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	return mConfig, nil
 }
 
-func (c *Config) ToTestMachineConfig(machineCommand, image, machineIP string) (*fly.MachineConfig, error) {
+func (c *Config) ToTestMachineConfig(machineCommand, machineImage, machineEntrypoint, machineIP string) (*fly.MachineConfig, error) {
+	// for whatever reason, we need to split the entry point, but not the command
+	entrypoint, err := shlex.Split(machineEntrypoint)
+	if err != nil {
+		return nil, err
+	}
+
+	command, err := shlex.Split(machineCommand)
+	if err != nil {
+		return nil, err
+	}
+
+	//entrypoint := []string{machineEntrypoint}
+	//command := []string{machineCommand}
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{
-			Cmd:        []string{machineCommand},
+			Cmd:        command,
 			SwapSizeMB: c.SwapSizeMB,
-			Entrypoint: []string{"/bin/bash", "-c"},
+			Entrypoint: entrypoint,
 		},
-		Image: image,
+		Image: machineImage,
 		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyNo,
 		},
