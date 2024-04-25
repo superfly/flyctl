@@ -46,8 +46,9 @@ type ServiceHTTPCheck struct {
 }
 
 type ServiceMachineCheck struct {
-	Command string `json:"command,omitempty" toml:"command,omitempty"`
-	Image   string `json:"image,omitempty" toml:"image,omitempty"`
+	Command    string `json:"command,omitempty" toml:"command,omitempty"`
+	Image      string `json:"image,omitempty" toml:"image,omitempty"`
+	Entrypoint string `json:"entrypoint,omitempty" toml:"entrypoint,omitempty"`
 }
 
 type HTTPService struct {
@@ -62,15 +63,17 @@ type HTTPService struct {
 	TLSOptions         *fly.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
 	HTTPOptions        *fly.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"checks,omitempty" toml:"checks,omitempty"`
+	MachineChecks      []*ServiceMachineCheck         `json:"machine_checks,omitempty" toml:"machine_checks,omitempty"`
 }
 
 func (s *HTTPService) ToService() *Service {
 	return &Service{
-		Protocol:     "tcp",
-		InternalPort: s.InternalPort,
-		Concurrency:  s.Concurrency,
-		Processes:    s.Processes,
-		HTTPChecks:   s.HTTPChecks,
+		Protocol:      "tcp",
+		InternalPort:  s.InternalPort,
+		Concurrency:   s.Concurrency,
+		Processes:     s.Processes,
+		HTTPChecks:    s.HTTPChecks,
+		MachineChecks: s.MachineChecks,
 		Ports: []fly.MachinePort{{
 			Port:        fly.IntPointer(80),
 			Handlers:    []string{"http"},
