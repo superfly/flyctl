@@ -135,7 +135,6 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_canary")
 	defer span.End()
 
-	canaryMachines := []machine.LeasableMachine{}
 	groupsInConfig := md.ProcessNames()
 	total := len(groupsInConfig)
 	sl := statuslogger.Create(ctx, total, true)
@@ -154,6 +153,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 		// variable name shadowing to make go-vet happy
 		name := name
 		errors.Go(func() error {
+			var err error
 			lm, err := md.spawnMachineInGroup(ctx, name, nil,
 				withMeta(metadata{key: "fly_canary", value: "true"}),
 				withGuest(md.inferCanaryGuest(name)),
@@ -166,14 +166,22 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				return err
 			}
 
-			if err := md.runTestMachines(ctx, lm.Machine()); err != nil {
+			defer func() {
+				if err == nil {
+					if destroyErr := machcmd.Destroy(ctx, md.app, lm.Machine(), true); destroyErr != nil {
+						err = destroyErr
+					}
+				}
+			}()
+
+			if err = md.runTestMachines(ctx, lm.Machine()); err != nil {
 				tracing.RecordError(span, err, "failed to run test machine for canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
 				return err
 			}
 
-			return nil
+			return err
 		})
 	}
 
@@ -181,12 +189,6 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 		return err
 	}
 
-	fmt.Fprintf(md.io.Out, "Canary machines successfully created and healthy, destroying before continuing\n")
-	for _, mach := range canaryMachines {
-		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -292,7 +294,6 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	md.warnAboutProcessGroupChanges(processGroupMachineDiff)
 
 	if md.strategy == "canary" && !md.isFirstDeploy {
-		// TODO do machine checks here
 		if err := md.deployCanaryMachines(ctx); err != nil {
 			return err
 		}
@@ -309,7 +310,6 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	}
 
 	if !md.updateOnly {
-		// TODO do machine checks here
 		if err := md.deployCreateMachinesForGroups(ctx, processGroupMachineDiff); err != nil {
 			return err
 		}
@@ -453,10 +453,9 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	switch md.strategy {
 	case "bluegreen":
-		// TODO do machine checks here
+		// TODO(billy) do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
-		// TODO do machine checks here
 		return md.updateUsingImmediateStrategy(ctx, updateEntries)
 	case "canary", "rolling":
 		fallthrough
