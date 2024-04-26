@@ -4,9 +4,11 @@
 package preflight
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
@@ -127,6 +129,18 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
 		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
 	)
+	sshErr := backoff.Retry(func() error {
+		sshWorks := f.FlyAllowExitFailure("ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT 1'\"", firstAppName)
+		if sshWorks.ExitCode() != 0 {
+			return fmt.Errorf("non-zero exit code running fly ssh console")
+		} else {
+			return nil
+		}
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(11*time.Millisecond),
+		backoff.WithMaxElapsedTime(100*time.Millisecond),
+	), 3))
+	require.NoError(f, sshErr, "failed to connect to first app's postgres over ssh")
 
 	f.Fly(
 		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'CREATE TABLE app_name (app_name TEXT)'\"",
