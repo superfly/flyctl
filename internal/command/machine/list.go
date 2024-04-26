@@ -119,7 +119,7 @@ func runMachineList(ctx context.Context) (err error) {
 			}
 
 			note := ""
-			unreachable := machine.WorkerStatus == "unreachable"
+			unreachable := machine.HostStatus == "unreachable"
 			if unreachable {
 				unreachableMachines = true
 				note = "*"
