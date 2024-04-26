@@ -92,7 +92,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showWorkerStatus bool) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showHostStatus bool) error {
 	rows := make([][]string, 0, len(volumes))
 	unreachableVolumes := false
 	for _, volume := range volumes {
@@ -103,7 +103,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 		}
 
 		note := ""
-		if showWorkerStatus && volume.WorkerStatus == "unreachable" {
+		if showHostStatus && volume.HostStatus == "unreachable" {
 			unreachableVolumes = true
 			note = "*"
 		}
@@ -124,8 +124,8 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	if err := render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At"); err != nil {
 		return err
 	}
-	if showWorkerStatus && unreachableVolumes {
-		fmt.Fprintln(out, "* The workers hosting these volumes could not be reached.")
+	if showHostStatus && unreachableVolumes {
+		fmt.Fprintln(out, "* These volumes' hosts could not be reached.")
 	}
 	return nil
 }
