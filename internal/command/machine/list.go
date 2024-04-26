@@ -119,7 +119,7 @@ func runMachineList(ctx context.Context) (err error) {
 			}
 
 			note := ""
-			unreachable := machine.WorkerStatus == "unreachable"
+			unreachable := machine.HostStatus == "unreachable"
 			if unreachable {
 				unreachableMachines = true
 				note = "*"
@@ -144,7 +144,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
 		if unreachableMachines {
-			fmt.Fprintln(io.Out, "* The workers hosting these Machines could not be reached.")
+			fmt.Fprintln(io.Out, "* These Machines' hosts could not be reached.")
 		}
 	}
 	return nil
