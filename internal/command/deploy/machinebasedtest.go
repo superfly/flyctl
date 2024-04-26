@@ -157,8 +157,6 @@ func (md *machineDeployment) launchInputForTestMachine(testCommand, image, entry
 	}
 
 	machineIP := lo.Ternary(origMachineRaw == nil || origMachineRaw.PrivateIP == "", "", origMachineRaw.PrivateIP)
-	// We can ignore the error because ToReleaseMachineConfig fails only
-	// if it can't split the command and we test that at initialization
 	mConfig, err := md.appConfig.ToTestMachineConfig(testCommand, image, entrypoint, machineIP)
 	if err != nil {
 		return nil, err
