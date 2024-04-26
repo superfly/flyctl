@@ -53,5 +53,18 @@ func ScanDockerfile(dockerfilePath string, config *ScannerConfig) (*SourceInfo, 
 		s.Port = defaultPort
 	}
 
+	// extract volume - handle both plain string and JSON format, but only allow one path
+	re := regexp.MustCompile(`(?m)^VOLUME\s+(\[\s*")?(\/[\w\/]*?(\w+))("\s*\])?\s*$`)
+	m = re.FindStringSubmatch(string(dockerfile))
+
+	if len(m) > 0 {
+		s.Volumes = []Volume{
+			{
+				Source:      m[3], // last part of path
+				Destination: m[2], // full path
+			},
+		}
+	}
+
 	return s, nil
 }
