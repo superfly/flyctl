@@ -103,7 +103,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 		}
 
 		note := ""
-		if showWorkerStatus && volume.WorkerStatus == "unreachable" {
+		if showWorkerStatus && volume.HostStatus == "unreachable" {
 			unreachableVolumes = true
 			note = "*"
 		}

@@ -41,7 +41,7 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 		Metadata: map[string]string{
 			fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
-			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppReleaseCommand,
+			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppTestMachineCommand,
 		},
 		Env: lo.Assign(c.Env),
 	}
@@ -55,6 +55,52 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
+
+	// StopConfig
+	c.tomachineSetStopConfig(mConfig)
+
+	return mConfig, nil
+}
+
+func (c *Config) ToTestMachineConfig(machineCommand, machineImage, machineEntrypoint, machineIP string) (*fly.MachineConfig, error) {
+	// for whatever reason, we need to split the entry point, but not the command
+	entrypoint, err := shlex.Split(machineEntrypoint)
+	if err != nil {
+		return nil, err
+	}
+	command := []string{machineCommand}
+
+	mConfig := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        command,
+			SwapSizeMB: c.SwapSizeMB,
+			Entrypoint: entrypoint,
+		},
+		Image: machineImage,
+		Restart: &fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
+		},
+		AutoDestroy: true,
+		DNS: &fly.DNSConfig{
+			SkipRegistration: true,
+		},
+		Metadata: map[string]string{
+			fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
+			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
+			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppTestMachineCommand,
+		},
+		Env: lo.Assign(c.Env),
+	}
+
+	if c.Experimental != nil {
+		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+	}
+
+	mConfig.Env["FLY_PROCESS_GROUP"] = fly.MachineProcessGroupFlyAppReleaseCommand
+	if c.PrimaryRegion != "" {
+		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+	mConfig.Env["FLY_TEST_MACHINE_IP"] = machineIP
 
 	// StopConfig
 	c.tomachineSetStopConfig(mConfig)
