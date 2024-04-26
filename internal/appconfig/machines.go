@@ -41,7 +41,7 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 		Metadata: map[string]string{
 			fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
 			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
-			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppTestMachineCommand,
+			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppReleaseCommand,
 		},
 		Env: lo.Assign(c.Env),
 	}
