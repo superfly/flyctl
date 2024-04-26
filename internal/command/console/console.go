@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
@@ -50,7 +51,7 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "select",
 			Shorthand:   "s",
-			Description: "Select the machine on which to execute the console from a list",
+			Description: "Select the machine on which to execute the console from a list.",
 			Default:     false,
 		},
 		flag.String{
@@ -166,6 +167,11 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
+	network, err := apiClient.GetAppNetwork(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("failed to get app network: %w", err)
+	}
+
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppCompact: app,
 		AppName:    app.Name,
@@ -197,7 +203,7 @@ func runConsole(ctx context.Context) error {
 		defer cleanup()
 	}
 
-	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, false)
+	_, dialer, err := ssh.BringUpAgent(ctx, apiClient, app, *network, false)
 	if err != nil {
 		return err
 	}
@@ -352,7 +358,7 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 
 	machineFiles, err := command.FilesFromCommand(ctx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed parsing filest: %w", err)
+		return nil, nil, fmt.Errorf("failed parsing files: %w", err)
 	}
 	fly.MergeFiles(machConfig, machineFiles)
 
@@ -387,41 +393,54 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 }
 
 func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*fly.MachineGuest, error) {
-	desiredGuest, err := flag.GetMachineGuest(ctx, nil)
+	var guest *fly.MachineGuest
+
+	haveConsoleVMSection := 0 <= slices.IndexFunc(
+		appConfig.Compute,
+		func(c *appconfig.Compute) bool {
+			return slices.Index(c.Processes, "console") >= 0
+		},
+	)
+	if haveConsoleVMSection {
+		groupConfig, err := appConfig.ToMachineConfig("console", nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to check Machine configuration for the 'console' group: %w", err)
+		}
+		guest = groupConfig.Guest
+	}
+
+	guest, err := flag.GetMachineGuest(ctx, guest)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid arguments: %w", err)
 	}
 
-	if !flag.IsSpecified(ctx, "vm-memory") {
-		var minMemory, maxMemory int
-		switch desiredGuest.CPUKind {
-		case "shared":
-			minMemory = desiredGuest.CPUs * fly.MIN_MEMORY_MB_PER_SHARED_CPU
-			maxMemory = desiredGuest.CPUs * fly.MAX_MEMORY_MB_PER_SHARED_CPU
-		case "performance":
-			minMemory = desiredGuest.CPUs * fly.MIN_MEMORY_MB_PER_CPU
-			maxMemory = desiredGuest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
-		default:
-			return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", desiredGuest.CPUKind)
-		}
-
-		// use vm.memory_mb from fly.toml (if present) as a lower bound
-		appConfig.Flatten("console")
-		if appConfig.Compute != nil && len(appConfig.Compute) == 1 {
-			compute := appConfig.Compute[0]
-			if compute.MemoryMB != 0 {
-				minMemory = compute.MemoryMB
-			}
-		}
-
-		adjusted := lo.Clamp(desiredGuest.MemoryMB, minMemory, maxMemory)
-		if adjusted != desiredGuest.MemoryMB && flag.IsSpecified(ctx, "vm-size") {
-			action := lo.Ternary(adjusted < desiredGuest.MemoryMB, "lowered", "raised")
-			cpuS := lo.Ternary(desiredGuest.CPUs == 1, "", "s")
-			terminal.Warnf("Ephemeral machine memory will be %s to %d MB to be compatible with %d %s CPU%s.\n", action, adjusted, desiredGuest.CPUs, desiredGuest.CPUKind, cpuS)
-		}
-		desiredGuest.MemoryMB = adjusted
+	var minMemory, maxMemory int
+	switch guest.CPUKind {
+	case "shared":
+		minMemory = guest.CPUs * fly.MIN_MEMORY_MB_PER_SHARED_CPU
+		maxMemory = guest.CPUs * fly.MAX_MEMORY_MB_PER_SHARED_CPU
+	case "performance":
+		minMemory = guest.CPUs * fly.MIN_MEMORY_MB_PER_CPU
+		maxMemory = guest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
+	default:
+		return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", guest.CPUKind)
 	}
 
-	return desiredGuest, nil
+	adjusted := lo.Clamp(guest.MemoryMB, minMemory, maxMemory)
+	if adjusted != guest.MemoryMB {
+		action := lo.Ternary(adjusted < guest.MemoryMB, "lowered", "raised")
+		cpuS := lo.Ternary(guest.CPUs == 1, "", "s")
+		terminal.Warnf(
+			"Ephemeral machine memory will be %s from %d MB to %d MB to be compatible with %d %s CPU%s.",
+			action,
+			guest.MemoryMB,
+			adjusted,
+			guest.CPUs,
+			guest.CPUKind,
+			cpuS,
+		)
+	}
+	guest.MemoryMB = adjusted
+
+	return guest, nil
 }

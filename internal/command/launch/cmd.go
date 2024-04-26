@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"time"
@@ -19,13 +18,15 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func New() (cmd *cobra.Command) {
 	const (
-		long  = `Create and configure a new app from source code or a Docker image`
-		short = long
+		long  = `Create and configure a new app from source code or a Docker image.  Options passed after double dashes ("--") will be passed to the language specific scanner/dockerfile generator.`
+		short = `Create and configure a new app from source code or a Docker image`
 	)
 
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
@@ -133,10 +134,6 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	if _, err := url.Parse(from); err != nil {
-		return ctx, fmt.Errorf("invalid URL: `%s'. Expected https:// git repo", from)
-	}
-
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		return ctx, fmt.Errorf("failed to read directory: %w", err)
@@ -160,15 +157,35 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 }
 
 func run(ctx context.Context) (err error) {
-	io := iostreams.FromContext(ctx)
+	var io = iostreams.FromContext(ctx)
+
+	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
+
+	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
+	defer span.End()
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
 	metrics.Started(ctx, "launch")
+
+	var state *launchState = nil
+
 	defer func() {
 		if err != nil {
 			status.Error = err.Error()
+
+			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
+				err = state.sourceInfo.FailureCallback(err)
+			}
 		}
+
+		status.TraceID = span.SpanContext().TraceID().String()
 		status.Duration = time.Since(startTime)
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
@@ -217,6 +234,8 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
+
 	status.AppName = launchManifest.Plan.AppName
 	status.OrgSlug = launchManifest.Plan.OrgSlug
 	status.Region = launchManifest.Plan.RegionCode
@@ -236,7 +255,7 @@ func run(ctx context.Context) (err error) {
 	status.ScannerFamily = launchManifest.Plan.ScannerFamily
 	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
-	state, err := stateFromManifest(ctx, *launchManifest, cache)
+	state, err = stateFromManifest(ctx, *launchManifest, cache)
 	if err != nil {
 		return err
 	}

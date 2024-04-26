@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -127,14 +128,53 @@ const (
 )
 
 type Client struct {
-	network string
-	address string
-	dialer  net.Dialer
+	network            string
+	address            string
+	dialer             net.Dialer
+	agentRefusedTokens bool
 }
 
 var errDone = errors.New("done")
 
-func (c *Client) do(parent context.Context, fn func(net.Conn) error) (err error) {
+func (c *Client) do(ctx context.Context, fn func(net.Conn) error) (err error) {
+	if c.agentRefusedTokens {
+		return c.doNoTokens(ctx, fn)
+	}
+
+	toks := config.Tokens(ctx)
+	if toks.Empty() {
+		return c.doNoTokens(ctx, fn)
+	}
+
+	var tokArgs []string
+	if file := toks.FromFile(); file != "" {
+		tokArgs = append(tokArgs, "cfg", file)
+	} else {
+		tokArgs = append(tokArgs, "str", toks.All())
+	}
+
+	return c.doNoTokens(ctx, func(conn net.Conn) error {
+		if err := proto.Write(conn, "set-token", tokArgs...); err != nil {
+			return err
+		}
+
+		data, err := proto.Read(conn)
+
+		switch {
+		case err == nil && string(data) == "ok":
+			return fn(conn)
+		case err != nil:
+			return err
+		case isError(data):
+			c.agentRefusedTokens = true
+			return c.do(ctx, fn)
+		default:
+			return err
+		}
+	})
+}
+
+func (c *Client) doNoTokens(parent context.Context, fn func(net.Conn) error) (err error) {
 	var conn net.Conn
 	if conn, err = c.dialContext(parent); err != nil {
 		return err
@@ -239,14 +279,14 @@ type EstablishResponse struct {
 	TunnelConfig   *wg.Config
 }
 
-func (c *Client) doEstablish(ctx context.Context, slug string, recycle bool) (res *EstablishResponse, err error) {
+func (c *Client) doEstablish(ctx context.Context, slug string, recycle bool, network string) (res *EstablishResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
 		verb := "establish"
 		if recycle {
 			verb = "reestablish"
 		}
 
-		if err = proto.Write(conn, verb, slug); err != nil {
+		if err = proto.Write(conn, verb, slug, network); err != nil {
 			return
 		}
 
@@ -274,17 +314,17 @@ func (c *Client) doEstablish(ctx context.Context, slug string, recycle bool) (re
 	return
 }
 
-func (c *Client) Establish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
-	return c.doEstablish(ctx, slug, false)
+func (c *Client) Establish(ctx context.Context, slug, network string) (res *EstablishResponse, err error) {
+	return c.doEstablish(ctx, slug, false, network)
 }
 
-func (c *Client) Reestablish(ctx context.Context, slug string) (res *EstablishResponse, err error) {
-	return c.doEstablish(ctx, slug, true)
+func (c *Client) Reestablish(ctx context.Context, slug, network string) (res *EstablishResponse, err error) {
+	return c.doEstablish(ctx, slug, true, network)
 }
 
-func (c *Client) Probe(ctx context.Context, slug string) error {
+func (c *Client) Probe(ctx context.Context, slug, network string) error {
 	return c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "probe", slug); err != nil {
+		if err = proto.Write(conn, "probe", slug, network); err != nil {
 			return
 		}
 
@@ -306,9 +346,9 @@ func (c *Client) Probe(ctx context.Context, slug string) error {
 	})
 }
 
-func (c *Client) Resolve(ctx context.Context, slug, host string) (addr string, err error) {
+func (c *Client) Resolve(ctx context.Context, slug, host, network string) (addr string, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
-		if err = proto.Write(conn, "resolve", slug, host); err != nil {
+		if err = proto.Write(conn, "resolve", slug, host, network); err != nil {
 			return
 		}
 
@@ -362,12 +402,12 @@ func (c *Client) LookupTxt(ctx context.Context, slug, host string) (records []st
 
 // WaitForTunnel waits for a tunnel to the given org slug to become available
 // in the next four minutes.
-func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) {
+func (c *Client) WaitForTunnel(parent context.Context, slug, network string) (err error) {
 	ctx, cancel := context.WithTimeout(parent, 4*time.Minute)
 	defer cancel()
 
 	for {
-		if err = c.Probe(ctx, slug); !errors.Is(err, ErrTunnelUnavailable) {
+		if err = c.Probe(ctx, slug, network); !errors.Is(err, ErrTunnelUnavailable) {
 			break
 		}
 
@@ -382,7 +422,7 @@ func (c *Client) WaitForTunnel(parent context.Context, slug string) (err error) 
 }
 
 // WaitForDNS waits for a Fly host internal DNS entry to register
-func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, host string) (err error) {
+func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug, host, network string) (err error) {
 	io := iostreams.FromContext(parent)
 
 	if !flag.GetBool(parent, "quiet") {
@@ -395,7 +435,7 @@ func (c *Client) WaitForDNS(parent context.Context, dialer Dialer, slug string, 
 	}
 
 	for {
-		if _, err = c.Resolve(ctx, slug, host); !errors.Is(err, ErrNoSuchHost) {
+		if _, err = c.Resolve(ctx, slug, host, network); !errors.Is(err, ErrNoSuchHost) {
 			break
 		}
 
@@ -584,14 +624,15 @@ func unmarshal(dst interface{}, data []byte) (err error) {
 
 // Dialer establishes a connection to the wireguard agent and return a dialier
 // for use in subsequent actions, such as running ssh commands or opening proxies
-func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) {
+func (c *Client) Dialer(ctx context.Context, slug, network string) (d Dialer, err error) {
 	var er *EstablishResponse
-	if er, err = c.Establish(ctx, slug); err == nil {
+	if er, err = c.Establish(ctx, slug, network); err == nil {
 		d = &dialer{
-			slug:   slug,
-			client: c,
-			state:  er.WireGuardState,
-			config: er.TunnelConfig,
+			slug:    slug,
+			network: network,
+			client:  c,
+			state:   er.WireGuardState,
+			config:  er.TunnelConfig,
 		}
 	}
 
@@ -600,10 +641,10 @@ func (c *Client) Dialer(ctx context.Context, slug string) (d Dialer, err error) 
 
 // ConnectToTunnel is a convenience method for connect to a wireguard tunnel
 // and returning a Dialer. Only suitable for use in the new CLI commands.
-func (c *Client) ConnectToTunnel(ctx context.Context, slug string, silent bool) (d Dialer, err error) {
+func (c *Client) ConnectToTunnel(ctx context.Context, slug, network string, silent bool) (d Dialer, err error) {
 	io := iostreams.FromContext(ctx)
 
-	dialer, err := c.Dialer(ctx, slug)
+	dialer, err := c.Dialer(ctx, slug, network)
 	if err != nil {
 		return nil, err
 	}
@@ -611,7 +652,7 @@ func (c *Client) ConnectToTunnel(ctx context.Context, slug string, silent bool) 
 		io.StartProgressIndicatorMsg(fmt.Sprintf("Opening a wireguard tunnel to %s", slug))
 		defer io.StopProgressIndicator()
 	}
-	if err := c.WaitForTunnel(ctx, slug); err != nil {
+	if err := c.WaitForTunnel(ctx, slug, network); err != nil {
 		return nil, fmt.Errorf("tunnel unavailable for organization %s: %w", slug, err)
 	}
 	return dialer, err
@@ -626,6 +667,7 @@ type Dialer interface {
 
 type dialer struct {
 	slug    string
+	network string
 	timeout time.Duration
 
 	state  *wg.WireGuardState
@@ -655,7 +697,7 @@ func (d *dialer) DialContext(ctx context.Context, network, addr string) (conn ne
 	c := make(chan error, 1)
 	go func() {
 		timeout := strconv.FormatInt(int64(d.timeout), 10)
-		if err := proto.Write(conn, "connect", d.slug, addr, timeout); err != nil {
+		if err := proto.Write(conn, "connect", d.slug, addr, timeout, d.network); err != nil {
 			c <- err
 			return
 		}
@@ -699,8 +741,8 @@ type Pinger struct {
 // opening an additional connection to the agent, which is upgraded
 // to a Pinger connection by sending the "ping6" command. Call "Close"
 // on a Pinger when you're done pinging things.
-func (c *Client) Pinger(ctx context.Context, slug string) (p *Pinger, err error) {
-	if _, err = c.Establish(ctx, slug); err != nil {
+func (c *Client) Pinger(ctx context.Context, slug, network string) (p *Pinger, err error) {
+	if _, err = c.Establish(ctx, slug, network); err != nil {
 		return nil, fmt.Errorf("pinger: %w", err)
 	}
 

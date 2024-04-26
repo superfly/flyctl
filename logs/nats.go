@@ -29,12 +29,12 @@ func NewNatsStream(ctx context.Context, apiClient *fly.Client, opts *LogOptions)
 		return nil, fmt.Errorf("failed establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
 	if err != nil {
 		return nil, fmt.Errorf("failed establishing wireguard connection for %s organization: %w", app.Organization.Slug, err)
 	}
 
-	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug); err != nil {
+	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug, ""); err != nil {
 		return nil, fmt.Errorf("failed connecting to WireGuard tunnel: %w", err)
 	}
 
@@ -75,7 +75,12 @@ func newNatsClient(ctx context.Context, dialer agent.Dialer, orgSlug string) (*n
 	natsIP := net.IP(natsIPBytes[:])
 
 	url := fmt.Sprintf("nats://[%s]:4223", natsIP.String())
-	conn, err := nats.Connect(url, nats.SetCustomDialer(&natsDialer{dialer, ctx}), nats.UserInfo(orgSlug, config.Tokens(ctx).NATS()))
+	toks := config.Tokens(ctx)
+	conn, err := nats.Connect(
+		url,
+		nats.SetCustomDialer(&natsDialer{dialer, ctx}),
+		nats.UserInfoHandler(func() (string, string) { return orgSlug, toks.NATS() }),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed connecting to nats: %w", err)
 	}

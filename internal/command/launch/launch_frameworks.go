@@ -128,7 +128,7 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 		return nil
 	}
 
-	err := state.sourceInfo.Callback(state.Plan.AppName, state.sourceInfo, state.Plan)
+	err := state.sourceInfo.Callback(state.Plan.AppName, state.sourceInfo, state.Plan, flag.ExtraArgsFromContext(ctx))
 
 	if state.sourceInfo.MergeConfig != nil {
 		if err == nil {
@@ -201,10 +201,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 	// Complete the appConfig
 	if srcInfo == nil {
 		return nil
-	}
-
-	if srcInfo.Port > 0 {
-		appConfig.SetInternalPort(srcInfo.Port)
 	}
 
 	if srcInfo.HttpCheckPath != "" {

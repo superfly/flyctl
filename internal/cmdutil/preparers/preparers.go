@@ -2,11 +2,8 @@ package preparers
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -33,19 +30,10 @@ type Preparer func(context.Context) (context.Context, error)
 func LoadConfig(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
-	cfg := config.New()
-
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	cfg, err := config.Load(ctx, filepath.Join(state.ConfigDirectory(ctx), config.FileName))
+	if err != nil {
 		return nil, err
 	}
-
-	// Apply config from the environment, overriding anything from the file
-	cfg.ApplyEnv()
-
-	// Finally, apply command line options, overriding any previous setting
-	cfg.ApplyFlags(flagctx.FromContext(ctx))
 
 	logger.Debug("config initialized.")
 
@@ -147,20 +135,4 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 		}
 	}
 	return ctx, err
-}
-
-// This method sets the user auth token as an environment variable called FLY_OTEL_AUTH_KEY
-// Why is this necessary? It's quite difficult to get the auth token when we initialize the tracer.
-// There's no assurance it will exist at the time of creation, so we use this preparer to set it
-// And then in the tracer, we use a GRPC interceptor to pull it out when sending the traces.
-// *Another approach would be to load the config in the interceptor, and pull the tokens from it.
-// except it only came to my mind after writing this so let's stick with this for now.
-func SetOtelAuthenticationKey(ctx context.Context) (context.Context, error) {
-	token := config.Tokens(ctx).Flaps()
-	if token == "" {
-		token = os.Getenv("FLY_API_TOKEN")
-	}
-
-	os.Setenv("FLY_OTEL_AUTH_KEY", token)
-	return ctx, nil
 }

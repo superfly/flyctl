@@ -27,6 +27,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 )
 
+var defaultMaxConcurrent = 16
+
 var CommonFlags = flag.Set{
 	flag.Region(),
 	flag.Image(),
@@ -132,9 +134,15 @@ var CommonFlags = flag.Set{
 		Description: "Add custom metadata to an image via docker labels",
 	},
 	flag.Int{
+		Name:        "max-concurrent",
+		Description: "Maximum number of machines to operate on concurrently.",
+		Default:     defaultMaxConcurrent,
+	},
+	flag.Int{
 		Name:        "immediate-max-concurrent",
 		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
-		Default:     16,
+		Default:     defaultMaxConcurrent,
+		Hidden:      true,
 	},
 	flag.Int{
 		Name:        "volume-initial-size",
@@ -184,13 +192,23 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+
 	hook := ctrlc.Hook(func() {
 		metrics.FlushMetrics(ctx)
 	})
 
 	defer hook.Done()
 
-	appName := appconfig.NameFromContext(ctx)
+	tp, err := tracing.InitTraceProvider(ctx, appName)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
+
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -201,7 +219,7 @@ func run(ctx context.Context) error {
 
 	client := fly.ClientFromContext(ctx)
 
-	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
 
 	user, err := client.GetCurrentUser(ctx)
@@ -373,30 +391,36 @@ func deployToMachines(
 		}
 	}
 
+	maxConcurrent := flag.GetInt(ctx, "max-concurrent")
+	immediateMaxConcurrent := flag.GetInt(ctx, "immediate-max-concurrent")
+	if maxConcurrent == defaultMaxConcurrent && immediateMaxConcurrent != defaultMaxConcurrent {
+		maxConcurrent = immediateMaxConcurrent
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:             app,
-		DeploymentImage:        img.Tag,
-		Strategy:               flag.GetString(ctx, "strategy"),
-		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:      cfg.PrimaryRegion,
-		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
-		SkipHealthChecks:       flag.GetDetach(ctx),
-		SkipDNSChecks:          flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
-		WaitTimeout:            waitTimeout,
-		StopSignal:             flag.GetString(ctx, "signal"),
-		ReleaseCmdTimeout:      releaseCmdTimeout,
-		LeaseTimeout:           leaseTimeout,
-		MaxUnavailable:         maxUnavailable,
-		Guest:                  guest,
-		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
-		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
-		UpdateOnly:             flag.GetBool(ctx, "update-only"),
-		Files:                  files,
-		ExcludeRegions:         excludeRegions,
-		OnlyRegions:            onlyRegions,
-		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
-		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
-		ProcessGroups:          processGroups,
+		AppCompact:            app,
+		DeploymentImage:       img.Tag,
+		Strategy:              flag.GetString(ctx, "strategy"),
+		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
+		PrimaryRegionFlag:     cfg.PrimaryRegion,
+		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:      flag.GetDetach(ctx),
+		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
+		WaitTimeout:           waitTimeout,
+		StopSignal:            flag.GetString(ctx, "signal"),
+		ReleaseCmdTimeout:     releaseCmdTimeout,
+		LeaseTimeout:          leaseTimeout,
+		MaxUnavailable:        maxUnavailable,
+		Guest:                 guest,
+		IncreasedAvailability: flag.GetBool(ctx, "ha"),
+		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
+		UpdateOnly:            flag.GetBool(ctx, "update-only"),
+		Files:                 files,
+		ExcludeRegions:        excludeRegions,
+		OnlyRegions:           onlyRegions,
+		MaxConcurrent:         maxConcurrent,
+		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
+		ProcessGroups:         processGroups,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/flyerr"
 )
 
 var healthcheck_channel = make(chan string)
@@ -72,6 +73,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
+		FailureCallback:      RailsFailureCallback,
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
@@ -188,14 +190,25 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 	return s, nil
 }
 
-func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
-	// install dockerfile-rails gem, if not already included
-	writable := false
+func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
+	// Overall strategy: Install and use the dockerfile-rails gem to generate a Dockerfile.
+	//
+	// If a Dockerfile already exists, run the generator with the --skip flag to avoid overwriting it.
+	// This will still do interesting things like update the fly.toml file to add volumes, processes, etc.
+	//
+	// If the generator fails but a Dockerfile exists, warn the user and proceed.  Only fail if no
+	// Dockerfile exists at the end of this process.
+
+	// install dockerfile-rails gem, if not already included and the gem directory is writable
+	// if an error occurrs, store it for later in pendingError
+	generatorInstalled := false
+	var pendingError error
 	gemfile, err := os.ReadFile("Gemfile")
 	if err != nil {
-		panic(err)
+		return errors.Wrap(err, "Failed to read Gemfile")
 	} else if !strings.Contains(string(gemfile), "dockerfile-rails") {
 		// check for writable gem installation directory
+		writable := false
 		out, err := exec.Command("gem", "environment").Output()
 		if err == nil {
 			regexp := regexp.MustCompile(`INSTALLATION DIRECTORY: (.*)\n`)
@@ -219,22 +232,26 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to add dockerfile-rails gem, exiting")
-			}
+			pendingError = cmd.Run()
+			if pendingError != nil {
+				pendingError = errors.Wrap(pendingError, "Failed to add dockerfile-rails gem")
+			} else {
+				cmd = exec.Command(bundle, "install", "--quiet")
+				cmd.Stdin = nil
+				cmd.Stdout = os.Stdout
+				cmd.Stderr = os.Stderr
 
-			cmd = exec.Command(bundle, "install", "--quiet")
-			cmd.Stdin = nil
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-
-			if err := cmd.Run(); err != nil {
-				return errors.Wrap(err, "Failed to install dockerfile-rails gem, exiting")
+				pendingError = cmd.Run()
+				if pendingError != nil {
+					pendingError = errors.Wrap(pendingError, "Failed to install dockerfile-rails gem")
+				} else {
+					generatorInstalled = true
+				}
 			}
 		}
 	} else {
-		// proceed as if the gem installation directory is writable
-		writable = true
+		// proceed using the already installed gem
+		generatorInstalled = true
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
@@ -275,8 +292,8 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	if !errors.Is(err, fs.ErrNotExist) {
 		args = append(args, "--skip")
 
-		if !writable {
-			return errors.Wrap(err, "No Dockerfile found and unable to install dockerfile-rails gem")
+		if !generatorInstalled {
+			return errors.Wrap(pendingError, "No Dockerfile found")
 		}
 	}
 
@@ -290,21 +307,35 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 		args = append(args, "--redis")
 	}
 
-	// run command
-	fmt.Printf("installing: %s\n", strings.Join(args, " "))
-	cmd := exec.Command(ruby, args...)
-	cmd.Stdin = os.Stdin
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	// add additional flags from launch command
+	if len(flags) > 0 {
+		args = append(args, flags...)
+	}
 
-	if err := cmd.Run(); err != nil {
-		return errors.Wrap(err, "Failed to generate Dockerfile")
+	// run command if the generator is available
+	if generatorInstalled {
+		fmt.Printf("Running: %s\n", strings.Join(args, " "))
+		cmd := exec.Command(ruby, args...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		pendingError = cmd.Run()
 	}
 
 	// read dockerfile
 	dockerfile, err := os.ReadFile("Dockerfile")
-	if err != nil {
-		return errors.Wrap(err, "Dockerfile not found")
+	if err == nil {
+		if pendingError != nil {
+			// generator may have failed, but Dockerfile was created - warn user
+			fmt.Println("Error running dockerfile generator:", pendingError)
+		}
+	} else if pendingError != nil {
+		// generator failed and Dockerfile was not created - return original error
+		return errors.Wrap(pendingError, "Failed to generate Dockerfile")
+	} else {
+		// generator succeeded, but Dockerfile was not created - return error
+		return errors.Wrap(err, "Failed to read Dockerfile")
 	}
 
 	// extract volume - handle both plain string and JSON format, but only allow one path
@@ -327,4 +358,18 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) e
 	}
 
 	return nil
+}
+
+func RailsFailureCallback(err error) error {
+	suggestion := flyerr.GetErrorSuggestion(err)
+
+	if suggestion == "" {
+		err = flyerr.GenericErr{
+			Err: err.Error(),
+			Suggest: "\nSee https://fly.io/docs/rails/getting-started/existing/#common-initial-deployment-issues\n" +
+				"for suggestions on how to resolve common deployment issues.",
+		}
+	}
+
+	return err
 }

@@ -79,7 +79,7 @@ func runClustersCreate(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	fmt.Fprintf(out, "Cluster %q successfully created in %s.\n\n", cluster.Name, cluster.Region)
 	fmt.Fprintf(out, "Run the following to set the auth token on your application:\n\n")
-	fmt.Fprintf(out, "fly secrets set LFSC_AUTH_TOKEN=%q\n\n",
+	fmt.Fprintf(out, "fly secrets set LITEFS_CLOUD_TOKEN=%q\n\n",
 		resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader)
 
 	return nil

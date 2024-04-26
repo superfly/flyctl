@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -21,11 +22,7 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-
-		long = short + ` Volumes are persistent storage for
-		Fly Machines. The default size is 3 GB. Learn how to add a volume to
-		your app: https://fly.io/docs/apps/volume-storage/`
-
+		long  = "Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/"
 		usage = "create <volumename>"
 	)
 
@@ -42,8 +39,8 @@ func newCreate() *cobra.Command {
 		flag.Int{
 			Name:        "size",
 			Shorthand:   "s",
-			Default:     3,
-			Description: "The size of volume in gigabytes. The default is 3.",
+			Default:     deploy.DefaultVolumeInitialSizeGB,
+			Description: "The size of volume in gigabytes",
 		},
 		flag.Int{
 			Name:        "snapshot-retention",

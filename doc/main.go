@@ -32,8 +32,8 @@ func main() {
 
 	linkHandler := func(name string) string {
 		base := strings.TrimSuffix(name, path.Ext(name))
-		base = strings.Replace(base, "flyctl_", "", 1)
-		if base == "flyctl" {
+		base = strings.Replace(base, "fly_", "", 1)
+		if base == "fly" {
 			base = "help"
 		}
 		base = strings.ReplaceAll(base, "_", "-") + "/"

@@ -6,26 +6,26 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
 	"go.opentelemetry.io/otel/trace"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
 
 	"github.com/go-logr/logr"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
+
+var tp *sdktrace.TracerProvider
 
 const (
 	tracerName       = "github.com/superfly/flyctl"
@@ -40,10 +40,10 @@ func getCollectorUrl() string {
 	}
 
 	if buildinfo.IsDev() {
-		return "fly-otel-collector-dev.fly.dev:4317"
+		return "fly-otel-collector-dev.fly.dev"
 	}
 
-	return "fly-otel-collector-prod.fly.dev:4317"
+	return "fly-otel-collector-prod.fly.dev"
 }
 
 func GetTracer() trace.Tracer {
@@ -74,12 +74,9 @@ func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 	})
 }
 
-func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func CMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("app.name", appName),
-		),
 	}
 
 	startOpts = append(startOpts, opts...)
@@ -87,19 +84,23 @@ func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanSt
 	return GetTracer().Start(ctx, spanName, startOpts...)
 }
 
-func attachToken(
-	ctx context.Context,
-	method string,
-	req, reply any,
-	cc *grpc.ClientConn,
-	invoker grpc.UnaryInvoker,
-	opts ...grpc.CallOption,
-) error {
-	ctx = metadata.AppendToOutgoingContext(ctx, "authorization", os.Getenv("FLY_OTEL_AUTH_KEY"))
-	return invoker(ctx, method, req, reply, cc, opts...)
+func getToken(ctx context.Context) string {
+	token := config.Tokens(ctx).Flaps()
+	if token == "" {
+		token = os.Getenv("FLY_API_TOKEN")
+	}
+	return token
 }
 
-func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
+func InitTraceProviderWithoutApp(ctx context.Context) (*sdktrace.TracerProvider, error) {
+	return InitTraceProvider(ctx, "")
+}
+
+func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerProvider, error) {
+	if tp != nil {
+		return tp, nil
+	}
+
 	var exporter sdktrace.SpanExporter
 	switch {
 	case os.Getenv("LOG_LEVEL") == "trace":
@@ -108,24 +109,22 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 			return nil, err
 		}
 		exporter = stdoutExp
+
 	default:
-		grpcExpOpt := []otlptracegrpc.Option{
-			otlptracegrpc.WithEndpoint(getCollectorUrl()),
-			otlptracegrpc.WithDialOption(
-				grpc.WithUnaryInterceptor(attachToken),
-			),
+
+		opts := []otlptracehttp.Option{
+			otlptracehttp.WithEndpoint(getCollectorUrl() + ":4318"),
+			otlptracehttp.WithInsecure(),
+			otlptracehttp.WithHeaders(map[string]string{
+				"authorization": getToken(ctx),
+			}),
 		}
-		grpcExpOpt = append(grpcExpOpt, otlptracegrpc.WithInsecure())
-
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-		defer cancel()
-
-		grpcExporter, err := otlptracegrpc.New(ctx, grpcExpOpt...)
+		httpExporter, err := otlptracehttp.New(ctx, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to connect to telemetry collector")
 		}
 
-		exporter = grpcExporter
+		exporter = httpExporter
 	}
 
 	resourceAttrs := []attribute.KeyValue{
@@ -136,12 +135,16 @@ func InitTraceProvider(ctx context.Context) (*sdktrace.TracerProvider, error) {
 		attribute.String("build.info.commit", buildinfo.Commit()),
 	}
 
+	if appName != "" {
+		resourceAttrs = append(resourceAttrs, attribute.String("app.name", appName))
+	}
+
 	resource := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		resourceAttrs...,
 	)
 
-	tp := sdktrace.NewTracerProvider(
+	tp = sdktrace.NewTracerProvider(
 		sdktrace.WithBatcher(exporter),
 		sdktrace.WithResource(resource),
 	)

@@ -504,12 +504,12 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, 
 	}
 
 	var dialer agent.Dialer
-	if dialer, err = agentclient.Dialer(ctx, app.Organization.Slug); err != nil {
+	if dialer, err = agentclient.Dialer(ctx, app.Organization.Slug, ""); err != nil {
 		tracing.RecordError(span, err, "failed to dial wg agent")
 		return
 	}
 
-	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug); err == nil {
+	if err = agentclient.WaitForTunnel(ctx, app.Organization.Slug, ""); err == nil {
 		opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
 	}
 

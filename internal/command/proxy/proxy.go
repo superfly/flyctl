@@ -83,6 +83,11 @@ func run(ctx context.Context) (err error) {
 		orgSlug = org.Slug
 	}
 
+	network, err := client.GetAppNetwork(ctx, appName)
+	if err != nil {
+		return err
+	}
+
 	// var app *fly.App
 	if appName != "" {
 		app, err := client.GetAppBasic(ctx, appName)
@@ -98,12 +103,12 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// do this explicitly so we can get the DNS server address
-	_, err = agentclient.Establish(ctx, orgSlug)
+	_, err = agentclient.Establish(ctx, orgSlug, *network)
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, flag.GetBool(ctx, "quiet"))
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, *network, flag.GetBool(ctx, "quiet"))
 	if err != nil {
 		return err
 	}
@@ -117,6 +122,7 @@ func run(ctx context.Context) (err error) {
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
 		PromptInstance:   promptInstance,
+		Network:          *network,
 	}
 
 	if len(args) > 1 {

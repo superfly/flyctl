@@ -8,6 +8,7 @@ import (
 	"html/template"
 	"os"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"time"
 
@@ -18,11 +19,12 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/task"
-	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/term"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -60,17 +62,22 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	httptracing.Init()
 	defer httptracing.Finish()
 
-	tp, err := tracing.InitTraceProvider(ctx)
-	if err != nil {
-		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
-		return 127
-	}
-
-	defer tp.Shutdown(ctx)
-
 	cmd := root.New()
 	cmd.SetOut(io.Out)
 	cmd.SetErr(io.ErrOut)
+
+	// Special case for the launch command, support `flyctl launch args -- [subargs]`
+	// Where the arguments after `--` are passed to the scanner/dockerfile generator.
+	// This isn't supported natively by cobra, so we have to manually split the args
+	// See: https://github.com/spf13/cobra/issues/739
+	if len(args) > 0 && args[0] == "launch" {
+		index := slices.Index(args, "--")
+		if index >= 0 {
+			ctx = flag.WithExtraArgs(ctx, args[index+1:])
+			args = args[:index]
+		}
+	}
+
 	cmd.SetArgs(args)
 	cmd.SilenceErrors = true
 
@@ -130,18 +137,33 @@ func isUnchangedError(err error) bool {
 	return false
 }
 
+func isValidTraceID(id string) bool {
+	t, err := trace.TraceIDFromHex(id)
+	if err != nil {
+		return false
+	}
+	return t.IsValid()
+}
+
 func printError(io *iostreams.IOStreams, cs *iostreams.ColorScheme, cmd *cobra.Command, err error) {
 	if env.IS_GH_ACTION() && env.IsTruthy("FLY_GHA_ERROR_ANNOTATION") {
 		printGHAErrorAnnotation(cmd, err)
 	}
 
-	var requestId string
+	var requestId, traceID string
 
 	if requestId = flaps.GetErrorRequestID(err); requestId != "" {
 		requestId = fmt.Sprintf(" (Request ID: %s)", requestId)
 	}
 
-	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, "\n")
+	traceID = flaps.GetErrorTraceID(err)
+	if isValidTraceID(traceID) {
+		traceID = fmt.Sprintf(" (Trace ID: %s)", traceID)
+	} else {
+		traceID = ""
+	}
+
+	fmt.Fprint(io.ErrOut, cs.Red("Error: "), err.Error(), requestId, traceID, "\n")
 
 	if description := flyerr.GetErrorDescription(err); description != "" && err.Error() != description {
 		fmt.Fprintln(io.ErrOut, description)
