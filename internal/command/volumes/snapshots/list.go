@@ -57,12 +57,14 @@ func runList(ctx context.Context) error {
 	volID := flag.FirstArg(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
+	var volState string
 	if appName == "" {
-		n, err := client.GetAppNameFromVolume(ctx, volID)
+		n, s, err := client.GetAppNameStateFromVolume(ctx, volID)
 		if err != nil {
 			return fmt.Errorf("failed getting app name from volume: %w", err)
 		}
 		appName = *n
+		volState = *s
 	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -72,7 +74,13 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	snapshots, err := flapsClient.GetVolumeSnapshots(ctx, volID)
+	var snapshots []fly.VolumeSnapshot
+	switch volState {
+	case "pending_destroy", "deleted":
+		snapshots, err = client.GetSnapshotsFromVolume(ctx, volID)
+	default:
+		snapshots, err = flapsClient.GetVolumeSnapshots(ctx, volID)
+	}
 	if err != nil {
 		return fmt.Errorf("failed retrieving snapshots: %w", err)
 	}
