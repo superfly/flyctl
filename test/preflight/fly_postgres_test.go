@@ -137,7 +137,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 			return nil
 		}
 	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(1*time.Second),
+		backoff.WithInitialInterval(100*time.Millisecond),
 		backoff.WithMaxElapsedTime(3*time.Second),
 	), 3))
 	require.NoError(f, sshErr, "failed to connect to first app's postgres over ssh")

@@ -61,7 +61,7 @@ type ConnectParams struct {
 func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, p.AppNames)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, p.AppNames, p.Username)
 	if err != nil {
 		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}
@@ -100,7 +100,7 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	return sshClient, nil
 }
 
-func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appNames []string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
+func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appNames []string, user string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
 	client := fly.ClientFromContext(ctx)
 	hours := 1
 
@@ -109,7 +109,7 @@ func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appN
 		return nil, nil, err
 	}
 
-	icert, err := client.IssueSSHCertificate(ctx, org, []string{DefaultSshUsername, "fly"}, appNames, &hours, pub)
+	icert, err := client.IssueSSHCertificate(ctx, org, []string{user, "fly"}, appNames, &hours, pub)
 	if err != nil {
 		return nil, nil, err
 	}
