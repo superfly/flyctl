@@ -84,3 +84,66 @@ func TestFlyVolumeLs(t *testing.T) {
 	require.Contains(f, lsAllIds, v1.ID)
 	require.Contains(f, lsAllIds, v2.ID)
 }
+
+func TestFlyVolume_CreateFromDestroyedVolSnapshot(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+	createRes := f.Fly("vol create -s 1 -a %s -r %s --yes --json test_destroy", appName, f.PrimaryRegion())
+	var vol *fly.Volume
+	createRes.StdOutJSON(&vol)
+	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
+	machine := f.MachinesList(appName)[0]
+	require.Eventually(f, func() bool {
+		machines := f.MachinesList(appName)
+		return len(machines) == 1 && machines[0].State == "started"
+	}, 1*time.Minute, 1*time.Second, "machine %s never started", machine.ID)
+	f.Fly("m destroy --force %s", machine.ID)
+	require.Eventually(f, func() bool {
+		return len(f.MachinesList(appName)) == 0
+	}, 1*time.Minute, 1*time.Second, "machine %s never destroyed", machine.ID)
+	f.Fly("vol snapshot create --json %s", vol.ID)
+	var snapshot *fly.VolumeSnapshot
+	require.Eventually(f, func() bool {
+		lsRes := f.Fly("vol snapshot ls --json %s", vol.ID)
+		var ls []*fly.VolumeSnapshot
+		lsRes.StdOutJSON(&ls)
+		for _, s := range ls {
+			if time.Since(s.CreatedAt) < 1*time.Hour && s.Status == "created" {
+				snapshot = s
+				return true
+			}
+		}
+		return false
+	}, 1*time.Minute, 1*time.Second, "snapshot never made it to created state")
+	f.Fly("vol destroy -y %s", vol.ID)
+	require.Eventually(f, func() bool {
+		lsRes := f.Fly("vol ls -a %s --all --json", appName)
+		var ls []*fly.Volume
+		lsRes.StdOutJSON(&ls)
+		if len(ls) == 1 {
+			return ls[0].State == "pending_destroy"
+		}
+		return false
+	}, 1*time.Minute, 1*time.Second, "volume %s never made it to pending_destroy state", vol.ID)
+	ls := f.Fly("vol snapshot ls --json %s", vol.ID)
+	var snapshots2 []*fly.VolumeSnapshot
+	ls.StdOutJSON(&snapshots2)
+	require.Len(f, snapshots2, 1)
+	require.Equal(f, snapshot.ID, snapshots2[0].ID)
+	require.Equal(f, snapshot.Size, snapshots2[0].Size)
+	require.Equal(f, snapshot.CreatedAt, snapshots2[0].CreatedAt)
+	fromDestroyedRes := f.Fly("vol create -s 1 -a %s -r %s --yes --json --snapshot-id %s test", appName, f.PrimaryRegion(), snapshot.ID)
+	var fromDestroyed *fly.Volume
+	fromDestroyedRes.StdOutJSON(&fromDestroyed)
+	require.Eventually(f, func() bool {
+		lsRes := f.Fly("vol ls -a %s --all --json", appName)
+		var ls []*fly.Volume
+		lsRes.StdOutJSON(&ls)
+		for _, s := range ls {
+			if s.State == "created" {
+				return true
+			}
+		}
+		return false
+	}, 1*time.Minute, 1*time.Second, "final volume %s never made it to created state", vol.ID)
+}
