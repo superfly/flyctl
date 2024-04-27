@@ -91,7 +91,6 @@ func TestFlyVolume_CreateFromDestroyedVolSnapshot(t *testing.T) {
 	createRes := f.Fly("vol create -s 1 -a %s -r %s --yes --json test_destroy", appName, f.PrimaryRegion())
 	var vol *fly.Volume
 	createRes.StdOutJSON(&vol)
-	// create and then destroy a machine
 	f.Fly("m run --org %s -a %s -r %s -v %s:/data --build-remote-only nginx", f.OrgSlug(), appName, f.PrimaryRegion(), vol.ID)
 	machine := f.MachinesList(appName)[0]
 	require.Eventually(f, func() bool {
