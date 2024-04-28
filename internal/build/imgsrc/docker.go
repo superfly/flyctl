@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/azazeal/pause"
@@ -28,6 +29,7 @@ import (
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -286,7 +288,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 
 	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
 
-	if msg := fmt.Sprintf("Waiting for remote builder %s...", remoteBuilderAppName); streams.IsInteractive() {
+	if msg := fmt.Sprintf("Waiting for remote builder %s...\n", remoteBuilderAppName); streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)
 	} else {
 		fmt.Fprintln(streams.ErrOut, msg)
@@ -364,9 +366,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
 	if err != nil {
 		streams.StopProgressIndicator()
-
 		err = fmt.Errorf("failed building options: %w", err)
 		captureError(err)
+
+		if strings.Contains(err.Error(), "failed probing") {
+			return nil, generateBrokenWGError(err)
+		}
+
 		return nil, err
 	}
 
@@ -414,6 +420,10 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		captureError(err)
 		tracing.RecordError(span, err, "failed to wait for docker daemon")
 
+		if errors.Is(err, agent.ErrTunnelUnavailable) {
+			return nil, generateBrokenWGError(err)
+		}
+
 		return nil, err
 	case !up:
 		streams.StopProgressIndicator()
@@ -432,6 +442,13 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 	}
 
 	return cachedClient, nil
+}
+
+func generateBrokenWGError(err error) flyerr.GenericErr {
+	return flyerr.GenericErr{
+		Err:     err.Error(),
+		Suggest: "A broken wireguard tunnel is disrupting your deployment. Retry your deployment with `fly deploy --wg=false` to bypass wireguard ",
+	}
 }
 
 func basicAuth(username, password string) string {
@@ -513,6 +530,10 @@ func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, 
 		opts = append(opts, dockerclient.WithDialContext(dialer.DialContext))
 	}
 
+	if err != nil {
+		tracing.RecordError(span, err, "failed to wait for tunnel")
+	}
+
 	return
 }
 
@@ -529,12 +550,21 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 
 	var (
 		consecutiveSuccesses int
+		brokenTunnelErrors   int
 		healthyStart         time.Time
 	)
 
 	for ctx.Err() == nil {
 		switch _, err := clientPing(parent, client); err {
 		default:
+			if errors.Is(err, agent.ErrTunnelUnavailable) {
+				brokenTunnelErrors++
+			}
+
+			if brokenTunnelErrors >= 20 {
+				return false, err
+			}
+
 			consecutiveSuccesses = 0
 
 			dur := b.Duration()
@@ -566,7 +596,7 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 }
 
 func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
-	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
 	defer cancel()
 
 	return client.Ping(ctx)
