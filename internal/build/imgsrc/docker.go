@@ -363,52 +363,52 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 		terminal.Infof("Override builder host with: %s (was %s)\n", host, oldHost)
 	}
 
-	opts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
-	if err != nil {
-		streams.StopProgressIndicator()
-		err = fmt.Errorf("failed building options: %w", err)
-		captureError(err)
+	if connectOverWireguard {
+		wireguardOpts, err := buildRemoteClientOpts(ctx, apiClient, appName, host)
+		if err != nil {
+			streams.StopProgressIndicator()
+			err = fmt.Errorf("failed building options: %w", err)
+			captureError(err)
 
-		if strings.Contains(err.Error(), "failed probing") {
-			return nil, generateBrokenWGError(err)
+			if strings.Contains(err.Error(), "failed probing") {
+				return nil, generateBrokenWGError(err)
+			}
+
+			return nil, err
 		}
 
-		return nil, err
-	}
+		wireguardHttpClient, err := dockerclient.NewClientWithOpts(wireguardOpts...)
+		if err != nil {
+			streams.StopProgressIndicator()
 
-	wireguardHttpClient, err := dockerclient.NewClientWithOpts(opts...)
-	if err != nil {
-		streams.StopProgressIndicator()
+			err = fmt.Errorf("failed creating docker client: %w", err)
+			captureError(err)
+			tracing.RecordError(span, err, "failed to initialize remote client")
 
-		err = fmt.Errorf("failed creating docker client: %w", err)
-		captureError(err)
-		tracing.RecordError(span, err, "failed to initialize remote client")
+			return nil, err
+		}
 
-		return nil, err
-	}
+		cachedClient = wireguardHttpClient
+	} else {
+		wglessOpts, err := buildWireguardlessClientOpts(ctx, host, appName)
+		if err != nil {
+			streams.StopProgressIndicator()
 
-	wglessOpts, err := buildWireguardlessClientOpts(ctx, host, appName)
-	if err != nil {
-		streams.StopProgressIndicator()
+			err = fmt.Errorf("failed building wgless options: %w", err)
+			captureError(err)
+			return nil, err
+		}
 
-		err = fmt.Errorf("failed building wgless options: %w", err)
-		captureError(err)
-		return nil, err
-	}
+		wireguardlessHttpsClient, err := dockerclient.NewClientWithOpts(wglessOpts...)
+		if err != nil {
+			streams.StopProgressIndicator()
 
-	wireguardlessHttpsClient, err := dockerclient.NewClientWithOpts(wglessOpts...)
-	if err != nil {
-		streams.StopProgressIndicator()
+			err = fmt.Errorf("failed creating wgLessHttpClient: %w", err)
+			captureError(err)
+			tracing.RecordError(span, err, "failed to initialize wgLessHttpClient")
 
-		err = fmt.Errorf("failed creating wgLessHttpClient: %w", err)
-		captureError(err)
-		tracing.RecordError(span, err, "failed to initialize wgLessHttpClient")
-
-		return nil, err
-	}
-
-	cachedClient = wireguardHttpClient
-	if !connectOverWireguard {
+			return nil, err
+		}
 		cachedClient = wireguardlessHttpsClient
 	}
 
