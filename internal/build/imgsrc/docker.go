@@ -221,7 +221,8 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 	var host string
 	var app *fly.App
 	var machine *fly.GqlMachine
-	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
+	// var headers http.Header
+	machine, app, _, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
 		return nil, err
@@ -266,7 +267,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 			}
 
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 creating fresh remote builder, (this might take a while ...)"))
-			machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
+			machine, app, _, err = remoteBuilderMachine(ctx, apiClient, appName)
 			if err != nil {
 				tracing.RecordError(span, err, "failed to init remote builder machine")
 				return nil, err
@@ -680,7 +681,7 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgS
 		return
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
+	_, app, _, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
@@ -689,9 +690,9 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgS
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient *fly.Client, appName string) (*fly.GqlMachine, *fly.App, error) {
+func remoteBuilderMachine(ctx context.Context, apiClient *fly.Client, appName string) (*fly.GqlMachine, *fly.App, http.Header, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
