@@ -370,7 +370,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName s
 			err = fmt.Errorf("failed building options: %w", err)
 			captureError(err)
 
-			if strings.Contains(err.Error(), "failed probing") {
+			if strings.Contains(err.Error(), "failed probing") || strings.Contains(err.Error(), "websocket") {
 				return nil, generateBrokenWGError(err)
 			}
 
