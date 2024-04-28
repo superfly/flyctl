@@ -178,7 +178,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			return extension, err
 		}
 
-		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
+		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{Colorize: io.ColorScheme()})
 
 		if err != nil {
 			return extension, err
