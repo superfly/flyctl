@@ -168,7 +168,7 @@ func (state *launchState) createSupabasePostgres(ctx context.Context) error {
 		AppName:        state.Plan.AppName,
 		Organization:   org,
 		Provider:       "supabase",
-		OverrideName:   postgresPlan.GetDbName(state.Plan),
+		OverrideName:   fly.Pointer(postgresPlan.GetDbName(state.Plan)),
 		OverrideRegion: postgresPlan.GetRegion(state.Plan),
 	}
 
@@ -229,7 +229,7 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 		Provider:       "tigris",
 		Organization:   org,
 		AppName:        state.Plan.AppName,
-		OverrideName:   tigrisPlan.Name,
+		OverrideName:   fly.Pointer(tigrisPlan.Name),
 		OverrideRegion: state.Plan.RegionCode,
 		Options: gql.AddOnOptions{
 			"public":     tigrisPlan.Public,
