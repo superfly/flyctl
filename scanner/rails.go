@@ -160,14 +160,24 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	s.DeployDocs = `
+	initializersPath := filepath.Join(sourceDir, "config", "initializers")
+	if checksPass(initializersPath, dirContains("*.rb", "ENV", "credentials")) {
+		s.SkipDeploy = true
+		s.DeployDocs = `
 Your Rails app is prepared for deployment.
 
-Before proceeding, please review the posted Rails FAQ:
-https://fly.io/docs/rails/getting-started/dockerfiles/.
+` + config.Colorize.Red(
+			`WARNING: One or more of your config initializer files appears to access
+environment variables or Rails credentials.  These values generally are not
+available during the Docker build process, so you may need to update your
+initializers to bypass portions of your setup during the build process.`) + `
+
+More information on what needs to be done can be found at:
+https://fly.io/docs/rails/getting-started/existing/#access-to-environment-variables-at-build-time.
 
 Once ready: run 'fly deploy' to deploy your Rails app.
 `
+	}
 
 	// fetch healthcheck route in a separate thread
 	go func() {
