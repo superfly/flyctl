@@ -55,7 +55,7 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	excludedRegions = append(excludedRegions, addOn.PrimaryRegion)
 
-	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", !addOn.Organization.PaidPlan, addOn.ReadRegions, excludedRegions, "replica-regions")
+	readRegions, err := prompt.MultiRegion(ctx, "Choose replica regions, or unselect to remove replica regions:", false, addOn.ReadRegions, excludedRegions, "replica-regions")
 	if err != nil {
 		return
 	}
