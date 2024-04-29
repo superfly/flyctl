@@ -67,13 +67,13 @@ func runK8sCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	metadata := resp.AddOn.Metadata.(map[string]interface{})
-
 	outFilename := fmt.Sprintf("%s.kubeconfig.yml", resp.AddOn.Name)
 	f, err := os.Create(outFilename)
 	if err != nil {
 		return err
 	}
+
+	metadata := resp.AddOn.Metadata.(map[string]interface{})
 	kubeconfig := metadata["kubeconfig"].(string)
 	if _, err := f.Write([]byte(kubeconfig)); err != nil {
 		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", outFilename, err)
