@@ -75,9 +75,8 @@ func runK8sCreate(ctx context.Context) (err error) {
 		return err
 	}
 	kubeconfig := metadata["kubeconfig"].(string)
-	_, err = f.Write([]byte(kubeconfig))
-	if err != nil {
-		return fmt.Errorf("failed to write %s to disk, error: %w", outFilename, err)
+	if _, err := f.Write([]byte(kubeconfig)); err != nil {
+		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", outFilename, err)
 	}
 
 	fmt.Fprintf(io.Out, "Wrote kubeconfig to file %s. Use it to connect to your cluster", outFilename)
