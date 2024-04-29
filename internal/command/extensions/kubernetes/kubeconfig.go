@@ -22,6 +22,12 @@ func saveKubeconfig() (cmd *cobra.Command) {
 	cmd = command.New(usage, short, long, runSaveKubeconfig, command.RequireSession)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Hidden = false
+	flag.Add(cmd,
+		flag.String{
+			Name:        "output",
+			Description: "The output path to save the kubeconfig file",
+		},
+	)
 
 	return cmd
 }
@@ -38,15 +44,19 @@ func runSaveKubeconfig(ctx context.Context) error {
 	metadata := resp.AddOn.Metadata.(map[string]interface{})
 	kubeconfig := metadata["kubeconfig"].(string)
 
-	f, err := os.Create("kubeconfig")
+	outFilename := flag.GetString(ctx, "output")
+	if outFilename == "" {
+		outFilename = fmt.Sprintf("%s.kubeconfig.yml", resp.AddOn.Name)
+	}
+	f, err := os.Create(outFilename)
 	if err != nil {
-		return fmt.Errorf("could not create kubeconfig file: %w", err)
+		return err
 	}
 	defer f.Close()
 
 	_, err = f.Write([]byte(kubeconfig))
 	if err != nil {
-		return fmt.Errorf("could not save kubeconfig: %w", err)
+		return fmt.Errorf("failed to write kubeconfig to file %s, error: %w", outFilename, err)
 	}
 
 	return nil
