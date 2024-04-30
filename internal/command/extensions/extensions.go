@@ -7,7 +7,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/extensions/kafka"
 	"github.com/superfly/flyctl/internal/command/extensions/kubernetes"
-	"github.com/superfly/flyctl/internal/command/extensions/planetscale"
 	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/extensions/tigris"
@@ -25,7 +24,6 @@ func New() (cmd *cobra.Command) {
 
 	cmd.AddCommand(
 		sentry_ext.New(),
-		planetscale.New(),
 		supabase.New(),
 		tigris.New(),
 		kubernetes.New(),
