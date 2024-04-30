@@ -51,7 +51,10 @@ func runCreate(ctx context.Context) (err error) {
 		params.Organization = org
 	}
 
-	var options gql.AddOnOptions
+	var options = gql.AddOnOptions{
+		"similarity_function": "EUCLIDEAN",
+		"dimension_count":     128,
+	}
 
 	params.Options = options
 	params.PlanID = "aaV829vaM022XhQG28182aBG" // PAYG is the only plan for now
