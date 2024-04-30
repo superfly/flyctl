@@ -13,7 +13,7 @@ import (
 
 func update() (cmd *cobra.Command) {
 	const (
-		short = "Update an existing Upstash Kafka cluster"
+		short = "Update an existing Upstash Vector index"
 		long  = short + "\n"
 	)
 

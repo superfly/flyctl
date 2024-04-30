@@ -16,7 +16,7 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy an Upstash Kafka cluster`
+		long = `Permanently destroy an Upstash Vector index`
 
 		short = long
 		usage = "destroy [name]"
@@ -45,10 +45,10 @@ func runDestroy(ctx context.Context) (err error) {
 	}
 
 	if !flag.GetYes(ctx) {
-		const msg = "Destroying an upstash Kafka cluster is not reversible."
+		const msg = "Destroying an Upstash Vector index is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Do you want to destroy the cluster named %s?", extension.Name); {
+		switch confirmed, err := prompt.Confirmf(ctx, "Do you want to destroy the index named %s?", extension.Name); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -66,7 +66,7 @@ func runDestroy(ctx context.Context) (err error) {
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	fmt.Fprintf(out, "Your Upstash Kafka cluster %s was destroyed\n", extension.Name)
+	fmt.Fprintf(out, "Your Upstash Vector index %s was destroyed\n", extension.Name)
 
 	return nil
 }

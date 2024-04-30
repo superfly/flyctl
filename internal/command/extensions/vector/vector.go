@@ -8,11 +8,11 @@ import (
 
 func New() (cmd *cobra.Command) {
 	const (
-		short = "Provision and manage Upstash Kafka clusters"
+		short = "Provision and manage Upstash Vector index"
 		long  = short + "\n"
 	)
 
-	cmd = command.New("kafka", short, long, nil)
+	cmd = command.New("vector", short, long, nil)
 	cmd.AddCommand(create(), update(), list(), dashboard(), destroy(), status())
 
 	return cmd

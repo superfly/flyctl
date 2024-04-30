@@ -32,7 +32,7 @@ func list() (cmd *cobra.Command) {
 
 func runList(ctx context.Context) (err error) {
 	client := fly.ClientFromContext(ctx).GenqClient
-	response, err := gql.ListAddOns(ctx, client, "upstash_kafka")
+	response, err := gql.ListAddOns(ctx, client, "upstash_vector")
 	if err != nil {
 		return err
 	}

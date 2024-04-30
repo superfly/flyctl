@@ -15,7 +15,7 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Provision a Upstash Kafka index"
+		short = "Provision a Upstash Vector index"
 		long  = short + "\n"
 	)
 
@@ -54,8 +54,8 @@ func runCreate(ctx context.Context) (err error) {
 	var options gql.AddOnOptions
 
 	params.Options = options
-	params.PlanID = "AP2kg5qPx3ggOIoRp2BMKwp" // PAYG is the only plan for now
-	params.Provider = "upstash_kafka"
+	params.PlanID = "aaV829vaM022XhQG28182aBG" // PAYG is the only plan for now
+	params.Provider = "upstash_vector"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 	if err != nil {
 		return err

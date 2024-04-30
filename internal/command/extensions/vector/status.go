@@ -14,7 +14,7 @@ import (
 
 func status() *cobra.Command {
 	const (
-		short = "Show details about an Upstash Kafka cluster"
+		short = "Show details about an Upstash Vector index"
 		long  = short + "\n"
 
 		usage = "status [name]"
@@ -38,7 +38,7 @@ func status() *cobra.Command {
 func runStatus(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
-	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypeUpstashKafka)
+	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypeUpstashVector)
 	if err != nil {
 		return err
 	}
