@@ -52,6 +52,8 @@ func (v *AddOnData) GetOptions() interface{} { return v.Options }
 type AddOnType string
 
 const (
+	// An Enveloop project
+	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
@@ -68,6 +70,10 @@ const (
 	AddOnTypeUpstashKafka AddOnType = "upstash_kafka"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
+	// An Upstash Vector cluster
+	AddOnTypeUpstashVector AddOnType = "upstash_vector"
+	// A Wafris firewall
+	AddOnTypeWafris AddOnType = "wafris"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.

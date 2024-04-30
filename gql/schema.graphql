@@ -348,6 +348,11 @@ type AddOnProvider {
 
 enum AddOnType {
   """
+  An Enveloop project
+  """
+  enveloop
+
+  """
   A Kubernetes cluster
   """
   kubernetes
@@ -386,6 +391,16 @@ enum AddOnType {
   An Upstash Redis database
   """
   upstash_redis
+
+  """
+  An Upstash Vector cluster
+  """
+  upstash_vector
+
+  """
+  A Wafris firewall
+  """
+  wafris
 }
 
 """
@@ -3525,7 +3540,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
-
+  
   """
   path: [String!]
 
@@ -4301,6 +4316,11 @@ input DeleteLimitedAccessTokenInput {
   id: ID
 
   """
+  The email of the user who revoked the token
+  """
+  revokedBy: String
+
+  """
   The root of the macaroon
   """
   token: String
@@ -4314,6 +4334,7 @@ type DeleteLimitedAccessTokenPayload {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
+  revokedBy: String
   token: String
 }
 
@@ -5911,6 +5932,8 @@ type LimitedAccessToken implements Node {
   organization: Organization!
   profile: String!
   profileParams: JSON
+  revokedAt: ISO8601DateTime
+  revokedBy: String
   token: String!
   tokenHeader: String
   user: User!
@@ -7453,7 +7476,7 @@ type Organization implements Node {
   """
   The formatted account credits
   """
-  creditBalanceFormatted: String!
+  creditBalanceFormatted: String! @deprecated(reason: "Use credit_balance instead")
   delegatedWireGuardTokens(
     """
     Returns the elements in the list that come after the specified cursor.
@@ -8902,6 +8925,11 @@ input ReleaseIPAddressInput {
   The id of the ip address to release
   """
   ipAddressId: ID
+
+  """
+  The name of the associated service
+  """
+  serviceName: String
 }
 
 """

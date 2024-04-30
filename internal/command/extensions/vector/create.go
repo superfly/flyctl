@@ -1,4 +1,4 @@
-package kafka
+package vector
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Provision a Upstash Kafka cluster"
+		short = "Provision a Upstash Kafka index"
 		long  = short + "\n"
 	)
 
@@ -54,7 +54,7 @@ func runCreate(ctx context.Context) (err error) {
 	var options gql.AddOnOptions
 
 	params.Options = options
-	params.PlanID = "qgaV5wZgnN553c2LQ4yOJR10" // PAYG is the only plan for now
+	params.PlanID = "AP2kg5qPx3ggOIoRp2BMKwp" // PAYG is the only plan for now
 	params.Provider = "upstash_kafka"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 	if err != nil {
