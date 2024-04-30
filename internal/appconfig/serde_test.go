@@ -452,6 +452,13 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					},
 				},
 			},
+			MachineChecks: []*ServiceMachineCheck{
+				{
+					Command:    "curl https://fly.io",
+					Entrypoint: "/bin/sh -c",
+					Image:      "curlimages/curl",
+				},
+			},
 		},
 
 		Statics: []Static{
@@ -560,6 +567,13 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						Timeout:    fly.MustParseDuration("10s"),
 						HTTPMethod: fly.Pointer("POST"),
 						HTTPPath:   fly.Pointer("/check2"),
+					},
+				},
+				MachineChecks: []*ServiceMachineCheck{
+					{
+						Command:    "curl https://fly.io",
+						Entrypoint: "/bin/sh -c",
+						Image:      "curlimages/curl",
 					},
 				},
 			},

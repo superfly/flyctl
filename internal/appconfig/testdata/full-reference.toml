@@ -74,6 +74,11 @@ host_dedication_id = "06031957"
     [http_service.checks.headers]
       My-Custom-Header = "whatever"
 
+  [[http_service.machine_checks]]
+   command = "curl https://fly.io"
+   image = "curlimages/curl"
+   entrypoint = "/bin/sh -c"
+
   [http_service.concurrency]
     type = "donuts"
     hard_limit = 10
@@ -196,3 +201,8 @@ host_dedication_id = "06031957"
     timeout = "10s"
     method = "POST"
     path = "/check2"
+
+  [[services.machine_checks]]
+   command = "curl https://fly.io"
+   image = "curlimages/curl"
+   entrypoint = "/bin/sh -c"
