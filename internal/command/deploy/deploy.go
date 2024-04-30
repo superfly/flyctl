@@ -52,10 +52,6 @@ var CommonFlags = flag.Set{
 	flag.BpVolume(),
 	flag.Yes(),
 	flag.VMSizeFlags,
-	flag.Bool{
-		Name:        "provision-extensions",
-		Description: "Provision any extensions assigned as a default to first deployments",
-	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
