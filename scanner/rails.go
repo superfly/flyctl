@@ -16,6 +16,7 @@ import (
 
 var healthcheck_channel = make(chan string)
 var bundle, ruby string
+var binrails = filepath.Join(".", "bin", "rails")
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
@@ -187,7 +188,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 			return
 		}
 
-		out, err := exec.Command(ruby, "./bin/rails", "runner",
+		out, err := exec.Command(ruby, binrails, "runner",
 			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
 
 		if err == nil {
@@ -294,7 +295,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// base generate command
-	args := []string{"./bin/rails", "generate", "dockerfile",
+	args := []string{binrails, "generate", "dockerfile",
 		"--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
@@ -331,6 +332,24 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		cmd.Stderr = os.Stderr
 
 		pendingError = cmd.Run()
+
+		if exitError, ok := pendingError.(*exec.ExitError); ok {
+			if exitError.ExitCode() == 42 {
+				// generator exited with code 42, which means existing
+				// Dockerfile contains errors which will prevent deployment.
+				pendingError = nil
+				srcInfo.SkipDeploy = true
+				srcInfo.DeployDocs = `
+Correct the errors in your Dockerfile and run 'fly deploy' to
+deploy your Rails app.
+
+The following comand can be used to update your Dockerfile:
+
+    ` + binrails + ` generate dockerfile
+`
+				fmt.Println()
+			}
+		}
 	}
 
 	// read dockerfile
