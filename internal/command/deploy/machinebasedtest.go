@@ -54,7 +54,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 
 		mach, err := md.createTestMachine(ctx, machineCheck.Command, image, machineCheck.Entrypoint, machineToTest)
 		if err != nil {
-			err = fmt.Errorf("error running test machine %s: %w", machineCheck.Command, err)
+			err = fmt.Errorf("error creating test machine %q: %w", machineCheck.Command, err)
 		}
 
 		return createdTestMachine{mach, err}
@@ -119,7 +119,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		}
 		statuslogger.LogfStatus(ctx,
 			statuslogger.StatusSuccess,
-			"Test command %s completed successfully",
+			"Test machine %s completed successfully",
 			md.colorize.Bold(testMachine.Machine().ID),
 		)
 	}
