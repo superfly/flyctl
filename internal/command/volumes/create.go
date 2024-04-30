@@ -46,6 +46,7 @@ func newCreate() *cobra.Command {
 			Name:        "snapshot-retention",
 			Default:     5,
 			Description: "Snapshot retention in days (min 5)",
+			Hidden:      true, // TODO: unhide when this feature is completed in the backend
 		},
 		flag.Bool{
 			Name:        "no-encryption",
