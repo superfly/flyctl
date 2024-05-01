@@ -2,6 +2,7 @@ package vector
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
@@ -11,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func create() (cmd *cobra.Command) {
@@ -36,6 +38,38 @@ func create() (cmd *cobra.Command) {
 	return cmd
 }
 
+func selectSimilarityFunction(ctx context.Context) (function *SimilarityFunction, err error) {
+	var options []string
+	for _, function := range similarityFunctions {
+		options = append(options, fmt.Sprintf("%s (%s)", function.Name, function.UseCases))
+	}
+
+	var index int
+	if err = prompt.Select(ctx, &index, "Select a similarity function:", "", options...); err == nil {
+		function = &similarityFunctions[index]
+	}
+
+	return
+}
+
+func selectEmbeddingModel(ctx context.Context) (function *EmbeddingModel, err error) {
+	var options []string
+
+	options = append(options, "None - I will provide my own embeddings")
+
+	for _, model := range embeddingModels {
+		options = append(options, model.Name)
+	}
+
+	var index int
+	if err = prompt.Select(ctx, &index, "Select an embedding model:", "", options...); err == nil {
+		if index != 0 {
+			function = &embeddingModels[index]
+		}
+	}
+
+	return
+}
 func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
 	params := extensions_core.ExtensionParams{}
@@ -51,9 +85,30 @@ func runCreate(ctx context.Context) (err error) {
 		params.Organization = org
 	}
 
+	function, err := selectSimilarityFunction(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	model, err := selectEmbeddingModel(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	var defaultDimensionCount int = 128
+
 	var options = gql.AddOnOptions{
-		"similarity_function": "EUCLIDEAN",
-		"dimension_count":     128,
+		"similarity_function": function.Identifier,
+		"dimension_count":     &defaultDimensionCount,
+	}
+
+	if model != nil {
+		options["embedding_model"] = model.Identifier
+		options["dimension_count"] = model.Dimensions
+	} else {
+		prompt.Int(ctx, options["dimension_count"].(*int), "How many dimensions?", defaultDimensionCount, false)
 	}
 
 	params.Options = options

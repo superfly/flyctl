@@ -8302,6 +8302,7 @@ type Queries {
     Returns the last _n_ elements from the list.
     """
     last: Int
+    type: AddOnType
   ): AddOnPlanConnection!
   addOnProvider(name: String!): AddOnProvider!
 

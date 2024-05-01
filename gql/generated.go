@@ -3559,6 +3559,14 @@ type __GetOrganizationInput struct {
 // GetSlug returns __GetOrganizationInput.Slug, and is useful for accessing the field via an interface.
 func (v *__GetOrganizationInput) GetSlug() string { return v.Slug }
 
+// __ListAddOnPlansInput is used internally by genqlient
+type __ListAddOnPlansInput struct {
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetAddOnType returns __ListAddOnPlansInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListAddOnPlansInput) GetAddOnType() AddOnType { return v.AddOnType }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -4583,8 +4591,8 @@ func GetOrganization(
 
 // The query or mutation executed by ListAddOnPlans.
 const ListAddOnPlans_Operation = `
-query ListAddOnPlans {
-	addOnPlans {
+query ListAddOnPlans ($addOnType: AddOnType!) {
+	addOnPlans(type: $addOnType) {
 		nodes {
 			id
 			description
@@ -4599,10 +4607,14 @@ query ListAddOnPlans {
 func ListAddOnPlans(
 	ctx_ context.Context,
 	client_ graphql.Client,
+	addOnType AddOnType,
 ) (*ListAddOnPlansResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "ListAddOnPlans",
 		Query:  ListAddOnPlans_Operation,
+		Variables: &__ListAddOnPlansInput{
+			AddOnType: addOnType,
+		},
 	}
 	var err_ error
 
