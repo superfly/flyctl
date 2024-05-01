@@ -561,7 +561,7 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 				brokenTunnelErrors++
 			}
 
-			if brokenTunnelErrors >= 20 {
+			if brokenTunnelErrors >= 7 {
 				return false, err
 			}
 
@@ -596,7 +596,7 @@ func waitForDaemon(parent context.Context, client *dockerclient.Client) (up bool
 }
 
 func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping, error) {
-	ctx, cancel := context.WithTimeout(parent, 5*time.Second)
+	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
 
 	return client.Ping(ctx)
