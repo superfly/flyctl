@@ -225,7 +225,7 @@ func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPl
 	planId := redisPlanPayAsYouGo
 
 	// Now that we have the Plan ID, look up the actual plan
-	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient)
+	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient, gql.AddOnTypeUpstashRedis)
 	if err != nil {
 		return nil, err
 	}
