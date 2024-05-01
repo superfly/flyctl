@@ -588,7 +588,7 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	ctx, span := tracing.GetTracer().Start(ctx, "heartbeat")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
 	resp, err := client.HTTPClient().Do(req.Clone(ctx))
