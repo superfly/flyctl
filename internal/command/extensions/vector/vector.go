@@ -76,7 +76,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("vector", short, long, nil)
-	cmd.AddCommand(create(), update(), list(), dashboard(), destroy(), status())
+	cmd.AddCommand(create(), list(), dashboard(), destroy(), status())
 
 	return cmd
 }
