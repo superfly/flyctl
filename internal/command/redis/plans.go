@@ -35,7 +35,7 @@ func runPlans(ctx context.Context) (err error) {
 		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
-	result, err := gql.ListAddOnPlans(ctx, client)
+	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
 
 	var rows [][]string
 

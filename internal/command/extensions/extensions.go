@@ -10,6 +10,7 @@ import (
 	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/extensions/tigris"
+	"github.com/superfly/flyctl/internal/command/extensions/vector"
 )
 
 func New() (cmd *cobra.Command) {
@@ -28,6 +29,7 @@ func New() (cmd *cobra.Command) {
 		tigris.New(),
 		kubernetes.New(),
 		kafka.New(),
+		vector.New(),
 	)
 	return
 }

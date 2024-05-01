@@ -266,8 +266,8 @@ query ListAddOns($addOnType: AddOnType) {
 		}
   }
 
- query ListAddOnPlans {
-		addOnPlans {
+ query ListAddOnPlans($addOnType: AddOnType!) {
+		addOnPlans(type: $addOnType) {
 			nodes {
 				id
 				description

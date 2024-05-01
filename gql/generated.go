@@ -52,6 +52,8 @@ func (v *AddOnData) GetOptions() interface{} { return v.Options }
 type AddOnType string
 
 const (
+	// An Enveloop project
+	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
@@ -68,6 +70,10 @@ const (
 	AddOnTypeUpstashKafka AddOnType = "upstash_kafka"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
+	// An Upstash Vector cluster
+	AddOnTypeUpstashVector AddOnType = "upstash_vector"
+	// A Wafris firewall
+	AddOnTypeWafris AddOnType = "wafris"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
@@ -3553,6 +3559,14 @@ type __GetOrganizationInput struct {
 // GetSlug returns __GetOrganizationInput.Slug, and is useful for accessing the field via an interface.
 func (v *__GetOrganizationInput) GetSlug() string { return v.Slug }
 
+// __ListAddOnPlansInput is used internally by genqlient
+type __ListAddOnPlansInput struct {
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetAddOnType returns __ListAddOnPlansInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListAddOnPlansInput) GetAddOnType() AddOnType { return v.AddOnType }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -4577,8 +4591,8 @@ func GetOrganization(
 
 // The query or mutation executed by ListAddOnPlans.
 const ListAddOnPlans_Operation = `
-query ListAddOnPlans {
-	addOnPlans {
+query ListAddOnPlans ($addOnType: AddOnType!) {
+	addOnPlans(type: $addOnType) {
 		nodes {
 			id
 			description
@@ -4593,10 +4607,14 @@ query ListAddOnPlans {
 func ListAddOnPlans(
 	ctx_ context.Context,
 	client_ graphql.Client,
+	addOnType AddOnType,
 ) (*ListAddOnPlansResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "ListAddOnPlans",
 		Query:  ListAddOnPlans_Operation,
+		Variables: &__ListAddOnPlansInput{
+			AddOnType: addOnType,
+		},
 	}
 	var err_ error
 
