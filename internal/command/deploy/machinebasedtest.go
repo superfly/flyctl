@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cenkalti/backoff"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -83,9 +84,9 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		return err
 	}
 
-	time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
-
 	for _, testMachine := range machineSet.GetMachines() {
+		md.waitForLogs(ctx, testMachine.Machine(), 10*time.Second)
+
 		statuslogger.Logf(ctx, "Checking test command machine %s", md.colorize.Bold(testMachine.Machine().ID))
 		lastExitEvent, err := testMachine.WaitForEventType(ctx, "exit", md.releaseCmdTimeout, true)
 		if err != nil {
@@ -125,6 +126,27 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	}
 
 	return nil
+}
+
+const ErrNoLogsFound = "no logs found"
+
+func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine, timeout time.Duration) error {
+	b := backoff.NewExponentialBackOff()
+	b.InitialInterval = 1 * time.Second
+	b.MaxInterval = 10 * time.Second
+	b.MaxElapsedTime = timeout
+
+	return backoff.Retry(func() error {
+		logs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, mach.ID)
+		if err != nil {
+			return err
+		}
+		if len(logs) == 0 {
+			return fmt.Errorf(ErrNoLogsFound)
+		}
+
+		return nil
+	}, backoff.WithContext(b, ctx))
 }
 
 func (md *machineDeployment) createTestMachine(ctx context.Context, testCommand, image, entrypoint string, machineToTest *fly.Machine) (*fly.Machine, error) {
