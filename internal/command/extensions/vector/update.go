@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
 )
 
 func update() (cmd *cobra.Command) {
@@ -41,6 +42,27 @@ func runUpdate(ctx context.Context) (err error) {
 	options, _ := addOn.Options.(map[string]interface{})
 	if options == nil {
 		options = make(map[string]interface{})
+	}
+
+	function, err := selectSimilarityFunction(ctx, "")
+
+	if err != nil {
+		return err
+	}
+
+	options["similarity_function"] = function.Identifier
+
+	model, err := selectEmbeddingModel(ctx, "")
+
+	if err != nil {
+		return err
+	}
+
+	if model != nil {
+		options["embedding_model"] = model.Identifier
+		options["dimension_count"] = model.Dimensions
+	} else {
+		prompt.Int(ctx, options["dimension_count"].(*int), "How many dimensions?", options["dimension_count"].(int), false)
 	}
 
 	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)

@@ -38,21 +38,21 @@ func create() (cmd *cobra.Command) {
 	return cmd
 }
 
-func selectSimilarityFunction(ctx context.Context) (function *SimilarityFunction, err error) {
+func selectSimilarityFunction(ctx context.Context, defaultValue string) (function *SimilarityFunction, err error) {
 	var options []string
 	for _, function := range similarityFunctions {
 		options = append(options, fmt.Sprintf("%s (%s)", function.Name, function.UseCases))
 	}
 
 	var index int
-	if err = prompt.Select(ctx, &index, "Select a similarity function:", "", options...); err == nil {
+	if err = prompt.Select(ctx, &index, "Select a similarity function:", defaultValue, options...); err == nil {
 		function = &similarityFunctions[index]
 	}
 
 	return
 }
 
-func selectEmbeddingModel(ctx context.Context) (function *EmbeddingModel, err error) {
+func selectEmbeddingModel(ctx context.Context, defaultValue string) (function *EmbeddingModel, err error) {
 	var options []string
 
 	options = append(options, "None - I will provide my own embeddings")
@@ -62,7 +62,7 @@ func selectEmbeddingModel(ctx context.Context) (function *EmbeddingModel, err er
 	}
 
 	var index int
-	if err = prompt.Select(ctx, &index, "Select an embedding model:", "", options...); err == nil {
+	if err = prompt.Select(ctx, &index, "Select an embedding model:", defaultValue, options...); err == nil {
 		if index != 0 {
 			function = &embeddingModels[index]
 		}
@@ -85,13 +85,13 @@ func runCreate(ctx context.Context) (err error) {
 		params.Organization = org
 	}
 
-	function, err := selectSimilarityFunction(ctx)
+	function, err := selectSimilarityFunction(ctx, "")
 
 	if err != nil {
 		return err
 	}
 
-	model, err := selectEmbeddingModel(ctx)
+	model, err := selectEmbeddingModel(ctx, "")
 
 	if err != nil {
 		return err
