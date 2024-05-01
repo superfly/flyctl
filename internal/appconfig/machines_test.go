@@ -188,7 +188,7 @@ func TestToTestMachineConfig(t *testing.T) {
 		Image: "curlimages/curl",
 		Env: map[string]string{
 			"PRIMARY_REGION":      "mia",
-			"TEST_COMMAND":        "1",
+			"FLY_TEST_COMMAND":    "1",
 			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
 			"FLY_TEST_MACHINE_IP": "",
 			"FOO":                 "BAR",

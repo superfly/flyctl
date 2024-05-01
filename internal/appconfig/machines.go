@@ -96,7 +96,7 @@ func (c *Config) ToTestMachineConfig(machineCommand, machineImage, machineEntryp
 		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
 	}
 
-	mConfig.Env["TEST_COMMAND"] = "1"
+	mConfig.Env["FLY_TEST_COMMAND"] = "1"
 	mConfig.Env["FLY_PROCESS_GROUP"] = fly.MachineProcessGroupFlyAppTestMachineCommand
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
