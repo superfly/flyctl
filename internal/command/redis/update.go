@@ -63,7 +63,7 @@ func runUpdate(ctx context.Context) (err error) {
 	var index int
 	var promptOptions []string
 
-	result, err := gql.ListAddOnPlans(ctx, client)
+	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
 	if err != nil {
 		return
 	}
