@@ -456,11 +456,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	// Overrides the primary region that's shown in the config.
-	if v := flag.GetString(ctx, "primary-region"); v != "" {
-		cfg.PrimaryRegion = v
-	}
-
 	// Always prefer the app name passed via --app
 	if appName != "" {
 		cfg.AppName = appName
