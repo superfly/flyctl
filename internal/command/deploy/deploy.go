@@ -37,6 +37,7 @@ var CommonFlags = flag.Set{
 	flag.LocalOnly(),
 	flag.Push(),
 	flag.Wireguard(),
+	flag.HttpFailover(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
@@ -248,10 +249,12 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_with_config")
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := fly.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
+
 	if err != nil {
 		return err
 	}
@@ -263,10 +266,23 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		}
 	}
 
+	httpFailover := flag.GetHTTPFailover(ctx)
+	usingWireguard := flag.GetWireguard(ctx)
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
+	img, err := determineImage(ctx, appConfig, usingWireguard)
 	if err != nil {
-		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+		if usingWireguard && !httpFailover {
+			return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+		} else {
+			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+			span.AddEvent("using http failover")
+			img, err = determineImage(ctx, appConfig, true)
+			if err != nil {
+				return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+			}
+		}
+
 	}
 
 	if flag.GetBuildOnly(ctx) {
