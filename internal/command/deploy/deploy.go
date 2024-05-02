@@ -250,6 +250,8 @@ func run(ctx context.Context) error {
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_with_config")
+	defer span.End()
+
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := fly.ClientFromContext(ctx)
@@ -270,18 +272,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig, usingWireguard)
-	if err != nil {
-		if usingWireguard && !httpFailover {
-			return fmt.Errorf("failed to fetch an image or build from source: %w", err)
-		} else {
-			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
-			span.AddEvent("using http failover")
-			img, err = determineImage(ctx, appConfig, true)
-			if err != nil {
-				return fmt.Errorf("failed to fetch an image or build from source: %w", err)
-			}
-		}
+	if err != nil && usingWireguard && httpFailover {
+		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+		span.AddEvent("using http failover")
+		img, err = determineImage(ctx, appConfig, false)
+	}
 
+	if err != nil {
+		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
 
 	if flag.GetBuildOnly(ctx) {
