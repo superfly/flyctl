@@ -52,6 +52,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG bool
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
+	span.SetAttributes(attribute.Bool("builder.using_wireguard", useWG))
+
 	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
 
@@ -178,6 +180,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG bool
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
+		tracing.RecordError(span, err, "failed to start heartbeat")
 		return nil, err
 	}
 	defer heartbeat.Stop()
@@ -187,6 +190,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG bool
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
+		tracing.RecordError(span, err, "no image specified")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
 	if err == nil {
