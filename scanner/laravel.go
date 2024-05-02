@@ -135,7 +135,7 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 			requireDev, ok := composerJson["require-dev"].(map[string]interface{})
 			if ok && requireDev["fly-apps/dockerfile-laravel"] != nil {
 				installed = true
-			}
+			} 
 		}
 	}
 
@@ -191,6 +191,24 @@ Now: run 'fly deploy' to deploy your %s app.
 
 	return nil
 }
+
+func LaravelFailureCallback(err error) error {
+	suggestion := flyerr.GetErrorSuggestion(err)
+
+	if suggestion == "" {
+		err = flyerr.GenericErr{
+			Err: err.Error(),
+			Suggest: "\nWoops! It seems there's been a hiccup in launching your awesome Laravel app!\n
+			No worries! Please make sure you're running the latest `flyctl` launcher by running: `fly version update` and try again. \n
+			If the issue persists, kindly drop a post in our community forum, under the Laravel category: https://community.fly.io/c/laravel/22. \n
+			Thank you for your patience, and remember, at Fly.io, we're with you through every step in your Laravel app's deployment journery, so drop by with that community post!
+			",
+		}
+	}
+
+	return err
+}
+
 
 func extractPhpVersion() (string, error) {
 	/* Example Output:
