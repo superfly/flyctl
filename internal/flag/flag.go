@@ -422,7 +422,7 @@ func HttpFailover() Bool {
 	return Bool{
 		Name:        httpFailover,
 		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
-		// TODO: Determine this based on feature flag
+		// TODO(billy): Determine this based on feature flag
 		Default: false,
 	}
 }

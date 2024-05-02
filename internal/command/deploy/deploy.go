@@ -254,7 +254,6 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := fly.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
-
 	if err != nil {
 		return err
 	}
