@@ -118,7 +118,6 @@ var CommonFlags = flag.Set{
 	},
 	flag.StringSlice{
 		Name:        "regions",
-		Shorthand:   "r",
 		Aliases:     []string{"only-regions"},
 		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --region iad,sea --regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},

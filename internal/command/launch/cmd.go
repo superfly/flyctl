@@ -39,6 +39,7 @@ func New() (cmd *cobra.Command) {
 		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
 		deploy.CommonFlags,
 
+		flag.Region(),
 		flag.Org(),
 		flag.NoDeploy(),
 		flag.Bool{
@@ -157,7 +158,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 }
 
 func run(ctx context.Context) (err error) {
-	var io = iostreams.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
 
 	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
 	if err != nil {
