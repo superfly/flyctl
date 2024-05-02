@@ -48,7 +48,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG bool) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
@@ -65,7 +65,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		terminal.Warnf("%s\n", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, flag.GetWireguard(ctx))
+	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, useWG)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {

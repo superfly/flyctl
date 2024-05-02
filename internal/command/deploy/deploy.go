@@ -262,11 +262,16 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 			fmt.Fprintln(io.ErrOut, warning)
 		}
 	}
-
+	useWG := flag.GetWireguard(ctx)
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
-	if err != nil {
+	img, err := determineImage(ctx, appConfig, useWG)
+	if err != nil && useWG {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+	} else if err != nil {
+		img, err = determineImage(ctx, appConfig, true)
+		if err != nil {
+			return fmt.Errorf("failed to fetch an image or build from source: %w", err)
+		}
 	}
 
 	if flag.GetBuildOnly(ctx) {
