@@ -30,7 +30,6 @@ import (
 var defaultMaxConcurrent = 16
 
 var CommonFlags = flag.Set{
-	flag.Region(),
 	flag.Image(),
 	flag.Now(),
 	flag.RemoteOnly(false),
@@ -118,12 +117,14 @@ var CommonFlags = flag.Set{
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
 	flag.StringSlice{
-		Name:        "exclude-regions",
-		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --only-regions. V2 machines platform only.",
+		Name:        "regions",
+		Shorthand:   "r",
+		Aliases:     []string{"only-regions"},
+		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --region iad,sea --regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
 	flag.StringSlice{
-		Name:        "only-regions",
-		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
+		Name:        "exclude-regions",
+		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --regions. V2 machines platform only.",
 	},
 	flag.StringArray{
 		Name:        "label",
@@ -360,7 +361,7 @@ func deployToMachines(
 		}
 	}
 	onlyRegions := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
+	for _, r := range flag.GetStringSlice(ctx, "regions") {
 		reg := strings.TrimSpace(r)
 		if reg != "" {
 			onlyRegions[reg] = struct{}{}
@@ -455,8 +456,8 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	// FIXME: this is a confusing flag; I thought it meant only update machines in the provided region, which resulted in a minor disaster :-)
-	if v := flag.GetRegion(ctx); v != "" {
+	// Overrides the primary region that's shown in the config.
+	if v := flag.GetString(ctx, "primary-region"); v != "" {
 		cfg.PrimaryRegion = v
 	}
 
