@@ -304,7 +304,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 				onlyRegionMachines = append(onlyRegionMachines, m)
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--only-regions filter applied, deploying to %d/%d machines\n", len(onlyRegionMachines), len(machines))
+		fmt.Fprintf(md.io.ErrOut, "--regions filter applied, deploying to %d/%d machines\n", len(onlyRegionMachines), len(machines))
 		machines = onlyRegionMachines
 	}
 	if len(md.excludeRegions) > 0 {
