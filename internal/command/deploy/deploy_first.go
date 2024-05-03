@@ -145,6 +145,7 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				Encrypted:           fly.Pointer(true),
 				ComputeRequirements: guest,
 				ComputeImage:        md.img,
+				SnapshotRetention:   m.SnapshotRetention,
 			}
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)
