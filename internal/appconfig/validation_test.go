@@ -71,3 +71,14 @@ func TestConfig_ValidateServices(t *testing.T) {
 	err, x = cfg.ValidateGroups(ctx, []string{"success"})
 	require.NoErrorf(t, err, x)
 }
+
+func TestConfig_ValidateDuplicateServices(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/validate-duplicate-services.toml")
+	require.NoError(t, err)
+	require.NoError(t, cfg.SetMachinesPlatform())
+
+	ctx := _getValidationContext(t)
+	err, x := cfg.Validate(ctx)
+	require.Error(t, err, x)
+	require.Contains(t, x, "Service [tcp-1738] has 2 duplicate definitions. To resolve this, merge them into 1 service.")
+}

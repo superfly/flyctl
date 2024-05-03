@@ -145,6 +145,7 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 	// The following is different than len(validGroupNames) because
 	// it can be zero when there is no [processes] section
 	processCount := len(cfg.Processes)
+	serviceCounter := map[string]int{}
 
 	for _, service := range cfg.AllServices() {
 		switch {
@@ -185,7 +186,17 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 		for _, check := range service.HTTPChecks {
 			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "HTTP")
 		}
+
+		serviceCounter[fmt.Sprintf("%s-%d", service.Protocol, service.InternalPort)] += 1
 	}
+
+	for service, count := range serviceCounter {
+		if count > 1 {
+			extraInfo += fmt.Sprintf("Service [%s] has %d duplicate definitions. To resolve this, merge them into 1 service. \n", service, count)
+			err = ValidationError
+		}
+	}
+
 	return extraInfo, err
 }
 
