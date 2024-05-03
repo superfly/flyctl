@@ -275,6 +275,14 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 
+		switch {
+		case m.SnapshotRetention == 0:
+			m.SnapshotRetention = 5
+		case m.SnapshotRetention < 1 || m.SnapshotRetention > 60:
+			extraInfo += fmt.Sprintf("mount '%s' has a snapshot_retention value which is not between 1 and 60 days\n", m.Source)
+			err = ValidationError
+		}
+
 		var autoExtendSizeIncrement, autoExtendSizeLimit int
 		var vErr error
 		if m.AutoExtendSizeIncrement != "" {
