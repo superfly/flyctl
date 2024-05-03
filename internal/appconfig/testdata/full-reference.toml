@@ -114,6 +114,7 @@ host_dedication_id = "06031957"
   source = "data"
   initial_size = "30gb"
   destination = "/data"
+  snapshot_retention = 17
 
 [[vm]]
   size = "shared-cpu-1x"
