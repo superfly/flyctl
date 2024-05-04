@@ -131,6 +131,7 @@ type Mount struct {
 	Source                  string   `toml:"source,omitempty" json:"source,omitempty"`
 	Destination             string   `toml:"destination,omitempty" json:"destination,omitempty"`
 	InitialSize             string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
+	SnapshotRetention       *int     `toml:"snapshot_retention,omitempty" json:"snapshot_retention,omitempty"`
 	AutoExtendSizeThreshold int      `toml:"auto_extend_size_threshold,omitempty" json:"auto_extend_size_threshold,omitempty"`
 	AutoExtendSizeIncrement string   `toml:"auto_extend_size_increment,omitempty" json:"auto_extend_size_increment,omitempty"`
 	AutoExtendSizeLimit     string   `toml:"auto_extend_size_limit,omitempty" json:"auto_extend_size_limit,omitempty"`
