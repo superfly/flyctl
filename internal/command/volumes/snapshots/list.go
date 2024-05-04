@@ -106,13 +106,18 @@ func runList(ctx context.Context) error {
 			id = "(pending)"
 		}
 
+		retentionDays := ""
+		if snapshot.RetentionDays != nil {
+			retentionDays = strconv.Itoa(*snapshot.RetentionDays)
+		}
 		rows = append(rows, []string{
 			id,
 			snapshot.Status,
 			strconv.Itoa(snapshot.Size),
 			timeToString(snapshot.CreatedAt),
+			retentionDays,
 		})
 	}
 
-	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At")
+	return render.Table(io.Out, "Snapshots", rows, "ID", "Status", "Size", "Created At", "Retention Days")
 }
