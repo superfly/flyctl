@@ -22,9 +22,9 @@ swap_size_mb = 512
   force_https = true
 
   [[http_service.machine_checks]]
-   command = "curl https://fly.io"
+   command = ["curl", "https://fly.io"]
    image = "curlimages/curl"
-   entrypoint = "/bin/sh -c"
+   entrypoint = ["/bin/sh"]
 
 [checks.listening]
   port = 8080

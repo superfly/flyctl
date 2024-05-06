@@ -2,7 +2,6 @@ package deploy
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 	"time"
@@ -46,14 +45,15 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	}
 
 	machines := lo.Map(machineChecks, func(machineCheck *appconfig.ServiceMachineCheck, _ int) createdTestMachine {
-		image := lo.Ternary(machineCheck.Image == "", md.img, machineCheck.Image)
+		var mach *fly.Machine
+		var err error
 		defer func() {
 			if err != nil {
 				statuslogger.Failed(ctx, err)
 			}
 		}()
 
-		mach, err := md.createTestMachine(ctx, machineCheck.Command, image, machineCheck.Entrypoint, machineToTest)
+		mach, err = md.createTestMachine(ctx, machineCheck, machineToTest)
 		if err != nil {
 			err = fmt.Errorf("error creating test machine %q: %w", machineCheck.Command, err)
 		}
@@ -149,15 +149,11 @@ func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine,
 	}, backoff.WithContext(b, ctx))
 }
 
-func (md *machineDeployment) createTestMachine(ctx context.Context, testCommand, image, entrypoint string, machineToTest *fly.Machine) (*fly.Machine, error) {
+func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconfig.ServiceMachineCheck, machineToTest *fly.Machine) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_test_machine")
 	defer span.End()
 
-	if testCommand == "" {
-		return nil, errors.New("test command is empty")
-	}
-
-	launchInput, err := md.launchInputForTestMachine(testCommand, image, entrypoint, machineToTest)
+	launchInput, err := md.launchInputForTestMachine(svc, machineToTest)
 	if err != nil {
 		return nil, err
 	}
@@ -171,20 +167,18 @@ func (md *machineDeployment) createTestMachine(ctx context.Context, testCommand,
 	return testMachine, nil
 }
 
-func (md *machineDeployment) launchInputForTestMachine(testCommand, image, entrypoint string, origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
+func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMachineCheck, origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	if origMachineRaw == nil {
 		origMachineRaw = &fly.Machine{
 			Region: md.appConfig.PrimaryRegion,
 		}
 	}
 
-	machineIP := lo.Ternary(origMachineRaw == nil || origMachineRaw.PrivateIP == "", "", origMachineRaw.PrivateIP)
-	mConfig, err := md.appConfig.ToTestMachineConfig(testCommand, image, entrypoint, machineIP)
+	mConfig, err := md.appConfig.ToTestMachineConfig(svc, origMachineRaw)
 	if err != nil {
 		return nil, err
 	}
 	mConfig.Guest = md.inferTestMachineGuest()
-	mConfig.Image = image
 	md.setMachineReleaseData(mConfig)
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {

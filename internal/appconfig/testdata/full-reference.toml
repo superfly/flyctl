@@ -75,9 +75,11 @@ host_dedication_id = "06031957"
       My-Custom-Header = "whatever"
 
   [[http_service.machine_checks]]
-   command = "curl https://fly.io"
+   command = ["curl", "https://fly.io"]
    image = "curlimages/curl"
-   entrypoint = "/bin/sh -c"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"
 
   [http_service.concurrency]
     type = "donuts"
@@ -203,6 +205,8 @@ host_dedication_id = "06031957"
     path = "/check2"
 
   [[services.machine_checks]]
-   command = "curl https://fly.io"
+   command = ["curl", "https://fly.io"]
    image = "curlimages/curl"
-   entrypoint = "/bin/sh -c"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"

@@ -181,9 +181,9 @@ func TestToTestMachineConfig(t *testing.T) {
 
 	want := &fly.MachineConfig{
 		Init: fly.MachineInit{
-			Cmd:        []string{"curl https://fly.io"},
+			Cmd:        []string{"curl", "https://fly.io"},
 			SwapSizeMB: fly.Pointer(512),
-			Entrypoint: []string{"/bin/sh", "-c"},
+			Entrypoint: []string{"/bin/sh"},
 		},
 		Image: "curlimages/curl",
 		Env: map[string]string{
@@ -208,7 +208,7 @@ func TestToTestMachineConfig(t *testing.T) {
 	}
 
 	check := cfg.HTTPService.MachineChecks[0]
-	got, err := cfg.ToTestMachineConfig(check.Command, check.Image, check.Entrypoint, "")
+	got, err := cfg.ToTestMachineConfig(check, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, got, want)
 }

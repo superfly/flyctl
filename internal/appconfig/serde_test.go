@@ -454,9 +454,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 			MachineChecks: []*ServiceMachineCheck{
 				{
-					Command:    "curl https://fly.io",
-					Entrypoint: "/bin/sh -c",
-					Image:      "curlimages/curl",
+					Command:     []string{"curl", "https://fly.io"},
+					Entrypoint:  []string{"/bin/sh"},
+					Image:       "curlimages/curl",
+					KillSignal:  "SIGKILL",
+					KillTimeout: fly.MustParseDuration("5s"),
 				},
 			},
 		},
@@ -571,9 +573,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				},
 				MachineChecks: []*ServiceMachineCheck{
 					{
-						Command:    "curl https://fly.io",
-						Entrypoint: "/bin/sh -c",
-						Image:      "curlimages/curl",
+						Command:     []string{"curl", "https://fly.io"},
+						Entrypoint:  []string{"/bin/sh"},
+						Image:       "curlimages/curl",
+						KillSignal:  "SIGKILL",
+						KillTimeout: fly.MustParseDuration("5s"),
 					},
 				},
 			},

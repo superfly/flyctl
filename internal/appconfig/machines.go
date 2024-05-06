@@ -62,19 +62,33 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	return mConfig, nil
 }
 
-func (c *Config) ToTestMachineConfig(machineCommand, machineImage, machineEntrypoint, machineIP string) (*fly.MachineConfig, error) {
-	// for whatever reason, we need to split the entry point, but not the command
-	entrypoint, err := shlex.Split(machineEntrypoint)
-	if err != nil {
-		return nil, err
+func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.Machine) (*fly.MachineConfig, error) {
+	var machineEntrypoint []string
+	if len(svc.Entrypoint) > 0 {
+		machineEntrypoint = svc.Entrypoint
+	} else {
+		machineEntrypoint = origMachine.Config.Init.Entrypoint
 	}
-	command := []string{machineCommand}
+
+	var machineCommand []string
+	if len(svc.Command) > 0 {
+		machineCommand = svc.Command
+	} else {
+		return nil, fmt.Errorf("missing command for test machine")
+	}
+
+	var machineImage string
+	if svc.Image != "" {
+		machineImage = svc.Image
+	} else {
+		machineImage = origMachine.Config.Image
+	}
 
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{
-			Cmd:        command,
+			Cmd:        machineCommand,
 			SwapSizeMB: c.SwapSizeMB,
-			Entrypoint: entrypoint,
+			Entrypoint: machineEntrypoint,
 		},
 		Image: machineImage,
 		Restart: &fly.MachineRestart{
@@ -101,10 +115,15 @@ func (c *Config) ToTestMachineConfig(machineCommand, machineImage, machineEntryp
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
-	mConfig.Env["FLY_TEST_MACHINE_IP"] = machineIP
+	mConfig.Env["FLY_TEST_MACHINE_IP"] = lo.Ternary(origMachine == nil, "", origMachine.PrivateIP)
 
-	// StopConfig
+	// Use the stop config from the app config by default
 	c.tomachineSetStopConfig(mConfig)
+
+	mConfig.StopConfig = &fly.StopConfig{
+		Timeout: lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, c.KillTimeout),
+		Signal:  lo.Ternary(svc.KillSignal != "", &svc.KillSignal, c.KillSignal),
+	}
 
 	return mConfig, nil
 }

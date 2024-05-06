@@ -229,9 +229,11 @@ func TestToDefinition(t *testing.T) {
 			},
 			"machine_checks": []any{
 				map[string]any{
-					"command":    "curl https://fly.io",
-					"image":      "curlimages/curl",
-					"entrypoint": "/bin/sh -c",
+					"command":      []any{"curl", "https://fly.io"},
+					"image":        "curlimages/curl",
+					"entrypoint":   []any{"/bin/sh"},
+					"kill_signal":  "SIGKILL",
+					"kill_timeout": "5s",
 				},
 			},
 		},
@@ -364,9 +366,11 @@ func TestToDefinition(t *testing.T) {
 				},
 				"machine_checks": []any{
 					map[string]any{
-						"command":    "curl https://fly.io",
-						"image":      "curlimages/curl",
-						"entrypoint": "/bin/sh -c",
+						"command":      []any{"curl", "https://fly.io"},
+						"image":        "curlimages/curl",
+						"entrypoint":   []any{"/bin/sh"},
+						"kill_signal":  "SIGKILL",
+						"kill_timeout": "5s",
 					},
 				},
 			},
