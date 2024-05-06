@@ -3530,6 +3530,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
+
   """
   path: [String!]
 
@@ -5693,10 +5694,7 @@ type Identity {
 
 type Image {
   absoluteRef: String!
-  compressedSize: Int!
-    @deprecated(
-      reason: "Int cannot handle sizes over 2GB. Use compressed_size_full instead"
-    )
+  compressedSize: Int! @deprecated(reason: "Int cannot handle sizes over 2GB. Use compressed_size_full instead")
   compressedSizeFull: BigInt!
   config: JSON!
   configDigest: JSON!
@@ -6071,33 +6069,25 @@ type Macaroon implements Principal {
   URL for avatar or placeholder
   """
   avatarUrl: String!
-  blankPassword: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  createdAt: ISO8601DateTime
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  blankPassword: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
+  createdAt: ISO8601DateTime @deprecated(reason: "Use User fragment on Viewer instead")
 
   """
   Email address for principal
   """
   email: String!
-  emailVerified: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  featureFlags: [String!]
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  hasNodeproxyApps: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  hasRecoveryCodes: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  emailVerified: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
+  featureFlags: [String!] @deprecated(reason: "Use User fragment on Viewer instead")
+  hasNodeproxyApps: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
+  hasRecoveryCodes: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
   highRisk: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
   id: ID @deprecated(reason: "Use User fragment on Viewer instead")
-  identities: [Identity!]
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  identities: [Identity!] @deprecated(reason: "Use User fragment on Viewer instead")
 
   """
   Find an identity by provider
   """
-  identity(provider: String!): Identity
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  identity(provider: String!): Identity @deprecated(reason: "Use User fragment on Viewer instead")
   lastRegion: String @deprecated(reason: "Use User fragment on Viewer instead")
 
   """
@@ -6124,16 +6114,12 @@ type Macaroon implements Principal {
     Returns the last _n_ elements from the list.
     """
     last: Int
-  ): OrganizationConnection
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  personalOrganization: Organization
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  stripeVerificationStatus: String
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  ): OrganizationConnection @deprecated(reason: "Use User fragment on Viewer instead")
+  personalOrganization: Organization @deprecated(reason: "Use User fragment on Viewer instead")
+  stripeVerificationStatus: String @deprecated(reason: "Use User fragment on Viewer instead")
   trust: OrganizationTrust!
   trustScore: Int @deprecated(reason: "Use User fragment on Viewer instead")
-  twoFactorProtection: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  twoFactorProtection: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
   username: String @deprecated(reason: "Use User fragment on Viewer instead")
 }
 
@@ -8166,33 +8152,25 @@ interface Principal {
   URL for avatar or placeholder
   """
   avatarUrl: String!
-  blankPassword: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  createdAt: ISO8601DateTime
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  blankPassword: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
+  createdAt: ISO8601DateTime @deprecated(reason: "Use User fragment on Viewer instead")
 
   """
   Email address for principal
   """
   email: String!
-  emailVerified: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  featureFlags: [String!]
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  hasNodeproxyApps: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  hasRecoveryCodes: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  emailVerified: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
+  featureFlags: [String!] @deprecated(reason: "Use User fragment on Viewer instead")
+  hasNodeproxyApps: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
+  hasRecoveryCodes: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
   highRisk: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
   id: ID @deprecated(reason: "Use User fragment on Viewer instead")
-  identities: [Identity!]
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  identities: [Identity!] @deprecated(reason: "Use User fragment on Viewer instead")
 
   """
   Find an identity by provider
   """
-  identity(provider: String!): Identity
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  identity(provider: String!): Identity @deprecated(reason: "Use User fragment on Viewer instead")
   lastRegion: String @deprecated(reason: "Use User fragment on Viewer instead")
 
   """
@@ -8219,16 +8197,12 @@ interface Principal {
     Returns the last _n_ elements from the list.
     """
     last: Int
-  ): OrganizationConnection
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  personalOrganization: Organization
-    @deprecated(reason: "Use User fragment on Viewer instead")
-  stripeVerificationStatus: String
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  ): OrganizationConnection @deprecated(reason: "Use User fragment on Viewer instead")
+  personalOrganization: Organization @deprecated(reason: "Use User fragment on Viewer instead")
+  stripeVerificationStatus: String @deprecated(reason: "Use User fragment on Viewer instead")
   trust: OrganizationTrust!
   trustScore: Int @deprecated(reason: "Use User fragment on Viewer instead")
-  twoFactorProtection: Boolean
-    @deprecated(reason: "Use User fragment on Viewer instead")
+  twoFactorProtection: Boolean @deprecated(reason: "Use User fragment on Viewer instead")
   username: String @deprecated(reason: "Use User fragment on Viewer instead")
 }
 
@@ -8342,12 +8316,7 @@ type Queries {
   """
   Find an app by name
   """
-  app(
-    id: String @deprecated(reason: "will be removed")
-    internalId: String
-    key: String @deprecated(reason: "will be removed")
-    name: String
-  ): App
+  app(id: String @deprecated(reason: "will be removed"), internalId: String, key: String @deprecated(reason: "will be removed"), name: String): App
 
   """
   List apps
@@ -10977,10 +10946,8 @@ type User implements Node & Principal {
     Returns the last _n_ elements from the list.
     """
     last: Int
-  ): OrganizationConnection!
-    @deprecated(reason: "Use query.organizations instead")
-  personalOrganization: Organization!
-    @deprecated(reason: "Use query.personalOrganization instead")
+  ): OrganizationConnection! @deprecated(reason: "Use query.organizations instead")
+  personalOrganization: Organization! @deprecated(reason: "Use query.personalOrganization instead")
   stripeVerificationStatus: String
   trust: OrganizationTrust!
   trustScore: Int
