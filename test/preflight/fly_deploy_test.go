@@ -221,8 +221,8 @@ func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
 	appConfig += `
 		[[http_service.machine_checks]]
             image = "curlimages/curl"
-   			entrypoint = "/bin/sh -c"
-			command = "curl http://[$FLY_TEST_MACHINE_IP]:80"
+   			entrypoint = ["/bin/sh", "-c"]
+			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
 		`
 	f.WriteFlyToml(appConfig)
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
