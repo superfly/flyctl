@@ -13,7 +13,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("enveloop", short, long, nil)
-	cmd.AddCommand(create(), update(), list(), plans(), dashboard(), destroy(), status())
+	cmd.AddCommand(create(), list(), plans(), dashboard(), destroy())
 
 	return cmd
 }

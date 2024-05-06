@@ -53,7 +53,7 @@ func runCreate(ctx context.Context) (err error) {
 	var options gql.AddOnOptions
 
 	params.Options = options
-	params.PlanID = "2j9KPY4j1lPPOulNY8G7GNZ" // starter is the only plan for now
+	params.PlanID = "starter" // starter is the only plan for now
 	params.Provider = "enveloop"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 	if err != nil {

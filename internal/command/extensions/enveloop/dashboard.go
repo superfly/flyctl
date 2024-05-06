@@ -12,11 +12,13 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the Enveloop dashboard on the web console`
+		long = `Visit the Enveloop dashboard`
+
 		short = long
+		usage = "dashboard [database_name]"
 	)
 
-	cmd = command.New("dashboard", short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -24,12 +26,15 @@ func dashboard() (cmd *cobra.Command) {
 		flag.Org(),
 		extensions_core.SharedFlags,
 	)
-	cmd.Args = cobra.NoArgs
+	// cmd.Args = cobra.NoArgs
+	cmd.Args = cobra.MaximumNArgs(1)
 	return cmd
 }
 
 func runDashboard(ctx context.Context) (err error) {
-	if org := flag.GetOrg(ctx); org != "" {
+	org := flag.GetOrg(ctx)
+
+	if org != "" {
 		return extensions_core.OpenOrgDashboard(ctx, org, "enveloop")
 	}
 
