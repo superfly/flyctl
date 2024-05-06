@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
-	"github.com/superfly/graphql"
 )
 
 type recoverableInUiError struct {
@@ -470,28 +469,19 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	// If the app name is already taken, try to generate a unique suffix.
 	if taken, _ := appNameTaken(ctx, appName); taken {
 
-		var found bool
-		appName, found = findUniqueAppName(appName)
-		if !found {
-			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
-		}
+		return appName, recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
 	}
 	return appName, cause, nil
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
 	client := fly.ClientFromContext(ctx)
-	// TODO: I believe this will only check apps that are visible to you.
-	//       We should probably expose a global uniqueness check.
-	_, err := client.GetAppBasic(ctx, name)
+
+	available, err := client.AppNameAvailable(ctx, name)
 	if err != nil {
-		if fly.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
-			return false, nil
-		}
 		return false, err
 	}
-
-	return true, nil
+	return !available, nil
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
