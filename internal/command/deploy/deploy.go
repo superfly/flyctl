@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var defaultMaxConcurrent = 16
@@ -249,8 +250,7 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "deploy_with_config")
-	defer span.End()
+	span := trace.SpanFromContext(ctx)
 
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
