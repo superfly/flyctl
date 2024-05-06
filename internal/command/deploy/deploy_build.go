@@ -48,9 +48,11 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG bool) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
+
+	span.SetAttributes(attribute.Bool("builder.using_wireguard", useWG))
 
 	tb := render.NewTextBlock(ctx, "Building image")
 	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
@@ -65,7 +67,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		terminal.Warnf("%s\n", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, flag.GetWireguard(ctx))
+	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, useWG)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -178,6 +180,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
+		tracing.RecordError(span, err, "failed to start heartbeat")
 		return nil, err
 	}
 	defer heartbeat.Stop()
@@ -187,6 +190,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
+		tracing.RecordError(span, err, "no image specified")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
 	if err == nil {

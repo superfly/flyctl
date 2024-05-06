@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var defaultMaxConcurrent = 16
@@ -36,6 +37,7 @@ var CommonFlags = flag.Set{
 	flag.LocalOnly(),
 	flag.Push(),
 	flag.Wireguard(),
+	flag.HttpFailover(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
@@ -248,6 +250,8 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+	span := trace.SpanFromContext(ctx)
+
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := fly.ClientFromContext(ctx)
@@ -263,8 +267,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		}
 	}
 
+	httpFailover := flag.GetHTTPFailover(ctx)
+	usingWireguard := flag.GetWireguard(ctx)
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
+	img, err := determineImage(ctx, appConfig, usingWireguard)
+	if err != nil && usingWireguard && httpFailover {
+		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+		span.AddEvent("using http failover")
+		img, err = determineImage(ctx, appConfig, false)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
