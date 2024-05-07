@@ -1,0 +1,29 @@
+app = "foo"
+
+[[services]]
+  internal_port = 1738
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+    force_https = true
+    
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 22
+    soft_limit = 13
+
+[[services]]
+  internal_port = 1738
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+    force_https = true
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 22
+    soft_limit = 13
