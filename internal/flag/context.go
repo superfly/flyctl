@@ -3,6 +3,7 @@ package flag
 import (
 	"context"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/spf13/pflag"
@@ -89,6 +90,21 @@ func GetStringSlice(ctx context.Context, name string) []string {
 		return []string{}
 	} else {
 		return v
+	}
+}
+
+// GetStringSlice returns the values of the named string flag ctx carries. Can
+// be comma separated or passed "by repeated flags": `--flag x,y` is equivalent
+// to `--flag x --flag y`. Strings are trimmed of extra whitespace and empty
+// strings are removed.
+func GetNonEmptyStringSlice(ctx context.Context, name string) []string {
+	if v, err := FromContext(ctx).GetStringSlice(name); err != nil {
+		return []string{}
+	} else {
+		for i := range v {
+			v[i] = strings.TrimSpace(v[i])
+		}
+		return slices.DeleteFunc(v, func(s string) bool { return s == "" })
 	}
 }
 
