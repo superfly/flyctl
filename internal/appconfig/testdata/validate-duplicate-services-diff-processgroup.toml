@@ -1,0 +1,25 @@
+app = "foo"
+
+[processes]
+web = "/run1"
+app = "/run2"
+
+
+[http_service]
+  internal_port = 1738
+  processes = ["app"]
+
+[[services]]
+  internal_port = 1738
+  protocol = "tcp"
+  processes = ["web"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ['http']
+    force_https = true
+
+  [services.concurrency]
+    type = "requests"
+    hard_limit = 22
+    soft_limit = 13
