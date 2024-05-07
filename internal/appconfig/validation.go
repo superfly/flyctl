@@ -187,17 +187,34 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 			extraInfo += validateServiceCheckDurations(check.Interval, check.Timeout, check.GracePeriod, "HTTP")
 		}
 
-		serviceCounter[fmt.Sprintf("%s-%d", service.Protocol, service.InternalPort)] += 1
+		serviceCounter[cfg.getServiceDeduplicationKey(service)] += 1
 	}
 
 	for service, count := range serviceCounter {
 		if count > 1 {
-			extraInfo += fmt.Sprintf("Service [%s] has %d duplicate definitions. To resolve this, merge them into 1 service. \n", service, count)
+			protocol, port := cfg.getServiceComponets(service)[0], cfg.getServiceComponets(service)[1]
+			extraInfo += fmt.Sprintf("Service [%s-%s] has %d duplicate definitions. To resolve this, merge them into 1 service. \n", protocol, port, count)
 			err = ValidationError
 		}
 	}
 
 	return extraInfo, err
+}
+
+func (cfg *Config) getServiceDeduplicationKey(s Service) string {
+	processes := s.Processes
+	if len(processes) == 0 {
+		processes = []string{fly.MachineProcessGroupApp}
+	}
+
+	slices.Sort(processes)
+	return fmt.Sprintf("%s+%s+%d", strings.Join(processes, ":"), s.Protocol, s.InternalPort)
+}
+
+func (cfg *Config) getServiceComponets(s string) []string {
+	components := strings.Split(s, "+")
+	return []string{components[len(components)-2], components[len(components)-1]}
+
 }
 
 func validateServiceCheckDurations(interval, timeout, gracePeriod *fly.Duration, proto string) (extraInfo string) {
