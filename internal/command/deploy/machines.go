@@ -50,6 +50,7 @@ type MachineDeploymentArgs struct {
 	SkipSmokeChecks       bool
 	SkipHealthChecks      bool
 	SkipDNSChecks         bool
+	SkipReleaseCommand    bool
 	MaxUnavailable        *float64
 	RestartOnly           bool
 	WaitTimeout           *time.Duration
@@ -88,6 +89,7 @@ type machineDeployment struct {
 	skipSmokeChecks       bool
 	skipHealthChecks      bool
 	skipDNSChecks         bool
+	skipReleaseCommand    bool
 	maxUnavailable        float64
 	restartOnly           bool
 	waitTimeout           time.Duration
@@ -208,6 +210,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		skipSmokeChecks:       args.SkipSmokeChecks,
 		skipHealthChecks:      args.SkipHealthChecks,
 		skipDNSChecks:         args.SkipDNSChecks,
+		skipReleaseCommand:    args.SkipReleaseCommand,
 		restartOnly:           args.RestartOnly,
 		maxUnavailable:        maxUnavailable,
 		waitTimeout:           waitTimeout,

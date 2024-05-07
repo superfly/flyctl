@@ -258,8 +258,10 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_new_machines")
 	defer span.End()
 
-	if err := md.runReleaseCommand(ctx); err != nil {
-		return fmt.Errorf("release command failed - aborting deployment. %w", err)
+	if !md.skipReleaseCommand {
+		if err := md.runReleaseCommand(ctx); err != nil {
+			return fmt.Errorf("release command failed - aborting deployment. %w", err)
+		}
 	}
 
 	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {

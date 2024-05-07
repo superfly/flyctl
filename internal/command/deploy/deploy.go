@@ -184,6 +184,11 @@ func New() (cmd *cobra.Command) {
 			Description: "Do not create Machines for new process groups",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "skip-release-command",
+			Description: "Do not run the release command during deployment.",
+			Default:     false,
+		},
 	)
 
 	return
@@ -415,6 +420,7 @@ func deployToMachines(
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
+		SkipReleaseCommand:    flag.GetBool(ctx, "skip-release-command"),
 		WaitTimeout:           waitTimeout,
 		StopSignal:            flag.GetString(ctx, "signal"),
 		ReleaseCmdTimeout:     releaseCmdTimeout,
