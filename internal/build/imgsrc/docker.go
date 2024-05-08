@@ -710,7 +710,8 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgS
 		return
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "", region)
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
@@ -724,7 +725,8 @@ func remoteBuilderMachine(ctx context.Context, apiClient *fly.Client, appName st
 		return nil, nil, nil
 	}
 
-	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	return apiClient.EnsureRemoteBuilder(ctx, "", appName, region)
 }
 
 func (d *dockerClientFactory) IsRemote() bool {
