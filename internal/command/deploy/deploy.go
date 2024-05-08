@@ -25,18 +25,19 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var defaultMaxConcurrent = 16
 
 var CommonFlags = flag.Set{
-	flag.Region(),
 	flag.Image(),
 	flag.Now(),
 	flag.RemoteOnly(false),
 	flag.LocalOnly(),
 	flag.Push(),
 	flag.Wireguard(),
+	flag.HttpFailover(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
@@ -52,10 +53,6 @@ var CommonFlags = flag.Set{
 	flag.BpVolume(),
 	flag.Yes(),
 	flag.VMSizeFlags,
-	flag.Bool{
-		Name:        "provision-extensions",
-		Description: "Provision any extensions assigned as a default to first deployments",
-	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
@@ -122,12 +119,13 @@ var CommonFlags = flag.Set{
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
 	flag.StringSlice{
-		Name:        "exclude-regions",
-		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --only-regions. V2 machines platform only.",
+		Name:        "regions",
+		Aliases:     []string{"only-regions"},
+		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --region iad,sea --regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
 	},
 	flag.StringSlice{
-		Name:        "only-regions",
-		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
+		Name:        "exclude-regions",
+		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --regions. V2 machines platform only.",
 	},
 	flag.StringArray{
 		Name:        "label",
@@ -192,13 +190,23 @@ func New() (cmd *cobra.Command) {
 }
 
 func run(ctx context.Context) error {
+	io := iostreams.FromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+
 	hook := ctrlc.Hook(func() {
 		metrics.FlushMetrics(ctx)
 	})
 
 	defer hook.Done()
 
-	appName := appconfig.NameFromContext(ctx)
+	tp, err := tracing.InitTraceProvider(ctx, appName)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
+
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -209,7 +217,7 @@ func run(ctx context.Context) error {
 
 	client := fly.ClientFromContext(ctx)
 
-	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
 
 	user, err := client.GetCurrentUser(ctx)
@@ -242,6 +250,8 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+	span := trace.SpanFromContext(ctx)
+
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := fly.ClientFromContext(ctx)
@@ -257,8 +267,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		}
 	}
 
+	httpFailover := flag.GetHTTPFailover(ctx)
+	usingWireguard := flag.GetWireguard(ctx)
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
+	img, err := determineImage(ctx, appConfig, usingWireguard)
+	if err != nil && usingWireguard && httpFailover {
+		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+		span.AddEvent("using http failover")
+		img, err = determineImage(ctx, appConfig, false)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -354,7 +373,7 @@ func deployToMachines(
 		}
 	}
 	onlyRegions := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
+	for _, r := range flag.GetStringSlice(ctx, "regions") {
 		reg := strings.TrimSpace(r)
 		if reg != "" {
 			onlyRegions[reg] = struct{}{}
@@ -447,11 +466,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
-	}
-
-	// FIXME: this is a confusing flag; I thought it meant only update machines in the provided region, which resulted in a minor disaster :-)
-	if v := flag.GetRegion(ctx); v != "" {
-		cfg.PrimaryRegion = v
 	}
 
 	// Always prefer the app name passed via --app

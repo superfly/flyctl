@@ -188,9 +188,10 @@ func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
 			Memory: "512",
 		}},
 		Mounts: []Mount{{
-			Source:      "data",
-			Destination: "/data",
-			InitialSize: "200",
+			Source:            "data",
+			Destination:       "/data",
+			InitialSize:       "200",
+			SnapshotRetention: fly.Pointer(10),
 		}},
 	}, cfg)
 }
@@ -477,9 +478,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		},
 
 		Mounts: []Mount{{
-			Source:      "data",
-			Destination: "/data",
-			InitialSize: "30gb",
+			Source:            "data",
+			Destination:       "/data",
+			InitialSize:       "30gb",
+			SnapshotRetention: fly.Pointer(17),
 		}},
 
 		Processes: map[string]string{

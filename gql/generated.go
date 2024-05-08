@@ -52,6 +52,8 @@ func (v *AddOnData) GetOptions() interface{} { return v.Options }
 type AddOnType string
 
 const (
+	// An Enveloop project
+	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// A PlanetScale database
@@ -68,6 +70,10 @@ const (
 	AddOnTypeUpstashKafka AddOnType = "upstash_kafka"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
+	// An Upstash Vector cluster
+	AddOnTypeUpstashVector AddOnType = "upstash_vector"
+	// A Wafris firewall
+	AddOnTypeWafris AddOnType = "wafris"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
@@ -3553,6 +3559,14 @@ type __GetOrganizationInput struct {
 // GetSlug returns __GetOrganizationInput.Slug, and is useful for accessing the field via an interface.
 func (v *__GetOrganizationInput) GetSlug() string { return v.Slug }
 
+// __ListAddOnPlansInput is used internally by genqlient
+type __ListAddOnPlansInput struct {
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetAddOnType returns __ListAddOnPlansInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListAddOnPlansInput) GetAddOnType() AddOnType { return v.AddOnType }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -3670,29 +3684,29 @@ query AgentGetInstances ($appName: String!) {
 `
 
 func AgentGetInstances(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	appName string,
 ) (*AgentGetInstancesResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "AgentGetInstances",
 		Query:  AgentGetInstances_Operation,
 		Variables: &__AgentGetInstancesInput{
 			AppName: appName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data AgentGetInstancesResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ AgentGetInstancesResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by AgreedToProviderTos.
@@ -3708,29 +3722,29 @@ query AgreedToProviderTos ($addOnProviderName: String!) {
 `
 
 func AgreedToProviderTos(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	addOnProviderName string,
 ) (*AgreedToProviderTosResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "AgreedToProviderTos",
 		Query:  AgreedToProviderTos_Operation,
 		Variables: &__AgreedToProviderTosInput{
 			AddOnProviderName: addOnProviderName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data AgreedToProviderTosResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ AgreedToProviderTosResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by AllApps.
@@ -3748,29 +3762,29 @@ query AllApps ($orgSlug: String!) {
 `
 
 func AllApps(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	orgSlug string,
 ) (*AllAppsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "AllApps",
 		Query:  AllApps_Operation,
 		Variables: &__AllAppsInput{
 			OrgSlug: orgSlug,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data AllAppsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ AllAppsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateAddOn.
@@ -3789,29 +3803,29 @@ mutation CreateAddOn ($input: CreateAddOnInput!) {
 `
 
 func CreateAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateAddOnInput,
 ) (*CreateAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateAddOn",
 		Query:  CreateAddOn_Operation,
 		Variables: &__CreateAddOnInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateApp.
@@ -3853,29 +3867,29 @@ fragment OrganizationData on Organization {
 `
 
 func CreateApp(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateAppInput,
 ) (*CreateAppResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateApp",
 		Query:  CreateApp_Operation,
 		Variables: &__CreateAppInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateAppResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateAppResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateExtension.
@@ -3896,29 +3910,29 @@ fragment ExtensionData on AddOn {
 `
 
 func CreateExtension(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateAddOnInput,
 ) (*CreateExtensionResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateExtension",
 		Query:  CreateExtension_Operation,
 		Variables: &__CreateExtensionInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateExtensionResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateExtensionResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateLimitedAccessToken.
@@ -3933,15 +3947,15 @@ mutation CreateLimitedAccessToken ($name: String!, $organizationId: ID!, $profil
 `
 
 func CreateLimitedAccessToken(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 	organizationId string,
 	profile string,
 	profileParams interface{},
 	expiry string,
 ) (*CreateLimitedAccessTokenResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateLimitedAccessToken",
 		Query:  CreateLimitedAccessToken_Operation,
 		Variables: &__CreateLimitedAccessTokenInput{
@@ -3952,18 +3966,18 @@ func CreateLimitedAccessToken(
 			Expiry:         expiry,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateLimitedAccessTokenResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateLimitedAccessTokenResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateTosAgreement.
@@ -3976,29 +3990,29 @@ mutation CreateTosAgreement ($providerName: String!) {
 `
 
 func CreateTosAgreement(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	providerName string,
 ) (*CreateTosAgreementResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateTosAgreement",
 		Query:  CreateTosAgreement_Operation,
 		Variables: &__CreateTosAgreementInput{
 			ProviderName: providerName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateTosAgreementResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateTosAgreementResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by DeleteAddOn.
@@ -4011,29 +4025,29 @@ mutation DeleteAddOn ($name: String) {
 `
 
 func DeleteAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*DeleteAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "DeleteAddOn",
 		Query:  DeleteAddOn_Operation,
 		Variables: &__DeleteAddOnInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data DeleteAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ DeleteAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by FlyctlConfigCurrentRelease.
@@ -4048,29 +4062,29 @@ query FlyctlConfigCurrentRelease ($appName: String!) {
 `
 
 func FlyctlConfigCurrentRelease(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	appName string,
 ) (*FlyctlConfigCurrentReleaseResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "FlyctlConfigCurrentRelease",
 		Query:  FlyctlConfigCurrentRelease_Operation,
 		Variables: &__FlyctlConfigCurrentReleaseInput{
 			AppName: appName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data FlyctlConfigCurrentReleaseResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ FlyctlConfigCurrentReleaseResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by FlyctlDeployGetLatestImage.
@@ -4087,29 +4101,29 @@ query FlyctlDeployGetLatestImage ($appName: String!) {
 `
 
 func FlyctlDeployGetLatestImage(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	appName string,
 ) (*FlyctlDeployGetLatestImageResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "FlyctlDeployGetLatestImage",
 		Query:  FlyctlDeployGetLatestImage_Operation,
 		Variables: &__FlyctlDeployGetLatestImageInput{
 			AppName: appName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data FlyctlDeployGetLatestImageResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ FlyctlDeployGetLatestImageResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAddOn.
@@ -4196,29 +4210,29 @@ fragment OrganizationData on Organization {
 `
 
 func GetAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*GetAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAddOn",
 		Query:  GetAddOn_Operation,
 		Variables: &__GetAddOnInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAddOnProvider.
@@ -4252,29 +4266,29 @@ fragment ExtensionProviderData on AddOnProvider {
 `
 
 func GetAddOnProvider(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*GetAddOnProviderResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAddOnProvider",
 		Query:  GetAddOnProvider_Operation,
 		Variables: &__GetAddOnProviderInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAddOnProviderResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAddOnProviderResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetApp.
@@ -4307,29 +4321,29 @@ fragment OrganizationData on Organization {
 `
 
 func GetApp(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*GetAppResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetApp",
 		Query:  GetApp_Operation,
 		Variables: &__GetAppInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAppResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAppResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAppWithAddons.
@@ -4376,12 +4390,12 @@ fragment OrganizationData on Organization {
 `
 
 func GetAppWithAddons(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 	addOnType AddOnType,
 ) (*GetAppWithAddonsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAppWithAddons",
 		Query:  GetAppWithAddons_Operation,
 		Variables: &__GetAppWithAddonsInput{
@@ -4389,18 +4403,18 @@ func GetAppWithAddons(
 			AddOnType: addOnType,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAppWithAddonsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAppWithAddonsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAppsByRole.
@@ -4435,12 +4449,12 @@ fragment OrganizationData on Organization {
 `
 
 func GetAppsByRole(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	role string,
 	organizationId string,
 ) (*GetAppsByRoleResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAppsByRole",
 		Query:  GetAppsByRole_Operation,
 		Variables: &__GetAppsByRoleInput{
@@ -4448,18 +4462,18 @@ func GetAppsByRole(
 			OrganizationId: organizationId,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAppsByRoleResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAppsByRoleResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetExtensionSsoLink.
@@ -4472,12 +4486,12 @@ query GetExtensionSsoLink ($orgSlug: String!, $provider: String!) {
 `
 
 func GetExtensionSsoLink(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	orgSlug string,
 	provider string,
 ) (*GetExtensionSsoLinkResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetExtensionSsoLink",
 		Query:  GetExtensionSsoLink_Operation,
 		Variables: &__GetExtensionSsoLinkInput{
@@ -4485,18 +4499,18 @@ func GetExtensionSsoLink(
 			Provider: provider,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetExtensionSsoLinkResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetExtensionSsoLinkResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetNearestRegion.
@@ -4511,25 +4525,25 @@ query GetNearestRegion {
 `
 
 func GetNearestRegion(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 ) (*GetNearestRegionResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetNearestRegion",
 		Query:  GetNearestRegion_Operation,
 	}
-	var err error
+	var err_ error
 
-	var data GetNearestRegionResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetNearestRegionResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetOrganization.
@@ -4550,35 +4564,35 @@ fragment OrganizationData on Organization {
 `
 
 func GetOrganization(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	slug string,
 ) (*GetOrganizationResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetOrganization",
 		Query:  GetOrganization_Operation,
 		Variables: &__GetOrganizationInput{
 			Slug: slug,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetOrganizationResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetOrganizationResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ListAddOnPlans.
 const ListAddOnPlans_Operation = `
-query ListAddOnPlans {
-	addOnPlans {
+query ListAddOnPlans ($addOnType: AddOnType!) {
+	addOnPlans(type: $addOnType) {
 		nodes {
 			id
 			description
@@ -4591,25 +4605,29 @@ query ListAddOnPlans {
 `
 
 func ListAddOnPlans(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
+	addOnType AddOnType,
 ) (*ListAddOnPlansResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ListAddOnPlans",
 		Query:  ListAddOnPlans_Operation,
+		Variables: &__ListAddOnPlansInput{
+			AddOnType: addOnType,
+		},
 	}
-	var err error
+	var err_ error
 
-	var data ListAddOnPlansResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ListAddOnPlansResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ListAddOns.
@@ -4637,29 +4655,29 @@ query ListAddOns ($addOnType: AddOnType) {
 `
 
 func ListAddOns(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	addOnType AddOnType,
 ) (*ListAddOnsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ListAddOns",
 		Query:  ListAddOns_Operation,
 		Variables: &__ListAddOnsInput{
 			AddOnType: addOnType,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ListAddOnsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ListAddOnsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by LogOut.
@@ -4672,25 +4690,25 @@ mutation LogOut {
 `
 
 func LogOut(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 ) (*LogOutResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "LogOut",
 		Query:  LogOut_Operation,
 	}
-	var err error
+	var err_ error
 
-	var data LogOutResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ LogOutResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by MachinesCreateRelease.
@@ -4706,29 +4724,29 @@ mutation MachinesCreateRelease ($input: CreateReleaseInput!) {
 `
 
 func MachinesCreateRelease(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateReleaseInput,
 ) (*MachinesCreateReleaseResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "MachinesCreateRelease",
 		Query:  MachinesCreateRelease_Operation,
 		Variables: &__MachinesCreateReleaseInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data MachinesCreateReleaseResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ MachinesCreateReleaseResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by MachinesUpdateRelease.
@@ -4743,29 +4761,29 @@ mutation MachinesUpdateRelease ($input: UpdateReleaseInput!) {
 `
 
 func MachinesUpdateRelease(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input UpdateReleaseInput,
 ) (*MachinesUpdateReleaseResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "MachinesUpdateRelease",
 		Query:  MachinesUpdateRelease_Operation,
 		Variables: &__MachinesUpdateReleaseInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data MachinesUpdateReleaseResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ MachinesUpdateReleaseResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ResetAddOnPassword.
@@ -4780,29 +4798,29 @@ mutation ResetAddOnPassword ($name: String!) {
 `
 
 func ResetAddOnPassword(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*ResetAddOnPasswordResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ResetAddOnPassword",
 		Query:  ResetAddOnPassword_Operation,
 		Variables: &__ResetAddOnPasswordInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ResetAddOnPasswordResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ResetAddOnPasswordResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ResolverCreateBuild.
@@ -4816,29 +4834,29 @@ mutation ResolverCreateBuild ($input: CreateBuildInput!) {
 `
 
 func ResolverCreateBuild(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateBuildInput,
 ) (*ResolverCreateBuildResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ResolverCreateBuild",
 		Query:  ResolverCreateBuild_Operation,
 		Variables: &__ResolverCreateBuildInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ResolverCreateBuildResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ResolverCreateBuildResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ResolverFinishBuild.
@@ -4853,29 +4871,29 @@ mutation ResolverFinishBuild ($input: FinishBuildInput!) {
 `
 
 func ResolverFinishBuild(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input FinishBuildInput,
 ) (*ResolverFinishBuildResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ResolverFinishBuild",
 		Query:  ResolverFinishBuild_Operation,
 		Variables: &__ResolverFinishBuildInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ResolverFinishBuildResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ResolverFinishBuildResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by SetNomadVMCount.
@@ -4892,29 +4910,29 @@ mutation SetNomadVMCount ($input: SetVMCountInput!) {
 `
 
 func SetNomadVMCount(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input SetVMCountInput,
 ) (*SetNomadVMCountResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "SetNomadVMCount",
 		Query:  SetNomadVMCount_Operation,
 		Variables: &__SetNomadVMCountInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data SetNomadVMCountResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ SetNomadVMCountResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by SetSecrets.
@@ -4939,29 +4957,29 @@ mutation SetSecrets ($input: SetSecretsInput!) {
 `
 
 func SetSecrets(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input SetSecretsInput,
 ) (*SetSecretsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "SetSecrets",
 		Query:  SetSecrets_Operation,
 		Variables: &__SetSecretsInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data SetSecretsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ SetSecretsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by UpdateAddOn.
@@ -4976,14 +4994,14 @@ mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $op
 `
 
 func UpdateAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	addOnId string,
 	planId string,
 	readRegions []string,
 	options interface{},
 ) (*UpdateAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "UpdateAddOn",
 		Query:  UpdateAddOn_Operation,
 		Variables: &__UpdateAddOnInput{
@@ -4993,16 +5011,16 @@ func UpdateAddOn(
 			Options:     options,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data UpdateAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ UpdateAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }

@@ -69,6 +69,7 @@ func LaunchStatus(ctx context.Context, metricSlug string, payload LaunchStatusPa
 }
 
 type LaunchStatusPayload struct {
+	TraceID  string        `json:"traceId"`
 	Error    string        `json:"error"`
 	Duration time.Duration `json:"duration"`
 

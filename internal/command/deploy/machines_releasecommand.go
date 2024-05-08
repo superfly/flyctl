@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -68,14 +69,19 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
 	}
 
-	if exitCode != 0 {
-		statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
+	if exitCode != 0 || flag.GetBool(ctx, "verbose") {
+		if exitCode != 0 {
+			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
+		}
+
 		// Preemptive cleanup of the logger so that the logs have a clean place to write to
 		loggerCleanup(false)
 
 		time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
-		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
-			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+		if exitCode != 0 {
+			fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
+				md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+		}
 		fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
 			releaseCmdMachine.Machine().ID)
 		releaseCmdLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
@@ -89,7 +95,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 				fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
 			}
 		}
-		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
+		if exitCode != 0 {
+			return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
+		}
 	}
 	statuslogger.LogfStatus(ctx,
 		statuslogger.StatusSuccess,

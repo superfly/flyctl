@@ -10,6 +10,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 //go:embed templates templates/*/.dockerignore templates/**/.fly
@@ -94,6 +95,7 @@ type Volume = appconfig.Mount
 type ScannerConfig struct {
 	Mode         string
 	ExistingPort int
+	Colorize     *iostreams.ColorScheme
 }
 
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {

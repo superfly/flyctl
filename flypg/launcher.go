@@ -185,7 +185,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		volInput := fly.CreateVolumeRequest{
 			Name:                volumeName,
 			Encrypted:           fly.Pointer(true),
-			RequireUniqueZone:   fly.Pointer(false),
+			RequireUniqueZone:   fly.Pointer(true),
 			SnapshotID:          snapshot,
 			ComputeRequirements: machineConf.Guest,
 			ComputeImage:        machineConf.Image,

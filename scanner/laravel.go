@@ -10,10 +10,12 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"github.com/blang/semver"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
@@ -49,11 +51,16 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		},
 		SkipDatabase:   true,
 		ConsoleCommand: "php /var/www/html/artisan tinker",
-		Callback:       LaravelCallback,
 	}
 
-	phpVersion, err := extractPhpVersion()
+	// Min PHP version to use generator
+	minVersion, err := semver.Make("8.1.0")
+	if err != nil {
+		panic(err)
+	}
 
+	// The detected PHP version
+	phpVersion, err := extractPhpVersion()
 	if err != nil || phpVersion == "" {
 		// Fallback to 8.0, which has
 		// the broadest compatibility
@@ -63,6 +70,15 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	s.BuildArgs = map[string]string{
 		"PHP_VERSION":  phpVersion,
 		"NODE_VERSION": "18",
+	}
+
+	// Use default scanner templates if < min version(8.1.0)
+	phpNVersion, err := semver.Make(phpVersion + ".0")
+	if err != nil || phpNVersion.LT(minVersion) {
+		s.Files = templates("templates/laravel")
+	} else {
+		// Else use dockerfile-laravel generator
+		s.Callback = LaravelCallback
 	}
 
 	// Extract DB, Redis config from dotenv
@@ -124,7 +140,8 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	}
 
 	// check if executable is available
-	_, err = os.Stat("vendor/bin/dockerfile-laravel")
+	vendorPath := filepath.Join("vendor", "bin", "dockerfile-laravel")
+	_, err = os.Stat(vendorPath)
 	if os.IsNotExist(err) {
 		installed = false
 	}
@@ -143,7 +160,7 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		}
 	}
 
-	args := []string{"vendor/bin/dockerfile-laravel", "generate"}
+	args := []string{vendorPath, "generate"}
 	if dockerfileExists {
 		args = append(args, "--skip")
 	}

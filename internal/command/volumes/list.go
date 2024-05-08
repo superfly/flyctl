@@ -33,6 +33,10 @@ func newList() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "all",
+			Description: "Show all volumes including those in destroyed states",
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -57,7 +61,12 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
+	var volumes []fly.Volume
+	if flag.GetBool(ctx, "all") {
+		volumes, err = flapsClient.GetAllVolumes(ctx)
+	} else {
+		volumes, err = flapsClient.GetVolumes(ctx)
+	}
 	if err != nil {
 		return fmt.Errorf("failed retrieving volumes: %w", err)
 	}
@@ -68,5 +77,5 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, volumes)
 	}
 
-	return renderTable(ctx, volumes, app, out)
+	return renderTable(ctx, volumes, app, out, true)
 }

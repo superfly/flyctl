@@ -34,7 +34,7 @@ func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 			VmSize:     "shared-cpu-1x",
 			VmRam:      1024,
 			Nodes:      1,
-			DiskSizeGB: 10,
+			DiskSizeGB: 1,
 		},
 	}
 }

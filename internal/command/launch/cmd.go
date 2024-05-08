@@ -18,7 +18,9 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func New() (cmd *cobra.Command) {
@@ -37,6 +39,7 @@ func New() (cmd *cobra.Command) {
 		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
 		deploy.CommonFlags,
 
+		flag.Region(),
 		flag.Org(),
 		flag.NoDeploy(),
 		flag.Bool{
@@ -157,6 +160,17 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
+	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
+
+	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
+	defer span.End()
+
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
 	metrics.Started(ctx, "launch")
@@ -172,6 +186,7 @@ func run(ctx context.Context) (err error) {
 			}
 		}
 
+		status.TraceID = span.SpanContext().TraceID().String()
 		status.Duration = time.Since(startTime)
 		metrics.LaunchStatus(ctx, "launch", status)
 	}()
@@ -219,6 +234,8 @@ func run(ctx context.Context) (err error) {
 			return jsonEncoder.Encode(launchManifest)
 		}
 	}
+
+	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
 
 	status.AppName = launchManifest.Plan.AppName
 	status.OrgSlug = launchManifest.Plan.OrgSlug

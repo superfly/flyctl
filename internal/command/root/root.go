@@ -41,7 +41,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
-	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -74,7 +73,7 @@ func New() *cobra.Command {
 		short = "The Fly.io command line interface"
 	)
 
-	root := command.New("flyctl", short, long, run)
+	root := command.New("fly", short, long, run)
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
@@ -129,7 +128,6 @@ func New() *cobra.Command {
 		group(wireguard.New(), "upkeep"),
 		group(console.New(), "upkeep"),
 		settings.New(),
-		group(mysql.New(), "dbs_and_extensions"),
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
 		curl.New(),       // TODO: deprecate
