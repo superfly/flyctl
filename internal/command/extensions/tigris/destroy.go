@@ -21,7 +21,7 @@ func destroy() (cmd *cobra.Command) {
 		long = `Permanently destroy a Tigris object storage bucket`
 
 		short = long
-		usage = "destroy [name]"
+		usage = "destroy [storage-bucket-name]"
 	)
 
 	cmd = command.New(usage, short, long, runDestroy, command.RequireSession, command.LoadAppNameIfPresent)
