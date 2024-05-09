@@ -492,17 +492,6 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	if err := validateAppName(appName); err != nil {
 		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
-	// If the app name is already taken, try to generate a unique suffix.
-	taken, err := appNameTaken(ctx, appName)
-	if err != nil {
-		return "", "", flyerr.GenericErr{
-			Err:     "unable to determine app name availability",
-			Suggest: "Please try again in a minute",
-		}
-	}
-	if taken {
-		return appName, recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
-	}
 	return appName, cause, nil
 }
 
