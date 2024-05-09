@@ -197,6 +197,12 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this pins a specific size, we can skip it for alternate VM sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
