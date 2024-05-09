@@ -445,5 +445,5 @@ func (f *FlyctlTestEnv) TempDir() string {
 }
 
 func (f *FlyctlTestEnv) IsGpuMachine() bool {
-	return strings.contains(f.VMSize, "a10") || strings.contains(f.VMSize, "l40s")
+	return strings.Contains(f.VMSize, "a10") || strings.Contains(f.VMSize, "l40s")
 }
