@@ -225,7 +225,22 @@ func (cmd *Command) run(ctx context.Context) error {
 
 	defer tp.Shutdown(ctx)
 
-	// Instantiate FLAPS client if we haven't initialized one via a unit test.
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
+	defer span.End()
+
+	startTime := time.Now()
+	var status metrics.DeployStatusPayload
+	metrics.Started(ctx, "deploy")
+
+	defer func() {
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.TraceID = span.SpanContext().TraceID().String()
+		status.Duration = time.Since(startTime)
+		metrics.DeployStatus(ctx, status)
+	}()
+
 	if flapsutil.ClientFromContext(ctx) == nil {
 		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 			AppName: appName,
@@ -237,9 +252,6 @@ func (cmd *Command) run(ctx context.Context) error {
 	}
 
 	client := flyutil.ClientFromContext(ctx)
-
-	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
-	defer span.End()
 
 	user, err := client.GetCurrentUser(ctx)
 	if err != nil {
@@ -255,6 +267,9 @@ func (cmd *Command) run(ctx context.Context) error {
 		}
 		return err
 	}
+
+	status.Strategy = appConfig.Deploy.Strategy
+	status.AppName = appName
 
 	var gpuKinds, cpuKinds []string
 	for _, compute := range appConfig.Compute {
