@@ -220,6 +220,22 @@ func run(ctx context.Context) error {
 
 	defer tp.Shutdown(ctx)
 
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
+	defer span.End()
+
+	startTime := time.Now()
+	var status metrics.DeployStatusPayload
+	metrics.Started(ctx, "deploy")
+
+	defer func() {
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.TraceID = span.SpanContext().TraceID().String()
+		status.Duration = time.Since(startTime)
+		metrics.DeployStatus(ctx, status)
+	}()
+
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -229,9 +245,6 @@ func run(ctx context.Context) error {
 	ctx = flaps.NewContext(ctx, flapsClient)
 
 	client := fly.ClientFromContext(ctx)
-
-	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
-	defer span.End()
 
 	user, err := client.GetCurrentUser(ctx)
 	if err != nil {
@@ -247,6 +260,9 @@ func run(ctx context.Context) error {
 		}
 		return err
 	}
+
+	status.Strategy = appConfig.Deploy.Strategy
+	status.AppName = appName
 
 	var gpuKinds, cpuKinds []string
 	for _, compute := range appConfig.Compute {
