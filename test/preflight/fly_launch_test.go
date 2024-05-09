@@ -29,6 +29,10 @@ import (
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	// if f.VMSize != "" {
+	// 	t.Skip()
+	// }
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -57,6 +61,10 @@ func TestFlyLaunchV2(t *testing.T) {
 // Run fly launch from a template Fly App directory (fly.toml without app name)
 func TestFlyLaunchWithTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	// if f.VMSize != "" {
+	// 	t.Skip()
+	// }
+
 	appName := f.CreateRandomAppName()
 
 	f.WriteFlyToml(`
@@ -165,8 +173,11 @@ func TestFlyLaunchWithVolumes(t *testing.T) {
 // test --vm-size sets the machine guest on first deploy
 func TestFlyLaunchWithSize(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
+	// if f.VMSize != "" {
+	// 	t.Skip()
+	// }
 
+	appName := f.CreateRandomAppName()
 	f.Fly(
 		"launch --ha=false --now -o %s --name %s --region %s --ha=false --image nginx --vm-size shared-cpu-4x",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
