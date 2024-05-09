@@ -41,11 +41,13 @@ primary_region = "%s"
 		assert.Equal(c, 2, len(ml))
 	}, 10*time.Second, 2*time.Second)
 
-	f.Fly("scale count -y 1 --region %s", f.SecondaryRegion())
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml = f.MachinesList(appName)
-		assert.Equal(c, 3, len(ml))
-	}, 10*time.Second, 2*time.Second)
+	if f.SecondaryRegion() != "" {
+		f.Fly("scale count -y 1 --region %s", f.SecondaryRegion())
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			ml = f.MachinesList(appName)
+			assert.Equal(c, 3, len(ml))
+		}, 10*time.Second, 2*time.Second)
+	}
 
 	f.Fly("scale count -y 0")
 	require.EventuallyWithT(t, func(c *assert.CollectT) {

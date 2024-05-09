@@ -118,6 +118,13 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
 
