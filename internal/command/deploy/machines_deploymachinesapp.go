@@ -45,6 +45,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	ctx = flaps.NewContext(ctx, md.flapsClient)
 
+	onInterruptContext := context.WithoutCancel(ctx)
+
 	if err := md.updateReleaseInBackend(ctx, "running"); err != nil {
 		tracing.RecordError(span, err, "failed to update release")
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
@@ -65,7 +67,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		// Provide an extra second to try to update the release status.
 		status = "interrupted"
 		var cancel func()
-		ctx, cancel = context.WithTimeout(ctx, time.Second)
+		ctx, cancel = context.WithTimeout(onInterruptContext, time.Second)
 		defer cancel()
 	default:
 		status = "failed"
