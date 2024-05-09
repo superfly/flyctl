@@ -257,7 +257,7 @@ func run(ctx context.Context) (err error) {
 	status.ScannerFamily = launchManifest.Plan.ScannerFamily
 	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
-	state, err = stateFromManifest(ctx, *launchManifest, cache)
+	state, err = stateFromManifest(ctx, *launchManifest, cache, canEnterUi)
 	if err != nil {
 		return err
 	}

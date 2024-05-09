@@ -247,11 +247,13 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 	}, buildCache, err
 }
 
-func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
+func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, canEnterUi bool) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = fly.ClientFromContext(ctx)
 	)
+
+	recoverableErrors := &recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
@@ -295,8 +297,19 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
-	if taken, _ := appNameTaken(ctx, m.Plan.AppName); taken {
-		return nil, appNameTakenErr(m.Plan.AppName)
+	taken, err := appNameTaken(ctx, m.Plan.AppName)
+	if err != nil {
+		return nil, flyerr.GenericErr{
+			Err:     "unable to determine app name availability",
+			Suggest: "Please try again in a minute",
+		}
+	}
+	if taken {
+		err := recoverableErrors.tryRecover(recoverableInUiError{appNameTakenErr(m.Plan.AppName)})
+		if err != nil {
+			return nil, err
+		}
+		m.PlanSource.appNameSource = recoverableSpecifyInUi
 	}
 
 	workingDir := flag.GetString(ctx, "path")
@@ -327,6 +340,8 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
+	err = recoverableErrors.build()
+
 	return &launchState{
 		workingDir: workingDir,
 		configPath: configPath,
@@ -341,7 +356,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 			warnedNoCcHa: warnedNoCcHa,
 		},
 		cache: map[string]interface{}{},
-	}, nil
+	}, err
 }
 
 // determineBaseAppConfig looks for existing app config, ask to reuse or returns an empty config
