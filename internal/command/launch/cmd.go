@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -212,7 +213,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	incompleteLaunchManifest := false
-	canEnterUi := !flag.GetBool(ctx, "manifest")
+	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
 
 	if launchManifest == nil {
 
