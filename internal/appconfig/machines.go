@@ -122,7 +122,7 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 
 	mConfig.StopConfig = &fly.StopConfig{
 		Timeout: lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, c.KillTimeout),
-		Signal:  lo.Ternary(svc.KillSignal != "", &svc.KillSignal, c.KillSignal),
+		Signal:  lo.Ternary(svc.KillSignal != nil, svc.KillSignal, c.KillSignal),
 	}
 
 	return mConfig, nil

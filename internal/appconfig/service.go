@@ -49,7 +49,7 @@ type ServiceMachineCheck struct {
 	Command     []string      `json:"command,omitempty" toml:"command,omitempty"`
 	Image       string        `json:"image,omitempty" toml:"image,omitempty"`
 	Entrypoint  []string      `json:"entrypoint,omitempty" toml:"entrypoint,omitempty"`
-	KillSignal  string        `json:"kill_signal,omitempty" toml:"kill_signal,omitempty"`
+	KillSignal  *string       `json:"kill_signal,omitempty" toml:"kill_signal,omitempty"`
 	KillTimeout *fly.Duration `json:"kill_timeout,omitempty" toml:"kill_timeout,omitempty"`
 }
 
