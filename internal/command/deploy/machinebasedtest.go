@@ -35,8 +35,14 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		span.End()
 	}()
 
+	processGroup := machineToTest.ProcessGroup()
 	machineChecks := lo.FlatMap(md.appConfig.AllServices(), func(svc appconfig.Service, _ int) []*appconfig.ServiceMachineCheck {
-		return svc.MachineChecks
+		matchesProcessGroup := lo.Contains(svc.Processes, processGroup)
+		if matchesProcessGroup {
+			return nil
+		} else {
+			return svc.MachineChecks
+		}
 	})
 
 	if len(machineChecks) == 0 {
