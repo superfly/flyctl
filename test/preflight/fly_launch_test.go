@@ -61,9 +61,10 @@ func TestFlyLaunchV2(t *testing.T) {
 // Run fly launch from a template Fly App directory (fly.toml without app name)
 func TestFlyLaunchWithTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	// if f.VMSize != "" {
-	// 	t.Skip()
-	// }
+	// Should be safe to skip for additional sizes since it doesn't test deployment.
+	if f.VMSize != "" {
+		t.Skip()
+	}
 
 	appName := f.CreateRandomAppName()
 
