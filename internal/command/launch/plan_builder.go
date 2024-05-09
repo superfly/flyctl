@@ -72,18 +72,36 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
+type recoverableErrorBuilder struct {
+	canEnterUi bool
+	errors     []recoverableInUiError
+}
+
+func (r *recoverableErrorBuilder) tryRecover(e error) error {
+	var asRecoverableErr recoverableInUiError
+	if errors.As(e, &asRecoverableErr) && r.canEnterUi {
+		r.errors = append(r.errors, asRecoverableErr)
+		return nil
+	}
+	return e
+}
+
+func (r *recoverableErrorBuilder) build() error {
+	if len(r.errors) == 0 {
+		return nil
+	}
+
+	var allErrors string
+	for _, err := range r.errors {
+		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+	}
+	return recoverableInUiError{errors.New(allErrors)}
+}
+
 func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
 	io := iostreams.FromContext(ctx)
 
-	var recoverableInUiErrors []recoverableInUiError
-	tryRecoverErr := func(e error) error {
-		var asRecoverableErr recoverableInUiError
-		if errors.As(e, &asRecoverableErr) && canEnterUi {
-			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
-			return nil
-		}
-		return e
-	}
+	recoverableErrors := &recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -94,14 +112,14 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -139,14 +157,14 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -221,14 +239,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
-	if len(recoverableInUiErrors) != 0 {
-
-		var allErrors string
-		for _, err := range recoverableInUiErrors {
-			allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
-		}
-		err = recoverableInUiError{errors.New(allErrors)}
-	}
+	err = recoverableErrors.build()
 
 	return &LaunchManifest{
 		Plan:       lp,
