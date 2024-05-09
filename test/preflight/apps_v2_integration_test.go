@@ -457,7 +457,7 @@ func TestErrOutput(t *testing.T) {
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
 	// This should fail on GPU machines because they're performance VMs.
-	if strings.Contains(f.VMSize, "gpu") {
+	if f.IsGpuMachine() {
 		res = f.FlyAllowExitFailure("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
 		require.Contains(f, res.StdErrString(), "memory size for config is too low")
 	} else {

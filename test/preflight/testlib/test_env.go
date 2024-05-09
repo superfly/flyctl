@@ -443,3 +443,7 @@ func (f *FlyctlTestEnv) Skipped() bool {
 func (f *FlyctlTestEnv) TempDir() string {
 	return f.t.TempDir()
 }
+
+func (f *FlyctlTestEnv) IsGpuMachine() bool {
+	return strings.contains(f.VMSize, "a10") || strings.contains(f.VMSize, "l40s")
+}
