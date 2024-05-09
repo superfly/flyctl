@@ -181,7 +181,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/reference/volumes/"
+	const msg = "Warning! You should replicate your data across two or more volumes per application to avoid downtime and the risk of permanent data loss (Learn more at https://fly.io/docs/reference/volumes)."
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {
