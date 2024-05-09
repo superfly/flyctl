@@ -415,7 +415,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 		if prefix != "" {
 			prefix += delimiter
 		}
-		for i := 1; i < 10; i++ {
+		for i := 1; i < 5; i++ {
 			outName := prefix + b.String()
 			if taken, _ := appNameTaken(ctx, outName); !taken {
 				return outName, true
