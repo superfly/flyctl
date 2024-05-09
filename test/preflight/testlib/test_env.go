@@ -53,6 +53,9 @@ func (f *FlyctlTestEnv) PrimaryRegion() string {
 }
 
 func (f *FlyctlTestEnv) SecondaryRegion() string {
+	if len(f.otherRegions) == 0 {
+		return ""
+	}
 	return f.otherRegions[0]
 }
 

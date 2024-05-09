@@ -22,9 +22,9 @@ import (
 
 func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	// if f.VMSize != "" {
-	// 	t.Skip()
-	// }
+	if f.SecondaryRegion() == "" {
+		t.Skip()
+	}
 
 	appName := f.CreateRandomAppName()
 
