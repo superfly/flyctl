@@ -443,9 +443,6 @@ func TestDeployDetachBatching(t *testing.T) {
 
 func TestErrOutput(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	// if f.VMSize != "" {
-	// 	t.Skip()
-	// }
 
 	appName := f.CreateRandomAppName()
 
@@ -459,7 +456,13 @@ func TestErrOutput(t *testing.T) {
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
-	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+	// This should fail on GPU machines because they're performance VMs.
+	if strings.Contains(f.VMSize, "gpu") {
+		res = f.FlyAllowExitFailure("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	} else {
+		f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+	}
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "memory size for config is too low")
