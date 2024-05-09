@@ -464,8 +464,11 @@ func TestErrOutput(t *testing.T) {
 		f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
 	}
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	// Not applicable for GPU machines since this size is too small.
+	if !f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	}
 
 	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "memory size for config is too high")
