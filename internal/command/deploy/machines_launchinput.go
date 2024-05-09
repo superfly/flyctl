@@ -40,6 +40,10 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	processGroup = mConfig.ProcessGroup()
 	region := md.appConfig.PrimaryRegion
 
+	if region == "" && len(md.onlyRegions) == 1 {
+		region = lo.Keys(md.onlyRegions)[0]
+	}
+
 	if len(mConfig.Mounts) > 0 {
 		mount0 := &mConfig.Mounts[0]
 		vol := md.popVolumeFor(mount0.Name, region)

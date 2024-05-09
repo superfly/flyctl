@@ -44,6 +44,30 @@ func TestFlyDeployHA(t *testing.T) {
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.SecondaryRegion())
 	f.Fly("deploy")
 }
+func TestFlyDeployWithRegion(t *testing.T) {
+	sizes := []string{"shared-cpu-4x", "shared-cpu-2x", "a10"}
+	for _, size := range sizes {
+		f := testlib.NewTestEnvFromEnv(t)
+		appName := f.CreateRandomAppMachines()
+		t.Logf("%s on %s", appName, size)
+		f.WriteFlyToml(`
+app = "%s"
+
+[build]
+	image = "nginx"
+
+[processes]
+	app = "/bin/sleep inf"
+`,
+			appName)
+		// TODO(kaz): It may make sense to use PrimaryRegion() instead of "ord".
+		_ = f.Fly("deploy --app %s --image nginx --vm-size %s --ha=false --regions ord", appName, size)
+
+		result := f.Fly("machines list")
+		assert.Contains(t, result.StdOutString(), size)
+		assert.Contains(t, result.StdOutString(), "ord")
+	}
+}
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
