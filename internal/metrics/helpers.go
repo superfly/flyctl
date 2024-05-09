@@ -52,22 +52,6 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
 }
 
-func LaunchStatus(ctx context.Context, metricSlug string, payload LaunchStatusPayload) {
-	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
-		if _, ok := unmatchedStatuses[metricSlug]; ok {
-			delete(unmatchedStatuses, metricSlug)
-			return true
-		}
-		return false
-	})
-	if !ok {
-		terminal.Debugf("Metrics: Attempted to send launch status for %s, but no start event was sent", metricSlug)
-		return
-	}
-
-	Send(ctx, metricSlug+"/status", payload)
-}
-
 type LaunchStatusPayload struct {
 	TraceID  string        `json:"traceId"`
 	Error    string        `json:"error"`
@@ -90,6 +74,54 @@ type LaunchStatusPayload struct {
 
 	ScannerFamily string `json:"scanner_family"`
 	FlyctlVersion string `json:"flyctlVersion"`
+}
+
+func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
+	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
+		if _, ok := unmatchedStatuses["launch"]; ok {
+			delete(unmatchedStatuses, "launch")
+			return true
+		}
+		return false
+	})
+	if !ok {
+		terminal.Debug("Metrics: Attempted to send launch status for launch, but no start event was sent")
+		// logger.FromContext(ctx).Debug("Metrics: Attempted to send launch status for launch, but no start event was sent")
+		return
+	}
+
+	Send(ctx, "launch/status", payload)
+}
+
+type DeployStatusPayload struct {
+	TraceID  string        `json:"traceId"`
+	Error    string        `json:"error"`
+	Duration time.Duration `json:"duration"`
+
+	AppName string `json:"app"`
+	OrgSlug string `json:"org"`
+	Region  string `json:"region"`
+
+	Strategy string `json:"strategy"`
+
+	FlyctlVersion string `json:"flyctlVersion"`
+}
+
+func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
+	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
+		if _, ok := unmatchedStatuses["deploy"]; ok {
+			delete(unmatchedStatuses, "deploy")
+			return true
+		}
+		return false
+	})
+
+	if !ok {
+		terminal.Debug("Metrics: Attempted to send deploy status for deploy, but no start event was sent")
+		return
+	}
+
+	Send(ctx, "deploy/status", payload)
 }
 
 func Send[T any](ctx context.Context, metricSlug string, value T) {
