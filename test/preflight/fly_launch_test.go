@@ -173,9 +173,9 @@ func TestFlyLaunchWithVolumes(t *testing.T) {
 // test --vm-size sets the machine guest on first deploy
 func TestFlyLaunchWithSize(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	// if f.VMSize != "" {
-	// 	t.Skip()
-	// }
+	if f.VMSize != "" {
+		t.Skip()
+	}
 
 	appName := f.CreateRandomAppName()
 	f.Fly(
