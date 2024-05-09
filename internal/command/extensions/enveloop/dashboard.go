@@ -1,10 +1,9 @@
-package planetscale
+package enveloop
 
 import (
 	"context"
 
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -13,10 +12,10 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the PlanetScale MySQL database dashboard`
+		long = `Visit the Enveloop dashboard on the Upstash web console`
 
 		short = long
-		usage = "dashboard [database_name]"
+		usage = "dashboard"
 	)
 
 	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
@@ -24,20 +23,21 @@ func dashboard() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Org(),
 		extensions_core.SharedFlags,
 	)
-	cmd.Args = cobra.MaximumNArgs(1)
+	cmd.Args = cobra.NoArgs
 	return cmd
 }
 
 func runDashboard(ctx context.Context) (err error) {
+	if org := flag.GetOrg(ctx); org != "" {
+		return extensions_core.OpenOrgDashboard(ctx, org, "enveloop")
+	}
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypePlanetscale)
-
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeEnveloop)
 	if err != nil {
 		return err
 	}
-
-	err = extensions_core.OpenDashboard(ctx, extension.Name)
-	return
+	return extensions_core.OpenDashboard(ctx, extension.Name)
 }

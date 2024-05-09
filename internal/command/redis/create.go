@@ -86,7 +86,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	primaryRegion, err := prompt.Region(ctx, !org.PaidPlan, prompt.RegionParams{
+	primaryRegion, err := prompt.Region(ctx, false, prompt.RegionParams{
 		Message:             "Choose a primary region (can't be changed later)",
 		ExcludedRegionCodes: excludedRegions,
 	})
@@ -100,7 +100,7 @@ func runCreate(ctx context.Context) (err error) {
 	if flag.GetBool(ctx, "enable-eviction") {
 		enableEviction = true
 	} else if !flag.GetBool(ctx, "disable-eviction") {
-		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n")
+		fmt.Fprintf(io.Out, "\nUpstash Redis can evict objects when memory is full. This is useful when caching in Redis. This setting can be changed later.\nLearn more at https://fly.io/docs/reference/redis/#memory-limits-and-object-eviction-policies\n\n")
 
 		enableEviction, err = prompt.Confirm(ctx, "Would you like to enable eviction?")
 		if err != nil {
@@ -129,7 +129,7 @@ func Create(ctx context.Context, org *fly.Organization, name string, region *fly
 		readRegions = &[]fly.Region{}
 
 		if !disallowReplicas {
-			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", !org.PaidPlan, []string{}, excludedRegions, "replica-regions")
+			readRegions, err = prompt.MultiRegion(ctx, "Optionally, choose one or more replica regions (can be changed later):", false, []string{}, excludedRegions, "replica-regions")
 
 			if err != nil {
 				return
@@ -170,9 +170,9 @@ func Create(ctx context.Context, org *fly.Organization, name string, region *fly
 		return
 	}
 
-	fmt.Fprintf(io.Out, "\nYour Upstash Redis database %s is ready. Check the pricing details at https://upstash.com/pricing.\n", colorize.Green(addOn.Name))
-	fmt.Fprintf(io.Out, "Apps in the %s org can connect to Redis at %s\n", colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
-	fmt.Fprintf(io.Out, "If you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
+	fmt.Fprintf(io.Out, "\nYour database %s is ready. Apps in the %s org can connect to Redis at %s\n", colorize.Green(addOn.Name), colorize.Green(org.Slug), colorize.Green(addOn.PublicUrl))
+	fmt.Fprintf(io.Out, "\nIf you have redis-cli installed, use %s to get a Redis console.\n", colorize.Green("fly redis connect"))
+	fmt.Fprintf(io.Out, "\nYour database is billed at %s. If you're using Sidekiq or BullMQ, which poll Redis frequently, consider switching to a fixed-price plan. See https://fly.io/docs/reference/redis/#pricing\n", colorize.Green("$0.20 per 100K commands"))
 
 	return addOn, err
 }
@@ -225,7 +225,7 @@ func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPl
 	planId := redisPlanPayAsYouGo
 
 	// Now that we have the Plan ID, look up the actual plan
-	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient)
+	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient, gql.AddOnTypeUpstashRedis)
 	if err != nil {
 		return nil, err
 	}

@@ -25,18 +25,19 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var defaultMaxConcurrent = 16
 
 var CommonFlags = flag.Set{
-	flag.Region(),
 	flag.Image(),
 	flag.Now(),
 	flag.RemoteOnly(false),
 	flag.LocalOnly(),
 	flag.Push(),
 	flag.Wireguard(),
+	flag.HttpFailover(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
@@ -52,10 +53,6 @@ var CommonFlags = flag.Set{
 	flag.BpVolume(),
 	flag.Yes(),
 	flag.VMSizeFlags,
-	flag.Bool{
-		Name:        "provision-extensions",
-		Description: "Provision any extensions assigned as a default to first deployments",
-	},
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
@@ -122,12 +119,25 @@ var CommonFlags = flag.Set{
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
 	flag.StringSlice{
-		Name:        "exclude-regions",
-		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --only-regions. V2 machines platform only.",
+		Name:        "regions",
+		Aliases:     []string{"only-regions"},
+		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times.",
 	},
 	flag.StringSlice{
-		Name:        "only-regions",
-		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
+		Name:        "exclude-regions",
+		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "only-machines",
+		Description: "Deploy to machines only with these IDs. Multiple IDs can be specified with comma separated values or by providing the flag multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "exclude-machines",
+		Description: "Deploy to all machines except machines with these IDs. Multiple IDs can be specified with comma separated values or by providing the flag multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "process-groups",
+		Description: "Deploy to machines only in these process groups",
 	},
 	flag.StringArray{
 		Name:        "label",
@@ -147,10 +157,6 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "volume-initial-size",
 		Description: "The initial size in GB for volumes created on first deploy",
-	},
-	flag.StringSlice{
-		Name:        "process-groups",
-		Description: "Deploy to machines only in these process groups",
 	},
 	flag.String{
 		Name:        "signal",
@@ -184,6 +190,11 @@ func New() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "update-only",
 			Description: "Do not create Machines for new process groups",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "skip-release-command",
+			Description: "Do not run the release command during deployment.",
 			Default:     false,
 		},
 	)
@@ -252,6 +263,8 @@ func run(ctx context.Context) error {
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+	span := trace.SpanFromContext(ctx)
+
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	apiClient := fly.ClientFromContext(ctx)
@@ -267,8 +280,17 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		}
 	}
 
+	httpFailover := flag.GetHTTPFailover(ctx)
+	usingWireguard := flag.GetWireguard(ctx)
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
+	img, err := determineImage(ctx, appConfig, usingWireguard)
+	if err != nil && usingWireguard && httpFailover {
+		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+		span.AddEvent("using http failover")
+		img, err = determineImage(ctx, appConfig, false)
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -356,19 +378,29 @@ func deployToMachines(
 		return err
 	}
 
-	excludeRegions := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "exclude-regions") {
-		reg := strings.TrimSpace(r)
-		if reg != "" {
-			excludeRegions[reg] = struct{}{}
-		}
+	excludeRegions := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "exclude-regions") {
+		excludeRegions[r] = true
 	}
-	onlyRegions := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
-		reg := strings.TrimSpace(r)
-		if reg != "" {
-			onlyRegions[reg] = struct{}{}
-		}
+
+	onlyRegions := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "regions") {
+		onlyRegions[r] = true
+	}
+
+	excludeMachines := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "exclude-machines") {
+		excludeMachines[r] = true
+	}
+
+	onlyMachines := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "only-machines") {
+		onlyMachines[r] = true
+	}
+
+	processGroups := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "process-groups") {
+		processGroups[r] = true
 	}
 
 	// We default the flag to 0.33 so that --help can show the actual default value,
@@ -380,14 +412,6 @@ func deployToMachines(
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")
-		}
-	}
-
-	processGroups := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "process-groups") {
-		reg := strings.TrimSpace(r)
-		if reg != "" {
-			processGroups[reg] = struct{}{}
 		}
 	}
 
@@ -406,6 +430,7 @@ func deployToMachines(
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
+		SkipReleaseCommand:    flag.GetBool(ctx, "skip-release-command"),
 		WaitTimeout:           waitTimeout,
 		StopSignal:            flag.GetString(ctx, "signal"),
 		ReleaseCmdTimeout:     releaseCmdTimeout,
@@ -418,6 +443,8 @@ func deployToMachines(
 		Files:                 files,
 		ExcludeRegions:        excludeRegions,
 		OnlyRegions:           onlyRegions,
+		ExcludeMachines:       excludeMachines,
+		OnlyMachines:          onlyMachines,
 		MaxConcurrent:         maxConcurrent,
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
@@ -457,11 +484,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
 		cfg.SetEnvVariables(parsedEnv)
-	}
-
-	// FIXME: this is a confusing flag; I thought it meant only update machines in the provided region, which resulted in a minor disaster :-)
-	if v := flag.GetRegion(ctx); v != "" {
-		cfg.PrimaryRegion = v
 	}
 
 	// Always prefer the app name passed via --app

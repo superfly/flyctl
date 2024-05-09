@@ -112,6 +112,15 @@ a Postgres database.
 	// They are listed here: https://github.com/elixir-ecto/ecto?tab=readme-ov-file#usage
 	if checksPass(sourceDir, dirContains("mix.exs", "postgrex", "myxql", "tds")) {
 		s.ReleaseCmd = "/app/bin/migrate"
+	} else if checksPass(sourceDir, dirContains("mix.exs", "ecto_sqlite3")) {
+		s.Env["DATABASE_PATH"] = "/mnt/name/name.db"
+
+		s.Volumes = []Volume{
+			{
+				Source:      "name",
+				Destination: "/mnt/name",
+			},
+		}
 	}
 
 	return s, nil

@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	dockerclient "github.com/docker/docker/client"
+	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
@@ -584,10 +585,13 @@ func (e httpError) Error() string {
 }
 
 func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Request) error {
-	_, span := tracing.GetTracer().Start(ctx, "heartbeat")
+	ctx, span := tracing.GetTracer().Start(ctx, "heartbeat")
 	defer span.End()
 
-	resp, err := client.HTTPClient().Do(req)
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	resp, err := client.HTTPClient().Do(req.Clone(ctx))
 	if err != nil {
 		tracing.RecordError(span, err, "failed to check heartbeat")
 		return err
@@ -627,13 +631,13 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	dockerClient, err := r.dockerFactory.buildFn(ctx, nil)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
-		return nil, nil
+		return nil, err
 	}
 	heartbeatUrl, err := getHeartbeatUrl(dockerClient)
 	if err != nil {
 		terminal.Warnf(errMsg, err)
 		tracing.RecordError(span, err, "failed to get heartbeaturl")
-		return nil, nil
+		return nil, err
 	}
 
 	span.SetAttributes(attribute.String("heartbeat_url", heartbeatUrl))
@@ -641,7 +645,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	if err != nil {
 		terminal.Warnf(errMsg, err)
 		tracing.RecordError(span, err, "failed to get http request")
-		return nil, nil
+		return nil, err
 	}
 	heartbeatReq.SetBasicAuth(r.dockerFactory.appName, config.Tokens(ctx).Docker())
 	heartbeatReq.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
@@ -668,7 +672,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	if err != nil {
 		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
-		return nil, nil
+		return nil, err
 	} else if resp.StatusCode != http.StatusAccepted {
 		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s\n", resp.Status)
 		span.SetAttributes(attribute.String("status_code", fmt.Sprintf("%d", resp.StatusCode)))
@@ -688,6 +692,8 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		defer pulse.Stop()
 		defer done.Stop()
 
+		var consecutiveTunnelErrors int
+
 		for {
 			select {
 			case <-done.Chan:
@@ -698,8 +704,23 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 				err := heartbeat(ctx, dockerClient, heartbeatReq)
 				if err != nil {
-					terminal.Debugf("Remote builder heartbeat pulse failed: %v\n", err)
+
+					if errors.Is(err, agent.ErrTunnelUnavailable) {
+						consecutiveTunnelErrors++
+					}
+
+					wglessSuggestion := ""
+					if consecutiveTunnelErrors >= 3 {
+						wglessSuggestion = "(Your wireguard tunnel seems broken. Retry your deployment with `fly deploy --wg=false`)"
+					}
+
+					terminal.Debugf("Remote builder heartbeat pulse failed: %v%s\n", err, wglessSuggestion)
 				}
+
+				if err != nil {
+					consecutiveTunnelErrors = 0
+				}
+
 			}
 		}
 	}()

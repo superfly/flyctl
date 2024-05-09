@@ -8,6 +8,7 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
+	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
@@ -38,6 +39,14 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
 			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
+		}
+	}
+
+	if state.Plan.ObjectStorage.TigrisObjectStorage != nil {
+		err := state.createTigrisObjectStorage(ctx)
+		if err != nil {
+			// TODO(Ali): Make error printing here better.
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
 		}
 	}
 
@@ -159,7 +168,7 @@ func (state *launchState) createSupabasePostgres(ctx context.Context) error {
 		AppName:        state.Plan.AppName,
 		Organization:   org,
 		Provider:       "supabase",
-		OverrideName:   postgresPlan.GetDbName(state.Plan),
+		OverrideName:   fly.Pointer(postgresPlan.GetDbName(state.Plan)),
 		OverrideRegion: postgresPlan.GetRegion(state.Plan),
 	}
 
@@ -205,4 +214,37 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		return err
 	}
 	return redis.AttachDatabase(ctx, db, state.Plan.AppName)
+}
+
+func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
+
+	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
+
+	org, err := state.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	params := extensions_core.ExtensionParams{
+		Provider:       "tigris",
+		Organization:   org,
+		AppName:        state.Plan.AppName,
+		OverrideName:   fly.Pointer(tigrisPlan.Name),
+		OverrideRegion: state.Plan.RegionCode,
+		Options: gql.AddOnOptions{
+			"public":     tigrisPlan.Public,
+			"accelerate": tigrisPlan.Accelerate,
+			"website": map[string]interface{}{
+				"domain_name": tigrisPlan.WebsiteDomainName,
+			},
+		},
+	}
+
+	_, err = extensions_core.ProvisionExtension(ctx, params)
+
+	if err != nil {
+		return err
+	}
+
+	return err
 }

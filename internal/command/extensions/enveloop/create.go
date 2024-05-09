@@ -1,4 +1,4 @@
-package planetscale
+package enveloop
 
 import (
 	"context"
@@ -15,41 +15,48 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Provision a PlanetScale MySQL database"
+		short = "Provision a Upstash Enveloop project"
 		long  = short + "\n"
 	)
 
-	cmd = command.New("create", short, long, runPlanetscaleCreate, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.LoadAppNameIfPresent)
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 		flag.Org(),
 		flag.Region(),
+		extensions_core.SharedFlags,
+		SharedFlags,
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "The name of your database",
+			Description: "The name of your project",
 		},
-		extensions_core.SharedFlags,
 	)
 	return cmd
 }
 
-func runPlanetscaleCreate(ctx context.Context) error {
+func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	params := extensions_core.ExtensionParams{}
+
+	if appName != "" {
+		params.AppName = appName
+	} else {
+		org, err := orgs.OrgFromFlagOrSelect(ctx)
+		if err != nil {
+			return err
+		}
+
+		params.Organization = org
+	}
+
+	params.Provider = "enveloop"
+	extension, err := extensions_core.ProvisionExtension(ctx, params)
 	if err != nil {
 		return err
 	}
 
-	extension, err := extensions_core.ProvisionExtension(ctx, extensions_core.ExtensionParams{
-		AppName:      appName,
-		Provider:     "planetscale",
-		Organization: org,
-	})
-	if err != nil {
-		return err
-	}
 	if extension.SetsSecrets {
 		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
 	}

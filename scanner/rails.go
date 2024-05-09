@@ -16,6 +16,7 @@ import (
 
 var healthcheck_channel = make(chan string)
 var bundle, ruby string
+var binrails = filepath.Join(".", "bin", "rails")
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
@@ -160,14 +161,24 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	s.DeployDocs = `
+	initializersPath := filepath.Join(sourceDir, "config", "initializers")
+	if checksPass(initializersPath, dirContains("*.rb", "ENV", "credentials")) {
+		s.SkipDeploy = true
+		s.DeployDocs = `
 Your Rails app is prepared for deployment.
 
-Before proceeding, please review the posted Rails FAQ:
-https://fly.io/docs/rails/getting-started/dockerfiles/.
+` + config.Colorize.Red(
+			`WARNING: One or more of your config initializer files appears to access
+environment variables or Rails credentials.  These values generally are not
+available during the Docker build process, so you may need to update your
+initializers to bypass portions of your setup during the build process.`) + `
+
+More information on what needs to be done can be found at:
+https://fly.io/docs/rails/getting-started/existing/#access-to-environment-variables-at-build-time.
 
 Once ready: run 'fly deploy' to deploy your Rails app.
 `
+	}
 
 	// fetch healthcheck route in a separate thread
 	go func() {
@@ -177,7 +188,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 			return
 		}
 
-		out, err := exec.Command(ruby, "./bin/rails", "runner",
+		out, err := exec.Command(ruby, binrails, "runner",
 			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
 
 		if err == nil {
@@ -284,7 +295,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// base generate command
-	args := []string{"./bin/rails", "generate", "dockerfile",
+	args := []string{binrails, "generate", "dockerfile",
 		"--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
@@ -321,6 +332,24 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		cmd.Stderr = os.Stderr
 
 		pendingError = cmd.Run()
+
+		if exitError, ok := pendingError.(*exec.ExitError); ok {
+			if exitError.ExitCode() == 42 {
+				// generator exited with code 42, which means existing
+				// Dockerfile contains errors which will prevent deployment.
+				pendingError = nil
+				srcInfo.SkipDeploy = true
+				srcInfo.DeployDocs = `
+Correct the errors in your Dockerfile and run 'fly deploy' to
+deploy your Rails app.
+
+The following comand can be used to update your Dockerfile:
+
+    ` + binrails + ` generate dockerfile
+`
+				fmt.Println()
+			}
+		}
 	}
 
 	// read dockerfile

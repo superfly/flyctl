@@ -38,7 +38,7 @@ type ExtensionParams struct {
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
 	OverrideRegion string
-	OverrideName   string
+	OverrideName   *string
 }
 
 // Common flags that should be used for all extension commands
@@ -96,20 +96,23 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	// Prompt to name the provisioned resource, or use the target app name like in Sentry's case
 	if provider.SelectName {
-		name = params.OverrideName
 
-		if name == "" {
-			name = flag.GetString(ctx, "name")
-		}
-
-		if name == "" {
-			if provider.NameSuffix != "" && targetApp.Name != "" {
-				name = targetApp.Name + "-" + provider.NameSuffix
+		if override := params.OverrideName; override != nil {
+			name = *override
+		} else {
+			if name == "" {
+				name = flag.GetString(ctx, "name")
 			}
-			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
-			if err != nil {
-				return
+			if name == "" {
+				if provider.NameSuffix != "" && targetApp.Name != "" {
+					name = targetApp.Name + "-" + provider.NameSuffix
+				}
+				err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
+
+				if err != nil {
+					return
+				}
 			}
 		}
 	} else {
@@ -178,7 +181,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			return extension, err
 		}
 
-		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
+		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{Colorize: io.ColorScheme()})
 
 		if err != nil {
 			return extension, err
