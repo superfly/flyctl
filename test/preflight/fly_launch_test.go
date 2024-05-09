@@ -29,9 +29,10 @@ import (
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	// if f.VMSize != "" {
-	// 	t.Skip()
-	// }
+	// No need to run this on alternate sizes as it only tests the generated config.
+	if f.VMSize != "" {
+		t.Skip()
+	}
 
 	appName := f.CreateRandomAppName()
 
