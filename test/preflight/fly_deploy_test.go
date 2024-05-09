@@ -170,6 +170,13 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 
 func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this uses a fixture with a size, no need to run it on alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
