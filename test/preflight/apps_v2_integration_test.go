@@ -443,9 +443,9 @@ func TestDeployDetachBatching(t *testing.T) {
 
 func TestErrOutput(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	if f.VMSize != "" {
-		t.Skip()
-	}
+	// if f.VMSize != "" {
+	// 	t.Skip()
+	// }
 
 	appName := f.CreateRandomAppName()
 
