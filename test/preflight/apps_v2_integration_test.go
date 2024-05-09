@@ -470,11 +470,13 @@ func TestErrOutput(t *testing.T) {
 		require.Contains(f, res.StdErrString(), "memory size for config is too low")
 	}
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "memory size for config is too high")
+	if !f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too high")
 
-	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+		res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+	}
 }
 
 func TestImageLabel(t *testing.T) {
