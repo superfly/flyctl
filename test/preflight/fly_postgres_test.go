@@ -121,7 +121,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
 	// sizes.
-		if f.VMSize != "" {
+	if f.VMSize != "" {
 		t.Skip()
 	}
 
