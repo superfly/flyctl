@@ -215,15 +215,14 @@ func run(ctx context.Context) (err error) {
 	incompleteLaunchManifest := false
 	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
 
+	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
+
 	if launchManifest == nil {
 
-		launchManifest, cache, err = buildManifest(ctx, canEnterUi)
+		launchManifest, cache, err = buildManifest(ctx, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
 			if errors.As(err, &recoverableErr) && canEnterUi {
-				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
-				fmt.Fprintln(io.ErrOut, recoverableErr.Error())
-				incompleteLaunchManifest = true
 			} else {
 				return err
 			}
@@ -257,9 +256,16 @@ func run(ctx context.Context) (err error) {
 	status.ScannerFamily = launchManifest.Plan.ScannerFamily
 	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
-	state, err = stateFromManifest(ctx, *launchManifest, cache, canEnterUi)
+	state, err = stateFromManifest(ctx, *launchManifest, cache, &recoverableErrors)
 	if err != nil {
 		return err
+	}
+
+	if errors := recoverableErrors.build(); errors != "" {
+
+		fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
+		fmt.Fprintln(io.ErrOut, errors)
+		incompleteLaunchManifest = true
 	}
 
 	summary, err := state.PlanSummary(ctx)

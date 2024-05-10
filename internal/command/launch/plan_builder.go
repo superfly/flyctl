@@ -86,22 +86,20 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
-func (r *recoverableErrorBuilder) build() error {
+func (r *recoverableErrorBuilder) build() string {
 	if len(r.errors) == 0 {
-		return nil
+		return ""
 	}
 
 	var allErrors string
 	for _, err := range r.errors {
 		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
 	}
-	return recoverableInUiError{errors.New(allErrors)}
+	return allErrors
 }
 
-func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
 	io := iostreams.FromContext(ctx)
-
-	recoverableErrors := &recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -239,21 +237,17 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
-	err = recoverableErrors.build()
-
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
-	}, buildCache, err
+	}, buildCache, nil
 }
 
-func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, canEnterUi bool) (*launchState, error) {
+func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = fly.ClientFromContext(ctx)
 	)
-
-	recoverableErrors := &recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
@@ -340,8 +334,6 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
-	err = recoverableErrors.build()
-
 	return &launchState{
 		workingDir: workingDir,
 		configPath: configPath,
@@ -356,7 +348,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 			warnedNoCcHa: warnedNoCcHa,
 		},
 		cache: map[string]interface{}{},
-	}, err
+	}, nil
 }
 
 // determineBaseAppConfig looks for existing app config, ask to reuse or returns an empty config
