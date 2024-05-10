@@ -124,9 +124,21 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	// Use the stop config from the app config by default
 	c.tomachineSetStopConfig(mConfig)
 
+	var killTimeout *fly.Duration
+	var killSignal *string
+
+	// We use the image's default killsignal/timeout if it isn't set by the user. if we're using the same image as the original machine, we just use the one set by the user
+	if svc.Image != "" {
+		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, c.KillTimeout)
+		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, c.KillSignal)
+	} else {
+		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, nil)
+		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, nil)
+	}
+
 	mConfig.StopConfig = &fly.StopConfig{
-		Timeout: lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, c.KillTimeout),
-		Signal:  lo.Ternary(svc.KillSignal != nil, svc.KillSignal, c.KillSignal),
+		Timeout: killTimeout,
+		Signal:  killSignal,
 	}
 
 	return mConfig, nil
