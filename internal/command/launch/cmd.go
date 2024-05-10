@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -263,8 +264,7 @@ func run(ctx context.Context) (err error) {
 
 	if errors := recoverableErrors.build(); errors != "" {
 
-		fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
-		fmt.Fprintln(io.ErrOut, errors)
+		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Yellow("The following problems must be fixed in the Launch UI:"), errors)
 		incompleteLaunchManifest = true
 	}
 
