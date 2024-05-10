@@ -84,6 +84,10 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 		machineImage = origMachine.Config.Image
 	}
 
+	var origMachineEnv map[string]string
+	if origMachine != nil && origMachine.Config != nil {
+		origMachineEnv = origMachine.Config.Env
+	}
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{
 			Cmd:        machineCommand,
@@ -103,7 +107,7 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
 			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppTestMachineCommand,
 		},
-		Env: lo.Assign(c.Env),
+		Env: lo.Assign(c.Env, origMachineEnv),
 	}
 
 	if c.Experimental != nil {
