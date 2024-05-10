@@ -548,7 +548,7 @@ func Nixpacks() Bool {
 func Strategy() String {
 	return String{
 		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. The default strategy is rolling.",
 	}
 }
 
