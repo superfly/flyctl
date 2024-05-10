@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"time"
+	"bytes"
+	"encoding/json"
+	"net/http"
 
 	"github.com/azazeal/pause"
 	"github.com/briandowns/spinner"
@@ -45,7 +48,10 @@ func SaveToken(ctx context.Context, token string) error {
 }
 
 func RunWebLogin(ctx context.Context, signup bool) (string, error) {
-	auth, err := fly.StartCLISessionWebAuth(state.Hostname(ctx), signup)
+	fmt.Printf("%+v\n", state.Hostname(ctx))
+	auth, err := StartCLISessionWebAuth(state.Hostname(ctx), signup)
+	fmt.Printf("%+v\n", auth.URL)
+	fmt.Printf("%+v\n", auth)
 	if err != nil {
 		return "", err
 	}
@@ -76,6 +82,82 @@ func RunWebLogin(ctx context.Context, signup bool) (string, error) {
 	return token, nil
 }
 
+func StartCLISessionWebAuth(machineName string, signup bool) (fly.CLISession, error) {
+
+	return StartCLISession(machineName, map[string]interface{}{
+		"signup": signup,
+		"target": "auth",
+	})
+}
+
+// StartCLISession starts a session with the platform via web
+func StartCLISession(sessionName string, args map[string]interface{}) (fly.CLISession, error) {
+	var result fly.CLISession
+
+	if args == nil {
+		args = make(map[string]interface{})
+	}
+	args["name"] = sessionName
+
+	postData, _ := json.Marshal(args)
+
+	url := fmt.Sprintf("%s/api/v1/cli_sessions", "http://localhost:4000")
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(postData))
+	if err != nil {
+		return result, err
+	}
+
+	if resp.StatusCode != 201 {
+		return result, fly.ErrUnknown
+	}
+
+	defer resp.Body.Close() //skipcq: GO-S2307
+
+	json.NewDecoder(resp.Body).Decode(&result)
+
+	return result, nil
+}
+
+// GetAccessTokenForCLISession Obtains the access token for the session
+func GetAccessTokenForCLISession(ctx context.Context, id string) (string, error) {
+	val, err := GetCLISessionState(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return val.AccessToken, nil
+}
+
+func GetCLISessionState(ctx context.Context, id string) (fly.CLISession, error) {
+
+	var value fly.CLISession
+
+	url := fmt.Sprintf("%s/api/v1/cli_sessions/%s", "http://localhost:4000", id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return value, err
+	}
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return value, err
+	}
+	defer res.Body.Close() //skipcq: GO-S2307
+
+	switch res.StatusCode {
+	case http.StatusOK:
+		var auth fly.CLISession
+		if err = json.NewDecoder(res.Body).Decode(&auth); err != nil {
+			return value, fmt.Errorf("failed to decode session, please try again: %w", err)
+		}
+		return auth, nil
+	case http.StatusNotFound:
+		return value, fly.ErrNotFound
+	default:
+		return value, fly.ErrUnknown
+	}
+}
+
 // TODO: this does NOT break on interrupts
 func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Writer, id string) (token string, err error) {
 	ctx, cancel := context.WithTimeout(parent, 15*time.Minute)
@@ -87,7 +169,7 @@ func waitForCLISession(parent context.Context, logger *logger.Logger, w io.Write
 	s.Start()
 
 	for ctx.Err() == nil {
-		if token, err = fly.GetAccessTokenForCLISession(ctx, id); err != nil {
+		if token, err = GetAccessTokenForCLISession(ctx, id); err != nil {
 			logger.Debugf("failed retrieving token: %v", err)
 
 			pause.For(ctx, time.Second)
