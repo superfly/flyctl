@@ -64,7 +64,7 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 
 func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.Machine) (*fly.MachineConfig, error) {
 	var machineEntrypoint []string
-	if len(svc.Entrypoint) > 0 {
+	if svc.Entrypoint != nil {
 		machineEntrypoint = svc.Entrypoint
 	} else {
 		machineEntrypoint = origMachine.Config.Init.Entrypoint
