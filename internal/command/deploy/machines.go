@@ -625,7 +625,7 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 
 	if len(envFromFlags) > 0 {
 		var parsedEnv map[string]string
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(envFromFlags)
+		parsedEnv, err := cmdutil.ParseENVStringsToMap(envFromFlags)
 		if err != nil {
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
 		}
