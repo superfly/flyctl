@@ -2,14 +2,18 @@
 package command
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -578,7 +582,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 
 	logger := logger.FromContext(ctx)
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := appconfig.LoadConfig(path); {
+		switch cfg, err := loadConfig(path, ctx); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
@@ -714,4 +718,59 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+// if config file is a script, run it and return the config; else parse it as TOML
+func loadConfig(path string, ctx context.Context) (*appconfig.Config, error) {
+	// if the extension is .toml, treat it as a TOML file
+	if strings.HasSuffix(path, ".toml") {
+		return appconfig.LoadConfig(path)
+	}
+
+	// Open the file
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	// Read the first line
+	scanner := bufio.NewScanner(file)
+	scanner.Scan()
+	line := scanner.Text()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	// If the first line is a shebang, treat it as a script, otherwise parse it as TOML
+	args := strings.Fields(line)
+
+	if strings.HasPrefix(args[0], "#!") {
+		args[0] = args[0][2:]
+	} else {
+		return appconfig.LoadConfig(path)
+	}
+
+	args = append(args, path)
+	cmd := exec.Command(args[0], args[1:]...)
+
+	// Set the environment from --env flags
+	env := flag.GetStringArray(ctx, "env")
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
+
+	// Run the script
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse the output as JSON
+	var cfg = &appconfig.Config{}
+	err = json.Unmarshal(out, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return cfg, nil
 }
