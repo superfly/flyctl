@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/gobuffalo/plush"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -36,6 +39,40 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 	cfg.configFilePath = path
 	// cfg.WriteToFile("patched-fly.toml")
+	return cfg, nil
+}
+
+// LoadPlushConfig loads the app config at the given path after rendering it with the provided vars.
+func LoadPlushConfig(path string, vars map[string]string) (cfg *Config, err error) {
+	buf, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx := plush.NewContext()
+
+	ctx.Set("quote", func(value string) template.HTML {
+		r := strings.NewReplacer("\\", "\\\\", "\"", "\\\"")
+		return template.HTML("\"" + r.Replace(value) + "\"")
+	})
+
+	ctx.Set("_vars", vars)
+
+	for k, v := range vars {
+		ctx.Set(k, v)
+	}
+
+	renderedToml, err := plush.Render(string(buf), ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg, err = unmarshalTOML([]byte(renderedToml))
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.configFilePath = path
 	return cfg, nil
 }
 
