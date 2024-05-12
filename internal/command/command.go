@@ -10,11 +10,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
+	"github.com/joho/godotenv"
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -578,7 +581,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 
 	logger := logger.FromContext(ctx)
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := appconfig.LoadConfig(path); {
+		switch cfg, err := loadConfig(ctx, path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
@@ -608,7 +611,26 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
+
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseENVStringsToMap(env)
+		if err != nil && parsedEnv["FLY_ENV"] != "" {
+			paths = append(paths,
+				filepath.Join(wd, "fly-"+parsedEnv["FLY_ENV"]+".toml.plush"),
+				filepath.Join(wd, "fly-"+parsedEnv["FLY_ENV"]+".toml"),
+			)
+		}
+	} else if fly_env := os.Getenv("FLY_ENV"); fly_env != "" {
+		paths = append(paths,
+			filepath.Join(wd, "fly-"+fly_env+".toml.plush"),
+			filepath.Join(wd, "fly-"+fly_env+".toml"),
+		)
+	}
+
+	paths = append(paths,
+		filepath.Join(wd, appconfig.DefaultConfigFileName)+".plush",
+		filepath.Join(wd, appconfig.DefaultConfigFileName),
+	)
 
 	return
 }
@@ -714,4 +736,42 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	}
 
 	return state.WithWorkingDirectory(ctx, wd), nil
+}
+
+func loadConfig(ctx context.Context, path string) (*appconfig.Config, error) {
+	if !strings.HasSuffix(path, ".plush") {
+		return appconfig.LoadConfig(path)
+	}
+
+	vars := make(map[string]string)
+	var parsedEnv map[string]string
+
+	// determine FLY_ENV
+	vars["FLY_ENV"] = os.Getenv("FLY_ENV")
+
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, _ := cmdutil.ParseENVStringsToMap(env)
+		vars["FLY_ENV"] = parsedEnv["FLY_ENV"]
+	}
+
+	// load .env file
+	if vars["FLY_ENV"] == "" {
+		godotenv.Load()
+	} else {
+		dotenv := filepath.Join(state.WorkingDirectory(ctx), ".env."+vars["FLY_ENV"])
+		godotenv.Load(dotenv)
+	}
+
+	// load all environment variables
+	for _, env := range os.Environ() {
+		parts := strings.SplitN(env, "=", 2)
+		vars[parts[0]] = parts[1]
+	}
+
+	// load all environment variables from the command line
+	for k, v := range parsedEnv {
+		vars[k] = v
+	}
+
+	return appconfig.LoadPlushConfig(path, vars)
 }
