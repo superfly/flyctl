@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -24,7 +23,6 @@ ensure it is correct and meaningful to the platform.`
 	)
 	cmd.Args = cobra.NoArgs
 	flag.Add(cmd, flag.App(), flag.AppConfig())
-	viper.Set("ConfigStrictDecoding", true)
 	return
 }
 

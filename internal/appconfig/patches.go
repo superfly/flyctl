@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/spf13/viper"
+	"github.com/superfly/flyctl/terminal"
 )
 
 type patchFuncType func(map[string]any) (map[string]any, error)
@@ -40,19 +40,17 @@ func mapToConfig(cfgMap map[string]any) (*Config, error) {
 	if err != nil {
 		return cfg, err
 	}
+
 	decoder := json.NewDecoder(bytes.NewReader(newbuf))
-
-	if viper.GetBool("ConfigStrictDecoding") {
-		decoder.DisallowUnknownFields()
-	}
-
+	decoder.DisallowUnknownFields()
 	err = decoder.Decode(cfg)
 
-	// hide the fact that we are using json as an intermediate format
 	if err != nil {
 		message := fmt.Sprintf("%v", err)
-		if strings.HasPrefix(message, "json: ") {
-			err = fmt.Errorf(message[6:])
+		if strings.HasPrefix(message, "json: ") && strings.Contains(message, "unknown field") {
+			// just warn about the unknown fields, omitting the "json: " prefix
+			terminal.Warn(message[6:])
+			err = nil
 		}
 	}
 
