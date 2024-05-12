@@ -4,11 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/superfly/flyctl/terminal"
 )
 
 type patchFuncType func(map[string]any) (map[string]any, error)
@@ -49,7 +48,7 @@ func mapToConfig(cfgMap map[string]any) (*Config, error) {
 		message := fmt.Sprintf("%v", err)
 		if strings.HasPrefix(message, "json: ") && strings.Contains(message, "unknown field") {
 			// just warn about the unknown fields, omitting the "json: " prefix
-			terminal.Warn(message[6:])
+			fmt.Fprintln(os.Stderr, "Error: "+message[6:])
 			err = nil
 		}
 	}
