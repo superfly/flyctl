@@ -53,7 +53,7 @@ func LoadPlushConfig(path string, vars map[string]string) (cfg *Config, err erro
 
 	ctx.Set("quote", func(value string) template.HTML {
 		r := strings.NewReplacer("\\", "\\\\", "\"", "\\\"")
-		return template.HTML("\"" + r.Replace(value) + "\"")
+		return template.HTML("\"" + r.Replace(value) + "\"") //skipcq: GSC-G203
 	})
 
 	ctx.Set("_vars", vars)

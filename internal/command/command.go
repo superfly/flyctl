@@ -581,7 +581,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 
 	logger := logger.FromContext(ctx)
 	for _, path := range appConfigFilePaths(ctx) {
-		switch cfg, err := loadConfig(path, ctx); {
+		switch cfg, err := loadConfig(ctx, path); {
 		case err == nil:
 			logger.Debugf("app config loaded from %s", path)
 			if err := cfg.SetMachinesPlatform(); err != nil {
@@ -738,7 +738,7 @@ func ChangeWorkingDirectory(ctx context.Context, wd string) (context.Context, er
 	return state.WithWorkingDirectory(ctx, wd), nil
 }
 
-func loadConfig(path string, ctx context.Context) (*appconfig.Config, error) {
+func loadConfig(ctx context.Context, path string) (*appconfig.Config, error) {
 	if !strings.HasSuffix(path, ".plush") {
 		return appconfig.LoadConfig(path)
 	}
