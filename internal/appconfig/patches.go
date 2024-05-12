@@ -1,11 +1,14 @@
 package appconfig
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 type patchFuncType func(map[string]any) (map[string]any, error)
@@ -37,7 +40,23 @@ func mapToConfig(cfgMap map[string]any) (*Config, error) {
 	if err != nil {
 		return cfg, err
 	}
-	return cfg, json.Unmarshal(newbuf, cfg)
+	decoder := json.NewDecoder(bytes.NewReader(newbuf))
+
+	if viper.GetBool("ConfigStrictDecoding") {
+		decoder.DisallowUnknownFields()
+	}
+
+	err = decoder.Decode(cfg)
+
+	// hide the fact that we are using json as an intermediate format
+	if err != nil {
+		message := fmt.Sprintf("%v", err)
+		if strings.HasPrefix(message, "json: ") {
+			err = fmt.Errorf(message[6:])
+		}
+	}
+
+	return cfg, err
 }
 
 // Migrate whatever we found in old fly.toml files to newish format
