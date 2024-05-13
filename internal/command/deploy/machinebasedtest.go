@@ -39,9 +39,9 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 	machineChecks := lo.FlatMap(md.appConfig.AllServices(), func(svc appconfig.Service, _ int) []*appconfig.ServiceMachineCheck {
 		matchesProcessGroup := lo.Contains(svc.Processes, processGroup)
 		if matchesProcessGroup {
-			return nil
-		} else {
 			return svc.MachineChecks
+		} else {
+			return nil
 		}
 	})
 
