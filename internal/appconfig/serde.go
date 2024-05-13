@@ -169,6 +169,7 @@ func unmarshalYAML(buf []byte) (*Config, error) {
 	if err := yaml.Unmarshal(buf, &cfgMap); err != nil {
 		return nil, err
 	}
+	stringifyYAMLMapKeys(cfgMap)
 	cfg, err := applyPatches(cfgMap)
 
 	// In case of parsing error fallback to bare compatibility
@@ -185,4 +186,27 @@ func unmarshalYAML(buf []byte) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// stringifyYAMLMapKeys converts map keys from interface{} to string
+// This is necessary because the yaml.v2 package unmarshals map keys as interface{},
+// which is not compatible with TOML and JSON which unmarshal map keys as strings.
+func stringifyYAMLMapKeys(obj interface{}) interface{} {
+	if arrayobj, ok := obj.([]interface{}); ok {
+		for i, v := range arrayobj {
+			arrayobj[i] = stringifyYAMLMapKeys(v)
+		}
+	} else if mapobj, ok := obj.(map[string]interface{}); ok {
+		for k, v := range mapobj {
+			mapobj[k] = stringifyYAMLMapKeys(v)
+		}
+	} else if mapobj, ok := obj.(map[interface{}]interface{}); ok {
+		newmap := make(map[string]interface{})
+		for k, v := range mapobj {
+			newmap[k.(string)] = stringifyYAMLMapKeys(v)
+		}
+		obj = newmap
+	}
+
+	return obj
 }
