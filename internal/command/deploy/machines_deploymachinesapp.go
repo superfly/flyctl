@@ -113,13 +113,13 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
-func (md *machineDeployment) inferCanaryGuest(name string) *fly.MachineGuest {
+func (md *machineDeployment) inferCanaryGuest(processGroup string) *fly.MachineGuest {
 	canaryGuest := md.machineGuest
 	for _, lm := range md.machineSet.GetMachines() {
 		machine := lm.Machine()
 		machineGuest := machine.Config.Guest
 		switch {
-		case machine.ProcessGroup() != name:
+		case machine.ProcessGroup() != processGroup:
 			continue
 		case machineGuest == nil: // shouldn't be possible but just in case
 			continue

@@ -9,7 +9,6 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
@@ -184,7 +183,9 @@ func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMac
 	if err != nil {
 		return nil, err
 	}
-	mConfig.Guest = md.inferTestMachineGuest()
+
+	// The canary function works just as well for test machines
+	mConfig.Guest = md.inferCanaryGuest(mConfig.ProcessGroup())
 	md.setMachineReleaseData(mConfig)
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {
@@ -195,35 +196,6 @@ func (md *machineDeployment) launchInputForTestMachine(svc *appconfig.ServiceMac
 		Config: mConfig,
 		Region: origMachineRaw.Region,
 	}, nil
-}
-
-func (md *machineDeployment) inferTestMachineGuest() *fly.MachineGuest {
-	defaultGuest := fly.MachinePresets[fly.DefaultVMSize]
-	desiredGuest := fly.MachinePresets["shared-cpu-2x"]
-	if mg := md.machineGuest; mg != nil && (mg.CPUKind != defaultGuest.CPUKind || mg.CPUs != defaultGuest.CPUs || mg.MemoryMB != defaultGuest.MemoryMB) {
-		desiredGuest = mg
-	}
-	if !md.machineSet.IsEmpty() {
-		group := md.appConfig.DefaultProcessName()
-		ram := func(m *fly.Machine) int {
-			if m != nil && m.Config != nil && m.Config.Guest != nil {
-				return m.Config.Guest.MemoryMB
-			}
-			return 0
-		}
-
-		maxRamMach := lo.Reduce(md.machineSet.GetMachines(), func(prevBest *fly.Machine, lm machine.LeasableMachine, _ int) *fly.Machine {
-			mach := lm.Machine()
-			if mach.ProcessGroup() != group {
-				return prevBest
-			}
-			return lo.Ternary(ram(mach) > ram(prevBest), mach, prevBest)
-		}, nil)
-		if maxRamMach != nil {
-			desiredGuest = maxRamMach.Config.Guest
-		}
-	}
-	return helpers.Clone(desiredGuest)
 }
 
 func (md *machineDeployment) waitForTestMachinesToFinish(ctx context.Context, testMachines machine.MachineSet) error {
