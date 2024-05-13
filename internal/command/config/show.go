@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/pelletier/go-toml"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -12,12 +13,13 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
+	"gopkg.in/yaml.v2"
 )
 
 func newShow() (cmd *cobra.Command) {
 	const (
 		short = "Show an app's configuration"
-		long  = `Show an application's configuration. The configuration is presented
+		long  = `Show an application's configuration. The configuration is presented by default
 in JSON format. The configuration data is retrieved from the Fly service.`
 	)
 	cmd = command.New("show", short, long, runShow,
@@ -30,7 +32,15 @@ in JSON format. The configuration data is retrieved from the Fly service.`
 	flag.Add(cmd, flag.App(), flag.AppConfig(),
 		flag.Bool{
 			Name:        "local",
-			Description: "Parse and show local fly.toml as JSON",
+			Description: "Parse and show local fly.toml file instead of fetching from the Fly service",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Show configuration in YAML format",
+		},
+		flag.Bool{
+			Name:        "toml",
+			Description: "Show configuration in TOML format",
 		},
 	)
 	return
@@ -62,7 +72,17 @@ func runShow(ctx context.Context) error {
 		}
 	}
 
-	b, err := json.MarshalIndent(cfg, "", "  ")
+	var b []byte
+	var err error
+
+	if flag.GetBool(ctx, "yaml") {
+		b, err = yaml.Marshal(cfg)
+	} else if flag.GetBool(ctx, "toml") {
+		b, err = toml.Marshal(cfg)
+	} else {
+		b, err = json.MarshalIndent(cfg, "", "  ")
+	}
+
 	if err != nil {
 		return err
 	}
