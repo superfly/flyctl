@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
+	"gopkg.in/yaml.v2"
 )
 
 const flytomlHeader = `# fly.toml app configuration file generated for %s on %s
@@ -29,7 +31,13 @@ func LoadConfig(path string) (cfg *Config, err error) {
 		return nil, err
 	}
 
-	cfg, err = unmarshalTOML(buf)
+	if strings.HasSuffix(path, ".json") {
+		cfg, err = unmarshalJSON(buf)
+	} else if strings.HasSuffix(path, ".yaml") {
+		cfg, err = unmarshalYAML(buf)
+	} else {
+		cfg, err = unmarshalTOML(buf)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +130,52 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 		// Unmarshal twice due to in-place cfgMap updates performed by patches
 		raw := map[string]any{}
 		if err := toml.Unmarshal(buf, &raw); err != nil {
+			return nil, err
+		}
+		cfg = &Config{v2UnmarshalError: err}
+		if name, ok := (raw["app"]).(string); ok {
+			cfg.AppName = name
+		}
+	}
+
+	return cfg, nil
+}
+
+func unmarshalJSON(buf []byte) (*Config, error) {
+	cfgMap := map[string]any{}
+	if err := json.Unmarshal(buf, &cfgMap); err != nil {
+		return nil, err
+	}
+	cfg, err := applyPatches(cfgMap)
+
+	// In case of parsing error fallback to bare compatibility
+	if err != nil {
+		// Unmarshal twice due to in-place cfgMap updates performed by patches
+		raw := map[string]any{}
+		if err := json.Unmarshal(buf, &raw); err != nil {
+			return nil, err
+		}
+		cfg = &Config{v2UnmarshalError: err}
+		if name, ok := (raw["app"]).(string); ok {
+			cfg.AppName = name
+		}
+	}
+
+	return cfg, nil
+}
+
+func unmarshalYAML(buf []byte) (*Config, error) {
+	cfgMap := map[string]any{}
+	if err := yaml.Unmarshal(buf, &cfgMap); err != nil {
+		return nil, err
+	}
+	cfg, err := applyPatches(cfgMap)
+
+	// In case of parsing error fallback to bare compatibility
+	if err != nil {
+		// Unmarshal twice due to in-place cfgMap updates performed by patches
+		raw := map[string]any{}
+		if err := yaml.Unmarshal(buf, &raw); err != nil {
 			return nil, err
 		}
 		cfg = &Config{v2UnmarshalError: err}
