@@ -62,6 +62,88 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	return mConfig, nil
 }
 
+func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.Machine) (*fly.MachineConfig, error) {
+	var machineEntrypoint []string
+	if svc.Entrypoint != nil {
+		machineEntrypoint = svc.Entrypoint
+	} else {
+		machineEntrypoint = origMachine.Config.Init.Entrypoint
+	}
+
+	var machineCommand []string
+	if len(svc.Command) > 0 {
+		machineCommand = svc.Command
+	} else {
+		return nil, fmt.Errorf("missing command for test machine")
+	}
+
+	var machineImage string
+	if svc.Image != "" {
+		machineImage = svc.Image
+	} else {
+		machineImage = origMachine.Config.Image
+	}
+
+	var origMachineEnv map[string]string
+	if origMachine != nil && origMachine.Config != nil {
+		origMachineEnv = origMachine.Config.Env
+	}
+	mConfig := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        machineCommand,
+			SwapSizeMB: c.SwapSizeMB,
+			Entrypoint: machineEntrypoint,
+		},
+		Image: machineImage,
+		Restart: &fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
+		},
+		AutoDestroy: true,
+		DNS: &fly.DNSConfig{
+			SkipRegistration: true,
+		},
+		Metadata: map[string]string{
+			fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
+			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
+			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppTestMachineCommand,
+		},
+		Env: lo.Assign(c.Env, origMachineEnv),
+	}
+
+	if c.Experimental != nil {
+		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+	}
+
+	mConfig.Env["FLY_TEST_COMMAND"] = "1"
+	mConfig.Env["FLY_PROCESS_GROUP"] = fly.MachineProcessGroupFlyAppTestMachineCommand
+	if c.PrimaryRegion != "" {
+		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+	mConfig.Env["FLY_TEST_MACHINE_IP"] = lo.Ternary(origMachine == nil, "", origMachine.PrivateIP)
+
+	// Use the stop config from the app config by default
+	c.tomachineSetStopConfig(mConfig)
+
+	var killTimeout *fly.Duration
+	var killSignal *string
+
+	// We use the image's default killsignal/timeout if it isn't set by the user. if we're using the same image as the original machine, we just use the one set by the user
+	if svc.Image != "" {
+		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, c.KillTimeout)
+		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, c.KillSignal)
+	} else {
+		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, nil)
+		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, nil)
+	}
+
+	mConfig.StopConfig = &fly.StopConfig{
+		Timeout: killTimeout,
+		Signal:  killSignal,
+	}
+
+	return mConfig, nil
+}
+
 func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{

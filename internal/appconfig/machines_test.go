@@ -175,6 +175,94 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	assert.Equal(t, want, got)
 }
 
+func TestToTestMachineConfig(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine.toml")
+	require.NoError(t, err)
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "curlimages/curl",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "",
+			"FOO":                 "BAR",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Timeout: fly.MustParseDuration("10s"),
+			Signal:  fly.Pointer("SIGTERM"),
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	got, err := cfg.ToTestMachineConfig(check, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
+func TestToTestMachineConfigWTestMachine(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine.toml")
+	require.NoError(t, err)
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "curlimages/curl",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "1.2.3.4",
+			"FOO":                 "BAR",
+			"BAR":                 "BAZ",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Timeout: fly.MustParseDuration("10s"),
+			Signal:  fly.Pointer("SIGTERM"),
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	machine := &fly.Machine{
+		ImageRef:  fly.MachineImageRef{},
+		PrivateIP: "1.2.3.4",
+		Config: &fly.MachineConfig{
+			Env: map[string]string{
+				"BAR": "BAZ",
+			},
+			Init:  fly.MachineInit{Cmd: []string{"echo", "hello"}},
+			Image: "nginx",
+		},
+	}
+	got, err := cfg.ToTestMachineConfig(check, machine)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
 func TestToConsoleMachineConfig(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/tomachine.toml")
 	require.NoError(t, err)
