@@ -29,6 +29,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
+	"golang.org/x/sync/errgroup"
 )
 
 const rollingStrategyMaxConcurrentGroups = 10
@@ -112,13 +113,13 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	return md.updateExistingMachines(ctx, machineUpdateEntries)
 }
 
-func (md *machineDeployment) inferCanaryGuest(name string) *fly.MachineGuest {
+func (md *machineDeployment) inferCanaryGuest(processGroup string) *fly.MachineGuest {
 	canaryGuest := md.machineGuest
 	for _, lm := range md.machineSet.GetMachines() {
 		machine := lm.Machine()
 		machineGuest := machine.Config.Guest
 		switch {
-		case machine.ProcessGroup() != name:
+		case machine.ProcessGroup() != processGroup:
 			continue
 		case machineGuest == nil: // shouldn't be possible but just in case
 			continue
@@ -136,11 +137,12 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_canary")
 	defer span.End()
 
-	canaryMachines := []machine.LeasableMachine{}
 	groupsInConfig := md.ProcessNames()
 	total := len(groupsInConfig)
 	sl := statuslogger.Create(ctx, total, true)
 	defer sl.Destroy(false)
+
+	errors, ctx := errgroup.WithContext(ctx)
 
 	for idx, name := range groupsInConfig {
 		ctx := statuslogger.NewContext(ctx, sl.Line(idx))
@@ -149,26 +151,46 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 			"Creating canary machine for group %s",
 			md.colorize.Bold(name),
 		)
-		machine, err := md.spawnMachineInGroup(ctx, name, nil,
-			withMeta(metadata{key: "fly_canary", value: "true"}),
-			withGuest(md.inferCanaryGuest(name)),
-			withDns(&fly.DNSConfig{SkipRegistration: true}),
-		)
-		if err != nil {
-			tracing.RecordError(span, err, "failed to provision canary machine")
-			firstLine, _, _ := strings.Cut(err.Error(), "\n")
-			statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
+
+		// variable name shadowing to make go-vet happy
+		name := name
+		errors.Go(func() error {
+			var err error
+			lm, err := md.spawnMachineInGroup(ctx, name, nil,
+				withMeta(metadata{key: "fly_canary", value: "true"}),
+				withGuest(md.inferCanaryGuest(name)),
+				withDns(&fly.DNSConfig{SkipRegistration: true}),
+			)
+			if err != nil {
+				tracing.RecordError(span, err, "failed to provision canary machine")
+				firstLine, _, _ := strings.Cut(err.Error(), "\n")
+				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to create canary machine: %s", firstLine)
+				return err
+			}
+
+			defer func() {
+				if err == nil {
+					if destroyErr := machcmd.Destroy(ctx, md.app, lm.Machine(), true); destroyErr != nil {
+						err = destroyErr
+					}
+				}
+			}()
+
+			if err = md.runTestMachines(ctx, lm.Machine()); err != nil {
+				tracing.RecordError(span, err, "failed to run test machine for canary machine")
+				firstLine, _, _ := strings.Cut(err.Error(), "\n")
+				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
+				return err
+			}
+
 			return err
-		}
-		canaryMachines = append(canaryMachines, machine)
+		})
 	}
 
-	fmt.Fprintf(md.io.Out, "Canary machines successfully created and healthy, destroying before continuing\n")
-	for _, mach := range canaryMachines {
-		if err := machcmd.Destroy(ctx, md.app, mach.Machine(), true); err != nil {
-			return err
-		}
+	if err := errors.Wait(); err != nil {
+		return err
 	}
+
 	return nil
 }
 
@@ -393,6 +415,10 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 			err = suggestChangeWaitTimeout(err, "wait-timeout")
 			return err
 		}
+
+		if err := md.runTestMachines(ctx, e.leasableMachine.Machine()); err != nil {
+			return err
+		}
 	}
 
 	if err := md.doSmokeChecks(ctx, lm); err != nil {
@@ -431,6 +457,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	switch md.strategy {
 	case "bluegreen":
+		// TODO(billy) do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
 		return md.updateUsingImmediateStrategy(ctx, updateEntries)
@@ -627,7 +654,6 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 				md.colorize.Green("succeeded"),
 			)
 		}
-
 		updateFunc := func(poolCtx context.Context) error {
 			ctx, span := tracing.GetTracer().Start(eCtx, "update", trace.WithAttributes(
 				attribute.Int("id", idx),
@@ -653,6 +679,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 				statusFailure(err)
 				return err
 			}
+
 			statusSuccess()
 			return nil
 		}
