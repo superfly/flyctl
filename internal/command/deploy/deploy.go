@@ -37,7 +37,7 @@ var CommonFlags = flag.Set{
 	flag.LocalOnly(),
 	flag.Push(),
 	flag.Wireguard(),
-	flag.HttpFailover(),
+	flag.HttpsFailover(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
@@ -280,7 +280,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		}
 	}
 
-	httpFailover := flag.GetHTTPFailover(ctx)
+	httpFailover := flag.GetHTTPSFailover(ctx)
 	usingWireguard := flag.GetWireguard(ctx)
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
