@@ -62,6 +62,35 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	return mConfig, nil
 }
 
+type TestMachineConfigErr int
+
+const (
+	MissingCommand TestMachineConfigErr = iota
+	MissingImage
+)
+
+func (e TestMachineConfigErr) Error() string {
+	switch e {
+	case MissingCommand:
+		return "missing command for test machine"
+	case MissingImage:
+		return "missing image for test machine"
+	default:
+		return "unknown error creating test machine config"
+	}
+}
+
+func (e TestMachineConfigErr) Suggestion() string {
+	switch e {
+	case MissingCommand:
+		return "Add a `command` field to the `[[services.machine_checks]]` or `[[http_service.machine_checks]]` section of your fly.toml"
+	case MissingImage:
+		return "Add an `image` field to the `[[services.machine_checks]]` or `[[http_service.machine_checks]]` section of your fly.toml"
+	default:
+		return ""
+	}
+}
+
 func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.Machine) (*fly.MachineConfig, error) {
 	var machineEntrypoint []string
 	if svc.Entrypoint != nil {
@@ -74,14 +103,16 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	if len(svc.Command) > 0 {
 		machineCommand = svc.Command
 	} else {
-		return nil, fmt.Errorf("missing command for test machine")
+		return nil, MissingCommand
 	}
 
 	var machineImage string
 	if svc.Image != "" {
 		machineImage = svc.Image
-	} else {
+	} else if origMachine != nil && origMachine.Config != nil && origMachine.Config.Image != "" {
 		machineImage = origMachine.Config.Image
+	} else {
+		return nil, MissingImage
 	}
 
 	var origMachineEnv map[string]string
@@ -127,13 +158,21 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	var killTimeout *fly.Duration
 	var killSignal *string
 
-	// We use the image's default killsignal/timeout if it isn't set by the user. if we're using the same image as the original machine, we just use the one set by the user
+	// We use the image's default killsignal/timeout if it isn't set by the user
 	if svc.Image != "" {
-		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, c.KillTimeout)
-		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, c.KillSignal)
-	} else {
 		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, nil)
 		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, nil)
+	} else {
+		if svc.KillTimeout != nil {
+			killTimeout = svc.KillTimeout
+		} else if c.KillTimeout != nil {
+			killTimeout = c.KillTimeout
+		}
+		if svc.KillSignal != nil {
+			killSignal = svc.KillSignal
+		} else if c.KillSignal != nil {
+			killSignal = c.KillSignal
+		}
 	}
 
 	mConfig.StopConfig = &fly.StopConfig{
