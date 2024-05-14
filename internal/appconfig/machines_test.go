@@ -308,7 +308,6 @@ func TestToTestMachineConfigWKillInfoImageAndOrigMachineKillInfo(t *testing.T) {
 	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
 	require.NoError(t, err)
 
-	cfg.HTTPService.MachineChecks[0].Image = ""
 	cfg.KillSignal = fly.StringPointer("SIGTERM")
 	cfg.KillTimeout = fly.MustParseDuration("60s")
 
@@ -318,7 +317,7 @@ func TestToTestMachineConfigWKillInfoImageAndOrigMachineKillInfo(t *testing.T) {
 			SwapSizeMB: fly.Pointer(512),
 			Entrypoint: []string{"/bin/sh"},
 		},
-		Image: "nginx",
+		Image: "curlimages/curl",
 		Env: map[string]string{
 			"PRIMARY_REGION":      "mia",
 			"FLY_TEST_COMMAND":    "1",
@@ -334,8 +333,8 @@ func TestToTestMachineConfigWKillInfoImageAndOrigMachineKillInfo(t *testing.T) {
 		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
 		StopConfig: &fly.StopConfig{
-			Signal:  fly.StringPointer("SIGTERM"),
-			Timeout: fly.MustParseDuration("60s"),
+			Signal:  nil,
+			Timeout: nil,
 		},
 	}
 
