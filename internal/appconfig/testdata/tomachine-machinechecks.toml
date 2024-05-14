@@ -1,0 +1,18 @@
+app = "foo"
+primary_region = "mia"
+swap_size_mb = 512
+
+[processes]
+  greeting = "echo 'Hello'"
+  salutation = "echo 'Whatsssup'"
+  farewell = "echo 'bye :('"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+   processes = ["greeting", "salutation"]
+
+  [[http_service.machine_checks]]
+   image = "curlimages/curl"
+   command = ["curl", "https://fly.io"]
+   entrypoint = ["/bin/sh"]

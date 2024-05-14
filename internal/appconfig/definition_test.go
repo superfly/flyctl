@@ -227,8 +227,16 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
+			"machine_checks": []any{
+				map[string]any{
+					"command":      []any{"curl", "https://fly.io"},
+					"image":        "curlimages/curl",
+					"entrypoint":   []any{"/bin/sh"},
+					"kill_signal":  "SIGKILL",
+					"kill_timeout": "5s",
+				},
+			},
 		},
-
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
@@ -354,6 +362,15 @@ func TestToDefinition(t *testing.T) {
 						"timeout":  "10s",
 						"method":   "POST",
 						"path":     "/check2",
+					},
+				},
+				"machine_checks": []any{
+					map[string]any{
+						"command":      []any{"curl", "https://fly.io"},
+						"image":        "curlimages/curl",
+						"entrypoint":   []any{"/bin/sh"},
+						"kill_signal":  "SIGKILL",
+						"kill_timeout": "5s",
 					},
 				},
 			},
