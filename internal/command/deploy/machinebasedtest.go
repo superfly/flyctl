@@ -59,17 +59,13 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 		}()
 
 		mach, err = md.createTestMachine(ctx, machineCheck, machineToTest)
-		if err != nil {
-			err = fmt.Errorf("error creating test machine %q: %w", machineCheck.Command, err)
-		}
-
 		return createdTestMachine{mach, err}
 	})
 
 	if m, hasErr := lo.Find(machines, func(m createdTestMachine) bool {
 		return m.err != nil
 	}); hasErr {
-		err := fmt.Errorf("error creating test machine %s: %w", m.mach.ID, m.err)
+		err := fmt.Errorf("error creating test machine: %w", m.err)
 		tracing.RecordError(span, err, "failed to create test machine")
 		return err
 	}
