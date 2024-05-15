@@ -9,12 +9,12 @@ import  (
 func readCargoFile() (map[string]interface{}, error) {
 	doc, err := os.ReadFile("Cargo.toml")
 	if err != nil {
-		return nil, fmt.Errorf("Error reading Cargo file:", err)
+		return nil, errors.Wrap(err, "Error reading Cargo file")
 	}
 	cargoData := make(map[string]interface{})
 	readErr := toml.Unmarshal(doc, &cargoData)
 	if readErr != nil {
-		return nil, fmt.Errorf("Error parsing Cargo file:", readErr)
+		return nil, errors.Wrap(readErr, "Error parsing Cargo file")
 	}
 	return cargoData, nil
 }
@@ -34,7 +34,7 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	env := map[string]string{
 		"PORT": "8080",
 	}
-	
+
 	if _, ok := deps["rocket"]; ok {
 		family = "Rocket"
 		env["ROCKET_PORT"] = "8080"
