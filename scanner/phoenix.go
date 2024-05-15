@@ -111,15 +111,9 @@ a Postgres database.
 	if checksPass(sourceDir, dirContains("mix.exs", "postgrex")) {
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.ReleaseCmd = "/app/bin/migrate"
-	} else if checksPass(sourceDir, dirContains("mix.exs", "myxql")) {
-		s.DatabaseDesired = DatabaseKindMySQL
-		s.ReleaseCmd = "/app/bin/migrate"
-	} else if checksPass(sourceDir, dirContains("mix.exs", "tds")) {
-		s.ReleaseCmd = "/app/bin/migrate"
 	} else if checksPass(sourceDir, dirContains("mix.exs", "ecto_sqlite3")) {
 		s.DatabaseDesired = DatabaseKindSqlite
 		s.Env["DATABASE_PATH"] = "/mnt/name/name.db"
-
 		s.Volumes = []Volume{
 			{
 				Source:      "name",
