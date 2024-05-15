@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -50,6 +52,7 @@ type MachineDeploymentArgs struct {
 	SkipSmokeChecks       bool
 	SkipHealthChecks      bool
 	SkipDNSChecks         bool
+	SkipReleaseCommand    bool
 	MaxUnavailable        *float64
 	RestartOnly           bool
 	WaitTimeout           *time.Duration
@@ -61,11 +64,13 @@ type MachineDeploymentArgs struct {
 	AllocPublicIP         bool
 	UpdateOnly            bool
 	Files                 []*fly.File
-	ExcludeRegions        map[string]interface{}
-	OnlyRegions           map[string]interface{}
+	ExcludeRegions        map[string]bool
+	OnlyRegions           map[string]bool
+	ExcludeMachines       map[string]bool
+	OnlyMachines          map[string]bool
+	ProcessGroups         map[string]bool
 	MaxConcurrent         int
 	VolumeInitialSize     int
-	ProcessGroups         map[string]interface{}
 	RestartPolicy         *fly.MachineRestartPolicy
 	RestartMaxRetries     int
 }
@@ -88,6 +93,7 @@ type machineDeployment struct {
 	skipSmokeChecks       bool
 	skipHealthChecks      bool
 	skipDNSChecks         bool
+	skipReleaseCommand    bool
 	maxUnavailable        float64
 	restartOnly           bool
 	waitTimeout           time.Duration
@@ -100,11 +106,13 @@ type machineDeployment struct {
 	increasedAvailability bool
 	listenAddressChecked  sync.Map
 	updateOnly            bool
-	excludeRegions        map[string]interface{}
-	onlyRegions           map[string]interface{}
+	excludeRegions        map[string]bool
+	onlyRegions           map[string]bool
+	excludeMachines       map[string]bool
+	onlyMachines          map[string]bool
+	processGroups         map[string]bool
 	maxConcurrent         int
 	volumeInitialSize     int
-	processGroups         map[string]interface{}
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
@@ -208,6 +216,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		skipSmokeChecks:       args.SkipSmokeChecks,
 		skipHealthChecks:      args.SkipHealthChecks,
 		skipDNSChecks:         args.SkipDNSChecks,
+		skipReleaseCommand:    args.SkipReleaseCommand,
 		restartOnly:           args.RestartOnly,
 		maxUnavailable:        maxUnavailable,
 		waitTimeout:           waitTimeout,
@@ -220,6 +229,8 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 		machineGuest:          args.Guest,
 		excludeRegions:        args.ExcludeRegions,
 		onlyRegions:           args.OnlyRegions,
+		excludeMachines:       args.ExcludeMachines,
+		onlyMachines:          args.OnlyMachines,
 		maxConcurrent:         maxConcurrent,
 		volumeInitialSize:     args.VolumeInitialSize,
 		processGroups:         args.ProcessGroups,
@@ -284,7 +295,8 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		return err
 	}
 
-	if len(machines) == 0 {
+	nMachines := len(machines)
+	if nMachines == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		activeMachines, err := md.flapsClient.ListActive(ctx)
 		if err != nil {
@@ -297,35 +309,60 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 	}
 
-	if len(md.onlyRegions) > 0 {
-		var onlyRegionMachines []*fly.Machine
-		for _, m := range machines {
-			if _, present := md.onlyRegions[m.Region]; present {
-				onlyRegionMachines = append(onlyRegionMachines, m)
+	filtersApplied := map[string]struct{}{}
+	machines = slices.DeleteFunc(machines, func(m *fly.Machine) bool {
+		if len(md.onlyRegions) > 0 {
+			filtersApplied["--regions"] = struct{}{}
+
+			if !md.onlyRegions[m.Region] {
+				return true
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--only-regions filter applied, deploying to %d/%d machines\n", len(onlyRegionMachines), len(machines))
-		machines = onlyRegionMachines
-	}
-	if len(md.excludeRegions) > 0 {
-		var excludeRegionMachines []*fly.Machine
-		for _, m := range machines {
-			if _, present := md.excludeRegions[m.Region]; !present {
-				excludeRegionMachines = append(excludeRegionMachines, m)
+
+		if len(md.excludeRegions) > 0 {
+			filtersApplied["--exclude-regions"] = struct{}{}
+
+			if md.excludeRegions[m.Region] {
+				return true
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--exclude-regions filter applied, deploying to %d/%d machines\n", len(excludeRegionMachines), len(machines))
-		machines = excludeRegionMachines
-	}
-	if len(md.processGroups) > 0 {
-		var processGroupMachines []*fly.Machine
-		for _, m := range machines {
-			if _, present := md.processGroups[m.ProcessGroup()]; present {
-				processGroupMachines = append(processGroupMachines, m)
+
+		if len(md.onlyMachines) > 0 {
+			filtersApplied["--only-machines"] = struct{}{}
+
+			if !md.onlyMachines[m.ID] {
+				return true
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--process-groups filter applied, deploying to %d/%d machines\n", len(processGroupMachines), len(machines))
-		machines = processGroupMachines
+
+		if len(md.excludeMachines) > 0 {
+			filtersApplied["--exclude-machines"] = struct{}{}
+
+			if md.excludeMachines[m.ID] {
+				return true
+			}
+		}
+
+		if len(md.processGroups) > 0 {
+			filtersApplied["--process-groups"] = struct{}{}
+
+			if !md.processGroups[m.ProcessGroup()] {
+				return true
+			}
+		}
+
+		return false
+	})
+
+	if len(filtersApplied) > 0 {
+		s := ""
+		if len(filtersApplied) > 1 {
+			s = "s"
+		}
+
+		filtersAppliedStr := strings.Join(maps.Keys(filtersApplied), "/")
+
+		fmt.Fprintf(md.io.ErrOut, "%s filter%s applied, deploying to %d/%d machines\n", filtersAppliedStr, s, len(machines), nMachines)
 	}
 
 	for _, m := range machines {
@@ -630,8 +667,8 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 func (md *machineDeployment) ProcessNames() (names []string) {
 	names = md.appConfig.ProcessNames()
 	if len(md.processGroups) > 0 {
-		names = lo.Filter(names, func(name string, _ int) bool {
-			return md.processGroups[name] != nil
+		names = slices.DeleteFunc(names, func(name string) bool {
+			return !md.processGroups[name]
 		})
 	}
 	return

@@ -1,4 +1,4 @@
-package vector
+package enveloop
 
 import (
 	"context"
@@ -16,7 +16,7 @@ import (
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy an Upstash Vector index`
+		long = `Permanently destroy an Upstash Enveloop project`
 
 		short = long
 		usage = "destroy [name]"
@@ -39,13 +39,13 @@ func runDestroy(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeUpstashVector)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeEnveloop)
 	if err != nil {
 		return err
 	}
 
 	if !flag.GetYes(ctx) {
-		const msg = "Destroying an Upstash Vector index is not reversible."
+		const msg = "Destroying an Upstash Enveloop project is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 		switch confirmed, err := prompt.Confirmf(ctx, "Do you want to destroy the index named %s?", extension.Name); {
@@ -66,7 +66,7 @@ func runDestroy(ctx context.Context) (err error) {
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	fmt.Fprintf(out, "Your Upstash Vector index %s was destroyed\n", extension.Name)
+	fmt.Fprintf(out, "Your Upstash Enveloop project %s was destroyed\n", extension.Name)
 
 	return nil
 }

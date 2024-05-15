@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -126,12 +127,20 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_create")
 	defer span.End()
 
+	// Limit launch concurrency to a third of the machines to launch.
+	// It helps workaround a resource allocation race when multiple machines
+	// are created at the same time.
+	createConcurrency := int(math.Max(1, math.Min(
+		math.Ceil(float64(len(bg.blueMachines))/3),
+		float64(bg.maxConcurrent),
+	)))
+
 	var greenMachines machineUpdateEntries
 	var lock sync.Mutex
 	p := pool.New().
 		WithErrors().
 		WithFirstError().
-		WithMaxGoroutines(bg.maxConcurrent)
+		WithMaxGoroutines(createConcurrency)
 	for _, mach := range bg.blueMachines {
 		mach := mach
 		p.Go(func() error {
