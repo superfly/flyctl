@@ -1,10 +1,10 @@
 package scanner
 
-import  (
+import (
 	"os"
 
-	"github.com/pkg/errors"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/pkg/errors"
 )
 
 func readCargoFile() (map[string]interface{}, error) {
@@ -54,11 +54,11 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	vars["appName"] = cargoData["package"].(map[string]interface{})["name"].(string)
 
 	s := &SourceInfo{
-		Files:      	templatesExecute("templates/rust", vars),
-		Family:     	family,
-		Port:       	8080,
-		Env:			env,
-		SkipDatabase: 	true,
+		Files:        templatesExecute("templates/rust", vars),
+		Family:       family,
+		Port:         8080,
+		Env:          env,
+		SkipDatabase: true,
 	}
 	return s, nil
 }
