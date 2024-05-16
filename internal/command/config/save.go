@@ -49,7 +49,7 @@ func runSave(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
