@@ -478,7 +478,7 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 	}
 
 	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
-		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		parsedEnv, err := cmdutil.ParseENVStringsToMap(env)
 		if err != nil {
 			tracing.RecordError(span, err, "parse env")
 			return nil, fmt.Errorf("failed parsing environment: %w", err)
