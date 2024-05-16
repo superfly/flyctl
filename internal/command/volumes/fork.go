@@ -48,6 +48,7 @@ func newFork() *cobra.Command {
 		flag.Bool{
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Default:     true,
 		},
 		flag.String{
 			Name:        "region",

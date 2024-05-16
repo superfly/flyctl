@@ -73,8 +73,8 @@ If the original Machine has a volume, then a new empty volume will be created an
 		},
 		flag.Bool{
 			Name:        "volume-requires-unique-zone",
-			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default false.",
-			Default:     false,
+			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default true.",
+			Default:     true,
 		},
 		flag.Detach(),
 		flag.VMSizeFlags,
