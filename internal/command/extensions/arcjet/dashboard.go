@@ -39,7 +39,7 @@ func runDashboard(ctx context.Context) (err error) {
 		return extensions_core.OpenOrgDashboard(ctx, org, "arcjet")
 	}
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeTigris)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeArcjet)
 
 	if err != nil {
 		return err

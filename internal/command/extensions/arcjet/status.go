@@ -13,7 +13,7 @@ import (
 
 func status() *cobra.Command {
 	const (
-		short = "Show details about a Arcjet site setup"
+		short = "Show details about an Arcjet site setup"
 		long  = short + "\n"
 
 		usage = "status [name]"
@@ -35,5 +35,5 @@ func status() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) (err error) {
-	return extensions_core.Status(ctx, gql.AddOnTypeSupabase)
+	return extensions_core.Status(ctx, gql.AddOnTypeArcjet)
 }

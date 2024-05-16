@@ -42,7 +42,7 @@ func runDestroy(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeTigris)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeArcjet)
 	if err != nil {
 		return err
 	}

@@ -16,7 +16,7 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Use Arcjet"
+		short = "Create an Arcjet site"
 		long  = short + "\n"
 	)
 

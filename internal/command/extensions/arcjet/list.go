@@ -41,7 +41,7 @@ func runList(ctx context.Context) (err error) {
 		client = fly.ClientFromContext(ctx).GenqClient
 	)
 
-	response, err := gql.ListAddOns(ctx, client, "arcjet")
+	response, err := gql.ListAddOns(ctx, client, gql.AddOnTypeArcjet)
 
 	var rows [][]string
 

@@ -401,6 +401,11 @@ enum AddOnType {
   A Wafris firewall
   """
   wafris
+
+  """
+  An Arcjet site
+  """
+  arcjet
 }
 
 """
