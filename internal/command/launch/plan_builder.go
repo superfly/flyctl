@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -246,7 +247,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
 	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
@@ -492,7 +493,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	available, err := client.AppNameAvailable(ctx, name)
 	if err != nil {
@@ -503,7 +504,7 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
@@ -543,7 +544,7 @@ func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -571,7 +572,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
 func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {

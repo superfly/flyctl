@@ -52,7 +52,7 @@ func runOpen(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {

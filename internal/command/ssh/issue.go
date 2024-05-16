@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -76,7 +77,7 @@ validity.`
 }
 
 func runSSHIssue(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)

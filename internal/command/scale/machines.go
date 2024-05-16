@@ -19,7 +19,7 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	if err != nil {
 		return nil, err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// Quickly validate sizeName before any network call
 	if err := (&fly.MachineGuest{}).SetSize(sizeName); err != nil && sizeName != "" {

@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/macaroon"
@@ -254,10 +254,10 @@ func newMachineExec() *cobra.Command {
 	return cmd
 }
 
-func makeToken(ctx context.Context, apiClient *fly.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
+func makeToken(ctx context.Context, apiClient flyutil.Client, orgID string, expiry string, profile string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
-		apiClient.GenqClient,
+		apiClient.GenqClient(),
 		flag.GetString(ctx, "name"),
 		orgID,
 		profile,
@@ -272,7 +272,7 @@ func makeToken(ctx context.Context, apiClient *fly.Client, orgID string, expiry 
 
 func runOrg(ctx context.Context) error {
 	var token string
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -303,7 +303,7 @@ func runOrg(ctx context.Context) error {
 
 func runSSH(ctx context.Context) error {
 	var token string
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -377,7 +377,7 @@ func runSSH(ctx context.Context) error {
 func runOrgRead(ctx context.Context) error {
 	var (
 		token          string
-		apiClient      = fly.ClientFromContext(ctx)
+		apiClient      = flyutil.ClientFromContext(ctx)
 		expiry         = ""
 		expiryDuration = flag.GetDuration(ctx, "expiry")
 		perm           []byte
@@ -472,7 +472,7 @@ func runOrgRead(ctx context.Context) error {
 
 func runDeploy(ctx context.Context) (err error) {
 	var token string
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -507,7 +507,7 @@ func runDeploy(ctx context.Context) (err error) {
 
 func runMachineExec(ctx context.Context) error {
 	var token string
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {
@@ -628,7 +628,7 @@ func getCommandCaveat(ctx context.Context) (macaroon.Caveat, error) {
 
 func runLiteFSCloud(ctx context.Context) (err error) {
 	var token string
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	expiry := ""
 	if expiryDuration := flag.GetDuration(ctx, "expiry"); expiryDuration != 0 {

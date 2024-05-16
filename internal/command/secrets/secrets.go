@@ -64,7 +64,7 @@ func DeploySecrets(ctx context.Context, app *fly.AppCompact, stage bool, detach 
 	if err != nil {
 		return fmt.Errorf("could not create flaps client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)

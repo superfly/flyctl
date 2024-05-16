@@ -13,6 +13,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ssh"
 	"github.com/superfly/flyctl/terminal"
@@ -20,7 +21,7 @@ import (
 
 const DefaultSshUsername = "root"
 
-func BringUpAgent(ctx context.Context, client *fly.Client, app *fly.AppCompact, network string, quiet bool) (*agent.Client, agent.Dialer, error) {
+func BringUpAgent(ctx context.Context, client flyutil.Client, app *fly.AppCompact, network string, quiet bool) (*agent.Client, agent.Dialer, error) {
 	io := iostreams.FromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
@@ -101,7 +102,7 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 }
 
 func singleUseSSHCertificate(ctx context.Context, org fly.OrganizationImpl, appNames []string, user string) (*fly.IssuedCertificate, ed25519.PrivateKey, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	hours := 1
 
 	pub, priv, err := ed25519.GenerateKey(nil)

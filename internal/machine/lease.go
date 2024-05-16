@@ -7,7 +7,7 @@ import (
 
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -58,7 +58,7 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 	}
 
 	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
 		if !strings.Contains(err.Error(), "lease not found") {
@@ -70,7 +70,7 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 // AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
 func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, releaseLeaseFunc, error) {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	lease, err := flapsClient.AcquireLease(ctx, machine.ID, fly.IntPointer(120))
 	if err != nil {
