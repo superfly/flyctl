@@ -22,7 +22,7 @@ import (
 
 func newClone() *cobra.Command {
 	const (
-		short = "Clone a Fly Machine."
+		short = "Clone a Fly Machine"
 		long  = short + ` The new Machine will be a copy of the specified Machine.
 If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine.`
 
