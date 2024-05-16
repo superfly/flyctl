@@ -8,7 +8,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/agent"
@@ -64,6 +63,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/volumes"
 	"github.com/superfly/flyctl/internal/command/wireguard"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 // New initializes and returns a reference to a new root command.
@@ -95,7 +95,7 @@ func New() *cobra.Command {
 		group(platform.New(), "more_help"),
 		group(docs.New(), "more_help"),
 		group(releases.New(), "upkeep"),
-		group(deploy.New(), "deploy"),
+		group(deploy.New().Command, "deploy"),
 		group(history.New(), "upkeep"),
 		group(status.New(), "deploy"),
 		group(logs.New(), "upkeep"),
@@ -188,7 +188,7 @@ func run(ctx context.Context) error {
 	cmd.Printf("  %s\n", "flyctl [command]")
 	cmd.Println()
 
-	if !fly.ClientFromContext(ctx).Authenticated() {
+	if !flyutil.ClientFromContext(ctx).Authenticated() {
 		msg := `It doesn't look like you're logged in. Try "fly auth signup" to create an account, or "fly auth login" to log in to an existing account.`
 		cmd.Println(text.Wrap(msg, 80))
 		cmd.Println()

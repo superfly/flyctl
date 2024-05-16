@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -37,7 +37,7 @@ actual value of the secret is only available to the application.`
 }
 
 func runList(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	secrets, err := client.GetAppSecrets(ctx, appName)

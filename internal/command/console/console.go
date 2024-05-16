@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -159,7 +160,7 @@ func runConsole(ctx context.Context) error {
 	var (
 		io        = iostreams.FromContext(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		apiClient = fly.ClientFromContext(ctx)
+		apiClient = flyutil.ClientFromContext(ctx)
 	)
 
 	app, err := apiClient.GetAppCompact(ctx, appName)
@@ -179,7 +180,7 @@ func runConsole(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to create flaps client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
@@ -249,7 +250,7 @@ func promptForMachine(ctx context.Context, app *fly.AppCompact, appConfig *appco
 		return nil, nil, errors.New("--machine can't be used with -s/--select")
 	}
 
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -292,7 +293,7 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 		return nil, nil, errors.New("--region can't be used with --machine")
 	}
 
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	machineID := flag.GetString(ctx, "machine")
 	machine, err := flapsClient.Get(ctx, machineID)
 	if err != nil {
@@ -309,7 +310,7 @@ func getMachineByID(ctx context.Context) (*fly.Machine, func(), error) {
 }
 
 func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config, guest *fly.MachineGuest) (*fly.Machine, func(), error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	currentRelease, err := apiClient.GetAppCurrentReleaseMachines(ctx, app.Name)
 	if err != nil {
 		return nil, nil, err

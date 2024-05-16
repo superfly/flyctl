@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -144,7 +145,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 
 // createApp creates the fly.io app for the plan
 func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
 		return nil, err
