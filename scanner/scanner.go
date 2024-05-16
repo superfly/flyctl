@@ -122,6 +122,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureNode,
 		configureStatic,
 		configureDotnet,
+		configureRust,
 	}
 
 	for _, scanner := range scanners {
