@@ -108,13 +108,12 @@ a Postgres database.
 `
 	}
 
-	// Add migration task if we find one of the dependencies that would run migrations.
-	// They are listed here: https://github.com/elixir-ecto/ecto?tab=readme-ov-file#usage
-	if checksPass(sourceDir, dirContains("mix.exs", "postgrex", "myxql", "tds")) {
+	if checksPass(sourceDir, dirContains("mix.exs", "postgrex")) {
+		s.DatabaseDesired = DatabaseKindPostgres
 		s.ReleaseCmd = "/app/bin/migrate"
 	} else if checksPass(sourceDir, dirContains("mix.exs", "ecto_sqlite3")) {
+		s.DatabaseDesired = DatabaseKindSqlite
 		s.Env["DATABASE_PATH"] = "/mnt/name/name.db"
-
 		s.Volumes = []Volume{
 			{
 				Source:      "name",
