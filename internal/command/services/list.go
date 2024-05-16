@@ -49,7 +49,7 @@ func runList(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	machines, err := machine.ListActive(ctx)
 	if err != nil {

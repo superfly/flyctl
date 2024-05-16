@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 
@@ -35,7 +36,7 @@ const (
 )
 
 type Launcher struct {
-	client *fly.Client
+	client flyutil.Client
 }
 
 type CreateClusterInput struct {
@@ -55,7 +56,7 @@ type CreateClusterInput struct {
 	ForkFrom           string
 }
 
-func NewLauncher(client *fly.Client) *Launcher {
+func NewLauncher(client flyutil.Client) *Launcher {
 	return &Launcher{
 		client: client,
 	}
@@ -66,7 +67,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 	)
 
 	// Ensure machines can be started when scaling to zero is enabled
@@ -102,7 +103,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	nodes := make([]*fly.Machine, 0)
 

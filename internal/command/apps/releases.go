@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -49,7 +50,7 @@ including type, when, success/fail and which user triggered the release.
 func runReleases(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		out     = iostreams.FromContext(ctx).Out
 	)
 

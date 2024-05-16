@@ -5,14 +5,15 @@ import (
 	"fmt"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	cfg, err := getAppV2ConfigFromReleases(ctx, apiClient, appName)
 	if cfg == nil {
@@ -29,7 +30,7 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 }
 
 func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, error) {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	activeMachines, err := machine.ListActive(ctx)
@@ -47,7 +48,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, e
 	return appConfig, nil
 }
 
-func getAppV2ConfigFromReleases(ctx context.Context, apiClient *fly.Client, appName string) (*Config, error) {
+func getAppV2ConfigFromReleases(ctx context.Context, apiClient flyutil.Client, appName string) (*Config, error) {
 	_ = `# @genqlient
 	query FlyctlConfigCurrentRelease($appName: String!) {
 		app(name:$appName) {
@@ -57,7 +58,7 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient *fly.Client, appN
 		}
 	}
 	`
-	resp, err := gql.FlyctlConfigCurrentRelease(ctx, apiClient.GenqClient, appName)
+	resp, err := gql.FlyctlConfigCurrentRelease(ctx, apiClient.GenqClient(), appName)
 	if err != nil {
 		return nil, err
 	}

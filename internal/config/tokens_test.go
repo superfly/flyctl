@@ -74,19 +74,19 @@ func TestFetchOrgTokens(t *testing.T) {
 }
 
 func fakeOrgFetcher(orgs map[uint64]string, err error) orgFetcher {
-	return func(context.Context, *fly.Client) (map[uint64]string, error) { return orgs, err }
+	return func(context.Context, flyutil.Client) (map[uint64]string, error) { return orgs, err }
 }
 
 func fakeOrgTokenMinter(tb testing.TB, expectedGraphID string, oid uint64) tokenMinter {
 	tb.Helper()
-	return func(_ context.Context, _ *fly.Client, graphID string) (string, error) {
+	return func(_ context.Context, _ flyutil.Client, graphID string) (string, error) {
 		require.Equal(tb, expectedGraphID, graphID)
 		return fakeTokenHeader(tb, "", oid), nil
 	}
 }
 
 func fakeTokenMinter(hdrsOrErrors ...any) tokenMinter {
-	return func(context.Context, *fly.Client, string) (string, error) {
+	return func(context.Context, flyutil.Client, string) (string, error) {
 		if len(hdrsOrErrors) == 0 {
 			panic("unexpected call to fakeTokenMinter")
 		}

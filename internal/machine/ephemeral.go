@@ -27,7 +27,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	if !input.LaunchInput.Config.AutoDestroy {
@@ -88,7 +88,7 @@ func LaunchEphemeral(ctx context.Context, input *EphemeralInput) (*fly.Machine, 
 }
 
 func checkMachineDestruction(ctx context.Context, machine *fly.Machine, firstErr error) (bool, error) {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	machine, err := flapsClient.Get(ctx, machine.ID)
 	if err != nil {
 		return false, fmt.Errorf("failed to check status of machine: %w", err)
@@ -122,7 +122,7 @@ func makeCleanupFunc(ctx context.Context, machine *fly.Machine) func() {
 	var (
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	return func() {

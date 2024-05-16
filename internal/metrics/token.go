@@ -32,7 +32,7 @@ func queryMetricsToken(ctx context.Context) (string, error) {
 
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
-		apiClient.GenqClient,
+		apiClient.GenqClient(),
 		"flyctl-metrics",
 		personal.ID,
 		"identity",

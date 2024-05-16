@@ -14,6 +14,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/spinner"
 )
@@ -70,7 +71,7 @@ func runCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	var name = flag.GetString(ctx, "name")
+	name := flag.GetString(ctx, "name")
 
 	if name == "" {
 		err = prompt.String(ctx, &name, "Choose a Redis database name (leave blank to generate one):", "", false)
@@ -81,7 +82,6 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	excludedRegions, err := GetExcludedRegions(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -90,7 +90,6 @@ func runCreate(ctx context.Context) (err error) {
 		Message:             "Choose a primary region (can't be changed later)",
 		ExcludedRegionCodes: excludedRegions,
 	})
-
 	if err != nil {
 		return err
 	}
@@ -118,7 +117,6 @@ func Create(ctx context.Context, org *fly.Organization, name string, region *fly
 	)
 
 	excludedRegions, err := GetExcludedRegions(ctx)
-
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +184,7 @@ type RedisConfiguration struct {
 }
 
 func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisConfiguration) (addOn *gql.AddOn, err error) {
-	client := fly.ClientFromContext(ctx).GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	var readRegionCodes []string
 
@@ -219,13 +217,12 @@ func ProvisionDatabase(ctx context.Context, org *fly.Organization, config RedisC
 }
 
 func DeterminePlan(ctx context.Context, org *fly.Organization) (*gql.ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan, error) {
-
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	planId := redisPlanPayAsYouGo
 
 	// Now that we have the Plan ID, look up the actual plan
-	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient, gql.AddOnTypeUpstashRedis)
+	allAddons, err := gql.ListAddOnPlans(ctx, client.GenqClient(), gql.AddOnTypeUpstashRedis)
 	if err != nil {
 		return nil, err
 	}

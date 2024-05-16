@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func CompleteApps(
@@ -19,7 +20,7 @@ func CompleteApps(
 	partial string,
 ) ([]string, error) {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 
 		apps []fly.App
 		err  error
@@ -65,7 +66,7 @@ func CompleteOrgs(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	format := func(org fly.Organization) string {
 		return fmt.Sprintf("%s\t%s", org.Slug, org.Name)
@@ -92,7 +93,7 @@ func CompleteRegions(
 	args []string,
 	partial string,
 ) ([]string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	format := func(org fly.Region) string {
 		return fmt.Sprintf("%s\t%s", org.Code, org.Name)

@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -92,7 +93,7 @@ func newCreateBarman() *cobra.Command {
 func runBarmanCreate(ctx context.Context) error {
 	var (
 		io      = iostreams.FromContext(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -102,7 +103,7 @@ func runBarmanCreate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// pre-fetch platform regions for later use
 	prompt.PlatformRegions(ctx)
@@ -448,7 +449,7 @@ func runBarmanRecover(ctx context.Context) error {
 }
 
 func runConsole(ctx context.Context, cmd string) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.GetAppCompact(ctx, appName)

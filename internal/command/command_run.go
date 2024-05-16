@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
 
@@ -25,12 +24,14 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 )
 
 func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
@@ -369,8 +370,8 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]fly.Volume, error) {
-	apiclient := fly.ClientFromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
+	apiclient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if regionCode == "" {
 		region, err := apiclient.GetNearestRegion(ctx)
