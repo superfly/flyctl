@@ -18,9 +18,9 @@ import (
 
 func newRestart() *cobra.Command {
 	const (
-		long  = `The APPS RESTART command will perform a rolling restart against all running VMs`
-		short = "Restart an application"
-		usage = "restart [APPNAME]"
+		long  = `Restart an application. Perform a rolling restart against all running Machines.`
+		short = "Restart an application."
+		usage = "restart <app name>"
 	)
 
 	cmd := command.New(usage, short, long, runRestart,
