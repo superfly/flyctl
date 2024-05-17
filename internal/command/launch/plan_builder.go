@@ -291,19 +291,23 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
-	taken, err := appNameTaken(ctx, m.Plan.AppName)
-	if err != nil {
-		return nil, flyerr.GenericErr{
-			Err:     "unable to determine app name availability",
-			Suggest: "Please try again in a minute",
-		}
-	}
-	if taken {
-		err := recoverableErrors.tryRecover(recoverableInUiError{appNameTakenErr(m.Plan.AppName)})
+	// We don't check the app name being taken unless we can go to the UI, because
+	// it'll fail when creating the app *anyway*, so unless you can use the UI it'll be the same result.
+	if recoverableErrors.canEnterUi {
+		taken, err := appNameTaken(ctx, m.Plan.AppName)
 		if err != nil {
-			return nil, err
+			return nil, flyerr.GenericErr{
+				Err:     "unable to determine app name availability",
+				Suggest: "Please try again in a minute",
+			}
 		}
-		m.PlanSource.appNameSource = recoverableSpecifyInUi
+		if taken {
+			err := recoverableErrors.tryRecover(recoverableInUiError{appNameTakenErr(m.Plan.AppName)})
+			if err != nil {
+				return nil, err
+			}
+			m.PlanSource.appNameSource = recoverableSpecifyInUi
+		}
 	}
 
 	workingDir := flag.GetString(ctx, "path")
