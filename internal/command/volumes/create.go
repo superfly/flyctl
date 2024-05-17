@@ -22,8 +22,8 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/"
-		usage = "create <volumename>"
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/."
+		usage = "create <volume name>"
 	)
 
 	cmd := command.New(usage, short, long, runCreate,
@@ -45,7 +45,7 @@ func newCreate() *cobra.Command {
 		flag.Int{
 			Name:        "snapshot-retention",
 			Default:     5,
-			Description: "Snapshot retention in days (min 5)",
+			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
 			Name:        "no-encryption",
@@ -54,7 +54,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
-			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Description: "Place the volume in a separate hardware zone from existing volumes to help ensure availability",
 			Default:     true,
 		},
 		flag.String{

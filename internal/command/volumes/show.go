@@ -23,7 +23,7 @@ func newShow() (cmd *cobra.Command) {
 		long = short
 	)
 
-	cmd = command.New("show [id]", short, long, runShow,
+	cmd = command.New("show <volume id>", short, long, runShow,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
