@@ -29,7 +29,7 @@ func New() *cobra.Command {
 
 		long = short
 
-		usage = "volumes <command>"
+		usage = "volumes"
 	)
 
 	cmd := command.New(usage, short, long, nil)

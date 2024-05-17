@@ -22,10 +22,10 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long  = "List snapshots associated with the specified volume"
-		short = "List snapshots"
+		long  = "List snapshots associated with the specified volume."
+		short = "List snapshots."
 
-		usage = "list <volume-id>"
+		usage = "list <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runList,
