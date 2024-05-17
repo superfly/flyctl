@@ -18,11 +18,11 @@ import (
 
 func newMove() *cobra.Command {
 	const (
-		long = `The APPS MOVE command will move an application to another
+		long = `Move an application to another
 organization the current user belongs to.
 `
-		short = "Move an app to another organization"
-		usage = "move <APPNAME>"
+		short = "Move an app to another organization."
+		usage = "move <app name>"
 	)
 
 	move := command.New(usage, short, long, RunMove,
