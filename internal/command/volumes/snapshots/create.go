@@ -15,9 +15,9 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Snapshot a volume"
+		short = "Create a volume snapshot."
 		long  = "Snapshot a volume\n"
-		usage = "create <volume-id>"
+		usage = "create <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, create, command.RequireSession)

@@ -8,9 +8,9 @@ import (
 
 func New() *cobra.Command {
 	const (
-		long = `"Commands for managing volume snapshots"
-`
-		short = "Manage volume snapshots"
+		long = "Manage volume snapshots. A snapshot is a point-in-time copy of a volume. Snapshots can be used to create new volumes or restore a volume to a previous state."
+
+		short = "Manage volume snapshots."
 		usage = "snapshots"
 	)
 
