@@ -17,7 +17,7 @@ import (
 // New initializes and returns a new apps Command.
 func New() *cobra.Command {
 	const (
-		long = "Manage your Fly applications."		
+		long = "Manage your Fly applications."
 		short = "Manage apps."
 	)
 

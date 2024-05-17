@@ -21,7 +21,7 @@ import (
 func newCreate() (cmd *cobra.Command) {
 	const (
 		long = `Create a new application on the Fly platform.
-This command won't generate a fly.toml configuration file, but you can 
+This command won't generate a fly.toml configuration file, but you can
 fetch one with 'fly config save -a <app_name>'.`
 
 		short = "Create a new application."
