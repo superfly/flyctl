@@ -22,9 +22,9 @@ func newExtend() *cobra.Command {
 	const (
 		short = "Extend a volume to the specified size."
 
-		long = short + ` Most Machines don't require a restart. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
+		long = short + ` Most Machines don't require a restart after extending a volume. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
 
-		usage = "extend [id]"
+		usage = "extend <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runExtend,
