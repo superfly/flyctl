@@ -19,7 +19,7 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		long = `Show the applications currently
+		long = `List the applications currently
 available to this user. The list includes applications
 from all the organizations the user is a member of. The list shows
 the name, owner (org), status, and date/time of latest deploy for each app.
