@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
@@ -32,6 +33,14 @@ retrieved from the Fly service and saved in TOML format.`
 		flag.App(),
 		flag.AppConfig(),
 		flag.Yes(),
+		flag.Bool{
+			Name:        "json",
+			Description: "Output the configuration in JSON format",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Output the configuration in YAML format",
+		},
 	)
 	return
 }
@@ -63,6 +72,12 @@ func runSave(ctx context.Context) error {
 	configfilename, err := appconfig.ResolveConfigFileFromPath(path)
 	if err != nil {
 		return err
+	}
+
+	if flag.GetBool(ctx, "json") {
+		configfilename = strings.TrimSuffix(configfilename, ".toml") + ".json"
+	} else if flag.GetBool(ctx, "yaml") {
+		configfilename = strings.TrimSuffix(configfilename, ".toml") + ".yaml"
 	}
 
 	if exists, _ := appconfig.ConfigFileExistsAtPath(configfilename); exists && !autoConfirm {
