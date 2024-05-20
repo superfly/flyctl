@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
+	"gopkg.in/yaml.v2"
 )
 
 const flytomlHeader = `# fly.toml app configuration file generated for %s on %s
@@ -29,7 +32,13 @@ func LoadConfig(path string) (cfg *Config, err error) {
 		return nil, err
 	}
 
-	cfg, err = unmarshalTOML(buf)
+	if strings.HasSuffix(path, ".json") {
+		cfg, err = unmarshalJSON(buf)
+	} else if strings.HasSuffix(path, ".yaml") {
+		cfg, err = unmarshalYAML(buf)
+	} else {
+		cfg, err = unmarshalTOML(buf)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +48,18 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return cfg, nil
 }
 
-func (c *Config) WriteTo(w io.Writer) (int64, error) {
-	b, err := c.marshalTOML()
+func (c *Config) WriteTo(ctx context.Context, w io.Writer) (int64, error) {
+	var b []byte
+	var err error
+
+	if flag.GetBool(ctx, "json") {
+		b, err = json.MarshalIndent(c, "", "  ")
+	} else if flag.GetBool(ctx, "yaml") {
+		b, err = yaml.Marshal(c)
+	} else {
+		b, err = c.marshalTOML()
+	}
+
 	if err != nil {
 		return 0, err
 	}
@@ -51,7 +70,7 @@ func (c *Config) WriteTo(w io.Writer) (int64, error) {
 	return bytes.NewBuffer(b).WriteTo(w)
 }
 
-func (c *Config) WriteToFile(filename string) (err error) {
+func (c *Config) WriteToFile(ctx context.Context, filename string) (err error) {
 	if err = helpers.MkdirAll(filename); err != nil {
 		return
 	}
@@ -66,13 +85,13 @@ func (c *Config) WriteToFile(filename string) (err error) {
 		}
 	}()
 
-	_, err = c.WriteTo(file)
+	_, err = c.WriteTo(ctx, file)
 	return
 }
 
 func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	io := iostreams.FromContext(ctx)
-	err = c.WriteToFile(path)
+	err = c.WriteToFile(ctx, path)
 	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
 	return
 }
@@ -131,4 +150,74 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func unmarshalJSON(buf []byte) (*Config, error) {
+	cfgMap := map[string]any{}
+	if err := json.Unmarshal(buf, &cfgMap); err != nil {
+		return nil, err
+	}
+	cfg, err := applyPatches(cfgMap)
+
+	// In case of parsing error fallback to bare compatibility
+	if err != nil {
+		// Unmarshal twice due to in-place cfgMap updates performed by patches
+		raw := map[string]any{}
+		if err := json.Unmarshal(buf, &raw); err != nil {
+			return nil, err
+		}
+		cfg = &Config{v2UnmarshalError: err}
+		if name, ok := (raw["app"]).(string); ok {
+			cfg.AppName = name
+		}
+	}
+
+	return cfg, nil
+}
+
+func unmarshalYAML(buf []byte) (*Config, error) {
+	cfgMap := map[string]any{}
+	if err := yaml.Unmarshal(buf, &cfgMap); err != nil {
+		return nil, err
+	}
+	stringifyYAMLMapKeys(cfgMap)
+	cfg, err := applyPatches(cfgMap)
+
+	// In case of parsing error fallback to bare compatibility
+	if err != nil {
+		// Unmarshal twice due to in-place cfgMap updates performed by patches
+		raw := map[string]any{}
+		if err := yaml.Unmarshal(buf, &raw); err != nil {
+			return nil, err
+		}
+		cfg = &Config{v2UnmarshalError: err}
+		if name, ok := (raw["app"]).(string); ok {
+			cfg.AppName = name
+		}
+	}
+
+	return cfg, nil
+}
+
+// stringifyYAMLMapKeys converts map keys from interface{} to string
+// This is necessary because the yaml.v2 package unmarshals map keys as interface{},
+// which is not compatible with TOML and JSON which unmarshal map keys as strings.
+func stringifyYAMLMapKeys(obj interface{}) interface{} {
+	if arrayobj, ok := obj.([]interface{}); ok {
+		for i, v := range arrayobj {
+			arrayobj[i] = stringifyYAMLMapKeys(v)
+		}
+	} else if mapobj, ok := obj.(map[string]interface{}); ok {
+		for k, v := range mapobj {
+			mapobj[k] = stringifyYAMLMapKeys(v)
+		}
+	} else if mapobj, ok := obj.(map[interface{}]interface{}); ok {
+		newmap := make(map[string]interface{})
+		for k, v := range mapobj {
+			newmap[k.(string)] = stringifyYAMLMapKeys(v)
+		}
+		obj = newmap
+	}
+
+	return obj
 }
