@@ -8,14 +8,15 @@ import (
 	"github.com/pkg/errors"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 type pollingStream struct {
 	err       error
-	apiClient *fly.Client
+	apiClient flyutil.Client
 }
 
-func NewPollingStream(client *fly.Client, opts *LogOptions) (LogStream, error) {
+func NewPollingStream(client flyutil.Client, opts *LogOptions) (LogStream, error) {
 	return &pollingStream{apiClient: client}, nil
 }
 
@@ -35,7 +36,7 @@ func (s *pollingStream) Err() error {
 	return s.err
 }
 
-func Poll(ctx context.Context, out chan<- LogEntry, client *fly.Client, opts *LogOptions) error {
+func Poll(ctx context.Context, out chan<- LogEntry, client flyutil.Client, opts *LogOptions) error {
 	const (
 		minWait = time.Millisecond << 6
 		maxWait = minWait << 6

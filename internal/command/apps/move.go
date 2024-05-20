@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flyutil"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
@@ -50,7 +51,7 @@ organization the current user belongs to.
 func RunMove(ctx context.Context) error {
 	var (
 		appName  = flag.FirstArg(ctx)
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		logger   = logger.FromContext(ctx)
@@ -95,7 +96,7 @@ Please confirm whether you wish to restart this app now.`
 
 func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *fly.Organization) error {
 	var (
-		client           = fly.ClientFromContext(ctx)
+		client           = flyutil.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)

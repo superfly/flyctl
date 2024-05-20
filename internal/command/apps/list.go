@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -39,7 +40,7 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 }
 
 func runList(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
@@ -91,7 +92,7 @@ func runList(ctx context.Context) (err error) {
 }
 
 func getOrg(ctx context.Context) (*fly.Organization, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	orgName := flag.GetOrg(ctx)
 

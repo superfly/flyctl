@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -46,7 +47,7 @@ func selectOneMachine(ctx context.Context, appName string, machineID string, hav
 			return nil, nil, err
 		}
 	} else {
-		machine, err = flaps.FromContext(ctx).Get(ctx, machineID)
+		machine, err = flapsutil.ClientFromContext(ctx).Get(ctx, machineID)
 		if err != nil {
 			if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
 				return nil, nil, err
@@ -75,7 +76,7 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*fly.Machin
 			return nil, nil, err
 		}
 	} else {
-		flapsClient := flaps.FromContext(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
 		for _, machineID := range machineIDs {
 			machine, err := flapsClient.Get(ctx, machineID)
 			if err != nil {
@@ -121,7 +122,7 @@ func buildContextFromAppName(ctx context.Context, appName string) (context.Conte
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	return ctx, nil
 }
 
@@ -137,7 +138,7 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		// NOTE: assuming that we validated the command line arguments
 		// correctly, we must have at least one machine ID when no app
 		// is set.
-		client := fly.ClientFromContext(ctx)
+		client := flyutil.ClientFromContext(ctx)
 		var gqlMachine *fly.GqlMachine
 		gqlMachine, err = client.GetMachine(ctx, machineIDs[0])
 		if err != nil {
@@ -157,12 +158,12 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
 
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	return ctx, nil
 }
 
 func promptForOneMachine(ctx context.Context) (*fly.Machine, error) {
-	machines, err := flaps.FromContext(ctx).List(ctx, "")
+	machines, err := flapsutil.ClientFromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
 	} else if len(machines) == 0 {
@@ -178,7 +179,7 @@ func promptForOneMachine(ctx context.Context) (*fly.Machine, error) {
 }
 
 func promptForManyMachines(ctx context.Context) ([]*fly.Machine, error) {
-	machines, err := flaps.FromContext(ctx).List(ctx, "")
+	machines, err := flapsutil.ClientFromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
 	} else if len(machines) == 0 {

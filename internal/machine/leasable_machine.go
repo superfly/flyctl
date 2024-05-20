@@ -11,6 +11,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -41,7 +42,7 @@ type LeasableMachine interface {
 }
 
 type leasableMachine struct {
-	flapsClient            *flaps.Client
+	flapsClient            flapsutil.FlapsClient
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
 	machine                *fly.Machine
@@ -50,7 +51,7 @@ type leasableMachine struct {
 	destroyed              bool
 }
 
-func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *fly.Machine) LeasableMachine {
+func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine) LeasableMachine {
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,

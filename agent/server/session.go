@@ -579,7 +579,7 @@ func (s *session) setToken(ctx context.Context, args ...string) {
 
 // getClient returns an API client that uses any API tokens sent by the client.
 // If none have been sent, it falls back to using the server's tokens.
-func (s *session) getClient(ctx context.Context) *fly.Client {
+func (s *session) getClient(ctx context.Context) flyutil.Client {
 	if s.tokens == nil {
 		return s.srv.GetClient(ctx)
 	}

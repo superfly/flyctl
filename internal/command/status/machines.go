@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -76,7 +77,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 	var (
 		io         = iostreams.FromContext(ctx)
 		colorize   = io.ColorScheme()
-		client     = fly.ClientFromContext(ctx)
+		client     = flyutil.ClientFromContext(ctx)
 		jsonOutput = config.FromContext(ctx).JSONOutput
 	)
 
@@ -221,7 +222,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 func renderMachineJSONStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Machine) error {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
 	versionQuery := `
@@ -274,7 +275,7 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 	)
 
 	if len(machines) > 0 {

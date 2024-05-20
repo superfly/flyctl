@@ -50,10 +50,13 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	fly.SetInstrumenter(instrument.ApiAdapter)
 	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
-	logger.Debug("client initialized.")
+	if flyutil.ClientFromContext(ctx) == nil {
+		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+		logger.Debug("client initialized.")
+		ctx = flyutil.NewContextWithClient(ctx, client)
+	}
 
-	return fly.NewContextWithClient(ctx, c), nil
+	return ctx, nil
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {
