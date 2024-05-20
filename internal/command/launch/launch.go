@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -79,8 +80,14 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Finally write application configuration to fly.toml
-	state.appConfig.SetConfigFilePath(state.configPath)
-	if err := state.appConfig.WriteToDisk(ctx, state.configPath); err != nil {
+	configPath := state.configPath
+	if flag.GetBool(ctx, "json") {
+		configPath = strings.TrimSuffix(configPath, ".toml") + ".json"
+	} else if flag.GetBool(ctx, "yaml") {
+		configPath = strings.TrimSuffix(configPath, ".toml") + ".yaml"
+	}
+	state.appConfig.SetConfigFilePath(configPath)
+	if err := state.appConfig.WriteToDisk(ctx, configPath); err != nil {
 		return err
 	}
 
