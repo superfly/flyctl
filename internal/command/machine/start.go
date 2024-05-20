@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -67,9 +67,9 @@ func runMachineStart(ctx context.Context) (err error) {
 }
 
 func Start(ctx context.Context, machine *fly.Machine) (err error) {
-	res, err := flaps.FromContext(ctx).Start(ctx, machine.ID, machine.LeaseNonce)
+	res, err := flapsutil.ClientFromContext(ctx).Start(ctx, machine.ID, machine.LeaseNonce)
 	if err != nil {
-		//TODO(dov): just do the clone
+		// TODO(dov): just do the clone
 		switch {
 		case strings.Contains(err.Error(), " for machine"):
 			return fmt.Errorf("could not start machine due to lack of capacity. Try 'flyctl machine clone %s -a %s'", machine.ID, appconfig.NameFromContext(ctx))

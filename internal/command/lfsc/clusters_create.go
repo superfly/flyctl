@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,7 +40,7 @@ func newClustersCreate() *cobra.Command {
 }
 
 func runClustersCreate(ctx context.Context) error {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	orgID, err := getOrgID(ctx)
 	if err != nil {
@@ -66,7 +66,7 @@ func runClustersCreate(ctx context.Context) error {
 		return err
 	}
 
-	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient, clusterName, orgID, "litefs_cloud",
+	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient(), clusterName, orgID, "litefs_cloud",
 		&gql.LimitedAccessTokenOptions{
 			"cluster": clusterName,
 		},

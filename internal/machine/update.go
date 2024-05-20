@@ -7,7 +7,7 @@ import (
 	"time"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/maps"
@@ -20,7 +20,7 @@ var cpusPerKind = map[string][]int{
 
 func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) error {
 	var (
-		flapsClient    = flaps.FromContext(ctx)
+		flapsClient    = flapsutil.ClientFromContext(ctx)
 		io             = iostreams.FromContext(ctx)
 		colorize       = io.ColorScheme()
 		updatedMachine *fly.Machine

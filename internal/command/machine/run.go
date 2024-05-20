@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/watch"
@@ -286,7 +287,7 @@ func runMachineCreate(ctx context.Context) error {
 func runMachineRun(ctx context.Context) error {
 	var (
 		appName  = appconfig.NameFromContext(ctx)
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		err      error
@@ -371,7 +372,7 @@ func runMachineRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
@@ -494,7 +495,7 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func getOrCreateEphemeralShellApp(ctx context.Context, client *fly.Client) (*fly.AppCompact, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*fly.AppCompact, error) {
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
@@ -543,7 +544,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *fly.Client) (*fly
 	return app, nil
 }
 
-func createApp(ctx context.Context, message, name string, client *fly.Client) (*fly.AppCompact, error) {
+func createApp(ctx context.Context, message, name string, client flyutil.Client) (*fly.AppCompact, error) {
 	confirm, err := prompt.Confirm(ctx, message)
 	if err != nil {
 		return nil, err

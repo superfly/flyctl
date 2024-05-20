@@ -9,7 +9,7 @@ import (
 	"github.com/morikuni/aec"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -68,7 +68,7 @@ func MachinesChecks(ctx context.Context, machines []*fly.Machine) error {
 
 // retryGetMachines calls flaps with exponential backoff 10s max interval and up to 6 times
 func retryGetMachines(ctx context.Context, machineIDs ...string) (result []*fly.Machine, err error) {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	err = retry.Do(
 		func() (err2 error) {
 			result, err2 = flapsClient.GetMany(ctx, machineIDs)

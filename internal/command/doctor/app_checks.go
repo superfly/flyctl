@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -28,7 +29,7 @@ type AppChecker struct {
 	app        *fly.AppCompact
 	workDir    string
 	appConfig  *appconfig.Config
-	apiClient  *fly.Client
+	apiClient  flyutil.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) (*AppChecker, error) {
@@ -40,7 +41,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil, nil
 	}
 
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err

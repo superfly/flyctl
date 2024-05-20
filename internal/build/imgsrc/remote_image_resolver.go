@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"strconv"
 
-	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/trace"
 )
 
 type remoteImageResolver struct {
-	flyApi *fly.Client
+	flyApi flyutil.Client
 }
 
 func (*remoteImageResolver) Name() string {

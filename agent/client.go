@@ -18,12 +18,12 @@ import (
 	"github.com/azazeal/pause"
 	"golang.org/x/sync/errgroup"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent/internal/proto"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/version"
@@ -34,7 +34,7 @@ import (
 )
 
 // Establish starts the daemon, if necessary, and returns a client to it.
-func Establish(ctx context.Context, apiClient *fly.Client) (*Client, error) {
+func Establish(ctx context.Context, apiClient flyutil.Client) (*Client, error) {
 	if err := wireguard.PruneInvalidPeers(ctx, apiClient); err != nil {
 		return nil, err
 	}
@@ -540,7 +540,7 @@ func arrayEqual(a, b []string) bool {
 }
 
 func gqlGetInstances(ctx context.Context, orgSlug, appName string) instancesResult {
-	gqlClient := fly.ClientFromContext(ctx).GenqClient
+	gqlClient := flyutil.ClientFromContext(ctx).GenqClient()
 	_ = `# @genqlient
 	query AgentGetInstances($appName: String!) {
 		app(name: $appName) {

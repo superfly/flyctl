@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 )
@@ -25,7 +26,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
 		}
 
-		client := fly.ClientFromContext(ctx)
+		client := flyutil.ClientFromContext(ctx)
 		agentclient, err := agent.Establish(ctx, client)
 		if err != nil {
 			return nil, fmt.Errorf("error establishing agent: %w", err)
@@ -36,6 +37,7 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 			return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", orgSlug, err)
 		}
 		opts.DialContext = dialer.DialContext
+		opts.OrgSlug = orgSlug
 
 		flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
 		if opts.BaseURL, err = url.Parse(flapsBaseUrlString); err != nil {
@@ -69,7 +71,7 @@ func resolveOrgSlugForApp(ctx context.Context, app *fly.AppCompact, appName stri
 func resolveApp(ctx context.Context, app *fly.AppCompact, appName string) (*fly.AppCompact, error) {
 	var err error
 	if app == nil {
-		client := fly.ClientFromContext(ctx)
+		client := flyutil.ClientFromContext(ctx)
 		app, err = client.GetAppCompact(ctx, appName)
 	}
 	return app, err
@@ -83,7 +85,7 @@ func resolvePeerIP(ip string) string {
 	return net.IP(natsIPBytes[:]).String()
 }
 
-func Launch(ctx context.Context, client *flaps.Client, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+func Launch(ctx context.Context, client FlapsClient, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 	metrics.Started(ctx, "machine_launch")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_launch/duration")
 	defer func() {
@@ -95,7 +97,7 @@ func Launch(ctx context.Context, client *flaps.Client, builder fly.LaunchMachine
 	return client.Launch(ctx, builder)
 }
 
-func Update(ctx context.Context, client *flaps.Client, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+func Update(ctx context.Context, client FlapsClient, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 	metrics.Started(ctx, "machine_update")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_update/duration")
 	defer func() {
@@ -107,7 +109,7 @@ func Update(ctx context.Context, client *flaps.Client, builder fly.LaunchMachine
 	return client.Update(ctx, builder, nonce)
 }
 
-func Start(ctx context.Context, client *flaps.Client, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
+func Start(ctx context.Context, client FlapsClient, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
 	metrics.Started(ctx, "machine_start")
 	defer func() {
 		metrics.Status(ctx, "machine_start", err == nil)
@@ -115,7 +117,7 @@ func Start(ctx context.Context, client *flaps.Client, machineID string, nonce st
 	return client.Start(ctx, machineID, nonce)
 }
 
-func Cordon(ctx context.Context, client *flaps.Client, machineID string, nonce string) (err error) {
+func Cordon(ctx context.Context, client FlapsClient, machineID string, nonce string) (err error) {
 	metrics.Started(ctx, "machine_cordon")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_cordon/duration")
 	defer func() {
@@ -127,7 +129,7 @@ func Cordon(ctx context.Context, client *flaps.Client, machineID string, nonce s
 	return client.Cordon(ctx, machineID, nonce)
 }
 
-func Uncordon(ctx context.Context, client *flaps.Client, machineID string, nonce string) (err error) {
+func Uncordon(ctx context.Context, client FlapsClient, machineID string, nonce string) (err error) {
 	metrics.Started(ctx, "machine_uncordon")
 	sendUpdateMetrics := metrics.StartTiming(ctx, "machine_uncordon/duration")
 	defer func() {
