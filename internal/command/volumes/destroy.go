@@ -22,7 +22,7 @@ func newDestroy() *cobra.Command {
 		long = short + " When you destroy a volume, you permanently delete all its data."
 	)
 
-	cmd := command.New("destroy [flags] ID ID ...", short, long, runDestroy,
+	cmd := command.New("destroy <volume id> ... [flags]", short, long, runDestroy,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
