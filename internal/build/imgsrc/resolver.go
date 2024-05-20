@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/retry"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/terminal"
@@ -653,7 +654,9 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = heartbeat(ctx, dockerClient, heartbeatReq)
+	err = retry.Retry(func() error {
+		return heartbeat(ctx, dockerClient, heartbeatReq)
+	}, 3)
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
