@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -76,7 +77,7 @@ type MachineDeploymentArgs struct {
 }
 
 type machineDeployment struct {
-	apiClient             *fly.Client
+	apiClient             flyutil.Client
 	gqlClient             graphql.Client
 	flapsClient           *flaps.Client
 	io                    *iostreams.IOStreams
@@ -192,7 +193,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	io := iostreams.FromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
 	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
@@ -206,7 +207,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 
 	md := &machineDeployment{
 		apiClient:             apiClient,
-		gqlClient:             apiClient.GenqClient,
+		gqlClient:             apiClient.GenqClient(),
 		flapsClient:           flapsClient,
 		io:                    io,
 		colorize:              io.ColorScheme(),

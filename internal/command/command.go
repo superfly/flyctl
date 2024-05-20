@@ -16,6 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -507,7 +508,7 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !fly.ClientFromContext(ctx).Authenticated() {
+	if !flyutil.ClientFromContext(ctx).Authenticated() {
 		io := iostreams.FromContext(ctx)
 		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
 		if io.IsInteractive() &&

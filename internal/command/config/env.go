@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -31,7 +32,7 @@ secrets and another for config file defined environment variables.`
 }
 
 func runEnv(ctx context.Context) error {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
@@ -53,7 +54,7 @@ func runEnv(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {

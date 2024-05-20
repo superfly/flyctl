@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -56,7 +56,7 @@ func update() (cmd *cobra.Command) {
 func runUpdate(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 
-	client := fly.ClientFromContext(ctx).GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	id := flag.FirstArg(ctx)
 	response, err := gql.GetAddOn(ctx, client, id)

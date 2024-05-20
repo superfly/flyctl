@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -97,7 +97,7 @@ func Stop(ctx context.Context, machine *fly.Machine, signal string, timeout int)
 
 	waitTimeout := flag.GetDuration(ctx, "wait-timeout")
 
-	client := flaps.FromContext(ctx)
+	client := flapsutil.ClientFromContext(ctx)
 	err = client.Stop(ctx, machineStopInput, machine.LeaseNonce)
 	if err != nil {
 		if err := rewriteMachineNotFoundErrors(ctx, err, machine.ID); err != nil {

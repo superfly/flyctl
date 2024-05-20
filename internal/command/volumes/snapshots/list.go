@@ -16,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -51,7 +52,7 @@ func runList(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
 		cfg    = config.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
 	volID := flag.FirstArg(ctx)

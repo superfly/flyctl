@@ -12,6 +12,7 @@ import (
 	"github.com/olekukonko/tablewriter"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
@@ -19,7 +20,7 @@ import (
 
 func runWireguardTokenList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -48,7 +49,7 @@ func runWireguardTokenList(ctx context.Context) error {
 
 func runWireguardTokenCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -101,7 +102,7 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 
 func runWireguardTokenDelete(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {

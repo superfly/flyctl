@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -45,7 +45,7 @@ func runMachineKill(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if current.State == "destroyed" {
 		return fmt.Errorf("machine %s has already been destroyed", current.ID)

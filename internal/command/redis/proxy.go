@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -46,12 +46,12 @@ func runProxy(ctx context.Context) (err error) {
 }
 
 func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.ConnectParams, string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	var index int
 	var options []string
 
-	result, err := gql.ListAddOns(ctx, client.GenqClient, "upstash_redis")
+	result, err := gql.ListAddOns(ctx, client.GenqClient(), "upstash_redis")
 	if err != nil {
 		return nil, "", err
 	}
@@ -67,7 +67,7 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 		return nil, "", err
 	}
 
-	response, err := gql.GetAddOn(ctx, client.GenqClient, databases[index].Name)
+	response, err := gql.GetAddOn(ctx, client.GenqClient(), databases[index].Name)
 	if err != nil {
 		return nil, "", err
 	}

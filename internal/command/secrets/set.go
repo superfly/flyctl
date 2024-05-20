@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newSet() (cmd *cobra.Command) {
@@ -33,7 +34,7 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -66,7 +67,7 @@ func runSet(ctx context.Context) (err error) {
 }
 
 func SetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets map[string]string, stage bool, detach bool) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}

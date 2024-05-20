@@ -9,6 +9,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -58,7 +59,7 @@ func runDelete(ctx context.Context) error {
 		}
 	}
 
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	if _, err := client.DeleteOrganization(ctx, org.ID); err != nil {
 		return fmt.Errorf("failed deleting organization %s", err)
 	}
