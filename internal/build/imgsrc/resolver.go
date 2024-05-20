@@ -657,27 +657,16 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
+			span.SetAttributes(attribute.String("status_code", fmt.Sprintf("%d", h.StatusCode)))
 			if h.StatusCode == http.StatusNotFound {
 				terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
 				return nil, nil
 			}
 		} else {
-			terminal.Debugf("not http error: err = %+v", err)
+			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		}
-		return nil, err
-	}
-
-	span.AddEvent("sending second heartbeat")
-	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
-	if err != nil {
-		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
 		return nil, err
-	} else if resp.StatusCode != http.StatusAccepted {
-		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s\n", resp.Status)
-		span.SetAttributes(attribute.String("status_code", fmt.Sprintf("%d", resp.StatusCode)))
-		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
-		return nil, nil
 	}
 
 	// We timeout on idleness every 10 minutes on the server, so sending a pulse every 2 minutes to make sure we don't get timed out seems cool
