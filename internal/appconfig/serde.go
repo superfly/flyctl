@@ -55,7 +55,7 @@ func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	if format == "json" {
 		b, err = json.MarshalIndent(c, "", "  ")
 	} else if format == "yaml" {
-		b, err = yaml.Marshal(c)
+		b, err = c.MarshalAsYAML()
 	} else {
 		b, err = c.marshalTOML()
 	}
@@ -102,6 +102,35 @@ func (c *Config) MarshalJSON() ([]byte, error) {
 		return json.Marshal(nil)
 	}
 	return json.Marshal(*c)
+}
+
+// MarshalAsYAML first marshals the config to JSON and then converts it to YAML
+// this is done to pick up the json: struct tags; fortunately, we write
+// YAML infrequently, and only on explicit user request
+func (c *Config) MarshalAsYAML() ([]byte, error) {
+	if c == nil {
+		return json.Marshal(nil)
+	}
+	jsonConfig, err := json.Marshal(*c)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Note that this uses the "vanilla" JSON unmarshaller which is
+	// not aware of the json: struct tags. This is intentional.
+	cfgMap := map[string]any{}
+	err = json.Unmarshal(jsonConfig, &cfgMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return yaml.Marshal(cfgMap)
+}
+
+// MarshalAsTOML serializes the configuration to TOML format
+func (c *Config) MarshalAsTOML() ([]byte, error) {
+	return c.marshalTOML()
 }
 
 // marshalTOML serializes the configuration to TOML format

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -13,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
-	"gopkg.in/yaml.v2"
 )
 
 func newShow() (cmd *cobra.Command) {
@@ -76,9 +74,9 @@ func runShow(ctx context.Context) error {
 	var err error
 
 	if flag.GetBool(ctx, "yaml") {
-		b, err = yaml.Marshal(cfg)
+		b, err = cfg.MarshalAsYAML()
 	} else if flag.GetBool(ctx, "toml") {
-		b, err = toml.Marshal(cfg)
+		b, err = cfg.MarshalAsTOML()
 	} else {
 		b, err = json.MarshalIndent(cfg, "", "  ")
 	}
