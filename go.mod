@@ -35,6 +35,7 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/heroku/heroku-go/v5 v5.5.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
+	github.com/itchyny/json2yaml v0.1.4
 	github.com/jinzhu/copier v0.4.0
 	github.com/jpillora/backoff v1.0.0
 	github.com/kr/text v0.2.0
@@ -181,7 +182,6 @@ require (
 	github.com/heroku/color v0.0.6 // indirect
 	github.com/in-toto/in-toto-golang v0.5.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/itchyny/json2yaml v0.1.4 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51 // indirect
