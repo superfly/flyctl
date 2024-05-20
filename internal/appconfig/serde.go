@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
+	"gopkg.in/yaml.v2"
 )
 
 const flytomlHeader = `# fly.toml app configuration file generated for %s on %s
@@ -29,7 +31,13 @@ func LoadConfig(path string) (cfg *Config, err error) {
 		return nil, err
 	}
 
-	cfg, err = unmarshalTOML(buf)
+	if strings.HasSuffix(path, ".json") {
+		cfg, err = unmarshalJSON(buf)
+	} else if strings.HasSuffix(path, ".yaml") {
+		cfg, err = unmarshalYAML(buf)
+	} else {
+		cfg, err = unmarshalTOML(buf)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -131,4 +139,74 @@ func unmarshalTOML(buf []byte) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func unmarshalJSON(buf []byte) (*Config, error) {
+	cfgMap := map[string]any{}
+	if err := json.Unmarshal(buf, &cfgMap); err != nil {
+		return nil, err
+	}
+	cfg, err := applyPatches(cfgMap)
+
+	// In case of parsing error fallback to bare compatibility
+	if err != nil {
+		// Unmarshal twice due to in-place cfgMap updates performed by patches
+		raw := map[string]any{}
+		if err := json.Unmarshal(buf, &raw); err != nil {
+			return nil, err
+		}
+		cfg = &Config{v2UnmarshalError: err}
+		if name, ok := (raw["app"]).(string); ok {
+			cfg.AppName = name
+		}
+	}
+
+	return cfg, nil
+}
+
+func unmarshalYAML(buf []byte) (*Config, error) {
+	cfgMap := map[string]any{}
+	if err := yaml.Unmarshal(buf, &cfgMap); err != nil {
+		return nil, err
+	}
+	stringifyYAMLMapKeys(cfgMap)
+	cfg, err := applyPatches(cfgMap)
+
+	// In case of parsing error fallback to bare compatibility
+	if err != nil {
+		// Unmarshal twice due to in-place cfgMap updates performed by patches
+		raw := map[string]any{}
+		if err := yaml.Unmarshal(buf, &raw); err != nil {
+			return nil, err
+		}
+		cfg = &Config{v2UnmarshalError: err}
+		if name, ok := (raw["app"]).(string); ok {
+			cfg.AppName = name
+		}
+	}
+
+	return cfg, nil
+}
+
+// stringifyYAMLMapKeys converts map keys from interface{} to string
+// This is necessary because the yaml.v2 package unmarshals map keys as interface{},
+// which is not compatible with TOML and JSON which unmarshal map keys as strings.
+func stringifyYAMLMapKeys(obj interface{}) interface{} {
+	if arrayobj, ok := obj.([]interface{}); ok {
+		for i, v := range arrayobj {
+			arrayobj[i] = stringifyYAMLMapKeys(v)
+		}
+	} else if mapobj, ok := obj.(map[string]interface{}); ok {
+		for k, v := range mapobj {
+			mapobj[k] = stringifyYAMLMapKeys(v)
+		}
+	} else if mapobj, ok := obj.(map[interface{}]interface{}); ok {
+		newmap := make(map[string]interface{})
+		for k, v := range mapobj {
+			newmap[k.(string)] = stringifyYAMLMapKeys(v)
+		}
+		obj = newmap
+	}
+
+	return obj
 }
