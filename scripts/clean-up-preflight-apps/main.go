@@ -45,7 +45,7 @@ func run() error {
 			}
 		}
 	}`
-	resp, err := gql.AllApps(ctx, apiClient.GenqClient, os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"))
+	resp, err := gql.AllApps(ctx, apiClient.GenqClient(), os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"))
 	if err != nil {
 		return err
 	}

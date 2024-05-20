@@ -13,11 +13,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 const (
@@ -59,7 +59,7 @@ func kubectlToken() (cmd *cobra.Command) {
 }
 
 func runAuth(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	execInfo := os.Getenv(execInfoEnv)
 	if execInfo == "" {
@@ -146,11 +146,11 @@ func runAuth(ctx context.Context) error {
 	return nil
 }
 
-func makeOrgToken(ctx context.Context, apiClient *fly.Client, orgID string) (string, int64, error) {
+func makeOrgToken(ctx context.Context, apiClient flyutil.Client, orgID string) (string, int64, error) {
 	options := gql.LimitedAccessTokenOptions{}
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
-		apiClient.GenqClient,
+		apiClient.GenqClient(),
 		"FKS org deploy token",
 		orgID,
 		"deploy_organization",

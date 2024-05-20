@@ -224,7 +224,7 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool, network string, client *fly.Client) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool, network string, client flyutil.Client) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -392,7 +392,7 @@ func (s *server) clean(ctx context.Context) {
 
 // GetClient returns an API client that uses the server's tokens. Sessions may
 // have their own tokens, so should use session.getClient instead.
-func (s *server) GetClient(ctx context.Context) *fly.Client {
+func (s *server) GetClient(ctx context.Context) flyutil.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

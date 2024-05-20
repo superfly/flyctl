@@ -11,10 +11,10 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -113,7 +113,7 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 	}
 
 	if len(secrets) > 0 {
-		apiClient := fly.ClientFromContext(ctx)
+		apiClient := flyutil.ClientFromContext(ctx)
 		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
 		if err != nil {
 			return err

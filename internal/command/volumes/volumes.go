@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/volumes/lsvd"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -75,7 +76,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 		volumes []fly.Volume
 		err     error
 
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	if volumes, err = flapsClient.GetVolumes(ctx); err != nil {

@@ -8,11 +8,12 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -97,7 +98,7 @@ func newCreate() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	var (
 		appName  = flag.GetString(ctx, "name")
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 	)
@@ -191,7 +192,7 @@ func run(ctx context.Context) (err error) {
 			params.ForkFrom = volID
 		}
 
-		flapsClient := flaps.FromContext(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
 
 		// Resolve the volume
 		vol, err := flapsClient.GetVolume(ctx, params.ForkFrom)
@@ -265,7 +266,7 @@ func run(ctx context.Context) (err error) {
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
 func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 
