@@ -98,6 +98,14 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "json",
+			Description: "Generate configuration in JSON format",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Generate configuration in YAML format",
+		},
 	)
 
 	return
