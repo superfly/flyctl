@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
-	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"gopkg.in/yaml.v2"
 )
@@ -48,13 +48,13 @@ func LoadConfig(path string) (cfg *Config, err error) {
 	return cfg, nil
 }
 
-func (c *Config) WriteTo(ctx context.Context, w io.Writer) (int64, error) {
+func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	var b []byte
 	var err error
 
-	if flag.GetBool(ctx, "json") {
+	if format == "json" {
 		b, err = json.MarshalIndent(c, "", "  ")
-	} else if flag.GetBool(ctx, "yaml") {
+	} else if format == "yaml" {
 		b, err = yaml.Marshal(c)
 	} else {
 		b, err = c.marshalTOML()
@@ -70,7 +70,7 @@ func (c *Config) WriteTo(ctx context.Context, w io.Writer) (int64, error) {
 	return bytes.NewBuffer(b).WriteTo(w)
 }
 
-func (c *Config) WriteToFile(ctx context.Context, filename string) (err error) {
+func (c *Config) WriteToFile(filename string) (err error) {
 	if err = helpers.MkdirAll(filename); err != nil {
 		return
 	}
@@ -85,13 +85,13 @@ func (c *Config) WriteToFile(ctx context.Context, filename string) (err error) {
 		}
 	}()
 
-	_, err = c.WriteTo(ctx, file)
+	_, err = c.WriteTo(file, filepath.Ext(filename))
 	return
 }
 
 func (c *Config) WriteToDisk(ctx context.Context, path string) (err error) {
 	io := iostreams.FromContext(ctx)
-	err = c.WriteToFile(ctx, path)
+	err = c.WriteToFile(path)
 	fmt.Fprintf(io.Out, "Wrote config file %s\n", helpers.PathRelativeToCWD(path))
 	return
 }
