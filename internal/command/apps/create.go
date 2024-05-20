@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -68,7 +69,7 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
-		apiClient     = fly.ClientFromContext(ctx)
+		apiClient     = flyutil.ClientFromContext(ctx)
 	)
 
 	var name string

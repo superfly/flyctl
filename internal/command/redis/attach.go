@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func AttachDatabase(ctx context.Context, db *gql.AddOn, appName string) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	s := map[string]string{}
 	s["REDIS_URL"] = db.PublicUrl

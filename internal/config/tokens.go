@@ -45,7 +45,6 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 	updated2, err := refreshDischargeTokens(monitorCtx, t, uucb)
 	if err != nil {
 		log.Debugf("failed to update discharge tokens: %s", err)
-
 	}
 
 	if file != "" && updated1 || updated2 {
@@ -322,9 +321,9 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 }
 
 // orgFetcher allows us to stub out gql calls in tests
-type orgFetcher func(context.Context, *fly.Client) (map[uint64]string, error)
+type orgFetcher func(context.Context, flyutil.Client) (map[uint64]string, error)
 
-func defaultOrgFetcher(ctx context.Context, c *fly.Client) (map[uint64]string, error) {
+func defaultOrgFetcher(ctx context.Context, c flyutil.Client) (map[uint64]string, error) {
 	orgs, err := c.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
@@ -341,10 +340,10 @@ func defaultOrgFetcher(ctx context.Context, c *fly.Client) (map[uint64]string, e
 }
 
 // tokenMinter allows us to stub out gql calls in tests
-type tokenMinter func(context.Context, *fly.Client, string) (string, error)
+type tokenMinter func(context.Context, flyutil.Client, string) (string, error)
 
-func defaultTokenMinter(ctx context.Context, c *fly.Client, id string) (string, error) {
-	resp, err := gql.CreateLimitedAccessToken(ctx, c.GenqClient, "flyctl", id, "deploy_organization", &gql.LimitedAccessTokenOptions{}, "10m")
+func defaultTokenMinter(ctx context.Context, c flyutil.Client, id string) (string, error) {
+	resp, err := gql.CreateLimitedAccessToken(ctx, c.GenqClient(), "flyctl", id, "deploy_organization", &gql.LimitedAccessTokenOptions{}, "10m")
 	if err != nil {
 		return "", err
 	}

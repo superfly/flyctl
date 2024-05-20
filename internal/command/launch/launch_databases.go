@@ -12,12 +12,12 @@ import (
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
-
 	if state.Plan.Postgres.FlyPostgres != nil {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
@@ -67,7 +67,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
 		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = fly.ClientFromContext(ctx)
+		apiClient = flyutil.ClientFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
@@ -195,7 +195,7 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 
 	var readReplicaRegions []fly.Region
 	{
-		client := fly.ClientFromContext(ctx)
+		client := flyutil.ClientFromContext(ctx)
 		regions, _, err := client.PlatformRegions(ctx)
 		if err != nil {
 			return err
@@ -217,7 +217,6 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 }
 
 func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
-
 	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
 
 	org, err := state.Org(ctx)
