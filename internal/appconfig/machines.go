@@ -62,6 +62,127 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	return mConfig, nil
 }
 
+type TestMachineConfigErr int
+
+const (
+	MissingCommand TestMachineConfigErr = iota
+	MissingImage
+)
+
+func (e TestMachineConfigErr) Error() string {
+	switch e {
+	case MissingCommand:
+		return "missing command for test machine"
+	case MissingImage:
+		return "missing image for test machine"
+	default:
+		return "unknown error creating test machine config"
+	}
+}
+
+func (e TestMachineConfigErr) Suggestion() string {
+	switch e {
+	case MissingCommand:
+		return "Add a `command` field to the `[[services.machine_checks]]` or `[[http_service.machine_checks]]` section of your fly.toml"
+	case MissingImage:
+		return "Add an `image` field to the `[[services.machine_checks]]` or `[[http_service.machine_checks]]` section of your fly.toml"
+	default:
+		return ""
+	}
+}
+
+func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.Machine) (*fly.MachineConfig, error) {
+	var machineEntrypoint []string
+	if svc.Entrypoint != nil {
+		machineEntrypoint = svc.Entrypoint
+	} else {
+		machineEntrypoint = origMachine.Config.Init.Entrypoint
+	}
+
+	var machineCommand []string
+	if len(svc.Command) > 0 {
+		machineCommand = svc.Command
+	} else {
+		return nil, MissingCommand
+	}
+
+	var machineImage string
+	if svc.Image != "" {
+		machineImage = svc.Image
+	} else if origMachine != nil && origMachine.Config != nil && origMachine.Config.Image != "" {
+		machineImage = origMachine.Config.Image
+	} else {
+		return nil, MissingImage
+	}
+
+	var origMachineEnv map[string]string
+	if origMachine != nil && origMachine.Config != nil {
+		origMachineEnv = origMachine.Config.Env
+	}
+	mConfig := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        machineCommand,
+			SwapSizeMB: c.SwapSizeMB,
+			Entrypoint: machineEntrypoint,
+		},
+		Image: machineImage,
+		Restart: &fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
+		},
+		AutoDestroy: true,
+		DNS: &fly.DNSConfig{
+			SkipRegistration: true,
+		},
+		Metadata: map[string]string{
+			fly.MachineConfigMetadataKeyFlyctlVersion:      buildinfo.Version().String(),
+			fly.MachineConfigMetadataKeyFlyPlatformVersion: fly.MachineFlyPlatformVersion2,
+			fly.MachineConfigMetadataKeyFlyProcessGroup:    fly.MachineProcessGroupFlyAppTestMachineCommand,
+		},
+		Env: lo.Assign(c.Env, origMachineEnv),
+	}
+
+	if c.Experimental != nil {
+		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+	}
+
+	mConfig.Env["FLY_TEST_COMMAND"] = "1"
+	mConfig.Env["FLY_PROCESS_GROUP"] = fly.MachineProcessGroupFlyAppTestMachineCommand
+	if c.PrimaryRegion != "" {
+		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
+	}
+	mConfig.Env["FLY_TEST_MACHINE_IP"] = lo.Ternary(origMachine == nil, "", origMachine.PrivateIP)
+
+	// Use the stop config from the app config by default
+	c.tomachineSetStopConfig(mConfig)
+
+	var killTimeout *fly.Duration
+	var killSignal *string
+
+	// We use the image's default killsignal/timeout if it isn't set by the user
+	if svc.Image != "" {
+		killTimeout = lo.Ternary(svc.KillTimeout != nil, svc.KillTimeout, nil)
+		killSignal = lo.Ternary(svc.KillSignal != nil, svc.KillSignal, nil)
+	} else {
+		if svc.KillTimeout != nil {
+			killTimeout = svc.KillTimeout
+		} else if c.KillTimeout != nil {
+			killTimeout = c.KillTimeout
+		}
+		if svc.KillSignal != nil {
+			killSignal = svc.KillSignal
+		} else if c.KillSignal != nil {
+			killSignal = c.KillSignal
+		}
+	}
+
+	mConfig.StopConfig = &fly.StopConfig{
+		Timeout: killTimeout,
+		Signal:  killSignal,
+	}
+
+	return mConfig, nil
+}
+
 func (c *Config) ToConsoleMachineConfig() (*fly.MachineConfig, error) {
 	mConfig := &fly.MachineConfig{
 		Init: fly.MachineInit{
