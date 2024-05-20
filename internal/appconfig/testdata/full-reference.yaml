@@ -193,4 +193,3 @@ vm:
   - app
   size: shared-cpu-1x
 - memory_mb: 4096
-
