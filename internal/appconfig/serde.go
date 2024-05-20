@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/itchyny/json2yaml"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/iostreams"
@@ -117,15 +118,15 @@ func (c *Config) MarshalAsYAML() ([]byte, error) {
 		return nil, err
 	}
 
-	// Note that this uses the "vanilla" JSON unmarshaller which is
-	// not aware of the json: struct tags. This is intentional.
-	cfgMap := map[string]any{}
-	err = json.Unmarshal(jsonConfig, &cfgMap)
+	input := bytes.NewBuffer(jsonConfig)
+	var output bytes.Buffer
+	err = json2yaml.Convert(&output, input)
+
 	if err != nil {
 		return nil, err
 	}
 
-	return yaml.Marshal(cfgMap)
+	return output.Bytes(), nil
 }
 
 // MarshalAsTOML serializes the configuration to TOML format
