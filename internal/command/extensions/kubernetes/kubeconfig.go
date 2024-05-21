@@ -6,10 +6,10 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func saveKubeconfig() (cmd *cobra.Command) {
@@ -33,7 +33,7 @@ func saveKubeconfig() (cmd *cobra.Command) {
 }
 
 func runSaveKubeconfig(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx).GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 	clusterName := flag.FirstArg(ctx)
 
 	resp, err := gql.GetAddOn(ctx, client, clusterName)

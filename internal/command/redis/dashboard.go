@@ -7,10 +7,10 @@ import (
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -32,13 +32,12 @@ func newDashboard() (cmd *cobra.Command) {
 func runDashboard(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = fly.ClientFromContext(ctx).GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
 	orgSlug := flag.FirstArg(ctx)
 
 	result, err := gql.GetOrganization(ctx, client, orgSlug)
-
 	if err != nil {
 		return err
 	}

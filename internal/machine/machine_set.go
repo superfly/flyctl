@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"slices"
 	"sync"
 	"time"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -22,13 +24,14 @@ type MachineSet interface {
 	StartBackgroundLeaseRefresh(context.Context, time.Duration, time.Duration)
 	IsEmpty() bool
 	GetMachines() []LeasableMachine
+	WaitForMachineSetState(context.Context, string, time.Duration, bool, bool) ([]string, error)
 }
 
 type machineSet struct {
 	machines []LeasableMachine
 }
 
-func NewMachineSet(flapsClient *flaps.Client, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
+func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
 		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))
@@ -146,4 +149,49 @@ func (ms *machineSet) StartBackgroundLeaseRefresh(ctx context.Context, leaseDura
 	for _, m := range ms.machines {
 		m.StartBackgroundLeaseRefresh(ctx, leaseDuration, delayBetween)
 	}
+}
+
+func (ms *machineSet) WaitForMachineSetState(ctx context.Context, state string, timeout time.Duration, allowInfinite, allowNotFound bool) ([]string, error) {
+	if len(ms.machines) == 0 {
+		return nil, nil
+	}
+
+	terminal.Debug("waiting for test machine state ", state)
+
+	results := make(chan error, len(ms.machines))
+	var wg sync.WaitGroup
+	for _, m := range ms.machines {
+		wg.Add(1)
+		go func(m LeasableMachine) {
+			defer wg.Done()
+			err := m.WaitForState(ctx, state, timeout, allowInfinite)
+
+			var flapsErr *flaps.FlapsError
+			if errors.As(err, &flapsErr) {
+				if flapsErr.ResponseStatusCode == http.StatusNotFound && allowNotFound {
+					results <- nil
+					return
+				}
+			}
+
+			results <- err
+		}(m)
+	}
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+	badMachineIDs := make([]string, 0)
+	hadError := false
+	for err := range results {
+		if err != nil {
+			hadError = true
+			terminal.Warnf("failed to wait for state: %v\n", err)
+			badMachineIDs = append(badMachineIDs, err.Error())
+		}
+	}
+	if hadError {
+		return badMachineIDs, fmt.Errorf("error waiting for state on all machines")
+	}
+	return nil, nil
 }

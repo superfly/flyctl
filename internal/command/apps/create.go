@@ -14,18 +14,19 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
 
 func newCreate() (cmd *cobra.Command) {
 	const (
-		long = `The APPS CREATE command will register a new application
-with the Fly platform. It will not generate a configuration file, but one
-may be fetched with 'fly config save -a <app_name>'`
+		long = `Create a new application on the Fly platform.
+This command won't generate a fly.toml configuration file, but you can
+fetch one with 'fly config save -a <app_name>'.`
 
-		short = "Create a new application"
-		usage = "create [APPNAME]"
+		short = "Create a new application."
+		usage = "create <app name>"
 	)
 
 	cmd = command.New(usage, short, long, RunCreate,
@@ -68,7 +69,7 @@ func RunCreate(ctx context.Context) (err error) {
 		aName         = flag.FirstArg(ctx)
 		fName         = flag.GetString(ctx, "name")
 		fGenerateName = flag.GetBool(ctx, "generate-name")
-		apiClient     = fly.ClientFromContext(ctx)
+		apiClient     = flyutil.ClientFromContext(ctx)
 	)
 
 	var name string

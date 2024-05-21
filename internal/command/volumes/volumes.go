@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/volumes/lsvd"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -27,9 +28,9 @@ func New() *cobra.Command {
 	const (
 		short = "Manage Fly Volumes."
 
-		long = short
+		long = short + " Volumes are persistent storage for Fly Machines. Learn how how volumes work: https://fly.io/docs/reference/volumes/."
 
-		usage = "volumes <command>"
+		usage = "volumes"
 	)
 
 	cmd := command.New(usage, short, long, nil)
@@ -75,7 +76,7 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 		volumes []fly.Volume
 		err     error
 
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	if volumes, err = flapsClient.GetVolumes(ctx); err != nil {

@@ -5,11 +5,11 @@ import (
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 )
 
 func ListActive(ctx context.Context) ([]*fly.Machine, error) {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {

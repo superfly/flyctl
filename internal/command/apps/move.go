@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flyutil"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
@@ -18,11 +19,11 @@ import (
 
 func newMove() *cobra.Command {
 	const (
-		long = `The APPS MOVE command will move an application to another
+		long = `Move an application to another
 organization the current user belongs to.
 `
-		short = "Move an app to another organization"
-		usage = "move <APPNAME>"
+		short = "Move an app to another organization."
+		usage = "move <app name>"
 	)
 
 	move := command.New(usage, short, long, RunMove,
@@ -50,7 +51,7 @@ organization the current user belongs to.
 func RunMove(ctx context.Context) error {
 	var (
 		appName  = flag.FirstArg(ctx)
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		logger   = logger.FromContext(ctx)
@@ -95,7 +96,7 @@ Please confirm whether you wish to restart this app now.`
 
 func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *fly.Organization) error {
 	var (
-		client           = fly.ClientFromContext(ctx)
+		client           = flyutil.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)

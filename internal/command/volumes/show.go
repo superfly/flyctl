@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -23,7 +24,7 @@ func newShow() (cmd *cobra.Command) {
 		long = short
 	)
 
-	cmd = command.New("show [id]", short, long, runShow,
+	cmd = command.New("show <volume id>", short, long, runShow,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
@@ -40,7 +41,7 @@ func newShow() (cmd *cobra.Command) {
 
 func runShow(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	volumeID := flag.FirstArg(ctx)
 

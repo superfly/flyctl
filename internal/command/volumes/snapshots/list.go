@@ -16,16 +16,17 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func newList() *cobra.Command {
 	const (
-		long  = "List snapshots associated with the specified volume"
-		short = "List snapshots"
+		long  = "List snapshots associated with the specified volume."
+		short = "List snapshots."
 
-		usage = "list <volume-id>"
+		usage = "list <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runList,
@@ -51,7 +52,7 @@ func runList(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
 		cfg    = config.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
 	volID := flag.FirstArg(ctx)

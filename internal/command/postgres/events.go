@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
@@ -83,12 +83,11 @@ func newListEvents() *cobra.Command {
 	)
 
 	return cmd
-
 }
 
 func runListEvents(ctx context.Context) error {
 	var (
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -120,8 +119,10 @@ func runListEvents(ctx context.Context) error {
 		return fmt.Errorf("this feature is not compatible with this postgres service ")
 	}
 
-	ignoreFlags := []string{flagnames.AccessToken, flagnames.App, flagnames.AppConfigFilePath,
-		flagnames.Verbose, "help"}
+	ignoreFlags := []string{
+		flagnames.AccessToken, flagnames.App, flagnames.AppConfigFilePath,
+		flagnames.Verbose, "help",
+	}
 
 	flagsName := flag.GetFlagsName(ctx, ignoreFlags)
 

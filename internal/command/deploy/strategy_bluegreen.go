@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -57,7 +58,7 @@ type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
 	flaps               *flaps.Client
-	apiClient           *fly.Client
+	apiClient           flyutil.Client
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
 	clearLinesAbove     func(count int)
@@ -902,6 +903,7 @@ func (bg *blueGreen) CanDestroyGreenMachines(err error) bool {
 
 	return false
 }
+
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
 	defer span.End()
