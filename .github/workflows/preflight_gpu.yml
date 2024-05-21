@@ -32,12 +32,12 @@ jobs:
       - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
           curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
-          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
+          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gpu-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with:
           name: flyctl
           path: master-build
-      - name: Run preflight tests
+      - name: Run preflight GPU tests
         id: preflight
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
@@ -67,7 +67,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": ":sob: preflight tests failed: ${{ steps.preflight.outputs.failed }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    "text": ":sob: preflight GPU tests failed: ${{ steps.preflight.outputs.failed }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                   }
                 }
               ]
