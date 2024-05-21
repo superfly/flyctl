@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ type FlyctlTestEnv struct {
 	cmdHistory          []*FlyctlResult
 	noHistoryOnFail     bool
 	id                  string
+	VMSize              string
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -51,6 +53,9 @@ func (f *FlyctlTestEnv) PrimaryRegion() string {
 }
 
 func (f *FlyctlTestEnv) SecondaryRegion() string {
+	if len(f.otherRegions) == 0 {
+		return ""
+	}
 	return f.otherRegions[0]
 }
 
@@ -149,6 +154,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		originalAccessToken: cfg.accessToken,
 		noHistoryOnFail:     cfg.noHistoryOnFail,
 		env:                 cfg.envVariables,
+		VMSize:              os.Getenv("FLY_PREFLIGHT_TEST_VM_SIZE"),
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -180,6 +186,12 @@ type testingTWrapper interface {
 
 // Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	if f.VMSize != "" {
+		if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
+			flyctlCmd += fmt.Sprintf(" --vm-size %s ", f.VMSize)
+		}
+	}
+
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
@@ -430,4 +442,8 @@ func (f *FlyctlTestEnv) Skipped() bool {
 
 func (f *FlyctlTestEnv) TempDir() string {
 	return f.t.TempDir()
+}
+
+func (f *FlyctlTestEnv) IsGpuMachine() bool {
+	return strings.Contains(f.VMSize, "a10") || strings.Contains(f.VMSize, "l40s")
 }
