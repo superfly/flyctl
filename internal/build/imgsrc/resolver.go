@@ -707,6 +707,8 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 					}
 
 					terminal.Debugf("Remote builder heartbeat pulse failed: %v%s\n", err, wglessSuggestion)
+				} else {
+					consecutiveTunnelErrors = 0
 				}
 			}
 		}
