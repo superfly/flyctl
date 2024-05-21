@@ -22,6 +22,10 @@ import (
 
 func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	if f.SecondaryRegion() == "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
@@ -55,6 +59,10 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	// if f.VMSize != "" {
+	// 	t.Skip()
+	// }
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -72,6 +80,10 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	// if f.VMSize != "" {
+	// 	t.Skip()
+	// }
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -158,6 +170,13 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 
 func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this uses a fixture with a size, no need to run it on alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
@@ -185,6 +204,12 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this pins a specific size, we can skip it for alternate VM sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 

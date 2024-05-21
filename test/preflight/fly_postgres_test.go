@@ -17,7 +17,12 @@ import (
 
 func TestPostgres_singleNode(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
+	appName := f.CreateRandomAppName() // Since this explicitly sets a size, no need to test on GPUs/alternate
+
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
 
 	f.Fly(
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
@@ -30,6 +35,13 @@ func TestPostgres_singleNode(t *testing.T) {
 
 func TestPostgres_autostart(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -61,6 +73,13 @@ func TestPostgres_FlexFailover(t *testing.T) {
 	}
 
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 	findLeaderID := func(ml []*fly.Machine) string {
 		for _, mach := range ml {
@@ -88,6 +107,13 @@ func TestPostgres_FlexFailover(t *testing.T) {
 
 func TestPostgres_NoMachines(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -102,6 +128,13 @@ func TestPostgres_NoMachines(t *testing.T) {
 
 func TestPostgres_haConfigSave(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
@@ -118,6 +151,13 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
 
@@ -172,6 +212,13 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 
 func TestPostgres_ImportFailure(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
