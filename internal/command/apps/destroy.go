@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flyutil"
 
 	"github.com/superfly/flyctl/iostreams"
 
@@ -17,11 +17,10 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = `The APPS DESTROY command will remove an application
-from the Fly platform.
-`
-		short = "Permanently destroys an app"
-		usage = "destroy <APPNAME>"
+		long = "Delete an application from the Fly platform."
+
+		short = "Permanently destroy an app."
+		usage = "destroy <app name>"
 	)
 
 	destroy := command.New(usage, short, long, RunDestroy,
@@ -44,7 +43,7 @@ func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	appName := flag.FirstArg(ctx)
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	if !flag.GetYes(ctx) {
 		const msg = "Destroying an app is not reversible."

@@ -5,19 +5,19 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Snapshot a volume"
+		short = "Create a volume snapshot."
 		long  = "Snapshot a volume\n"
-		usage = "create <volume-id>"
+		usage = "create <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, create, command.RequireSession)
@@ -28,7 +28,7 @@ func newCreate() *cobra.Command {
 }
 
 func create(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	volumeId := flag.FirstArg(ctx)
 

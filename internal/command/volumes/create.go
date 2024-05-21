@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -22,8 +23,8 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/"
-		usage = "create <volumename>"
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/."
+		usage = "create <volume name>"
 	)
 
 	cmd := command.New(usage, short, long, runCreate,
@@ -45,7 +46,7 @@ func newCreate() *cobra.Command {
 		flag.Int{
 			Name:        "snapshot-retention",
 			Default:     5,
-			Description: "Snapshot retention in days (min 5)",
+			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
 			Name:        "no-encryption",
@@ -54,7 +55,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
-			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Description: "Place the volume in a separate hardware zone from existing volumes to help ensure availability",
 			Default:     true,
 		},
 		flag.String{
@@ -78,7 +79,7 @@ func newCreate() *cobra.Command {
 func runCreate(ctx context.Context) error {
 	var (
 		cfg    = config.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
@@ -91,7 +92,7 @@ func runCreate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)

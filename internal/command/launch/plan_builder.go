@@ -19,11 +19,11 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
-	"github.com/superfly/graphql"
 )
 
 type recoverableInUiError struct {
@@ -73,18 +73,34 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
-func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
-	io := iostreams.FromContext(ctx)
+type recoverableErrorBuilder struct {
+	canEnterUi bool
+	errors     []recoverableInUiError
+}
 
-	var recoverableInUiErrors []recoverableInUiError
-	tryRecoverErr := func(e error) error {
-		var asRecoverableErr recoverableInUiError
-		if errors.As(e, &asRecoverableErr) && canEnterUi {
-			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
-			return nil
-		}
-		return e
+func (r *recoverableErrorBuilder) tryRecover(e error) error {
+	var asRecoverableErr recoverableInUiError
+	if errors.As(e, &asRecoverableErr) && r.canEnterUi {
+		r.errors = append(r.errors, asRecoverableErr)
+		return nil
 	}
+	return e
+}
+
+func (r *recoverableErrorBuilder) build() string {
+	if len(r.errors) == 0 {
+		return ""
+	}
+
+	var allErrors string
+	for _, err := range r.errors {
+		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+	}
+	return allErrors
+}
+
+func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
+	io := iostreams.FromContext(ctx)
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -95,14 +111,14 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	org, orgExplanation, err := determineOrg(ctx)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -140,14 +156,14 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -222,25 +238,16 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		}
 	}
 
-	if len(recoverableInUiErrors) != 0 {
-
-		var allErrors string
-		for _, err := range recoverableInUiErrors {
-			allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
-		}
-		err = recoverableInUiError{errors.New(allErrors)}
-	}
-
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
-	}, buildCache, err
+	}, buildCache, nil
 }
 
-func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
+func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
 	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
@@ -285,8 +292,23 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
-	if taken, _ := appNameTaken(ctx, m.Plan.AppName); taken {
-		return nil, appNameTakenErr(m.Plan.AppName)
+	// We don't check the app name being taken unless we can go to the UI, because
+	// it'll fail when creating the app *anyway*, so unless you can use the UI it'll be the same result.
+	if recoverableErrors.canEnterUi {
+		taken, err := appNameTaken(ctx, m.Plan.AppName)
+		if err != nil {
+			return nil, flyerr.GenericErr{
+				Err:     "unable to determine app name availability",
+				Suggest: "Please try again in a minute",
+			}
+		}
+		if taken {
+			err := recoverableErrors.tryRecover(recoverableInUiError{appNameTakenErr(m.Plan.AppName)})
+			if err != nil {
+				return nil, err
+			}
+			m.PlanSource.appNameSource = recoverableSpecifyInUi
+		}
 	}
 
 	workingDir := flag.GetString(ctx, "path")
@@ -416,7 +438,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 		if prefix != "" {
 			prefix += delimiter
 		}
-		for i := 1; i < 10; i++ {
+		for i := 1; i < 5; i++ {
 			outName := prefix + b.String()
 			if taken, _ := appNameTaken(ctx, outName); !taken {
 				return outName, true
@@ -467,36 +489,22 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	if err := validateAppName(appName); err != nil {
 		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
-	// If the app name is already taken, try to generate a unique suffix.
-	if taken, _ := appNameTaken(ctx, appName); taken {
-
-		var found bool
-		appName, found = findUniqueAppName(appName)
-		if !found {
-			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
-		}
-	}
 	return appName, cause, nil
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := fly.ClientFromContext(ctx)
-	// TODO: I believe this will only check apps that are visible to you.
-	//       We should probably expose a global uniqueness check.
-	_, err := client.GetAppBasic(ctx, name)
+	client := flyutil.ClientFromContext(ctx)
+
+	available, err := client.AppNameAvailable(ctx, name)
 	if err != nil {
-		if fly.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
-			return false, nil
-		}
 		return false, err
 	}
-
-	return true, nil
+	return !available, nil
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
@@ -536,7 +544,7 @@ func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
 func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -564,7 +572,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
 func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {

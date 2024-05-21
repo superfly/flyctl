@@ -11,6 +11,7 @@ import (
 	"github.com/AlecAivazis/survey/v2"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -42,7 +43,7 @@ func orgByArg(ctx context.Context) (*fly.Organization, error) {
 		return org, nil
 	}
 
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	return apiClient.GetOrganizationBySlug(ctx, args[0])
 }
 
@@ -117,7 +118,7 @@ PersistentKeepalive = 15
 	tmpl.Execute(w, &data)
 }
 
-func selectWireGuardPeer(ctx context.Context, client *fly.Client, slug string) (string, error) {
+func selectWireGuardPeer(ctx context.Context, client flyutil.Client, slug string) (string, error) {
 	peers, err := client.GetWireGuardPeers(ctx, slug)
 	if err != nil {
 		return "", err

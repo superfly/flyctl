@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -165,7 +166,11 @@ var CommonFlags = flag.Set{
 	},
 }
 
-func New() (cmd *cobra.Command) {
+type Command struct {
+	*cobra.Command
+}
+
+func New() *Command {
 	const (
 		long = `Deploy Fly applications from source or an image using a local or remote builder.
 
@@ -174,15 +179,15 @@ func New() (cmd *cobra.Command) {
 		short = "Deploy Fly applications"
 	)
 
-	cmd = command.New("deploy [WORKING_DIRECTORY]", short, long, run,
+	cmd := &Command{}
+	cmd.Command = command.New("deploy [WORKING_DIRECTORY]", short, long, cmd.run,
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
 	)
-
 	cmd.Args = cobra.MaximumNArgs(1)
 
-	flag.Add(cmd,
+	flag.Add(cmd.Command,
 		CommonFlags,
 		flag.App(),
 		flag.AppConfig(),
@@ -199,10 +204,10 @@ func New() (cmd *cobra.Command) {
 		},
 	)
 
-	return
+	return cmd
 }
 
-func run(ctx context.Context) error {
+func (cmd *Command) run(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
@@ -220,15 +225,18 @@ func run(ctx context.Context) error {
 
 	defer tp.Shutdown(ctx)
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
+	// Instantiate FLAPS client if we haven't initialized one via a unit test.
+	if flapsutil.ClientFromContext(ctx) == nil {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: appName,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create flaps client: %w", err)
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
 
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
@@ -267,7 +275,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err

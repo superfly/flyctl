@@ -22,12 +22,12 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/retry"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -145,7 +145,7 @@ func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 
 type Resolver struct {
 	dockerFactory *dockerClientFactory
-	apiClient     *fly.Client
+	apiClient     flyutil.Client
 }
 
 type StopSignal struct {
@@ -311,7 +311,7 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
-	gqlClient := fly.ClientFromContext(ctx).GenqClient
+	gqlClient := flyutil.ClientFromContext(ctx).GenqClient()
 	_ = `# @genqlient
 	mutation ResolverCreateBuild($input:CreateBuildInput!) {
 		createBuild(input:$input) {
@@ -514,7 +514,7 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
 		return nil, nil
 	}
-	gqlClient := fly.ClientFromContext(ctx).GenqClient
+	gqlClient := flyutil.ClientFromContext(ctx).GenqClient()
 	_ = `# @genqlient
 	mutation ResolverFinishBuild($input:FinishBuildInput!) {
 		finishBuild(input:$input) {
@@ -739,7 +739,7 @@ func (s *StopSignal) Stop() {
 	})
 }
 
-func NewResolver(daemonType DockerDaemonType, apiClient *fly.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard bool) *Resolver {
+func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, iostreams *iostreams.IOStreams, connectOverWireguard bool) *Resolver {
 	return &Resolver{
 		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard),
 		apiClient:     apiClient,

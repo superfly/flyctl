@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -21,10 +22,9 @@ func newUpdate() *cobra.Command {
 		short = "Update a volume for an app."
 
 		long = short + ` Volumes are persistent storage for
-		Fly Machines. Learn how to add a volume to
-		your app: https://fly.io/docs/apps/volume-storage/`
+		Fly Machines.`
 
-		usage = "update <volumename>"
+		usage = "update <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,
@@ -39,11 +39,11 @@ func newUpdate() *cobra.Command {
 		flag.AppConfig(),
 		flag.Int{
 			Name:        "snapshot-retention",
-			Description: "Snapshot retention in days (min 5)",
+			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
 			Name:        "scheduled-snapshots",
-			Description: "Disable/Enable scheduled snapshots",
+			Description: "Activate/deactivate scheduled automatic snapshots",
 		},
 	)
 
@@ -54,7 +54,7 @@ func newUpdate() *cobra.Command {
 func runUpdate(ctx context.Context) error {
 	var (
 		cfg      = config.FromContext(ctx)
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		volumeID = flag.FirstArg(ctx)
 	)
 

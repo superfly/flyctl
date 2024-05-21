@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -256,7 +257,7 @@ func machineRole(machine *fly.Machine) (role string) {
 
 func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		image  = flag.GetString(ctx, "image")
 	)
 
