@@ -146,6 +146,7 @@ func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
 type Resolver struct {
 	dockerFactory *dockerClientFactory
 	apiClient     flyutil.Client
+	heartbeatFn   func(ctx context.Context, client *dockerclient.Client, req *http.Request) error
 }
 
 type StopSignal struct {
@@ -655,7 +656,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 
 	span.AddEvent("sending first heartbeat")
 	err = retry.Retry(func() error {
-		return heartbeat(ctx, dockerClient, heartbeatReq)
+		return r.heartbeatFn(ctx, dockerClient, heartbeatReq)
 	}, 3)
 	if err != nil {
 		var h *httpError
@@ -668,7 +669,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		}
 		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
-		return nil, err
+		return nil, fmt.Errorf("failed to send first heartbeat: %w", err)
 	}
 
 	// We timeout on idleness every 10 minutes on the server, so sending a pulse every 2 minutes to make sure we don't get timed out seems cool
@@ -694,7 +695,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 				return
 			case <-pulse.C:
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
-				err := heartbeat(ctx, dockerClient, heartbeatReq)
+				err := r.heartbeatFn(ctx, dockerClient, heartbeatReq)
 				if err != nil {
 					if errors.Is(err, agent.ErrTunnelUnavailable) {
 						consecutiveTunnelErrors++
@@ -742,6 +743,7 @@ func NewResolver(daemonType DockerDaemonType, apiClient flyutil.Client, appName 
 	return &Resolver{
 		dockerFactory: newDockerClientFactory(daemonType, apiClient, appName, iostreams, connectOverWireguard),
 		apiClient:     apiClient,
+		heartbeatFn:   heartbeat,
 	}
 }
 
