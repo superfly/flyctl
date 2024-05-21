@@ -19,7 +19,7 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-const flytomlHeader = `# fly.toml app configuration file generated for %s on %s
+const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
@@ -64,10 +64,15 @@ func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	_, err = fmt.Fprintf(w, flytomlHeader, c.AppName, time.Now().Format(time.RFC3339))
-	if err != nil {
-		return 0, err
+
+	if format != "json" {
+		// JSON doesn't allow comments, so we can't add a header
+		_, err = fmt.Fprintf(w, flyConfigHeader, format, c.AppName, time.Now().Format(time.RFC3339))
+		if err != nil {
+			return 0, err
+		}
 	}
+
 	return bytes.NewBuffer(b).WriteTo(w)
 }
 
