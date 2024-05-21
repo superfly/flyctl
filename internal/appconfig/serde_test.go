@@ -602,3 +602,37 @@ func TestIsSameTOMLAppConfigReferenceFormat(t *testing.T) {
 	actual.configFilePath = ""
 	require.Equal(t, cfg, actual)
 }
+
+func TestIsSameJSONAppConfigReferenceFormat(t *testing.T) {
+	const TOMLpath = "./testdata/full-reference.toml"
+	TOMLcfg, err := LoadConfig(TOMLpath)
+	require.NoError(t, err)
+
+	JSONpath := filepath.Join(t.TempDir(), "full-reference.json")
+	err = TOMLcfg.WriteToFile(JSONpath)
+	require.NoError(t, err)
+
+	JSONcfg, err := LoadConfig(JSONpath)
+	require.NoError(t, err)
+
+	TOMLcfg.configFilePath = ""
+	JSONcfg.configFilePath = ""
+	require.Equal(t, TOMLcfg, JSONcfg)
+}
+
+func TestIsSameYAMLAppConfigReferenceFormat(t *testing.T) {
+	const TOMLpath = "./testdata/full-reference.toml"
+	TOMLcfg, err := LoadConfig(TOMLpath)
+	require.NoError(t, err)
+
+	YAMLpath := filepath.Join(t.TempDir(), "full-reference.yaml")
+	err = TOMLcfg.WriteToFile(YAMLpath)
+	require.NoError(t, err)
+
+	YAMLcfg, err := LoadConfig(YAMLpath)
+	require.NoError(t, err)
+
+	TOMLcfg.configFilePath = ""
+	YAMLcfg.configFilePath = ""
+	require.Equal(t, TOMLcfg, YAMLcfg)
+}

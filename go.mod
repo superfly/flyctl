@@ -35,6 +35,7 @@ require (
 	github.com/hashicorp/go-version v1.6.0
 	github.com/heroku/heroku-go/v5 v5.5.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
+	github.com/itchyny/json2yaml v0.1.4
 	github.com/jinzhu/copier v0.4.0
 	github.com/jpillora/backoff v1.0.0
 	github.com/kr/text v0.2.0
