@@ -6,7 +6,6 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -14,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -22,9 +22,9 @@ func newExtend() *cobra.Command {
 	const (
 		short = "Extend a volume to the specified size."
 
-		long = short + ` Most Machines don't require a restart. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
+		long = short + ` Most Machines don't require a restart after extending a volume. Some older Machines get a message to manually restart the Machine to increase the size of the file system.`
 
-		usage = "extend [id]"
+		usage = "extend <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runExtend,
@@ -55,7 +55,7 @@ func runExtend(ctx context.Context) error {
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		appName  = appconfig.NameFromContext(ctx)
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		volID    = flag.FirstArg(ctx)
 	)
 
@@ -65,7 +65,7 @@ func runExtend(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	app, err := client.GetAppBasic(ctx, appName)
 	if err != nil {

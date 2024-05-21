@@ -9,10 +9,11 @@ import (
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -22,9 +23,9 @@ const maxConcurrentActions = 5
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
@@ -161,7 +162,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 }
 
 func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine, error) {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -199,7 +200,7 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine
 }
 
 func destroyMachine(ctx context.Context, machine *fly.Machine) error {
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	input := fly.RemoveMachineInput{
 		ID:   machine.ID,
 		Kill: true,

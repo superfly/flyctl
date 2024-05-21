@@ -416,19 +416,19 @@ func GetWireguard(ctx context.Context) bool {
 	return GetBool(ctx, wireguard)
 }
 
-const httpFailover = "http-failover"
+const httpsFailover = "https-failover"
 
-func HttpFailover() Bool {
+func HttpsFailover() Bool {
 	return Bool{
-		Name:        httpFailover,
+		Name:        httpsFailover,
 		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
-		// TODO(billy): Determine this based on feature flag
-		Default: false,
+		Aliases:     []string{"http-failover"},
+		Default:     true,
 	}
 }
 
-func GetHTTPFailover(ctx context.Context) bool {
-	return GetBool(ctx, httpFailover)
+func GetHTTPSFailover(ctx context.Context) bool {
+	return GetBool(ctx, httpsFailover)
 }
 
 const localOnlyName = "local-only"
@@ -548,7 +548,7 @@ func Nixpacks() Bool {
 func Strategy() String {
 	return String{
 		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. The default strategy is rolling.",
 	}
 }
 

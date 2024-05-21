@@ -11,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -64,7 +64,7 @@ Use --no-tail to only fetch the logs in the buffer.
 }
 
 func run(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),
@@ -96,7 +96,7 @@ func run(ctx context.Context) error {
 	return eg.Wait()
 }
 
-func poll(ctx context.Context, eg *errgroup.Group, client *fly.Client, opts *logs.LogOptions) <-chan logs.LogEntry {
+func poll(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions) <-chan logs.LogEntry {
 	c := make(chan logs.LogEntry)
 
 	eg.Go(func() (err error) {
@@ -114,7 +114,7 @@ func poll(ctx context.Context, eg *errgroup.Group, client *fly.Client, opts *log
 	return c
 }
 
-func nats(ctx context.Context, eg *errgroup.Group, client *fly.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
+func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
 	c := make(chan logs.LogEntry)
 
 	eg.Go(func() error {

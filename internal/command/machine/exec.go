@@ -6,16 +6,15 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func newMachineExec() *cobra.Command {
-
 	const (
 		short = "Execute a command on a machine"
 		long  = short + "\n"
@@ -67,9 +66,9 @@ func runMachineExec(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	var timeout = flag.GetInt(ctx, "timeout")
+	timeout := flag.GetInt(ctx, "timeout")
 
 	in := &fly.MachineExecRequest{
 		Cmd:     command,

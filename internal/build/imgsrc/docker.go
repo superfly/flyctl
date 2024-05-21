@@ -30,6 +30,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -48,11 +49,11 @@ type dockerClientFactory struct {
 	mode      DockerDaemonType
 	remote    bool
 	buildFn   func(ctx context.Context, build *build) (*dockerclient.Client, error)
-	apiClient *fly.Client
+	apiClient flyutil.Client
 	appName   string
 }
 
-func newDockerClientFactory(daemonType DockerDaemonType, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard bool) *dockerClientFactory {
+func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, connectOverWireguard bool) *dockerClientFactory {
 	remoteFactory := func() *dockerClientFactory {
 		terminal.Debug("trying remote docker daemon")
 		return &dockerClientFactory{
@@ -202,7 +203,7 @@ func logClearLinesAbove(streams *iostreams.IOStreams, count int) {
 	}
 }
 
-func newRemoteDockerClient(ctx context.Context, apiClient *fly.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool) (c *dockerclient.Client, err error) {
+func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appName string, streams *iostreams.IOStreams, build *build, cachedClient *dockerclient.Client, connectOverWireguard bool) (c *dockerclient.Client, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_docker_client", trace.WithAttributes(
 		attribute.Bool("connect_over_wireguard", connectOverWireguard),
 	))
@@ -476,10 +477,9 @@ func buildWireguardlessClientOpts(ctx context.Context, host, appName string) ([]
 	}
 
 	return opts, nil
-
 }
 
-func buildRemoteClientOpts(ctx context.Context, apiClient *fly.Client, appName, host string) (opts []dockerclient.Opt, err error) {
+func buildRemoteClientOpts(ctx context.Context, apiClient flyutil.Client, appName, host string) (opts []dockerclient.Opt, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "build_remote_client_ops")
 	defer span.End()
 
@@ -698,7 +698,7 @@ func ResolveDockerfile(cwd string) string {
 	return ""
 }
 
-func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgSlug string) {
+func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, orgSlug string) {
 	// skip if local docker is available
 	if _, err := NewLocalDockerClient(); err == nil {
 		return
@@ -710,7 +710,8 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgS
 		return
 	}
 
-	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "")
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "", region)
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
@@ -719,12 +720,13 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient *fly.Client, orgS
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient *fly.Client, appName string) (*fly.GqlMachine, *fly.App, error) {
+func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.GqlMachine, *fly.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
 
-	return apiClient.EnsureRemoteBuilder(ctx, "", appName)
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	return apiClient.EnsureRemoteBuilder(ctx, "", appName, region)
 }
 
 func (d *dockerClientFactory) IsRemote() bool {

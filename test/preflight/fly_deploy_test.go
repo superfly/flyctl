@@ -237,3 +237,39 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
+
+func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+		[[http_service.machine_checks]]
+            image = "curlimages/curl"
+   			entrypoint = ["/bin/sh", "-c"]
+			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
+		`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.Fly("deploy")
+	output := deployRes.StdOutString()
+	require.Contains(f, output, "Test Machine")
+}
+
+func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+		[[http_service.machine_checks]]
+            image = "curlimages/curl"
+   			entrypoint = ["/bin/sh", "-c"]
+			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
+		`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.Fly("deploy")
+	output := deployRes.StdOutString()
+	require.Contains(f, output, "Test Machine")
+}

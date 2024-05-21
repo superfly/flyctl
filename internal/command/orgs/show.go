@@ -8,10 +8,10 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -37,7 +37,7 @@ associated member. Details full list of members and roles.
 }
 
 func runShow(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx)
 	if err != nil {
 		return err

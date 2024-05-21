@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -110,7 +111,7 @@ func runAllocateIPAddressV6(ctx context.Context) (err error) {
 }
 
 func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organization, network string) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 

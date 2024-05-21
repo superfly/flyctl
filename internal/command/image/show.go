@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -44,7 +45,7 @@ func newShow() *cobra.Command {
 
 func runShow(ctx context.Context) error {
 	var (
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -60,7 +61,7 @@ func showMachineImage(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		cfg      = config.FromContext(ctx)
 	)
 

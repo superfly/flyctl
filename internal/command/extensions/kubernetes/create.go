@@ -6,13 +6,13 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -21,7 +21,6 @@ const (
 )
 
 func create() (cmd *cobra.Command) {
-
 	const (
 		short = "Provision a Kubernetes cluster for an organization"
 		long  = short + "\n"
@@ -50,7 +49,7 @@ func runK8sCreate(ctx context.Context) (err error) {
 	colorize := io.ColorScheme()
 	fmt.Fprintln(io.Out, colorize.Yellow(betaMsg))
 
-	client := fly.ClientFromContext(ctx).GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 	appName := appconfig.NameFromContext(ctx)
 	targetOrg, err := orgs.OrgFromFlagOrSelect(ctx)
 	if err != nil {

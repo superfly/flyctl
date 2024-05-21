@@ -5,11 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -29,7 +29,7 @@ func list() (cmd *cobra.Command) {
 func runList(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = fly.ClientFromContext(ctx).GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
 	response, err := gql.ListAddOns(ctx, client, "kubernetes")

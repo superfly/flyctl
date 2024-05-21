@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -60,7 +60,7 @@ func runDestroy(ctx context.Context) (err error) {
 		}
 	}
 
-	client := fly.ClientFromContext(ctx).GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 	if _, err := gql.DeleteAddOn(ctx, client, extension.Name); err != nil {
 		return err
 	}
