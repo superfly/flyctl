@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -75,9 +76,9 @@ func runSave(ctx context.Context) error {
 	}
 
 	if flag.GetBool(ctx, "json") {
-		configfilename = strings.TrimSuffix(configfilename, ".toml") + ".json"
+		configfilename = strings.TrimSuffix(configfilename, filepath.Ext(configfilename)) + ".json"
 	} else if flag.GetBool(ctx, "yaml") {
-		configfilename = strings.TrimSuffix(configfilename, ".toml") + ".yaml"
+		configfilename = strings.TrimSuffix(configfilename, filepath.Ext(configfilename)) + ".yaml"
 	}
 
 	if exists, _ := appconfig.ConfigFileExistsAtPath(configfilename); exists && !autoConfirm {

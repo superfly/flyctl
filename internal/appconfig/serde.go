@@ -86,7 +86,7 @@ func (c *Config) WriteToFile(filename string) (err error) {
 		}
 	}()
 
-	_, err = c.WriteTo(file, filepath.Ext(filename))
+	_, err = c.WriteTo(file, strings.TrimLeft(strings.ToLower(filepath.Ext(filename)), "."))
 	return
 }
 
