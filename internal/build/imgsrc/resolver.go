@@ -660,7 +660,6 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
-			span.SetAttributes(attribute.String("status_code", fmt.Sprintf("%d", h.StatusCode)))
 			if h.StatusCode == http.StatusNotFound {
 				terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
 				return nil, nil
