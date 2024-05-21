@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -609,7 +610,11 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
+	paths = append(paths,
+		filepath.Join(wd, appconfig.DefaultConfigFileName),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".json", 1)),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".yaml", 1)),
+	)
 
 	return
 }
