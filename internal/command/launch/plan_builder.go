@@ -183,7 +183,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		AppName:          appName,
 		OrgSlug:          org.Slug,
 		RegionCode:       region.Code,
-		HighAvailability: flag.GetBool(ctx, "ha"),
+		HighAvailability: true,
 		Compute:          compute,
 		CPUKind:          guest.CPUKind,
 		CPUs:             guest.CPUs,
