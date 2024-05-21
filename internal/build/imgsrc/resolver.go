@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/retry"
 
 	"github.com/superfly/flyctl/terminal"
 )
@@ -588,7 +589,7 @@ func heartbeat(ctx context.Context, client *dockerclient.Client, req *http.Reque
 	ctx, span := tracing.GetTracer().Start(ctx, "heartbeat")
 	defer span.End()
 
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	resp, err := client.HTTPClient().Do(req.Clone(ctx))
@@ -653,34 +654,26 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = heartbeat(ctx, dockerClient, heartbeatReq)
+	err = retry.Retry(func() error {
+		return heartbeat(ctx, dockerClient, heartbeatReq)
+	}, 3)
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {
+			span.SetAttributes(attribute.String("status_code", fmt.Sprintf("%d", h.StatusCode)))
 			if h.StatusCode == http.StatusNotFound {
 				terminal.Debugf("This builder doesn't have the heartbeat endpoint %s\n", heartbeatUrl)
 				return nil, nil
 			}
 		} else {
-			terminal.Debugf("not http error: err = %+v", err)
+			terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
 		}
+		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
 		return nil, err
 	}
 
-	span.AddEvent("sending second heartbeat")
-	resp, err := dockerClient.HTTPClient().Do(heartbeatReq)
-	if err != nil {
-		terminal.Debugf("Remote builder heartbeat pulse failed, not going to run heartbeat: %v\n", err)
-		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
-		return nil, err
-	} else if resp.StatusCode != http.StatusAccepted {
-		terminal.Debugf("Unexpected remote builder heartbeat response, not going to run heartbeat: %s\n", resp.Status)
-		span.SetAttributes(attribute.String("status_code", fmt.Sprintf("%d", resp.StatusCode)))
-		tracing.RecordError(span, err, "Remote builder heartbeat pulse failed, not going to run heartbeat")
-		return nil, nil
-	}
-
-	pulseInterval := 30 * time.Second
+	// We timeout on idleness every 10 minutes on the server, so sending a pulse every 2 minutes to make sure we don't get timed out seems cool
+	pulseInterval := 2 * time.Minute
 	maxTime := 1 * time.Hour
 
 	done := StopSignal{Chan: make(chan struct{})}
@@ -704,7 +697,6 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 				terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 				err := heartbeat(ctx, dockerClient, heartbeatReq)
 				if err != nil {
-
 					if errors.Is(err, agent.ErrTunnelUnavailable) {
 						consecutiveTunnelErrors++
 					}
@@ -715,12 +707,9 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 					}
 
 					terminal.Debugf("Remote builder heartbeat pulse failed: %v%s\n", err, wglessSuggestion)
-				}
-
-				if err != nil {
+				} else {
 					consecutiveTunnelErrors = 0
 				}
-
 			}
 		}
 	}()
