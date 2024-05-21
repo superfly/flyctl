@@ -10,8 +10,9 @@ type LaunchPlan struct {
 	AppName string `json:"name"`
 	OrgSlug string `json:"org"`
 
-	RegionCode       string `json:"region"`
-	HighAvailability bool   `json:"ha"`
+	RegionCode string `json:"region"`
+	// Deprecated: The UI exposes this for now so we'll honor it, but we're moving towards always HA for Fly Launch apps
+	HighAvailability bool `json:"ha"`
 
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
 	CPUKind string `json:"vm_cpukind,omitempty"`

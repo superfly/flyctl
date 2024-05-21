@@ -84,11 +84,6 @@ var CommonFlags = flag.Set{
 		Hidden:      true,
 	},
 	flag.Bool{
-		Name:        "ha",
-		Description: "Create spare machines that increases app availability",
-		Default:     true,
-	},
-	flag.Bool{
 		Name:        "smoke-checks",
 		Description: "Perform smoke checks during deployment",
 		Default:     true,
@@ -192,6 +187,11 @@ func New() *Command {
 		flag.App(),
 		flag.AppConfig(),
 		// Not in CommonFlags because it's not relevant to a first deploy
+		flag.Bool{
+			Name:        "ha",
+			Description: "Create spare machines that increases app availability",
+			Default:     true,
+		},
 		flag.Bool{
 			Name:        "update-only",
 			Description: "Do not create Machines for new process groups",

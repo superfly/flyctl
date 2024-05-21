@@ -35,15 +35,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
-	org, err := state.Org(ctx)
-	if err != nil {
-		return err
-	}
-	if !planValidateHighAvailability(ctx, state.Plan, org, !state.warnedNoCcHa) {
-		state.Plan.HighAvailability = false
-		state.warnedNoCcHa = true
-	}
-
 	app, err := state.createApp(ctx)
 	if err != nil {
 		return err
