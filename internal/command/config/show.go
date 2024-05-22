@@ -2,7 +2,6 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -70,20 +69,19 @@ func runShow(ctx context.Context) error {
 		}
 	}
 
-	var b []byte
-	var err error
+	format := "json"
 
 	if flag.GetBool(ctx, "yaml") {
-		b, err = cfg.MarshalAsYAML()
+		format = "yaml"
 	} else if flag.GetBool(ctx, "toml") {
-		b, err = cfg.MarshalAsTOML()
-	} else {
-		b, err = json.MarshalIndent(cfg, "", "  ")
+		format = "toml"
 	}
+
+	_, err := cfg.WriteTo(io.Out, format)
 
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(io.Out, string(b))
+
 	return nil
 }
