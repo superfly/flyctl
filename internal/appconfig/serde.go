@@ -81,38 +81,7 @@ func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 	if format == "toml" {
 		return bytes.NewBuffer(b).WriteTo(w)
 	} else {
-		// pretty print by intelligently adding newlines
-		scanner := bufio.NewScanner(bytes.NewReader(b))
-		section := true
-		total := 0
-		for scanner.Scan() {
-			text := scanner.Text()
-
-			if startObjectOrArray.MatchString(text) {
-				if !section {
-					count, err := w.Write([]byte("\n"))
-					if err != nil {
-						return 0, err
-					}
-					total += count
-					section = true
-				}
-			} else {
-				section = false
-			}
-
-			count, err := w.Write([]byte(text + "\n"))
-			if err != nil {
-				return 0, err
-			}
-			total += count
-		}
-
-		if err := scanner.Err(); err != nil {
-			return 0, err
-		}
-
-		return int64(total), nil
+		return prettyPrintJSONandYAML(w, b)
 	}
 }
 
@@ -295,4 +264,43 @@ func stringifyYAMLMapKeys(obj interface{}) interface{} {
 	}
 
 	return obj
+}
+
+// intelligently add new lines to the JSON and YAML outputs
+// this is intended to roughly match the output of the toml encoder
+// which is pretty-printed by default to add new lines before
+// every new object or array, with the exception of the first object
+func prettyPrintJSONandYAML(w io.Writer, b []byte) (int64, error) {
+	// pretty print by intelligently adding newlines
+	scanner := bufio.NewScanner(bytes.NewReader(b))
+	section := true
+	total := 0
+	for scanner.Scan() {
+		text := scanner.Text()
+
+		if startObjectOrArray.MatchString(text) {
+			if !section {
+				count, err := w.Write([]byte("\n"))
+				if err != nil {
+					return 0, err
+				}
+				total += count
+				section = true
+			}
+		} else {
+			section = false
+		}
+
+		count, err := w.Write([]byte(text + "\n"))
+		if err != nil {
+			return 0, err
+		}
+		total += count
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, err
+	}
+
+	return int64(total), nil
 }
