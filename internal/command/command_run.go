@@ -36,7 +36,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"))
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx))
 
 	// build if relative or absolute path

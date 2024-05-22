@@ -48,6 +48,7 @@ var CommonFlags = flag.Set{
 	flag.BuildSecret(),
 	flag.BuildTarget(),
 	flag.NoCache(),
+	flag.Depot(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),

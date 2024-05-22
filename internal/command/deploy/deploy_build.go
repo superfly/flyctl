@@ -55,7 +55,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG bool
 	span.SetAttributes(attribute.Bool("builder.using_wireguard", useWG))
 
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "depot"), flag.GetBool(ctx, "nixpacks"))
 
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
