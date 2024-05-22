@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -467,6 +468,8 @@ func deployToMachines(
 	status.OrgSlug = app.Organization.Slug
 	status.Image = img.Tag
 	status.Strategy = flag.GetString(ctx, "strategy")
+
+	status.FlyctlVersion = buildinfo.Info().Version.String()
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,
