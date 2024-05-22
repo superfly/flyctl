@@ -198,7 +198,7 @@ func run(ctx context.Context) (err error) {
 
 		status.TraceID = span.SpanContext().TraceID().String()
 		status.Duration = time.Since(startTime)
-		metrics.LaunchStatus(ctx, "launch", status)
+		metrics.LaunchStatus(ctx, status)
 	}()
 
 	if err := warnLegacyBehavior(ctx); err != nil {
