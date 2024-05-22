@@ -98,11 +98,11 @@ type DeployStatusPayload struct {
 	Error    string        `json:"error"`
 	Duration time.Duration `json:"duration"`
 
-	AppName string `json:"app"`
-	OrgSlug string `json:"org"`
-	Region  string `json:"region"`
-
-	Strategy string `json:"strategy"`
+	AppName       string `json:"app"`
+	OrgSlug       string `json:"org"`
+	PrimaryRegion string `json:"primary_region"`
+	Image         string `json:"image"`
+	Strategy      string `json:"strategy"`
 
 	FlyctlVersion string `json:"flyctlVersion"`
 }

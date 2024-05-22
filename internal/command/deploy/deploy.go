@@ -268,9 +268,6 @@ func (cmd *Command) run(ctx context.Context) error {
 		return err
 	}
 
-	status.Strategy = appConfig.Deploy.Strategy
-	status.AppName = appName
-
 	var gpuKinds, cpuKinds []string
 	for _, compute := range appConfig.Compute {
 		if compute != nil && compute.MachineGuest != nil {
@@ -368,11 +365,25 @@ func deployToMachines(
 	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
+	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, cfg)
 
+	startTime := time.Now()
+	var status metrics.DeployStatusPayload
+
+	metrics.Started(ctx, "deploy")
+	// TODO: remove this once there is nothing upstream using it
 	metrics.Started(ctx, "deploy_machines")
+
 	defer func() {
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.TraceID = span.SpanContext().TraceID().String()
+		status.Duration = time.Since(startTime)
+		metrics.DeployStatus(ctx, status)
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
@@ -443,6 +454,11 @@ func deployToMachines(
 	if maxConcurrent == defaultMaxConcurrent && immediateMaxConcurrent != defaultMaxConcurrent {
 		maxConcurrent = immediateMaxConcurrent
 	}
+
+	status.AppName = app.Name
+	status.OrgSlug = app.Organization.Slug
+	status.Image = img.Tag
+	status.Strategy = flag.GetString(ctx, "strategy")
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,
