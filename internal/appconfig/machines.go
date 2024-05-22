@@ -150,7 +150,12 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	if c.PrimaryRegion != "" {
 		mConfig.Env["PRIMARY_REGION"] = c.PrimaryRegion
 	}
-	mConfig.Env["FLY_TEST_MACHINE_IP"] = lo.Ternary(origMachine == nil, "", origMachine.PrivateIP)
+
+	if origMachine == nil {
+		mConfig.Env["FLY_TEST_MACHINE_IP"] = ""
+	} else {
+		mConfig.Env["FLY_TEST_MACHINE_IP"] = origMachine.PrivateIP
+	}
 
 	// Use the stop config from the app config by default
 	c.tomachineSetStopConfig(mConfig)
