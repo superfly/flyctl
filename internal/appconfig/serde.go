@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -9,6 +10,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +27,9 @@ const flyConfigHeader = `# fly.%s app configuration file generated for %s on %s
 #
 
 `
+
+// used to detect the start of a new object or array in JSON or YAML
+var startObjectOrArray = regexp.MustCompile(`^\s*"?\w+"?:( [[{])?$`)
 
 // LoadConfig loads the app config at the given path.
 func LoadConfig(path string) (cfg *Config, err error) {
@@ -73,7 +78,42 @@ func (c *Config) WriteTo(w io.Writer, format string) (int64, error) {
 		}
 	}
 
-	return bytes.NewBuffer(b).WriteTo(w)
+	if format == "toml" {
+		return bytes.NewBuffer(b).WriteTo(w)
+	} else {
+		// pretty print by intelligently adding newlines
+		scanner := bufio.NewScanner(bytes.NewReader(b))
+		section := true
+		total := 0
+		for scanner.Scan() {
+			text := scanner.Text()
+
+			if startObjectOrArray.MatchString(text) {
+				if !section {
+					count, err := w.Write([]byte("\n"))
+					if err != nil {
+						return 0, err
+					}
+					total += count
+					section = true
+				}
+			} else {
+				section = false
+			}
+
+			count, err := w.Write([]byte(text + "\n"))
+			if err != nil {
+				return 0, err
+			}
+			total += count
+		}
+
+		if err := scanner.Err(); err != nil {
+			return 0, err
+		}
+
+		return int64(total), nil
+	}
 }
 
 func (c *Config) WriteToFile(filename string) (err error) {
