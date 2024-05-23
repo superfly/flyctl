@@ -629,6 +629,8 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 		return nil, nil
 	}
 
+	span.SetAttributes(attribute.String("builder_app_name", r.dockerFactory.appName))
+
 	errMsg := "Failed to start remote builder heartbeat: %v\n"
 	dockerClient, err := r.dockerFactory.buildFn(ctx, nil)
 	if err != nil {
