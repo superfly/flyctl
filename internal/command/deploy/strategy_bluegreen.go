@@ -965,7 +965,8 @@ func (bg *blueGreen) DetectMultipleImageVersions(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\n  Here's how to fix your app so deployments can go through:\n")
 	fmt.Fprintf(bg.io.ErrOut, "    1. Find all the unwanted image versions from the list above.\n")
-	fmt.Fprintf(bg.io.ErrOut, "    2. For each old image version, run 'fly machines destroy --force --image=<insert-image-version>'\n")
+	fmt.Fprintf(bg.io.ErrOut, "       Use 'fly machines list' and 'fly releases --image' to help determine unwanted images.\n")
+	fmt.Fprintf(bg.io.ErrOut, "    2. For each unwanted image version, run 'fly machines destroy --force --image=<insert-image-version>'\n")
 	fmt.Fprintf(bg.io.ErrOut, "    3. Retry the deployment with 'fly deploy'\n")
 	fmt.Fprintf(bg.io.ErrOut, "\n")
 
