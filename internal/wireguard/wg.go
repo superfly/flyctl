@@ -52,7 +52,7 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organiz
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	stateb, err := Create(apiClient, org, regionCode, name, network)
+	stateb, err := Create(apiClient, org, regionCode, name, network, "interactive")
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organiz
 	return stateb, nil
 }
 
-func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string) (*wg.WireGuardState, error) {
+func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -77,7 +77,7 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 			return nil, err
 		}
 
-		name = fmt.Sprintf("interactive-%s", n)
+		name = fmt.Sprintf("%s-%s", namePrefix, n)
 	}
 
 	if regionCode == "" {
