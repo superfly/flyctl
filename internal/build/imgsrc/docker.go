@@ -251,6 +251,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
 
 		fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("👀 checking remote builder compatibility with wireguardless deploys ..."))
+		span.AddEvent("checking remote builder compatibility with wireguardless deploys")
 
 		res, err := client.Do(req)
 		if err != nil {
@@ -261,6 +262,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		if res.StatusCode == http.StatusNotFound {
 			logClearLinesAbove(streams, 1)
 			fmt.Fprintln(streams.Out, streams.ColorScheme().Yellow("🔧 automatically deleting and recreating builder"))
+			span.AddEvent("automatically deleting and recreating builder")
 
 			err := apiClient.DeleteApp(ctx, app.Name)
 			if err != nil {
