@@ -229,7 +229,9 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	defer span.End()
 
 	defer func() {
-		tracing.RecordError(span, err, "error deploying")
+		if err != nil {
+			tracing.RecordError(span, err, "error deploying")
+		}
 	}()
 
 	// Instantiate FLAPS client if we haven't initialized one via a unit test.
