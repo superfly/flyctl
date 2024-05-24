@@ -16,6 +16,7 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("arcjet", short, long, nil)
 	cmd.AddCommand(create())
 	cmd.AddCommand(dashboard())
+	cmd.AddCommand(list())
 	// TODO(danni-popova): Add remaining commands once functionality is enabled
 
 	return cmd
