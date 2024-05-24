@@ -39,6 +39,6 @@ func RunDashboard(ctx context.Context) (err error) {
 		return err
 	}
 
-	err = extensions_core.OpenDashboard(ctx, extension.Name)
+	err = extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeSentry)
 	return
 }
