@@ -207,7 +207,7 @@ func New() *Command {
 	return cmd
 }
 
-func (cmd *Command) run(ctx context.Context) (err error) {
+func (cmd *Command) run(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
@@ -225,13 +225,6 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	defer tp.Shutdown(ctx)
 
-	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
-	defer span.End()
-
-	defer func() {
-		tracing.RecordError(span, err, "error deploying")
-	}()
-
 	// Instantiate FLAPS client if we haven't initialized one via a unit test.
 	if flapsutil.ClientFromContext(ctx) == nil {
 		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -244,6 +237,9 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	client := flyutil.ClientFromContext(ctx)
+
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
+	defer span.End()
 
 	user, err := client.GetCurrentUser(ctx)
 	if err != nil {
@@ -271,8 +267,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
-	err = DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
-	return err
+	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
 }
 
 func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
