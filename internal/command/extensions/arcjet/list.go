@@ -52,7 +52,7 @@ func runList(ctx context.Context) (err error) {
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Org", "Primary Region")
+	_ = render.Table(out, "", rows, "Name", "Org")
 
 	return
 }

@@ -9,7 +9,7 @@ import (
 func New() (cmd *cobra.Command) {
 
 	const (
-		short = "Protect your applications with Arcjet"
+		short = "Provision and manage Arcjet"
 		long  = short + "\n"
 	)
 
