@@ -32,7 +32,7 @@ func runUpdate(ctx context.Context) (err error) {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	id := flag.FirstArg(ctx)
-	response, err := gql.GetAddOn(ctx, client, id)
+	response, err := gql.GetAddOn(ctx, client, id, string(gql.AddOnTypeUpstashKafka))
 	if err != nil {
 		return
 	}

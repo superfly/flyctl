@@ -65,7 +65,7 @@ func runK8sCreate(ctx context.Context) (err error) {
 		return err
 	}
 
-	resp, err := gql.GetAddOn(ctx, client, extension.Data.Name)
+	resp, err := gql.GetAddOn(ctx, client, extension.Data.Name, string(gql.AddOnTypeKubernetes))
 	if err != nil {
 		return err
 	}
