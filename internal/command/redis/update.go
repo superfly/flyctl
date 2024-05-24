@@ -42,7 +42,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	id := flag.FirstArg(ctx)
 
-	response, err := gql.GetAddOn(ctx, client, id)
+	response, err := gql.GetAddOn(ctx, client, id, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return
 	}

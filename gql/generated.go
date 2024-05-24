@@ -3493,11 +3493,15 @@ func (v *__FlyctlDeployGetLatestImageInput) GetAppName() string { return v.AppNa
 
 // __GetAddOnInput is used internally by genqlient
 type __GetAddOnInput struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
 }
 
 // GetName returns __GetAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAddOnInput) GetName() string { return v.Name }
+
+// GetProvider returns __GetAddOnInput.Provider, and is useful for accessing the field via an interface.
+func (v *__GetAddOnInput) GetProvider() string { return v.Provider }
 
 // __GetAddOnProviderInput is used internally by genqlient
 type __GetAddOnProviderInput struct {
@@ -4128,8 +4132,8 @@ func FlyctlDeployGetLatestImage(
 
 // The query or mutation executed by GetAddOn.
 const GetAddOn_Operation = `
-query GetAddOn ($name: String) {
-	addOn(name: $name) {
+query GetAddOn ($name: String, $provider: String) {
+	addOn(name: $name, provider: $provider) {
 		... AddOnData
 		publicUrl
 		privateIp
@@ -4213,12 +4217,14 @@ func GetAddOn(
 	ctx_ context.Context,
 	client_ graphql.Client,
 	name string,
+	provider string,
 ) (*GetAddOnResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "GetAddOn",
 		Query:  GetAddOn_Operation,
 		Variables: &__GetAddOnInput{
-			Name: name,
+			Name:     name,
+			Provider: provider,
 		},
 	}
 	var err_ error

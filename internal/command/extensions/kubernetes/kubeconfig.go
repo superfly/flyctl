@@ -36,7 +36,7 @@ func runSaveKubeconfig(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 	clusterName := flag.FirstArg(ctx)
 
-	resp, err := gql.GetAddOn(ctx, client, clusterName)
+	resp, err := gql.GetAddOn(ctx, client, clusterName, string(gql.AddOnTypeKubernetes))
 	if err != nil {
 		return err
 	}
