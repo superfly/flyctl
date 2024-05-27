@@ -202,7 +202,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
-		err = WaitForProvision(ctx, extension.Data.Name)
+		err = WaitForProvision(ctx, extension.Data.Name, params.Provider)
 		if err != nil {
 			return
 		}
@@ -277,7 +277,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 	return err
 }
 
-func WaitForProvision(ctx context.Context, name string) error {
+func WaitForProvision(ctx context.Context, name string, provider string) error {
 	io := iostreams.FromContext(ctx)
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
@@ -294,7 +294,7 @@ func WaitForProvision(ctx context.Context, name string) error {
 
 	for {
 
-		resp, err := gql.GetAddOn(ctx, client, name)
+		resp, err := gql.GetAddOn(ctx, client, name, provider)
 		if err != nil {
 			return err
 		}
@@ -365,10 +365,10 @@ func openUrl(ctx context.Context, url string) (err error) {
 	return
 }
 
-func OpenDashboard(ctx context.Context, extensionName string) (err error) {
+func OpenDashboard(ctx context.Context, extensionName string, provider gql.AddOnType) (err error) {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
-	result, err := gql.GetAddOn(ctx, client, extensionName)
+	result, err := gql.GetAddOn(ctx, client, extensionName, string(provider))
 	if err != nil {
 		return err
 	}
@@ -389,8 +389,7 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	appName := appconfig.NameFromContext(ctx)
 
 	if len(flag.Args(ctx)) == 1 {
-
-		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx))
+		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx), string(provider))
 		if err != nil {
 			return nil, nil, err
 		}
