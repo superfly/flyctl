@@ -26,11 +26,13 @@ type Client struct {
 	ClosestWireguardGatewayRegionFunc  func(ctx context.Context) (*fly.Region, error)
 	CreateAndRegisterDomainFunc        func(organizationID string, name string) (*fly.Domain, error)
 	CreateAppFunc                      func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
+	CreateBuildFunc                    func(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
 	CreateDelegatedWireGuardTokenFunc  func(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
 	CreateDoctorUrlFunc                func(ctx context.Context) (putUrl string, err error)
 	CreateDomainFunc                   func(organizationID string, name string) (*fly.Domain, error)
 	CreateOrganizationFunc             func(ctx context.Context, organizationname string) (*fly.Organization, error)
 	CreateOrganizationInviteFunc       func(ctx context.Context, id, email string) (*fly.Invitation, error)
+	CreateReleaseFunc                  func(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
 	CreateWireGuardPeerFunc            func(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
 	DeleteAppFunc                      func(ctx context.Context, appName string) error
 	DeleteCertificateFunc              func(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
@@ -41,6 +43,7 @@ type Client struct {
 	EnablePostgresConsulFunc           func(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
 	EnsureRemoteBuilderFunc            func(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
 	ExportDNSRecordsFunc               func(ctx context.Context, domainId string) (string, error)
+	FinishBuildFunc                    func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetAppFunc                         func(ctx context.Context, appName string) (*fly.App, error)
 	GetAppBasicFunc                    func(ctx context.Context, appName string) (*fly.AppBasic, error)
 	GetAppCertificatesFunc             func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
@@ -73,6 +76,7 @@ type Client struct {
 	GetWireGuardPeerFunc               func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
 	GetWireGuardPeersFunc              func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
 	GenqClientFunc                     func() genq.Client
+	LatestImageFunc                    func(ctx context.Context, appName string) (string, error)
 	ImportDNSRecordsFunc               func(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error)
 	IssueSSHCertificateFunc            func(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
 	ListPostgresClusterAttachmentsFunc func(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
@@ -88,6 +92,7 @@ type Client struct {
 	RunWithContextFunc                 func(ctx context.Context, req *graphql.Request) (fly.Query, error)
 	SetGenqClientFunc                  func(client genq.Client)
 	SetSecretsFunc                     func(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error)
+	UpdateReleaseFunc                  func(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
 	UnsetSecretsFunc                   func(ctx context.Context, appName string, keys []string) (*fly.Release, error)
 	ValidateWireGuardPeersFunc         func(ctx context.Context, peerIPs []string) (invalid []string, err error)
 }
@@ -140,6 +145,10 @@ func (m *Client) CreateApp(ctx context.Context, input fly.CreateAppInput) (*fly.
 	return m.CreateAppFunc(ctx, input)
 }
 
+func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error) {
+	return m.CreateBuildFunc(ctx, input)
+}
+
 func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error) {
 	return m.CreateDelegatedWireGuardTokenFunc(ctx, org, name)
 }
@@ -158,6 +167,10 @@ func (m *Client) CreateOrganization(ctx context.Context, organizationname string
 
 func (m *Client) CreateOrganizationInvite(ctx context.Context, id, email string) (*fly.Invitation, error) {
 	return m.CreateOrganizationInviteFunc(ctx, id, email)
+}
+
+func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error) {
+	return m.CreateReleaseFunc(ctx, input)
 }
 
 func (m *Client) CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
@@ -198,6 +211,10 @@ func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region
 
 func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
 	return m.ExportDNSRecordsFunc(ctx, domainId)
+}
+
+func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error) {
+	return m.FinishBuildFunc(ctx, input)
 }
 
 func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
@@ -328,6 +345,10 @@ func (m *Client) GenqClient() genq.Client {
 	return m.GenqClientFunc()
 }
 
+func (m *Client) LatestImage(ctx context.Context, appName string) (string, error) {
+	return m.LatestImageFunc(ctx, appName)
+}
+
 func (m *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error) {
 	return m.ImportDNSRecordsFunc(ctx, domainId, zonefile)
 }
@@ -386,6 +407,10 @@ func (m *Client) SetGenqClient(client genq.Client) {
 
 func (m *Client) SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error) {
 	return m.SetSecretsFunc(ctx, appName, secrets)
+}
+
+func (m *Client) UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error) {
+	return m.UpdateReleaseFunc(ctx, input)
 }
 
 func (m *Client) UnsetSecrets(ctx context.Context, appName string, keys []string) (*fly.Release, error) {
