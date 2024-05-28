@@ -349,3 +349,10 @@ func (cfg *Config) MergeFiles(files []*fly.File) error {
 
 	return nil
 }
+
+func (cfg *Config) DeployStrategy() string {
+	if cfg.Deploy == nil {
+		return ""
+	}
+	return cfg.Deploy.Strategy
+}

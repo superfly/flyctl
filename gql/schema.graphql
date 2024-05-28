@@ -8282,7 +8282,7 @@ type Queries {
   """
   Find an add-on by ID or name
   """
-  addOn(id: ID, name: String): AddOn
+  addOn(id: ID, name: String, provider: String): AddOn
 
   """
   List add-on service plans

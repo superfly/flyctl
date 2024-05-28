@@ -39,5 +39,5 @@ func runDashboard(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	return extensions_core.OpenDashboard(ctx, extension.Name)
+	return extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeUpstashKafka)
 }

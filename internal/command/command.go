@@ -538,11 +538,16 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 			}
 
 			// Reload the config
+			logger.FromContext(ctx).Debug("reloading config after login")
 			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
 				return nil, err
 			}
 
+			// first reset the client
+			ctx = flyutil.NewContextWithClient(ctx, nil)
+
 			// Re-run the auth preparers to update the client with the new token
+			logger.FromContext(ctx).Debug("re-running auth preparers after login")
 			if ctx, err = prepare(ctx, authPreparers...); err != nil {
 				return nil, err
 			}
