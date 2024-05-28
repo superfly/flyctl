@@ -41,12 +41,12 @@ func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, er
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, recycle bool, network string) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug, network)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !recycle && state.Region == regionCode {
+	if state != nil && !reestablish && (regionCode == "" || state.Region == regionCode) {
 		return state, nil
 	}
 
