@@ -25,11 +25,13 @@ type Client interface {
 	ClosestWireguardGatewayRegion(ctx context.Context) (*fly.Region, error)
 	CreateAndRegisterDomain(organizationID string, name string) (*fly.Domain, error)
 	CreateApp(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
+	CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
 	CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
 	CreateDoctorUrl(ctx context.Context) (putUrl string, err error)
 	CreateDomain(organizationID string, name string) (*fly.Domain, error)
 	CreateOrganization(ctx context.Context, organizationname string) (*fly.Organization, error)
 	CreateOrganizationInvite(ctx context.Context, id, email string) (*fly.Invitation, error)
+	CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
 	CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
 	DeleteApp(ctx context.Context, appName string) error
 	DeleteCertificate(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
@@ -40,6 +42,7 @@ type Client interface {
 	EnablePostgresConsul(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
 	EnsureRemoteBuilder(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
 	ExportDNSRecords(ctx context.Context, domainId string) (string, error)
+	FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetApp(ctx context.Context, appName string) (*fly.App, error)
 	GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error)
 	GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
@@ -74,6 +77,7 @@ type Client interface {
 	GenqClient() genq.Client
 	ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error)
 	IssueSSHCertificate(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
+	LatestImage(ctx context.Context, appName string) (string, error)
 	ListPostgresClusterAttachments(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
 	Logger() fly.Logger
 	MoveApp(ctx context.Context, appName string, orgID string) (*fly.App, error)
@@ -87,6 +91,7 @@ type Client interface {
 	RunWithContext(ctx context.Context, req *graphql.Request) (fly.Query, error)
 	SetGenqClient(client genq.Client)
 	SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error)
+	UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
 	UnsetSecrets(ctx context.Context, appName string, keys []string) (*fly.Release, error)
 	ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error)
 }

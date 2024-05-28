@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
-	genq "github.com/Khan/genqlient/graphql"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -25,8 +24,6 @@ import (
 var testdata embed.FS
 
 func TestCommand_Execute(t *testing.T) {
-	t.Skip("in progress")
-
 	dir := t.TempDir()
 	fsys, _ := fs.Sub(testdata, "testdata/basic")
 	if err := copyFS(fsys, dir); err != nil {
@@ -47,9 +44,7 @@ func TestCommand_Execute(t *testing.T) {
 	ctx = task.NewWithContext(ctx)
 	ctx = logger.NewContext(ctx, logger.New(&buf, logger.Info, true))
 
-	var genqlient mock.GraphQLClient
 	var client mock.Client
-	client.GenqClientFunc = func() genq.Client { return &genqlient }
 	ctx = flyutil.NewContextWithClient(ctx, &client)
 
 	var flapsClient mock.FlapsClient
@@ -63,20 +58,68 @@ func TestCommand_Execute(t *testing.T) {
 		if got, want := appName, "test-basic"; got != want {
 			t.Fatalf("appName=%s, want %s", got, want)
 		}
-		return &fly.AppCompact{}, nil // TODO
+		return &fly.AppCompact{
+			Organization: &fly.OrganizationBasic{Slug: "my-org"},
+		}, nil
+	}
+	client.CreateBuildFunc = func(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error) {
+		return &fly.CreateBuildResponse{
+			CreateBuild: fly.CreateBuildCreateBuildCreateBuildPayload{
+				Id: "BUILD1",
+			},
+		}, nil
+	}
+	client.ResolveImageForAppFunc = func(ctx context.Context, appName, imageRef string) (*fly.Image, error) {
+		return &fly.Image{
+			ID:             "IMAGE1",
+			Ref:            "test-registry.fly.io/test-basic/deployment-123",
+			CompressedSize: "1000",
+		}, nil
+	}
+	client.FinishBuildFunc = func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error) {
+		return &fly.FinishBuildResponse{
+			FinishBuild: fly.FinishBuildFinishBuildFinishBuildPayload{
+				Id:              "BUILD1",
+				Status:          "",
+				WallclockTimeMs: 2000,
+			},
+		}, nil
+	}
+	client.CreateReleaseFunc = func(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error) {
+		return &fly.CreateReleaseResponse{}, nil
+	}
+	client.UpdateReleaseFunc = func(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error) {
+		return &fly.UpdateReleaseResponse{}, nil
+	}
+	client.GetIPAddressesFunc = func(ctx context.Context, appName string) ([]fly.IPAddress, error) {
+		return nil, nil
 	}
 
-	genqlient.MakeRequestFunc = func(ctx context.Context, req *genq.Request, resp *genq.Response) error {
-		vars, _ := json.Marshal(req.Variables)
-
-		switch req.OpName {
-		case "ResolverCreateBuild":
-			if got, want := string(vars), `-`; got != want {
-				t.Fatalf("unexpected vars: %s", vars)
-			}
-			// resp.Data =
-		}
+	flapsClient.ListFlyAppsMachinesFunc = func(ctx context.Context) ([]*fly.Machine, *fly.Machine, error) {
+		return nil, nil, nil // no machines
+	}
+	flapsClient.ListActiveFunc = func(ctx context.Context) ([]*fly.Machine, error) {
+		return nil, nil // no active machines
+	}
+	flapsClient.LaunchFunc = func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+		return &fly.Machine{
+			ID:     "m0",
+			Region: "ord",
+			Config: &fly.MachineConfig{},
+		}, nil
+	}
+	flapsClient.GetFunc = func(ctx context.Context, machineID string) (*fly.Machine, error) {
+		return &fly.Machine{
+			ID:     "m0",
+			Region: "ord",
+			Config: &fly.MachineConfig{},
+		}, nil
+	}
+	flapsClient.WaitFunc = func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 		return nil
+	}
+	flapsClient.GetProcessesFunc = func(ctx context.Context, machineID string) (fly.MachinePsResponse, error) {
+		return nil, nil
 	}
 
 	if err := cmd.ExecuteContext(ctx); err != nil {
