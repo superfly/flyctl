@@ -34,7 +34,7 @@ func newRenewSSHCerts() *cobra.Command {
 		flag.AppConfig(),
 		flag.Int{
 			Name:        "valid-days",
-			Description: "The number of days the certificate should be valid for. (default: 36525)",
+			Description: "The number of days the certificate should be valid for.",
 			Default:     36525,
 		},
 	)
@@ -113,7 +113,7 @@ func refreshSSHCerts(ctx context.Context, app *fly.AppCompact) error {
 
 	command := fmt.Sprintf("fly deploy --app %s --image %s", app.Name, leader.FullImageRef())
 
-	fmt.Fprintf(io.Out, "SSH certificates have been renewed and will expire in %d day(s)\n", validDays)
+	fmt.Fprintf(io.Out, "Your SSH certificate(s) have been renewed are set to expire in %d day(s)\n", validDays)
 	fmt.Fprintf(io.Out, "Run %s to apply the changes!\n", colorize.Bold(command))
 
 	return nil
