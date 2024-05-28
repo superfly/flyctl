@@ -46,7 +46,7 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organiz
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !recycle && state.Region == regionCode {
+	if state != nil && !recycle && (regionCode == "" || state.Region == regionCode) {
 		return state, nil
 	}
 
