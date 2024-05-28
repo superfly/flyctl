@@ -18,9 +18,9 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -57,7 +57,7 @@ type RollbackLog struct {
 type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
-	flaps               *flaps.Client
+	flaps               flapsutil.FlapsClient
 	apiClient           flyutil.Client
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
