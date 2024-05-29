@@ -423,8 +423,11 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 			return nil, err
 		}
 
+		// 100 years in hours
+		validHours := 876600
+
 		app := fly.App{Name: config.AppName}
-		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, nil, pub)
+		cert, err := l.client.IssueSSHCertificate(ctx, config.Organization, []string{"root", "fly", "postgres"}, []string{app.Name}, &validHours, pub)
 		if err != nil {
 			return nil, err
 		}
