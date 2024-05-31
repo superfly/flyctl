@@ -17,7 +17,8 @@ func New() (cmd *cobra.Command) {
 	cmd.AddCommand(create())
 	cmd.AddCommand(dashboard())
 	cmd.AddCommand(list())
-	// TODO(danni-popova): Add remaining commands once functionality is enabled
+	cmd.AddCommand(destroy())
+	cmd.AddCommand(status())
 
 	return cmd
 }
