@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -135,13 +136,23 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 			cfg, err := appconfig.LoadConfig(state.sourceInfo.MergeConfig.Name)
 			if err == nil {
 				// In theory, any part of the configuration could be merged here, but for now
-				// we will only copy over the processes, release command, volume, and statics
+				// we will only copy over the processes, release command, env, volume, and statics
 				if state.sourceInfo.Processes == nil {
 					state.sourceInfo.Processes = cfg.Processes
 				}
 
 				if state.sourceInfo.ReleaseCmd == "" && cfg.Deploy != nil {
 					state.sourceInfo.ReleaseCmd = cfg.Deploy.ReleaseCommand
+				}
+
+				if len(cfg.Env) > 0 {
+					if len(state.sourceInfo.Env) == 0 {
+						state.sourceInfo.Env = cfg.Env
+					} else {
+						clone := maps.Clone(state.sourceInfo.Env)
+						maps.Copy(clone, cfg.Env)
+						state.sourceInfo.Env = clone
+					}
 				}
 
 				if len(state.sourceInfo.Volumes) == 0 && len(cfg.Mounts) > 0 {

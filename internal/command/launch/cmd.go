@@ -98,6 +98,14 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "json",
+			Description: "Generate configuration in JSON format",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Generate configuration in YAML format",
+		},
 	)
 
 	return
@@ -181,6 +189,7 @@ func run(ctx context.Context) (err error) {
 
 	defer func() {
 		if err != nil {
+			tracing.RecordError(span, err, "launch failed")
 			status.Error = err.Error()
 
 			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
@@ -190,7 +199,7 @@ func run(ctx context.Context) (err error) {
 
 		status.TraceID = span.SpanContext().TraceID().String()
 		status.Duration = time.Since(startTime)
-		metrics.LaunchStatus(ctx, "launch", status)
+		metrics.LaunchStatus(ctx, status)
 	}()
 
 	if err := warnLegacyBehavior(ctx); err != nil {

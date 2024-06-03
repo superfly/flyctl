@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
@@ -537,11 +538,16 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 			}
 
 			// Reload the config
+			logger.FromContext(ctx).Debug("reloading config after login")
 			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
 				return nil, err
 			}
 
+			// first reset the client
+			ctx = flyutil.NewContextWithClient(ctx, nil)
+
 			// Re-run the auth preparers to update the client with the new token
+			logger.FromContext(ctx).Debug("re-running auth preparers after login")
 			if ctx, err = prepare(ctx, authPreparers...); err != nil {
 				return nil, err
 			}
@@ -609,7 +615,11 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
+	paths = append(paths,
+		filepath.Join(wd, appconfig.DefaultConfigFileName),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".json", 1)),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".yaml", 1)),
+	)
 
 	return
 }

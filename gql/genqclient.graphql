@@ -8,8 +8,8 @@ fragment AddOnData on AddOn {
 	options
 }
 
-query GetAddOn($name: String) {
-	addOn(name: $name) {
+query GetAddOn($name: String, $provider: String) {
+	addOn(name: $name, provider: $provider) {
 		...AddOnData
 		publicUrl
 		privateIp

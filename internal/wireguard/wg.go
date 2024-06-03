@@ -41,18 +41,18 @@ func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, er
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, recycle bool, network string) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug, network)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !recycle && state.Region == regionCode {
+	if state != nil && !reestablish && (regionCode == "" || state.Region == regionCode) {
 		return state, nil
 	}
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	stateb, err := Create(apiClient, org, regionCode, name, network)
+	stateb, err := Create(apiClient, org, regionCode, name, network, "interactive")
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organiz
 	return stateb, nil
 }
 
-func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string) (*wg.WireGuardState, error) {
+func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -77,7 +77,7 @@ func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, n
 			return nil, err
 		}
 
-		name = fmt.Sprintf("interactive-%s", n)
+		name = fmt.Sprintf("%s-%s", namePrefix, n)
 	}
 
 	if regionCode == "" {

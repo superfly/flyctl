@@ -2,6 +2,7 @@ package appconfig
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -601,4 +602,72 @@ func TestIsSameTOMLAppConfigReferenceFormat(t *testing.T) {
 	cfg.configFilePath = ""
 	actual.configFilePath = ""
 	require.Equal(t, cfg, actual)
+}
+
+func TestIsSameJSONAppConfigReferenceFormat(t *testing.T) {
+	const TOMLpath = "./testdata/full-reference.toml"
+	TOMLcfg, err := LoadConfig(TOMLpath)
+	require.NoError(t, err)
+
+	JSONpath := filepath.Join(t.TempDir(), "full-reference.json")
+	err = TOMLcfg.WriteToFile(JSONpath)
+	require.NoError(t, err)
+
+	JSONcfg, err := LoadConfig(JSONpath)
+	require.NoError(t, err)
+
+	TOMLcfg.configFilePath = ""
+	JSONcfg.configFilePath = ""
+	require.Equal(t, TOMLcfg, JSONcfg)
+}
+
+func TestIsSameYAMLAppConfigReferenceFormat(t *testing.T) {
+	const TOMLpath = "./testdata/full-reference.toml"
+	TOMLcfg, err := LoadConfig(TOMLpath)
+	require.NoError(t, err)
+
+	YAMLpath := filepath.Join(t.TempDir(), "full-reference.yaml")
+	err = TOMLcfg.WriteToFile(YAMLpath)
+	require.NoError(t, err)
+
+	YAMLcfg, err := LoadConfig(YAMLpath)
+	require.NoError(t, err)
+
+	TOMLcfg.configFilePath = ""
+	YAMLcfg.configFilePath = ""
+	require.Equal(t, TOMLcfg, YAMLcfg)
+}
+
+func TestJSONPrettyPrint(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+
+	JSONpath := filepath.Join(t.TempDir(), "full-reference.json")
+	err = cfg.WriteToFile(JSONpath)
+	require.NoError(t, err)
+
+	buf, err := os.ReadFile(JSONpath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(buf), "{\n  \"app\": \"foo\",\n")
+	assert.Contains(t, string(buf), ",\n\n  \"experimental\": {\n    \"cmd\": [\n")
+	assert.Contains(t, string(buf), ",\n\n      \"processes\": [\n        \"web\"\n      ]\n    }\n  ]\n}\n")
+}
+
+func TestYAMLPrettyPrint(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+
+	YAMLpath := filepath.Join(t.TempDir(), "full-reference.yaml")
+	err = cfg.WriteToFile(YAMLpath)
+	require.NoError(t, err)
+
+	buf, err := os.ReadFile(YAMLpath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(buf), "\napp: foo\n")
+	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
+	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
 }
