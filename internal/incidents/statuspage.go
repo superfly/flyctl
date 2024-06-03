@@ -7,27 +7,26 @@ import (
 	"net/http"
 	"os"
 	"time"
-
 )
 
 type StatusPageApiResponse struct {
-    Incidents []Incident `json:"incidents"`
+	Incidents []Incident `json:"incidents"`
 }
 
 type Incident struct {
-    Components       []Component      `json:"components"`
-    CreatedAt        string           `json:"created_at"`
-    ID               string           `json:"id"`
-    Name             string           `json:"name"`
-    ResolvedAt       string           `json:"resolved_at"`
-    StartedAt        string           `json:"started_at"`
-    Status           string           `json:"status"`
-    UpdatedAt        string           `json:"updated_at"`
+	Components []Component `json:"components"`
+	CreatedAt  string      `json:"created_at"`
+	ID         string      `json:"id"`
+	Name       string      `json:"name"`
+	ResolvedAt string      `json:"resolved_at"`
+	StartedAt  string      `json:"started_at"`
+	Status     string      `json:"status"`
+	UpdatedAt  string      `json:"updated_at"`
 }
 
 type Component struct {
-    ID                  string      `json:"id"`
-    Name                string      `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 func getStatuspageUnresolvedIncidentsUrl() string {

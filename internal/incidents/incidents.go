@@ -1,9 +1,9 @@
 package incidents
 
 import (
-	"os"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
+	"os"
 )
 
 // Check for incidents

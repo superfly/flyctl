@@ -533,7 +533,7 @@ func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
 
 			logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
 			incidentCount := len(incidents.Incidents)
-			if (incidentCount > 0) {
+			if incidentCount > 0 {
 				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
 					colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n\n"),
 				)
