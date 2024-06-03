@@ -15,7 +15,7 @@ import (
 
 func list() (cmd *cobra.Command) {
 	const (
-		long  = `List your Upstash Enveloop project`
+		long  = `List your Enveloop projects`
 		short = long
 		usage = "list"
 	)

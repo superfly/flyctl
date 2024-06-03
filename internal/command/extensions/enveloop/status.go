@@ -14,7 +14,7 @@ import (
 
 func status() *cobra.Command {
 	const (
-		short = "Show details about an Upstash Enveloop project"
+		short = "Show details about an Enveloop project"
 		long  = short + "\n"
 
 		usage = "status [name]"
