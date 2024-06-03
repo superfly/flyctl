@@ -12,7 +12,7 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the Enveloop dashboard on the Upstash web console`
+		long = `Open the Enveloop dashboard via your web browser`
 
 		short = long
 		usage = "dashboard"
