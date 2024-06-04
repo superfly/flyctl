@@ -68,6 +68,7 @@ type Client struct {
 	GetMachineFunc                     func(ctx context.Context, machineId string) (*fly.GqlMachine, error)
 	GetNearestRegionFunc               func(ctx context.Context) (*fly.Region, error)
 	GetOrganizationBySlugFunc          func(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrganizationByAppFunc           func(ctx context.Context, appName string) (*fly.Organization, error)
 	GetOrganizationsFunc               func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
 	GetSnapshotsFromVolumeFunc         func(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
 	GetWireGuardPeerFunc               func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
@@ -87,6 +88,7 @@ type Client struct {
 	RunFunc                            func(req *graphql.Request) (fly.Query, error)
 	RunWithContextFunc                 func(ctx context.Context, req *graphql.Request) (fly.Query, error)
 	SetGenqClientFunc                  func(client genq.Client)
+	SetRemoteBuilderFunc               func(ctx context.Context, appName string) error
 	SetSecretsFunc                     func(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error)
 	UnsetSecretsFunc                   func(ctx context.Context, appName string, keys []string) (*fly.Release, error)
 	ValidateWireGuardPeersFunc         func(ctx context.Context, peerIPs []string) (invalid []string, err error)
@@ -308,6 +310,10 @@ func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.O
 	return m.GetOrganizationBySlugFunc(ctx, slug)
 }
 
+func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
+	return m.GetOrganizationByAppFunc(ctx, appName)
+}
+
 func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
 	return m.GetOrganizationsFunc(ctx, filters...)
 }
@@ -382,6 +388,10 @@ func (m *Client) RunWithContext(ctx context.Context, req *graphql.Request) (fly.
 
 func (m *Client) SetGenqClient(client genq.Client) {
 	m.SetGenqClientFunc(client)
+}
+
+func (m *Client) SetRemoteBuilder(ctx context.Context, appName string) error {
+	return m.SetRemoteBuilderFunc(ctx, appName)
 }
 
 func (m *Client) SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error) {
