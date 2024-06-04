@@ -42,7 +42,7 @@ func StatuspageIncidentsRequest(ctx context.Context) (*StatusPageApiResponse, er
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", getStatuspageUnresolvedIncidentsUrl(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", getStatuspageUnresolvedIncidentsUrl(), http.NoBody)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +52,7 @@ func StatuspageIncidentsRequest(ctx context.Context) (*StatusPageApiResponse, er
 	if err != nil {
 		return nil, err
 	}
-	defer response.Body.Close()
+	defer response.Body.Close() // skipcq: GO-S2307
 
 	if response.StatusCode != http.StatusOK {
 		return nil, nil

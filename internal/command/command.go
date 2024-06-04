@@ -540,7 +540,7 @@ func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
 				break
 			}
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			break
+			logger.Warnf("failed querying for Statuspage incidents. Context cancelled or deadline exceeded: %v", err)
 		default:
 			logger.Warnf("failed querying for Statuspage incidents: %v", err)
 		}
