@@ -80,7 +80,9 @@ func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) 
 	fmt.Fprintf(io.Out, "Updating machine %s\n", colorize.Bold(m.ID))
 
 	input.ID = m.ID
-	updatedMachine, err = flapsClient.Update(ctx, *input, m.LeaseNonce)
+	updatedMachine, err = RetryRet(0, func(_ time.Duration) (*fly.Machine, error) {
+		return flapsClient.Update(ctx, *input, m.LeaseNonce)
+	})
 	if err != nil {
 		return fmt.Errorf("could not update machine %s: %w", m.ID, err)
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
@@ -60,7 +61,9 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
+	if err := Retry(0, func(_ time.Duration) error {
+		return flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce)
+	}); err != nil {
 		if !strings.Contains(err.Error(), "lease not found") {
 			fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", machine.ID, err.Error())
 		}
@@ -72,7 +75,9 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, releaseLeaseFunc, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	lease, err := flapsClient.AcquireLease(ctx, machine.ID, fly.IntPointer(120))
+	lease, err := RetryRet(0, func(_ time.Duration) (*fly.MachineLease, error) {
+		return flapsClient.AcquireLease(ctx, machine.ID, fly.IntPointer(120))
+	})
 	if err != nil {
 		return nil, func() {}, fmt.Errorf("failed to obtain lease: %w", err)
 	}
@@ -88,7 +93,9 @@ func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, rele
 	}
 
 	// Re-query machine post-lease acquisition to ensure we are working against the latest configuration.
-	updatedMachine, err := flapsClient.Get(ctx, machine.ID)
+	updatedMachine, err := RetryRet(0, func(_ time.Duration) (*fly.Machine, error) {
+		return flapsClient.Get(ctx, machine.ID)
+	})
 	if err != nil {
 		return machine, releaseFunc, err
 	}
