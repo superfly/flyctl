@@ -57,7 +57,11 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (FlapsC
 		opts.Logger = v
 	}
 
-	return flaps.NewWithOptions(ctx, opts)
+	client, err := flaps.NewWithOptions(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create flaps client: %w", err)
+	}
+	return wrapWithRetry(client), nil
 }
 
 func resolveOrgSlugForApp(ctx context.Context, app *fly.AppCompact, appName string) (string, error) {
