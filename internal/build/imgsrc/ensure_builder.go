@@ -13,12 +13,17 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/tracing"
 )
 
 func EnsureBuilder(ctx context.Context, org *fly.Organization) (*fly.Machine, *fly.App, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "ensure_builder")
+	defer span.End()
+
 	builderApp := org.RemoteBuilderApp
 	builderMachine, err := validateBuilder(ctx, builderApp)
 	if err == nil {
+		span.AddEvent("builder app already exists and is valid")
 		return builderMachine, builderApp, nil
 	}
 
@@ -28,8 +33,13 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization) (*fly.Machine, *f
 	}
 
 	if validateBuilderErr != NoBuilderApp {
+		span.AddEvent("deleting existing invalid builder")
 		client := flyutil.ClientFromContext(ctx)
-		client.DeleteApp(ctx, builderApp.Name)
+		err := client.DeleteApp(ctx, builderApp.Name)
+		if err != nil {
+			tracing.RecordError(span, err, "error deleting invalid builder app")
+			return nil, nil, err
+		}
 	}
 
 	app, machine, err := createBuilder(ctx, org)
@@ -58,7 +68,10 @@ const (
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder")
+	defer span.End()
 	if app == nil {
+		tracing.RecordError(span, NoBuilderApp, "no builder app")
 		return nil, NoBuilderApp
 	}
 	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -84,23 +97,29 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 		OrgSlug: app.Organization.Slug,
 	})
 	if err != nil {
+		tracing.RecordError(span, err, "error creating flaps client")
 		return nil, err
 	}
 
 	volumes, err := flaps.GetVolumes(ctx)
 	if err != nil {
+		tracing.RecordError(span, err, "error getting volumes")
 		return nil, err
 	}
 
 	if len(volumes) == 0 {
+		tracing.RecordError(span, NoBuilderVolume, "the existing builder app has no volume")
 		return nil, NoBuilderVolume
 	}
 
 	machines, err := flaps.List(ctx, "")
 	if err != nil {
+		tracing.RecordError(span, err, "error listing machines")
 		return nil, err
 	}
 	if len(machines) != 1 {
+		span.AddEvent(fmt.Sprintf("invalid machine count %d", len(machines)))
+		tracing.RecordError(span, InvalidMachineCount, "the existing builder app has an invalid number of machines")
 		return nil, InvalidMachineCount
 	}
 
@@ -108,6 +127,8 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 }
 
 func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, mach *fly.Machine, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
+	defer span.End()
 	client := flyutil.ClientFromContext(ctx)
 
 	appName := "fly-builder-" + haikunator.Haikunator().Build()
@@ -118,11 +139,13 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 		Machines:       true,
 	})
 	if err != nil {
+		tracing.RecordError(span, err, "error creating app")
 		return nil, nil, err
 	}
 
 	defer func() {
 		if err != nil {
+			span.AddEvent("cleaning up new builder due to error")
 			client.DeleteApp(ctx, app.Name)
 		}
 	}()
@@ -152,6 +175,7 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 
 	_, err = client.AllocateIPAddress(ctx, appName, "shared_v4", "", org, "")
 	if err != nil {
+		tracing.RecordError(span, err, "error allocating ip address")
 		return nil, nil, err
 	}
 
@@ -163,6 +187,7 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 
 	err = flapsClient.WaitForApp(ctx, appName)
 	if err != nil {
+		tracing.RecordError(span, err, "error waiting for app")
 		return nil, nil, fmt.Errorf("waiting for app %s: %w", appName, err)
 	}
 
@@ -187,6 +212,7 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 		return err
 	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 5))
 	if err != nil {
+		tracing.RecordError(span, err, "error creating volume")
 		return nil, nil, err
 	}
 
@@ -245,6 +271,7 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 		},
 	})
 	if err != nil {
+		tracing.RecordError(span, err, "error launching builder machine")
 		return nil, nil, err
 	}
 
