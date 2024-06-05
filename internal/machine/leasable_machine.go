@@ -69,9 +69,7 @@ func (lm *leasableMachine) Update(ctx context.Context, input fly.LaunchMachineIn
 		return fmt.Errorf("no current lease for machine %s", lm.machine.ID)
 	}
 	input.ID = lm.machine.ID
-	updateMachine, err := RetryRet(0, func(_ time.Duration) (*fly.Machine, error) {
-		return lm.flapsClient.Update(ctx, input, lm.leaseNonce)
-	})
+	updateMachine, err := lm.flapsClient.Update(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -89,9 +87,7 @@ func (lm *leasableMachine) Stop(ctx context.Context, signal string) error {
 		Signal: signal,
 	}
 
-	return Retry(0, func(_ time.Duration) error {
-		return lm.flapsClient.Stop(ctx, input, lm.leaseNonce)
-	})
+	return lm.flapsClient.Stop(ctx, input, lm.leaseNonce)
 }
 
 func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
@@ -102,9 +98,7 @@ func (lm *leasableMachine) Destroy(ctx context.Context, kill bool) error {
 		ID:   lm.machine.ID,
 		Kill: kill,
 	}
-	err := Retry(0, func(_ time.Duration) error {
-		return lm.flapsClient.Destroy(ctx, input, lm.leaseNonce)
-	})
+	err := lm.flapsClient.Destroy(ctx, input, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -117,9 +111,7 @@ func (lm *leasableMachine) Cordon(ctx context.Context) error {
 		return fmt.Errorf("cannon cordon machine %s that was already destroyed", lm.machine.ID)
 	}
 
-	return Retry(0, func(_ time.Duration) error {
-		return lm.flapsClient.Cordon(ctx, lm.machine.ID, lm.leaseNonce)
-	})
+	return lm.flapsClient.Cordon(ctx, lm.machine.ID, lm.leaseNonce)
 }
 
 func (lm *leasableMachine) FormattedMachineId() string {
@@ -165,10 +157,7 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
 	lm.logStatusWaiting(ctx, fly.MachineStateStarted)
-	err := Retry(0, func(_ time.Duration) error {
-		_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
-		return err
-	})
+	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
 		return err
 	}
@@ -285,8 +274,6 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil
-		case isRetryable(err):
-			continue
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
@@ -334,8 +321,6 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
-		case isRetryable(err):
-			continue
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
@@ -372,8 +357,6 @@ func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType strin
 			return nil, err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
-		case isRetryable(err):
-			continue
 		case err != nil:
 			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
@@ -409,8 +392,6 @@ func (lm *leasableMachine) WaitForEventTypeAfterType(ctx context.Context, eventT
 			return nil, err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
-		case isRetryable(err):
-			continue
 		case err != nil:
 			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
@@ -443,9 +424,7 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 		return nil
 	}
 	seconds := int(duration.Seconds())
-	lease, err := RetryRet(0, func(_ time.Duration) (*fly.MachineLease, error) {
-		return lm.flapsClient.AcquireLease(ctx, lm.machine.ID, &seconds)
-	})
+	lease, err := lm.flapsClient.AcquireLease(ctx, lm.machine.ID, &seconds)
 	if err != nil {
 		return err
 	}
@@ -462,9 +441,7 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 
 func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Duration) error {
 	seconds := int(duration.Seconds())
-	refreshedLease, err := RetryRet(0, func(_ time.Duration) (*fly.MachineLease, error) {
-		return lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
-	})
+	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
 	if err != nil {
 		return err
 	}
@@ -522,9 +499,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	err := Retry(0, func(_ time.Duration) error {
-		return lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
-	})
+	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
 	contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 	if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
 		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
@@ -562,13 +537,9 @@ func (lm *leasableMachine) GetMinIntervalAndMinGracePeriod() (time.Duration, tim
 }
 
 func (lm *leasableMachine) GetMetadata(ctx context.Context) (map[string]string, error) {
-	return RetryRet(0, func(_ time.Duration) (map[string]string, error) {
-		return lm.flapsClient.GetMetadata(ctx, lm.machine.ID)
-	})
+	return lm.flapsClient.GetMetadata(ctx, lm.machine.ID)
 }
 
 func (lm *leasableMachine) SetMetadata(ctx context.Context, k, v string) error {
-	return Retry(0, func(_ time.Duration) error {
-		return lm.flapsClient.SetMetadata(ctx, lm.machine.ID, k, v)
-	})
+	return lm.flapsClient.SetMetadata(ctx, lm.machine.ID, k, v)
 }

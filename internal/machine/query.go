@@ -2,7 +2,6 @@ package machine
 
 import (
 	"context"
-	"time"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
@@ -12,9 +11,7 @@ import (
 func ListActive(ctx context.Context) ([]*fly.Machine, error) {
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	machines, err := RetryRet(0, func(_ time.Duration) ([]*fly.Machine, error) {
-		return flapsClient.List(ctx, "")
-	})
+	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
 		return nil, err
 	}

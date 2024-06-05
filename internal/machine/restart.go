@@ -20,9 +20,7 @@ func Restart(ctx context.Context, m *fly.Machine, input *fly.RestartMachineInput
 
 	fmt.Fprintf(io.Out, "Restarting machine %s\n", colorize.Bold(m.ID))
 	input.ID = m.ID
-	if err := Retry(0, func(_ time.Duration) error {
-		return flapsClient.Restart(ctx, *input, nonce)
-	}); err != nil {
+	if err := flapsClient.Restart(ctx, *input, nonce); err != nil {
 		return fmt.Errorf("could not stop machine %s: %w", input.ID, err)
 	}
 
