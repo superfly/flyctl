@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sourcegraph/conc/pool"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -136,7 +137,6 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 		float64(bg.maxConcurrent),
 	)))
 
-	var greenMachines machineUpdateEntries
 	var lock sync.Mutex
 	p := pool.New().
 		WithErrors().
@@ -145,6 +145,10 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 	for _, mach := range bg.blueMachines {
 		mach := mach
 		p.Go(func() error {
+			if bg.isAborted() {
+				return ErrAborted
+			}
+
 			launchInput := mach.launchInput
 			launchInput.SkipServiceRegistration = true
 			launchInput.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlBGTag] = bg.timestamp
@@ -161,7 +165,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 			lock.Lock()
 			defer lock.Unlock()
 
-			greenMachines = append(greenMachines, &machineUpdateEntry{greenMachine, launchInput})
+			bg.greenMachines = append(bg.greenMachines, &machineUpdateEntry{greenMachine, launchInput})
 
 			fmt.Fprintf(bg.io.ErrOut, "  Created machine %s\n", bg.colorize.Bold(greenMachine.FormattedMachineId()))
 			return nil
@@ -172,7 +176,6 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 		return err
 	}
 
-	bg.greenMachines = greenMachines
 	return nil
 }
 
@@ -891,7 +894,7 @@ func (bg *blueGreen) CanDestroyGreenMachines(err error) bool {
 	}
 
 	for _, validError := range validErrors {
-		if strings.Contains(err.Error(), validError.Error()) {
+		if errors.Is(err, validError) {
 			return true
 		}
 	}
@@ -905,14 +908,18 @@ func (bg *blueGreen) CanDestroyGreenMachines(err error) bool {
 }
 
 func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "rollback")
+	ctx, span := tracing.GetTracer().Start(ctx, "rollback", trace.WithAttributes(
+		attribute.Bool("rollback_disabled", bg.rollbackLog.disableRollback),
+		attribute.Bool("can_delete_green_machines", bg.rollbackLog.canDeleteGreenMachines),
+		attribute.String("deployment_error", err.Error()),
+	))
 	defer span.End()
 
 	if bg.rollbackLog.disableRollback {
 		return nil
 	}
 
-	if strings.Contains(err.Error(), ErrDestroyBlueMachines.Error()) {
+	if errors.Is(err, ErrDestroyBlueMachines) {
 		fmt.Fprintf(bg.io.ErrOut, "\nFailed to destroy blue machines (%s)\n", strings.Join(bg.hangingBlueMachines, ","))
 		fmt.Fprintf(bg.io.ErrOut, "\nYou can destroy them using `fly machines destroy --force <id>`")
 		return nil
@@ -926,6 +933,7 @@ func (bg *blueGreen) Rollback(ctx context.Context, err error) error {
 				tracing.RecordError(span, err, "failed to destroy green machine")
 				return err
 			}
+			fmt.Fprintf(bg.io.ErrOut, "  Deleted machine %s\n", bg.colorize.Bold(mach.FormattedMachineId()))
 		}
 	}
 
