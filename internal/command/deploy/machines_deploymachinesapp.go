@@ -472,12 +472,13 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	bg := BlueGreenStrategy(md, updateEntries)
 	if err := bg.Deploy(ctx); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
-
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
 			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
+			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 			return rollbackErr
 		}
+
+		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
