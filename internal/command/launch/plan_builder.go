@@ -232,6 +232,9 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
 		}
+		if srcInfo.ObjectStorageDesired {
+			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
+		}
 		if srcInfo.Port != 0 {
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
