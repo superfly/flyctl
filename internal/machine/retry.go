@@ -1,6 +1,7 @@
 package machine
 
 import (
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -24,7 +25,11 @@ func Retry(f func() error) error {
 		if err == nil {
 			return nil
 		}
-		// TODO: Filter out retryable errors
+
+		if strings.Contains(err.Error(), "request returned non-2xx status, 504") {
+			return err
+		}
+
 		return backoff.Permanent(err)
 	}, &machineRetryBackoff)
 }
