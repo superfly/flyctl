@@ -7,6 +7,14 @@ import (
 	"github.com/cenkalti/backoff/v4"
 )
 
+func isRetryable(err error) bool {
+
+	if strings.Contains(err.Error(), "request returned non-2xx status, 504") {
+		return true
+	}
+	return false
+}
+
 // Retry retries a machine operation a few times before giving up
 // This is useful for operations like that can fail only to succeed on another try, like machine creation
 func Retry(f func() error) error {
@@ -25,11 +33,9 @@ func Retry(f func() error) error {
 		if err == nil {
 			return nil
 		}
-
-		if strings.Contains(err.Error(), "request returned non-2xx status, 504") {
+		if isRetryable(err) {
 			return err
 		}
-
 		return backoff.Permanent(err)
 	}, &machineRetryBackoff)
 }
