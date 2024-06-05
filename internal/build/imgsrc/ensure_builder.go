@@ -16,7 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 )
 
-func EnsureBuilder(ctx context.Context, org *fly.Organization) (*fly.Machine, *fly.App, error) {
+func EnsureBuilder(ctx context.Context, org *fly.Organization, region string) (*fly.Machine, *fly.App, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_builder")
 	defer span.End()
 
@@ -42,7 +42,7 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization) (*fly.Machine, *f
 		}
 	}
 
-	app, machine, err := createBuilder(ctx, org)
+	app, machine, err := createBuilder(ctx, org, region)
 	return machine, app, err
 }
 
@@ -126,17 +126,18 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	return machines[0], nil
 }
 
-func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, mach *fly.Machine, err error) {
+func createBuilder(ctx context.Context, org *fly.Organization, region string) (app *fly.App, mach *fly.Machine, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 	client := flyutil.ClientFromContext(ctx)
 
 	appName := "fly-builder-" + haikunator.Haikunator().Build()
 	app, err = client.CreateApp(ctx, fly.CreateAppInput{
-		OrganizationID: org.ID,
-		Name:           appName,
-		AppRoleID:      "remote-docker-builder",
-		Machines:       true,
+		OrganizationID:  org.ID,
+		Name:            appName,
+		AppRoleID:       "remote-docker-builder",
+		Machines:        true,
+		PreferredRegion: fly.StringPointer(region),
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "error creating app")
@@ -203,6 +204,7 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 			SizeGb:              fly.IntPointer(50),
 			AutoBackupEnabled:   fly.BoolPointer(false),
 			ComputeRequirements: &guest,
+			Region:              region,
 		})
 
 		var flapsErr *flaps.FlapsError
@@ -223,6 +225,7 @@ func createBuilder(ctx context.Context, org *fly.Organization) (app *fly.App, ma
 	}()
 
 	mach, err = flapsClient.Launch(ctx, fly.LaunchMachineInput{
+		Region: region,
 		Config: &fly.MachineConfig{
 			Env: map[string]string{
 				"ALLOW_ORG_SLUG": org.Slug,
