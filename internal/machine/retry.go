@@ -1,17 +1,26 @@
 package machine
 
 import (
-	"strings"
+	"errors"
+	"net/http"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/superfly/fly-go/flaps"
 )
 
 func isRetryable(err error) bool {
 
-	if strings.Contains(err.Error(), "request returned non-2xx status, 504") {
-		return true
+	var flapsErr *flaps.FlapsError
+	if errors.As(err, &flapsErr) {
+		switch flapsErr.ResponseStatusCode {
+		case http.StatusServiceUnavailable:
+			return true
+		case http.StatusGatewayTimeout:
+			return true
+		}
 	}
+
 	return false
 }
 
