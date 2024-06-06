@@ -4,9 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
-	"github.com/cenkalti/backoff"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -241,12 +239,8 @@ func createBuilder(ctx context.Context, org *fly.Organization, region string) (a
 	}
 
 	var volume *fly.Volume
-	shoudRetry := true
-
-	err = backoff.Retry(func() error {
-		if !shoudRetry {
-			return err
-		}
+	numRetries := 0
+	for {
 		volume, err = flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
 			Name:                "machine_data",
 			SizeGb:              fly.IntPointer(50),
@@ -254,16 +248,23 @@ func createBuilder(ctx context.Context, org *fly.Organization, region string) (a
 			ComputeRequirements: &guest,
 			Region:              region,
 		})
+		if err == nil {
+			break
+		}
 
 		var flapsErr *flaps.FlapsError
-		if err != nil && errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == 503 {
-			shoudRetry = false
+		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
+			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
+			numRetries += 1
+
+			if numRetries >= 3 {
+				tracing.RecordError(span, err, "error creating volume")
+				return nil, nil, err
+			}
+		} else {
+			tracing.RecordError(span, err, "error creating volume")
+			return nil, nil, err
 		}
-		return err
-	}, backoff.WithMaxRetries(backoff.NewConstantBackOff(time.Second), 5))
-	if err != nil {
-		tracing.RecordError(span, err, "error creating volume")
-		return nil, nil, err
 	}
 
 	defer func() {
