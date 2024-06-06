@@ -26,6 +26,7 @@ type launchPlanSource struct {
 	computeSource  string
 	postgresSource string
 	redisSource    string
+	tigrisSource   string
 	sentrySource   string
 }
 
@@ -122,6 +123,11 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	tigrisStr, err := describeObjectStoragePlan(state.Plan.ObjectStorage)
+	if err != nil {
+		return "", err
+	}
+
 	rows := [][]string{
 		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
@@ -129,6 +135,7 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"App Machines", guestStr, state.PlanSource.computeSource},
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
+		{"Tigris", tigrisStr, state.PlanSource.tigrisSource},
 		{"Sentry", strconv.FormatBool(state.Plan.Sentry), state.PlanSource.sentrySource},
 	}
 
