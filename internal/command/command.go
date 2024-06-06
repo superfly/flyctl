@@ -508,7 +508,6 @@ func startMetrics(ctx context.Context) (context.Context, error) {
 func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
 	if shouldIgnore(ctx, [][]string{
 		{"incidents", "list"},
-		{"incidents", "hosts", "list"},
 	}) {
 		return ctx, nil
 	}
