@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -64,6 +65,7 @@ var commonPreparers = []preparers.Preparer{
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
 	startMetrics,
+	notifyStatuspageIncidents,
 }
 
 var authPreparers = []preparers.Preparer{
@@ -498,6 +500,53 @@ func startMetrics(ctx context.Context) (context.Context, error) {
 	task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
 		metrics.FlushPending()
 	})
+
+	return ctx, nil
+}
+
+func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	logger := logger.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	queryStatuspageIncidents := func(parent context.Context) {
+		logger.Debug("started querying for statuspage incidents")
+
+		ctx, cancel := context.WithTimeout(parent, time.Second)
+		defer cancel()
+
+		switch incidents, err := incidents.StatuspageIncidentsRequest(ctx); {
+		case err == nil:
+			if incidents == nil {
+				break
+			}
+
+			logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
+			incidentCount := len(incidents.Incidents)
+			if incidentCount > 0 {
+				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
+					colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n\n"),
+				)
+				break
+			}
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			logger.Debugf("failed querying for Statuspage incidents. Context cancelled or deadline exceeded: %v", err)
+		default:
+			logger.Debugf("failed querying for Statuspage incidents: %v", err)
+		}
+	}
+
+	task.FromContext(ctx).Run(queryStatuspageIncidents)
 
 	return ctx, nil
 }
