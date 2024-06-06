@@ -17,29 +17,21 @@ func wrapWithRetry(inner FlapsClient) FlapsClient {
 }
 
 func (r *retryClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
-	return RetryRet(func() (*fly.MachineLease, error) {
-		return r.inner.AcquireLease(ctx, machineID, ttl)
-	})
+	return r.inner.AcquireLease(ctx, machineID, ttl)
 }
 func (r *retryClient) Cordon(ctx context.Context, machineID string, nonce string) (err error) {
-	return Retry(func() error {
-		return r.inner.Cordon(ctx, machineID, nonce)
-	})
+	return r.inner.Cordon(ctx, machineID, nonce)
 }
 func (r *retryClient) CreateApp(ctx context.Context, name string, org string) (err error) {
-	return Retry(func() error {
-		return r.inner.CreateApp(ctx, name, org)
-	})
+	return r.inner.CreateApp(ctx, name, org)
 }
 func (r *retryClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
-	return RetryRet(func() (*fly.Volume, error) {
-		return r.inner.CreateVolume(ctx, req)
-	})
+	// Not retryable - the CreateVolume endpoint can time out, but the volume may still be created
+	return r.inner.CreateVolume(ctx, req)
 }
 func (r *retryClient) CreateVolumeSnapshot(ctx context.Context, volumeId string) error {
-	return Retry(func() error {
-		return r.inner.CreateVolumeSnapshot(ctx, volumeId)
-	})
+	// I don't feel comfortable retrying this, since CreateVolume is not retryable
+	return r.inner.CreateVolumeSnapshot(ctx, volumeId)
 }
 func (r *retryClient) DeleteMetadata(ctx context.Context, machineID, key string) error {
 	return Retry(func() error {
@@ -47,32 +39,22 @@ func (r *retryClient) DeleteMetadata(ctx context.Context, machineID, key string)
 	})
 }
 func (r *retryClient) DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error) {
-	return RetryRet(func() (*fly.Volume, error) {
-		return r.inner.DeleteVolume(ctx, volumeId)
-	})
+	// I don't feel comfortable retrying this, since CreateVolume is not retryable
+	return r.inner.DeleteVolume(ctx, volumeId)
 }
 func (r *retryClient) Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+	// This should be safe to call more than once
 	return Retry(func() error {
 		return r.inner.Destroy(ctx, input, nonce)
 	})
 }
 func (r *retryClient) Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error) {
-	return RetryRet(func() (*fly.MachineExecResponse, error) {
-		return r.inner.Exec(ctx, machineID, in)
-	})
+	// Not comfortable retrying this - the command may have side effects
+	return r.inner.Exec(ctx, machineID, in)
 }
 func (r *retryClient) ExtendVolume(ctx context.Context, volumeId string, size_gb int) (*fly.Volume, bool, error) {
-	// RetryRet only works for functions that return one value and an error
-	var (
-		retVol         *fly.Volume
-		retNeedRestart bool
-	)
-	err := Retry(func() error {
-		var err error
-		retVol, retNeedRestart, err = r.inner.ExtendVolume(ctx, volumeId, size_gb)
-		return err
-	})
-	return retVol, retNeedRestart, err
+	// Not retrying volume endpoints
+	return r.inner.ExtendVolume(ctx, volumeId, size_gb)
 }
 func (r *retryClient) FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error) {
 	return RetryRet(func() (*fly.MachineLease, error) {
@@ -125,9 +107,8 @@ func (r *retryClient) Kill(ctx context.Context, machineID string) (err error) {
 	})
 }
 func (r *retryClient) Launch(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
-	return RetryRet(func() (*fly.Machine, error) {
-		return r.inner.Launch(ctx, builder)
-	})
+	// TODO: Figure out how to _at least_ retry *this* operation safely
+	return r.inner.Launch(ctx, builder)
 }
 func (r *retryClient) List(ctx context.Context, state string) ([]*fly.Machine, error) {
 	return RetryRet(func() ([]*fly.Machine, error) {
@@ -153,62 +134,52 @@ func (r *retryClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, 
 	return retMachines, retRelCmdMachine, err
 }
 func (r *retryClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
-	return RetryRet(func() (*http.Request, error) {
-		return r.inner.NewRequest(ctx, method, path, in, headers)
-	})
+	return r.inner.NewRequest(ctx, method, path, in, headers)
 }
 func (r *retryClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
-	return RetryRet(func() (*fly.MachineLease, error) {
-		return r.inner.RefreshLease(ctx, machineID, ttl, nonce)
-	})
+	return r.inner.RefreshLease(ctx, machineID, ttl, nonce)
 }
 func (r *retryClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {
-	return Retry(func() error {
-		return r.inner.ReleaseLease(ctx, machineID, nonce)
-	})
+	return r.inner.ReleaseLease(ctx, machineID, nonce)
 }
 func (r *retryClient) Restart(ctx context.Context, in fly.RestartMachineInput, nonce string) (err error) {
-	return Retry(func() error {
-		return r.inner.Restart(ctx, in, nonce)
-	})
+	return r.inner.Restart(ctx, in, nonce)
 }
 func (r *retryClient) SetMetadata(ctx context.Context, machineID, key, value string) error {
+	// This should be safe to call multiple times
 	return Retry(func() error {
 		return r.inner.SetMetadata(ctx, machineID, key, value)
 	})
 }
 func (r *retryClient) Start(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error) {
-	return RetryRet(func() (*fly.MachineStartResponse, error) {
-		return r.inner.Start(ctx, machineID, nonce)
-	})
+	// Not *strictly* idempotent
+	return r.inner.Start(ctx, machineID, nonce)
 }
 func (r *retryClient) Stop(ctx context.Context, in fly.StopMachineInput, nonce string) (err error) {
-	return Retry(func() error {
-		return r.inner.Stop(ctx, in, nonce)
-	})
+	// Not *strictly* idempotent
+	return r.inner.Stop(ctx, in, nonce)
 }
 func (r *retryClient) Uncordon(ctx context.Context, machineID string, nonce string) (err error) {
+	// Not *strictly* idempotent
 	return Retry(func() error {
 		return r.inner.Uncordon(ctx, machineID, nonce)
 	})
 }
 func (r *retryClient) Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+	// This should be safe to retry
 	return RetryRet(func() (*fly.Machine, error) {
 		return r.inner.Update(ctx, builder, nonce)
 	})
 }
 func (r *retryClient) UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error) {
+	// This should be safe to retry
 	return RetryRet(func() (*fly.Volume, error) {
 		return r.inner.UpdateVolume(ctx, volumeId, req)
 	})
 }
 func (r *retryClient) Wait(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-	return Retry(func() error {
-		return r.inner.Wait(ctx, machine, state, timeout)
-	})
+	return r.inner.Wait(ctx, machine, state, timeout)
 }
 func (r *retryClient) WaitForApp(ctx context.Context, name string) error {
-	return Retry(func() error {
-		return r.inner.WaitForApp(ctx, name)
-	})
+	return r.inner.WaitForApp(ctx, name)
 }
