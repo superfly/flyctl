@@ -454,6 +454,7 @@ func deployToMachines(
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
 	status.Image = img.Tag
+	status.PrimaryRegion = cfg.PrimaryRegion
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
 		status.Strategy = flag.GetString(ctx, "strategy")
