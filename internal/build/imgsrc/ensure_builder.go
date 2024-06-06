@@ -21,6 +21,36 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string) (*
 	defer span.End()
 
 	builderApp := org.RemoteBuilderApp
+	if builderApp != nil {
+		flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: builderApp.Name,
+			// TOOD(billy) make a utility function for App -> AppCompact
+			AppCompact: &fly.AppCompact{
+				ID:       builderApp.ID,
+				Name:     builderApp.Name,
+				Status:   builderApp.Status,
+				Deployed: builderApp.Deployed,
+				Hostname: builderApp.Hostname,
+				AppURL:   builderApp.AppURL,
+				Organization: &fly.OrganizationBasic{
+					ID:       builderApp.Organization.ID,
+					Name:     builderApp.Organization.Name,
+					Slug:     builderApp.Organization.Slug,
+					RawSlug:  builderApp.Organization.RawSlug,
+					PaidPlan: builderApp.Organization.PaidPlan,
+				},
+				PlatformVersion: builderApp.PlatformVersion,
+				PostgresAppRole: builderApp.PostgresAppRole,
+			},
+			OrgSlug: builderApp.Organization.Slug,
+		})
+		if err != nil {
+			tracing.RecordError(span, err, "error creating flaps client")
+			return nil, nil, err
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flaps)
+	}
+
 	builderMachine, err := validateBuilder(ctx, builderApp)
 	if err == nil {
 		span.AddEvent("builder app already exists and is valid")
@@ -70,41 +100,39 @@ const (
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder")
 	defer span.End()
+
 	if app == nil {
 		tracing.RecordError(span, NoBuilderApp, "no builder app")
 		return nil, NoBuilderApp
 	}
-	flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
-		// TOOD(billy) make a utility function for App -> AppCompact
-		AppCompact: &fly.AppCompact{
-			ID:       app.ID,
-			Name:     app.Name,
-			Status:   app.Status,
-			Deployed: app.Deployed,
-			Hostname: app.Hostname,
-			AppURL:   app.AppURL,
-			Organization: &fly.OrganizationBasic{
-				ID:       app.Organization.ID,
-				Name:     app.Organization.Name,
-				Slug:     app.Organization.Slug,
-				RawSlug:  app.Organization.RawSlug,
-				PaidPlan: app.Organization.PaidPlan,
-			},
-			PlatformVersion: app.PlatformVersion,
-			PostgresAppRole: app.PostgresAppRole,
-		},
-		OrgSlug: app.Organization.Slug,
-	})
-	if err != nil {
-		tracing.RecordError(span, err, "error creating flaps client")
-		return nil, err
-	}
 
-	volumes, err := flaps.GetVolumes(ctx)
-	if err != nil {
-		tracing.RecordError(span, err, "error getting volumes")
-		return nil, err
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	var volumes []fly.Volume
+	numRetries := 0
+
+	for {
+		var err error
+
+		volumes, err = flapsClient.GetVolumes(ctx)
+		if err == nil {
+			break
+		}
+
+		var flapsErr *flaps.FlapsError
+		// if it isn't a server error, no point in retrying
+		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
+			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
+			numRetries += 1
+
+			if numRetries >= 3 {
+				tracing.RecordError(span, err, "error getting volumes")
+				return nil, err
+			}
+		} else {
+			tracing.RecordError(span, err, "error getting volumes")
+			return nil, err
+		}
 	}
 
 	if len(volumes) == 0 {
@@ -112,11 +140,31 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 		return nil, NoBuilderVolume
 	}
 
-	machines, err := flaps.List(ctx, "")
-	if err != nil {
-		tracing.RecordError(span, err, "error listing machines")
-		return nil, err
+	var machines []*fly.Machine
+	for {
+		var err error
+
+		machines, err = flapsClient.List(ctx, "")
+		if err == nil {
+			break
+		}
+
+		var flapsErr *flaps.FlapsError
+		// if it isn't a server error, no point in retrying
+		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
+			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
+			numRetries += 1
+
+			if numRetries >= 3 {
+				tracing.RecordError(span, err, "error listing machines")
+				return nil, err
+			}
+		} else {
+			tracing.RecordError(span, err, "error listing machines")
+			return nil, err
+		}
 	}
+
 	if len(machines) != 1 {
 		span.AddEvent(fmt.Sprintf("invalid machine count %d", len(machines)))
 		tracing.RecordError(span, InvalidMachineCount, "the existing builder app has an invalid number of machines")
