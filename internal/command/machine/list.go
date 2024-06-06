@@ -125,14 +125,14 @@ func runMachineList(ctx context.Context) (err error) {
 				note = "*"
 			}
 
-			checks_total := 0
-			checks_passing := 0
+			checksTotal := 0
+			checksPassing := 0
 			role := ""
 			for _, c := range machine.Checks {
-				checks_total += 1
+				checksTotal += 1
 
 				if c.Status == "passing" {
-					checks_passing += 1
+					checksPassing += 1
 				}
 
 				if c.Name == "role" {
@@ -140,17 +140,17 @@ func runMachineList(ctx context.Context) (err error) {
 				}
 			}
 
-			checks_summary := ""
-			if checks_total > 0 {
-				checks_summary = fmt.Sprintf("%d/%d", checks_passing, checks_total)
+			checksSummary := ""
+			if checksTotal > 0 {
+				checksSummary = fmt.Sprintf("%d/%d", checksPassing, checksTotal)
 			}
 
 			rows = append(rows, []string{
 				machine.ID + note,
 				machine.Name,
 				machine.State,
+				lo.Ternary(unreachable, "", checksSummary),
 				machine.Region,
-				lo.Ternary(unreachable, "", checks_summary),
 				role,
 				lo.Ternary(unreachable, "", machine.ImageRefWithVersion()),
 				lo.Ternary(unreachable, "", machine.PrivateIP),
@@ -167,8 +167,8 @@ func runMachineList(ctx context.Context) (err error) {
 			"ID",
 			"Name",
 			"State",
-			"Region",
 			"Checks",
+			"Region",
 			"Role",
 			"Image",
 			"IP Address",
