@@ -3,10 +3,15 @@ package incidents
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/task"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type StatusPageApiResponse struct {
@@ -36,6 +41,40 @@ func getStatuspageUnresolvedIncidentsUrl() string {
 	}
 
 	return "https://status.flyio.net/api/v2/incidents/unresolved.json"
+}
+
+func QueryStatuspageIncidents(ctx context.Context) {
+
+	logger := logger.FromContext(ctx)
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
+		logger.Debug("started querying for statuspage incidents")
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		switch incidents, err := StatuspageIncidentsRequest(ctx); {
+		case err == nil:
+			if incidents == nil {
+				break
+			}
+
+			logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
+			incidentCount := len(incidents.Incidents)
+			if incidentCount > 0 {
+				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
+					colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n"),
+				)
+				break
+			}
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			logger.Debugf("failed querying for Statuspage incidents. Context cancelled or deadline exceeded: %v", err)
+		default:
+			logger.Debugf("failed querying for Statuspage incidents: %v", err)
+		}
+	})
 }
 
 func StatuspageIncidentsRequest(ctx context.Context) (*StatusPageApiResponse, error) {

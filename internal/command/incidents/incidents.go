@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/incidents/hosts"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/incidents"
@@ -23,6 +24,7 @@ func New() *cobra.Command {
 	cmd := command.New("incidents", short, long, nil)
 	cmd.AddCommand(
 		newIncidentsList(),
+		hosts.New(),
 	)
 	return cmd
 }
