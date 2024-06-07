@@ -258,4 +258,4 @@ replace (
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
 )
 
-replace github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.14-0.20240604185646-69338ef60631
+replace github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.14-0.20240607162211-5cace8dac4c0
