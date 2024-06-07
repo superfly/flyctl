@@ -250,7 +250,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		client = flyutil.ClientFromContext(ctx)
 	)
 
-	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
