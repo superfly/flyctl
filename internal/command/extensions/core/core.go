@@ -64,7 +64,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	// Ensure users have agreed to the provider terms of service
 	err = AgreeToProviderTos(ctx, provider)
-
 	if err != nil {
 		return extension, err
 	}
@@ -109,7 +108,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 					name = targetApp.Name + "-" + provider.NameSuffix
 				}
 				err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
-
 				if err != nil {
 					return
 				}
@@ -182,7 +180,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		}
 
 		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{Colorize: io.ColorScheme()})
-
 		if err != nil {
 			return extension, err
 		}
@@ -205,7 +202,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
-		err = WaitForProvision(ctx, extension.Data.Name)
+		err = WaitForProvision(ctx, extension.Data.Name, params.Provider)
 		if err != nil {
 			return
 		}
@@ -280,7 +277,7 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 	return err
 }
 
-func WaitForProvision(ctx context.Context, name string) error {
+func WaitForProvision(ctx context.Context, name string, provider string) error {
 	io := iostreams.FromContext(ctx)
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
@@ -297,7 +294,7 @@ func WaitForProvision(ctx context.Context, name string) error {
 
 	for {
 
-		resp, err := gql.GetAddOn(ctx, client, name)
+		resp, err := gql.GetAddOn(ctx, client, name, provider)
 		if err != nil {
 			return err
 		}
@@ -343,7 +340,6 @@ func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
 	err = AgreeToProviderTos(ctx, provider)
-
 	if err != nil {
 		return err
 	}
@@ -369,16 +365,15 @@ func openUrl(ctx context.Context, url string) (err error) {
 	return
 }
 
-func OpenDashboard(ctx context.Context, extensionName string) (err error) {
+func OpenDashboard(ctx context.Context, extensionName string, provider gql.AddOnType) (err error) {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 
-	result, err := gql.GetAddOn(ctx, client, extensionName)
+	result, err := gql.GetAddOn(ctx, client, extensionName, string(provider))
 	if err != nil {
 		return err
 	}
 
 	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
-
 	if err != nil {
 		return err
 	}
@@ -394,8 +389,7 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	appName := appconfig.NameFromContext(ctx)
 
 	if len(flag.Args(ctx)) == 1 {
-
-		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx))
+		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx), string(provider))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -469,13 +463,12 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		}
 		for _, key := range keys {
 			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
-			fmt.Fprintln(io.Out, key)
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
 		}
 
 		fmt.Fprintln(io.Out)
 
 		_, err = gql.SetSecrets(ctx, client, input)
-
 		if err != nil {
 			return err
 		}

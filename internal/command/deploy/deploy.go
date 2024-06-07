@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
@@ -229,7 +230,9 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	defer span.End()
 
 	defer func() {
-		tracing.RecordError(span, err, "error deploying")
+		if err != nil {
+			tracing.RecordError(span, err, "error deploying")
+		}
 	}()
 
 	// Instantiate FLAPS client if we haven't initialized one via a unit test.
@@ -358,11 +361,25 @@ func deployToMachines(
 	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
+	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
 	ctx = appconfig.WithConfig(ctx, cfg)
 
+	startTime := time.Now()
+	var status metrics.DeployStatusPayload
+
+	metrics.Started(ctx, "deploy")
+	// TODO: remove this once there is nothing upstream using it
 	metrics.Started(ctx, "deploy_machines")
+
 	defer func() {
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.TraceID = span.SpanContext().TraceID().String()
+		status.Duration = time.Since(startTime)
+		metrics.DeployStatus(ctx, status)
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
@@ -433,6 +450,17 @@ func deployToMachines(
 	if maxConcurrent == defaultMaxConcurrent && immediateMaxConcurrent != defaultMaxConcurrent {
 		maxConcurrent = immediateMaxConcurrent
 	}
+
+	status.AppName = app.Name
+	status.OrgSlug = app.Organization.Slug
+	status.Image = img.Tag
+	status.PrimaryRegion = cfg.PrimaryRegion
+	status.Strategy = cfg.DeployStrategy()
+	if flag.GetString(ctx, "strategy") != "" {
+		status.Strategy = flag.GetString(ctx, "strategy")
+	}
+
+	status.FlyctlVersion = buildinfo.Info().Version.String()
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,

@@ -1,22 +1,24 @@
-package enveloop
+package arcjet
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/iostreams"
+
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func destroy() (cmd *cobra.Command) {
 	const (
-		long = `Permanently destroy an Enveloop project`
+		long = `Permanently destroy an Arcjet site`
 
 		short = long
 		usage = "destroy [name]"
@@ -39,16 +41,16 @@ func runDestroy(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeEnveloop)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeArcjet)
 	if err != nil {
 		return err
 	}
 
 	if !flag.GetYes(ctx) {
-		const msg = "Destroying an Enveloop project is not reversible. All Enveloop templates, message settings, and message logs will be lost."
+		const msg = "Destroying an Arcjet site is not reversible."
 		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Do you want to destroy the Enveloop project named %s?", extension.Name); {
+		switch confirmed, err := prompt.Confirmf(ctx, "Do you want to destroy the site named %s?", extension.Name); {
 		case err == nil:
 			if !confirmed {
 				return nil
@@ -60,13 +62,18 @@ func runDestroy(ctx context.Context) (err error) {
 		}
 	}
 
-	client := flyutil.ClientFromContext(ctx).GenqClient()
-	if _, err := gql.DeleteAddOn(ctx, client, extension.Name); err != nil {
-		return err
+	var (
+		out    = iostreams.FromContext(ctx).Out
+		client = flyutil.ClientFromContext(ctx).GenqClient()
+	)
+
+	_, err = gql.DeleteAddOn(ctx, client, extension.Name)
+
+	if err != nil {
+		return
 	}
 
-	out := iostreams.FromContext(ctx).Out
-	fmt.Fprintf(out, "Your Enveloop project %s was destroyed\n", extension.Name)
+	fmt.Fprintf(out, "Your Arcjet site %s was destroyed\n", extension.Name)
 
-	return nil
+	return
 }

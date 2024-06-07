@@ -1,9 +1,10 @@
-package enveloop
+package arcjet
 
 import (
 	"context"
 
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -12,10 +13,10 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Open the Enveloop dashboard via your web browser`
+		long = `Visit the Arcjet dashboard`
 
 		short = long
-		usage = "dashboard"
+		usage = "dashboard [site_name]"
 	)
 
 	cmd = command.New(usage, short, long, runDashboard, command.RequireSession, command.LoadAppNameIfPresent)
@@ -26,18 +27,24 @@ func dashboard() (cmd *cobra.Command) {
 		flag.Org(),
 		extensions_core.SharedFlags,
 	)
-	cmd.Args = cobra.NoArgs
+	cmd.Args = cobra.MaximumNArgs(1)
 	return cmd
 }
 
 func runDashboard(ctx context.Context) (err error) {
-	if org := flag.GetOrg(ctx); org != "" {
-		return extensions_core.OpenOrgDashboard(ctx, org, "enveloop")
+
+	org := flag.GetOrg(ctx)
+
+	if org != "" {
+		return extensions_core.OpenOrgDashboard(ctx, org, "arcjet")
 	}
 
-	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeEnveloop)
+	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeArcjet)
+
 	if err != nil {
 		return err
 	}
-	return extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeEnveloop)
+
+	err = extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeArcjet)
+	return
 }

@@ -144,6 +144,10 @@ func (m *Client) CreateApp(ctx context.Context, input fly.CreateAppInput) (*fly.
 	return m.CreateAppFunc(ctx, input)
 }
 
+func (m *Client) CreateBuild(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error) {
+	return m.CreateBuildFunc(ctx, input)
+}
+
 func (m *Client) CreateDelegatedWireGuardToken(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error) {
 	return m.CreateDelegatedWireGuardTokenFunc(ctx, org, name)
 }
@@ -162,6 +166,10 @@ func (m *Client) CreateOrganization(ctx context.Context, organizationname string
 
 func (m *Client) CreateOrganizationInvite(ctx context.Context, id, email string) (*fly.Invitation, error) {
 	return m.CreateOrganizationInviteFunc(ctx, id, email)
+}
+
+func (m *Client) CreateRelease(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error) {
+	return m.CreateReleaseFunc(ctx, input)
 }
 
 func (m *Client) CreateWireGuardPeer(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error) {
@@ -202,6 +210,10 @@ func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region
 
 func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
 	return m.ExportDNSRecordsFunc(ctx, domainId)
+}
+
+func (m *Client) FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error) {
+	return m.FinishBuildFunc(ctx, input)
 }
 
 func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
@@ -344,6 +356,10 @@ func (m *Client) GenqClient() genq.Client {
 	return m.GenqClientFunc()
 }
 
+func (m *Client) LatestImage(ctx context.Context, appName string) (string, error) {
+	return m.LatestImageFunc(ctx, appName)
+}
+
 func (m *Client) ImportDNSRecords(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error) {
 	return m.ImportDNSRecordsFunc(ctx, domainId, zonefile)
 }
@@ -406,6 +422,10 @@ func (m *Client) SetRemoteBuilder(ctx context.Context, appName string) error {
 
 func (m *Client) SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error) {
 	return m.SetSecretsFunc(ctx, appName, secrets)
+}
+
+func (m *Client) UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error) {
+	return m.UpdateReleaseFunc(ctx, input)
 }
 
 func (m *Client) UnsetSecrets(ctx context.Context, appName string, keys []string) (*fly.Release, error) {

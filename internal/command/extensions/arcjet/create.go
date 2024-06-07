@@ -1,9 +1,10 @@
-package enveloop
+package arcjet
 
 import (
 	"context"
 
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -15,22 +16,28 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Provision an Enveloop project"
+		short = "Create an Arcjet site"
 		long  = short + "\n"
 	)
 
-	cmd = command.New("create", short, long, runCreate, command.RequireSession, command.LoadAppNameIfPresent)
+	cmd = command.New("create",
+		short,
+		long,
+		runCreate,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 		flag.Org(),
 		flag.Region(),
 		extensions_core.SharedFlags,
-		SharedFlags,
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
-			Description: "The name of your project",
+			Description: "The name of your application",
 		},
 	)
 	return cmd
@@ -44,6 +51,7 @@ func runCreate(ctx context.Context) (err error) {
 		params.AppName = appName
 	} else {
 		org, err := orgs.OrgFromFlagOrSelect(ctx)
+
 		if err != nil {
 			return err
 		}
@@ -51,8 +59,9 @@ func runCreate(ctx context.Context) (err error) {
 		params.Organization = org
 	}
 
-	params.Provider = "enveloop"
+	params.Provider = "arcjet"
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
+
 	if err != nil {
 		return err
 	}
@@ -61,5 +70,5 @@ func runCreate(ctx context.Context) (err error) {
 		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
 	}
 
-	return err
+	return
 }

@@ -279,10 +279,10 @@ type EstablishResponse struct {
 	TunnelConfig   *wg.Config
 }
 
-func (c *Client) doEstablish(ctx context.Context, slug string, recycle bool, network string) (res *EstablishResponse, err error) {
+func (c *Client) doEstablish(ctx context.Context, slug string, reestablish bool, network string) (res *EstablishResponse, err error) {
 	err = c.do(ctx, func(conn net.Conn) (err error) {
 		verb := "establish"
-		if recycle {
+		if reestablish {
 			verb = "reestablish"
 		}
 

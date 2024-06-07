@@ -39,7 +39,7 @@ func runStatus(ctx context.Context) (err error) {
 		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	response, err := gql.GetAddOn(ctx, client, name)
+	response, err := gql.GetAddOn(ctx, client, name, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return err
 	}

@@ -18,8 +18,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	dockerclient "github.com/docker/docker/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -276,7 +276,7 @@ func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResol
 	for _, r := range strategies {
 		strategiesAvailable = append(strategiesAvailable, r.Name())
 	}
-	imageOps := &gql.BuildImageOptsInput{
+	imageOps := &fly.BuildImageOptsInput{
 		ImageLabel: opts.ImageLabel,
 		ImageRef:   opts.ImageRef,
 		Publish:    opts.Publish,
@@ -290,7 +290,7 @@ func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, o
 	for _, s := range strategies {
 		strategiesAvailable = append(strategiesAvailable, s.Name())
 	}
-	imageOpts := &gql.BuildImageOptsInput{
+	imageOpts := &fly.BuildImageOptsInput{
 		BuildArgs:       opts.BuildArgs,
 		BuildPacks:      opts.Buildpacks,
 		Builder:         opts.Builder,
@@ -308,31 +308,24 @@ func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, o
 	return r.createBuildGql(ctx, strategiesAvailable, imageOpts)
 }
 
-func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []string, imageOpts *gql.BuildImageOptsInput) (*build, error) {
+func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []string, imageOpts *fly.BuildImageOptsInput) (*build, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
-	gqlClient := flyutil.ClientFromContext(ctx).GenqClient()
-	_ = `# @genqlient
-	mutation ResolverCreateBuild($input:CreateBuildInput!) {
-		createBuild(input:$input) {
-			id
-			status
-		}
-	}
-	`
+	client := flyutil.ClientFromContext(ctx)
+
 	builderType := "local"
 	if r.dockerFactory.remote {
 		builderType = "remote"
 	}
-	input := gql.CreateBuildInput{
+	input := fly.CreateBuildInput{
 		AppName:             r.dockerFactory.appName,
 		BuilderType:         builderType,
 		ImageOpts:           *imageOpts,
 		MachineId:           "",
 		StrategiesAvailable: strategiesAvailable,
 	}
-	resp, err := gql.ResolverCreateBuild(ctx, gqlClient, input)
+	resp, err := client.CreateBuild(ctx, input)
 	if err != nil {
 		var gqlErr *gqlerror.Error
 		isAppNotFoundErr := errors.As(err, &gqlErr) && gqlErr.Path.String() == "createBuild" && gqlErr.Message == "Could not find App"
@@ -370,10 +363,10 @@ func limitLogs(log string) string {
 type build struct {
 	CreateApiFailed bool
 	BuildId         string
-	BuilderMeta     *gql.BuilderMetaInput
-	StrategyResults []gql.BuildStrategyAttemptInput
-	Timings         *gql.BuildTimingsInput
-	StartTimes      *gql.BuildTimingsInput
+	BuilderMeta     *fly.BuilderMetaInput
+	StrategyResults []fly.BuildStrategyAttemptInput
+	Timings         *fly.BuildTimingsInput
+	StartTimes      *fly.BuildTimingsInput
 }
 
 func newFailedBuild() *build {
@@ -384,10 +377,10 @@ func newBuild(buildId string, createApiFailed bool) *build {
 	return &build{
 		CreateApiFailed: createApiFailed,
 		BuildId:         buildId,
-		BuilderMeta:     &gql.BuilderMetaInput{},
-		StrategyResults: make([]gql.BuildStrategyAttemptInput, 0),
-		StartTimes:      &gql.BuildTimingsInput{},
-		Timings: &gql.BuildTimingsInput{
+		BuilderMeta:     &fly.BuilderMetaInput{},
+		StrategyResults: make([]fly.BuildStrategyAttemptInput, 0),
+		StartTimes:      &fly.BuildTimingsInput{},
+		Timings: &fly.BuildTimingsInput{
 			BuildAndPushMs: -1,
 			BuilderInitMs:  -1,
 			BuildMs:        -1,
@@ -419,8 +412,8 @@ func (b *build) SetBuilderMetaPart2(buildkitEnabled bool, dockerVersion string, 
 
 // call this at the start of each strategy to restart all the timers
 func (b *build) ResetTimings() {
-	b.StartTimes = &gql.BuildTimingsInput{}
-	b.Timings = &gql.BuildTimingsInput{
+	b.StartTimes = &fly.BuildTimingsInput{}
+	b.Timings = &fly.BuildTimingsInput{
 		BuildAndPushMs: -1,
 		BuilderInitMs:  -1,
 		BuildMs:        -1,
@@ -487,7 +480,7 @@ func (b *build) finishStrategyCommon(strategy string, failed bool, err error, no
 	if err != nil {
 		errMsg = err.Error()
 	}
-	r := gql.BuildStrategyAttemptInput{
+	r := fly.BuildStrategyAttemptInput{
 		Strategy: strategy,
 		Result:   result,
 		Error:    limitLogs(errMsg),
@@ -515,21 +508,13 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		terminal.Debug("Skipping FinishBuild() gql call, because CreateBuild() failed.\n")
 		return nil, nil
 	}
-	gqlClient := flyutil.ClientFromContext(ctx).GenqClient()
-	_ = `# @genqlient
-	mutation ResolverFinishBuild($input:FinishBuildInput!) {
-		finishBuild(input:$input) {
-			id
-			status
-			wallclockTimeMs
-		}
-	}
-	`
+	client := flyutil.ClientFromContext(ctx)
+
 	status := "failed"
 	if !failed {
 		status = "completed"
 	}
-	input := gql.FinishBuildInput{
+	input := fly.FinishBuildInput{
 		BuildId:             build.BuildId,
 		AppName:             r.dockerFactory.appName,
 		MachineId:           "",
@@ -540,13 +525,13 @@ func (r *Resolver) finishBuild(ctx context.Context, build *build, failed bool, l
 		Timings:             *build.Timings,
 	}
 	if img != nil {
-		input.FinalImage = gql.BuildFinalImageInput{
+		input.FinalImage = fly.BuildFinalImageInput{
 			Id:        img.ID,
 			Tag:       img.Tag,
 			SizeBytes: img.Size,
 		}
 	}
-	resp, err := gql.ResolverFinishBuild(ctx, gqlClient, input)
+	resp, err := client.FinishBuild(ctx, input)
 	if err != nil {
 		terminal.Warnf("failed to finish build in graphql: %v\n", err)
 		sentry.CaptureException(err,

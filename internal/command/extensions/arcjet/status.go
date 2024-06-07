@@ -1,20 +1,19 @@
-package enveloop
+package arcjet
 
 import (
 	"context"
 
 	"github.com/spf13/cobra"
+
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/iostreams"
 )
 
 func status() *cobra.Command {
 	const (
-		short = "Show details about an Enveloop project"
+		short = "Show details about an Arcjet site setup"
 		long  = short + "\n"
 
 		usage = "status [name]"
@@ -36,30 +35,5 @@ func status() *cobra.Command {
 }
 
 func runStatus(ctx context.Context) (err error) {
-	io := iostreams.FromContext(ctx)
-
-	extension, app, err := extensions_core.Discover(ctx, gql.AddOnTypeEnveloop)
-	if err != nil {
-		return err
-	}
-
-	obj := [][]string{
-		{
-			extension.Name,
-			extension.Status,
-			extension.PrimaryRegion,
-		},
-	}
-
-	var cols []string = []string{"Name", "Status", "Region"}
-
-	if app != nil {
-		obj[0] = append(obj[0], app.Name)
-		cols = append(cols, "App")
-	}
-
-	if err = render.VerticalTable(io.Out, "Status", obj, cols...); err != nil {
-		return
-	}
-	return
+	return extensions_core.Status(ctx, gql.AddOnTypeArcjet)
 }
