@@ -19,6 +19,7 @@ const (
 	FileName = "config.yml"
 
 	apiBaseURLEnvKey           = "FLY_API_BASE_URL"
+	elixirApiBaseURLEnvKey     = "FLY_ELIXIR_API_BASE_URL"
 	flapsBaseURLEnvKey         = "FLY_FLAPS_BASE_URL"
 	metricsBaseURLEnvKey       = "FLY_METRICS_BASE_URL"
 	AccessTokenEnvKey          = "FLY_ACCESS_TOKEN"
@@ -54,6 +55,9 @@ type Config struct {
 
 	// APIBaseURL denotes the base URL of the API.
 	APIBaseURL string
+
+	// ElixirAPIBaseURL denotes the base URL of the Elixir API.
+	ElixirAPIBaseURL string
 
 	// FlapsBaseURL denotes base URL for FLAPS (also known as the Machines API).
 	FlapsBaseURL string
@@ -141,6 +145,7 @@ func (cfg *Config) applyEnv() {
 	cfg.Region = env.FirstOrDefault(cfg.Region, regionEnvKey)
 	cfg.RegistryHost = env.FirstOrDefault(cfg.RegistryHost, registryHostEnvKey)
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
+	cfg.ElixirAPIBaseURL = env.FirstOrDefault(cfg.ElixirAPIBaseURL, elixirApiBaseURLEnvKey)
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
 	cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey) || cfg.SendMetrics
