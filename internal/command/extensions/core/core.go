@@ -31,11 +31,12 @@ type Extension struct {
 }
 
 type ExtensionParams struct {
-	AppName      string
-	Organization *fly.Organization
-	Provider     string
-	PlanID       string
-	Options      map[string]interface{}
+	AppName            string
+	Organization       *fly.Organization
+	Provider           string
+	PlanID             string
+	OrganizationPlanID string
+	Options            map[string]interface{}
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
 	OverrideRegion string
@@ -126,6 +127,10 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	if params.PlanID != "" {
 		input.PlanId = params.PlanID
+	}
+
+	if params.OrganizationPlanID != "" {
+		input.OrganizationPlanId = params.OrganizationPlanID
 	}
 
 	var inExcludedRegion bool
@@ -231,6 +236,16 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	setSecretsFromExtension(ctx, &targetApp, &extension)
 
 	return extension, nil
+}
+
+func OrgEligibleToProvision(ctx context.Context, org string, provider string) (bool, error) {
+	client := flyutil.ClientFromContext(ctx).GenqClient()
+	resp, err := gql.OrganizationEligibleToProvision(ctx, client, org, provider)
+	if err != nil {
+		return false, err
+	}
+
+	return resp.Organization.EligibleToProvision, nil
 }
 
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
