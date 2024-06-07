@@ -250,7 +250,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		client = flyutil.ClientFromContext(ctx)
 	)
 
-	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -258,7 +258,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org)
 	}
 
 	var (
