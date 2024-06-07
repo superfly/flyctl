@@ -33,14 +33,14 @@ func QueryHostIssues(ctx context.Context) {
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
 
-	if (appName == "") {
+	if appName == "" {
 		return
 	}
 
 	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
 		logger.Debug("started querying for host issues")
 
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 3 * time.Second)
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 3*time.Second)
 		defer cancel()
 
 		switch hostIssues, err := GetAppHostIssuesRequest(ctx, appName); {
