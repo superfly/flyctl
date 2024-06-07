@@ -5,6 +5,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/extensions/arcjet"
 	"github.com/superfly/flyctl/internal/command/extensions/enveloop"
 	"github.com/superfly/flyctl/internal/command/extensions/kafka"
 	"github.com/superfly/flyctl/internal/command/extensions/kubernetes"
@@ -32,6 +33,7 @@ func New() (cmd *cobra.Command) {
 		kafka.New(),
 		vector.New(),
 		enveloop.New(),
+		arcjet.New(),
 	)
 	return
 }
