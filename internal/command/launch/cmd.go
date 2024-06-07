@@ -271,12 +271,6 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if errors := recoverableErrors.build(); errors != "" {
-
-		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Yellow("The following problems must be fixed in the Launch UI:"), errors)
-		incompleteLaunchManifest = true
-	}
-
 	summary, err := state.PlanSummary(ctx)
 	if err != nil {
 		return err
@@ -293,6 +287,12 @@ func run(ctx context.Context) (err error) {
 		familyToAppType(family),
 		summary,
 	)
+
+	if errors := recoverableErrors.build(); errors != "" {
+
+		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
+		incompleteLaunchManifest = true
+	}
 
 	editInUi := false
 	if !flag.GetBool(ctx, "yes") {

@@ -521,7 +521,12 @@ func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
 	orgSlug := flag.GetOrg(ctx)
 	if orgSlug == "" {
 		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
+			if len(orgs) == 0 {
+				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
+			} else {
+				o := orgs[0]
+				return &o, fmt.Sprintf("defaulting to '%s'", o.Slug), nil
+			}
 		}
 
 		return &personal, "fly launch defaults to the personal org", nil
