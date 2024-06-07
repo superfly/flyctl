@@ -77,6 +77,10 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string) (*
 		AppName: builderName,
 		OrgSlug: org.Slug,
 	})
+	if err != nil {
+		tracing.RecordError(span, err, "error creating flaps client")
+		return nil, nil, err
+	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	app, machine, err := createBuilder(ctx, org, region, builderName)
 	return machine, app, err
