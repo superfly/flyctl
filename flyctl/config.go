@@ -5,15 +5,16 @@ import (
 )
 
 const (
-	ConfigAPIToken        = "access_token"
-	ConfigAPIBaseURL      = "api_base_url"
-	ConfigFlapsBaseUrl    = "flaps_base_url"
-	ConfigAppName         = "app"
-	ConfigVerboseOutput   = "verbose"
-	ConfigBuiltinsfile    = "builtins_file"
-	ConfigGQLErrorLogging = "gqlerrorlogging"
-	ConfigInstaller       = "installer"
-	BuildKitNodeID        = "buildkit_node_id"
+	ConfigAPIToken         = "access_token"
+	ConfigAPIBaseURL       = "api_base_url"
+	ConfigElixirAPIBaseURL = "elixir_api_base_url"
+	ConfigFlapsBaseUrl     = "flaps_base_url"
+	ConfigAppName          = "app"
+	ConfigVerboseOutput    = "verbose"
+	ConfigBuiltinsfile     = "builtins_file"
+	ConfigGQLErrorLogging  = "gqlerrorlogging"
+	ConfigInstaller        = "installer"
+	BuildKitNodeID         = "buildkit_node_id"
 
 	ConfigWireGuardState      = "wire_guard_state"
 	ConfigWireGuardWebsockets = "wire_guard_websockets"
