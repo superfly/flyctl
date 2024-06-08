@@ -193,6 +193,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		HttpServicePort:  httpServicePort,
 		Postgres:         plan.PostgresPlan{},
 		Redis:            plan.RedisPlan{},
+		GitHubActions:    plan.GitHubActionsPlan{},
 		FlyctlVersion:    buildinfo.Info().Version,
 	}
 
