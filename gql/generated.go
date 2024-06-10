@@ -76,6 +76,8 @@ const (
 	AddOnTypeUpstashVector AddOnType = "upstash_vector"
 	// A Wafris firewall
 	AddOnTypeWafris AddOnType = "wafris"
+	// An Arcjet site
+	AddOnTypeArcjet AddOnType = "arcjet"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
