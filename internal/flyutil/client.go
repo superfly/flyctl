@@ -49,6 +49,7 @@ type Client interface {
 	GetAppCertificates(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
 	GetAppCompact(ctx context.Context, appName string) (*fly.AppCompact, error)
 	GetAppCurrentReleaseMachines(ctx context.Context, appName string) (*fly.Release, error)
+	GetAppHostIssues(ctx context.Context, appName string) ([]fly.HostIssue, error)
 	GetAppLimitedAccessTokens(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
 	GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
 	GetAppNameFromVolume(ctx context.Context, volID string) (*string, error)

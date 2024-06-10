@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -296,12 +295,12 @@ func run(ctx context.Context) (err error) {
 
 	editInUi := false
 	if !flag.GetBool(ctx, "yes") {
-		message := lo.Ternary(
-			incompleteLaunchManifest,
-			"Would you like to continue in the web UI?",
-			"Do you want to tweak these settings before proceeding?",
-		)
-		editInUi, err = prompt.Confirm(ctx, message)
+		if incompleteLaunchManifest {
+			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
+		} else {
+			editInUi, err = prompt.Confirm(ctx, "Do you want to tweak these settings before proceeding?")
+		}
+
 		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err
 		}
