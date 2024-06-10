@@ -118,6 +118,23 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	if _, err := validateBuilderVolumes(ctx, flapsClient); err != nil {
+		tracing.RecordError(span, err, "error validating builder volumes")
+		return nil, err
+	}
+	machine, err := validateBuilderMachines(ctx, flapsClient)
+	if err != nil {
+		tracing.RecordError(span, err, "error validating builder machines")
+		return nil, err
+	}
+	return machine, nil
+
+}
+
+func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Volume, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_volumes")
+	defer span.End()
+
 	var volumes []fly.Volume
 	numRetries := 0
 
@@ -151,7 +168,15 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 		return nil, NoBuilderVolume
 	}
 
+	return &volumes[0], nil
+}
+
+func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsClient) (*fly.Machine, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_machines")
+	defer span.End()
+
 	var machines []*fly.Machine
+	numRetries := 0
 	for {
 		var err error
 
