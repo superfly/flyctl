@@ -101,6 +101,11 @@ query GetOrganization($slug: String!) {
 	}
 }
 
+query OrganizationEligibleToProvision($slug: String!, $addOnProviderName: String!) {
+	organization(slug: $slug) {
+		eligibleToProvision(provider: $addOnProviderName)
+	}
+}
 query GetApp($name: String!) {
 	app(name: $name) {
 		...AppData
