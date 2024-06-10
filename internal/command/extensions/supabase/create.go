@@ -3,6 +3,7 @@ package supabase
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
@@ -39,9 +40,31 @@ func create() (cmd *cobra.Command) {
 	return cmd
 }
 
+func CaptureFreeLimitError(ctx context.Context, provisioningError error, params *extensions_core.ExtensionParams) error {
+	io := iostreams.FromContext(ctx)
+	if strings.Contains(provisioningError.Error(), "limited to one") {
+		fmt.Fprintf(io.Out, "You're limited to one free database across all of your Supabase organizations. To provision another db, you can upgrade the selected Supabase organization to the $25/mo Pro Plan. Get more details at https://supabase.com/docs/guides/platform/org-based-billing.\n\n")
+		confirm, err := prompt.Confirm(ctx, "Would you like to upgrade your Supabase organization now ($25/mo, prorated) and launch a database?")
+
+		if err != nil {
+			return err
+		}
+
+		if confirm {
+			params.OrganizationPlanID = "pro"
+			_, err := extensions_core.ProvisionExtension(ctx, *params)
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return provisioningError
+}
+
 func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
-	io := iostreams.FromContext(ctx)
 
 	params := extensions_core.ExtensionParams{}
 
@@ -58,28 +81,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	params.Provider = "supabase"
-
-	eligible, err := extensions_core.OrgEligibleToProvision(ctx, params.Organization.Slug, params.Provider)
-
-	if err != nil {
-		return err
-	}
-
-	if !eligible {
-		fmt.Fprintf(io.Out, "You're limited to a single free DB across all your Supabase orgs. To provision another db, you can upgrade your Supabase org to the $25/mo Pro Plan. Get more details at https://supabase.com/docs/guides/platform/org-based-billing.\n\n")
-		confirm, err := prompt.Confirm(ctx, "Would you like to upgrade now ($25/mo, prorated) and launch a database?")
-
-		if err != nil {
-			return err
-		}
-
-		if !confirm {
-			return nil
-		} else {
-			params.OrganizationPlanID = "pro"
-		}
-	}
-
+	params.ErrorCaptureCallback = CaptureFreeLimitError
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 
 	if err != nil {
