@@ -3,6 +3,7 @@ package supabase
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -42,9 +43,27 @@ func create() (cmd *cobra.Command) {
 
 func CaptureFreeLimitError(ctx context.Context, provisioningError error, params *extensions_core.ExtensionParams) error {
 	io := iostreams.FromContext(ctx)
-	if strings.Contains(provisioningError.Error(), "limited to one") {
-		fmt.Fprintf(io.Out, "You're limited to one free database across all of your Supabase organizations. To provision another db, you can upgrade the selected Supabase organization to the $25/mo Pro Plan. Get more details at https://supabase.com/docs/guides/platform/org-based-billing.\n\n")
-		confirm, err := prompt.Confirm(ctx, "Would you like to upgrade your Supabase organization now ($25/mo, prorated) and launch a database?")
+
+	if provisioningError != nil && strings.Contains(provisioningError.Error(), "limited to one") {
+
+		pattern := `named\s+'([^']*)'`
+
+		// Compile the regular expression
+		re := regexp.MustCompile(pattern)
+
+		// Find all matches
+		matches := re.FindAllStringSubmatch(provisioningError.Error(), -1)
+
+		var orgName string
+
+		if len(matches) > 0 && len(matches[0]) > 1 {
+			orgName = matches[0][1]
+		} else {
+			fmt.Println("No match found")
+		}
+
+		fmt.Fprintf(io.Out, "\nYou're limited to one free Supabase database through Fly.io, across all orgs. Your org '%s' already has a free database.\n\nTo provision another, you can upgrade the '%s' organization to the $25/mo Pro Plan. Get pricing details at https://supabase.com/docs/guides/platform/org-based-billing.\n\n", orgName, params.Organization.Name)
+		confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Would you like to upgrade your Supabase org '%s' now ($25/mo, prorated) and launch a database?", params.Organization.Name))
 
 		if err != nil {
 			return err
