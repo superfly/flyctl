@@ -58,8 +58,6 @@ const (
 	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
-	// A PlanetScale database
-	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
 	// A Sentry project endpoint
@@ -76,8 +74,6 @@ const (
 	AddOnTypeUpstashVector AddOnType = "upstash_vector"
 	// A Wafris firewall
 	AddOnTypeWafris AddOnType = "wafris"
-	// An Arcjet site
-	AddOnTypeArcjet AddOnType = "arcjet"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
@@ -2598,28 +2594,6 @@ func (v *OrganizationData) GetAddOnSsoLink() string { return v.AddOnSsoLink }
 // GetProvisionsBetaExtensions returns OrganizationData.ProvisionsBetaExtensions, and is useful for accessing the field via an interface.
 func (v *OrganizationData) GetProvisionsBetaExtensions() bool { return v.ProvisionsBetaExtensions }
 
-// OrganizationEligibleToProvisionOrganization includes the requested fields of the GraphQL type Organization.
-type OrganizationEligibleToProvisionOrganization struct {
-	// Single sign-on link for the given extension type
-	EligibleToProvision bool `json:"eligibleToProvision"`
-}
-
-// GetEligibleToProvision returns OrganizationEligibleToProvisionOrganization.EligibleToProvision, and is useful for accessing the field via an interface.
-func (v *OrganizationEligibleToProvisionOrganization) GetEligibleToProvision() bool {
-	return v.EligibleToProvision
-}
-
-// OrganizationEligibleToProvisionResponse is returned by OrganizationEligibleToProvision on success.
-type OrganizationEligibleToProvisionResponse struct {
-	// Find an organization by ID
-	Organization OrganizationEligibleToProvisionOrganization `json:"organization"`
-}
-
-// GetOrganization returns OrganizationEligibleToProvisionResponse.Organization, and is useful for accessing the field via an interface.
-func (v *OrganizationEligibleToProvisionResponse) GetOrganization() OrganizationEligibleToProvisionOrganization {
-	return v.Organization
-}
-
 type PlatformVersionEnum string
 
 const (
@@ -3093,20 +3067,6 @@ type __ListAddOnsInput struct {
 
 // GetAddOnType returns __ListAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
-
-// __OrganizationEligibleToProvisionInput is used internally by genqlient
-type __OrganizationEligibleToProvisionInput struct {
-	Slug              string `json:"slug"`
-	AddOnProviderName string `json:"addOnProviderName"`
-}
-
-// GetSlug returns __OrganizationEligibleToProvisionInput.Slug, and is useful for accessing the field via an interface.
-func (v *__OrganizationEligibleToProvisionInput) GetSlug() string { return v.Slug }
-
-// GetAddOnProviderName returns __OrganizationEligibleToProvisionInput.AddOnProviderName, and is useful for accessing the field via an interface.
-func (v *__OrganizationEligibleToProvisionInput) GetAddOnProviderName() string {
-	return v.AddOnProviderName
-}
 
 // __ResetAddOnPasswordInput is used internally by genqlient
 type __ResetAddOnPasswordInput struct {
@@ -4164,43 +4124,6 @@ func LogOut(
 	var err_ error
 
 	var data_ LogOutResponse
-	resp_ := &graphql.Response{Data: &data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return &data_, err_
-}
-
-// The query or mutation executed by OrganizationEligibleToProvision.
-const OrganizationEligibleToProvision_Operation = `
-query OrganizationEligibleToProvision ($slug: String!, $addOnProviderName: String!) {
-	organization(slug: $slug) {
-		eligibleToProvision(provider: $addOnProviderName)
-	}
-}
-`
-
-func OrganizationEligibleToProvision(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	slug string,
-	addOnProviderName string,
-) (*OrganizationEligibleToProvisionResponse, error) {
-	req_ := &graphql.Request{
-		OpName: "OrganizationEligibleToProvision",
-		Query:  OrganizationEligibleToProvision_Operation,
-		Variables: &__OrganizationEligibleToProvisionInput{
-			Slug:              slug,
-			AddOnProviderName: addOnProviderName,
-		},
-	}
-	var err_ error
-
-	var data_ OrganizationEligibleToProvisionResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

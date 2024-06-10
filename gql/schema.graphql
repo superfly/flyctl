@@ -363,11 +363,6 @@ enum AddOnType {
   kubernetes
 
   """
-  A PlanetScale database
-  """
-  planetscale
-
-  """
   An Upstash Redis database
   """
   redis
@@ -406,11 +401,6 @@ enum AddOnType {
   A Wafris firewall
   """
   wafris
-
-  """
-  An Arcjet site
-  """
-  arcjet
 }
 
 """
@@ -7689,11 +7679,6 @@ type Organization implements Node {
     """
     last: Int
   ): DomainConnection!
-
-  """
-  Single sign-on link for the given extension type
-  """
-  eligibleToProvision(provider: String!): Boolean!
 
   """
   Single sign-on link for the given extension type

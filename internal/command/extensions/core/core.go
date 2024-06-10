@@ -244,16 +244,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	return extension, nil
 }
 
-func OrgEligibleToProvision(ctx context.Context, org string, provider string) (bool, error) {
-	client := flyutil.ClientFromContext(ctx).GenqClient()
-	resp, err := gql.OrganizationEligibleToProvision(ctx, client, org, provider)
-	if err != nil {
-		return false, err
-	}
-
-	return resp.Organization.EligibleToProvision, nil
-}
-
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
 	client := flyutil.ClientFromContext(ctx).GenqClient()
 	out := iostreams.FromContext(ctx).Out
