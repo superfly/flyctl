@@ -14,88 +14,92 @@ import (
 var _ flyutil.Client = (*Client)(nil)
 
 type Client struct {
-	AddCertificateFunc                 func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	AllocateIPAddressFunc              func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
-	AllocateSharedIPAddressFunc        func(ctx context.Context, appName string) (net.IP, error)
-	AppNameAvailableFunc               func(ctx context.Context, appName string) (bool, error)
-	AttachPostgresClusterFunc          func(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
-	AuthenticatedFunc                  func() bool
-	CanPerformBluegreenDeploymentFunc  func(ctx context.Context, appName string) (bool, error)
-	CheckAppCertificateFunc            func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
-	CheckDomainFunc                    func(ctx context.Context, name string) (*fly.CheckDomainResult, error)
-	ClosestWireguardGatewayRegionFunc  func(ctx context.Context) (*fly.Region, error)
-	CreateAndRegisterDomainFunc        func(organizationID string, name string) (*fly.Domain, error)
-	CreateAppFunc                      func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
-	CreateBuildFunc                    func(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
-	CreateDelegatedWireGuardTokenFunc  func(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
-	CreateDoctorUrlFunc                func(ctx context.Context) (putUrl string, err error)
-	CreateDomainFunc                   func(organizationID string, name string) (*fly.Domain, error)
-	CreateOrganizationFunc             func(ctx context.Context, organizationname string) (*fly.Organization, error)
-	CreateOrganizationInviteFunc       func(ctx context.Context, id, email string) (*fly.Invitation, error)
-	CreateReleaseFunc                  func(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
-	CreateWireGuardPeerFunc            func(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
-	DeleteAppFunc                      func(ctx context.Context, appName string) error
-	DeleteCertificateFunc              func(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
-	DeleteDelegatedWireGuardTokenFunc  func(ctx context.Context, org *fly.Organization, name, token *string) error
-	DeleteOrganizationFunc             func(ctx context.Context, id string) (deletedid string, err error)
-	DeleteOrganizationMembershipFunc   func(ctx context.Context, orgId, userId string) (string, string, error)
-	DetachPostgresClusterFunc          func(ctx context.Context, input fly.DetachPostgresClusterInput) error
-	EnablePostgresConsulFunc           func(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
-	EnsureRemoteBuilderFunc            func(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
-	ExportDNSRecordsFunc               func(ctx context.Context, domainId string) (string, error)
-	FinishBuildFunc                    func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
-	GetAppFunc                         func(ctx context.Context, appName string) (*fly.App, error)
-	GetAppBasicFunc                    func(ctx context.Context, appName string) (*fly.AppBasic, error)
-	GetAppCertificatesFunc             func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
-	GetAppCompactFunc                  func(ctx context.Context, appName string) (*fly.AppCompact, error)
-	GetAppCurrentReleaseMachinesFunc   func(ctx context.Context, appName string) (*fly.Release, error)
-	GetAppHostIssuesFunc               func(ctx context.Context, appName string) ([]fly.HostIssue, error)
-	GetAppLimitedAccessTokensFunc      func(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
-	GetAppLogsFunc                     func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
-	GetAppNameFromVolumeFunc           func(ctx context.Context, volID string) (*string, error)
-	GetAppNameStateFromVolumeFunc      func(ctx context.Context, volID string) (*string, *string, error)
-	GetAppNetworkFunc                  func(ctx context.Context, appName string) (*string, error)
-	GetAppReleasesMachinesFunc         func(ctx context.Context, appName, status string, limit int) ([]fly.Release, error)
-	GetAppSecretsFunc                  func(ctx context.Context, appName string) ([]fly.Secret, error)
-	GetAppsFunc                        func(ctx context.Context, role *string) ([]fly.App, error)
-	GetAppsForOrganizationFunc         func(ctx context.Context, orgID string) ([]fly.App, error)
-	GetCurrentUserFunc                 func(ctx context.Context) (*fly.User, error)
-	GetDNSRecordsFunc                  func(ctx context.Context, domainName string) ([]*fly.DNSRecord, error)
-	GetDelegatedWireGuardTokensFunc    func(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
-	GetDetailedOrganizationBySlugFunc  func(ctx context.Context, slug string) (*fly.OrganizationDetails, error)
-	GetDomainFunc                      func(ctx context.Context, name string) (*fly.Domain, error)
-	GetDomainsFunc                     func(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
-	GetIPAddressesFunc                 func(ctx context.Context, appName string) ([]fly.IPAddress, error)
-	GetLatestImageDetailsFunc          func(ctx context.Context, image string) (*fly.ImageVersion, error)
-	GetLatestImageTagFunc              func(ctx context.Context, repository string, snapshotId *string) (string, error)
-	GetLoggedCertificatesFunc          func(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
-	GetMachineFunc                     func(ctx context.Context, machineId string) (*fly.GqlMachine, error)
-	GetNearestRegionFunc               func(ctx context.Context) (*fly.Region, error)
-	GetOrganizationBySlugFunc          func(ctx context.Context, slug string) (*fly.Organization, error)
-	GetOrganizationsFunc               func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
-	GetSnapshotsFromVolumeFunc         func(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
-	GetWireGuardPeerFunc               func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
-	GetWireGuardPeersFunc              func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
-	GenqClientFunc                     func() genq.Client
-	LatestImageFunc                    func(ctx context.Context, appName string) (string, error)
-	ImportDNSRecordsFunc               func(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error)
-	IssueSSHCertificateFunc            func(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
-	ListPostgresClusterAttachmentsFunc func(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
-	LoggerFunc                         func() fly.Logger
-	MoveAppFunc                        func(ctx context.Context, appName string, orgID string) (*fly.App, error)
-	NewRequestFunc                     func(q string) *graphql.Request
-	PlatformRegionsFunc                func(ctx context.Context) ([]fly.Region, *fly.Region, error)
-	ReleaseIPAddressFunc               func(ctx context.Context, appName string, ip string) error
-	RemoveWireGuardPeerFunc            func(ctx context.Context, org *fly.Organization, name string) error
-	ResolveImageForAppFunc             func(ctx context.Context, appName, imageRef string) (*fly.Image, error)
-	RevokeLimitedAccessTokenFunc       func(ctx context.Context, id string) error
-	RunFunc                            func(req *graphql.Request) (fly.Query, error)
-	RunWithContextFunc                 func(ctx context.Context, req *graphql.Request) (fly.Query, error)
-	SetGenqClientFunc                  func(client genq.Client)
-	SetSecretsFunc                     func(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error)
-	UpdateReleaseFunc                  func(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
-	UnsetSecretsFunc                   func(ctx context.Context, appName string, keys []string) (*fly.Release, error)
-	ValidateWireGuardPeersFunc         func(ctx context.Context, peerIPs []string) (invalid []string, err error)
+	AddCertificateFunc                     func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
+	AllocateIPAddressFunc                  func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
+	AllocateSharedIPAddressFunc            func(ctx context.Context, appName string) (net.IP, error)
+	AppNameAvailableFunc                   func(ctx context.Context, appName string) (bool, error)
+	AttachPostgresClusterFunc              func(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
+	AuthenticatedFunc                      func() bool
+	CanPerformBluegreenDeploymentFunc      func(ctx context.Context, appName string) (bool, error)
+	CheckAppCertificateFunc                func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
+	CheckDomainFunc                        func(ctx context.Context, name string) (*fly.CheckDomainResult, error)
+	ClosestWireguardGatewayRegionFunc      func(ctx context.Context) (*fly.Region, error)
+	CreateAndRegisterDomainFunc            func(organizationID string, name string) (*fly.Domain, error)
+	CreateAppFunc                          func(ctx context.Context, input fly.CreateAppInput) (*fly.App, error)
+	CreateBuildFunc                        func(ctx context.Context, input fly.CreateBuildInput) (*fly.CreateBuildResponse, error)
+	CreateDelegatedWireGuardTokenFunc      func(ctx context.Context, org *fly.Organization, name string) (*fly.DelegatedWireGuardToken, error)
+	CreateDoctorUrlFunc                    func(ctx context.Context) (putUrl string, err error)
+	CreateDomainFunc                       func(organizationID string, name string) (*fly.Domain, error)
+	CreateOrganizationFunc                 func(ctx context.Context, organizationname string) (*fly.Organization, error)
+	CreateOrganizationInviteFunc           func(ctx context.Context, id, email string) (*fly.Invitation, error)
+	CreateReleaseFunc                      func(ctx context.Context, input fly.CreateReleaseInput) (*fly.CreateReleaseResponse, error)
+	CreateWireGuardPeerFunc                func(ctx context.Context, org *fly.Organization, region, name, pubkey, network string) (*fly.CreatedWireGuardPeer, error)
+	DeleteAppFunc                          func(ctx context.Context, appName string) error
+	DeleteCertificateFunc                  func(ctx context.Context, appName, hostname string) (*fly.DeleteCertificatePayload, error)
+	DeleteDelegatedWireGuardTokenFunc      func(ctx context.Context, org *fly.Organization, name, token *string) error
+	DeleteOrganizationFunc                 func(ctx context.Context, id string) (deletedid string, err error)
+	DeleteOrganizationMembershipFunc       func(ctx context.Context, orgId, userId string) (string, string, error)
+	DetachPostgresClusterFunc              func(ctx context.Context, input fly.DetachPostgresClusterInput) error
+	EnablePostgresConsulFunc               func(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
+	EnsureRemoteBuilderFunc                func(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
+	ExportDNSRecordsFunc                   func(ctx context.Context, domainId string) (string, error)
+	FinishBuildFunc                        func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
+	GetAppFunc                             func(ctx context.Context, appName string) (*fly.App, error)
+	GetAppRemoteBuilderFunc                func(ctx context.Context, appName string) (*fly.App, error)
+	GetAppBasicFunc                        func(ctx context.Context, appName string) (*fly.AppBasic, error)
+	GetAppCertificatesFunc                 func(ctx context.Context, appName string) ([]fly.AppCertificateCompact, error)
+	GetAppCompactFunc                      func(ctx context.Context, appName string) (*fly.AppCompact, error)
+	GetAppCurrentReleaseMachinesFunc       func(ctx context.Context, appName string) (*fly.Release, error)
+	GetAppHostIssuesFunc                   func(ctx context.Context, appName string) ([]fly.HostIssue, error)
+	GetAppLimitedAccessTokensFunc          func(ctx context.Context, appName string) ([]fly.LimitedAccessToken, error)
+	GetAppLogsFunc                         func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error)
+	GetAppNameFromVolumeFunc               func(ctx context.Context, volID string) (*string, error)
+	GetAppNameStateFromVolumeFunc          func(ctx context.Context, volID string) (*string, *string, error)
+	GetAppNetworkFunc                      func(ctx context.Context, appName string) (*string, error)
+	GetAppReleasesMachinesFunc             func(ctx context.Context, appName, status string, limit int) ([]fly.Release, error)
+	GetAppSecretsFunc                      func(ctx context.Context, appName string) ([]fly.Secret, error)
+	GetAppsFunc                            func(ctx context.Context, role *string) ([]fly.App, error)
+	GetAppsForOrganizationFunc             func(ctx context.Context, orgID string) ([]fly.App, error)
+	GetCurrentUserFunc                     func(ctx context.Context) (*fly.User, error)
+	GetDNSRecordsFunc                      func(ctx context.Context, domainName string) ([]*fly.DNSRecord, error)
+	GetDelegatedWireGuardTokensFunc        func(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
+	GetDetailedOrganizationBySlugFunc      func(ctx context.Context, slug string) (*fly.OrganizationDetails, error)
+	GetDomainFunc                          func(ctx context.Context, name string) (*fly.Domain, error)
+	GetDomainsFunc                         func(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
+	GetIPAddressesFunc                     func(ctx context.Context, appName string) ([]fly.IPAddress, error)
+	GetLatestImageDetailsFunc              func(ctx context.Context, image string) (*fly.ImageVersion, error)
+	GetLatestImageTagFunc                  func(ctx context.Context, repository string, snapshotId *string) (string, error)
+	GetLoggedCertificatesFunc              func(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
+	GetMachineFunc                         func(ctx context.Context, machineId string) (*fly.GqlMachine, error)
+	GetNearestRegionFunc                   func(ctx context.Context) (*fly.Region, error)
+	GetOrganizationBySlugFunc              func(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrganizationRemoteBuilderBySlugFunc func(ctx context.Context, slug string) (*fly.Organization, error)
+	GetOrganizationByAppFunc               func(ctx context.Context, appName string) (*fly.Organization, error)
+	GetOrganizationsFunc                   func(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error)
+	GetSnapshotsFromVolumeFunc             func(ctx context.Context, volID string) ([]fly.VolumeSnapshot, error)
+	GetWireGuardPeerFunc                   func(ctx context.Context, slug, name string) (*fly.WireGuardPeer, error)
+	GetWireGuardPeersFunc                  func(ctx context.Context, slug string) ([]*fly.WireGuardPeer, error)
+	GenqClientFunc                         func() genq.Client
+	ImportDNSRecordsFunc                   func(ctx context.Context, domainId string, zonefile string) ([]fly.ImportDnsWarning, []fly.ImportDnsChange, error)
+	IssueSSHCertificateFunc                func(ctx context.Context, org fly.OrganizationImpl, principals []string, appNames []string, valid_hours *int, publicKey ed25519.PublicKey) (*fly.IssuedCertificate, error)
+	LatestImageFunc                        func(ctx context.Context, appName string) (string, error)
+	ListPostgresClusterAttachmentsFunc     func(ctx context.Context, appName, postgresAppName string) ([]*fly.PostgresClusterAttachment, error)
+	LoggerFunc                             func() fly.Logger
+	MoveAppFunc                            func(ctx context.Context, appName string, orgID string) (*fly.App, error)
+	NewRequestFunc                         func(q string) *graphql.Request
+	PlatformRegionsFunc                    func(ctx context.Context) ([]fly.Region, *fly.Region, error)
+	ReleaseIPAddressFunc                   func(ctx context.Context, appName string, ip string) error
+	RemoveWireGuardPeerFunc                func(ctx context.Context, org *fly.Organization, name string) error
+	ResolveImageForAppFunc                 func(ctx context.Context, appName, imageRef string) (*fly.Image, error)
+	RevokeLimitedAccessTokenFunc           func(ctx context.Context, id string) error
+	RunFunc                                func(req *graphql.Request) (fly.Query, error)
+	RunWithContextFunc                     func(ctx context.Context, req *graphql.Request) (fly.Query, error)
+	SetGenqClientFunc                      func(client genq.Client)
+	SetRemoteBuilderFunc                   func(ctx context.Context, appName string) error
+	SetSecretsFunc                         func(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error)
+	UpdateReleaseFunc                      func(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
+	UnsetSecretsFunc                       func(ctx context.Context, appName string, keys []string) (*fly.Release, error)
+	ValidateWireGuardPeersFunc             func(ctx context.Context, peerIPs []string) (invalid []string, err error)
 }
 
 func (m *Client) AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error) {
@@ -222,6 +226,10 @@ func (m *Client) GetApp(ctx context.Context, appName string) (*fly.App, error) {
 	return m.GetAppFunc(ctx, appName)
 }
 
+func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.App, error) {
+	return m.GetAppRemoteBuilderFunc(ctx, appName)
+}
+
 func (m *Client) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
 	return m.GetAppBasicFunc(ctx, appName)
 }
@@ -330,6 +338,14 @@ func (m *Client) GetOrganizationBySlug(ctx context.Context, slug string) (*fly.O
 	return m.GetOrganizationBySlugFunc(ctx, slug)
 }
 
+func (m *Client) GetOrganizationRemoteBuilderBySlug(ctx context.Context, slug string) (*fly.Organization, error) {
+	return m.GetOrganizationRemoteBuilderBySlugFunc(ctx, slug)
+}
+
+func (m *Client) GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error) {
+	return m.GetOrganizationByAppFunc(ctx, appName)
+}
+
 func (m *Client) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
 	return m.GetOrganizationsFunc(ctx, filters...)
 }
@@ -408,6 +424,10 @@ func (m *Client) RunWithContext(ctx context.Context, req *graphql.Request) (fly.
 
 func (m *Client) SetGenqClient(client genq.Client) {
 	m.SetGenqClientFunc(client)
+}
+
+func (m *Client) SetRemoteBuilder(ctx context.Context, appName string) error {
+	return m.SetRemoteBuilderFunc(ctx, appName)
 }
 
 func (m *Client) SetSecrets(ctx context.Context, appName string, secrets map[string]string) (*fly.Release, error) {
