@@ -211,36 +211,36 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 	return machines[0], nil
 }
 
-func createBuilder(ctx context.Context, org *fly.Organization, region, builderName string) (app *fly.App, mach *fly.Machine, err error) {
+func createBuilder(ctx context.Context, org *fly.Organization, region, builderName string) (app *fly.App, mach *fly.Machine, retErr error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_builder")
 	defer span.End()
 
 	client := flyutil.ClientFromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	app, err = client.CreateApp(ctx, fly.CreateAppInput{
+	app, retErr = client.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
 		Name:            builderName,
 		AppRoleID:       "remote-docker-builder",
 		Machines:        true,
 		PreferredRegion: fly.StringPointer(region),
 	})
-	if err != nil {
-		tracing.RecordError(span, err, "error creating app")
-		return nil, nil, err
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error creating app")
+		return nil, nil, retErr
 	}
 
 	defer func() {
-		if err != nil {
+		if retErr != nil {
 			span.AddEvent("cleaning up new builder app due to error")
 			client.DeleteApp(ctx, builderName)
 		}
 	}()
 
-	_, err = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org, "")
-	if err != nil {
-		tracing.RecordError(span, err, "error allocating ip address")
-		return nil, nil, err
+	_, retErr = client.AllocateIPAddress(ctx, app.Name, "shared_v4", "", org, "")
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error allocating ip address")
+		return nil, nil, retErr
 	}
 
 	guest := fly.MachineGuest{
@@ -249,50 +249,50 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		MemoryMB: 4096,
 	}
 
-	err = flapsClient.WaitForApp(ctx, app.Name)
-	if err != nil {
-		tracing.RecordError(span, err, "error waiting for builder")
-		return nil, nil, fmt.Errorf("waiting for app %s: %w", app.Name, err)
+	retErr = flapsClient.WaitForApp(ctx, app.Name)
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error waiting for builder")
+		return nil, nil, fmt.Errorf("waiting for app %s: %w", app.Name, retErr)
 	}
 
 	var volume *fly.Volume
 	numRetries := 0
 	for {
-		volume, err = flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
+		volume, retErr = flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
 			Name:                "machine_data",
 			SizeGb:              fly.IntPointer(50),
 			AutoBackupEnabled:   fly.BoolPointer(false),
 			ComputeRequirements: &guest,
 			Region:              region,
 		})
-		if err == nil {
+		if retErr == nil {
 			break
 		}
 
 		var flapsErr *flaps.FlapsError
-		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
+		if errors.As(retErr, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
 			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
 			numRetries += 1
 
 			if numRetries >= 5 {
-				tracing.RecordError(span, err, "error creating volume")
-				return nil, nil, err
+				tracing.RecordError(span, retErr, "error creating volume")
+				return nil, nil, retErr
 			}
 			time.Sleep(1 * time.Second)
 		} else {
-			tracing.RecordError(span, err, "error creating volume")
-			return nil, nil, err
+			tracing.RecordError(span, retErr, "error creating volume")
+			return nil, nil, retErr
 		}
 	}
 
 	defer func() {
-		if err != nil {
+		if retErr != nil {
 			span.AddEvent("cleaning up new volume due to error")
 			flapsClient.DeleteVolume(ctx, volume.ID)
 		}
 	}()
 
-	mach, err = flapsClient.Launch(ctx, fly.LaunchMachineInput{
+	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
 		Region: region,
 		Config: &fly.MachineConfig{
 			Env: map[string]string{
@@ -341,9 +341,9 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 			Image: lo.Ternary(org.RemoteBuilderImage != "", org.RemoteBuilderImage, "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"),
 		},
 	})
-	if err != nil {
-		tracing.RecordError(span, err, "error launching builder machine")
-		return nil, nil, err
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error launching builder machine")
+		return nil, nil, retErr
 	}
 
 	return
