@@ -73,6 +73,7 @@ type SourceInfo struct {
 	PostgresInitCommandCondition bool
 	DatabaseDesired              DatabaseKind
 	RedisDesired                 bool
+	ObjectStorageDesired         bool
 	Concurrency                  map[string]int
 	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
 	HttpCheckPath                string
@@ -114,6 +115,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
+		configureFastAPI,
 		configureFlask,
 		configurePython,
 		configureDeno,

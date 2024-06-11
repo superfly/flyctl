@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -63,9 +64,39 @@ func runMachineStatus(ctx context.Context) (err error) {
 		return err
 	}
 
+	checksRows := [][]string{}
+	checksTotal := 0
+	checksPassing := 0
+	roleOutput := ""
+	for _, c := range machine.Checks {
+		checksTotal += 1
+
+		if c.Status == "passing" {
+			checksPassing += 1
+		}
+
+		if c.Name == "role" && c.Status == "passing" {
+			roleOutput = c.Output
+		}
+
+		fields := []string{
+			c.Name,
+			string(c.Status),
+			format.RelativeTime(*c.UpdatedAt),
+			c.Output,
+		}
+		checksRows = append(checksRows, fields)
+	}
+
+	checksSummary := ""
+	if checksTotal > 0 {
+		checksSummary = fmt.Sprintf("%d/%d", checksPassing, checksTotal)
+	}
+
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
-	fmt.Fprintf(io.Out, "State: %s\n\n", machine.State)
+	fmt.Fprintf(io.Out, "State: %s\n", machine.State)
+	fmt.Fprintf(io.Out, "\n")
 
 	obj := [][]string{
 		{
@@ -96,6 +127,20 @@ func runMachineStatus(ctx context.Context) (err error) {
 
 	if err = render.VerticalTable(io.Out, "VM", obj, cols...); err != nil {
 		return
+	}
+
+	if machine.Config.Metadata["fly-managed-postgres"] == "true" {
+		obj := [][]string{
+			{
+				roleOutput,
+			},
+		}
+		_ = render.VerticalTable(io.Out, "PG", obj, "Role")
+	}
+
+	checksTableTitle := fmt.Sprintf("Checks [%s]", checksSummary)
+	if len(checksRows) > 0 {
+		_ = render.Table(io.Out, checksTableTitle, checksRows, "Name", "Status", "Last Updated", "Output")
 	}
 
 	eventLogs := [][]string{}

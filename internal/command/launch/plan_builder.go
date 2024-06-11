@@ -210,6 +210,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		computeSource:  computeExplanation,
 		postgresSource: "not requested",
 		redisSource:    "not requested",
+		tigrisSource:   "not requested",
 		sentrySource:   "not requested",
 	}
 
@@ -238,6 +239,10 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		if srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
+		}
+		if srcInfo.ObjectStorageDesired {
+			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
+			planSource.tigrisSource = scannerSource
 		}
 		if srcInfo.Port != 0 {
 			lp.HttpServicePort = srcInfo.Port

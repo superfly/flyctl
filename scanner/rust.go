@@ -1,31 +1,11 @@
 package scanner
 
-import (
-	"os"
-
-	"github.com/pelletier/go-toml/v2"
-	"github.com/pkg/errors"
-)
-
-func readCargoFile() (map[string]interface{}, error) {
-	doc, err := os.ReadFile("Cargo.toml")
-	if err != nil {
-		return nil, errors.Wrap(err, "Error reading Cargo file")
-	}
-	cargoData := make(map[string]interface{})
-	readErr := toml.Unmarshal(doc, &cargoData)
-	if readErr != nil {
-		return nil, errors.Wrap(readErr, "Error parsing Cargo file")
-	}
-	return cargoData, nil
-}
-
 func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Cargo.toml", "Cargo.lock")) {
 		return nil, nil
 	}
 
-	cargoData, err := readCargoFile()
+	cargoData, err := readTomlFile("Cargo.toml")
 	if err != nil {
 		return nil, err
 	}

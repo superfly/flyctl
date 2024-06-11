@@ -326,7 +326,10 @@ func (s *server) probeTunnel(ctx context.Context, slug, network string) (err err
 	var results []net.IP
 	switch results, err = tunnel.LookupAAAA(ctx, "_api.internal"); {
 	case err != nil:
-		err = fmt.Errorf("failed probing %q: %w", slug, err)
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("Timed out (%w)", err)
+		}
+		err = fmt.Errorf("Error contacting Fly.io API when probing %q: %w", slug, err)
 	case len(results) == 0:
 		s.printf("%q probed.", slug)
 	default:

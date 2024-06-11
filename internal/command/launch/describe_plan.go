@@ -68,3 +68,11 @@ func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org
 	evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
 	return fmt.Sprintf("%s Plan: %s Max Data Size, eviction %s", plan.DisplayName, plan.MaxDataSize, evictionStatus), nil
 }
+
+func describeObjectStoragePlan(p plan.ObjectStoragePlan) (string, error) {
+	if p.TigrisObjectStorage == nil {
+		return descriptionNone, nil
+	}
+
+	return "private bucket", nil
+}
