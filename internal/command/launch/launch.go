@@ -83,7 +83,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	// Finally write application configuration to fly.toml
 	configDir := filepath.Dir(state.configPath)
-	configPath := filepath.Join(configDir, flag.GetString(ctx, "config-file"))
+	configPath := filepath.Join(configDir, flag.GetString(ctx, "config"))
+	if configPath == "" {
+		configPath = filepath.Join(configDir, "fly.toml")
+	}
 	if flag.GetBool(ctx, "json") || strings.HasSuffix(configPath, ".json") {
 		configPath = strings.TrimSuffix(configPath, filepath.Ext(configPath)) + ".json"
 	} else if flag.GetBool(ctx, "yaml") || strings.HasSuffix(configPath, ".yaml") {

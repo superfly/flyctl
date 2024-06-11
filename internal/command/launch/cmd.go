@@ -43,6 +43,7 @@ func New() (cmd *cobra.Command) {
 		flag.Region(),
 		flag.Org(),
 		flag.NoDeploy(),
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "generate-name",
 			Description: "Always generate a name for the app, without prompting",
@@ -55,11 +56,6 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "name",
 			Description: `Name of the new app`,
-		},
-		flag.String{
-			Name:        "config-file",
-			Description: "Path to which the generated configuration file should be saved",
-			Default:     "fly.toml",
 		},
 		flag.Bool{
 			Name:        "copy-config",
