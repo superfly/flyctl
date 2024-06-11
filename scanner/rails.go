@@ -5,6 +5,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"gopkg.in/yaml.v2"
 )
 
 var healthcheck_channel = make(chan string)
@@ -114,6 +116,35 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	if redis {
 		s.RedisDesired = true
 		s.SkipDatabase = false
+	}
+
+	// enable object storage (Tigris) if any of the following are true...
+	//  * aws-sdk-s3 is in the Gemfile or Gemfile.lock
+	//  * active_storage_attachments is any file in the db/migrate directory
+	//  * config/storage.yml is present and uses S3
+	if checksPass(sourceDir, dirContains("Gemfile", "aws-sdk-s3")) || checksPass(sourceDir, dirContains("Gemfile.lock", "aws-sdk-s3")) {
+		s.ObjectStorageDesired = true
+	} else if checksPass(sourceDir+"/db/migrate", dirContains("*.rb", ":active_storage_attachments")) {
+		s.ObjectStorageDesired = true
+	} else if checksPass(sourceDir+"/config", fileExists("storage.yml")) {
+		cfgMap := map[string]any{}
+		buf, err := os.ReadFile(path.Join(sourceDir, "config", "storage.yml"))
+
+		if err == nil {
+			err = yaml.Unmarshal(buf, &cfgMap)
+		}
+
+		if err == nil {
+			for _, v := range cfgMap {
+				submap, ok := v.(map[interface{}]interface{})
+				if ok {
+					service, ok := submap["service"].(string)
+					if ok && service == "S3" {
+						s.ObjectStorageDesired = true
+					}
+				}
+			}
+		}
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
@@ -309,13 +340,18 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// add postgres
-	if postgres := plan.Postgres.Provider(); postgres != nil {
+	if plan.Postgres.Provider() != nil {
 		args = append(args, "--postgresql", "--no-prepare")
 	}
 
 	// add redis
-	if redis := plan.Redis.Provider(); redis != nil {
+	if plan.Redis.Provider() != nil {
 		args = append(args, "--redis")
+	}
+
+	// add object storage
+	if plan.ObjectStorage.Provider() != nil {
+		args = append(args, "--tigris")
 	}
 
 	// add additional flags from launch command
