@@ -1,6 +1,8 @@
-name: Preflight Tests
+name: Preflight GPU Tests
 
 on:
+  schedule:
+    - cron: "30 0 * * *"
   workflow_dispatch:
     inputs:
       reason:
@@ -11,13 +13,14 @@ on:
   workflow_call:
 
 jobs:
-  preflight-tests:
+  preflight-gpu-tests:
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        vm_size: [""]
+        # Add "a10" to this list once capacity increases.
+        vm_size: ["a100-40gb", "l40s"]
         parallelism: [20]
         index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
     steps:
@@ -32,12 +35,12 @@ jobs:
       - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
           curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
-          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
+          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gpu-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with:
           name: flyctl
           path: master-build
-      - name: Run preflight tests
+      - name: Run preflight GPU tests
         id: preflight
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
@@ -67,7 +70,7 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": ":sob: preflight tests failed: ${{ steps.preflight.outputs.failed }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    "text": ":sob: preflight GPU tests failed: ${{ steps.preflight.outputs.failed }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                   }
                 }
               ]
