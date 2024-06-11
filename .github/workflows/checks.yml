@@ -42,3 +42,4 @@ jobs:
         with:
           version: v1.54
           working-directory: .
+          skip-pkg-cache: true
