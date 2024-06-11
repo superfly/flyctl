@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -83,10 +85,11 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	// Finally write application configuration to fly.toml
 	configDir := filepath.Dir(state.configPath)
-	configPath := filepath.Join(configDir, flag.GetString(ctx, "config"))
-	if configPath == "" {
-		configPath = filepath.Join(configDir, "fly.toml")
+	configPath := filepath.Join(configDir, flag.GetString(ctx, flagnames.AppConfigFilePath))
+	if fileInfo, err := os.Stat(configPath); err == nil && fileInfo.IsDir() {
+		configPath = filepath.Join(configPath, "fly.toml")
 	}
+
 	if flag.GetBool(ctx, "json") || strings.HasSuffix(configPath, ".json") {
 		configPath = strings.TrimSuffix(configPath, filepath.Ext(configPath)) + ".json"
 	} else if flag.GetBool(ctx, "yaml") || strings.HasSuffix(configPath, ".yaml") {
