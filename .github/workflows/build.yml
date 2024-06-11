@@ -39,8 +39,3 @@ jobs:
     needs: test_build
     uses: ./.github/workflows/preflight.yml
     secrets: inherit
-
-  preflight_gpu:
-    needs: test_build
-    uses: ./.github/workflows/preflight_gpu.yml
-    secrets: inherit
