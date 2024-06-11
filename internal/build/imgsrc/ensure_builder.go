@@ -61,6 +61,20 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string) (*
 		return nil, nil, err
 	}
 
+	if validateBuilderErr == BuilderMachineNotStarted {
+		span.AddEvent("builder machine not started, restarting")
+		flapsClient := flapsutil.ClientFromContext(ctx)
+
+		if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
+			ID: builderMachine.ID,
+		}, ""); err != nil {
+			tracing.RecordError(span, err, "error restarting builder machine")
+			return nil, nil, err
+		}
+
+		return builderMachine, builderApp, nil
+	}
+
 	if validateBuilderErr != NoBuilderApp {
 		span.AddEvent(fmt.Sprintf("deleting existing invalid builder due to %s", validateBuilderErr))
 		client := flyutil.ClientFromContext(ctx)
@@ -96,6 +110,8 @@ func (e ValidateBuilderError) Error() string {
 		return "no builder volume"
 	case InvalidMachineCount:
 		return "invalid machine count"
+	case BuilderMachineNotStarted:
+		return "builder machine not started"
 	default:
 		return "unknown error validating builder"
 	}
@@ -105,6 +121,7 @@ const (
 	NoBuilderApp ValidateBuilderError = iota
 	NoBuilderVolume
 	InvalidMachineCount
+	BuilderMachineNotStarted
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
@@ -127,6 +144,12 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 		tracing.RecordError(span, err, "error validating builder machines")
 		return nil, err
 	}
+
+	if machine.State != "started" {
+		tracing.RecordError(span, BuilderMachineNotStarted, "builder machine not started")
+		return machine, BuilderMachineNotStarted
+	}
+
 	return machine, nil
 
 }

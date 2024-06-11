@@ -209,7 +209,8 @@ func TestCreateBuilder(t *testing.T) {
 				return nil, errors.New("launch machine failed")
 			}
 			return &fly.Machine{
-				ID: "bigmachine",
+				ID:    "bigmachine",
+				State: "started",
 			}, nil
 		},
 	}
