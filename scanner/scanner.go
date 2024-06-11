@@ -115,6 +115,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
+		configureFastAPI,
 		configureFlask,
 		configurePython,
 		configureDeno,
