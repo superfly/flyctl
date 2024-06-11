@@ -162,14 +162,10 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		}
 	}
 
-	if copiedConfig && appConfig.AppName == appName {
-		// If the app name is taken from the config file, check and see if the user already has
-		// an app with that name.
-		// If there is one, there's a decent chance the user actually wants to deploy to the existing app.
-		err := nudgeTowardsDeploy(ctx, appName)
-		if err != nil {
-			return nil, nil, err
-		}
+	// If the user can see an app with the same name as what they're about to launch,
+	// they *probably* want to deploy to that app instead.
+	if err := nudgeTowardsDeploy(ctx, appName); err != nil {
+		return nil, nil, err
 	}
 
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
