@@ -110,6 +110,8 @@ func (e ValidateBuilderError) Error() string {
 		return "no builder volume"
 	case InvalidMachineCount:
 		return "invalid machine count"
+	case BuilderMachineNotStarted:
+		return "builder machine not started"
 	default:
 		return "unknown error validating builder"
 	}
