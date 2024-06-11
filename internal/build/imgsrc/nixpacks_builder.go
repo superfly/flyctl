@@ -137,14 +137,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", err
 		}
 
-		var remoteHost string
-		for _, ip := range machine.IPs.Nodes {
-			terminal.Debugf("checking ip %+v\n", ip)
-			if ip.Kind == "privatenet" {
-				remoteHost = ip.IP
-				break
-			}
-		}
+		remoteHost := machine.PrivateIP
 
 		if remoteHost == "" {
 			build.BuilderInitFinish()
