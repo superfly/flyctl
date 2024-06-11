@@ -32,7 +32,8 @@ func TestValidateBuilder(t *testing.T) {
 		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
 			if hasMachines {
 				return []*fly.Machine{{
-					ID: "bigmachine",
+					ID:    "bigmachine",
+					State: "started",
 				}}, nil
 			} else {
 				return []*fly.Machine{}, nil
@@ -99,7 +100,8 @@ func TestValidateBuilderAPIErrors(t *testing.T) {
 				}
 			}
 			return []*fly.Machine{{
-				ID: "bigmachine",
+				ID:    "bigmachine",
+				State: "started",
 			}}, nil
 		},
 	}
@@ -209,7 +211,8 @@ func TestCreateBuilder(t *testing.T) {
 				return nil, errors.New("launch machine failed")
 			}
 			return &fly.Machine{
-				ID: "bigmachine",
+				ID:    "bigmachine",
+				State: "started",
 			}, nil
 		},
 	}
