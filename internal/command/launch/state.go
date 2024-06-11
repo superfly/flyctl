@@ -136,7 +136,10 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
 		{"Tigris", tigrisStr, state.PlanSource.tigrisSource},
-		{"Sentry", strconv.FormatBool(state.Plan.Sentry), state.PlanSource.sentrySource},
+	}
+
+	if state.PlanSource.sentrySource != "not requested" {
+		rows = append(rows, []string{"Sentry", strconv.FormatBool(state.Plan.Sentry), state.PlanSource.sentrySource})
 	}
 
 	for _, row := range rows {
