@@ -56,6 +56,11 @@ func New() (cmd *cobra.Command) {
 			Name:        "name",
 			Description: `Name of the new app`,
 		},
+		flag.String{
+			Name:        "config-file",
+			Description: "Path to which the generated configuration file should be saved",
+			Default:     "fly.toml",
+		},
 		flag.Bool{
 			Name:        "copy-config",
 			Description: "Use the configuration file if present without prompting",
