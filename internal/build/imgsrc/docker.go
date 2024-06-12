@@ -223,7 +223,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 
 	var host string
 	var app *fly.App
-	var machine *fly.GqlMachine
+	var machine *fly.Machine
 	machine, app, err = remoteBuilderMachine(ctx, apiClient, appName)
 	if err != nil {
 		tracing.RecordError(span, err, "failed to init remote builder machine")
@@ -321,13 +321,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		)
 	}
 
-	for _, ip := range machine.IPs.Nodes {
-		terminal.Debugf("checking ip %+v\n", ip)
-		if ip.Kind == "privatenet" {
-			host = "tcp://[" + ip.IP + "]:2375"
-			break
-		}
-	}
+	host = "tcp://[" + machine.PrivateIP + "]:2375"
 
 	if !connectOverWireguard {
 		oldHost := host
@@ -700,20 +694,14 @@ func ResolveDockerfile(cwd string) string {
 	return ""
 }
 
-func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, orgSlug string) {
+func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, org *fly.Organization) {
 	// skip if local docker is available
 	if _, err := NewLocalDockerClient(); err == nil {
 		return
 	}
 
-	org, err := apiClient.GetOrganizationBySlug(ctx, orgSlug)
-	if err != nil {
-		terminal.Debugf("error resolving organization for slug %s: %s", orgSlug, err)
-		return
-	}
-
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	_, app, err := apiClient.EnsureRemoteBuilder(ctx, org.ID, "", region)
+	_, app, err := EnsureBuilder(ctx, org, region)
 	if err != nil {
 		terminal.Debugf("error ensuring remote builder for organization: %s", err)
 		return
@@ -722,13 +710,18 @@ func EagerlyEnsureRemoteBuilder(ctx context.Context, apiClient flyutil.Client, o
 	terminal.Debugf("remote builder %s is being prepared", app.Name)
 }
 
-func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.GqlMachine, *fly.App, error) {
+func remoteBuilderMachine(ctx context.Context, apiClient flyutil.Client, appName string) (*fly.Machine, *fly.App, error) {
 	if v := os.Getenv("FLY_REMOTE_BUILDER_HOST"); v != "" {
 		return nil, nil, nil
 	}
 
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	return apiClient.EnsureRemoteBuilder(ctx, "", appName, region)
+	org, err := apiClient.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return nil, nil, err
+	}
+	builderMachine, builderApp, err := EnsureBuilder(ctx, org, region)
+	return builderMachine, builderApp, err
 }
 
 func (d *dockerClientFactory) IsRemote() bool {
