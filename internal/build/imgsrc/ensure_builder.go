@@ -109,7 +109,11 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	app, machine, err := createBuilder(ctx, org, region, builderName)
-	return machine, app, err
+	if err != nil {
+		tracing.RecordError(span, err, "error creating builder")
+		return nil, nil, err
+	}
+	return machine, app, nil
 }
 
 type ValidateBuilderError int
