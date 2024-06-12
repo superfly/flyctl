@@ -22,4 +22,4 @@ COPY --from=builder /app .
 # COPY static/ static
 
 
-CMD ["/app/.venv/bin/fastapi", "run"]
+CMD ["/app/.venv/bin/streamlit", "run", "{{ .entrypoint }}"]
