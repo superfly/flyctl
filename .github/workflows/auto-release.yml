@@ -1,0 +1,17 @@
+name: Automatically release a new version of flyctl
+
+on:
+  schedule:
+    - cron: '0 20 * * *'  # Runs at 3 PM Eastern Time every day (8 PM UTC)
+
+jobs:
+  run_script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master branch
+        uses: actions/checkout@v3
+        with:
+          ref: master
+      - name: bump version
+        run: |
+          ./scripts/force_bump_version.sh
