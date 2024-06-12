@@ -22,4 +22,4 @@ COPY --from=builder /app .
 # COPY static/ static
 
 
-CMD ["/app/.venv/bin/fastapi", "run"]
+CMD ["/app/.venv/bin/flask", "run", "--host=0.0.0.0", "--port=8080"]

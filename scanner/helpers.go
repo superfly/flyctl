@@ -102,20 +102,3 @@ func readTomlFile(file string) (map[string]interface{}, error) {
 	}
 	return tomlData, nil
 }
-
-func listSuffixedFiles(src string, suffix string) ([]string, error) {
-	var files []string
-	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if strings.HasSuffix(path, suffix) {
-			files = append(files, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	return files, nil
-}
