@@ -14,4 +14,4 @@ jobs:
           ref: master
       - name: bump version
         run: |
-          sh scripts/force_bump_version.sh
+          ./scripts/force_bump_version.sh
