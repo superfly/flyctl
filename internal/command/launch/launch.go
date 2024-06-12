@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -84,17 +83,20 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Finally write application configuration to fly.toml
-	configDir := filepath.Dir(state.configPath)
-	configPath := filepath.Join(configDir, flag.GetString(ctx, flagnames.AppConfigFilePath))
-	if fileInfo, err := os.Stat(configPath); err == nil && fileInfo.IsDir() {
-		configPath = filepath.Join(configPath, "fly.toml")
+	configDir, configFile := filepath.Split(state.configPath)
+	configFileOverride := flag.GetString(ctx, flagnames.AppConfigFilePath)
+	if configFileOverride != "" {
+		configFile = configFileOverride
 	}
 
-	if flag.GetBool(ctx, "json") || strings.HasSuffix(configPath, ".json") {
-		configPath = strings.TrimSuffix(configPath, filepath.Ext(configPath)) + ".json"
-	} else if flag.GetBool(ctx, "yaml") || strings.HasSuffix(configPath, ".yaml") {
-		configPath = strings.TrimSuffix(configPath, filepath.Ext(configPath)) + ".yaml"
+	// Resolve config format flags if applicable
+	if flag.GetBool(ctx, "json") {
+		configFile = strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".json"
+	} else if flag.GetBool(ctx, "yaml") {
+		configFile = strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".yaml"
 	}
+
+	configPath := filepath.Join(configDir, configFile)
 	state.appConfig.SetConfigFilePath(configPath)
 	if err := state.appConfig.WriteToDisk(ctx, configPath); err != nil {
 		return err
