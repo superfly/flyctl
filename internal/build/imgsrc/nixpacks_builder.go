@@ -130,7 +130,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", err
 		}
 
-		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName)
+		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName, false)
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()

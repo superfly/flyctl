@@ -15,73 +15,85 @@ import (
 	"github.com/superfly/flyctl/internal/tracing"
 )
 
-func EnsureBuilder(ctx context.Context, org *fly.Organization, region string) (*fly.Machine, *fly.App, error) {
+func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "ensure_builder")
 	defer span.End()
 
-	builderApp := org.RemoteBuilderApp
-	if builderApp != nil {
-		flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-			AppName: builderApp.Name,
-			// TOOD(billy) make a utility function for App -> AppCompact
-			AppCompact: &fly.AppCompact{
-				ID:       builderApp.ID,
-				Name:     builderApp.Name,
-				Status:   builderApp.Status,
-				Deployed: builderApp.Deployed,
-				Hostname: builderApp.Hostname,
-				AppURL:   builderApp.AppURL,
-				Organization: &fly.OrganizationBasic{
-					ID:       builderApp.Organization.ID,
-					Name:     builderApp.Organization.Name,
-					Slug:     builderApp.Organization.Slug,
-					RawSlug:  builderApp.Organization.RawSlug,
-					PaidPlan: builderApp.Organization.PaidPlan,
+	if !recreateBuilder {
+		builderApp := org.RemoteBuilderApp
+		if builderApp != nil {
+			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+				AppName: builderApp.Name,
+				// TOOD(billy) make a utility function for App -> AppCompact
+				AppCompact: &fly.AppCompact{
+					ID:       builderApp.ID,
+					Name:     builderApp.Name,
+					Status:   builderApp.Status,
+					Deployed: builderApp.Deployed,
+					Hostname: builderApp.Hostname,
+					AppURL:   builderApp.AppURL,
+					Organization: &fly.OrganizationBasic{
+						ID:       builderApp.Organization.ID,
+						Name:     builderApp.Organization.Name,
+						Slug:     builderApp.Organization.Slug,
+						RawSlug:  builderApp.Organization.RawSlug,
+						PaidPlan: builderApp.Organization.PaidPlan,
+					},
+					PlatformVersion: builderApp.PlatformVersion,
+					PostgresAppRole: builderApp.PostgresAppRole,
 				},
-				PlatformVersion: builderApp.PlatformVersion,
-				PostgresAppRole: builderApp.PostgresAppRole,
-			},
-			OrgSlug: builderApp.Organization.Slug,
-		})
-		if err != nil {
-			tracing.RecordError(span, err, "error creating flaps client")
-			return nil, nil, err
+				OrgSlug: builderApp.Organization.Slug,
+			})
+			if err != nil {
+				tracing.RecordError(span, err, "error creating flaps client")
+				return nil, nil, err
+			}
+			ctx = flapsutil.NewContextWithClient(ctx, flaps)
 		}
-		ctx = flapsutil.NewContextWithClient(ctx, flaps)
-	}
 
-	builderMachine, err := validateBuilder(ctx, builderApp)
-	if err == nil {
-		span.AddEvent("builder app already exists and is valid")
-		return builderMachine, builderApp, nil
-	}
+		builderMachine, err := validateBuilder(ctx, builderApp)
+		if err == nil {
+			span.AddEvent("builder app already exists and is valid")
+			return builderMachine, builderApp, nil
+		}
 
-	var validateBuilderErr ValidateBuilderError
-	if !errors.As(err, &validateBuilderErr) {
-		return nil, nil, err
-	}
-
-	if validateBuilderErr == BuilderMachineNotStarted {
-		span.AddEvent("builder machine not started, restarting")
-		flapsClient := flapsutil.ClientFromContext(ctx)
-
-		if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
-			ID: builderMachine.ID,
-		}, ""); err != nil {
-			tracing.RecordError(span, err, "error restarting builder machine")
+		var validateBuilderErr ValidateBuilderError
+		if !errors.As(err, &validateBuilderErr) {
 			return nil, nil, err
 		}
 
-		return builderMachine, builderApp, nil
-	}
+		if validateBuilderErr == BuilderMachineNotStarted {
+			span.AddEvent("builder machine not started, restarting")
+			flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if validateBuilderErr != NoBuilderApp {
-		span.AddEvent(fmt.Sprintf("deleting existing invalid builder due to %s", validateBuilderErr))
-		client := flyutil.ClientFromContext(ctx)
-		err := client.DeleteApp(ctx, builderApp.Name)
-		if err != nil {
-			tracing.RecordError(span, err, "error deleting invalid builder app")
-			return nil, nil, err
+			if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
+				ID: builderMachine.ID,
+			}, ""); err != nil {
+				tracing.RecordError(span, err, "error restarting builder machine")
+				return nil, nil, err
+			}
+
+			return builderMachine, builderApp, nil
+		}
+
+		if validateBuilderErr != NoBuilderApp {
+			span.AddEvent(fmt.Sprintf("deleting existing invalid builder due to %s", validateBuilderErr))
+			client := flyutil.ClientFromContext(ctx)
+			err := client.DeleteApp(ctx, builderApp.Name)
+			if err != nil {
+				tracing.RecordError(span, err, "error deleting invalid builder app")
+				return nil, nil, err
+			}
+		}
+	} else {
+		span.AddEvent("recreating builder")
+		if org.RemoteBuilderApp != nil {
+			client := flyutil.ClientFromContext(ctx)
+			err := client.DeleteApp(ctx, org.RemoteBuilderApp.Name)
+			if err != nil {
+				tracing.RecordError(span, err, "error deleting existing builder app")
+				return nil, nil, err
+			}
 		}
 	}
 
