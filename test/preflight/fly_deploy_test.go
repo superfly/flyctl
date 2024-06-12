@@ -267,3 +267,12 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
 }
+
+func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
+	f.Fly("deploy")
+}
