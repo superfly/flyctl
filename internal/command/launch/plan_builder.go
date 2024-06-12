@@ -60,9 +60,8 @@ const recoverableSpecifyInUi = "must be specified in UI"
 // Doing this can lead to double-calculation, especially of scanners which could
 // have a lot of processing to do. Hence, a cache :)
 type planBuildCache struct {
-	appConfig    *appconfig.Config
-	sourceInfo   *scanner.SourceInfo
-	warnedNoCcHa bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	appConfig  *appconfig.Config
+	sourceInfo *scanner.SourceInfo
 }
 
 func appNameTakenErr(appName string) error {
@@ -184,7 +183,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		AppName:          appName,
 		OrgSlug:          org.Slug,
 		RegionCode:       region.Code,
-		HighAvailability: flag.GetBool(ctx, "ha"),
+		HighAvailability: true,
 		Compute:          compute,
 		CPUKind:          guest.CPUKind,
 		CPUs:             guest.CPUs,
@@ -208,13 +207,8 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 	}
 
 	buildCache := &planBuildCache{
-		appConfig:    appConfig,
-		sourceInfo:   srcInfo,
-		warnedNoCcHa: false,
-	}
-
-	if planValidateHighAvailability(ctx, lp, org, true) {
-		buildCache.warnedNoCcHa = true
+		appConfig:  appConfig,
+		sourceInfo: srcInfo,
 	}
 
 	if srcInfo != nil {
@@ -269,11 +263,9 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	var (
 		appConfig    *appconfig.Config
 		copiedConfig bool
-		warnedNoCcHa bool
 	)
 	if optionalCache != nil {
 		appConfig = optionalCache.appConfig
-		warnedNoCcHa = optionalCache.warnedNoCcHa
 	} else {
 		appConfig, copiedConfig, err = determineBaseAppConfig(ctx)
 		if err != nil {
@@ -353,9 +345,8 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		},
 		env: envVars,
 		planBuildCache: planBuildCache{
-			appConfig:    appConfig,
-			sourceInfo:   srcInfo,
-			warnedNoCcHa: warnedNoCcHa,
+			appConfig:  appConfig,
+			sourceInfo: srcInfo,
 		},
 		cache: map[string]interface{}{},
 	}, nil
@@ -661,14 +652,4 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 		reason = "specified on the command line"
 	}
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
-}
-
-func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *fly.Organization, print bool) bool {
-	if !org.Billable && p.HighAvailability {
-		if print {
-			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")
-		}
-		return false
-	}
-	return true
 }
