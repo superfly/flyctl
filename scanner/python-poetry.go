@@ -18,7 +18,7 @@ func findEntrypoint(dep string) *os.File {
 			if err != nil {
 				return err
 			}
-			defer file.Close()
+			defer file.Close() // skipcq: GO-S2307
 
 			scanner := bufio.NewScanner(file)
 			for scanner.Scan() {
