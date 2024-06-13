@@ -168,6 +168,10 @@ func (m *FlapsClient) Stop(ctx context.Context, in fly.StopMachineInput, nonce s
 	panic("TODO")
 }
 
+func (m *FlapsClient) Suspend(ctx context.Context, machineID, nonce string) (err error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) Uncordon(ctx context.Context, machineID string, nonce string) (err error) {
 	panic("TODO")
 }
