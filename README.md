@@ -89,6 +89,9 @@ app: banana
 
 `flyctl` will operate against the `banana` app unless overridden by the -a flag or other app name setting in the command line.
 
+## Releases
+`flyctl` is automatically released at 3 PM Eastern Standard Time Monday - Thursday. If needed, you can bump a release by running `./scripts/bump_version.sh`.
+
 ## Building on Windows
 
 There is a simple Powershell script, `winbuild.ps1`, which will run the code generation for the help files, format them, and run a full build, leaving a new binary in the bin directory.
