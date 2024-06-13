@@ -2,6 +2,9 @@ package supabase
 
 import (
 	"context"
+	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/gql"
@@ -11,6 +14,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func create() (cmd *cobra.Command) {
@@ -36,8 +41,50 @@ func create() (cmd *cobra.Command) {
 	return cmd
 }
 
+func CaptureFreeLimitError(ctx context.Context, provisioningError error, params *extensions_core.ExtensionParams) error {
+	io := iostreams.FromContext(ctx)
+
+	if provisioningError != nil && strings.Contains(provisioningError.Error(), "limited to one") {
+
+		pattern := `named\s+'([^']*)'`
+
+		// Compile the regular expression
+		re := regexp.MustCompile(pattern)
+
+		// Find all matches
+		matches := re.FindAllStringSubmatch(provisioningError.Error(), -1)
+
+		var orgName string
+
+		if len(matches) > 0 && len(matches[0]) > 1 {
+			orgName = matches[0][1]
+		} else {
+			fmt.Println("No match found")
+		}
+
+		fmt.Fprintf(io.Out, "\nYou're limited to one free Supabase database through Fly.io, across all orgs. Your org '%s' already has a free database.\n\nTo provision another, you can upgrade the '%s' organization to the $25/mo Pro Plan. Get pricing details at https://supabase.com/docs/guides/platform/org-based-billing.\n\n", orgName, params.Organization.Name)
+		confirm, err := prompt.Confirm(ctx, fmt.Sprintf("Would you like to upgrade your Supabase org '%s' now ($25/mo, prorated) and launch a database?", params.Organization.Name))
+
+		if err != nil {
+			return err
+		}
+
+		if confirm {
+			params.OrganizationPlanID = "pro"
+			_, err := extensions_core.ProvisionExtension(ctx, *params)
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return provisioningError
+}
+
 func runCreate(ctx context.Context) (err error) {
 	appName := appconfig.NameFromContext(ctx)
+
 	params := extensions_core.ExtensionParams{}
 
 	if appName != "" {
@@ -53,6 +100,7 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	params.Provider = "supabase"
+	params.ErrorCaptureCallback = CaptureFreeLimitError
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 
 	if err != nil {

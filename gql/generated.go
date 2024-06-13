@@ -52,12 +52,12 @@ func (v *AddOnData) GetOptions() interface{} { return v.Options }
 type AddOnType string
 
 const (
+	// An Arcjet site
+	AddOnTypeArcjet AddOnType = "arcjet"
 	// An Enveloop project
 	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
-	// A PlanetScale database
-	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
 	// A Sentry project endpoint
@@ -74,8 +74,6 @@ const (
 	AddOnTypeUpstashVector AddOnType = "upstash_vector"
 	// A Wafris firewall
 	AddOnTypeWafris AddOnType = "wafris"
-	// An Arcjet site
-	AddOnTypeArcjet AddOnType = "arcjet"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
@@ -615,6 +613,8 @@ type CreateAddOnInput struct {
 	Options interface{} `json:"options"`
 	// The organization which owns the add-on
 	OrganizationId string `json:"organizationId"`
+	// A provider organization plan to set along with provisioning
+	OrganizationPlanId string `json:"organizationPlanId"`
 	// The add-on plan ID
 	PlanId string `json:"planId"`
 	// Desired primary region for the add-on
@@ -639,6 +639,9 @@ func (v *CreateAddOnInput) GetOptions() interface{} { return v.Options }
 
 // GetOrganizationId returns CreateAddOnInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *CreateAddOnInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetOrganizationPlanId returns CreateAddOnInput.OrganizationPlanId, and is useful for accessing the field via an interface.
+func (v *CreateAddOnInput) GetOrganizationPlanId() string { return v.OrganizationPlanId }
 
 // GetPlanId returns CreateAddOnInput.PlanId, and is useful for accessing the field via an interface.
 func (v *CreateAddOnInput) GetPlanId() string { return v.PlanId }
