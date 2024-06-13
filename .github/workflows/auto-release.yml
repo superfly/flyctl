@@ -2,7 +2,7 @@ name: Automatically release a new version of flyctl
 
 on:
   schedule:
-    - cron: '0 20 * * *'  # Runs at 3 PM Eastern Time every day (8 PM UTC)
+    - cron: '0 20 * * MON-THU'  # Runs at 3 PM Eastern Time Monday Through Thursday (8 PM UTC)
 
 jobs:
   run_script:
