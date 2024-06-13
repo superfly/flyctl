@@ -335,6 +335,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 // would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
+
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
@@ -360,11 +361,14 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
+		{"version"},
 		{"version", "upgrade"},
 		{"settings", "autoupdate"},
 	}) {
 		return ctx, nil
 	}
+
+	logger.FromContext(ctx).Debug("checking for updates...")
 
 	if !update.Check() {
 		return ctx, nil
