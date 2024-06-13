@@ -40,6 +40,7 @@ jobs:
           overwrite: true
 
   preflight-gpu-tests:
+    needs: build
     if: ${{ github.repository == 'superfly/flyctl' }}
     runs-on: ubuntu-latest
     strategy:
