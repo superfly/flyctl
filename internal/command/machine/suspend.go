@@ -58,10 +58,10 @@ func runMachineSuspend(ctx context.Context) (err error) {
 	}
 
 	machines, release, err := mach.AcquireLeases(ctx, machines)
+	defer release()
 	if err != nil {
 		return err
 	}
-	defer release()
 
 	for _, machine := range machines {
 		if err = suspend(ctx, machine, waitTimeout); err != nil {
