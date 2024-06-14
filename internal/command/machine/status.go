@@ -160,6 +160,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 				exitEvent.ExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
 		}
 
+		// This is terrible but will inform the users good enough while I build something
+		// elegant like the ExitEvent above
+		if event.Type == "launch" && event.Status == "created" && event.Source == "flyd" {
+			fields = append(fields, "migrated=true")
+		}
+
 		eventLogs = append(eventLogs, fields)
 	}
 	_ = render.Table(io.Out, "Event Logs", eventLogs, "State", "Event", "Source", "Timestamp", "Info")
