@@ -19,7 +19,7 @@ import (
 
 func newRestart() *cobra.Command {
 	const (
-		short = "Restarts each member of the Postgres cluster one by one."
+		short = "Restarts each member of the Fly Postgres cluster one by one."
 		long  = short + " Downtime should be minimal." + "\n"
 		usage = "restart"
 	)
