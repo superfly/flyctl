@@ -13,7 +13,6 @@ import (
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
@@ -131,7 +130,7 @@ func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, o
 	return nil
 }
 
-func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBasic) (*fly.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient flapsutil.FlapsClient, app *fly.AppBasic) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}

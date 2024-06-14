@@ -18,7 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/metrics"
 )
 
-func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps.Client, error) {
+func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (FlapsClient, error) {
 	// Connect over wireguard depending on FLAPS URL.
 	if strings.TrimSpace(strings.ToLower(os.Getenv("FLY_FLAPS_BASE_URL"))) == "peer" {
 		orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
@@ -57,7 +57,11 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 		opts.Logger = v
 	}
 
-	return flaps.NewWithOptions(ctx, opts)
+	client, err := flaps.NewWithOptions(ctx, opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create flaps client: %w", err)
+	}
+	return wrapWithRetry(client), nil
 }
 
 func resolveOrgSlugForApp(ctx context.Context, app *fly.AppCompact, appName string) (string, error) {
