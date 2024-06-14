@@ -11,7 +11,7 @@ jobs:
       - name: Checkout master branch
         uses: actions/checkout@v4
         with:
-          ref: master
+          fetch-tags: true
       - name: bump version
         run: |
           ./scripts/force_bump_version.sh
