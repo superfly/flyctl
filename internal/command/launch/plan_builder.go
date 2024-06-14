@@ -519,10 +519,16 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 			cause = "derived from your directory name"
 		}
 	}
-	if appName == "" {
 
+	taken := appName == ""
+
+	if !taken {
+		taken, _ = appNameTaken(ctx, appName)
+	}
+
+	if taken {
 		var found bool
-		appName, found = findUniqueAppName("")
+		appName, found = findUniqueAppName(appName)
 		cause = "generated"
 
 		if !found {
