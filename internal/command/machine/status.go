@@ -163,7 +163,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 		// This is terrible but will inform the users good enough while I build something
 		// elegant like the ExitEvent above
 		if event.Type == "launch" && event.Status == "created" && event.Source == "flyd" {
-			fields = append(fields, "import=true")
+			fields = append(fields, "migrated=true")
 		}
 
 		eventLogs = append(eventLogs, fields)
