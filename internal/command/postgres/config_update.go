@@ -24,8 +24,8 @@ import (
 
 func newConfigUpdate() (cmd *cobra.Command) {
 	const (
-		long  = `Update Postgres configuration.`
-		short = "Update Postgres configuration."
+		long  = `Update Fly Postgres configuration.`
+		short = "Update Fly Postgres configuration."
 		usage = "update"
 	)
 
