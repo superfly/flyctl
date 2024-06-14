@@ -15,7 +15,7 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = `Manage Postgres clusters.`
+		short = `Manage Fly Postgres clusters. Fly Postgres not a managed database service. Read more: https://fly.io/docs/postgres/getting-started/what-you-should-know/`
 
 		long = short + "\n"
 	)

@@ -22,8 +22,8 @@ import (
 
 func newConfigShow() (cmd *cobra.Command) {
 	const (
-		long  = `Show Postgres configuration`
-		short = "Show Postgres configuration"
+		long  = `Show Fly Postgres configuration.`
+		short = "Show Fly Postgres configuration."
 		usage = "show"
 	)
 

@@ -17,7 +17,7 @@ import (
 
 func newEvents() *cobra.Command {
 	const (
-		short = "Track major cluster events"
+		short = "Track major cluster events."
 		long  = short + "\n"
 
 		usage = "events"

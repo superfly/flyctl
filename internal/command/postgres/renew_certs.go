@@ -19,8 +19,8 @@ import (
 
 func newRenewSSHCerts() *cobra.Command {
 	const (
-		short = "Renews the SSH certificates for the Postgres cluster."
-		long  = "Renews the SSH certificates for the Postgres cluster. This is useful when the certificates have expired or need to be rotated."
+		short = "Renews the SSH certificates for the Fly Postgres cluster."
+		long  = "Renews the SSH certificates for the Fly Postgres cluster. This is useful when the certificates have expired or need to be rotated."
 		usage = "renew-certs"
 	)
 

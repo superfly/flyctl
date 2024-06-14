@@ -21,7 +21,7 @@ import (
 
 func newDb() *cobra.Command {
 	const (
-		short = "Manage databases in a cluster"
+		short = "Manage databases in a cluster."
 		long  = short + "\n"
 	)
 

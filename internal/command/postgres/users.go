@@ -21,7 +21,7 @@ import (
 
 func newUsers() *cobra.Command {
 	const (
-		short = "Manage users in a postgres cluster"
+		short = "Manage users in a Fly Postgres cluster."
 		long  = short + "\n"
 
 		usage = "users"

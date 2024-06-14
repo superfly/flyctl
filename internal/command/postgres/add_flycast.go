@@ -17,7 +17,7 @@ import (
 
 func newAddFlycast() *cobra.Command {
 	const (
-		short = "Switch from DNS to flycast based pg connections"
+		short = "Switch from DNS to Flycast-based Fly Postgres connections."
 		long  = short + "\n"
 
 		usage = "add_flycast"

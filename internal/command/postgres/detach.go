@@ -20,8 +20,8 @@ import (
 
 func newDetach() *cobra.Command {
 	const (
-		short = "Detach a postgres cluster from an app"
-		long  = short + "\n"
+		short = "Detach a Fly Postgres cluster from a Fly App."
+		long  = short + " Learn more: https://fly.io/docs/postgres/managing/attach-detach/"
 		usage = "detach <POSTGRES APP>"
 	)
 

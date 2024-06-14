@@ -17,7 +17,7 @@ import (
 
 func newList() *cobra.Command {
 	const (
-		short = "List postgres clusters"
+		short = "List Fly Postgres clusters."
 		long  = short + "\n"
 
 		usage = "list"

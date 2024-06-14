@@ -24,7 +24,7 @@ import (
 
 func newImport() *cobra.Command {
 	const (
-		short = "Imports database from a specified Postgres URI"
+		short = "Imports database from a specified Postgres URI."
 		long  = short + "\n"
 		usage = "import <source-uri>"
 	)

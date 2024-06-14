@@ -23,7 +23,7 @@ var pgSettings = map[string]string{
 
 func newConfig() (cmd *cobra.Command) {
 	const (
-		short = "Show and manage Postgres configuration."
+		short = "Show and manage Fly Postgres configuration."
 		long  = short + "\n"
 	)
 

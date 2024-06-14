@@ -32,8 +32,8 @@ type AttachParams struct {
 
 func newAttach() *cobra.Command {
 	const (
-		short = "Attach a postgres cluster to an app"
-		long  = short + "\n"
+		short = "Attach a Fly Postgres cluster to a Fly App."
+		long  = short + " Learn more: https://fly.io/docs/postgres/managing/attach-detach/"
 		usage = "attach <POSTGRES APP>"
 	)
 
