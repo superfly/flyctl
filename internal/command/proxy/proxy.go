@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -14,6 +16,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/proxy"
 )
 
@@ -131,5 +134,37 @@ func run(ctx context.Context) (err error) {
 		params.RemoteHost = fmt.Sprintf("%s.internal", appName)
 	}
 
+	watchStdinAndAbortOnClose(ctx)
+
 	return proxy.Connect(ctx, params)
+}
+
+// Asynchronously watches stdin and abort when it closes.
+//
+// There is no guarantee that a OS process spawning the proxy will
+// terminate it, however the stdin is always closed whtn the parent
+// terminates. This way we make sure there are no zombie processes,
+// especially that they hold onto TCP ports.
+//
+// Note that we don't do this when stdin is TTY, because that prevents
+// the process from being moved to a background job on Unix.
+// See https://github.com/brunch/brunch/issues/998.
+func watchStdinAndAbortOnClose(ctx context.Context) {
+	ios := iostreams.FromContext(ctx)
+
+	if !ios.IsStdinTTY() {
+		go func() {
+			// We don't expect any input, but if there is one, we ignore it
+			// to avoid allocating space unnecessarily
+			buffer := make([]byte, 1)
+			for {
+				_, err := ios.In.Read(buffer)
+				if err == io.EOF {
+					os.Exit(0)
+				} else if err != nil {
+					os.Exit(1)
+				}
+			}
+		}()
+	}
 }
