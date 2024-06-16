@@ -406,8 +406,8 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 
 func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry) error {
 	lm := e.leasableMachine
-	// Don't wait for SkipLaunch machines, they are updated but not started
-	if e.launchInput.SkipLaunch {
+	// Don't wait for SkipLaunch or scheduled machines, they are updated but not started
+	if e.launchInput.SkipLaunch || e.launchInput.Config.Schedule != "" {
 		return nil
 	}
 
@@ -839,8 +839,8 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
 	defer lm.ReleaseLease(ctx)
 
-	// Don't wait for SkipLaunch machines, they are created but not started
-	if launchInput.SkipLaunch {
+	// Don't wait for SkipLaunch or scheduled machines, they are created but not started
+	if launchInput.SkipLaunch || launchInput.Config.Schedule != "" {
 		return lm, nil
 	}
 

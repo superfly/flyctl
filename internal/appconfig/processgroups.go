@@ -113,6 +113,11 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		return dst.flattenGroupMatches(groupName, k)
 	})
 
+	// [schedules]
+	dst.Schedules = lo.PickBy(dst.Schedules, func(k, v string) bool {
+		return k == groupName
+	})
+
 	// [checks]
 	dst.Checks = lo.PickBy(dst.Checks, func(_ string, check *ToplevelCheck) bool {
 		return matchesGroups(check.Processes)
