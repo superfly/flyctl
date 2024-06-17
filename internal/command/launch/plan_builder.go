@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -161,6 +162,12 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		}
 	}
 
+	// If the user can see an app with the same name as what they're about to launch,
+	// they *probably* want to deploy to that app instead.
+	if err := nudgeTowardsDeploy(ctx, appName); err != nil {
+		return nil, nil, err
+	}
+
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
@@ -249,13 +256,47 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 	}, buildCache, nil
 }
 
+// Check to see if they own the named app, and if so, prompt them to try deploying instead.
+func nudgeTowardsDeploy(ctx context.Context, appName string) error {
+
+	client := flyutil.ClientFromContext(ctx)
+	io := iostreams.FromContext(ctx)
+
+	if flag.GetYes(ctx) {
+		return nil
+	}
+
+	if _, err := client.GetApp(ctx, appName); err != nil {
+		// The user can't see the app. Let them proceed.
+		return nil
+	}
+
+	// The user can see the app. Prompt them to deploy.
+	fmt.Fprintf(io.Out, "App '%s' already exists. You can deploy to it with `fly deploy`.\n", appName)
+
+	switch confirmed, err := prompt.Confirm(ctx, "Continue launching a new app? "); {
+	case err == nil:
+		if !confirmed {
+			// We've redirected the user to use 'fly deploy'
+			// Exit directly with code 0 so this isn't flagged as a failed launch
+			os.Exit(0)
+		}
+	case prompt.IsNonInteractive(err):
+		// Should be impossible - we're only called if recoverableErrors.canEnterUi is true
+		return nil
+	default:
+		return err
+	}
+	return nil
+}
+
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = flyutil.ClientFromContext(ctx)
 	)
 
-	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +304,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org, flag.GetRecreateBuilder(ctx))
 	}
 
 	var (
@@ -478,10 +519,16 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 			cause = "derived from your directory name"
 		}
 	}
-	if appName == "" {
 
+	taken := appName == ""
+
+	if !taken {
+		taken, _ = appNameTaken(ctx, appName)
+	}
+
+	if taken {
 		var found bool
-		appName, found = findUniqueAppName("")
+		appName, found = findUniqueAppName(appName)
 		cause = "generated"
 
 		if !found {
