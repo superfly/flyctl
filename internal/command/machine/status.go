@@ -8,9 +8,12 @@ import (
 
 	"github.com/alecthomas/chroma/quick"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
+	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -160,9 +163,56 @@ func runMachineStatus(ctx context.Context) (err error) {
 				exitEvent.ExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
 		}
 
+		// This is terrible but will inform the users good enough while I build something
+		// elegant like the ExitEvent above
+		if event.Type == "launch" && event.Status == "created" && event.Source == "flyd" {
+			fields = append(fields, "migrated=true")
+		}
+
 		eventLogs = append(eventLogs, fields)
 	}
 	_ = render.Table(io.Out, "Event Logs", eventLogs, "State", "Event", "Source", "Timestamp", "Info")
+
+	// Get a historical list of events for this machine
+	apiClient := flyutil.ClientFromContext(ctx)
+	var gqlMachine *fly.GqlMachine
+	gqlMachine, err = apiClient.GetMachineWithEvents(ctx, machine.ID)
+
+	if err == nil {
+		allVersionsEventLogs := [][]string{}
+		for _, event := range gqlMachine.Events.Nodes {
+
+			// Only print older versions events
+			if machine.InstanceID == event.MachineVersion["id"] {
+				continue
+			}
+
+			fields := []string{
+				event.Status,
+				event.Kind,
+				event.Source,
+				event.Timestamp.String(),
+			}
+
+			if event.Body != nil && event.Body["exit_event"] != nil {
+				exitEvent := event.Body["exit_event"].(map[string]interface{})
+				fields = append(fields, fmt.Sprintf("exit_code=%d,oom_killed=%t,requested_stop=%t",
+					int(exitEvent["exit_code"].(float64)), exitEvent["oom_killed"], exitEvent["requested_stop"]))
+			}
+
+			// This is STILL terrible but will inform the users good enough while I build something
+			// elegant like the ExitEvent above
+			if event.Kind == "launch" && event.Status == "created" && event.Source == "flyd" {
+				fields = append(fields, "migrated=true")
+			}
+
+			allVersionsEventLogs = append(allVersionsEventLogs, fields)
+		}
+		_ = render.Table(io.Out, "Past Event Logs", allVersionsEventLogs, "State", "Event", "Source", "Timestamp", "Info")
+	} else {
+		logger := logger.FromContext(ctx)
+		logger.Debugf("failed to get historical events for machine %s", machine.ID)
+	}
 
 	if flag.GetBool(ctx, "display-config") {
 		var prettyConfig []byte

@@ -6356,6 +6356,8 @@ A machine state change event
 interface MachineEvent {
   id: ID!
   kind: String!
+  machineVersion: MachineVersion!
+  source: String
   timestamp: ISO8601DateTime!
 }
 
@@ -6382,6 +6384,8 @@ type MachineEventConnection {
 type MachineEventDestroy implements MachineEvent {
   id: ID!
   kind: String!
+  machineVersion: MachineVersion!
+  source: String
   timestamp: ISO8601DateTime!
 }
 
@@ -6404,21 +6408,27 @@ type MachineEventExit implements MachineEvent {
   exitCode: Int!
   id: ID!
   kind: String!
+  machineVersion: MachineVersion!
   metadata: JSON!
   oomKilled: Boolean!
   requestedStop: Boolean!
+  source: String
   timestamp: ISO8601DateTime!
 }
 
 type MachineEventGeneric implements MachineEvent {
   id: ID!
   kind: String!
+  machineVersion: MachineVersion!
+  source: String
   timestamp: ISO8601DateTime!
 }
 
 type MachineEventStart implements MachineEvent {
   id: ID!
   kind: String!
+  machineVersion: MachineVersion!
+  source: String
   timestamp: ISO8601DateTime!
 }
 
@@ -6468,6 +6478,10 @@ type MachineIPEdge {
   The item at the end of the edge.
   """
   node: MachineIP
+}
+
+type MachineVersion implements Node {
+  id: ID!
 }
 
 """
