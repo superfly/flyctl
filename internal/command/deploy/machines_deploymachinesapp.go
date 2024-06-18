@@ -83,7 +83,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if !md.skipDNSChecks {
+	// no need to run dns checks if the deployment failed
+	if !md.skipDNSChecks && err == nil {
 		if err := md.checkDNS(ctx); err != nil {
 			terminal.Warnf("DNS checks failed: %v\n", err)
 		}
