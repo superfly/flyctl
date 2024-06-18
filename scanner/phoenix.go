@@ -134,6 +134,9 @@ export ECTO_IPV6="true"
 export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
 export RELEASE_DISTRIBUTION="name"
 export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
+
+export ERL_CRASH_DUMP=/dev/stderr
+export ERL_CRASH_DUMP_BYTES=4096
 `
 	_, err := os.Stat(envEExPath)
 	if os.IsNotExist(err) {
