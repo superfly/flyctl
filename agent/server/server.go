@@ -326,8 +326,9 @@ func (s *server) probeTunnel(ctx context.Context, slug, network string) (err err
 	var results []net.IP
 	switch results, err = tunnel.LookupAAAA(ctx, "_api.internal"); {
 	case err != nil:
+		// anytime you change the error message here, you need to update https://github.com/superfly/flyctl/blob/df7529f6da985a662853ffc7003f57ee3c9d8e42/internal/build/imgsrc/docker.go#L370
 		if errors.Is(err, context.DeadlineExceeded) {
-			err = fmt.Errorf("Timed out (%w)", err)
+			err = fmt.Errorf("timed out (%w)", err)
 		}
 		err = fmt.Errorf("Error contacting Fly.io API when probing %q: %w", slug, err)
 	case len(results) == 0:
