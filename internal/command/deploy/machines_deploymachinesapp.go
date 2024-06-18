@@ -1072,6 +1072,8 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "check_dns")
 	defer span.End()
+	ctx, cancel := context.WithTimeout(ctx, time.Second*70)
+	defer cancel()
 
 	client := flyutil.ClientFromContext(ctx)
 	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)
