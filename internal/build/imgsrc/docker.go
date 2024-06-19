@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/avast/retry-go/v4"
 	"github.com/azazeal/pause"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
@@ -233,8 +234,25 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	if !connectOverWireguard && !wglessCompatible {
 		client := &http.Client{
 			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-					return tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", app.Name), &tls.Config{})
+				DialContext: func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
+					operation := func() error {
+						conn, err = tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", app.Name), &tls.Config{})
+						if err != nil {
+							return fmt.Errorf("failed to dial remote builder: %w", err)
+						}
+						return nil
+					}
+					retry.Do(
+						operation,
+						retry.Context(ctx),
+						retry.Attempts(3),
+						retry.Delay(2*time.Second),
+						retry.DelayType(retry.FixedDelay),
+						retry.RetryIf(func(err error) bool {
+							return strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "TLS handshake timeout")
+						}),
+					)
+					return conn, nil
 				},
 			},
 		}
