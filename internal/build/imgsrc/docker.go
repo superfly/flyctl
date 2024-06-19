@@ -233,7 +233,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	if !connectOverWireguard && !wglessCompatible {
 		client := &http.Client{
 			Transport: &http.Transport{
-				DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				DialContext: func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 					return tls.Dial("tcp", fmt.Sprintf("%s.fly.dev:443", app.Name), &tls.Config{})
 				},
 			},
