@@ -131,7 +131,7 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 		}
 	}
 
-	if m.Machine().Config.Restart != nil {
+	if m.Machine().Config.Restart != nil && m.Machine().Config.Restart.Policy != "" {
 		restart = Restart{
 			Policy:     RestartPolicy(m.Machine().Config.Restart.Policy),
 			MaxRetries: m.Machine().Config.Restart.MaxRetries,
