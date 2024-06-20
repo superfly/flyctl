@@ -191,6 +191,9 @@ func run(ctx context.Context) (err error) {
 		if err != nil {
 			tracing.RecordError(span, err, "launch failed")
 			status.Error = err.Error()
+			if info := flyerr.GetErrorDebugInfo(err); info != "" {
+				status.Error += "\n" + info
+			}
 
 			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
 				err = state.sourceInfo.FailureCallback(err)
@@ -288,7 +291,7 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
-	if errors := recoverableErrors.build(); errors != "" {
+	if errors := recoverableErrors.buildDisplayableErrorList(); errors != "" {
 
 		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
 		incompleteLaunchManifest = true
@@ -314,7 +317,7 @@ func run(ctx context.Context) (err error) {
 		}
 	} else if incompleteLaunchManifest {
 		// UI was required to reconcile launch issues, but user denied. Abort.
-		return errors.New("launch can not continue with errors present")
+		return recoverableErrors.toError()
 	}
 
 	err = state.Launch(ctx)
