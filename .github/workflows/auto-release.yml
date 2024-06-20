@@ -2,7 +2,7 @@ name: Automatically release a new version of flyctl
 
 on:
   schedule:
-    - cron: '0 20 * * MON-THU'  # Runs at 3 PM Eastern Standard Time Monday Through Thursday (8 PM UTC)
+    - cron: '0 19 * * MON-THU'  # Runs at 3 PM Eastern Daylight Time Monday Through Thursday (8 PM UTC)
 
 jobs:
   run_script:
@@ -15,7 +15,7 @@ jobs:
           fetch-depth: '0'
 
       - name: Bump version
-        uses: anothrNick/github-tag-action@1.67.0
+        uses: billyb2/github-tag-action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
