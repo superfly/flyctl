@@ -483,7 +483,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				if len(missing) > 0 {
 					// TODO: May change this by a prompt to create new volumes right away (?)
 					return fmt.Errorf(
-						"Process group '%s' needs volumes with name '%s' to fullfill mounts defined in fly.toml; "+
+						"Process group '%s' needs volumes with name '%s' to fulfill mounts defined in fly.toml; "+
 							"Run `fly volume create %s -r REGION -n COUNT` for the following regions and counts: %s",
 						groupName, volSrc, volSrc, strings.Join(missing, " "),
 					)

@@ -41,7 +41,7 @@ func TestFlyDeployHA(t *testing.T) {
 	`, f.ReadFile("fly.toml"))
 
 	x := f.FlyAllowExitFailure("deploy")
-	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fullfill mounts defined in fly.toml`)
+	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
 	// Create two volumes because fly launch will start 2 machines because of HA setup
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
