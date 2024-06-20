@@ -66,7 +66,7 @@ func runRemove(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 	fmt.Fprintf(io.Out, "successfully removed user %s from %s\n", email, org.Name)
-	fmt.Fprintf(io.Out, "Offboarding Checklist: https://fly.io/dashboard/%s/offboarding/", org.Slug)
+	fmt.Fprintf(io.Out, "Offboarding Checklist: https://fly.io/dashboard/%s/offboarding", org.Slug)
 
 	return nil
 }
