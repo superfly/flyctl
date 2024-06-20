@@ -287,6 +287,13 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		CPUs:     4,
 		MemoryMB: 4096,
 	}
+	if org.PaidPlan {
+		guest = fly.MachineGuest{
+			CPUKind:  "shared",
+			CPUs:     8,
+			MemoryMB: 8192,
+		}
+	}
 
 	retErr = flapsClient.WaitForApp(ctx, app.Name)
 	if retErr != nil {
