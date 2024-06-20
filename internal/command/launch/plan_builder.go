@@ -91,7 +91,7 @@ func (r *recoverableErrorBuilder) tryRecover(e error) error {
 	return e
 }
 
-func (r *recoverableErrorBuilder) build() string {
+func (r *recoverableErrorBuilder) buildDisplayableErrorList() string {
 	if len(r.errors) == 0 {
 		return ""
 	}
@@ -101,6 +101,27 @@ func (r *recoverableErrorBuilder) build() string {
 		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
 	}
 	return allErrors
+}
+
+func (r *recoverableErrorBuilder) toError() error {
+	if len(r.errors) == 0 {
+		return nil
+	}
+	return IncompleteManifestError{
+		debug: r.buildDisplayableErrorList(),
+	}
+}
+
+type IncompleteManifestError struct {
+	debug string
+}
+
+func (e IncompleteManifestError) Error() string {
+	return "launch can not continue with errors present"
+}
+
+func (e IncompleteManifestError) DebugInfo() string {
+	return e.debug
 }
 
 func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
