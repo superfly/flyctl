@@ -1,0 +1,20 @@
+package wafris
+
+import (
+  "github.com/spf13/cobra"
+
+  "github.com/superfly/flyctl/internal/command"
+)
+
+func New() (cmd *cobra.Command) {
+
+  const (
+    short = "Provision and manage Wafris"
+    long  = short + "\n"
+  )
+
+  cmd = command.New("wafris", short, long, nil)
+  cmd.AddCommand(create(), dashboard())
+
+  return cmd
+}
