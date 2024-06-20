@@ -15,7 +15,7 @@ jobs:
           fetch-depth: '0'
 
       - name: Bump version
-        uses: billyb2/github-tag-action
+        uses: superfly/github-tag-action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
