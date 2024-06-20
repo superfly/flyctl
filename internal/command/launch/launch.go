@@ -57,7 +57,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
-	if state.sourceInfo.GitHubActions.Deploy {
+	if state.sourceInfo != nil && state.sourceInfo.GitHubActions.Deploy {
 		state.setupGitHubActions(ctx, app.Name)
 	}
 
