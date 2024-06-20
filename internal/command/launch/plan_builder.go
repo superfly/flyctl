@@ -61,9 +61,12 @@ const recoverableSpecifyInUi = "must be specified in UI"
 // Doing this can lead to double-calculation, especially of scanners which could
 // have a lot of processing to do. Hence, a cache :)
 type planBuildCache struct {
-	appConfig    *appconfig.Config
-	sourceInfo   *scanner.SourceInfo
-	warnedNoCcHa bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	appConfig  *appconfig.Config
+	sourceInfo *scanner.SourceInfo
+	// true means we've checked the app name, but not necessarily that it's okay. only that an error, if present, has been flagged already.
+	// used to skip double-validating in stateFromManifest
+	appNameValidated bool
+	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
 }
 
 func appNameTakenErr(appName string) error {
@@ -162,12 +165,6 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		}
 	}
 
-	// If the user can see an app with the same name as what they're about to launch,
-	// they *probably* want to deploy to that app instead.
-	if err := nudgeTowardsDeploy(ctx, appName); err != nil {
-		return nil, nil, err
-	}
-
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
@@ -215,9 +212,10 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 	}
 
 	buildCache := &planBuildCache{
-		appConfig:    appConfig,
-		sourceInfo:   srcInfo,
-		warnedNoCcHa: false,
+		appConfig:        appConfig,
+		sourceInfo:       srcInfo,
+		appNameValidated: true, // validated in determineAppName
+		warnedNoCcHa:     false,
 	}
 
 	if planValidateHighAvailability(ctx, lp, org, true) {
@@ -257,18 +255,21 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 }
 
 // Check to see if they own the named app, and if so, prompt them to try deploying instead.
-func nudgeTowardsDeploy(ctx context.Context, appName string) error {
+// Returns a whether or not the app is known to be taken.
+// false doesn't necessarily mean available, just not visible to the user, while true means the app name is definitively taken.
+// Returns an error only if the prompt library encounters an error. (this should never occur)
+func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	if flag.GetYes(ctx) {
-		return nil
+		return false, nil
 	}
 
 	if _, err := client.GetApp(ctx, appName); err != nil {
 		// The user can't see the app. Let them proceed.
-		return nil
+		return false, nil
 	}
 
 	// The user can see the app. Prompt them to deploy.
@@ -283,11 +284,11 @@ func nudgeTowardsDeploy(ctx context.Context, appName string) error {
 		}
 	case prompt.IsNonInteractive(err):
 		// Should be impossible - we're only called if recoverableErrors.canEnterUi is true
-		return nil
+		return true, nil
 	default:
-		return err
+		return true, err
 	}
-	return nil
+	return true, nil
 }
 
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
@@ -308,13 +309,15 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	}
 
 	var (
-		appConfig    *appconfig.Config
-		copiedConfig bool
-		warnedNoCcHa bool
+		appConfig        *appconfig.Config
+		copiedConfig     bool
+		warnedNoCcHa     bool
+		appNameValidated bool
 	)
 	if optionalCache != nil {
 		appConfig = optionalCache.appConfig
 		warnedNoCcHa = optionalCache.warnedNoCcHa
+		appNameValidated = optionalCache.appNameValidated
 	} else {
 		appConfig, copiedConfig, err = determineBaseAppConfig(ctx)
 		if err != nil {
@@ -340,7 +343,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 
 	// We don't check the app name being taken unless we can go to the UI, because
 	// it'll fail when creating the app *anyway*, so unless you can use the UI it'll be the same result.
-	if recoverableErrors.canEnterUi {
+	if recoverableErrors.canEnterUi && !appNameValidated {
 		taken, err := appNameTaken(ctx, m.Plan.AppName)
 		if err != nil {
 			return nil, flyerr.GenericErr{
@@ -521,6 +524,16 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	}
 
 	taken := appName == ""
+
+	if !taken {
+		var err error
+		// If the user can see an app with the same name as what they're about to launch,
+		// they *probably* want to deploy to that app instead.
+		taken, err = nudgeTowardsDeploy(ctx, appName)
+		if err != nil {
+			return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+		}
+	}
 
 	if !taken {
 		taken, _ = appNameTaken(ctx, appName)
