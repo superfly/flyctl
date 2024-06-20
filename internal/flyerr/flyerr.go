@@ -127,3 +127,17 @@ func IsCancelledError(err error) bool {
 
 	return false
 }
+
+// ErrorDebugInfo is an error with debug information that should be attached to metrics, logs, or sent to Sentry
+type ErrorDebugInfo interface {
+	error
+	DebugInfo() string
+}
+
+func GetErrorDebugInfo(err error) string {
+	var ferr ErrorDebugInfo
+	if errors.As(err, &ferr) {
+		return ferr.DebugInfo()
+	}
+	return ""
+}
