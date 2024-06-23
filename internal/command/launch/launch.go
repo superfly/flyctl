@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -88,12 +89,20 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Finally write application configuration to fly.toml
-	configPath := state.configPath
-	if flag.GetBool(ctx, "json") {
-		configPath = strings.TrimSuffix(configPath, filepath.Ext(configPath)) + ".json"
-	} else if flag.GetBool(ctx, "yaml") {
-		configPath = strings.TrimSuffix(configPath, filepath.Ext(configPath)) + ".yaml"
+	configDir, configFile := filepath.Split(state.configPath)
+	configFileOverride := flag.GetString(ctx, flagnames.AppConfigFilePath)
+	if configFileOverride != "" {
+		configFile = configFileOverride
 	}
+
+	// Resolve config format flags if applicable
+	if flag.GetBool(ctx, "json") {
+		configFile = strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".json"
+	} else if flag.GetBool(ctx, "yaml") {
+		configFile = strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".yaml"
+	}
+
+	configPath := filepath.Join(configDir, configFile)
 	state.appConfig.SetConfigFilePath(configPath)
 	if err := state.appConfig.WriteToDisk(ctx, configPath); err != nil {
 		return err

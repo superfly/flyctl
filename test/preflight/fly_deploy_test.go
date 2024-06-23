@@ -22,6 +22,10 @@ import (
 
 func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	if f.SecondaryRegion() == "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
@@ -37,7 +41,7 @@ func TestFlyDeployHA(t *testing.T) {
 	`, f.ReadFile("fly.toml"))
 
 	x := f.FlyAllowExitFailure("deploy")
-	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fullfill mounts defined in fly.toml`)
+	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
 	// Create two volumes because fly launch will start 2 machines because of HA setup
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
@@ -55,6 +59,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -72,6 +77,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -158,6 +164,13 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 
 func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this uses a fixture with a size, no need to run it on alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
@@ -185,6 +198,12 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this pins a specific size, we can skip it for alternate VM sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
@@ -247,4 +266,13 @@ func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
 	deployRes := f.Fly("deploy")
 	output := deployRes.StdOutString()
 	require.Contains(f, output, "Test Machine")
+}
+
+func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
+	f.Fly("deploy")
 }

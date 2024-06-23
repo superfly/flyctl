@@ -71,6 +71,7 @@ var commonPreparers = []preparers.Preparer{
 var authPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
+	notifyHostIssues,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -334,6 +335,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 // would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
+
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
@@ -359,11 +361,14 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
+		{"version"},
 		{"version", "upgrade"},
 		{"settings", "autoupdate"},
 	}) {
 		return ctx, nil
 	}
+
+	logger.FromContext(ctx).Debug("checking for updates...")
 
 	if !update.Check() {
 		return ctx, nil
@@ -515,38 +520,26 @@ func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	logger := logger.FromContext(ctx)
-	io := iostreams.FromContext(ctx)
-	colorize := io.ColorScheme()
+	incidents.QueryStatuspageIncidents(ctx)
 
-	queryStatuspageIncidents := func(parent context.Context) {
-		logger.Debug("started querying for statuspage incidents")
+	return ctx, nil
+}
 
-		ctx, cancel := context.WithTimeout(parent, time.Second)
-		defer cancel()
-
-		switch incidents, err := incidents.StatuspageIncidentsRequest(ctx); {
-		case err == nil:
-			if incidents == nil {
-				break
-			}
-
-			logger.Debugf("querying for statuspage incidents resulted to %v", incidents)
-			incidentCount := len(incidents.Incidents)
-			if incidentCount > 0 {
-				fmt.Fprintln(io.ErrOut, colorize.WarningIcon(),
-					colorize.Yellow("WARNING: There are active incidents. Please check `fly incidents list` or visit https://status.flyio.net\n\n"),
-				)
-				break
-			}
-		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			logger.Debugf("failed querying for Statuspage incidents. Context cancelled or deadline exceeded: %v", err)
-		default:
-			logger.Debugf("failed querying for Statuspage incidents: %v", err)
-		}
+func notifyHostIssues(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "hosts", "list"},
+	}) {
+		return ctx, nil
 	}
 
-	task.FromContext(ctx).Run(queryStatuspageIncidents)
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	appCtx, err := LoadAppNameIfPresent(ctx)
+	if err == nil {
+		incidents.QueryHostIssues(appCtx)
+	}
 
 	return ctx, nil
 }

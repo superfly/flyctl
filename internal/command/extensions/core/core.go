@@ -31,11 +31,13 @@ type Extension struct {
 }
 
 type ExtensionParams struct {
-	AppName      string
-	Organization *fly.Organization
-	Provider     string
-	PlanID       string
-	Options      map[string]interface{}
+	AppName              string
+	Organization         *fly.Organization
+	Provider             string
+	PlanID               string
+	OrganizationPlanID   string
+	Options              map[string]interface{}
+	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
 	OverrideRegion string
@@ -128,6 +130,10 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		input.PlanId = params.PlanID
 	}
 
+	if params.OrganizationPlanID != "" {
+		input.OrganizationPlanId = params.OrganizationPlanID
+	}
+
 	var inExcludedRegion bool
 	var primaryRegion string
 
@@ -194,6 +200,11 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	input.Options = params.Options
 	createResp, err := gql.CreateExtension(ctx, client, input)
+
+	if params.ErrorCaptureCallback != nil {
+		err = params.ErrorCaptureCallback(ctx, err, &params)
+	}
+
 	if err != nil {
 		return
 	}

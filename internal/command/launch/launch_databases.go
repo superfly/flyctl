@@ -10,6 +10,7 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -165,11 +166,12 @@ func (state *launchState) createSupabasePostgres(ctx context.Context) error {
 	}
 
 	params := extensions_core.ExtensionParams{
-		AppName:        state.Plan.AppName,
-		Organization:   org,
-		Provider:       "supabase",
-		OverrideName:   fly.Pointer(postgresPlan.GetDbName(state.Plan)),
-		OverrideRegion: postgresPlan.GetRegion(state.Plan),
+		AppName:              state.Plan.AppName,
+		Organization:         org,
+		Provider:             "supabase",
+		OverrideName:         fly.Pointer(postgresPlan.GetDbName(state.Plan)),
+		OverrideRegion:       postgresPlan.GetRegion(state.Plan),
+		ErrorCaptureCallback: supabase.CaptureFreeLimitError,
 	}
 
 	_, err = extensions_core.ProvisionExtension(ctx, params)

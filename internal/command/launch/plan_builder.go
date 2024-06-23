@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -60,9 +61,12 @@ const recoverableSpecifyInUi = "must be specified in UI"
 // Doing this can lead to double-calculation, especially of scanners which could
 // have a lot of processing to do. Hence, a cache :)
 type planBuildCache struct {
-	appConfig    *appconfig.Config
-	sourceInfo   *scanner.SourceInfo
-	warnedNoCcHa bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	appConfig  *appconfig.Config
+	sourceInfo *scanner.SourceInfo
+	// true means we've checked the app name, but not necessarily that it's okay. only that an error, if present, has been flagged already.
+	// used to skip double-validating in stateFromManifest
+	appNameValidated bool
+	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
 }
 
 func appNameTakenErr(appName string) error {
@@ -204,13 +208,15 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		computeSource:  computeExplanation,
 		postgresSource: "not requested",
 		redisSource:    "not requested",
+		tigrisSource:   "not requested",
 		sentrySource:   "not requested",
 	}
 
 	buildCache := &planBuildCache{
-		appConfig:    appConfig,
-		sourceInfo:   srcInfo,
-		warnedNoCcHa: false,
+		appConfig:        appConfig,
+		sourceInfo:       srcInfo,
+		appNameValidated: true, // validated in determineAppName
+		warnedNoCcHa:     false,
 	}
 
 	if planValidateHighAvailability(ctx, lp, org, true) {
@@ -233,6 +239,10 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
 		}
+		if srcInfo.ObjectStorageDesired {
+			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
+			planSource.tigrisSource = scannerSource
+		}
 		if srcInfo.Port != 0 {
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
@@ -245,13 +255,50 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 	}, buildCache, nil
 }
 
+// Check to see if they own the named app, and if so, prompt them to try deploying instead.
+// Returns a whether or not the app is known to be taken.
+// false doesn't necessarily mean available, just not visible to the user, while true means the app name is definitively taken.
+// Returns an error only if the prompt library encounters an error. (this should never occur)
+func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
+
+	client := flyutil.ClientFromContext(ctx)
+	io := iostreams.FromContext(ctx)
+
+	if flag.GetYes(ctx) {
+		return false, nil
+	}
+
+	if _, err := client.GetApp(ctx, appName); err != nil {
+		// The user can't see the app. Let them proceed.
+		return false, nil
+	}
+
+	// The user can see the app. Prompt them to deploy.
+	fmt.Fprintf(io.Out, "App '%s' already exists. You can deploy to it with `fly deploy`.\n", appName)
+
+	switch confirmed, err := prompt.Confirm(ctx, "Continue launching a new app? "); {
+	case err == nil:
+		if !confirmed {
+			// We've redirected the user to use 'fly deploy'
+			// Exit directly with code 0 so this isn't flagged as a failed launch
+			os.Exit(0)
+		}
+	case prompt.IsNonInteractive(err):
+		// Should be impossible - we're only called if recoverableErrors.canEnterUi is true
+		return true, nil
+	default:
+		return true, err
+	}
+	return true, nil
+}
+
 func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = flyutil.ClientFromContext(ctx)
 	)
 
-	org, err := client.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -259,17 +306,19 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org, flag.GetRecreateBuilder(ctx))
 	}
 
 	var (
-		appConfig    *appconfig.Config
-		copiedConfig bool
-		warnedNoCcHa bool
+		appConfig        *appconfig.Config
+		copiedConfig     bool
+		warnedNoCcHa     bool
+		appNameValidated bool
 	)
 	if optionalCache != nil {
 		appConfig = optionalCache.appConfig
 		warnedNoCcHa = optionalCache.warnedNoCcHa
+		appNameValidated = optionalCache.appNameValidated
 	} else {
 		appConfig, copiedConfig, err = determineBaseAppConfig(ctx)
 		if err != nil {
@@ -295,7 +344,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 
 	// We don't check the app name being taken unless we can go to the UI, because
 	// it'll fail when creating the app *anyway*, so unless you can use the UI it'll be the same result.
-	if recoverableErrors.canEnterUi {
+	if recoverableErrors.canEnterUi && !appNameValidated {
 		taken, err := appNameTaken(ctx, m.Plan.AppName)
 		if err != nil {
 			return nil, flyerr.GenericErr{
@@ -474,10 +523,26 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 			cause = "derived from your directory name"
 		}
 	}
-	if appName == "" {
 
+	taken := appName == ""
+
+	if !taken {
+		var err error
+		// If the user can see an app with the same name as what they're about to launch,
+		// they *probably* want to deploy to that app instead.
+		taken, err = nudgeTowardsDeploy(ctx, appName)
+		if err != nil {
+			return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+		}
+	}
+
+	if !taken {
+		taken, _ = appNameTaken(ctx, appName)
+	}
+
+	if taken {
 		var found bool
-		appName, found = findUniqueAppName("")
+		appName, found = findUniqueAppName(appName)
 		cause = "generated"
 
 		if !found {

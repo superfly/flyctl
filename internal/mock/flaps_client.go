@@ -43,6 +43,7 @@ type FlapsClient struct {
 	SetMetadataFunc          func(ctx context.Context, machineID, key, value string) error
 	StartFunc                func(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error)
 	StopFunc                 func(ctx context.Context, in fly.StopMachineInput, nonce string) (err error)
+	SuspendFunc              func(ctx context.Context, machineID, nonce string) (err error)
 	UncordonFunc             func(ctx context.Context, machineID string, nonce string) (err error)
 	UpdateFunc               func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateVolumeFunc         func(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)
@@ -172,6 +173,10 @@ func (m *FlapsClient) Start(ctx context.Context, machineID string, nonce string)
 
 func (m *FlapsClient) Stop(ctx context.Context, in fly.StopMachineInput, nonce string) (err error) {
 	return m.StopFunc(ctx, in, nonce)
+}
+
+func (m *FlapsClient) Suspend(ctx context.Context, machineID, nonce string) (err error) {
+	return m.SuspendFunc(ctx, machineID, nonce)
 }
 
 func (m *FlapsClient) Uncordon(ctx context.Context, machineID string, nonce string) (err error) {

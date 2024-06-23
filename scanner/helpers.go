@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/pelletier/go-toml/v2"
+	"github.com/pkg/errors"
 	"github.com/samber/lo"
 )
 
@@ -86,4 +88,17 @@ func checksPass(sourceDir string, checks ...checkFn) bool {
 		}
 	}
 	return false
+}
+
+func readTomlFile(file string) (map[string]interface{}, error) {
+	doc, err := os.ReadFile(file)
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading  "+file)
+	}
+	tomlData := make(map[string]interface{})
+	readErr := toml.Unmarshal(doc, &tomlData)
+	if readErr != nil {
+		return nil, errors.Wrap(readErr, "Error parsing "+file)
+	}
+	return tomlData, nil
 }

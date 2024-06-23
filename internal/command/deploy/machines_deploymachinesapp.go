@@ -83,7 +83,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if !md.skipDNSChecks {
+	// no need to run dns checks if the deployment failed
+	if !md.skipDNSChecks && err == nil {
 		if err := md.checkDNS(ctx); err != nil {
 			terminal.Warnf("DNS checks failed: %v\n", err)
 		}
@@ -391,7 +392,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 			// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
 			// You can't really suggest changing regions in cases where you're not starting machines, so this is the
 			// best advice we can give.
-			descript = "Your machine never reached the state \"%s\"."
+			descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
 			suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
 		}
 
@@ -1072,6 +1073,8 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "check_dns")
 	defer span.End()
+	ctx, cancel := context.WithTimeout(ctx, time.Second*70)
+	defer cancel()
 
 	client := flyutil.ClientFromContext(ctx)
 	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)

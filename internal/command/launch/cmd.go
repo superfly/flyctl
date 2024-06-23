@@ -43,6 +43,7 @@ func New() (cmd *cobra.Command) {
 		flag.Region(),
 		flag.Org(),
 		flag.NoDeploy(),
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "generate-name",
 			Description: "Always generate a name for the app, without prompting",
