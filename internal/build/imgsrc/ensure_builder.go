@@ -368,7 +368,7 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 }
 
 func retryFlapsCall[T *fly.Machine | *fly.Volume | []fly.Volume | []*fly.Machine](ctx context.Context, maxNumRetries int, flapsCallFn func() (T, error)) (returnValue T, err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "retry_flaps_call")
+	_, span := tracing.GetTracer().Start(ctx, "retry_flaps_call")
 	defer span.End()
 
 	numRetries := 0
