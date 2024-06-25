@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: "0 19 * * MON-THU" # Runs at 3 PM Eastern Daylight Time Monday Through Thursday (8 PM UTC)
 
+permissions:
+  contents: write
+
 jobs:
   run_script:
     runs-on: ubuntu-latest
