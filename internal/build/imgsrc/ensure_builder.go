@@ -379,19 +379,24 @@ func retryFlapsCall[T *fly.Machine | *fly.Volume | []fly.Volume | []*fly.Machine
 		}
 
 		var flapsErr *flaps.FlapsError
-		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
-			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
-			numRetries += 1
+		if errors.As(err, &flapsErr) {
+			span.AddEvent(fmt.Sprintf("server error %d", flapsErr.ResponseStatusCode))
+			if flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
+				numRetries += 1
 
-			if numRetries >= maxNumRetries {
-				tracing.RecordError(span, err, "error retrying flaps call")
-				return nil, err
+				if numRetries >= maxNumRetries {
+					tracing.RecordError(span, err, "error retrying flaps call")
+					return nil, err
+				}
+				time.Sleep(1 * time.Second)
+				continue
+			} else {
+				span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
 			}
-			time.Sleep(1 * time.Second)
-		} else {
-			tracing.RecordError(span, err, "error retrying flaps call")
-			return nil, err
 		}
+
+		tracing.RecordError(span, err, "error retrying flaps call")
+		return nil, err
 
 	}
 }
