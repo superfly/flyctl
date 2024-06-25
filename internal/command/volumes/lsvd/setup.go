@@ -8,9 +8,9 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	extensions "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -25,6 +25,7 @@ func newSetup() *cobra.Command {
 	flag.Add(
 		cmd,
 		flag.App(),
+		flag.AppConfig(),
 	)
 	return cmd
 }
@@ -40,8 +41,9 @@ func runSetup(ctx context.Context) error {
 	}
 
 	var (
-		haveKeyID = false
-		haveKey   = true
+		haveKeyID  = false
+		haveKey    = false
+		haveBucket = false
 
 		newSecrets      = make(map[string]string)
 		existingSecrets []string
@@ -61,13 +63,16 @@ func runSetup(ctx context.Context) error {
 		switch secret.Name {
 		case "AWS_ACCESS_KEY_ID":
 			haveKeyID = true
-			existingSecrets = append(existingSecrets, secret.Name)
 		case "AWS_SECRET_ACCESS_KEY":
 			haveKey = true
-			existingSecrets = append(existingSecrets, secret.Name)
-		case "AWS_REGION", "FLY_LSVD_S3_ENDPOINT", "FLY_LSVD_S3_BUCKET", "FLY_LSVD_DEVICE_SIZE", "FLY_LSVD_MOUNT_POINT":
-			existingSecrets = append(existingSecrets, secret.Name)
+		case "FLY_LSVD_S3_BUCKET", "BUCKET_NAME":
+			haveBucket = true
+		case "FLY_LSVD_S3_ENDPOINT", "AWS_ENDPOINT_URL_S3":
+		case "AWS_REGION", "FLY_LSVD_DEVICE_SIZE", "FLY_LSVD_MOUNT_POINT":
+		default:
+			continue
 		}
+		existingSecrets = append(existingSecrets, secret.Name)
 	}
 
 	if len(existingSecrets) > 0 {
@@ -99,8 +104,7 @@ func runSetup(ctx context.Context) error {
 	fmt.Fprint(
 		io.Out,
 		"\nTo begin, you'll need to have a bucket on an S3-compatible object\n"+
-			"storage service and an access key ID/secret access key pair that can\n"+
-			"access it. Once these are ready, enter the required information here.\n\n",
+			"storage service and credentials that can access it.\n\n",
 	)
 
 	reuseCreds := false
@@ -111,46 +115,59 @@ func runSetup(ctx context.Context) error {
 			return err
 		}
 	}
+
 	if !reuseCreds {
-		if err := prompt.String(ctx, &keyID, "Enter your access key ID:", "", true); err != nil {
+		serviceTypeOptions := []string{"Tigris", "Amazon S3", "Another S3-compatible service"}
+		if err := prompt.Select(ctx, &serviceType, "Which service are you using?", serviceTypeOptions[0], serviceTypeOptions...); err != nil {
 			return err
 		}
-		if err := prompt.Password(ctx, &key, "Enter your secret access key:", true); err != nil {
-			return err
+
+		if serviceTypeOptions[serviceType] != "Tigris" {
+			if err := prompt.String(ctx, &keyID, "Enter your access key ID:", "", true); err != nil {
+				return err
+			}
+			if err := prompt.Password(ctx, &key, "Enter your secret access key:", true); err != nil {
+				return err
+			}
+			newSecrets["AWS_ACCESS_KEY_ID"] = keyID
+			newSecrets["AWS_SECRET_ACCESS_KEY"] = key
 		}
-		newSecrets["AWS_ACCESS_KEY_ID"] = keyID
-		newSecrets["AWS_SECRET_ACCESS_KEY"] = key
+
+		switch serviceTypeOptions[serviceType] {
+		case "Tigris":
+			fmt.Fprintln(io.Out, "Creating a new Tigris bucket...")
+			// Creating a Tigris bucket sets the following secrets:
+			// AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_ENDPOINT_URL_S3, AWS_REGION, BUCKET_NAME
+			if err := createTigrisBucket(ctx, appName); err != nil {
+				return err
+			}
+			haveBucket = true
+		case "Amazon S3":
+			if err := prompt.String(ctx, &region, "Enter your bucket's region:", "", true); err != nil {
+				return err
+			}
+			newSecrets["AWS_REGION"] = region
+			deletedSecrets = append(deletedSecrets, "FLY_LSVD_S3_ENDPOINT", "AWS_ENDPOINT_URL_S3")
+		case "Another S3-compatible service":
+			if err := prompt.String(ctx, &endpoint, "Enter your S3-compatible service's endpoint URL:", "", true); err != nil {
+				return err
+			}
+			newSecrets["AWS_ENDPOINT_URL_S3"] = endpoint
+			deletedSecrets = append(deletedSecrets, "AWS_REGION", "FLY_LSVD_S3_ENDPOINT")
+		default:
+			return &flyerr.GenericErr{
+				Err:     "invalid option selected",
+				Suggest: "This is a bug. Please report this at https://github.com/superfly/flyctl/issues/new/choose",
+			}
+		}
 	}
 
-	serviceTypeOptions := []string{"Amazon S3", "Another S3-compatible service"}
-	if err := prompt.Select(ctx, &serviceType, "Which service are you using?", serviceTypeOptions[0], serviceTypeOptions...); err != nil {
-		return err
-	}
-
-	switch serviceType {
-	case 0: // Amazon S3
-		if err := prompt.String(ctx, &region, "Enter your bucket's region:", "", true); err != nil {
+	if !haveBucket {
+		if err := prompt.String(ctx, &bucket, "Enter your bucket's name:", "", true); err != nil {
 			return err
 		}
-		newSecrets["AWS_REGION"] = region
-		deletedSecrets = append(deletedSecrets, "FLY_LSVD_S3_ENDPOINT")
-	case 1: // Another S3-compatible service
-		if err := prompt.String(ctx, &endpoint, "Enter your S3-compatible service's endpoint URL:", "", true); err != nil {
-			return err
-		}
-		newSecrets["FLY_LSVD_S3_ENDPOINT"] = endpoint
-		deletedSecrets = append(deletedSecrets, "AWS_REGION")
-	default:
-		return &flyerr.GenericErr{
-			Err:     "invalid option selected",
-			Suggest: "This is a bug. Please report this at https://github.com/superfly/flyctl/issues/new/choose",
-		}
+		newSecrets["BUCKET_NAME"] = bucket
 	}
-
-	if err := prompt.String(ctx, &bucket, "Enter your bucket's name:", "", true); err != nil {
-		return err
-	}
-	newSecrets["FLY_LSVD_S3_BUCKET"] = bucket
 
 	fmt.Fprintln(
 		io.Out,
@@ -183,20 +200,31 @@ func runSetup(ctx context.Context) error {
 		deletedSecrets = append(deletedSecrets, "FLY_LSVD_MOUNT_POINT")
 	}
 
-	_, err = client.UnsetSecrets(ctx, appName, deletedSecrets)
-	if err != nil {
-		return err
+	if len(deletedSecrets) > 0 {
+		_, err = client.UnsetSecrets(ctx, appName, deletedSecrets)
+		if err != nil {
+			return err
+		}
 	}
 
-	_, err = client.SetSecrets(ctx, appName, newSecrets)
-	if err != nil {
-		return err
+	if len(newSecrets) > 0 {
+		_, err = client.SetSecrets(ctx, appName, newSecrets)
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintln(
 		io.Out,
-		"\nLSVD is configured! Now use the `--lsvd` flag with `fly machines run` to\n"+
-			"create an LSVD-enabled machine.",
+		"\nLSVD is configured! New machines will now be deployed with LSVD enabled.",
 	)
 	return nil
+}
+
+func createTigrisBucket(ctx context.Context, appName string) error {
+	_, err := extensions.ProvisionExtension(ctx, extensions.ExtensionParams{
+		Provider: "tigris",
+		AppName:  appName,
+	})
+	return err
 }
