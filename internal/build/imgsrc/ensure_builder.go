@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -66,11 +67,21 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 			span.AddEvent("builder machine not started, restarting")
 			flapsClient := flapsutil.ClientFromContext(ctx)
 
-			if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
-				ID: builderMachine.ID,
-			}, ""); err != nil {
-				tracing.RecordError(span, err, "error restarting builder machine")
-				return nil, nil, err
+			_, err := retryFlapsCall(ctx, 5, func() (*fly.Machine, error) {
+				err := flapsClient.Restart(ctx, fly.RestartMachineInput{
+					ID: builderMachine.ID,
+				}, "")
+				return nil, err
+			})
+
+			if err != nil {
+				if strings.Contains(err.Error(), "machine still restarting") {
+					// if the builder machine is starting, it's fine
+					return builderMachine, builderApp, nil
+				} else {
+					tracing.RecordError(span, err, "error restarting builder machine")
+					return nil, nil, err
+				}
 			}
 
 			return builderMachine, builderApp, nil
@@ -149,6 +160,8 @@ func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
 		return nil, NoBuilderApp
 	}
 
+	span.AddEvent(fmt.Sprintf("validating builder %s", app.Name))
+
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if _, err := validateBuilderVolumes(ctx, flapsClient); err != nil {
@@ -174,28 +187,13 @@ func validateBuilderVolumes(ctx context.Context, flapsClient flapsutil.FlapsClie
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_volumes")
 	defer span.End()
 
-	var volumes []fly.Volume
-	numRetries := 0
-
-	for {
-		var err error
-
-		volumes, err = flapsClient.GetVolumes(ctx)
-		if err == nil {
-			break
-		}
-
-		var flapsErr *flaps.FlapsError
-		// if it isn't a server error, no point in retrying
-		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
-			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
-			numRetries += 1
-
-			if numRetries >= 3 {
-				tracing.RecordError(span, err, "error getting volumes")
-				return nil, err
-			}
-			time.Sleep(1 * time.Second)
+	volumes, err := retryFlapsCall(ctx, 5, func() ([]fly.Volume, error) {
+		return flapsClient.GetVolumes(ctx)
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "App not found") || strings.Contains(err.Error(), "Could not find App") {
+			tracing.RecordError(span, NoBuilderApp, "no builder app")
+			return nil, NoBuilderApp
 		} else {
 			tracing.RecordError(span, err, "error getting volumes")
 			return nil, err
@@ -214,27 +212,13 @@ func validateBuilderMachines(ctx context.Context, flapsClient flapsutil.FlapsCli
 	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder_machines")
 	defer span.End()
 
-	var machines []*fly.Machine
-	numRetries := 0
-	for {
-		var err error
-
-		machines, err = flapsClient.List(ctx, "")
-		if err == nil {
-			break
-		}
-
-		var flapsErr *flaps.FlapsError
-		// if it isn't a server error, no point in retrying
-		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
-			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
-			numRetries += 1
-
-			if numRetries >= 3 {
-				tracing.RecordError(span, err, "error listing machines")
-				return nil, err
-			}
-			time.Sleep(1 * time.Second)
+	machines, err := retryFlapsCall(ctx, 5, func() ([]*fly.Machine, error) {
+		return flapsClient.List(ctx, "")
+	})
+	if err != nil {
+		if strings.Contains(err.Error(), "App not found") || strings.Contains(err.Error(), "Could not find App") {
+			tracing.RecordError(span, NoBuilderApp, "no builder app")
+			return nil, NoBuilderApp
 		} else {
 			tracing.RecordError(span, err, "error listing machines")
 			return nil, err
@@ -295,40 +279,26 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		}
 	}
 
-	retErr = flapsClient.WaitForApp(ctx, app.Name)
+	_, retErr = retryFlapsCall(ctx, 5, func() (*fly.Machine, error) {
+		err := flapsClient.WaitForApp(ctx, app.Name)
+		return nil, err
+	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error waiting for builder")
 		return nil, nil, fmt.Errorf("waiting for app %s: %w", app.Name, retErr)
 	}
 
-	var volume *fly.Volume
-	numRetries := 0
-	for {
-		volume, retErr = flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
+	volume, retErr := retryFlapsCall(ctx, 5, func() (*fly.Volume, error) {
+		return flapsClient.CreateVolume(ctx, fly.CreateVolumeRequest{
 			Name:                "machine_data",
 			SizeGb:              fly.IntPointer(50),
 			AutoBackupEnabled:   fly.BoolPointer(false),
 			ComputeRequirements: &guest,
 			Region:              region,
 		})
-		if retErr == nil {
-			break
-		}
-
-		var flapsErr *flaps.FlapsError
-		if errors.As(retErr, &flapsErr) && flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
-			span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
-			numRetries += 1
-
-			if numRetries >= 5 {
-				tracing.RecordError(span, retErr, "error creating volume")
-				return nil, nil, retErr
-			}
-			time.Sleep(1 * time.Second)
-		} else {
-			tracing.RecordError(span, retErr, "error creating volume")
-			return nil, nil, retErr
-		}
+	})
+	if retErr != nil {
+		return nil, nil, retErr
 	}
 
 	defer func() {
@@ -338,54 +308,56 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		}
 	}()
 
-	mach, retErr = flapsClient.Launch(ctx, fly.LaunchMachineInput{
-		Region: region,
-		Config: &fly.MachineConfig{
-			Env: map[string]string{
-				"ALLOW_ORG_SLUG": org.Slug,
-				"DATA_DIR":       "/data",
-				"LOG_LEVEL":      "debug",
-			},
-			Guest: &guest,
-			Mounts: []fly.MachineMount{
-				{
-					Path:   "/data",
-					Volume: volume.ID,
-					Name:   app.Name,
+	mach, retErr = retryFlapsCall(ctx, 5, func() (*fly.Machine, error) {
+		return flapsClient.Launch(ctx, fly.LaunchMachineInput{
+			Region: region,
+			Config: &fly.MachineConfig{
+				Env: map[string]string{
+					"ALLOW_ORG_SLUG": org.Slug,
+					"DATA_DIR":       "/data",
+					"LOG_LEVEL":      "debug",
 				},
-			},
-			Services: []fly.MachineService{
-				{
-					Protocol:           "tcp",
-					InternalPort:       8080,
-					Autostop:           fly.BoolPointer(false),
-					Autostart:          fly.BoolPointer(true),
-					MinMachinesRunning: fly.IntPointer(0),
-					Ports: []fly.MachinePort{
-						{
-							Port:       fly.IntPointer(80),
-							Handlers:   []string{"http"},
-							ForceHTTPS: true,
-							HTTPOptions: &fly.HTTPOptions{
-								H2Backend: fly.BoolPointer(true),
-							},
-						},
-						{
-							Port:     fly.IntPointer(443),
-							Handlers: []string{"http", "tls"},
-							TLSOptions: &fly.TLSOptions{
-								ALPN: []string{"h2"},
-							},
-							HTTPOptions: &fly.HTTPOptions{
-								H2Backend: fly.BoolPointer(true),
-							},
-						},
+				Guest: &guest,
+				Mounts: []fly.MachineMount{
+					{
+						Path:   "/data",
+						Volume: volume.ID,
+						Name:   app.Name,
 					},
-					ForceInstanceKey: nil,
 				},
+				Services: []fly.MachineService{
+					{
+						Protocol:           "tcp",
+						InternalPort:       8080,
+						Autostop:           fly.BoolPointer(false),
+						Autostart:          fly.BoolPointer(true),
+						MinMachinesRunning: fly.IntPointer(0),
+						Ports: []fly.MachinePort{
+							{
+								Port:       fly.IntPointer(80),
+								Handlers:   []string{"http"},
+								ForceHTTPS: true,
+								HTTPOptions: &fly.HTTPOptions{
+									H2Backend: fly.BoolPointer(true),
+								},
+							},
+							{
+								Port:     fly.IntPointer(443),
+								Handlers: []string{"http", "tls"},
+								TLSOptions: &fly.TLSOptions{
+									ALPN: []string{"h2"},
+								},
+								HTTPOptions: &fly.HTTPOptions{
+									H2Backend: fly.BoolPointer(true),
+								},
+							},
+						},
+						ForceInstanceKey: nil,
+					},
+				},
+				Image: lo.Ternary(org.RemoteBuilderImage != "", org.RemoteBuilderImage, "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"),
 			},
-			Image: lo.Ternary(org.RemoteBuilderImage != "", org.RemoteBuilderImage, "docker-hub-mirror.fly.io/flyio/rchab:sha-9346699"),
-		},
+		})
 	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error launching builder machine")
@@ -393,4 +365,38 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 	}
 
 	return
+}
+
+func retryFlapsCall[T *fly.Machine | *fly.Volume | []fly.Volume | []*fly.Machine](ctx context.Context, maxNumRetries int, flapsCallFn func() (T, error)) (returnValue T, err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "retry_flaps_call")
+	defer span.End()
+
+	numRetries := 0
+	for {
+		returnValue, err = flapsCallFn()
+		if err == nil {
+			return
+		}
+
+		var flapsErr *flaps.FlapsError
+		if errors.As(err, &flapsErr) {
+			span.AddEvent(fmt.Sprintf("server error %d", flapsErr.ResponseStatusCode))
+			if flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 {
+				numRetries += 1
+
+				if numRetries >= maxNumRetries {
+					tracing.RecordError(span, err, "error retrying flaps call")
+					return nil, err
+				}
+				time.Sleep(1 * time.Second)
+				continue
+			} else {
+				span.AddEvent(fmt.Sprintf("non-server error %d", flapsErr.ResponseStatusCode))
+			}
+		}
+
+		tracing.RecordError(span, err, "error retrying flaps call")
+		return nil, err
+
+	}
 }
