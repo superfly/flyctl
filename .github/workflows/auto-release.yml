@@ -3,6 +3,10 @@ name: Automatically release a new version of flyctl
 on:
   schedule:
     - cron: "0 19 * * MON-THU" # Runs at 3 PM Eastern Daylight Time Monday Through Thursday (8 PM UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run_script:
