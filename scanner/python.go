@@ -134,7 +134,6 @@ func readLines(filename string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
 
 	var lines []string
 	scanner := bufio.NewScanner(file)
@@ -144,7 +143,7 @@ func readLines(filename string) ([]string, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
-
+	file.Close()
 	return lines, nil
 }
 
@@ -205,8 +204,8 @@ func intoSource(cfg PyProjectCfg) (*SourceInfo, error) {
 	}
 }
 
-func configurePython(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if checksPass(sourceDir, fileExists("pyproject.toml", "poetry.lock")) {
+func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
+	if checksPass(sourceDir, fileExists("pyproject.toml")) && checksPass(sourceDir, fileExists("poetry.lock")) {
 		pyProject, err := readTomlFile("pyproject.toml")
 		if err != nil {
 			return nil, err
