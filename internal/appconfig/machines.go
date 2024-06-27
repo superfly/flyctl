@@ -347,6 +347,9 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig.Guest = guest
 	}
 
+	// Schedule
+	mConfig.Schedule = c.Schedules[processGroup]
+
 	// Restart Policy
 	mConfig.Restart = nil
 

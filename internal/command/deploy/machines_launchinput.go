@@ -202,8 +202,11 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 // Skip launching currently-stopped machines if:
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
+// * it is a scheduled machine
 func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 	switch {
+	case mConfig.Schedule != "":
+		return true
 	case origMachineRaw.State == fly.MachineStateStarted:
 		return false
 	case len(mConfig.Standbys) > 0:
