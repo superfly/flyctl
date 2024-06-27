@@ -52,10 +52,10 @@ func runMachineStart(ctx context.Context) (err error) {
 	}
 
 	machines, release, err := mach.AcquireLeases(ctx, machines)
+	defer release()
 	if err != nil {
 		return err
 	}
-	defer release()
 
 	for _, machine := range machines {
 		if err = Start(ctx, machine); err != nil {
