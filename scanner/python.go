@@ -111,16 +111,52 @@ func fromPyProject(pyProject map[string]interface{}) (PyProjectCfg, error) {
 	return PyProjectCfg{pyVersion, appName, depList}, nil
 }
 
+func readLines(filename string) ([]string, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return lines, nil
+}
+
+func fromRequirementsTxt(deps []string, sourceDir string) (PyProjectCfg, error) {
+	// Parse requirements.txt or requirements.in
+	var depList []PyApp
+	for _, dep := range deps {
+		dep := parsePyDep(dep)
+		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
+			depList = append(depList, PyApp(dep))
+		}
+	}
+	pyVersion, _, err := extractPythonVersion()
+	if err != nil {
+		return PyProjectCfg{}, err
+	}
+	appName := filepath.Base(sourceDir)
+	return PyProjectCfg{pyVersion, appName, depList}, nil
+}
+
 func intoSource(cfg PyProjectCfg) (*SourceInfo, error) {
 	vars := make(map[string]interface{})
 	vars["pyVersion"] = cfg.pyVersion
 	vars["appName"] = cfg.appName
 
 	if len(cfg.supportedApps) == 0 {
-		terminal.Warn("No supported Python frameworks found in your pyproject.toml")
+		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
 	} else if len(cfg.supportedApps) > 1 {
-		terminal.Warn("Multiple supported Python frameworks found in your pyproject.toml")
+		terminal.Warn("Multiple supported Python frameworks found")
 		return nil, nil
 	} else if slices.Contains(cfg.supportedApps, FastAPI) {
 		return &SourceInfo{
@@ -151,33 +187,48 @@ func intoSource(cfg PyProjectCfg) (*SourceInfo, error) {
 	}
 }
 
-func configurePyProject(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	if !checksPass(sourceDir, fileExists("pyproject.toml")) {
-		return nil, nil
-	}
-	pyProject, err := readTomlFile("pyproject.toml")
-	if err != nil {
-		return nil, err
-	}
-	if checksPass(sourceDir, fileExists("poetry.lock")) {
+func configurePython(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
+	if checksPass(sourceDir, fileExists("pyproject.toml", "poetry.lock")) {
+		pyProject, err := readTomlFile("pyproject.toml")
+		if err != nil {
+			return nil, err
+		}
 		cfg, err := fromPoetry(pyProject)
 		if err != nil {
 			return nil, err
 		}
 		return intoSource(cfg)
-
-	} else {
+	} else if checksPass(sourceDir, fileExists("pyproject.toml")) {
+		pyProject, err := readTomlFile("pyproject.toml")
+		if err != nil {
+			return nil, err
+		}
 		cfg, err := fromPyProject(pyProject)
 		if err != nil {
 			return nil, err
 		}
 		return intoSource(cfg)
-	}
-}
-
-func configurePython(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
-	// using 'poetry.lock' as an indicator instead of 'pyproject.toml', as Paketo doesn't support PEP-517 implementations
-	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
+	} else if checksPass(sourceDir, fileExists("requirements.txt")) {
+		deps, err := readLines("requirements.txt")
+		if err != nil {
+			return nil, err
+		}
+		cfg, err := fromRequirementsTxt(deps, sourceDir)
+		if err != nil {
+			return nil, err
+		}
+		return intoSource(cfg)
+	} else if checksPass(sourceDir, fileExists("requirements.in")) {
+		deps, err := readLines("requirements.in")
+		if err != nil {
+			return nil, err
+		}
+		cfg, err := fromRequirementsTxt(deps, sourceDir)
+		if err != nil {
+			return nil, err
+		}
+		return intoSource(cfg)
+	} else if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
 		return nil, nil
 	}
 
