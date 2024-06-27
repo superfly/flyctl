@@ -56,7 +56,7 @@ func runCreate(ctx context.Context) error {
 	name = flag.FirstArg(ctx)
 
 	if user.EnablePaidHobby {
-		fmt.Fprintf(io.Out, "New organizations start on the $5/mo Hobby Plan.\n\n")
+		fmt.Fprintf(io.Out, "New organizations start on the Pay As You Go plan.\n\n")
 
 		if name == "" {
 			confirmed, err := prompt.Confirm(ctx, "Do you still want to create the organization?")
