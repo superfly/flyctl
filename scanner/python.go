@@ -111,6 +111,24 @@ func fromPyProject(pyProject map[string]interface{}) (PyProjectCfg, error) {
 	return PyProjectCfg{pyVersion, appName, depList}, nil
 }
 
+func fromPipfile(pipfile map[string]interface{}, sourceDir string) (PyProjectCfg, error) {
+	// Parse Pipfile
+	deps := pipfile["packages"].(map[string]interface{})
+	var depList []PyApp
+	for dep := range deps {
+		dep := parsePyDep(dep)
+		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
+			depList = append(depList, PyApp(dep))
+		}
+	}
+	pyVersion, _, err := extractPythonVersion()
+	if err != nil {
+		return PyProjectCfg{}, err
+	}
+	appName := filepath.Base(sourceDir)
+	return PyProjectCfg{pyVersion, appName, depList}, nil
+}
+
 func readLines(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -204,6 +222,16 @@ func configurePython(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 			return nil, err
 		}
 		cfg, err := fromPyProject(pyProject)
+		if err != nil {
+			return nil, err
+		}
+		return intoSource(cfg)
+	} else if checksPass(sourceDir, fileExists("Pipfile", "Pipfile.lock")) {
+		pipfile, err := readTomlFile("Pipfile")
+		if err != nil {
+			return nil, err
+		}
+		cfg, err := fromPipfile(pipfile, sourceDir)
 		if err != nil {
 			return nil, err
 		}
