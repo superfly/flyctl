@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -52,6 +51,11 @@ connects to the first Machine address returned by an internal DNS query on the a
 			Shorthand:   "b",
 			Default:     "127.0.0.1",
 			Description: "Local address to bind to",
+		},
+		flag.Bool{
+			Name:        "watch-stdin",
+			Default:     false,
+			Description: "Watches stdin and terminates once it gets closed",
 		},
 	)
 
@@ -134,7 +138,9 @@ func run(ctx context.Context) (err error) {
 		params.RemoteHost = fmt.Sprintf("%s.internal", appName)
 	}
 
-	watchStdinAndAbortOnClose(ctx)
+	if flag.GetBool(ctx, "watch-stdin") {
+		ctx = watchStdinAndAbortOnClose(ctx)
+	}
 
 	return proxy.Connect(ctx, params)
 }
@@ -149,7 +155,9 @@ func run(ctx context.Context) (err error) {
 // Note that we don't do this when stdin is TTY, because that prevents
 // the process from being moved to a background job on Unix.
 // See https://github.com/brunch/brunch/issues/998.
-func watchStdinAndAbortOnClose(ctx context.Context) {
+func watchStdinAndAbortOnClose(ctx context.Context) context.Context {
+	ctx, cancel := context.WithCancelCause(ctx)
+
 	ios := iostreams.FromContext(ctx)
 
 	if !ios.IsStdinTTY() {
@@ -160,11 +168,13 @@ func watchStdinAndAbortOnClose(ctx context.Context) {
 			for {
 				_, err := ios.In.Read(buffer)
 				if err == io.EOF {
-					os.Exit(0)
+					cancel(nil)
 				} else if err != nil {
-					os.Exit(1)
+					cancel(err)
 				}
 			}
 		}()
 	}
+
+	return ctx
 }
