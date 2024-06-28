@@ -151,30 +151,24 @@ func run(ctx context.Context) (err error) {
 // terminate it, however the stdin is always closed whtn the parent
 // terminates. This way we make sure there are no zombie processes,
 // especially that they hold onto TCP ports.
-//
-// Note that we don't do this when stdin is TTY, because that prevents
-// the process from being moved to a background job on Unix.
-// See https://github.com/brunch/brunch/issues/998.
 func watchStdinAndAbortOnClose(ctx context.Context) context.Context {
 	ctx, cancel := context.WithCancelCause(ctx)
 
 	ios := iostreams.FromContext(ctx)
 
-	if !ios.IsStdinTTY() {
-		go func() {
-			// We don't expect any input, but if there is one, we ignore it
-			// to avoid allocating space unnecessarily
-			buffer := make([]byte, 1)
-			for {
-				_, err := ios.In.Read(buffer)
-				if err == io.EOF {
-					cancel(nil)
-				} else if err != nil {
-					cancel(err)
-				}
+	go func() {
+		// We don't expect any input, but if there is one, we ignore it
+		// to avoid allocating space unnecessarily
+		buffer := make([]byte, 1)
+		for {
+			_, err := ios.In.Read(buffer)
+			if err == io.EOF {
+				cancel(nil)
+			} else if err != nil {
+				cancel(err)
 			}
-		}()
-	}
+		}
+	}()
 
 	return ctx
 }
