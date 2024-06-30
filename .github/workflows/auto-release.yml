@@ -3,6 +3,10 @@ name: Automatically release a new version of flyctl
 on:
   schedule:
     - cron: "0 19 * * MON-THU" # Runs at 3 PM Eastern Daylight Time Monday Through Thursday (8 PM UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run_script:
@@ -19,4 +23,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           WITH_V: true
-          DEFAULT_BUMP: "minor"
+          DEFAULT_BUMP: "patch"

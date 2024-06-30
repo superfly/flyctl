@@ -56,6 +56,12 @@ func (state *launchState) Launch(ctx context.Context) error {
 	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
 	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
 
+	// TODO: ideally this would be passed as a part of the plan to the Launch UI
+	// and allow choices of what actions are desired to be make there.
+	if state.sourceInfo != nil && state.sourceInfo.GitHubActions.Deploy {
+		state.setupGitHubActions(ctx, app.Name)
+	}
+
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
 		return err
 	}

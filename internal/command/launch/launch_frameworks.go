@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
@@ -20,6 +21,57 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
+
+func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
+	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
+
+	if state.sourceInfo.GitHubActions.Secrets {
+		gh, err := exec.LookPath("gh")
+
+		if err != nil {
+			fmt.Println("Run `fly tokens create deploy -x 999999h` to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+			fmt.Println("See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+		} else {
+			apiClient := flyutil.ClientFromContext(ctx)
+
+			expiry := "999999h"
+
+			app, err := apiClient.GetAppCompact(ctx, appName)
+			if err != nil {
+				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			}
+
+			resp, err := gql.CreateLimitedAccessToken(
+				ctx,
+				apiClient.GenqClient(),
+				appName,
+				app.Organization.ID,
+				"deploy",
+				&gql.LimitedAccessTokenOptions{
+					"app_id": app.ID,
+				},
+				expiry,
+			)
+			if err != nil {
+				return fmt.Errorf("failed creating token: %w", err)
+			} else {
+				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+				fmt.Println(token)
+
+				fmt.Println("Setting FLY_API_TOKEN secret in GitHub repository settings")
+				cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
+				cmd.Stdin = strings.NewReader(token)
+				err = cmd.Run()
+
+				if err != nil {
+					return fmt.Errorf("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
 
 // satisfyScannerBeforeDb performs operations that the scanner requests that must be done before databases are created
 func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {

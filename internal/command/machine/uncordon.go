@@ -47,10 +47,10 @@ func runMachineUncordon(ctx context.Context) (err error) {
 	}
 
 	machines, release, err := mach.AcquireLeases(ctx, machines)
+	defer release()
 	if err != nil {
 		return err
 	}
-	defer release()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
