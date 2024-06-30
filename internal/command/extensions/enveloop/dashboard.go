@@ -12,7 +12,7 @@ import (
 
 func dashboard() (cmd *cobra.Command) {
 	const (
-		long = `Visit the Enveloop dashboard on the Upstash web console`
+		long = `Open the Enveloop dashboard via your web browser`
 
 		short = long
 		usage = "dashboard"
@@ -39,5 +39,5 @@ func runDashboard(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	return extensions_core.OpenDashboard(ctx, extension.Name)
+	return extensions_core.OpenDashboard(ctx, extension.Name, gql.AddOnTypeEnveloop)
 }

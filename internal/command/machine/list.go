@@ -125,11 +125,33 @@ func runMachineList(ctx context.Context) (err error) {
 				note = "*"
 			}
 
+			checksTotal := 0
+			checksPassing := 0
+			role := ""
+			for _, c := range machine.Checks {
+				checksTotal += 1
+
+				if c.Status == "passing" {
+					checksPassing += 1
+				}
+
+				if c.Name == "role" {
+					role = c.Output
+				}
+			}
+
+			checksSummary := ""
+			if checksTotal > 0 {
+				checksSummary = fmt.Sprintf("%d/%d", checksPassing, checksTotal)
+			}
+
 			rows = append(rows, []string{
 				machine.ID + note,
 				machine.Name,
 				machine.State,
+				lo.Ternary(unreachable, "", checksSummary),
 				machine.Region,
+				role,
 				lo.Ternary(unreachable, "", machine.ImageRefWithVersion()),
 				lo.Ternary(unreachable, "", machine.PrivateIP),
 				volName,
@@ -139,10 +161,26 @@ func runMachineList(ctx context.Context) (err error) {
 				machineProcessGroup,
 				size,
 			})
-
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
+		headers := []string{
+			"ID",
+			"Name",
+			"State",
+			"Checks",
+			"Region",
+			"Role",
+			"Image",
+			"IP Address",
+			"Volume",
+			"Created",
+			"Last Updated",
+			"App Platform",
+			"Process Group",
+			"Size",
+		}
+
+		_ = render.Table(io.Out, appName, rows, headers...)
 		if unreachableMachines {
 			fmt.Fprintln(io.Out, "* These Machines' hosts could not be reached.")
 		}

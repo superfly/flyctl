@@ -9,14 +9,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
@@ -78,8 +76,7 @@ type MachineDeploymentArgs struct {
 
 type machineDeployment struct {
 	apiClient             flyutil.Client
-	gqlClient             graphql.Client
-	flapsClient           *flaps.Client
+	flapsClient           flapsutil.FlapsClient
 	io                    *iostreams.IOStreams
 	colorize              *iostreams.ColorScheme
 	app                   *fly.AppCompact
@@ -116,7 +113,7 @@ type machineDeployment struct {
 	volumeInitialSize     int
 }
 
-func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
+func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
 
@@ -142,13 +139,17 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.AppCompact == nil {
 		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
 	}
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: args.AppCompact,
-		AppName:    args.AppCompact.Name,
-	})
-	if err != nil {
-		tracing.RecordError(span, err, "failed to init flaps client")
-		return nil, err
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppCompact: args.AppCompact,
+			AppName:    args.AppCompact.Name,
+		})
+		if err != nil {
+			tracing.RecordError(span, err, "failed to init flaps client")
+			return nil, err
+		}
 	}
 
 	if appConfig.Deploy != nil {
@@ -207,7 +208,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 
 	md := &machineDeployment{
 		apiClient:             apiClient,
-		gqlClient:             apiClient.GenqClient(),
 		flapsClient:           flapsClient,
 		io:                    io,
 		colorize:              io.ColorScheme(),
@@ -483,7 +483,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				if len(missing) > 0 {
 					// TODO: May change this by a prompt to create new volumes right away (?)
 					return fmt.Errorf(
-						"Process group '%s' needs volumes with name '%s' to fullfill mounts defined in fly.toml; "+
+						"Process group '%s' needs volumes with name '%s' to fulfill mounts defined in fly.toml; "+
 							"Run `fly volume create %s -r REGION -n COUNT` for the following regions and counts: %s",
 						groupName, volSrc, volSrc, strings.Join(missing, " "),
 					)
@@ -509,7 +509,7 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
 		return nil
 	}
-	latestImg, err := md.latestImage(ctx)
+	latestImg, err := md.apiClient.LatestImage(ctx, md.app.Name)
 	if err == nil {
 		md.img = latestImg
 		return nil
@@ -519,28 +519,6 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 		return nil
 	}
 	return fmt.Errorf("could not find image to use for deployment; backend error was: %w", err)
-}
-
-func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
-	_ = `# @genqlient
-	       query FlyctlDeployGetLatestImage($appName:String!) {
-	               app(name:$appName) {
-	                       currentReleaseUnprocessed {
-	                               id
-	                               version
-	                               imageRef
-	                       }
-	               }
-	       }
-	      `
-	resp, err := gql.FlyctlDeployGetLatestImage(ctx, md.gqlClient, md.app.Name)
-	if err != nil {
-		return "", err
-	}
-	if resp.App.CurrentReleaseUnprocessed.ImageRef == "" {
-		return "", fmt.Errorf("current release not found for app %s", md.app.Name)
-	}
-	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
 }
 
 func (md *machineDeployment) setStrategy() error {
@@ -555,24 +533,13 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
 	defer span.End()
 
-	_ = `# @genqlient
-	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
-		createRelease(input:$input) {
-			release {
-				id
-				version
-			}
-		}
-	}
-	`
-	input := gql.CreateReleaseInput{
+	resp, err := md.apiClient.CreateRelease(ctx, fly.CreateReleaseInput{
 		AppId:           md.app.Name,
 		PlatformVersion: "machines",
-		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
+		Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig,
 		Image:           md.img,
-	}
-	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
+	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
 		return err
@@ -589,20 +556,10 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	))
 	defer span.End()
 
-	_ = `# @genqlient
-	mutation MachinesUpdateRelease($input:UpdateReleaseInput!) {
-		updateRelease(input:$input) {
-			release {
-				id
-			}
-		}
-	}
-	`
-	input := gql.UpdateReleaseInput{
+	_, err := md.apiClient.UpdateRelease(ctx, fly.UpdateReleaseInput{
 		ReleaseId: md.releaseId,
 		Status:    status,
-	}
-	_, err := gql.MachinesUpdateRelease(ctx, md.gqlClient, input)
+	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
 		return err

@@ -37,6 +37,7 @@ Machines REST fly.`
 		newMachineExec(),
 		newMachineCordon(),
 		newMachineUncordon(),
+		newSuspend(),
 	)
 
 	return cmd

@@ -596,6 +596,18 @@ This option may set DOCKER_HOST environment variable for the build container if 
 	}
 }
 
+func RecreateBuilder() Bool {
+	return Bool{
+		Name:        "recreate-builder",
+		Description: "Recreate the builder app, if it exists",
+		Default:     false,
+	}
+}
+
+func GetRecreateBuilder(ctx context.Context) bool {
+	return GetBool(ctx, "recreate-builder")
+}
+
 // BuildpacksVolume the host volume that will be mounted to the buildpacks build container
 const BuildpacksVolume = "buildpacks-volume"
 

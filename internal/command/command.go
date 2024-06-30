@@ -28,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -64,11 +65,13 @@ var commonPreparers = []preparers.Preparer{
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
 	startMetrics,
+	notifyStatuspageIncidents,
 }
 
 var authPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
+	notifyHostIssues,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -332,6 +335,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 // would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
+
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
@@ -357,11 +361,14 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
+		{"version"},
 		{"version", "upgrade"},
 		{"settings", "autoupdate"},
 	}) {
 		return ctx, nil
 	}
+
+	logger.FromContext(ctx).Debug("checking for updates...")
 
 	if !update.Check() {
 		return ctx, nil
@@ -502,6 +509,41 @@ func startMetrics(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	incidents.QueryStatuspageIncidents(ctx)
+
+	return ctx, nil
+}
+
+func notifyHostIssues(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "hosts", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	appCtx, err := LoadAppNameIfPresent(ctx)
+	if err == nil {
+		incidents.QueryHostIssues(appCtx)
+	}
+
+	return ctx, nil
+}
+
 func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 	metrics.Enabled = false
 	return ctx, nil
@@ -538,11 +580,16 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 			}
 
 			// Reload the config
+			logger.FromContext(ctx).Debug("reloading config after login")
 			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
 				return nil, err
 			}
 
+			// first reset the client
+			ctx = flyutil.NewContextWithClient(ctx, nil)
+
 			// Re-run the auth preparers to update the client with the new token
+			logger.FromContext(ctx).Debug("re-running auth preparers after login")
 			if ctx, err = prepare(ctx, authPreparers...); err != nil {
 				return nil, err
 			}

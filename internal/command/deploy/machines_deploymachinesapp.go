@@ -83,7 +83,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if !md.skipDNSChecks {
+	// no need to run dns checks if the deployment failed
+	if !md.skipDNSChecks && err == nil {
 		if err := md.checkDNS(ctx); err != nil {
 			terminal.Warnf("DNS checks failed: %v\n", err)
 		}
@@ -391,7 +392,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 			// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
 			// You can't really suggest changing regions in cases where you're not starting machines, so this is the
 			// best advice we can give.
-			descript = "Your machine never reached the state \"%s\"."
+			descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
 			suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
 		}
 
@@ -472,12 +473,13 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, updateEntries []*machineUpdateEntry) error {
 	bg := BlueGreenStrategy(md, updateEntries)
 	if err := bg.Deploy(ctx); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
-
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
 			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
+			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 			return rollbackErr
 		}
+
+		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
@@ -1071,6 +1073,8 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "check_dns")
 	defer span.End()
+	ctx, cancel := context.WithTimeout(ctx, time.Second*70)
+	defer cancel()
 
 	client := flyutil.ClientFromContext(ctx)
 	ipAddrs, err := client.GetIPAddresses(ctx, md.appConfig.AppName)

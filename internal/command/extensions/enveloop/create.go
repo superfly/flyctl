@@ -15,7 +15,7 @@ import (
 
 func create() (cmd *cobra.Command) {
 	const (
-		short = "Provision a Upstash Enveloop project"
+		short = "Provision an Enveloop project"
 		long  = short + "\n"
 	)
 

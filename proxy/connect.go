@@ -108,6 +108,10 @@ func NewServer(ctx context.Context, p *ConnectParams) (*Server, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		if localPort == "0" {
+			localPort = strconv.Itoa(listener.Addr().(*net.TCPAddr).Port)
+		}
 	} else {
 		// probably a unix path
 		addr, err := net.ResolveUnixAddr("unix", localPort)

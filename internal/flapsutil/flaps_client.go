@@ -43,6 +43,7 @@ type FlapsClient interface {
 	SetMetadata(ctx context.Context, machineID, key, value string) error
 	Start(ctx context.Context, machineID string, nonce string) (out *fly.MachineStartResponse, err error)
 	Stop(ctx context.Context, in fly.StopMachineInput, nonce string) (err error)
+	Suspend(ctx context.Context, machineID, nonce string) error
 	Uncordon(ctx context.Context, machineID string, nonce string) (err error)
 	Update(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error)
 	UpdateVolume(ctx context.Context, volumeId string, req fly.UpdateVolumeRequest) (*fly.Volume, error)

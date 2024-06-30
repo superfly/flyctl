@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/logrusorgru/aurora"
-	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
@@ -44,6 +43,7 @@ func New() (cmd *cobra.Command) {
 		flag.Region(),
 		flag.Org(),
 		flag.NoDeploy(),
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "generate-name",
 			Description: "Always generate a name for the app, without prompting",
@@ -189,6 +189,7 @@ func run(ctx context.Context) (err error) {
 
 	defer func() {
 		if err != nil {
+			tracing.RecordError(span, err, "launch failed")
 			status.Error = err.Error()
 
 			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
@@ -198,7 +199,7 @@ func run(ctx context.Context) (err error) {
 
 		status.TraceID = span.SpanContext().TraceID().String()
 		status.Duration = time.Since(startTime)
-		metrics.LaunchStatus(ctx, "launch", status)
+		metrics.LaunchStatus(ctx, status)
 	}()
 
 	if err := warnLegacyBehavior(ctx); err != nil {
@@ -270,12 +271,6 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if errors := recoverableErrors.build(); errors != "" {
-
-		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Yellow("The following problems must be fixed in the Launch UI:"), errors)
-		incompleteLaunchManifest = true
-	}
-
 	summary, err := state.PlanSummary(ctx)
 	if err != nil {
 		return err
@@ -293,14 +288,20 @@ func run(ctx context.Context) (err error) {
 		summary,
 	)
 
+	if errors := recoverableErrors.build(); errors != "" {
+
+		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
+		incompleteLaunchManifest = true
+	}
+
 	editInUi := false
 	if !flag.GetBool(ctx, "yes") {
-		message := lo.Ternary(
-			incompleteLaunchManifest,
-			"Would you like to continue in the web UI?",
-			"Do you want to tweak these settings before proceeding?",
-		)
-		editInUi, err = prompt.Confirm(ctx, message)
+		if incompleteLaunchManifest {
+			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
+		} else {
+			editInUi, err = prompt.Confirm(ctx, "Do you want to tweak these settings before proceeding?")
+		}
+
 		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err
 		}
