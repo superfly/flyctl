@@ -94,6 +94,7 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 		statics        []Static
 		mounts         []Mount
 		topLevelChecks map[string]*ToplevelCheck
+		restart        Restart
 	)
 	for k, v := range m.Machine().Config.Env {
 		if k == "PRIMARY_REGION" || k == "FLY_PRIMARY_REGION" {
@@ -129,6 +130,16 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 			topLevelChecks[checkName] = topLevelCheckFromMachineCheck(ctx, machineCheck)
 		}
 	}
+
+	if m.Machine().Config.Restart != nil && m.Machine().Config.Restart.Policy != "" {
+		restart = Restart{
+			Policy:     RestartPolicy(m.Machine().Config.Restart.Policy),
+			MaxRetries: m.Machine().Config.Restart.MaxRetries,
+			Processes: []string{
+				m.Machine().Config.ProcessGroup(),
+			},
+		}
+	}
 	cfg := NewConfig()
 	cfg.AppName = appName
 	cfg.PrimaryRegion = primaryRegion
@@ -141,6 +152,7 @@ fly.toml only supports one mount per machine at this time. These mounts will be 
 	cfg.Processes = processGroups.processes
 	cfg.Checks = topLevelChecks
 	cfg.Services = processGroups.services
+	cfg.Restart = []Restart{restart}
 	return cfg, warningMsg
 }
 
