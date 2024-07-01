@@ -77,6 +77,11 @@ func New() (cmd *cobra.Command) {
 			Description: "A github repo URL to use as a template for the new app",
 		},
 		flag.Bool{
+			Name:        "submodules",
+			Description: "Used in conjunction with the `--from` flag, recursively clone git submodules in the template repo",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
 			Hidden:      true,
@@ -144,6 +149,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 	if from == "" {
 		return ctx, nil
 	}
+	submodules := flag.GetBool(ctx, "submodules")
 
 	entries, err := os.ReadDir(".")
 	if err != nil {
@@ -155,7 +161,11 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", from, ".")
+	cmdArgs := []string{"clone", from, "."}
+	if submodules {
+		cmdArgs = append(cmdArgs, "--recurse-submodules")
+	}
+	cmd := exec.Command("git", cmdArgs...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
