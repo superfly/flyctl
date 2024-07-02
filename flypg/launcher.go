@@ -497,9 +497,12 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
-		BarmanSecretName:    config.BarmanSecret,
 	}
 
+	if config.BarmanSecret != "" {
+		secrets[BarmanSecretName] = config.BarmanSecret
+	}
+	
 	if config.Manager == ReplicationManager {
 		pub, priv, err := ed25519.GenerateKey(nil)
 		if err != nil {
