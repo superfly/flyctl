@@ -26,6 +26,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(
 		newAttach(),
+		newBackup(),
 		newConfig(),
 		newConnect(),
 		newCreate(),
