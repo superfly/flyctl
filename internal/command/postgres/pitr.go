@@ -2,20 +2,15 @@ package postgres
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
+
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
-	mach "github.com/superfly/flyctl/internal/machine"
 )
 
 func newPitr() *cobra.Command {
@@ -54,7 +49,7 @@ func newPitrEnable() *cobra.Command {
 
 func isPitrEnabled(ctx context.Context, appName string) (bool, error) {
 	var (
-		client  = flyutil.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
 	secrets, err := client.GetAppSecrets(ctx, appName)
@@ -63,7 +58,7 @@ func isPitrEnabled(ctx context.Context, appName string) (bool, error) {
 	}
 
 	for _, secret := range secrets {
-		if secret.Name == "BARMAN_ENABLED" {
+		if secret.Name == flypg.BarmanSecretName {
 			return true, nil
 		}
 	}
@@ -86,12 +81,12 @@ func runPitrEnable(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
+	// flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+	// AppName: appName,
+	// })
+	// if err != nil {
+	// 	return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	// }
 
 	enabled, err := isPitrEnabled(ctx, appName)
 	if err != nil {
@@ -106,6 +101,7 @@ func runPitrEnable(ctx context.Context) error {
 	pgInput := &flypg.CreateClusterInput{
 		AppName:      appName,
 		Organization: org,
+		PitrEnabled:  true,
 	}
 
 	err = flypg.CreateTigrisBucket(ctx, *pgInput)
@@ -113,35 +109,13 @@ func runPitrEnable(ctx context.Context) error {
 		return err
 	}
 
-	machines, err := flapsClient.List(ctx, "")
-	if err != nil {
+	secrets := map[string]string{
+		flypg.BarmanSecretName: pgInput.BarmanSecret,
+	}
+
+	if _, err := client.SetSecrets(ctx, appName, secrets); err != nil {
 		return err
 	}
-
-	for _, machine := range machines {
-		machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
-		defer releaseLeaseFunc()
-		if err != nil {
-			return err
-		}
-		input := &fly.LaunchMachineInput{
-			Name:   machine.Name,
-			Region: machine.Region,
-			Config: machine.Config,
-		}
-		input.Config.Env["BARMAN_ENABLED"] = pgInput.BarmanSecret
-		if err := mach.Update(ctx, machine, input); err != nil {
-			var timeoutErr mach.WaitTimeoutErr
-			if errors.As(err, &timeoutErr) {
-				return flyerr.GenericErr{
-					Err:      timeoutErr.Error(),
-					Descript: timeoutErr.Description(),
-					Suggest:  "Try increasing the --wait-timeout",
-				}
-			}
-			return err
-		}
-	}
-
+	// TODO: Update deployment with new secrets
 	return nil
 }

@@ -31,6 +31,7 @@ var (
 	CheckPathPg    = "/flycheck/pg"
 	CheckPathRole  = "/flycheck/role"
 	CheckPathVm    = "/flycheck/vm"
+	BarmanSecretName = "S3_ARCHIVE_CONFIG"
 )
 
 const (
@@ -496,7 +497,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
-		"BARMAN_ENABLED":    config.BarmanSecret,
+		BarmanSecretName:    config.BarmanSecret,
 	}
 
 	if config.Manager == ReplicationManager {
