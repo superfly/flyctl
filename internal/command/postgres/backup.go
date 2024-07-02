@@ -207,7 +207,7 @@ func runBackupList(ctx context.Context) error {
 	in := &fly.MachineExecRequest{
 		Cmd: "su postgres bash -c \"$(echo " + encodedCommand + " | base64 --decode)\"",
 	}
-	
+
 	out, err := flapsClient.Exec(ctx, machine.ID, in)
 	if err != nil {
 		return err

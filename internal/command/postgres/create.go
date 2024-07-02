@@ -275,14 +275,14 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      params.Name,
-		Organization: org,
-		ImageRef:     params.PostgresConfiguration.ImageRef,
-		Region:       region.Code,
-		Manager:      params.Manager,
-		Autostart:    params.Autostart,
-		ForkFrom:     params.ForkFrom,
-		BackupEnabled:  !flag.GetBool(ctx, "disable-backups"),
+		AppName:       params.Name,
+		Organization:  org,
+		ImageRef:      params.PostgresConfiguration.ImageRef,
+		Region:        region.Code,
+		Manager:       params.Manager,
+		Autostart:     params.Autostart,
+		ForkFrom:      params.ForkFrom,
+		BackupEnabled: !flag.GetBool(ctx, "disable-backups"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil

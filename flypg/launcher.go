@@ -58,7 +58,7 @@ type CreateClusterInput struct {
 	Autostart          bool
 	ScaleToZero        bool
 	ForkFrom           string
-	BackupEnabled        bool
+	BackupEnabled      bool
 	BarmanSecret       string
 }
 
@@ -502,7 +502,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 	if config.BarmanSecret != "" {
 		secrets[BarmanSecretName] = config.BarmanSecret
 	}
-	
+
 	if config.Manager == ReplicationManager {
 		pub, priv, err := ed25519.GenerateKey(nil)
 		if err != nil {
