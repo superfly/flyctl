@@ -32,6 +32,7 @@ func New() *cobra.Command {
 		newDb(),
 		newDetach(),
 		newList(),
+		newPitr(),
 		newRenewSSHCerts(),
 		newRestart(),
 		newUsers(),
