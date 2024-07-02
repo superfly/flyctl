@@ -57,7 +57,8 @@ type CreateClusterInput struct {
 	Autostart          bool
 	ScaleToZero        bool
 	ForkFrom           string
-	BarmanEnabled      string
+	PitrEnabled        bool
+	BarmanSecret       string
 }
 
 func NewLauncher(client flyutil.Client) *Launcher {
@@ -67,6 +68,10 @@ func NewLauncher(client flyutil.Client) *Launcher {
 }
 
 func CreateTigrisBucket(ctx context.Context, config CreateClusterInput) error {
+	if !config.PitrEnabled {
+		return nil
+	}
+	
 	var (
 		io = iostreams.FromContext(ctx)
 	)
@@ -128,7 +133,7 @@ func CreateTigrisBucket(ctx context.Context, config CreateClusterInput) error {
 
 	endpointUrl.User = url.UserPassword(accessKeyId, accessSecret)
 	endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
-	config.BarmanEnabled = endpointUrl.String()
+	config.BarmanSecret = endpointUrl.String()
 
 	return nil
 }
@@ -491,7 +496,7 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
-		"BARMAN_ENABLED":    config.BarmanEnabled,
+		"BARMAN_ENABLED":    config.BarmanSecret,
 	}
 
 	if config.Manager == ReplicationManager {

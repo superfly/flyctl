@@ -129,7 +129,7 @@ func runPitrEnable(ctx context.Context) error {
 			Region: machine.Region,
 			Config: machine.Config,
 		}
-		input.Config.Env["BARMAN_ENABLED"] = pgInput.BarmanEnabled
+		input.Config.Env["BARMAN_ENABLED"] = pgInput.BarmanSecret
 		if err := mach.Update(ctx, machine, input); err != nil {
 			var timeoutErr mach.WaitTimeoutErr
 			if errors.As(err, &timeoutErr) {
