@@ -157,7 +157,8 @@ func (r *gitRepo) currentTag(sha string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out), nil
+	outNoNL := strings.Split(out, "\n")
+	return strings.TrimSpace(outNoNL[len(outNoNL)-1]), nil
 }
 
 func (r *gitRepo) previousTagOnChannel(channel string, semverOnly bool) (string, error) {
