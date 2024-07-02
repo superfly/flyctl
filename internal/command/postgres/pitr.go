@@ -53,24 +53,17 @@ func newPitrEnable() *cobra.Command {
 }
 
 func isPitrEnabled(ctx context.Context, appName string) (bool, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
+	var (
+		client  = flyutil.ClientFromContext(ctx)
+	)
+
+	secrets, err := client.GetAppSecrets(ctx, appName)
 	if err != nil {
 		return false, err
 	}
 
-	machines, err := flapsClient.List(ctx, "")
-	if err != nil {
-		return false, err
-	}
-
-	for _, machine := range machines {
-		machine, err := flapsClient.Get(ctx, machine.ID)
-		if err != nil {
-			return false, err
-		}
-		if machine.Config.Env["BARMAN_ENABLED"] != "" {
+	for _, secret := range secrets {
+		if secret.Name == "BARMAN_ENABLED" {
 			return true, nil
 		}
 	}
