@@ -24,13 +24,13 @@ import (
 )
 
 var (
-	volumeName     = "pg_data"
-	volumePath     = "/data"
-	Duration10s, _ = time.ParseDuration("10s")
-	Duration15s, _ = time.ParseDuration("15s")
-	CheckPathPg    = "/flycheck/pg"
-	CheckPathRole  = "/flycheck/role"
-	CheckPathVm    = "/flycheck/vm"
+	volumeName       = "pg_data"
+	volumePath       = "/data"
+	Duration10s, _   = time.ParseDuration("10s")
+	Duration15s, _   = time.ParseDuration("15s")
+	CheckPathPg      = "/flycheck/pg"
+	CheckPathRole    = "/flycheck/role"
+	CheckPathVm      = "/flycheck/vm"
 	BarmanSecretName = "S3_ARCHIVE_CONFIG"
 )
 
@@ -72,7 +72,7 @@ func CreateTigrisBucket(ctx context.Context, config CreateClusterInput) error {
 	if !config.PitrEnabled {
 		return nil
 	}
-	
+
 	var (
 		io = iostreams.FromContext(ctx)
 	)

@@ -282,7 +282,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		Manager:      params.Manager,
 		Autostart:    params.Autostart,
 		ForkFrom:     params.ForkFrom,
-		PitrEnabled: !flag.GetBool(ctx, "disable-pitr"),
+		PitrEnabled:  !flag.GetBool(ctx, "disable-pitr"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
