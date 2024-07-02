@@ -13,27 +13,27 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
-func newPitr() *cobra.Command {
+func newBackup() *cobra.Command {
 	const (
-		short = "Point-in-time recovery commands"
+		short = "Backup commands"
 		long  = short + "\n"
 	)
 
-	cmd := command.New("pitr", short, long, nil)
+	cmd := command.New("backup", short, long, nil)
 
-	cmd.AddCommand(newPitrEnable())
+	cmd.AddCommand(newBackupEnable(), newBackupRestore())
 	return cmd
 }
 
-func newPitrEnable() *cobra.Command {
+func newBackupEnable() *cobra.Command {
 	const (
-		short = "Enable PITR on a Postgres cluster"
+		short = "Enable backups on a Postgres cluster"
 		long  = short + "\n"
 
 		usage = "enable"
 	)
 
-	cmd := command.New(usage, short, long, runPitrEnable,
+	cmd := command.New(usage, short, long, runBackupEnable,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -47,7 +47,7 @@ func newPitrEnable() *cobra.Command {
 	return cmd
 }
 
-func isPitrEnabled(ctx context.Context, appName string) (bool, error) {
+func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 	)
@@ -66,7 +66,7 @@ func isPitrEnabled(ctx context.Context, appName string) (bool, error) {
 	return false, nil
 }
 
-func runPitrEnable(ctx context.Context) error {
+func runBackupEnable(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
 		client  = flyutil.ClientFromContext(ctx)
@@ -88,7 +88,7 @@ func runPitrEnable(ctx context.Context) error {
 	// 	return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	// }
 
-	enabled, err := isPitrEnabled(ctx, appName)
+	enabled, err := isBackupEnabled(ctx, appName)
 	if err != nil {
 		return err
 	}
@@ -117,5 +117,31 @@ func runPitrEnable(ctx context.Context) error {
 		return err
 	}
 	// TODO: Update deployment with new secrets
+	return nil
+}
+
+func newBackupRestore() *cobra.Command {
+	const (
+		short = "Restore a Postgres cluster to a point-in-time"
+		long  = short + "\n"
+
+		usage = "restore"
+	)
+
+	cmd := command.New(usage, short, long, runBackupRestore,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	return cmd
+}
+
+func runBackupRestore(ctx context.Context) error {
 	return nil
 }
