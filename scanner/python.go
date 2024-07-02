@@ -5,8 +5,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode"
 
+	"github.com/pkg/errors"
+
+	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/exp/slices"
 )
@@ -21,7 +23,27 @@ const (
 
 var supportedApps = []PyApp{FastAPI, Flask, Streamlit}
 
-type PyProjectCfg struct {
+type PyProjectToml struct {
+	Project struct {
+		Name           string
+		Version        string
+		Dependencies   []string
+		RequiresPython string
+	}
+	Tool struct {
+		Poetry struct {
+			Name         string
+			Version      string
+			Dependencies map[string]interface{}
+		}
+	}
+}
+
+type Pipfile struct {
+	Packages map[string]interface{}
+}
+
+type PyCfg struct {
 	pyVersion     string
 	appName       string
 	supportedApps []PyApp
@@ -74,61 +96,6 @@ func parsePyDep(dep string) string {
 	return dep
 }
 
-func fromPoetry(pyProject map[string]interface{}) (PyProjectCfg, error) {
-	// Parse pyproject.toml managed with poetry
-	deps := pyProject["tool"].(map[string]interface{})["poetry"].(map[string]interface{})["dependencies"].(map[string]interface{})
-	var apps []PyApp
-	for dep := range deps {
-		if slices.Contains(supportedApps, PyApp(dep)) {
-			apps = append(apps, PyApp(dep))
-		}
-	}
-	pyVersion := deps["python"].(string)
-	pyVersion = strings.TrimPrefix(pyVersion, "^")
-	appName := pyProject["tool"].(map[string]interface{})["poetry"].(map[string]interface{})["name"].(string)
-
-	return PyProjectCfg{pyVersion, appName, apps}, nil
-}
-
-func fromPyProject(pyProject map[string]interface{}) (PyProjectCfg, error) {
-	// Parse pyproject.toml from pep 621 spec
-	project := pyProject["project"].(map[string]interface{})
-	deps := project["dependencies"].([]interface{})
-	var depList []PyApp
-	for _, dep := range deps {
-		dep := dep.(string)
-		dep = parsePyDep(dep)
-		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
-			depList = append(depList, PyApp(dep))
-		}
-	}
-	pyVersion := project["requires-python"].(string)
-	pyVersion = strings.TrimFunc(pyVersion, func(r rune) bool {
-		return !unicode.IsDigit(r) && r != '.'
-	})
-	appName := project["name"].(string)
-
-	return PyProjectCfg{pyVersion, appName, depList}, nil
-}
-
-func fromPipfile(pipfile map[string]interface{}, sourceDir string) (PyProjectCfg, error) {
-	// Parse Pipfile
-	deps := pipfile["packages"].(map[string]interface{})
-	var depList []PyApp
-	for dep := range deps {
-		dep := parsePyDep(dep)
-		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
-			depList = append(depList, PyApp(dep))
-		}
-	}
-	pyVersion, _, err := extractPythonVersion()
-	if err != nil {
-		return PyProjectCfg{}, err
-	}
-	appName := filepath.Base(sourceDir)
-	return PyProjectCfg{pyVersion, appName, depList}, nil
-}
-
 func readLines(filename string) ([]string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
@@ -147,24 +114,7 @@ func readLines(filename string) ([]string, error) {
 	return lines, nil
 }
 
-func fromRequirementsTxt(deps []string, sourceDir string) (PyProjectCfg, error) {
-	// Parse requirements.txt or requirements.in
-	var depList []PyApp
-	for _, dep := range deps {
-		dep := parsePyDep(dep)
-		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
-			depList = append(depList, PyApp(dep))
-		}
-	}
-	pyVersion, _, err := extractPythonVersion()
-	if err != nil {
-		return PyProjectCfg{}, err
-	}
-	appName := filepath.Base(sourceDir)
-	return PyProjectCfg{pyVersion, appName, depList}, nil
-}
-
-func intoSource(cfg PyProjectCfg) (*SourceInfo, error) {
+func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	vars := make(map[string]interface{})
 	vars["pyVersion"] = cfg.pyVersion
 	vars["appName"] = cfg.appName
@@ -204,58 +154,147 @@ func intoSource(cfg PyProjectCfg) (*SourceInfo, error) {
 	}
 }
 
-func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
-	if checksPass(sourceDir, fileExists("pyproject.toml")) && checksPass(sourceDir, fileExists("poetry.lock")) {
-		pyProject, err := readTomlFile("pyproject.toml")
+func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("poetry.lock")) || !checksPass(sourceDir, fileExists("pyproject.toml")) {
+		return nil, nil
+	}
+	doc, err := os.ReadFile("pyproject.toml")
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading pyproject.toml")
+	}
+
+	var pyProject PyProjectToml
+	if err := toml.Unmarshal(doc, &pyProject); err != nil {
+		return nil, errors.Wrap(err, "Error parsing pyproject.toml")
+	}
+	terminal.Info(pyProject)
+	deps := pyProject.Tool.Poetry.Dependencies
+	appName := pyProject.Tool.Poetry.Name
+
+	if deps == nil {
+		return nil, nil
+	}
+	var apps []PyApp
+
+	for dep := range deps {
+		if slices.Contains(supportedApps, PyApp(dep)) {
+			apps = append(apps, PyApp(dep))
+		}
+	}
+
+	pyVersion := deps["python"].(string)
+	pyVersion = strings.TrimPrefix(pyVersion, "^")
+	cfg := PyCfg{pyVersion, appName, apps}
+	return intoSource(cfg)
+}
+
+func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("pyproject.toml")) {
+		return nil, nil
+	}
+	doc, err := os.ReadFile("pyproject.toml")
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading pyproject.toml")
+	}
+	var pyProject PyProjectToml
+	if err := toml.Unmarshal(doc, &pyProject); err != nil {
+		return nil, errors.Wrap(err, "Error parsing pyproject.toml")
+	}
+	if pyProject.Tool.Poetry.Dependencies != nil {
+		return nil, nil
+	}
+	deps := pyProject.Project.Dependencies
+	var depList []PyApp
+	for _, dep := range deps {
+		dep := parsePyDep(dep)
+		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
+			depList = append(depList, PyApp(dep))
+		}
+	}
+	appName := pyProject.Project.Name
+	pyVersion := pyProject.Project.RequiresPython
+	cfg := PyCfg{pyVersion, appName, depList}
+	return intoSource(cfg)
+}
+
+func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
+	if !checksPass(sourceDir, fileExists("Pipfile", "Pipfile.lock")) {
+		return nil, nil
+	}
+	doc, err := os.ReadFile("Pipfile")
+	if err != nil {
+		return nil, errors.Wrap(err, "Error reading Pipfile")
+	}
+	var pipfile Pipfile
+	if err := toml.Unmarshal(doc, &pipfile); err != nil {
+		return nil, errors.Wrap(err, "Error parsing Pipfile")
+	}
+	deps := pipfile.Packages
+	var depList []PyApp
+	for dep := range deps {
+		dep := parsePyDep(dep)
+		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
+			depList = append(depList, PyApp(dep))
+		}
+	}
+	pyVersion, _, err := extractPythonVersion()
+	if err != nil {
+		return nil, err
+	}
+	appName := filepath.Base(sourceDir)
+	cfg := PyCfg{pyVersion, appName, depList}
+	return intoSource(cfg)
+}
+
+func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
+	var deps []string = nil
+	if checksPass(sourceDir, fileExists("requirements.txt")) {
+		req_deps, err := readLines("requirements.txt")
 		if err != nil {
 			return nil, err
 		}
-		cfg, err := fromPoetry(pyProject)
-		if err != nil {
-			return nil, err
-		}
-		return intoSource(cfg)
-	} else if checksPass(sourceDir, fileExists("pyproject.toml")) {
-		pyProject, err := readTomlFile("pyproject.toml")
-		if err != nil {
-			return nil, err
-		}
-		cfg, err := fromPyProject(pyProject)
-		if err != nil {
-			return nil, err
-		}
-		return intoSource(cfg)
-	} else if checksPass(sourceDir, fileExists("Pipfile", "Pipfile.lock")) {
-		pipfile, err := readTomlFile("Pipfile")
-		if err != nil {
-			return nil, err
-		}
-		cfg, err := fromPipfile(pipfile, sourceDir)
-		if err != nil {
-			return nil, err
-		}
-		return intoSource(cfg)
-	} else if checksPass(sourceDir, fileExists("requirements.txt")) {
-		deps, err := readLines("requirements.txt")
-		if err != nil {
-			return nil, err
-		}
-		cfg, err := fromRequirementsTxt(deps, sourceDir)
-		if err != nil {
-			return nil, err
-		}
-		return intoSource(cfg)
+		deps = req_deps
 	} else if checksPass(sourceDir, fileExists("requirements.in")) {
-		deps, err := readLines("requirements.in")
+		req_deps, err := readLines("requirements.in")
 		if err != nil {
 			return nil, err
 		}
-		cfg, err := fromRequirementsTxt(deps, sourceDir)
-		if err != nil {
-			return nil, err
+		deps = req_deps
+	}
+	var depList []PyApp
+	for _, dep := range deps {
+		dep := parsePyDep(dep)
+		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
+			depList = append(depList, PyApp(dep))
 		}
-		return intoSource(cfg)
-	} else if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
+	}
+	pyVersion, _, err := extractPythonVersion()
+	if err != nil {
+		return nil, err
+	}
+	appName := filepath.Base(sourceDir)
+	cfg := PyCfg{pyVersion, appName, depList}
+	return intoSource(cfg)
+}
+
+func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
+	src, err := configPoetry(sourceDir, nil)
+	if src != nil || err != nil {
+		return src, err
+	}
+	src, err = configPyProject(sourceDir, nil)
+	if src != nil || err != nil {
+		return src, err
+	}
+	src, err = configPipfile(sourceDir, nil)
+	if src != nil || err != nil {
+		return src, err
+	}
+	src, err = configRequirements(sourceDir, nil)
+	if src != nil || err != nil {
+		return src, err
+	}
+	if !checksPass(sourceDir, fileExists("requirements.txt", "environment.yml", "poetry.lock", "Pipfile", "setup.py", "setup.cfg")) {
 		return nil, nil
 	}
 
