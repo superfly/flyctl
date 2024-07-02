@@ -63,6 +63,10 @@ var sharedFlags = flag.Set{
 		Hidden:      true,
 	},
 	flag.Bool{
+		Name:        "build-depot",
+		Description: "Build your image with depot.dev",
+	},
+	flag.Bool{
 		Name:        "build-nixpacks",
 		Description: "Build your image with nixpacks",
 	},
