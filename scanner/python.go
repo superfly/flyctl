@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/pkg/errors"
 
@@ -28,7 +29,7 @@ type PyProjectToml struct {
 		Name           string
 		Version        string
 		Dependencies   []string
-		RequiresPython string
+		RequiresPython string `toml:"requires-python"`
 	}
 	Tool struct {
 		Poetry struct {
@@ -183,7 +184,7 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 
 	pyVersion := deps["python"].(string)
-	pyVersion = strings.TrimPrefix(pyVersion, "^")
+	pyVersion = parsePyDep(pyVersion)
 	cfg := PyCfg{pyVersion, appName, apps}
 	return intoSource(cfg)
 }
@@ -213,6 +214,9 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 	appName := pyProject.Project.Name
 	pyVersion := pyProject.Project.RequiresPython
+	pyVersion = strings.TrimFunc(pyVersion, func(r rune) bool {
+		return !unicode.IsDigit(r) && r != '.'
+	})
 	cfg := PyCfg{pyVersion, appName, depList}
 	return intoSource(cfg)
 }
