@@ -122,9 +122,10 @@ func (f File) toMachineFile() (*fly.File, error) {
 }
 
 type Static struct {
-	GuestPath    string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
-	UrlPrefix    string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
-	TigrisBucket string `toml:"tigris_bucket,omitempty" json:"tigris_bucket"`
+	GuestPath     string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
+	UrlPrefix     string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
+	TigrisBucket  string `toml:"tigris_bucket,omitempty" json:"tigris_bucket"`
+	IndexDocument string `toml:"index_document,omitempty" json:"index_document,omitempty"`
 }
 
 type Mount struct {

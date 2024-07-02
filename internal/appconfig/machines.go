@@ -303,9 +303,10 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 	mConfig.Statics = nil
 	for _, s := range c.Statics {
 		mConfig.Statics = append(mConfig.Statics, &fly.Static{
-			GuestPath:    s.GuestPath,
-			UrlPrefix:    s.UrlPrefix,
-			TigrisBucket: s.TigrisBucket,
+			GuestPath:     s.GuestPath,
+			UrlPrefix:     s.UrlPrefix,
+			TigrisBucket:  s.TigrisBucket,
+			IndexDocument: s.IndexDocument,
 		})
 	}
 
