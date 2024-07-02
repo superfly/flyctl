@@ -58,7 +58,7 @@ type CreateClusterInput struct {
 	Autostart          bool
 	ScaleToZero        bool
 	ForkFrom           string
-	PitrEnabled        bool
+	BackupEnabled        bool
 	BarmanSecret       string
 }
 
@@ -69,7 +69,7 @@ func NewLauncher(client flyutil.Client) *Launcher {
 }
 
 func CreateTigrisBucket(ctx context.Context, config CreateClusterInput) error {
-	if !config.PitrEnabled {
+	if !config.BackupEnabled {
 		return nil
 	}
 

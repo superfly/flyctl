@@ -21,8 +21,34 @@ func newBackup() *cobra.Command {
 
 	cmd := command.New("backup", short, long, nil)
 
-	cmd.AddCommand(newBackupEnable(), newBackupRestore())
+	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore())
 	return cmd
+}
+
+func newBackupCreate() *cobra.Command {
+	const (
+		short = "Create a backup"
+		long  = short + "\n"
+
+		usage = "create"
+	)
+
+	cmd := command.New(usage, short, long, runBackupCreate,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	return cmd
+}
+
+func runBackupCreate(ctx context.Context) error {
+	return nil
 }
 
 func newBackupEnable() *cobra.Command {
@@ -94,14 +120,18 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	if enabled {
-		return fmt.Errorf("PITR is already enabled.")
+		return fmt.Errorf("Backups are already enabled.")
 	}
 
 	org, err := client.GetOrganizationByApp(ctx, appName)
+	if err != nil {
+		return err
+	}
+
 	pgInput := &flypg.CreateClusterInput{
 		AppName:      appName,
 		Organization: org,
-		PitrEnabled:  true,
+		BackupEnabled:  true,
 	}
 
 	err = flypg.CreateTigrisBucket(ctx, *pgInput)
@@ -120,9 +150,35 @@ func runBackupEnable(ctx context.Context) error {
 	return nil
 }
 
+func newBackupList() *cobra.Command {
+	const (
+		short = "List backups"
+		long  = short + "\n"
+
+		usage = "list"
+	)
+
+	cmd := command.New(usage, short, long, runBackupList,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	return cmd
+}
+
+func runBackupList(ctx context.Context) error {
+	return nil
+}
+
 func newBackupRestore() *cobra.Command {
 	const (
-		short = "Restore a Postgres cluster to a point-in-time"
+		short = "Restore a backup"
 		long  = short + "\n"
 
 		usage = "restore"
