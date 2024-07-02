@@ -2,11 +2,16 @@ package postgres
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
@@ -129,12 +134,12 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	pgInput := &flypg.CreateClusterInput{
-		AppName:      appName,
-		Organization: org,
-		BackupEnabled:  true,
+		AppName:       appName,
+		Organization:  org,
+		BackupEnabled: true,
 	}
 
-	err = flypg.CreateTigrisBucket(ctx, *pgInput)
+	err = flypg.CreateTigrisBucket(ctx, pgInput)
 	if err != nil {
 		return err
 	}
@@ -173,6 +178,52 @@ func newBackupList() *cobra.Command {
 }
 
 func runBackupList(ctx context.Context) error {
+	var (
+		appName = appconfig.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+	)
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.List(ctx, "started")
+	if err != nil {
+		return err
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	machine := machines[0]
+
+	command := "barman-cloud-backup-list --cloud-provider aws-s3 --endpoint-url https://fly.storage.tigris.dev --profile barman s3://" + appName + " " + appName
+	encodedCommand := base64.StdEncoding.EncodeToString([]byte(command))
+
+	in := &fly.MachineExecRequest{
+		Cmd: "su postgres bash -c \"$(echo " + encodedCommand + " | base64 --decode)\"",
+	}
+	
+	out, err := flapsClient.Exec(ctx, machine.ID, in)
+	if err != nil {
+		return err
+	}
+
+	if out.ExitCode != 0 {
+		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
+	}
+
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
 	return nil
 }
 
