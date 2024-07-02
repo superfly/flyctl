@@ -26,7 +26,7 @@ func newBackup() *cobra.Command {
 
 	cmd := command.New("backup", short, long, nil)
 
-	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore())
+	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList())
 	return cmd
 }
 
@@ -48,9 +48,9 @@ func newBackupCreate() *cobra.Command {
 		flag.App(),
 		flag.AppConfig(),
 		flag.String{
-			Name:      "name",
+			Name:        "name",
 			Description: "Backup name",
-			Shorthand: "n",
+			Shorthand:   "n",
 		},
 	)
 
@@ -280,31 +280,5 @@ func runBackupList(ctx context.Context) error {
 		fmt.Fprint(io.ErrOut, out.StdErr)
 	}
 
-	return nil
-}
-
-func newBackupRestore() *cobra.Command {
-	const (
-		short = "Restore a backup"
-		long  = short + "\n"
-
-		usage = "restore"
-	)
-
-	cmd := command.New(usage, short, long, runBackupRestore,
-		command.RequireSession,
-		command.RequireAppName,
-	)
-
-	flag.Add(
-		cmd,
-		flag.App(),
-		flag.AppConfig(),
-	)
-
-	return cmd
-}
-
-func runBackupRestore(ctx context.Context) error {
 	return nil
 }
