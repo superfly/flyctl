@@ -1,5 +1,7 @@
 # flyctl
 
+<rubbish>
+
 flyctl is a command-line interface for fly.io
 
 Note: Most installations of `flyctl` also alias `flyctl` to `fly` as a command name and this will become the default name in the future.
