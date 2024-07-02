@@ -64,7 +64,7 @@ jobs:
           mkdir -p ./tmp
           ./scripts/changelog.sh > ./tmp/changelog.txt
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           version: latest
           args: release --clean --release-notes=./tmp/changelog.txt
