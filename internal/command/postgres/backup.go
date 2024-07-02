@@ -47,12 +47,68 @@ func newBackupCreate() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:      "name",
+			Description: "Backup name",
+			Shorthand: "n",
+		},
 	)
 
 	return cmd
 }
 
 func runBackupCreate(ctx context.Context) error {
+	var (
+		appName = appconfig.NameFromContext(ctx)
+		io      = iostreams.FromContext(ctx)
+	)
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	machine := machines[0]
+
+	command := "barman-cloud-backup --cloud-provider aws-s3 --endpoint-url https://fly.storage.tigris.dev --profile barman -z -h " + appName + ".internal -U repmgr"
+	name := flag.GetString(ctx, "name")
+	if name != "" {
+		command += " -n " + name
+	}
+	command += " s3://" + appName + " " + appName
+	encodedCommand := base64.StdEncoding.EncodeToString([]byte(command))
+
+	in := &fly.MachineExecRequest{
+		Cmd: "su postgres bash -c \"$(echo " + encodedCommand + " | base64 --decode)\"",
+	}
+
+	out, err := flapsClient.Exec(ctx, machine.ID, in)
+	if err != nil {
+		return err
+	}
+
+	if out.ExitCode != 0 {
+		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
+	}
+
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
 	return nil
 }
 
