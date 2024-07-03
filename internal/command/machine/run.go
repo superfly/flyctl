@@ -388,7 +388,7 @@ func runMachineRun(ctx context.Context) error {
 
 	machineConf, err = determineMachineConfig(ctx, &determineMachineConfigInput{
 		initialMachineConf: *machineConf,
-		appName:            app.Name,
+		app:                app,
 		imageOrPath:        imageOrPath,
 		region:             input.Region,
 		updating:           false,
@@ -621,7 +621,7 @@ func selectAppName(ctx context.Context) (name string, err error) {
 
 type determineMachineConfigInput struct {
 	initialMachineConf fly.MachineConfig
-	appName            string
+	app                *fly.AppCompact
 	imageOrPath        string
 	region             string
 	updating           bool
@@ -757,7 +757,7 @@ func determineMachineConfig(
 	}
 
 	if input.imageOrPath != "" {
-		img, err := command.DetermineImage(ctx, input.appName, input.imageOrPath)
+		img, err := command.DetermineImage(ctx, input.app, input.imageOrPath)
 		if err != nil {
 			return machineConf, err
 		}
