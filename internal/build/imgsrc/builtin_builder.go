@@ -108,7 +108,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		return nil, "", fmt.Errorf("error parsing build args: %w", err)
 	}
 
-	imageID, err = runClassicBuild(ctx, streams, docker, r, opts, "", buildArgs)
+	imageID, err = runClassicBuild(ctx, dockerFactory.app, streams, docker, r, opts, "", buildArgs)
 	if err != nil {
 		if dockerFactory.IsRemote() {
 			metrics.SendNoData(ctx, "remote_builder_failure")
@@ -126,7 +126,7 @@ func (*builtinBuilder) Run(ctx context.Context, dockerFactory *dockerClientFacto
 		build.PushStart()
 		cmdfmt.PrintBegin(streams.ErrOut, "Pushing image to fly")
 
-		if err := pushToFly(ctx, docker, streams, opts.Tag); err != nil {
+		if err := pushToFly(ctx, dockerFactory.app, docker, streams, opts.Tag); err != nil {
 			build.PushFinish()
 			return nil, "", err
 		}
