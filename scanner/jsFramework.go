@@ -174,6 +174,11 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.RedisDesired = true
 	}
 
+	// infer object storage (Tigris) from dependencies
+	if deps["@aws-sdk/client-s3"] != nil {
+		srcInfo.ObjectStorageDesired = true
+	}
+
 	// if prisma is used, provider is definative
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
