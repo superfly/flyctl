@@ -116,9 +116,10 @@ func (c *Config) SetStatics(statics []Static) {
 	c.Statics = make([]Static, 0, len(statics))
 	for _, static := range statics {
 		c.Statics = append(c.Statics, Static{
-			GuestPath:    static.GuestPath,
-			UrlPrefix:    static.UrlPrefix,
-			TigrisBucket: static.TigrisBucket,
+			GuestPath:     static.GuestPath,
+			UrlPrefix:     static.UrlPrefix,
+			TigrisBucket:  static.TigrisBucket,
+			IndexDocument: static.IndexDocument,
 		})
 	}
 }

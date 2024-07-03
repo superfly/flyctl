@@ -103,6 +103,8 @@ host_dedication_id = "06031957"
 [[statics]]
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"
+  tigris_bucket = "example-bucket"
+  index_document = "index.html"
 
 [[files]]
   guest_path = "/path/to/hello.txt"
