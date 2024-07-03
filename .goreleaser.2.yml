@@ -81,4 +81,4 @@ archives:
     format: zip
 
 release:
-  disable: true
+  disable: false
