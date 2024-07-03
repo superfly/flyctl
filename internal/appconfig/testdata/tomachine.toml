@@ -44,3 +44,5 @@ swap_size_mb = 512
 [[statics]]
 guest_path = "/guest/path"
 url_prefix = "/url/prefix"
+tigris_bucket = "example-bucket"
+index_document = "index.html"

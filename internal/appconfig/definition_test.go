@@ -267,8 +267,10 @@ func TestToDefinition(t *testing.T) {
 		},
 		"statics": []any{
 			map[string]any{
-				"guest_path": "/path/to/statics",
-				"url_prefix": "/static-assets",
+				"guest_path":     "/path/to/statics",
+				"url_prefix":     "/static-assets",
+				"tigris_bucket":  "example-bucket",
+				"index_document": "index.html",
 			},
 		},
 		"files": []any{
