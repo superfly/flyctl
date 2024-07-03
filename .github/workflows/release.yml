@@ -15,6 +15,9 @@ on:
   # need this until this file is on the default branch so tag creates are picked up
   workflow_call:
 
+permissions:
+  contents: write
+
 # concurrency:
 #   group: ${{ github.workflow }}-${{ github.ref }}
 #   cancel-in-progress: true
