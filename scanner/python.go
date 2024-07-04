@@ -265,7 +265,7 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 }
 
 func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
-	var deps []string = nil
+	var deps []string
 	if checksPass(sourceDir, fileExists("requirements.txt")) {
 		terminal.Info("Detected requirements.txt")
 		req_deps, err := readLines("requirements.txt")
