@@ -15,6 +15,9 @@ on:
   # need this until this file is on the default branch so tag creates are picked up
   workflow_call:
 
+permissions:
+  packages: write
+
 # concurrency:
 #   group: ${{ github.workflow }}-${{ github.ref }}
 #   cancel-in-progress: true
@@ -125,10 +128,6 @@ jobs:
             dist/**/*.tar.gz
           retention-days: 1
           overwrite: true
-      - name: Upload to flypkgs
-        env:
-          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
-        run: go run ./tools/distribute upload ./dist
 
   # preflight here once old and new workflows are merged
 

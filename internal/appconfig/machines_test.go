@@ -31,7 +31,7 @@ func TestToMachineConfig(t *testing.T) {
 			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		Metrics: &fly.MachineMetrics{Port: 9999, Path: "/metrics"},
-		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix", TigrisBucket: "example-bucket", IndexDocument: "index.html"}},
 		Mounts:  []fly.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]fly.MachineCheck{
 			"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
@@ -122,7 +122,7 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 			},
 		},
 		Metrics: &fly.MachineMetrics{Port: 9999, Path: "/metrics"},
-		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix", TigrisBucket: "example-bucket", IndexDocument: "index.html"}},
 		Mounts:  []fly.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]fly.MachineCheck{
 			"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},

@@ -466,8 +466,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 
 		Statics: []Static{
 			{
-				GuestPath: "/path/to/statics",
-				UrlPrefix: "/static-assets",
+				GuestPath:     "/path/to/statics",
+				UrlPrefix:     "/static-assets",
+				TigrisBucket:  "example-bucket",
+				IndexDocument: "index.html",
 			},
 		},
 

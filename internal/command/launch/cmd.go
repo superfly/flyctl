@@ -155,7 +155,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", from, ".")
+	cmd := exec.Command("git", "clone", "--recurse-submodules", from, ".")
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
