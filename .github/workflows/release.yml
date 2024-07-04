@@ -16,7 +16,7 @@ on:
   workflow_call:
 
 permissions:
-  packages: write
+  contents: write
 
 # concurrency:
 #   group: ${{ github.workflow }}-${{ github.ref }}
