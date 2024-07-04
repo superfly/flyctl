@@ -91,6 +91,10 @@ func newCreate() *cobra.Command {
 			Description: "Automatically start a stopped Postgres app when a network request is received",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "restore-from-s3-url",
+			Description: "The $S3_ARCHIVE_CONFIG URL from the existing database to use for PITR",
+		},
 	)
 
 	return cmd
@@ -275,14 +279,15 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:       params.Name,
-		Organization:  org,
-		ImageRef:      params.PostgresConfiguration.ImageRef,
-		Region:        region.Code,
-		Manager:       params.Manager,
-		Autostart:     params.Autostart,
-		ForkFrom:      params.ForkFrom,
-		BackupEnabled: !flag.GetBool(ctx, "disable-backups"),
+		AppName:                   params.Name,
+		Organization:              org,
+		ImageRef:                  params.PostgresConfiguration.ImageRef,
+		Region:                    region.Code,
+		Manager:                   params.Manager,
+		Autostart:                 params.Autostart,
+		ForkFrom:                  params.ForkFrom,
+		BackupEnabled:             !flag.GetBool(ctx, "disable-backups"),
+		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-from-s3-url"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
