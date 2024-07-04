@@ -280,6 +280,8 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 			return nil, err
 		}
 		deps = req_deps
+	} else {
+		return nil, nil
 	}
 	if deps == nil {
 		return nil, errors.New("No dependencies found in requirements file")
