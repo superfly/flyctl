@@ -49,15 +49,18 @@ type leasableMachine struct {
 	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
+	showLogs               bool
 }
 
-func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine) LeasableMachine {
+// TODO: make sure the other functions handle showLogs correctly
+func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
 		colorize:    io.ColorScheme(),
 		machine:     machine,
 		leaseNonce:  machine.LeaseNonce,
+		showLogs:    showLogs,
 	}
 }
 
@@ -194,7 +197,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		Factor: 2,
 		Jitter: true,
 	}
-	lm.logStatusWaiting(ctx, desiredState)
+	if lm.showLogs {
+		lm.logStatusWaiting(ctx, desiredState)
+	}
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
 		notFoundResponse := false
@@ -222,7 +227,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			}
 			continue
 		}
-		lm.logStatusFinished(ctx, desiredState)
+		if lm.showLogs {
+			lm.logStatusFinished(ctx, desiredState)
+		}
 		return nil
 	}
 }
@@ -324,7 +331,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		case err != nil:
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
-			if !printedFirst || lm.io.IsInteractive() {
+			if lm.showLogs && (!printedFirst || lm.io.IsInteractive()) {
 				lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
 				printedFirst = true
 			}
@@ -334,7 +341,9 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			}
 			continue
 		}
-		lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
+		if lm.showLogs {
+			lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
+		}
 		return nil
 	}
 }

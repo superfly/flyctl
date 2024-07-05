@@ -599,7 +599,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 		return err
 	}
 
-	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
 	defer lm.ReleaseLease(ctx)
 	e.leasableMachine = lm
 	return nil
@@ -676,7 +676,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 		return nil, fmt.Errorf("error creating a new machine: %w%s", err, relCmdWarning)
 	}
 
-	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw)
+	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
 	defer lm.ReleaseLease(ctx)
 
