@@ -128,20 +128,23 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			return nil, nil
 		}
 	}
+	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
 	if app == "" {
 		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
 	} else if app == FastAPI {
 		return &SourceInfo{
-			Files:  templatesExecute("templates/python-fastapi", vars),
-			Family: "FastAPI",
-			Port:   8000,
+			Files:                templatesExecute("templates/python-fastapi", vars),
+			Family:               "FastAPI",
+			Port:                 8000,
+			ObjectStorageDesired: objectStorage,
 		}, nil
 	} else if app == Flask {
 		return &SourceInfo{
-			Files:  templatesExecute("templates/python-flask-poetry", vars),
-			Family: "Flask",
-			Port:   8080,
+			Files:                templatesExecute("templates/python-flask-poetry", vars),
+			Family:               "Flask",
+			Port:                 8080,
+			ObjectStorageDesired: objectStorage,
 		}, nil
 	} else if app == Streamlit {
 		entrypoint := findEntrypoint("streamlit")
@@ -151,9 +154,10 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			vars["entrypoint"] = entrypoint.Name()
 		}
 		return &SourceInfo{
-			Files:  templatesExecute("templates/python-streamlit", vars),
-			Family: "Streamlit",
-			Port:   8501,
+			Files:                templatesExecute("templates/python-streamlit", vars),
+			Family:               "Streamlit",
+			Port:                 8501,
+			ObjectStorageDesired: objectStorage,
 		}, nil
 	} else {
 		return nil, nil
