@@ -34,7 +34,7 @@ type machineSet struct {
 func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
-		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m))
+		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m, true))
 	}
 	return &machineSet{
 		machines: leaseMachines,
