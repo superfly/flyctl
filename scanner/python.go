@@ -120,10 +120,10 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	vars["pyVersion"] = cfg.pyVersion
 	vars["appName"] = cfg.appName
 	var app PyApp
-	for dep := range cfg.deps {
-		if slices.Contains(supportedApps, PyApp(cfg.deps[dep])) && app == "" {
+	for _, dep := range cfg.deps {
+		if slices.Contains(supportedApps, PyApp(dep)) && app == "" {
 			app = PyApp(dep)
-		} else if slices.Contains(supportedApps, PyApp(cfg.deps[dep])) && app != "" {
+		} else if slices.Contains(supportedApps, PyApp(dep)) && app != "" {
 			terminal.Warn("Multiple supported Python frameworks found")
 			return nil, nil
 		}
@@ -187,10 +187,8 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	var depList []string
 
 	for dep := range deps {
-		dep := parsePyDep(dep)
-		depList = append(depList, dep)
+		depList = append(depList, parsePyDep(dep))
 	}
-
 	pyVersion := deps["python"].(string)
 	pyVersion = parsePyDep(pyVersion)
 	cfg := PyCfg{pyVersion, appName, depList}
