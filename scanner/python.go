@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"unicode"
 
@@ -11,7 +12,6 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/terminal"
-	"golang.org/x/exp/slices"
 )
 
 type PyApp string
@@ -45,9 +45,9 @@ type Pipfile struct {
 }
 
 type PyCfg struct {
-	pyVersion     string
-	appName       string
-	supportedApps []PyApp
+	pyVersion string
+	appName   string
+	deps      []string
 }
 
 func findEntrypoint(dep string) *os.File {
@@ -119,26 +119,34 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 	vars := make(map[string]interface{})
 	vars["pyVersion"] = cfg.pyVersion
 	vars["appName"] = cfg.appName
-
-	if len(cfg.supportedApps) == 0 {
+	var app PyApp
+	for _, dep := range cfg.deps {
+		if slices.Contains(supportedApps, PyApp(dep)) && app == "" {
+			app = PyApp(dep)
+		} else if slices.Contains(supportedApps, PyApp(dep)) && app != "" {
+			terminal.Warn("Multiple supported Python frameworks found")
+			return nil, nil
+		}
+	}
+	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
+	if app == "" {
 		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
-	} else if len(cfg.supportedApps) > 1 {
-		terminal.Warn("Multiple supported Python frameworks found")
-		return nil, nil
-	} else if slices.Contains(cfg.supportedApps, FastAPI) {
+	} else if app == FastAPI {
 		return &SourceInfo{
-			Files:  templatesExecute("templates/python-fastapi", vars),
-			Family: "FastAPI",
-			Port:   8000,
+			Files:                templatesExecute("templates/python-fastapi", vars),
+			Family:               "FastAPI",
+			Port:                 8000,
+			ObjectStorageDesired: objectStorage,
 		}, nil
-	} else if slices.Contains(cfg.supportedApps, Flask) {
+	} else if app == Flask {
 		return &SourceInfo{
-			Files:  templatesExecute("templates/python-flask-poetry", vars),
-			Family: "Flask",
-			Port:   8080,
+			Files:                templatesExecute("templates/python-flask-poetry", vars),
+			Family:               "Flask",
+			Port:                 8080,
+			ObjectStorageDesired: objectStorage,
 		}, nil
-	} else if slices.Contains(cfg.supportedApps, Streamlit) {
+	} else if app == Streamlit {
 		entrypoint := findEntrypoint("streamlit")
 		if entrypoint == nil {
 			return nil, nil
@@ -146,9 +154,10 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			vars["entrypoint"] = entrypoint.Name()
 		}
 		return &SourceInfo{
-			Files:  templatesExecute("templates/python-streamlit", vars),
-			Family: "Streamlit",
-			Port:   8501,
+			Files:                templatesExecute("templates/python-streamlit", vars),
+			Family:               "Streamlit",
+			Port:                 8501,
+			ObjectStorageDesired: objectStorage,
 		}, nil
 	} else {
 		return nil, nil
@@ -175,17 +184,14 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if deps == nil {
 		return nil, errors.New("No dependencies found in pyproject.toml")
 	}
-	var apps []PyApp
+	var depList []string
 
 	for dep := range deps {
-		if slices.Contains(supportedApps, PyApp(dep)) {
-			apps = append(apps, PyApp(dep))
-		}
+		depList = append(depList, parsePyDep(dep))
 	}
-
 	pyVersion := deps["python"].(string)
 	pyVersion = parsePyDep(pyVersion)
-	cfg := PyCfg{pyVersion, appName, apps}
+	cfg := PyCfg{pyVersion, appName, depList}
 	return intoSource(cfg)
 }
 
@@ -206,12 +212,10 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if deps == nil {
 		return nil, errors.New("No dependencies found in pyproject.toml")
 	}
-	var depList []PyApp
+	var depList []string
 	for _, dep := range deps {
 		dep := parsePyDep(dep)
-		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
-			depList = append(depList, PyApp(dep))
-		}
+		depList = append(depList, parsePyDep(dep))
 	}
 	appName := pyProject.Project.Name
 	pyVersion := pyProject.Project.RequiresPython
@@ -248,12 +252,10 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if deps == nil {
 		return nil, errors.New("No packages found in Pipfile")
 	}
-	var depList []PyApp
+	var depList []string
 	for dep := range deps {
 		dep := parsePyDep(dep)
-		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
-			depList = append(depList, PyApp(dep))
-		}
+		depList = append(depList, dep)
 	}
 	pyVersion, _, err := extractPythonVersion()
 	if err != nil {
@@ -286,12 +288,10 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 	if deps == nil {
 		return nil, errors.New("No dependencies found in requirements file")
 	}
-	var depList []PyApp
+	var depList []string
 	for _, dep := range deps {
 		dep := parsePyDep(dep)
-		if slices.Contains(supportedApps, PyApp(dep)) && !slices.Contains(depList, PyApp(dep)) {
-			depList = append(depList, PyApp(dep))
-		}
+		depList = append(depList, dep)
 	}
 	pyVersion, _, err := extractPythonVersion()
 	if err != nil {
