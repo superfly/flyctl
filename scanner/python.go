@@ -190,6 +190,7 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		depList = append(depList, parsePyDep(dep))
 	}
 	pyVersion := deps["python"].(string)
+	pyVersion = strings.TrimPrefix(pyVersion, "^")
 	pyVersion = parsePyDep(pyVersion)
 	cfg := PyCfg{pyVersion, appName, depList}
 	return intoSource(cfg)
