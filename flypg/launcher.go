@@ -86,11 +86,12 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 	options["website"] = map[string]interface{}{
 		"domain_name": "",
 	}
+	name := config.AppName + "-postgres"
 	params := extensions_core.ExtensionParams{
 		AppName:      config.AppName,
 		Organization: config.Organization,
 		Provider:     "tigris",
-		OverrideName: &config.AppName,
+		OverrideName: &name,
 	}
 	params.Options = options
 
