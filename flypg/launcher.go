@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"strings"
 	"time"
 
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
@@ -95,9 +96,24 @@ func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
 	}
 	params.Options = options
 
-	extension, err := extensions_core.ProvisionExtension(ctx, params)
-	if err != nil {
-		return err
+	var extension extensions_core.Extension
+	provisionExtension := true
+	index := 1
+
+	for provisionExtension {
+		var err error
+		extension, err = extensions_core.ProvisionExtension(ctx, params)
+		if err != nil {
+			if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "Name has already been taken") {
+				name := fmt.Sprintf("%s-postgres-%d", config.AppName, index)
+				params.OverrideName = &name
+				index++
+			} else {
+				return err
+			}
+		} else {
+			provisionExtension = false
+		}
 	}
 
 	environment := extension.Data.Environment
