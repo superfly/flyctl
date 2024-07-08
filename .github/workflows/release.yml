@@ -130,7 +130,7 @@ jobs:
           retention-days: 1
           overwrite: true
       - name: Github release
-        if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
+        if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/master'
         uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser-pro
