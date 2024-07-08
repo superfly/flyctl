@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/rand"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -198,6 +199,16 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 		lease = newLease
 	}
 
+	if newMachine == nil {
+		// if the new machine is nil, we should destroy the old machine
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Destroying machine %s", oldMachine.ID))
+		err := destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
 	var err error
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -227,6 +238,19 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", oldMachine.ID))
 
 	err = lm.WaitForHealthchecksToPass(ctx, 10*time.Second)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func destroyMachine(ctx context.Context, machineID string, lease string) error {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	err := flapsClient.Destroy(ctx, fly.RemoveMachineInput{
+		ID:   machineID,
+		Kill: true,
+	}, lease)
 	if err != nil {
 		return err
 	}
@@ -279,6 +303,7 @@ func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
 	return nil
 }
 
+// returns when the machine is in one of the possible states, or after passing the timeout threshold
 func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -304,6 +329,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 		}()
 	}
 
+	// TODO(billy): i'm sure we can use channels here
 	for {
 		mutex.Lock()
 		if numFinished == len(possibleStates) {
@@ -329,6 +355,12 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 }
 
 func updateMachineConfig(ctx context.Context, machID string, lease *fly.MachineLease, machConfig *fly.MachineConfig) (*fly.Machine, error) {
+	randNum := rand.Intn(30) + 1
+	if randNum == 5 {
+		time.Sleep(10 * time.Second)
+		return nil, fmt.Errorf("could not reserve resource for machine %s", machID)
+	}
+
 	// First, let's get a lease on the machine
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	mach, err := flapsClient.Update(ctx, fly.LaunchMachineInput{
