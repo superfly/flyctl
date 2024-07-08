@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/metrics/synthetics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/wg"
@@ -56,6 +57,9 @@ func Run(ctx context.Context, opt Options) (err error) {
 	monitorCtx, cancelMonitor := context.WithCancel(ctx)
 	config.MonitorTokens(monitorCtx, toks, nil)
 
+	syntheticsCtx, cancelSynthetics := context.WithCancel(ctx)
+	synthetics.StartSyntheticsMonitoringAgent(syntheticsCtx)
+
 	err = (&server{
 		Options:               opt,
 		listener:              l,
@@ -64,6 +68,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
 		tokens:                toks,
 		cancelTokenMonitoring: cancelMonitor,
+		cancelSynthetics:      cancelSynthetics,
 	}).serve(ctx, l)
 
 	return
@@ -126,6 +131,7 @@ type server struct {
 	tunnels               map[tunnelKey]*wg.Tunnel
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
+	cancelSynthetics      func()
 }
 
 type terminateError struct{ error }

@@ -49,6 +49,14 @@ func SetSendMetrics(path string, sendMetrics bool) error {
 	})
 }
 
+// SetSyntheticsAgent sets the value of the synthetics agent flag at the configuration file
+// found at path.
+func SetSyntheticsAgent(path string, syntheticsAgent bool) error {
+	return set(path, map[string]interface{}{
+		SyntheticsAgentFileKey: syntheticsAgent,
+	})
+}
+
 // SetAutoUpdate sets the value of the autoupdate flag at the configuration file
 // found at path.
 func SetAutoUpdate(path string, autoUpdate bool) error {
