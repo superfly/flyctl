@@ -165,6 +165,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		client   = flyutil.ClientFromContext(ctx)
 	)
 
+	// Fail quickly and loudly if someone attempts to restore a backup to a HA cluster.
+	if config.BarmanRemoteRestoreConfig != "" && config.InitialClusterSize != 1 {
+		return fmt.Errorf("Cannot restore a backup to a cluster with more than 1 instance, pass `--initial-cluster-size 1` to restore")
+	}
+	
 	// Ensure machines can be started when scaling to zero is enabled
 	if config.ScaleToZero {
 		config.Autostart = true
