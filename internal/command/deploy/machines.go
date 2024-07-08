@@ -395,7 +395,7 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 	}
 
 	unattached := lo.Filter(volumes, func(v fly.Volume, _ int) bool {
-		return v.AttachedAllocation == nil && v.AttachedMachine == nil
+		return v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
 	})
 
 	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
