@@ -135,20 +135,25 @@ const (
 )
 
 func (t DockerDaemonType) String() string {
-	switch t {
-	case DockerDaemonTypeLocal:
-		return "local"
-	case DockerDaemonTypeRemote:
-		return "remote"
-	case DockerDaemonTypeNone:
-		return "none"
-	case DockerDaemonTypePrefersLocal:
-		return "prefers-local"
-	case DockerDaemonTypeNixpacks:
-		return "nix-packs"
-	default:
+	strs := []string{}
+
+	if t&DockerDaemonTypeLocal != 0 {
+		strs = append(strs, "local")
+	}
+	if t&DockerDaemonTypeRemote != 0 {
+		strs = append(strs, "remote")
+	}
+	if t&DockerDaemonTypePrefersLocal != 0 {
+		strs = append(strs, "prefers-local")
+	}
+	if t&DockerDaemonTypeNixpacks != 0 {
+		strs = append(strs, "nix-packs")
+	}
+	if len(strs) == 0 {
 		return "none"
 	}
+
+	return strings.Join(strs, ", ")
 }
 
 func (t DockerDaemonType) AllowLocal() bool {
