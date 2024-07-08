@@ -129,3 +129,15 @@ jobs:
             dist/**/*.tar.gz
           retention-days: 1
           overwrite: true
+
+      - name: Github release
+        if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
+        uses: goreleaser/goreleaser-action@v5
+        with:
+          distribution: goreleaser-pro
+          version: latest
+          args: continue --merge
+        env:
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GGOOS: ${{ matrix.GOOS }}
