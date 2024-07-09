@@ -35,8 +35,8 @@ func newCreate() *cobra.Command {
 		flag.Org(),
 		flag.Detach(),
 		flag.Bool{
-			Name:        "disable-backups",
-			Description: "Disable WAL-based backups",
+			Name:        "enable-backup",
+			Description: "Enable WAL-based backups",
 		},
 		flag.String{
 			Name:        "name",
@@ -286,7 +286,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		Manager:                   params.Manager,
 		Autostart:                 params.Autostart,
 		ForkFrom:                  params.ForkFrom,
-		BackupEnabled:             !flag.GetBool(ctx, "disable-backups"),
+		BackupEnabled:             flag.GetBool(ctx, "enable-backup"),
 		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-from-s3-url"),
 	}
 
