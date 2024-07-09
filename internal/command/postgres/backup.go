@@ -257,7 +257,7 @@ func runBackupList(ctx context.Context) error {
 
 	machine := machines[0]
 
-	command := "barman-cloud-backup-list --cloud-provider aws-s3 --endpoint-url https://fly.storage.tigris.dev --profile barman s3://" + appName + " " + appName
+	command := "barman-cloud-backup-list --cloud-provider aws-s3 --endpoint-url https://fly.storage.tigris.dev --profile barman s3://$BUCKET_NAME" + " " + appName
 	encodedCommand := base64.StdEncoding.EncodeToString([]byte(command))
 
 	in := &fly.MachineExecRequest{
