@@ -2,7 +2,6 @@ package postgres
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -81,16 +80,8 @@ func runBackupCreate(ctx context.Context) error {
 
 	machine := machines[0]
 
-	command := "barman-cloud-backup --cloud-provider aws-s3 --endpoint-url https://fly.storage.tigris.dev --profile barman -z -h " + appName + ".internal -U repmgr"
-	name := flag.GetString(ctx, "name")
-	if name != "" {
-		command += " -n " + name
-	}
-	command += " s3://" + appName + " " + appName
-	encodedCommand := base64.StdEncoding.EncodeToString([]byte(command))
-
 	in := &fly.MachineExecRequest{
-		Cmd: "su postgres bash -c \"$(echo " + encodedCommand + " | base64 --decode)\"",
+		Cmd: "flexctl backup create",
 	}
 
 	out, err := flapsClient.Exec(ctx, machine.ID, in)
@@ -257,11 +248,8 @@ func runBackupList(ctx context.Context) error {
 
 	machine := machines[0]
 
-	command := "barman-cloud-backup-list --cloud-provider aws-s3 --endpoint-url https://fly.storage.tigris.dev --profile barman s3://$BUCKET_NAME" + " " + appName
-	encodedCommand := base64.StdEncoding.EncodeToString([]byte(command))
-
 	in := &fly.MachineExecRequest{
-		Cmd: "su postgres bash -c \"$(echo " + encodedCommand + " | base64 --decode)\"",
+		Cmd: "flexctl backup list",
 	}
 
 	out, err := flapsClient.Exec(ctx, machine.ID, in)
