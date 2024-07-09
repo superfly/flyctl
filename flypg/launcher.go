@@ -256,6 +256,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("accept", "application/json")
 		req.Header.Set("x-tigris-namespace", app.Organization.ID)
 		req.SetBasicAuth(tid, tsec)
 		res, err := http.DefaultClient.Do(req)
