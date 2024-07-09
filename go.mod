@@ -13,7 +13,7 @@ require (
 	github.com/avast/retry-go/v4 v4.6.0
 	github.com/azazeal/pause v1.3.0
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/briandowns/spinner v1.23.0
+	github.com/briandowns/spinner v1.23.1
 	github.com/buildpacks/pack v0.33.2
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
