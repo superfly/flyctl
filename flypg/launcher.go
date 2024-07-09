@@ -4,8 +4,14 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"reflect"
+	"strings"
 	"time"
 
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/ssh"
 
 	fly "github.com/superfly/fly-go"
@@ -21,13 +27,14 @@ import (
 )
 
 var (
-	volumeName     = "pg_data"
-	volumePath     = "/data"
-	Duration10s, _ = time.ParseDuration("10s")
-	Duration15s, _ = time.ParseDuration("15s")
-	CheckPathPg    = "/flycheck/pg"
-	CheckPathRole  = "/flycheck/role"
-	CheckPathVm    = "/flycheck/vm"
+	volumeName       = "pg_data"
+	volumePath       = "/data"
+	Duration10s, _   = time.ParseDuration("10s")
+	Duration15s, _   = time.ParseDuration("15s")
+	CheckPathPg      = "/flycheck/pg"
+	CheckPathRole    = "/flycheck/role"
+	CheckPathVm      = "/flycheck/vm"
+	BarmanSecretName = "S3_ARCHIVE_CONFIG"
 )
 
 const (
@@ -40,26 +47,116 @@ type Launcher struct {
 }
 
 type CreateClusterInput struct {
-	AppName            string
-	ConsulURL          string
-	ImageRef           string
-	InitialClusterSize int
-	Organization       *fly.Organization
-	Password           string
-	Region             string
-	VolumeSize         *int
-	VMSize             *fly.VMSize
-	SnapshotID         *string
-	Manager            string
-	Autostart          bool
-	ScaleToZero        bool
-	ForkFrom           string
+	AppName                   string
+	ConsulURL                 string
+	ImageRef                  string
+	InitialClusterSize        int
+	Organization              *fly.Organization
+	Password                  string
+	Region                    string
+	VolumeSize                *int
+	VMSize                    *fly.VMSize
+	SnapshotID                *string
+	Manager                   string
+	Autostart                 bool
+	ScaleToZero               bool
+	ForkFrom                  string
+	BackupEnabled             bool
+	BarmanSecret              string
+	BarmanRemoteRestoreConfig string
 }
 
 func NewLauncher(client flyutil.Client) *Launcher {
 	return &Launcher{
 		client: client,
 	}
+}
+
+func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
+	if !config.BackupEnabled {
+		return nil
+	}
+
+	var (
+		io = iostreams.FromContext(ctx)
+	)
+	fmt.Fprintln(io.Out, "Creating Tigris bucket for backup storage")
+
+	options := map[string]interface{}{
+		"Public":     false,
+		"Accelerate": false,
+	}
+	options["website"] = map[string]interface{}{
+		"domain_name": "",
+	}
+	name := config.AppName + "-postgres"
+	params := extensions_core.ExtensionParams{
+		AppName:      config.AppName,
+		Organization: config.Organization,
+		Provider:     "tigris",
+		OverrideName: &name,
+	}
+	params.Options = options
+
+	var extension extensions_core.Extension
+	provisionExtension := true
+	index := 1
+
+	for provisionExtension {
+		var err error
+		extension, err = extensions_core.ProvisionExtension(ctx, params)
+		if err != nil {
+			if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "Name has already been taken") {
+				name := fmt.Sprintf("%s-postgres-%d", config.AppName, index)
+				params.OverrideName = &name
+				index++
+			} else {
+				return err
+			}
+		} else {
+			provisionExtension = false
+		}
+	}
+
+	environment := extension.Data.Environment
+	if environment == nil || reflect.ValueOf(environment).IsNil() {
+		return nil
+	}
+
+	env := extension.Data.Environment.(map[string]interface{})
+
+	accessKeyId, ok := env["AWS_ACCESS_KEY_ID"].(string)
+	if !ok || accessKeyId == "" {
+		return fmt.Errorf("AWS_ACCESS_KEY_ID is unset")
+	}
+
+	accessSecret, ok := env["AWS_SECRET_ACCESS_KEY"].(string)
+	if !ok || accessSecret == "" {
+		return fmt.Errorf("AWS_SECRET_ACCESS_KEY is unset")
+	}
+
+	endpoint, ok := env["AWS_ENDPOINT_URL_S3"].(string)
+	if !ok || endpoint == "" {
+		return fmt.Errorf("AWS_ENDPOINT_URL_S3 is unset")
+	}
+
+	bucketName, ok := env["BUCKET_NAME"].(string)
+	if !ok || bucketName == "" {
+		return fmt.Errorf("BUCKET_NAME is unset")
+	}
+
+	bucketDirectory := config.AppName
+
+	endpointUrl, err := url.Parse(endpoint)
+	if err != nil {
+		return err
+	}
+
+	endpointUrl.User = url.UserPassword(accessKeyId, accessSecret)
+	endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
+	config.BarmanSecret = endpointUrl.String()
+
+	return nil
 }
 
 // LaunchMachinesPostgres launches a postgres cluster using the machines runtime
@@ -69,6 +166,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		colorize = io.ColorScheme()
 		client   = flyutil.ClientFromContext(ctx)
 	)
+
+	// Fail quickly and loudly if someone attempts to restore a backup to a HA cluster.
+	if config.BarmanRemoteRestoreConfig != "" && config.InitialClusterSize != 1 {
+		return fmt.Errorf("Cannot restore a backup to a cluster with more than 1 instance, pass `--initial-cluster-size 1` to restore")
+	}
 
 	// Ensure machines can be started when scaling to zero is enabled
 	if config.ScaleToZero {
@@ -81,6 +183,97 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	}
 	// In case the user hasn't specified a name, use the app name generated by the API
 	config.AppName = app.Name
+
+	// if we are not doing a PITR, back up this database to a new bucket
+	if config.BarmanRemoteRestoreConfig == "" {
+		err = CreateTigrisBucket(ctx, config)
+		if err != nil {
+			return err
+		}
+	} else {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: config.BarmanRemoteRestoreConfig,
+		})
+		if err != nil {
+			return err
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+		app, err := client.GetApp(ctx, config.AppName)
+		if err != nil {
+			return err
+		}
+
+		machines, err := flapsClient.ListActive(ctx)
+		if err != nil {
+			return err
+		}
+
+		if len(machines) == 0 {
+			return fmt.Errorf("No active machines")
+		}
+
+		machine := machines[0]
+
+		in := &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $AWS_ACCESS_KEY_ID\"",
+		}
+
+		out, err := flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("AWS_ACCESS_KEY_ID is unset")
+		}
+		tid := strings.TrimSpace(out.StdOut)
+
+		in = &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $AWS_SECRET_ACCESS_KEY\"",
+		}
+
+		out, err = flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("AWS_SECRET_ACCESS_KEY is unset")
+		}
+		tsec := strings.TrimSpace(out.StdOut)
+
+		in = &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $BUCKET_NAME\"",
+		}
+
+		out, err = flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("BUCKET_NAME is unset")
+		}
+		bucketName := strings.TrimSpace(out.StdOut)
+
+		body := url.QueryEscape("Req={\"name\":\"test\",\"buckets_role\":[{\"bucket\":\"" + bucketName + "\",\"role\":\"ReadOnly\"}]}")
+		req, err := http.NewRequest(http.MethodPost, "https://fly.iam.storage.tigris.dev/?Action=CreateAccessKeyWithBucketsRole", strings.NewReader(body))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req.Header.Set("accept", "application/json")
+		req.Header.Set("x-tigris-namespace", app.Organization.ID)
+		req.SetBasicAuth(tid, tsec)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+
+		resBody, err := ioutil.ReadAll(res.Body)
+		resStr := string(resBody)
+		fmt.Println(resStr)
+		return nil
+	}
 
 	var addr *fly.IPAddress
 
@@ -415,6 +608,12 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
+	}
+
+	if config.BarmanSecret != "" {
+		secrets[BarmanSecretName] = config.BarmanSecret
+	} else if config.BarmanRemoteRestoreConfig != "" {
+		secrets["S3_ARCHIVE_REMOTE_RESTORE_CONFIG"] = config.BarmanRemoteRestoreConfig
 	}
 
 	if config.Manager == ReplicationManager {
