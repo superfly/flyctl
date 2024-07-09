@@ -199,6 +199,11 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
+		app, err := client.GetApp(ctx, config.AppName)
+		if err != nil {
+			return err
+		}
+
 		machines, err := flapsClient.ListActive(ctx)
 		if err != nil {
 			return err
