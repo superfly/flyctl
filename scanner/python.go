@@ -14,6 +14,15 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+type PyDepStyle string
+
+const (
+	Poetry PyDepStyle = "poetry"
+	Pipenv PyDepStyle = "pipenv"
+	Pep621 PyDepStyle = "pep621"
+	Pip    PyDepStyle = "pip"
+)
+
 type PyApp string
 
 const (
@@ -48,6 +57,7 @@ type PyCfg struct {
 	pyVersion string
 	appName   string
 	deps      []string
+	depStyle  PyDepStyle
 }
 
 func findEntrypoint(dep string) *os.File {
@@ -128,25 +138,29 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			return nil, nil
 		}
 	}
+	vars[string(cfg.depStyle)] = true
 	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
 	if app == "" {
 		terminal.Warn("No supported Python frameworks found")
 		return nil, nil
 	} else if app == FastAPI {
+		vars["fastapi"] = true
 		return &SourceInfo{
-			Files:                templatesExecute("templates/python-fastapi", vars),
+			Files:                templatesExecute("templates/python-docker", vars),
 			Family:               "FastAPI",
 			Port:                 8000,
 			ObjectStorageDesired: objectStorage,
 		}, nil
 	} else if app == Flask {
+		vars["flask"] = true
 		return &SourceInfo{
-			Files:                templatesExecute("templates/python-flask-poetry", vars),
+			Files:                templatesExecute("templates/python-docker", vars),
 			Family:               "Flask",
 			Port:                 8080,
 			ObjectStorageDesired: objectStorage,
 		}, nil
 	} else if app == Streamlit {
+		vars["streamlit"] = true
 		entrypoint := findEntrypoint("streamlit")
 		if entrypoint == nil {
 			return nil, nil
@@ -154,7 +168,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			vars["entrypoint"] = entrypoint.Name()
 		}
 		return &SourceInfo{
-			Files:                templatesExecute("templates/python-streamlit", vars),
+			Files:                templatesExecute("templates/python-docker", vars),
 			Family:               "Streamlit",
 			Port:                 8501,
 			ObjectStorageDesired: objectStorage,
@@ -192,7 +206,7 @@ func configPoetry(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	pyVersion := deps["python"].(string)
 	pyVersion = strings.TrimPrefix(pyVersion, "^")
 	pyVersion = parsePyDep(pyVersion)
-	cfg := PyCfg{pyVersion, appName, depList}
+	cfg := PyCfg{pyVersion, appName, depList, Poetry}
 	return intoSource(cfg)
 }
 
@@ -232,7 +246,7 @@ func configPyProject(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		})
 	}
 
-	cfg := PyCfg{pyVersion, appName, depList}
+	cfg := PyCfg{pyVersion, appName, depList, Pep621}
 	return intoSource(cfg)
 }
 
@@ -263,7 +277,7 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, err
 	}
 	appName := filepath.Base(sourceDir)
-	cfg := PyCfg{pyVersion, appName, depList}
+	cfg := PyCfg{pyVersion, appName, depList, Pipenv}
 	return intoSource(cfg)
 }
 
@@ -299,7 +313,7 @@ func configRequirements(sourceDir string, _ *ScannerConfig) (*SourceInfo, error)
 		return nil, err
 	}
 	appName := filepath.Base(sourceDir)
-	cfg := PyCfg{pyVersion, appName, depList}
+	cfg := PyCfg{pyVersion, appName, depList, Pip}
 	return intoSource(cfg)
 }
 
