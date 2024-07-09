@@ -34,6 +34,10 @@ func newCreate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.Detach(),
+		flag.Bool{
+			Name:        "enable-backup",
+			Description: "Enable WAL-based backups",
+		},
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -86,6 +90,10 @@ func newCreate() *cobra.Command {
 			Name:        "autostart",
 			Description: "Automatically start a stopped Postgres app when a network request is received",
 			Default:     false,
+		},
+		flag.String{
+			Name:        "restore-from-app",
+			Description: "Restore backup from another Postgres app",
 		},
 	)
 
@@ -271,13 +279,15 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      params.Name,
-		Organization: org,
-		ImageRef:     params.PostgresConfiguration.ImageRef,
-		Region:       region.Code,
-		Manager:      params.Manager,
-		Autostart:    params.Autostart,
-		ForkFrom:     params.ForkFrom,
+		AppName:                   params.Name,
+		Organization:              org,
+		ImageRef:                  params.PostgresConfiguration.ImageRef,
+		Region:                    region.Code,
+		Manager:                   params.Manager,
+		Autostart:                 params.Autostart,
+		ForkFrom:                  params.ForkFrom,
+		BackupEnabled:             flag.GetBool(ctx, "enable-backup"),
+		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-from-app"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
