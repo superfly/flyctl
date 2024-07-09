@@ -92,8 +92,8 @@ func newCreate() *cobra.Command {
 			Default:     false,
 		},
 		flag.String{
-			Name:        "restore-from-s3-url",
-			Description: "The $S3_ARCHIVE_CONFIG URL from the existing database to use for PITR",
+			Name:        "restore-from-app",
+			Description: "Restore backup from another Postgres app",
 		},
 	)
 
@@ -287,7 +287,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		Autostart:                 params.Autostart,
 		ForkFrom:                  params.ForkFrom,
 		BackupEnabled:             flag.GetBool(ctx, "enable-backup"),
-		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-from-s3-url"),
+		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-from-app"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil

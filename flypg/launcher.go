@@ -4,6 +4,8 @@ import (
 	"context"
 	"crypto/ed25519"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
@@ -188,6 +190,82 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if err != nil {
 			return err
 		}
+	} else {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: config.BarmanRemoteRestoreConfig,
+		})
+		if err != nil {
+			return err
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+
+		machines, err := flapsClient.ListActive(ctx)
+		if err != nil {
+			return err
+		}
+
+		if len(machines) == 0 {
+			return fmt.Errorf("No active machines")
+		}
+
+		machine := machines[0]
+
+		in := &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $AWS_ACCESS_KEY_ID\"",
+		}
+
+		out, err := flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("AWS_ACCESS_KEY_ID is unset")
+		}
+		tid := strings.TrimSpace(out.StdOut)
+
+		in = &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $AWS_SECRET_ACCESS_KEY\"",
+		}
+
+		out, err = flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("AWS_SECRET_ACCESS_KEY is unset")
+		}
+		tsec := strings.TrimSpace(out.StdOut)
+
+		in = &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $BUCKET_NAME\"",
+		}
+
+		out, err = flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("BUCKET_NAME is unset")
+		}
+		bucketName := strings.TrimSpace(out.StdOut)
+
+		body := url.QueryEscape("Req={\"name\":\"test\",\"buckets_role\":[{\"bucket\":\"" + bucketName + "\",\"role\":\"ReadOnly\"}]}")
+		req, err := http.NewRequest(http.MethodPost, "https://fly.iam.storage.tigris.dev/?Action=CreateAccessKeyWithBucketsRole", strings.NewReader(body))
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("x-tigris-namespace", app.Organization.ID)
+		req.SetBasicAuth(tid, tsec)
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+
+		resBody, err := ioutil.ReadAll(res.Body)
+		resStr := string(resBody)
+		fmt.Println(resStr)
+		return nil
 	}
 
 	var addr *fly.IPAddress
