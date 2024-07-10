@@ -105,7 +105,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "restore-target-inclusive",
-			Description: "Set to true to stop recovery after the specified time, or false to stop before it. Defaults to true",
+			Description: "Set to true to stop recovery after the specified time, or false to stop before it",
 			Default:     true,
 		},
 	)
