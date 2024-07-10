@@ -219,6 +219,23 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return fmt.Errorf("No active machines")
 		}
 
+		enabled := false
+		secrets, err := client.GetAppSecrets(ctx, config.BarmanRemoteRestoreConfig)
+		if err != nil {
+			return err
+		}
+
+		for _, secret := range secrets {
+			if secret.Name == BarmanSecretName {
+				enabled = true
+				break
+			}
+		}
+
+		if !enabled {
+			return fmt.Errorf("Backups are not enabled for %s", config.BarmanRemoteRestoreConfig)
+		}
+
 		machine := machines[0]
 
 		in := &fly.MachineExecRequest{
