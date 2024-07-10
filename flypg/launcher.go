@@ -301,15 +301,19 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return err
 		}
 
+		values := endpointUrl.Query()
 		if config.RestoreTargetName != "" {
-			endpointUrl.Query().Set("targetName", config.RestoreTargetName)
+			values.Set("targetName", config.RestoreTargetName)
+			endpointUrl.RawQuery = values.Encode()
 		} else if config.RestoreTargetTime != "" {
-			endpointUrl.Query().Set("targetTime", config.RestoreTargetTime)
+			values.Set("targetTime", config.RestoreTargetTime)
+			endpointUrl.RawQuery = values.Encode()
 		}
 
 		endpointUrl.User = url.UserPassword(restoreAccessKey, restoreSecretKey)
 		endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
 		config.BarmanRemoteRestoreConfig = endpointUrl.String()
+		fmt.Println(config.BarmanRemoteRestoreConfig)
 	}
 
 	var addr *fly.IPAddress
