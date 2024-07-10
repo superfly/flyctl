@@ -210,7 +210,7 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
 
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, 10*time.Second)
+	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, 60*time.Second)
 	if err != nil {
 		return err
 	}
@@ -224,7 +224,7 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 
 	// wait for the machine to reach the running state
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach running state", oldMachine.ID))
-	err = waitForMachineState(ctx, lm, []string{"started"}, 10*time.Second)
+	err = waitForMachineState(ctx, lm, []string{"started"}, 60*time.Second)
 	if err != nil {
 		return err
 	}
