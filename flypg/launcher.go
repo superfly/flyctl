@@ -1,8 +1,10 @@
 package flypg
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -11,6 +13,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/ssh"
 
@@ -199,10 +205,10 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
-		app, err := client.GetApp(ctx, config.AppName)
-		if err != nil {
-			return err
-		}
+		// app, err := client.GetApp(ctx, config.AppName)
+		// if err != nil {
+		// 	return err
+		// }
 
 		machines, err := flapsClient.ListActive(ctx)
 		if err != nil {
@@ -226,7 +232,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if out.StdOut == "" {
 			return fmt.Errorf("AWS_ACCESS_KEY_ID is unset")
 		}
-		tid := strings.TrimSpace(out.StdOut)
+		accessKey := strings.TrimSpace(out.StdOut)
 
 		in = &fly.MachineExecRequest{
 			Cmd: "bash -c \"echo $AWS_SECRET_ACCESS_KEY\"",
@@ -239,7 +245,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if out.StdOut == "" {
 			return fmt.Errorf("AWS_SECRET_ACCESS_KEY is unset")
 		}
-		tsec := strings.TrimSpace(out.StdOut)
+		secretKey := strings.TrimSpace(out.StdOut)
 
 		in = &fly.MachineExecRequest{
 			Cmd: "bash -c \"echo $BUCKET_NAME\"",
@@ -253,8 +259,21 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			return fmt.Errorf("BUCKET_NAME is unset")
 		}
 		bucketName := strings.TrimSpace(out.StdOut)
+		in = &fly.MachineExecRequest{
+			Cmd: "bash -c \"echo $AWS_ENDPOINT_URL_S3\"",
+		}
 
-		body := url.QueryEscape("Req={\"name\":\"test\",\"buckets_role\":[{\"bucket\":\"" + bucketName + "\",\"role\":\"ReadOnly\"}]}")
+		out, err = flapsClient.Exec(ctx, machine.ID, in)
+		if err != nil {
+			return err
+		}
+		if out.StdOut == "" {
+			return fmt.Errorf("AWS_ENDPOINT_URL_S3 is unset")
+		}
+		endpoint := strings.TrimSpace(out.StdOut)
+
+		body := url.QueryEscape("{\"name\":\"restore\",\"buckets_role\":[{\"bucket\":\"" + bucketName + "\",\"role\":\"ReadOnly\"}]}")
+		body = "Req=" + body
 		req, err := http.NewRequest(http.MethodPost, "https://fly.iam.storage.tigris.dev/?Action=CreateAccessKeyWithBucketsRole", strings.NewReader(body))
 		if err != nil {
 			return err
@@ -262,8 +281,20 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		req.Header.Set("accept", "application/json")
-		req.Header.Set("x-tigris-namespace", app.Organization.ID)
-		req.SetBasicAuth(tid, tsec)
+		req.SetBasicAuth(accessKey, secretKey)
+
+		region := "auto"
+		service := "s3"
+		sess := session.Must(session.NewSession(&aws.Config{
+			Region:      aws.String(region),
+			Credentials: credentials.NewStaticCredentials(accessKey, secretKey, ""),
+		}))
+		signer := v4.NewSigner(sess.Config.Credentials)
+		_, err = signer.Sign(req, bytes.NewReader([]byte(body)), service, region, time.Now())
+		if err != nil {
+			return err
+		}
+
 		res, err := http.DefaultClient.Do(req)
 		if err != nil {
 			return err
@@ -271,8 +302,24 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		resBody, err := ioutil.ReadAll(res.Body)
 		resStr := string(resBody)
-		fmt.Println(resStr)
-		return nil
+		var resMap map[string]interface{}
+		err = json.Unmarshal([]byte(resStr), &resMap)
+		if err != nil {
+			return err
+		}
+
+		createAccessKeyResult := resMap["CreateAccessKeyResult"].(map[string]interface{})
+		newAccessKey := createAccessKeyResult["AccessKey"].(map[string]interface{})
+		restoreAccessKey := newAccessKey["AccessKeyId"].(string)
+		restoreSecretKey := newAccessKey["SecretAccessKey"].(string)
+		bucketDirectory := config.AppName
+		endpointUrl, err := url.Parse(endpoint)
+		if err != nil {
+			return err
+		}
+		endpointUrl.User = url.UserPassword(restoreAccessKey, restoreSecretKey)
+		endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
+		config.BarmanRemoteRestoreConfig = endpointUrl.String()
 	}
 
 	var addr *fly.IPAddress
