@@ -70,6 +70,8 @@ type CreateClusterInput struct {
 	BackupEnabled             bool
 	BarmanSecret              string
 	BarmanRemoteRestoreConfig string
+	RestoreTargetName         string
+	RestoreTargetTime         string
 }
 
 func NewLauncher(client flyutil.Client) *Launcher {
@@ -205,11 +207,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		}
 		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
-		// app, err := client.GetApp(ctx, config.AppName)
-		// if err != nil {
-		// 	return err
-		// }
-
 		machines, err := flapsClient.ListActive(ctx)
 		if err != nil {
 			return err
@@ -303,6 +300,13 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if err != nil {
 			return err
 		}
+
+		if config.RestoreTargetName != "" {
+			endpointUrl.Query().Set("targetName", config.RestoreTargetName)
+		} else if config.RestoreTargetTime != "" {
+			endpointUrl.Query().Set("targetTime", config.RestoreTargetTime)
+		}
+
 		endpointUrl.User = url.UserPassword(restoreAccessKey, restoreSecretKey)
 		endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
 		config.BarmanRemoteRestoreConfig = endpointUrl.String()
