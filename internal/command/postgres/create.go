@@ -34,6 +34,10 @@ func newCreate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.Detach(),
+		flag.Bool{
+			Name:        "enable-backup",
+			Description: "Enable WAL-based backups",
+		},
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -86,6 +90,23 @@ func newCreate() *cobra.Command {
 			Name:        "autostart",
 			Description: "Automatically start a stopped Postgres app when a network request is received",
 			Default:     false,
+		},
+		flag.String{
+			Name:        "restore-target-app",
+			Description: "Restore backup from another Postgres app",
+		},
+		flag.String{
+			Name:        "restore-target-time",
+			Description: "RFC3339-formatted timestamp up to which recovery will proceed",
+		},
+		flag.String{
+			Name:        "restore-target-name",
+			Description: "ID of backup to restore",
+		},
+		flag.Bool{
+			Name:        "restore-target-inclusive",
+			Description: "Set to true to stop recovery after the specified time, or false to stop before it",
+			Default:     true,
 		},
 	)
 
@@ -260,6 +281,16 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	if flag.GetString(ctx, "restore-target-name") != "" && flag.GetString(ctx, "restore-target-time") != "" {
+		return fmt.Errorf("Cannot specify both --restore-target-name and --restore-target-time")
+	}
+
+	if flag.GetString(ctx, "restore-target-name") != "" || flag.GetString(ctx, "restore-target-time") != "" {
+		if flag.GetString(ctx, "restore-target-app") == "" {
+			return fmt.Errorf("Must specify --restore-target-app when using --restore-target-name or --restore-target-time")
+		}
+	}
+
 	return CreateCluster(ctx, org, region, params)
 }
 
@@ -271,13 +302,20 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      params.Name,
-		Organization: org,
-		ImageRef:     params.PostgresConfiguration.ImageRef,
-		Region:       region.Code,
-		Manager:      params.Manager,
-		Autostart:    params.Autostart,
-		ForkFrom:     params.ForkFrom,
+		AppName:       params.Name,
+		Organization:  org,
+		ImageRef:      params.PostgresConfiguration.ImageRef,
+		Region:        region.Code,
+		Manager:       params.Manager,
+		Autostart:     params.Autostart,
+		ForkFrom:      params.ForkFrom,
+		BackupEnabled: flag.GetBool(ctx, "enable-backup"),
+		// Eventually we populate this with a full S3 endpoint, but use the
+		// restore app target for now.
+		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
+		RestoreTargetName:         flag.GetString(ctx, "restore-target-name"),
+		RestoreTargetTime:         flag.GetString(ctx, "restore-target-time"),
+		RestoreTargetInclusive:    flag.GetBool(ctx, "restore-target-inclusive"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
