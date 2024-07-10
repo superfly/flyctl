@@ -257,8 +257,8 @@ func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
 	appConfig := f.ReadFile("fly.toml")
 	appConfig += `
 		[[machine_checks]]
-            image = "curlimages/curl"
-   			entrypoint = ["/bin/sh", "-c"]
+			image = "curlimages/curl"
+			entrypoint = ["/bin/sh", "-c"]
 			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
 		`
 	f.WriteFlyToml(appConfig)
