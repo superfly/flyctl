@@ -70,6 +70,7 @@ type Client interface {
 	GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificates(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
 	GetMachine(ctx context.Context, machineId string) (*fly.GqlMachine, error)
+	GetMachineWithEvents(ctx context.Context, machineId string) (*fly.GqlMachine, error)
 	GetNearestRegion(ctx context.Context) (*fly.Region, error)
 	GetOrganizationBySlug(ctx context.Context, slug string) (*fly.Organization, error)
 	GetOrganizationByApp(ctx context.Context, appName string) (*fly.Organization, error)
