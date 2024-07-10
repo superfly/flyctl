@@ -222,7 +222,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		machine := machines[0]
 
 		in := &fly.MachineExecRequest{
-			Cmd: "bash -c \"echo $AWS_ACCESS_KEY_ID\"",
+			Cmd: "bash -c \"echo $AWS_ACCESS_KEY_ID; echo $AWS_SECRET_ACCESS_KEY; echo $BUCKET_NAME; echo $AWS_ENDPOINT_URL_S3\"",
 		}
 
 		out, err := flapsClient.Exec(ctx, machine.ID, in)
@@ -232,45 +232,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if out.StdOut == "" {
 			return fmt.Errorf("AWS_ACCESS_KEY_ID is unset")
 		}
-		accessKey := strings.TrimSpace(out.StdOut)
-
-		in = &fly.MachineExecRequest{
-			Cmd: "bash -c \"echo $AWS_SECRET_ACCESS_KEY\"",
+		outputLines := strings.Split(strings.TrimSpace(out.StdOut), "\n")
+		if len(outputLines) < 4 {
+			return fmt.Errorf("Invalid output format")
 		}
-
-		out, err = flapsClient.Exec(ctx, machine.ID, in)
-		if err != nil {
-			return err
-		}
-		if out.StdOut == "" {
-			return fmt.Errorf("AWS_SECRET_ACCESS_KEY is unset")
-		}
-		secretKey := strings.TrimSpace(out.StdOut)
-
-		in = &fly.MachineExecRequest{
-			Cmd: "bash -c \"echo $BUCKET_NAME\"",
-		}
-
-		out, err = flapsClient.Exec(ctx, machine.ID, in)
-		if err != nil {
-			return err
-		}
-		if out.StdOut == "" {
-			return fmt.Errorf("BUCKET_NAME is unset")
-		}
-		bucketName := strings.TrimSpace(out.StdOut)
-		in = &fly.MachineExecRequest{
-			Cmd: "bash -c \"echo $AWS_ENDPOINT_URL_S3\"",
-		}
-
-		out, err = flapsClient.Exec(ctx, machine.ID, in)
-		if err != nil {
-			return err
-		}
-		if out.StdOut == "" {
-			return fmt.Errorf("AWS_ENDPOINT_URL_S3 is unset")
-		}
-		endpoint := strings.TrimSpace(out.StdOut)
+		accessKey := strings.TrimSpace(outputLines[0])
+		secretKey := strings.TrimSpace(outputLines[1])
+		bucketName := strings.TrimSpace(outputLines[2])
+		endpoint := strings.TrimSpace(outputLines[3])
 
 		body := url.QueryEscape("{\"name\":\"restore\",\"buckets_role\":[{\"bucket\":\"" + bucketName + "\",\"role\":\"ReadOnly\"}]}")
 		body = "Req=" + body
@@ -312,7 +281,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		newAccessKey := createAccessKeyResult["AccessKey"].(map[string]interface{})
 		restoreAccessKey := newAccessKey["AccessKeyId"].(string)
 		restoreSecretKey := newAccessKey["SecretAccessKey"].(string)
-		bucketDirectory := config.AppName
+		bucketDirectory := config.BarmanRemoteRestoreConfig
 		endpointUrl, err := url.Parse(endpoint)
 		if err != nil {
 			return err
