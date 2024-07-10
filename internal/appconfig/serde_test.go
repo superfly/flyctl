@@ -464,6 +464,16 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			},
 		},
 
+		MachineChecks: []*ServiceMachineCheck{
+			{
+				Command:     []string{"curl", "https://fly.io"},
+				Entrypoint:  []string{"/bin/sh"},
+				Image:       "curlimages/curl",
+				KillSignal:  fly.StringPointer("SIGKILL"),
+				KillTimeout: fly.MustParseDuration("5s"),
+			},
+		},
+
 		Statics: []Static{
 			{
 				GuestPath:     "/path/to/statics",
