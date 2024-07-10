@@ -78,6 +78,11 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
+	err = hasRequiredVersion(machines)
+	if err != nil {
+		return err
+	}
+
 	machine := machines[0]
 
 	in := &fly.MachineExecRequest{
@@ -159,12 +164,18 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("app %s is not a postgres app", appName)
 	}
 
-	// flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-	// AppName: appName,
-	// })
-	// if err != nil {
-	// 	return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	// }
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	err = hasRequiredVersion(machines)
+	if err != nil {
+		return err
+	}
 
 	enabled, err := isBackupEnabled(ctx, appName)
 	if err != nil {
@@ -246,6 +257,11 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
+	err = hasRequiredVersion(machines)
+	if err != nil {
+		return err
+	}
+
 	machine := machines[0]
 
 	in := &fly.MachineExecRequest{
@@ -269,4 +285,8 @@ func runBackupList(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func hasRequiredVersion(machines []*fly.Machine) error {
+	return hasRequiredVersionOnMachines(machines, "", "0.0.53", "")
 }
