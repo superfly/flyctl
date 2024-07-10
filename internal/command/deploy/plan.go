@@ -72,9 +72,10 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		if newMachine, ok := newMachines[oldMachine.ID]; ok {
 			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
 		} else {
+			// FIXME: this would currently delete unmanaged machines! no bueno
+			// fmt.Println("Deleting machine", oldMachine.ID)
 			// This means we should destroy the old machine
-			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: nil})
-			return fmt.Errorf("Machine not found in new state")
+			// machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: nil})
 		}
 	}
 
@@ -103,7 +104,6 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			}
 
 			return nil
-
 		})
 	}
 
