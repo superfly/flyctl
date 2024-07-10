@@ -182,7 +182,7 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 		} else {
 			// if the config hasn't changed, we don't need to update the machine
 			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			newMachine, err := updateMachineConfig(ctx, oldMachine.ID, lease, newMachine.Config)
+			newMachine, err := updateMachineConfig(ctx, oldMachine, newMachine.Config, lease)
 			if err != nil {
 				return err
 			}
@@ -288,14 +288,15 @@ func detectMultipleImageVersions(ctx context.Context) ([]*fly.Machine, error) {
 }
 
 func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
+	// TODO: remove this when valentin's work is done
 	flapsClient := flapsutil.ClientFromContext(ctx)
-	fmt.Println("Clearing lease for machine", machID)
-	err := flapsClient.ReleaseLease(ctx, machID, leaseNonce)
-	if err != nil {
-		return err
+	for {
+		err := flapsClient.ReleaseLease(ctx, machID, leaseNonce)
+		if err == nil {
+			return nil
+		}
+		time.Sleep(1 * time.Second)
 	}
-
-	return nil
 }
 
 // returns when the machine is in one of the possible states, or after passing the timeout threshold
@@ -354,12 +355,17 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 	return lease, nil
 }
 
-func updateMachineConfig(ctx context.Context, machID string, lease *fly.MachineLease, machConfig *fly.MachineConfig) (*fly.Machine, error) {
+func updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, lease *fly.MachineLease) (*fly.Machine, error) {
+	if reflect.DeepEqual(oldMachine.Config, newMachineConfig) {
+		return oldMachine, nil
+
+	}
+
 	// First, let's get a lease on the machine
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	mach, err := flapsClient.Update(ctx, fly.LaunchMachineInput{
-		Config: machConfig,
-		ID:     machID,
+		Config: newMachineConfig,
+		ID:     oldMachine.ID,
 	}, lease.Data.Nonce)
 	if err != nil {
 		return nil, err
