@@ -49,11 +49,10 @@ func (md *machineDeployment) appState(ctx context.Context) (*AppState, error) {
 	return appState, nil
 }
 
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState) error {
+func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, rollback bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
-	fmt.Println("Updating machines")
 	// make a map of [machineID] -> [machine]
 	oldMachines := make(map[string]*fly.Machine)
 	for _, machine := range oldAppState.Machines {
@@ -109,7 +108,9 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	}
 
 	if updateErr := group.Wait(); updateErr != nil {
-		fmt.Println("Error updating machines", updateErr)
+		if !rollback {
+			return updateErr
+		}
 
 		// if we fail to update the machines, we should revert the state back if possible
 		ctx := context.WithoutCancel(ctx)
@@ -123,7 +124,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			fmt.Println("Reverting to previous state")
 			sl.Destroy(false)
 
-			err = md.updateMachines(ctx, currentState, oldAppState)
+			err = md.updateMachines(ctx, currentState, oldAppState, false)
 			if err == nil {
 				break
 			}
