@@ -58,6 +58,8 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
+	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
+
 	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
 
 	Compute []*Compute `toml:"vm,omitempty" json:"vm,omitempty"`
