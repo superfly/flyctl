@@ -50,6 +50,35 @@ func (md *machineDeployment) appState(ctx context.Context) (*AppState, error) {
 	return appState, nil
 }
 
+type updateMachinesErr struct {
+	err                error
+	successfulRollback bool
+}
+
+func (e *updateMachinesErr) Error() string {
+	return fmt.Sprintf("failed to update machines: %s", e.err)
+}
+
+func (e *updateMachinesErr) Unwrap() error {
+	return e.err
+}
+
+func (e *updateMachinesErr) Description() string {
+	rollBackKind := "successful"
+	if !e.successfulRollback {
+		rollBackKind = "failed"
+	}
+	return fmt.Sprintf("failed to update machines: %s\nA %s rollback did occur, however.", e.err, rollBackKind)
+}
+
+func (e *updateMachinesErr) Suggestion() string {
+	if e.successfulRollback {
+		return "Retry the deployment by running `fly deploy`"
+	} else {
+		return "You can either rollback to the previous state by running `fly deploy rollback` or try to deploy again by running `fly deploy`"
+	}
+}
+
 func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, rollback bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
@@ -109,12 +138,19 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	}
 
 	if updateErr := group.Wait(); updateErr != nil {
+		updateErr := updateMachinesErr{err: updateErr, successfulRollback: false}
 		if !rollback {
-			return updateErr
+			return &updateErr
+		}
+
+		// no point in rolling back on a context canceled error
+		if strings.Contains(updateErr.Error(), "context canceled") {
+			return &updateErr
 		}
 
 		// if we fail to update the machines, we should revert the state back if possible
 		ctx := context.WithoutCancel(ctx)
+		sl.Destroy(false)
 
 		for {
 			currentState, err := md.appState(ctx)
@@ -123,19 +159,21 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 				return err
 			}
 			fmt.Println("Reverting to previous state")
-			sl.Destroy(false)
 
 			err = md.updateMachines(ctx, currentState, oldAppState, false)
 			if err == nil {
 				break
+			} else if strings.Contains(err.Error(), "context canceled") {
+				return &updateErr
 			}
-			fmt.Println("Failed to revert to previous state", err)
-			time.Sleep(10 * time.Second)
+			fmt.Println("Failed to revert to previous state:", err)
+			time.Sleep(1 * time.Second)
 			sl.Destroy(true)
 		}
 
+		updateErr.successfulRollback = true
 		// TODO tell the user we managed to revert to a previous state
-		return updateErr
+		return &updateErr
 
 	}
 
