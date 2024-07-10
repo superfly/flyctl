@@ -18,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/rand"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -63,23 +62,7 @@ func (e *updateMachinesErr) Unwrap() error {
 	return e.err
 }
 
-func (e *updateMachinesErr) Description() string {
-	rollBackKind := "successful"
-	if !e.successfulRollback {
-		rollBackKind = "failed"
-	}
-	return fmt.Sprintf("failed to update machines: %s\nA %s rollback did occur, however.", e.err, rollBackKind)
-}
-
-func (e *updateMachinesErr) Suggestion() string {
-	if e.successfulRollback {
-		return "Retry the deployment by running `fly deploy`"
-	} else {
-		return "You can either rollback to the previous state by running `fly deploy rollback` or try to deploy again by running `fly deploy`"
-	}
-}
-
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, rollback bool) error {
+func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, rollback bool, statusLogger statuslogger.StatusLogger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
@@ -116,8 +99,13 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		}
 	}
 
-	sl := statuslogger.Create(ctx, len(machineTuples), true)
-	defer sl.Destroy(false)
+	var sl statuslogger.StatusLogger
+	if statusLogger != nil {
+		sl = statusLogger
+	} else {
+		sl = statuslogger.Create(ctx, len(machineTuples), true)
+		defer sl.Destroy(false)
+	}
 
 	group, ctx := errgroup.WithContext(ctx)
 	for idx, machPair := range machineTuples {
@@ -138,43 +126,35 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	}
 
 	if updateErr := group.Wait(); updateErr != nil {
-		updateErr := updateMachinesErr{err: updateErr, successfulRollback: false}
 		if !rollback {
-			return &updateErr
+			return updateErr
 		}
 
 		// no point in rolling back on a context canceled error
 		if strings.Contains(updateErr.Error(), "context canceled") {
-			return &updateErr
+			return updateErr
 		}
 
 		// if we fail to update the machines, we should revert the state back if possible
-		ctx := context.WithoutCancel(ctx)
-		sl.Destroy(false)
-
+		ctx = context.WithoutCancel(ctx)
 		for {
 			currentState, err := md.appState(ctx)
 			if err != nil {
-				fmt.Println("Failed to get current state", err)
+				fmt.Println("Failed to get current state:", err)
 				return err
 			}
-			fmt.Println("Reverting to previous state")
-
-			err = md.updateMachines(ctx, currentState, oldAppState, false)
+			err = md.updateMachines(ctx, currentState, newAppState, false, sl)
 			if err == nil {
 				break
 			} else if strings.Contains(err.Error(), "context canceled") {
-				return &updateErr
+				return err
+			} else {
+				fmt.Println("Failed to update machines:", err, ". Retrying...")
 			}
-			fmt.Println("Failed to revert to previous state:", err)
 			time.Sleep(1 * time.Second)
-			sl.Destroy(true)
 		}
 
-		updateErr.successfulRollback = true
-		// TODO tell the user we managed to revert to a previous state
-		return &updateErr
-
+		return nil
 	}
 
 	return nil
@@ -197,8 +177,8 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 
 		// even if we fail to update the machine, we need to clear the lease
 		// clear the existing lease
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing the lease for %s", machine.ID))
 		ctx := context.WithoutCancel(ctx)
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing the lease for %s", machine.ID))
 		err := clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
 		if err != nil {
 			fmt.Println("Failed to clear lease for machine", machine.ID, "due to error", err)
@@ -270,7 +250,7 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 	// check health of the machine
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", oldMachine.ID))
 
-	err = lm.WaitForHealthchecksToPass(ctx, 10*time.Second)
+	err = lm.WaitForHealthchecksToPass(ctx, 60*time.Second)
 	if err != nil {
 		return err
 	}
@@ -396,10 +376,8 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 func updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, lease *fly.MachineLease) (*fly.Machine, error) {
 	if reflect.DeepEqual(oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil
-
 	}
 
-	// First, let's get a lease on the machine
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	mach, err := flapsClient.Update(ctx, fly.LaunchMachineInput{
 		Config: newMachineConfig,
