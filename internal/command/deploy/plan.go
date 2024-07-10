@@ -355,12 +355,6 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 }
 
 func updateMachineConfig(ctx context.Context, machID string, lease *fly.MachineLease, machConfig *fly.MachineConfig) (*fly.Machine, error) {
-	randNum := rand.Intn(30) + 1
-	if randNum == 5 {
-		time.Sleep(10 * time.Second)
-		return nil, fmt.Errorf("could not reserve resource for machine %s", machID)
-	}
-
 	// First, let's get a lease on the machine
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	mach, err := flapsClient.Update(ctx, fly.LaunchMachineInput{
