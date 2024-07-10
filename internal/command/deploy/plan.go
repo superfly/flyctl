@@ -113,23 +113,23 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 
 		// if we fail to update the machines, we should revert the state back if possible
 		ctx := context.WithoutCancel(ctx)
-		currentState, err := md.appState(ctx)
-		if err != nil {
-			fmt.Println("Failed to get current state", err)
-			return err
-		}
-		fmt.Println("Reverting to previous state")
-		sl.Destroy(false)
 
-		err = md.updateMachines(ctx, currentState, oldAppState)
 		for {
+			currentState, err := md.appState(ctx)
+			if err != nil {
+				fmt.Println("Failed to get current state", err)
+				return err
+			}
+			fmt.Println("Reverting to previous state")
+			sl.Destroy(false)
+
+			err = md.updateMachines(ctx, currentState, oldAppState)
 			if err == nil {
 				break
 			}
 			fmt.Println("Failed to revert to previous state", err)
 			time.Sleep(10 * time.Second)
 			sl.Destroy(true)
-			err = md.updateMachines(ctx, currentState, oldAppState)
 		}
 
 		// TODO tell the user we managed to revert to a previous state
