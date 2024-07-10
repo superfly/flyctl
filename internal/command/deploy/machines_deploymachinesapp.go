@@ -471,7 +471,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	case "canary", "rolling":
 		fallthrough
 	default:
-		return md.updateMachines(ctx, oldAppState, &newAppState)
+		return md.updateMachines(ctx, oldAppState, &newAppState, true)
 	}
 }
 
