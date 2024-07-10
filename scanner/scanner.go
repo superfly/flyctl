@@ -125,6 +125,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureFlask,
 		configurePython,
 		configureDeno,
+		configureMeteor,
 		configureNuxt,
 		configureNextJs,
 		configureNode,

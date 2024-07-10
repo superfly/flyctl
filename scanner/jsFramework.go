@@ -230,6 +230,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if startScript, ok := scripts["start"].(string); ok && strings.Contains(startScript, "meteor") {
+		srcInfo.Family = "Meteor"
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
