@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -142,8 +143,8 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 }
 
 func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx int, sl statuslogger.StatusLogger, io *iostreams.IOStreams) error {
-	if reflect.DeepEqual(oldMachine, newMachine) {
-		// if the machine is already in the exact state we want it to be in, we can skip this
+	if reflect.DeepEqual(oldMachine.Config, newMachine.Config) {
+		// if the machine is already in the exact state we want it to be in, we  skip this
 		sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is already in the desired state", oldMachine.ID))
 		return nil
 	}
@@ -158,12 +159,12 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 
 		// even if we fail to update the machine, we need to clear the lease
 		// clear the existing lease
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing the lease for %s", oldMachine.ID))
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing the lease for %s", machine.ID))
 		ctx := context.WithoutCancel(ctx)
 		err := clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
 		if err != nil {
-			fmt.Println("Failed to clear lease for machine", oldMachine.ID, "due to error", err)
-			sl.Line(idx).LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for machine %s", oldMachine.ID))
+			fmt.Println("Failed to clear lease for machine", machine.ID, "due to error", err)
+			sl.Line(idx).LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for machine %s", machine.ID))
 		}
 	}()
 
@@ -176,38 +177,31 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 		}
 		lease = newLease
 
-		// if the config hasn't changed, we don't need to update the machine
-		if !reflect.DeepEqual(oldMachine.Config, newMachine.Config) {
+		if newMachine == nil {
+			destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
+		} else {
+			// if the config hasn't changed, we don't need to update the machine
 			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			machine, err = updateMachineConfig(ctx, oldMachine.ID, lease, newMachine.Config)
+			newMachine, err := updateMachineConfig(ctx, oldMachine.ID, lease, newMachine.Config)
 			if err != nil {
 				return err
 			}
+			machine = newMachine
 		}
 	} else if newMachine != nil {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", oldMachine.ID))
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
 		var err error
 		machine, err = createMachine(ctx, newMachine.Config, newMachine.Region)
 		if err != nil {
 			return err
 		}
 
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", oldMachine.ID))
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", newMachine.ID))
 		newLease, err := acquireMachineLease(ctx, machine.ID)
 		if err != nil {
 			return err
 		}
 		lease = newLease
-	}
-
-	if newMachine == nil {
-		// if the new machine is nil, we should destroy the old machine
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Destroying machine %s", oldMachine.ID))
-		err := destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
-		if err != nil {
-			return err
-		}
-		return nil
 	}
 
 	var err error
@@ -312,6 +306,11 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 
 	var waitErr error
 	numFinished := 0
+
+	// something's wrong with waitForState, since sometimes we're already in the state we need but waitForState times out
+	if lo.Contains(possibleStates, lm.Machine().State) {
+		return nil
+	}
 
 	for _, state := range possibleStates {
 		state := state
