@@ -114,6 +114,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureRails,
 		configureRedwood,
 		configureJsFramework,
+		configureMeteor,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
