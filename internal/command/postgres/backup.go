@@ -85,8 +85,15 @@ func runBackupCreate(ctx context.Context) error {
 
 	machine := machines[0]
 
+	cmd := "flexctl backup create"
+
+	name := flag.GetString(ctx, "name")
+	if name != "" {
+		cmd += " -n " + name
+	}
+
 	in := &fly.MachineExecRequest{
-		Cmd: "flexctl backup create",
+		Cmd: cmd,
 	}
 
 	out, err := flapsClient.Exec(ctx, machine.ID, in)
