@@ -103,6 +103,11 @@ func newCreate() *cobra.Command {
 			Name:        "restore-target-name",
 			Description: "Name of backup to restore",
 		},
+		flag.Bool{
+			Name:        "restore-target-inclusive",
+			Description: "Set to true to stop recovery after the specified time, or false to stop before it. Defaults to true",
+			Default:     true,
+		},
 	)
 
 	return cmd
@@ -310,6 +315,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
 		RestoreTargetName:         flag.GetString(ctx, "restore-target-name"),
 		RestoreTargetTime:         flag.GetString(ctx, "restore-target-time"),
+		RestoreTargetInclusive:    flag.GetBool(ctx, "restore-target-inclusive"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil

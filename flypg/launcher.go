@@ -72,6 +72,7 @@ type CreateClusterInput struct {
 	BarmanRemoteRestoreConfig string
 	RestoreTargetName         string
 	RestoreTargetTime         string
+	RestoreTargetInclusive bool
 }
 
 func NewLauncher(client flyutil.Client) *Launcher {
@@ -307,6 +308,9 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 			endpointUrl.RawQuery = values.Encode()
 		} else if config.RestoreTargetTime != "" {
 			values.Set("targetTime", config.RestoreTargetTime)
+			if !config.RestoreTargetInclusive {
+				values.Set("targetInclusive", "false")
+			}
 			endpointUrl.RawQuery = values.Encode()
 		}
 
