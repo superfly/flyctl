@@ -101,7 +101,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "restore-target-name",
-			Description: "Name of backup to restore",
+			Description: "ID of backup to restore",
 		},
 		flag.Bool{
 			Name:        "restore-target-inclusive",
