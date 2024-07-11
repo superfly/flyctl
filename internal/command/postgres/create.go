@@ -91,23 +91,6 @@ func newCreate() *cobra.Command {
 			Description: "Automatically start a stopped Postgres app when a network request is received",
 			Default:     false,
 		},
-		flag.String{
-			Name:        "restore-target-app",
-			Description: "Restore backup from specified Postgres app into an identically-configured instance",
-		},
-		flag.String{
-			Name:        "restore-target-time",
-			Description: "RFC3339-formatted timestamp up to which recovery will proceed",
-		},
-		flag.String{
-			Name:        "restore-target-name",
-			Description: "ID or alias of backup to restore",
-		},
-		flag.Bool{
-			Name:        "restore-target-inclusive",
-			Description: "Set to true to stop recovery after the specified time, or false to stop before it",
-			Default:     true,
-		},
 	)
 
 	return cmd
