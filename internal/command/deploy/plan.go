@@ -46,12 +46,13 @@ func (md *machineDeployment) appState(ctx context.Context) (*AppState, error) {
 
 type healthcheckResult struct {
 	regularChecksPassed bool
+	smokeChecksPassed   bool
 	machineChecksPassed bool
 }
 
 var healthChecksPassed = sync.Map{}
 
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, pushForward bool, statusLogger statuslogger.StatusLogger, skipHealthChecks bool) error {
+func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, pushForward bool, statusLogger statuslogger.StatusLogger, skipHealthChecks bool, skipSmokeChecks bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
@@ -73,6 +74,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{
 				regularChecksPassed: skipHealthChecks,
 				machineChecksPassed: skipHealthChecks,
+				smokeChecksPassed:   skipSmokeChecks,
 			})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
 		}
@@ -84,6 +86,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{
 				regularChecksPassed: skipHealthChecks,
 				machineChecksPassed: skipHealthChecks,
+				smokeChecksPassed:   skipSmokeChecks,
 			})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: nil, newMachine: newMachine})
 		}
@@ -133,7 +136,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 				fmt.Println("Failed to get current state:", err)
 				return err
 			}
-			err = md.updateMachines(ctx, currentState, newAppState, false, sl, skipHealthChecks)
+			err = md.updateMachines(ctx, currentState, newAppState, false, sl, skipHealthChecks, skipSmokeChecks)
 			if err == nil {
 				break
 			} else if strings.Contains(err.Error(), "context canceled") {
@@ -256,6 +259,15 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	err = waitForMachineState(ctx, lm, []string{"started"}, md.waitTimeout, sl.Line(idx))
 	if err != nil {
 		return err
+	}
+
+	if !healthcheckResult.smokeChecksPassed {
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
+		err = md.doSmokeChecks(ctx, lm)
+		if err != nil {
+			return &unrecoverableError{err: err}
+		}
+		healthcheckResult.smokeChecksPassed = true
 	}
 
 	if !healthcheckResult.machineChecksPassed {

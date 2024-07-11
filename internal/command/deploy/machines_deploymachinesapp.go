@@ -455,12 +455,12 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		// TODO(billy) do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
-		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, true)
+		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, true, true)
 	case "canary", "rolling":
 		// FIXME: CANARY!!!
 		fallthrough
 	default:
-		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, md.skipHealthChecks)
+		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks)
 	}
 }
 
