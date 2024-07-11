@@ -33,10 +33,10 @@ func newBackup() *cobra.Command {
 
 func newBackupRestore() *cobra.Command {
 	const (
-		short = "Performs WAL-based restore into a new Postgres cluster."
+		short = "Performs a WAL-based restore into a new Postgres cluster."
 		long  = short + "\n"
 
-		usage = "restore"
+		usage = "restore <destination-app-name>"
 	)
 
 	cmd := command.New(usage, short, long, runBackupRestore,
@@ -44,23 +44,20 @@ func newBackupRestore() *cobra.Command {
 		command.RequireAppName,
 	)
 
+	cmd.Args = cobra.ExactArgs(1)
+
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
 		flag.Detach(),
 		flag.String{
-			Name:        "name",
-			Shorthand:   "n",
-			Description: "The name of the destination Postgres app",
-		},
-		flag.String{
 			Name:        "restore-target-time",
-			Description: "RFC3339-formatted timestamp up to which recovery will proceed",
+			Description: "RFC3339-formatted timestamp up to which recovery will proceed. Example: 2021-07-16T12:34:56Z",
 		},
 		flag.String{
 			Name:        "restore-target-name",
-			Description: "ID or alias of backup to restore",
+			Description: "ID or alias of backup to restore.",
 		},
 		flag.Bool{
 			Name:        "restore-target-inclusive",
@@ -74,9 +71,9 @@ func newBackupRestore() *cobra.Command {
 
 func runBackupRestore(ctx context.Context) error {
 	var (
-		appName       = appconfig.NameFromContext(ctx)
-		client        = flyutil.ClientFromContext(ctx)
-		targetAppName = flag.GetString(ctx, "name")
+		appName     = appconfig.NameFromContext(ctx)
+		client      = flyutil.ClientFromContext(ctx)
+		destAppName = flag.FirstArg(ctx)
 	)
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -144,7 +141,7 @@ func runBackupRestore(ctx context.Context) error {
 
 	// Build the input for the new cluster using the leader's configuration.
 	input := &flypg.CreateClusterInput{
-		AppName:                   targetAppName,
+		AppName:                   destAppName,
 		Organization:              org,
 		InitialClusterSize:        1,
 		ImageRef:                  leader.FullImageRef(),
