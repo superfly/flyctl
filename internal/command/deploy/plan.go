@@ -178,7 +178,6 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 		// even if we fail to update the machine, we need to clear the lease
 		// clear the existing lease
 		ctx := context.WithoutCancel(ctx)
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing the lease for %s", machine.ID))
 		err := clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
 		if err != nil {
 			fmt.Println("Failed to clear lease for machine", machine.ID, "due to error", err)
@@ -402,7 +401,7 @@ func createMachine(ctx context.Context, machConfig *fly.MachineConfig, region st
 	return machine, nil
 }
 
-func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry) error {
+func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry, sl statuslogger.StatusLine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine", trace.WithAttributes(
 		attribute.String("id", e.launchInput.ID),
 		attribute.Bool("requires_replacement", e.launchInput.RequiresReplacement),
@@ -424,7 +423,7 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 		return replaceMachine()
 	}
 
-	statuslogger.Logf(ctx, "Updating %s", md.colorize.Bold(fmtID))
+	sl.Logf("Updating %s", md.colorize.Bold(fmtID))
 	if err := md.updateMachineInPlace(ctx, e); err != nil {
 		switch {
 		case len(e.leasableMachine.Machine().Config.Mounts) > 0:

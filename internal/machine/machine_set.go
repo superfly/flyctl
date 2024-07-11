@@ -31,10 +31,10 @@ type machineSet struct {
 	machines []LeasableMachine
 }
 
-func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machines []*fly.Machine) *machineSet {
+func NewMachineSet(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machines []*fly.Machine, showLogs bool) *machineSet {
 	leaseMachines := make([]LeasableMachine, 0)
 	for _, m := range machines {
-		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m, true))
+		leaseMachines = append(leaseMachines, NewLeasableMachine(flapsClient, io, m, showLogs))
 	}
 	return &machineSet{
 		machines: leaseMachines,

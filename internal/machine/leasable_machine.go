@@ -358,7 +358,9 @@ func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType strin
 		Factor: 2,
 		Jitter: true,
 	}
-	statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType))
+	if lm.showLogs {
+		statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType))
+	}
 	for {
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {
