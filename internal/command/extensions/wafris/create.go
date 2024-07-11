@@ -15,7 +15,7 @@ import (
 
 func create() (cmd *cobra.Command) {
   const (
-    short = "Provision a Wafris project"
+    short = "Provision a Wafris WAF"
     long  = short + "\n"
   )
 
@@ -29,7 +29,7 @@ func create() (cmd *cobra.Command) {
     flag.String{
       Name:        "name",
       Shorthand:   "n",
-      Description: "The name of your project",
+      Description: "The name of your WAF",
     },
   )
   return cmd

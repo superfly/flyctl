@@ -9,7 +9,7 @@ import (
 func New() (cmd *cobra.Command) {
 
   const (
-    short = "Provision and manage Wafris"
+    short = "Provision and manage Wafris WAFs (Web Application Firewalls)"
     long  = short + "\n"
   )
 
