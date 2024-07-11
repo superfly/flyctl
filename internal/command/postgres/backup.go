@@ -100,7 +100,6 @@ func runBackupRestore(ctx context.Context) error {
 		return fmt.Errorf("list of machines could not be retrieved: %w", err)
 	}
 
-	// TODO - We shouldn't care if the machines are active or not.
 	if len(machines) == 0 {
 		return fmt.Errorf("No active machines")
 	}
@@ -116,7 +115,9 @@ func runBackupRestore(ctx context.Context) error {
 		return err
 	}
 
-	// TODO - Use this to create new access keys.
+	// TODO - Use this to create new Tigris access keys. However, if we can't yet revoke
+	// access keys after the restore process completes, we should understand the implications of
+	// creating potentially many access keys.
 	in := &fly.MachineExecRequest{
 		Cmd: "bash -c \"echo $S3_ARCHIVE_CONFIG\"",
 	}
@@ -141,6 +142,7 @@ func runBackupRestore(ctx context.Context) error {
 		return err
 	}
 
+	// Build the input for the new cluster using the leader's configuration.
 	input := &flypg.CreateClusterInput{
 		AppName:                   targetAppName,
 		Organization:              org,
@@ -148,7 +150,7 @@ func runBackupRestore(ctx context.Context) error {
 		ImageRef:                  leader.FullImageRef(),
 		Region:                    leader.Region,
 		Manager:                   flypg.ReplicationManager,
-		Autostart:                 true,
+		Autostart:                 *leader.Config.Services[0].Autostart,
 		BackupEnabled:             false,
 		VolumeSize:                &leader.Config.Mounts[0].SizeGb,
 		Guest:                     leader.Config.Guest,
