@@ -14,7 +14,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("wafris", short, long, nil)
-	cmd.AddCommand(create(), dashboard())
+	cmd.AddCommand(create(), destroy(), dashboard())
 
 	return cmd
 }
