@@ -2,13 +2,13 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/samber/lo"
+	"github.com/google/go-cmp/cmp"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -23,7 +23,6 @@ import (
 
 type AppState struct {
 	Machines []*fly.Machine
-	Volumes  []fly.Volume
 }
 
 type machinePairing struct {
@@ -36,37 +35,27 @@ func (md *machineDeployment) appState(ctx context.Context) (*AppState, error) {
 	if err != nil {
 		return nil, err
 	}
-	volumes, err := md.flapsClient.GetVolumes(ctx)
-	if err != nil {
-		return nil, err
-	}
 
+	// TODO: could this be a list of machine id -> config?
 	appState := &AppState{
 		Machines: machines,
-		Volumes:  volumes,
 	}
 
 	return appState, nil
 }
 
-type updateMachinesErr struct {
-	err                error
-	successfulRollback bool
+type healthcheckResult struct {
+	regularChecksPassed bool
+	machineChecksPassed bool
 }
 
-func (e *updateMachinesErr) Error() string {
-	return fmt.Sprintf("failed to update machines: %s", e.err)
-}
+var healthChecksPassed = sync.Map{}
 
-func (e *updateMachinesErr) Unwrap() error {
-	return e.err
-}
-
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, rollback bool, statusLogger statuslogger.StatusLogger) error {
+func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, pushForward bool, statusLogger statuslogger.StatusLogger) error {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
-	// make a map of [machineID] -> [machine]
+
 	oldMachines := make(map[string]*fly.Machine)
 	for _, machine := range oldAppState.Machines {
 		oldMachines[machine.ID] = machine
@@ -75,14 +64,13 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	for _, machine := range newAppState.Machines {
 		newMachines[machine.ID] = machine
 	}
-	// First, we update the machines
-	// Create a list of tuples of old and new machines
-	machineTuples := make([]machinePairing, 0)
 
+	machineTuples := make([]machinePairing, 0)
 	// TODO: a little tired rn, do we need to do this?
 	for _, oldMachine := range oldMachines {
 		// This means we want to update a machine
 		if newMachine, ok := newMachines[oldMachine.ID]; ok {
+			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
 		} else {
 			// FIXME: this would currently delete unmanaged machines! no bueno
@@ -95,6 +83,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	for _, newMachine := range newMachines {
 		if _, ok := oldMachines[newMachine.ID]; !ok {
 			// This means we should create the new machine
+			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: nil, newMachine: newMachine})
 		}
 	}
@@ -107,7 +96,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		defer sl.Destroy(false)
 	}
 
-	group, ctx := errgroup.WithContext(ctx)
+	group := errgroup.Group{}
 	for idx, machPair := range machineTuples {
 		machPair := machPair
 		oldMachine := machPair.oldMachine
@@ -115,28 +104,28 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 
 		idx := idx
 		group.Go(func() error {
-			err := updateMachine(ctx, oldMachine, newMachine, idx, sl, md.io)
+			checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
+			machineCheckResult := checkResult.(*healthcheckResult)
+			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, idx, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.Line(idx).LogStatus(statuslogger.StatusFailure, err.Error())
-				return err
+				return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
 			}
-
 			return nil
 		})
 	}
 
 	if updateErr := group.Wait(); updateErr != nil {
-		if !rollback {
+		if !pushForward {
 			return updateErr
 		}
 
-		// no point in rolling back on a context canceled error
-		if strings.Contains(updateErr.Error(), "context canceled") {
+		var unrecoverableErr unrecoverableError
+		if strings.Contains(updateErr.Error(), "context canceled") || errors.As(updateErr, &unrecoverableErr) || strings.Contains(updateErr.Error(), "Unrecoverable error") {
 			return updateErr
 		}
 
 		// if we fail to update the machines, we should revert the state back if possible
-		ctx = context.WithoutCancel(ctx)
 		for {
 			currentState, err := md.appState(ctx)
 			if err != nil {
@@ -149,6 +138,9 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			} else if strings.Contains(err.Error(), "context canceled") {
 				return err
 			} else {
+				if errors.As(err, &unrecoverableErr) || strings.Contains(err.Error(), "Unrecoverable error") {
+					return err
+				}
 				fmt.Println("Failed to update machines:", err, ". Retrying...")
 			}
 			time.Sleep(1 * time.Second)
@@ -160,13 +152,32 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	return nil
 }
 
-func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx int, sl statuslogger.StatusLogger, io *iostreams.IOStreams) error {
-	if reflect.DeepEqual(oldMachine.Config, newMachine.Config) {
-		// if the machine is already in the exact state we want it to be in, we  skip this
-		sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is already in the desired state", oldMachine.ID))
-		return nil
-	}
+type unrecoverableError struct {
+	err error
+}
 
+func (e unrecoverableError) Error() string {
+	return fmt.Sprintf("Unrecoverable error: %s", e.err)
+}
+
+func (e unrecoverableError) Unwrap() error {
+	return e.err
+}
+
+func compareConfigs(oldConfig, newConfig *fly.MachineConfig) bool {
+	opt := cmp.FilterPath(func(p cmp.Path) bool {
+		vx := p.Last().String()
+
+		if vx == `["fly_flyctl_version"]` {
+			return true
+		}
+		return false
+	}, cmp.Ignore())
+
+	return cmp.Equal(oldConfig, newConfig, opt)
+}
+
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, idx int, sl statuslogger.StatusLogger, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
 	var machine *fly.Machine = oldMachine
 	var lease *fly.MachineLease
 
@@ -199,7 +210,7 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 		} else {
 			// if the config hasn't changed, we don't need to update the machine
 			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			newMachine, err := updateMachineConfig(ctx, oldMachine, newMachine.Config, lease)
+			newMachine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl.Line(idx))
 			if err != nil {
 				return err
 			}
@@ -227,7 +238,7 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
 
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, 60*time.Second)
+	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, 5*time.Minute, sl.Line(idx))
 	if err != nil {
 		return err
 	}
@@ -240,19 +251,31 @@ func updateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, idx
 	}
 
 	// wait for the machine to reach the running state
-	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach running state", oldMachine.ID))
-	err = waitForMachineState(ctx, lm, []string{"started"}, 60*time.Second)
+	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", oldMachine.ID))
+	err = waitForMachineState(ctx, lm, []string{"started"}, 5*time.Minute, sl.Line(idx))
 	if err != nil {
 		return err
 	}
 
-	// check health of the machine
-	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", oldMachine.ID))
-
-	err = lm.WaitForHealthchecksToPass(ctx, 60*time.Second)
-	if err != nil {
-		return err
+	if !healthcheckResult.machineChecksPassed {
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running machine checks on machine %s", oldMachine.ID))
+		err = md.runTestMachines(ctx, machine, sl.Line(idx))
+		if err != nil {
+			return &unrecoverableError{err: err}
+		}
+		healthcheckResult.machineChecksPassed = true
 	}
+
+	if !healthcheckResult.regularChecksPassed {
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", oldMachine.ID))
+		err = lm.WaitForHealthchecksToPass(ctx, 5*time.Minute)
+		if err != nil {
+			return &unrecoverableError{err: err}
+		}
+		healthcheckResult.regularChecksPassed = true
+	}
+
+	sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", oldMachine.ID))
 
 	return nil
 }
@@ -365,27 +388,30 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 	if err != nil {
 		// TODO: tell users how to manually clear the lease
 		// TODO: have a flag to automatically clear the lease
-		return nil, err
+		if strings.Contains(err.Error(), "failed to get lease") {
+			return nil, unrecoverableError{err: err}
+		} else {
+			return nil, err
+		}
 	}
 
 	return lease, nil
 }
 
-func updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, lease *fly.MachineLease) (*fly.Machine, error) {
-	if reflect.DeepEqual(oldMachine.Config, newMachineConfig) {
+func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine) (*fly.Machine, error) {
+	if compareConfigs(oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	mach, err := flapsClient.Update(ctx, fly.LaunchMachineInput{
-		Config: newMachineConfig,
-		ID:     oldMachine.ID,
-	}, lease.Data.Nonce)
-	if err != nil {
-		return nil, err
-	}
-
-	return mach, nil
+	lm := mach.NewLeasableMachine(md.flapsClient, md.io, oldMachine, false)
+	md.updateMachine(ctx, &machineUpdateEntry{
+		leasableMachine: lm,
+		launchInput: &fly.LaunchMachineInput{
+			Config: newMachineConfig,
+			ID:     oldMachine.ID,
+		},
+	}, sl)
+	return lm.Machine(), nil
 }
 
 func createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
