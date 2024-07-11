@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -42,6 +43,10 @@ func newVulns() *cobra.Command {
 	flag.Add(
 		cmd,
 		flag.App(),
+		flag.Bool{
+			Name:        "json",
+			Description: "Output the scan results in JSON format",
+		},
 		flag.String{
 			Name:        "machine",
 			Shorthand:   "m",
@@ -106,6 +111,14 @@ func runVulns(ctx context.Context) error {
 	}
 	filter := &VulnFilter{severityLevel(sev), vulnIds}
 
+	if flag.IsSpecified(ctx, "json") {
+		if len(vulnIds) > 0 || flag.IsSpecified(ctx, "severity") {
+			// We could support filtering of JSON results but we would need to
+			// fully represent the v2 trivy schema structures or import them.
+			return fmt.Errorf("filtering by severity or CVE is not supported when outputting JSON")
+		}
+	}
+
 	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %w", err)
@@ -133,6 +146,14 @@ func runVulns(ctx context.Context) error {
 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed fetching scan data (status code %d)", res.StatusCode)
+	}
+
+	if flag.GetBool(ctx, "json") {
+		ios := iostreams.FromContext(ctx)
+		if _, err := io.Copy(ios.Out, res.Body); err != nil {
+			return fmt.Errorf("failed to read scan results: %w", err)
+		}
+		return nil
 	}
 
 	scan := &Scan{}
