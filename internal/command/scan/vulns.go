@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
+	"strings"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
@@ -165,6 +168,54 @@ func filterVuln(vuln *ScanVuln, filter *VulnFilter) bool {
 	return true
 }
 
+// cmpVulnId compares a and b component by component.
+// Pairs of components are compared numerically if they are both numeric.
+func cmpVulnId(a, b string) int {
+	as := strings.Split(a, "-")
+	bs := strings.Split(b, "-")
+	for n, ax := range as {
+		if n >= len(bs) {
+			return 1
+		}
+		bx := bs[n]
+
+		an, aerr := strconv.ParseUint(ax, 10, 32)
+		bn, berr := strconv.ParseUint(bx, 10, 32)
+		d := 0
+		if aerr == nil && berr == nil {
+			d = int(an) - int(bn)
+		} else {
+			d = strings.Compare(ax, bx)
+		}
+		if d != 0 {
+			return d
+		}
+	}
+
+	if len(as) < len(bs) {
+		return 1
+	}
+	return slices.Compare(as, bs)
+}
+
+// revCmpVuln compares vulns for sorting by highest severity and
+// most recent vulnID first.
+func revCmpVuln(a, b ScanVuln) int {
+	if a.Severity != b.Severity {
+		return -(severityLevel(a.Severity) - severityLevel(b.Severity))
+	}
+	if a.VulnerabilityID != b.VulnerabilityID {
+		return -(cmpVulnId(a.VulnerabilityID, b.VulnerabilityID))
+	}
+	if a.PkgName != b.PkgName {
+		return -(strings.Compare(a.PkgName, b.PkgName))
+	}
+	if a.InstalledVersion != b.InstalledVersion {
+		return strings.Compare(a.InstalledVersion, b.InstalledVersion)
+	}
+	return 0
+}
+
 // filterScan filters each vuln in each result based on the command
 // line preferences of the user. Any empty results are discarded.
 func filterScan(scan *Scan, filter *VulnFilter) *Scan {
@@ -177,6 +228,7 @@ func filterScan(scan *Scan, filter *VulnFilter) *Scan {
 			}
 		}
 		if len(newVulns) > 0 {
+			slices.SortFunc(newVulns, revCmpVuln)
 			res.Vulnerabilities = newVulns
 			newRes = append(newRes, res)
 		}
