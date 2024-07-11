@@ -129,8 +129,13 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			return updateErr
 		}
 
+		attempts := 0
 		// if we fail to update the machines, we should revert the state back if possible
 		for {
+			if attempts > md.deployRetries {
+				return updateErr
+			}
+
 			currentState, err := md.appState(ctx)
 			if err != nil {
 				fmt.Println("Failed to get current state:", err)
@@ -147,6 +152,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 				}
 				fmt.Println("Failed to update machines:", err, ". Retrying...")
 			}
+			attempts += 1
 			time.Sleep(1 * time.Second)
 		}
 
