@@ -33,9 +33,9 @@ func getBuildToken(ctx context.Context, app *fly.AppCompact) (string, error) {
 
 	var token string
 	if len(tokens.GetUserTokens()) > 0 {
-		token, err = getBuildTokenFromUser(ctx, orgID, app.Organization)
+		token, err = getBuildTokenFromUser(ctx, orgID, app)
 	} else {
-		token, err = getBuildTokenFromMacaroons(orgID, tokens.GetMacaroonTokens())
+		token, err = getBuildTokenFromMacaroons(tokens.GetMacaroonTokens(), orgID, app.InternalNumericID)
 	}
 
 	if err != nil {
@@ -46,38 +46,48 @@ func getBuildToken(ctx context.Context, app *fly.AppCompact) (string, error) {
 }
 
 func RevokeBuildTokens(ctx context.Context, app *fly.AppCompact) error {
-	orgID, err := strconv.ParseUint(app.Organization.InternalNumericID, 10, 64)
-	if err != nil {
-		return fmt.Errorf("failed to parse organization ID: %w", err)
-	}
-
 	cfg := config.FromContext(ctx)
-	cachedToken, ok := cfg.CachedBuildTokens[orgID]
+	cachedToken, ok := cfg.CachedBuildTokens[app.InternalNumericID]
 	if !ok {
 		return nil
 	}
-	delete(cfg.CachedBuildTokens, orgID)
+	delete(cfg.CachedBuildTokens, app.InternalNumericID)
 
 	apiClient := flyutil.ClientFromContext(ctx)
 	return apiClient.RevokeLimitedAccessToken(ctx, cachedToken.ID)
 }
 
-func addBuildTokenCaveats(m *macaroon.Macaroon, orgID uint64, includeExpiry bool) {
-	action := resset.ActionRead | resset.ActionWrite | resset.ActionCreate | resset.ActionDelete
+func addBuildTokenCaveats(m *macaroon.Macaroon, appID uint64, includeExpiry bool) {
+	appFeatureImages := "images"
+	orgFeatureBuilder := flyio.FeatureRemoteBuilders
 
 	m.Add(&resset.IfPresent{
 		Ifs: macaroon.NewCaveatSet(
-			// Non-control access to all apps and remote builders
+			// Restrict to current app
 			&flyio.Apps{
-				Apps: resset.New(action, resset.ZeroID[uint64]()),
+				Apps: resset.ResourceSet[uint64]{
+					appID: resset.ActionAll,
+				},
 			},
-			&flyio.FeatureSet{
-				Features: resset.New(action, flyio.FeatureRemoteBuilders),
-			},
-			// No access to machines
-			&flyio.Machines{},
 		),
-		// Read-only access to the organization
+		Else: resset.ActionAll,
+	})
+	m.Add(&resset.IfPresent{
+		Ifs: macaroon.NewCaveatSet(
+			// Write image for current app
+			&flyio.AppFeatureSet{
+				Features: resset.ResourceSet[string]{
+					appFeatureImages: resset.ActionRead | resset.ActionWrite,
+				},
+			},
+			// Control builder and read images for other apps
+			&flyio.FeatureSet{
+				Features: resset.ResourceSet[string]{
+					orgFeatureBuilder: resset.ActionRead | resset.ActionControl,
+				},
+			},
+		),
+		// Otherwise, read-only access to org and app resources
 		Else: resset.ActionRead,
 	})
 
@@ -93,11 +103,12 @@ func encodeMacaroons(toks [][]byte) string {
 	return tokens.StripAuthorizationScheme(macaroon.ToAuthorizationHeader(toks...))
 }
 
-func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.OrganizationBasic) (string, error) {
+func getBuildTokenFromUser(ctx context.Context, orgID uint64, app *fly.AppCompact) (string, error) {
+	appID := app.InternalNumericID
 	cfg := config.FromContext(ctx)
 
 	// If we have an unexpired token for this organization, return it
-	if cachedToken, ok := cfg.CachedBuildTokens[orgID]; ok {
+	if cachedToken, ok := cfg.CachedBuildTokens[appID]; ok {
 		expired := time.Now().Add(time.Minute).After(cachedToken.Expiration)
 		if !expired {
 			return cachedToken.Token, nil
@@ -110,9 +121,11 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 		ctx,
 		apiClient.GenqClient(),
 		buildTokenName,
-		org.ID,
-		"deploy_organization",
-		&gql.LimitedAccessTokenOptions{},
+		app.Organization.ID,
+		"deploy",
+		&gql.LimitedAccessTokenOptions{
+			"app_id": app.ID,
+		},
 		buildTokenExpiry.String(),
 	)
 	if err != nil {
@@ -134,7 +147,7 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 
 	// Mask access, but skip expiry because we already specified it
 	m := perms[0]
-	addBuildTokenCaveats(m, orgID, false)
+	addBuildTokenCaveats(m, appID, false)
 
 	perm, err := m.Encode()
 	if err != nil {
@@ -155,7 +168,7 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 	if cfg.CachedBuildTokens == nil {
 		cfg.CachedBuildTokens = make(map[uint64]config.CachedBuildToken)
 	}
-	cfg.CachedBuildTokens[orgID] = config.CachedBuildToken{
+	cfg.CachedBuildTokens[appID] = config.CachedBuildToken{
 		ID:         resp.CreateLimitedAccessToken.LimitedAccessToken.Id,
 		Token:      token,
 		Expiration: expiration,
@@ -164,7 +177,7 @@ func getBuildTokenFromUser(ctx context.Context, orgID uint64, org *fly.Organizat
 	return token, nil
 }
 
-func getBuildTokenFromMacaroons(orgID uint64, macaroons []string) (string, error) {
+func getBuildTokenFromMacaroons(macaroons []string, orgID, appID uint64) (string, error) {
 	var raws [][]byte
 	for _, m := range macaroons {
 		toks, err := macaroon.Parse(m)
@@ -193,7 +206,7 @@ func getBuildTokenFromMacaroons(orgID uint64, macaroons []string) (string, error
 		}
 
 		// Mask access and add expiry
-		addBuildTokenCaveats(m, orgID, true)
+		addBuildTokenCaveats(m, appID, true)
 
 		tok, err := m.Encode()
 		if err != nil {

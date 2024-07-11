@@ -64,10 +64,10 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/superfly/fly-go v0.1.19-0.20240703112734-ea7601fc38ba
+	github.com/superfly/fly-go v0.1.19-0.20240711205314-ab425e58b5b2
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
-	github.com/superfly/macaroon v0.2.13
+	github.com/superfly/macaroon v0.2.14-0.20240708214648-87d5324cbb09
 	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.11
