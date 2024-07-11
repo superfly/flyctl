@@ -101,6 +101,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	}
 
 	group := errgroup.Group{}
+	group.SetLimit(md.maxConcurrent)
 	for idx, machPair := range machineTuples {
 		machPair := machPair
 		oldMachine := machPair.oldMachine
@@ -281,7 +282,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	if !healthcheckResult.regularChecksPassed {
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
-		err = lm.WaitForHealthchecksToPass(ctx, 5*time.Minute)
+		err = lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
 		if err != nil {
 			return &unrecoverableError{err: err}
 		}
