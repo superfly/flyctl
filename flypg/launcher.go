@@ -317,7 +317,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		endpointUrl.User = url.UserPassword(restoreAccessKey, restoreSecretKey)
 		endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
 		config.BarmanRemoteRestoreConfig = endpointUrl.String()
-		fmt.Println(config.BarmanRemoteRestoreConfig)
 	}
 
 	var addr *fly.IPAddress
