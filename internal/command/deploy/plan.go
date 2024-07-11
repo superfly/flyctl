@@ -318,32 +318,31 @@ func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
 }
 
 // returns when the machine is in one of the possible states, or after passing the timeout threshold
-func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration) error {
+func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine) error {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var mutex sync.Mutex
 
 	var waitErr error
-	numFinished := 0
-
-	// something's wrong with waitForState, since sometimes we're already in the state we need but waitForState times out
-	if lo.Contains(possibleStates, lm.Machine().State) {
-		return nil
-	}
+	numCompleted := 0
+	successfulFinish := false
 
 	for _, state := range possibleStates {
 		state := state
 		go func() {
 			err := lm.WaitForState(ctx, state, timeout, false)
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
 
 			mutex.Lock()
 			defer func() {
-				numFinished += 1
+				numCompleted += 1
 				mutex.Unlock()
 			}()
 
 			if err != nil {
 				waitErr = err
+			} else {
+				successfulFinish = true
 			}
 		}()
 	}
@@ -351,7 +350,7 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 	// TODO(billy): i'm sure we can use channels here
 	for {
 		mutex.Lock()
-		if numFinished == len(possibleStates) {
+		if successfulFinish || numCompleted == len(possibleStates) {
 			mutex.Unlock()
 			return waitErr
 		}
