@@ -730,7 +730,8 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 			// Replacing a machine with a volume will cause the placement logic to pick wthe same host
 			// dismissing the value of replacing it in case of lack of host capacity
 			return err
-		case strings.Contains(err.Error(), "could not reserve resource for machine"):
+		case strings.Contains(err.Error(), "could not reserve resource for machine"),
+			strings.Contains(err.Error(), "deploys to this host are temporarily disabled"):
 			return replaceMachine()
 		default:
 			return err
