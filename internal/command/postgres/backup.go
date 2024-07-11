@@ -167,6 +167,7 @@ func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
 
 func runBackupEnable(ctx context.Context) error {
 	var (
+		io      = iostreams.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		client  = flyutil.ClientFromContext(ctx)
 	)
@@ -202,7 +203,7 @@ func runBackupEnable(ctx context.Context) error {
 		return err
 	}
 
-	if !enabled {
+	if enabled {
 		return fmt.Errorf("Backups are already enabled.")
 	}
 
@@ -229,7 +230,7 @@ func runBackupEnable(ctx context.Context) error {
 	if _, err := client.SetSecrets(ctx, appName, secrets); err != nil {
 		return err
 	}
-	// TODO: Update deployment with new secrets
+	fmt.Fprintf(io.Out, "Backups enabled. Run `fly secrets deploy -a %s` to restart the cluster with the new configuration.\n", appName)
 	return nil
 }
 
