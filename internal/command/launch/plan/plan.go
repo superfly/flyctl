@@ -31,6 +31,7 @@ type LaunchPlan struct {
 
 	Postgres      PostgresPlan      `json:"postgres"`
 	Redis         RedisPlan         `json:"redis"`
+	GitHubActions GitHubActionsPlan `json:"github_actions"`
 	Sentry        bool              `json:"sentry"`
 	ObjectStorage ObjectStoragePlan `json:"object_storage"`
 

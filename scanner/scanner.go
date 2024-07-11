@@ -13,7 +13,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-//go:embed templates templates/*/.dockerignore templates/**/.fly
+//go:embed templates templates/*/.dockerignore templates/**/.fly templates/**/.github
 var content embed.FS
 
 type InitCommand struct {
@@ -73,6 +73,7 @@ type SourceInfo struct {
 	PostgresInitCommandCondition bool
 	DatabaseDesired              DatabaseKind
 	RedisDesired                 bool
+	GitHubActions                GitHubActionsStruct
 	ObjectStorageDesired         bool
 	Concurrency                  map[string]int
 	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
@@ -99,6 +100,12 @@ type ScannerConfig struct {
 	Colorize     *iostreams.ColorScheme
 }
 
+type GitHubActionsStruct struct {
+	Deploy  bool
+	Secrets bool
+	Files   []SourceFile
+}
+
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	scanners := []sourceScanner{
 		configureDjango,
@@ -115,7 +122,6 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
-		configurePoetry,
 		configureFlask,
 		configurePython,
 		configureDeno,
@@ -133,6 +139,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 			return nil, err
 		}
 		if si != nil {
+			github_actions(sourceDir, &si.GitHubActions)
 			return si, nil
 		}
 	}
@@ -178,10 +185,6 @@ func templatesFilter(name string, filter func(input []byte) []byte) (files []Sou
 		}
 
 		data, err := fs.ReadFile(content, path)
-		if err != nil {
-			return err
-		}
-
 		if err != nil {
 			return err
 		}

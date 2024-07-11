@@ -21,6 +21,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -133,6 +134,7 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 		attribute.String("build.info.os", buildinfo.OS()),
 		attribute.String("build.info.arch", buildinfo.Arch()),
 		attribute.String("build.info.commit", buildinfo.Commit()),
+		attribute.Bool("is_ci", env.IsCI()),
 	}
 
 	if appName != "" {

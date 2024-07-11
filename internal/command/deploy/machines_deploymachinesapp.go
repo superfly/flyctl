@@ -392,7 +392,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 			// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
 			// You can't really suggest changing regions in cases where you're not starting machines, so this is the
 			// best advice we can give.
-			descript = "Your machine never reached the state \"%s\"."
+			descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
 			suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
 		}
 
