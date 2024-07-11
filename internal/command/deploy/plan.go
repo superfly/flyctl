@@ -51,7 +51,7 @@ type healthcheckResult struct {
 
 var healthChecksPassed = sync.Map{}
 
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, pushForward bool, statusLogger statuslogger.StatusLogger) error {
+func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, pushForward bool, statusLogger statuslogger.StatusLogger, skipHealthChecks bool) error {
 	ctx, cancel := context.WithCancel(ctx)
 	ctx, cancel = ctrlc.HookCancelableContext(ctx, cancel)
 	defer cancel()
@@ -70,7 +70,10 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	for _, oldMachine := range oldMachines {
 		// This means we want to update a machine
 		if newMachine, ok := newMachines[oldMachine.ID]; ok {
-			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{})
+			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{
+				regularChecksPassed: skipHealthChecks,
+				machineChecksPassed: skipHealthChecks,
+			})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
 		}
 	}
@@ -78,7 +81,10 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	for _, newMachine := range newMachines {
 		if _, ok := oldMachines[newMachine.ID]; !ok {
 			// This means we should create the new machine
-			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{})
+			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{
+				regularChecksPassed: skipHealthChecks,
+				machineChecksPassed: skipHealthChecks,
+			})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: nil, newMachine: newMachine})
 		}
 	}
@@ -127,7 +133,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 				fmt.Println("Failed to get current state:", err)
 				return err
 			}
-			err = md.updateMachines(ctx, currentState, newAppState, false, sl)
+			err = md.updateMachines(ctx, currentState, newAppState, false, sl, skipHealthChecks)
 			if err == nil {
 				break
 			} else if strings.Contains(err.Error(), "context canceled") {
@@ -233,7 +239,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
 
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, 5*time.Minute, sl.Line(idx))
+	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl.Line(idx))
 	if err != nil {
 		return err
 	}
@@ -247,7 +253,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	// wait for the machine to reach the running state
 	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
-	err = waitForMachineState(ctx, lm, []string{"started"}, 5*time.Minute, sl.Line(idx))
+	err = waitForMachineState(ctx, lm, []string{"started"}, md.waitTimeout, sl.Line(idx))
 	if err != nil {
 		return err
 	}
@@ -291,10 +297,15 @@ func destroyMachine(ctx context.Context, machineID string, lease string) error {
 func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
 	// TODO: remove this when valentin's work is done
 	flapsClient := flapsutil.ClientFromContext(ctx)
+	attempts := 0
 	for {
 		err := flapsClient.ReleaseLease(ctx, machID, leaseNonce)
 		if err == nil {
 			return nil
+		}
+		attempts += 1
+		if attempts > 5 {
+			return err
 		}
 		time.Sleep(1 * time.Second)
 	}
