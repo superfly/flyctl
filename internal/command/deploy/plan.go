@@ -404,13 +404,31 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	}
 
 	lm := mach.NewLeasableMachine(md.flapsClient, md.io, oldMachine, false)
-	md.updateMachine(ctx, &machineUpdateEntry{
+	err := md.updateMachine(ctx, &machineUpdateEntry{
 		leasableMachine: lm,
 		launchInput: &fly.LaunchMachineInput{
 			Config: newMachineConfig,
 			ID:     oldMachine.ID,
 		},
 	}, sl)
+	if err != nil {
+		if strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
+			err := md.updateMachine(ctx, &machineUpdateEntry{
+				leasableMachine: lm,
+				launchInput: &fly.LaunchMachineInput{
+					Config:              newMachineConfig,
+					ID:                  oldMachine.ID,
+					RequiresReplacement: true,
+				},
+			}, sl)
+
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return nil, err
+	}
 	return lm.Machine(), nil
 }
 
