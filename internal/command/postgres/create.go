@@ -93,7 +93,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.String{
 			Name:        "restore-target-app",
-			Description: "Restore backup from another Postgres app",
+			Description: "Restore backup from specified Postgres app into an identically-configured instance",
 		},
 		flag.String{
 			Name:        "restore-target-time",
@@ -322,7 +322,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 
 	var config *PostgresConfiguration
 
-	if !customConfig {
+	if !customConfig && input.BarmanRemoteRestoreConfig == "" {
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
 		msg := "Select configuration:"
@@ -397,7 +397,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 		input.VolumeSize = fly.IntPointer(params.DiskGb)
 		input.Autostart = params.Autostart
-	} else {
+	} else if input.BarmanRemoteRestoreConfig == "" {
 		// Resolve configuration from pre-defined configuration.
 		vmSize, err := resolveVMSize(ctx, config.VMSize)
 		if err != nil {
