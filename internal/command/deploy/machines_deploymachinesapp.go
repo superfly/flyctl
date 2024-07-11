@@ -13,7 +13,6 @@ import (
 	"github.com/cenkalti/backoff"
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
-	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
@@ -468,71 +467,6 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
-}
-
-func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Context, updateEntries []*machineUpdateEntry) error {
-	parentCtx, span := tracing.GetTracer().Start(parentCtx, "immediate")
-	defer span.End()
-
-	sl := statuslogger.Create(parentCtx, len(updateEntries), true)
-	defer sl.Destroy(false)
-
-	updatesPool := pool.New().WithErrors().WithContext(parentCtx)
-	if md.maxConcurrent > 0 {
-		updatesPool = updatesPool.WithMaxGoroutines(md.maxConcurrent)
-	}
-
-	for i, e := range updateEntries {
-		e := e
-		eCtx := statuslogger.NewContext(parentCtx, sl.Line(i))
-		fmtID := e.leasableMachine.FormattedMachineId()
-		statusRunning := func() {
-			statuslogger.LogfStatus(eCtx,
-				statuslogger.StatusRunning,
-				"Updating %s",
-				md.colorize.Bold(fmtID),
-			)
-		}
-		statusFailure := func(err error) {
-			if errors.Is(err, context.Canceled) {
-				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusFailure,
-					"Machine %s update %s",
-					md.colorize.Bold(fmtID),
-					md.colorize.Red("canceled while it was in progress"),
-				)
-			} else {
-				statuslogger.LogfStatus(eCtx,
-					statuslogger.StatusFailure,
-					"Machine %s update %s: %s",
-					md.colorize.Bold(fmtID),
-					md.colorize.Red("failed"),
-					err.Error(),
-				)
-			}
-		}
-		statusSuccess := func() {
-			statuslogger.LogfStatus(eCtx,
-				statuslogger.StatusSuccess,
-				"Machine %s update %s",
-				md.colorize.Bold(fmtID),
-				md.colorize.Green("succeeded"),
-			)
-		}
-
-		updatesPool.Go(func(_ context.Context) error {
-			statusRunning()
-			if err := md.updateMachine(eCtx, e, sl.Line(i)); err != nil {
-				tracing.RecordError(span, err, "failed to update machine")
-				statusFailure(err)
-				return err
-			}
-			statusSuccess()
-			return nil
-		})
-	}
-
-	return updatesPool.Wait()
 }
 
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry) error {
