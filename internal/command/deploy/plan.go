@@ -251,14 +251,14 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	}
 
 	// wait for the machine to reach the running state
-	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", oldMachine.ID))
+	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
 	err = waitForMachineState(ctx, lm, []string{"started"}, 5*time.Minute, sl.Line(idx))
 	if err != nil {
 		return err
 	}
 
 	if !healthcheckResult.machineChecksPassed {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running machine checks on machine %s", oldMachine.ID))
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running machine checks on machine %s", machine.ID))
 		err = md.runTestMachines(ctx, machine, sl.Line(idx))
 		if err != nil {
 			return &unrecoverableError{err: err}
@@ -267,7 +267,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	}
 
 	if !healthcheckResult.regularChecksPassed {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", oldMachine.ID))
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
 		err = lm.WaitForHealthchecksToPass(ctx, 5*time.Minute)
 		if err != nil {
 			return &unrecoverableError{err: err}
@@ -275,7 +275,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		healthcheckResult.regularChecksPassed = true
 	}
 
-	sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", oldMachine.ID))
+	sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
 
 	return nil
 }
