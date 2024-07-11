@@ -27,8 +27,8 @@ RUN .venv/bin/pip install -r requirements.txt
 
 FROM python:{{ .pyVersion }}-slim-bookworm
 WORKDIR /app
-COPY . .
 COPY --from=builder /app/.venv .venv/
+COPY . .
 {{ if .flask -}}
 CMD ["/app/.venv/bin/flask", "run", "--host=0.0.0.0", "--port=8080"]
 {{ else if .fastapi -}}
