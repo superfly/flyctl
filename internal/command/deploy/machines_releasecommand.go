@@ -146,7 +146,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	}
 
 	statuslogger.Logf(ctx, "Created release_command machine %s", md.colorize.Bold(releaseCmdMachine.ID))
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*fly.Machine{releaseCmdMachine})
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*fly.Machine{releaseCmdMachine}, true)
 	return nil
 }
 
