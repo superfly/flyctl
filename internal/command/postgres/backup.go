@@ -62,6 +62,15 @@ func runBackupCreate(ctx context.Context) error {
 		io      = iostreams.FromContext(ctx)
 	)
 
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("Backups are not enabled. Run `fly pg backup enable -a %s` to enable them.", appName)
+	}
+
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -179,6 +188,10 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
 	err = hasRequiredVersion(machines)
 	if err != nil {
 		return err
@@ -189,7 +202,7 @@ func runBackupEnable(ctx context.Context) error {
 		return err
 	}
 
-	if enabled {
+	if !enabled {
 		return fmt.Errorf("Backups are already enabled.")
 	}
 
@@ -247,6 +260,15 @@ func runBackupList(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 		io      = iostreams.FromContext(ctx)
 	)
+
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("Backups are not enabled. Run `fly pg backup enable -a %s` to enable them.", appName)
+	}
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
