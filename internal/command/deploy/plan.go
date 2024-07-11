@@ -67,7 +67,6 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	}
 
 	machineTuples := make([]machinePairing, 0)
-	// TODO: a little tired rn, do we need to do this?
 	for _, oldMachine := range oldMachines {
 		// This means we want to update a machine
 		if newMachine, ok := newMachines[oldMachine.ID]; ok {
