@@ -72,11 +72,6 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		if newMachine, ok := newMachines[oldMachine.ID]; ok {
 			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
-		} else {
-			// FIXME: this would currently delete unmanaged machines! no bueno
-			// fmt.Println("Deleting machine", oldMachine.ID)
-			// This means we should destroy the old machine
-			// machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: nil})
 		}
 	}
 
@@ -291,40 +286,6 @@ func destroyMachine(ctx context.Context, machineID string, lease string) error {
 	}
 
 	return nil
-}
-
-func detectMultipleImageVersions(ctx context.Context) ([]*fly.Machine, error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	machines, err := flapsClient.List(ctx, "")
-	if err != nil {
-		return nil, err
-	}
-
-	// First, we get the latest image
-	var latestImage string
-	var latestUpdated time.Time
-
-	for _, machine := range machines {
-		updated, err := time.Parse(time.RFC3339, machine.UpdatedAt)
-		if err != nil {
-			return nil, err
-		}
-
-		if updated.After(latestUpdated) {
-			latestUpdated = updated
-			latestImage = machine.Config.Image
-		}
-	}
-
-	var badMachines []*fly.Machine
-	// Next, we find any machines that are not using the latest image
-	for _, machine := range machines {
-		if machine.Config.Image != latestImage {
-			badMachines = append(badMachines, machine)
-		}
-	}
-
-	return badMachines, nil
 }
 
 func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {

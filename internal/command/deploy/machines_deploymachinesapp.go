@@ -32,8 +32,6 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-const rollingStrategyMaxConcurrentGroups = 10
-
 type ProcessGroupsDiff struct {
 	machinesToRemove      []machine.LeasableMachine
 	groupsToRemove        map[string]int
@@ -420,41 +418,6 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 		}
 	}
 	return err
-}
-
-func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdateEntry) error {
-	lm := e.leasableMachine
-	// Don't wait for SkipLaunch machines, they are updated but not started
-	if e.launchInput.SkipLaunch {
-		return nil
-	}
-
-	if !md.skipHealthChecks {
-		if err := lm.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false); err != nil {
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
-		}
-
-		if err := md.runTestMachines(ctx, e.leasableMachine.Machine(), statuslogger.FromContext(ctx)); err != nil {
-			return err
-		}
-	}
-
-	if err := md.doSmokeChecks(ctx, lm); err != nil {
-		return err
-	}
-
-	if !md.skipHealthChecks {
-		// FIXME: combine this wait with the wait for start as one update line (or two per in noninteractive case)
-		if err := lm.WaitForHealthchecksToPass(ctx, md.waitTimeout); err != nil {
-			md.warnAboutIncorrectListenAddress(ctx, lm)
-			err = suggestChangeWaitTimeout(err, "wait-timeout")
-			return err
-		}
-	}
-
-	md.warnAboutIncorrectListenAddress(ctx, lm)
-	return nil
 }
 
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
