@@ -456,8 +456,23 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
 		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, true, true)
-	case "canary", "rolling":
-		// FIXME: CANARY!!!
+	case "canary":
+		// create a new app state with just a single machine being updated, then the rest of the machines
+		canaryAppState := *oldAppState
+		canaryAppState.Machines = []*fly.Machine{oldAppState.Machines[0]}
+
+		newCanaryAppState := newAppState
+		canaryMach, _ := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
+			return m.ID == oldAppState.Machines[0].ID
+		})
+		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
+
+		if err := md.updateMachines(ctx, &canaryAppState, &newCanaryAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks); err != nil {
+			return err
+		}
+
+		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks)
+	case "rolling":
 		fallthrough
 	default:
 		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks)
