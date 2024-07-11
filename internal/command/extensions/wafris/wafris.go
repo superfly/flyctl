@@ -14,6 +14,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("wafris", short, long, nil)
+	cmd.Aliases = []string{"waf"}
 	cmd.AddCommand(create(), destroy(), dashboard())
 
 	return cmd
