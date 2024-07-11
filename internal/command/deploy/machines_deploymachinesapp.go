@@ -632,7 +632,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	}
 
 	// Otherwise wait for the machine to start
-	if err := md.doSmokeChecks(ctx, lm); err != nil {
+	if err := md.doSmokeChecks(ctx, lm, true); err != nil {
 		return nil, err
 	}
 
@@ -819,7 +819,30 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 	fmt.Fprintf(md.io.ErrOut, "\n")
 }
 
-func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine) (err error) {
+type smokeChecksError struct {
+	logs      string
+	machineID string
+	err       error
+}
+
+func (s smokeChecksError) Error() string {
+	return s.err.Error()
+}
+
+func (s smokeChecksError) Unwrap() error {
+	return s.err
+}
+
+func (s smokeChecksError) Suggestion() string {
+	var suggestion string
+	suggestion += fmt.Sprintf("Smoke checks for %s failed: %v\n", s.machineID, s.err)
+	suggestion += fmt.Sprintf("Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", s.machineID)
+	suggestion += s.logs
+
+	return suggestion
+}
+
+func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine, showLogs bool) (err error) {
 	if md.skipSmokeChecks {
 		return nil
 	}
@@ -828,23 +851,30 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		return nil
 	}
 
-	resumeLogFn := statuslogger.Pause(ctx)
-	defer resumeLogFn()
+	if showLogs {
+		resumeLogFn := statuslogger.Pause(ctx)
+		defer resumeLogFn()
+	}
 
-	fmt.Fprintf(md.io.ErrOut, "Smoke checks for %s failed: %v\n", md.colorize.Bold(lm.Machine().ID), err)
-	fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last lines below, or run 'fly logs -i %s':\n", lm.Machine().ID)
 	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
-	if fly.IsNotAuthenticatedError(logErr) {
+	if fly.IsNotAuthenticatedError(logErr) && showLogs {
 		fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
 	} else {
 		if logErr != nil {
 			return fmt.Errorf("error getting logs for machine %s: %w", lm.Machine().ID, logErr)
 		}
+		var log string
 		for _, l := range logs {
 			// Ideally we should use InstanceID here, but it's not available in the logs.
 			if l.Timestamp >= lm.Machine().UpdatedAt {
-				fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
+				log += fmt.Sprintf("%s\n", l.Message)
 			}
+		}
+
+		return &smokeChecksError{
+			err:       err,
+			machineID: lm.Machine().ID,
+			logs:      log,
 		}
 	}
 

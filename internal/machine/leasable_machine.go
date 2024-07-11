@@ -265,7 +265,9 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		Jitter: true,
 	}
 
-	statuslogger.Logf(ctx, "Checking that %s is up and running", lm.colorize.Bold(lm.FormattedMachineId()))
+	if lm.showLogs {
+		statuslogger.Logf(ctx, "Checking that %s is up and running", lm.colorize.Bold(lm.FormattedMachineId()))
+	}
 
 	for {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
