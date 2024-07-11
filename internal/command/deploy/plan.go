@@ -264,7 +264,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	if !healthcheckResult.smokeChecksPassed {
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
-		err = md.doSmokeChecks(ctx, lm)
+		err = md.doSmokeChecks(ctx, lm, false)
 		if err != nil {
 			return &unrecoverableError{err: err}
 		}
