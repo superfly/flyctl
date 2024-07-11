@@ -154,6 +154,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 
 		// variable name shadowing to make go-vet happy
 		name := name
+		idx := idx
 		errors.Go(func() error {
 			var err error
 			lm, err := md.spawnMachineInGroup(ctx, name, nil,
@@ -176,7 +177,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 				}
 			}()
 
-			if err = md.runTestMachines(ctx, lm.Machine()); err != nil {
+			if err = md.runTestMachines(ctx, lm.Machine(), sl.Line(idx)); err != nil {
 				tracing.RecordError(span, err, "failed to run test machine for canary machine")
 				firstLine, _, _ := strings.Cut(err.Error(), "\n")
 				statuslogger.LogfStatus(ctx, statuslogger.StatusFailure, "Failed to run test machine for canary machine: %s", firstLine)
@@ -410,7 +411,7 @@ func (md *machineDeployment) waitForMachine(ctx context.Context, e *machineUpdat
 			return err
 		}
 
-		if err := md.runTestMachines(ctx, e.leasableMachine.Machine()); err != nil {
+		if err := md.runTestMachines(ctx, e.leasableMachine.Machine(), statuslogger.FromContext(ctx)); err != nil {
 			return err
 		}
 	}
@@ -542,7 +543,7 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 
 		updatesPool.Go(func(_ context.Context) error {
 			statusRunning()
-			if err := md.updateMachine(eCtx, e); err != nil {
+			if err := md.updateMachine(eCtx, e, sl.Line(i)); err != nil {
 				tracing.RecordError(span, err, "failed to update machine")
 				statusFailure(err)
 				return err
