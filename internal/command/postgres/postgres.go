@@ -58,6 +58,10 @@ func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standa
 			return fmt.Errorf("command is not compatible with this image")
 		}
 
+		if machine.ImageVersion() == "custom" {
+			continue
+		}
+
 		imageVersionStr := machine.ImageVersion()[1:]
 
 		imageVersion, err := version.NewVersion(imageVersionStr)
