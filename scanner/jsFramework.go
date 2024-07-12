@@ -234,7 +234,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Meteor"
 		srcInfo.Env = map[string]string{
 			"PORT":     "3000",
-			"ROOT_URL": "APP_FQDN",
+			"ROOT_URL": "APP_URL",
 		}
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
