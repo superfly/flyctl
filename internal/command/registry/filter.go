@@ -106,9 +106,9 @@ func revCmpVuln(a, b ScanVuln) int {
 // filterScan filters each vuln in each result based on the command
 // line preferences of the user. Any empty results are discarded.
 func filterScan(scan *Scan, filter *VulnFilter) *Scan {
-	newRes := []ScanResult{}
+	var newRes []ScanResult
 	for _, res := range scan.Results {
-		newVulns := []ScanVuln{}
+		var newVulns []ScanVuln
 		for _, vuln := range res.Vulnerabilities {
 			if filterVuln(&vuln, filter) {
 				newVulns = append(newVulns, vuln)

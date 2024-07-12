@@ -98,7 +98,7 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer res.Body.Close()
+	defer res.Body.Close() // skipcq: GO-S2307
 
 	if res.StatusCode != http.StatusOK {
 		if res.StatusCode == 422 {

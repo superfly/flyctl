@@ -78,7 +78,7 @@ func runSbom(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer res.Body.Close()
+	defer res.Body.Close() // skipcq: GO-S2307
 
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("failed fetching SBOM (status code %d)", res.StatusCode)

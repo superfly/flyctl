@@ -56,7 +56,7 @@ func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, 
 		return nil, err
 	}
 
-	options := []string{}
+	var options []string
 	for _, machine := range machines {
 		imgPath := imageRefPath(&machine.ImageRef)
 		options = append(options, fmt.Sprintf("%s: %s %s %s", machine.Region, machine.ID, machine.Name, imgPath))
@@ -141,8 +141,9 @@ func argsGetOrgImages(ctx context.Context, orgName string) ([]ImgInfo, error) {
 		return nil, err
 	}
 
-	allImgs := []ImgInfo{}
-	for _, app := range apps {
+	var allImgs []ImgInfo
+	for n, _ := range apps {
+		app := &apps[n]
 		imgs, err := argsGetAppImages(ctx, app.Name)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
@@ -183,7 +184,7 @@ func argsGetAppImages(ctx context.Context, appName string) ([]ImgInfo, error) {
 		})
 	}
 
-	imgs := []ImgInfo{}
+	var imgs []ImgInfo
 	for _, machine := range machines {
 		ir := machine.ImageRef
 		imgPath := fmt.Sprintf("%s/%s@%s", ir.Registry, ir.Repository, ir.Digest)

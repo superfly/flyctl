@@ -155,7 +155,7 @@ func runVulnSummary(ctx context.Context) error {
 	slices.SortFunc(vids, cmpVulnId)
 	slices.Reverse(vids)
 
-	rows := [][]string{}
+	var rows [][]string
 	for _, vid := range vids {
 		row := []string{vid}
 		for _, app := range apps {
