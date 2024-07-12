@@ -14,7 +14,7 @@ type Service struct {
 	InternalPort int    `json:"internal_port,omitempty" toml:"internal_port"`
 	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML. The encoder
 	// already omits nil since it can't be represented, and omitempty makes it omit false as well.
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStopMachines   *fly.MachineAutostop           `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Ports              []fly.MachinePort              `json:"ports,omitempty" toml:"ports"`
@@ -57,7 +57,7 @@ type HTTPService struct {
 	InternalPort int  `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
 	ForceHTTPS   bool `toml:"force_https,omitempty" json:"force_https,omitempty"`
 	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML; see the note in Service.
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStopMachines   *fly.MachineAutostop           `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
