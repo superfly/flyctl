@@ -21,7 +21,7 @@ import (
 
 func newConnect() *cobra.Command {
 	const (
-		short = "Connect to the Postgres console"
+		short = "Connect to the Postgres console."
 		long  = short + "\n"
 
 		usage = "connect"

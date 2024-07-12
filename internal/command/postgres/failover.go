@@ -27,7 +27,7 @@ import (
 
 func newFailover() *cobra.Command {
 	const (
-		short = "Failover to a new primary"
+		short = "Failover to a new primary."
 		long  = short + "\n"
 		usage = "failover"
 	)

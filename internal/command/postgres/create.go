@@ -21,8 +21,8 @@ import (
 
 func newCreate() *cobra.Command {
 	const (
-		short = "Create a new Postgres cluster"
-		long  = short + "\n"
+		short = `Create a new Fly Postgres cluster.`
+		long  = short +  `Fly Postgres not a managed database service. Read more: https://fly.io/docs/postgres/getting-started/what-you-should-know/`
 	)
 
 	cmd := command.New("create", short, long, run,
