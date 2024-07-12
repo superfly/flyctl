@@ -774,7 +774,11 @@ func determineMachineConfig(
 		}
 
 		if flag.IsSpecified(ctx, "autostop") {
-			s.Autostop = fly.Pointer(flag.GetBool(ctx, "autostop"))
+			if flag.GetBool(ctx, "autostop") {
+				s.Autostop = fly.Pointer(fly.MachineAutostopStop)
+			} else {
+				s.Autostop = fly.Pointer(fly.MachineAutostopOff)
+			}
 		}
 
 		if flag.IsSpecified(ctx, "autostart") {

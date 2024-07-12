@@ -199,7 +199,7 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 	}
 }
 
-// Skip launching currently-stopped machines if:
+// Skip launching currently-stopped or suspended machines if:
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
 func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
@@ -208,9 +208,9 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case origMachineRaw.State == fly.MachineStateStopped:
+	case origMachineRaw.State == fly.MachineStateStopped || origMachineRaw.State == fly.MachineStateSuspended:
 		for _, s := range mConfig.Services {
-			if (s.Autostop != nil && *s.Autostop) || (s.Autostart != nil && *s.Autostart) {
+			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
 				return true
 			}
 		}

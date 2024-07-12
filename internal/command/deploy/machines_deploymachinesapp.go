@@ -18,6 +18,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/appconfig"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -199,6 +200,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 // Create machines for new process groups
 func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, processGroupMachineDiff ProcessGroupsDiff) (err error) {
 	groupsWithAutostopEnabled := make(map[string]bool)
+	groupsWithAutosuspendEnabled := make(map[string]bool)
 	groups := maps.Keys(processGroupMachineDiff.groupsNeedingMachines)
 	total := len(groups)
 	slices.Sort(groups)
@@ -223,9 +225,18 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		}
 
 		services := groupConfig.AllServices()
-		for _, s := range services {
-			if s.AutoStopMachines != nil && *s.AutoStopMachines {
+		if len(services) > 0 {
+			// The proxy will use the most restrictive (which, in terms
+			// of the fly.MachineAutostop type, is the least) autostop
+			// setting across all of the group's services.
+			autostopSettings := lo.Map(services, func(s appconfig.Service, _ int) fly.MachineAutostop {
+				return lo.Ternary(s.AutoStopMachines == nil, fly.MachineAutostopOff, *s.AutoStopMachines)
+			})
+			switch slices.Min(autostopSettings) {
+			case fly.MachineAutostopStop:
 				groupsWithAutostopEnabled[name] = true
+			case fly.MachineAutostopSuspend:
+				groupsWithAutosuspendEnabled[name] = true
 			}
 		}
 
@@ -267,7 +278,16 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		groupNames := lo.Keys(groupsWithAutostopEnabled)
 		slices.Sort(groupNames)
 		fmt.Fprintf(md.io.Out,
-			"\n%s The machines for [%s] have services with 'auto_stop_machines = true' that will be stopped when idling\n\n",
+			"\n%s The machines for [%s] have services with 'auto_stop_machines = \"stop\"' that will be stopped when idling\n\n",
+			md.colorize.Yellow("NOTE:"),
+			md.colorize.Bold(strings.Join(groupNames, ",")),
+		)
+	}
+	if len(groupsWithAutosuspendEnabled) > 0 {
+		groupNames := lo.Keys(groupsWithAutosuspendEnabled)
+		slices.Sort(groupNames)
+		fmt.Fprintf(md.io.Out,
+			"\n%s The machines for [%s] have services with 'auto_stop_machines = \"suspend\"' that will be suspended when idling\n\n",
 			md.colorize.Yellow("NOTE:"),
 			md.colorize.Bold(strings.Join(groupNames, ",")),
 		)
