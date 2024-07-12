@@ -18,7 +18,7 @@ RUN poetry install
 {{ else if .pep621 -}}
 RUN python -m venv .venv
 COPY pyproject.toml ./
-RUN .venv/bin/pip install -r requirements.txt
+RUN .venv/bin/pip install .
 {{ else if .pip }}
 RUN python -m venv .venv
 COPY requirements.txt ./
