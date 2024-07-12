@@ -640,6 +640,7 @@ var PlatformMap = map[string]string{
 	"NodeJS":        "node",
 	"NodeJS/Prisma": "node",
 	"Laravel":       "php-laravel",
+	"Meteor":        "javascript-meteor",
 	"NestJS":        "node",
 	"NextJS":        "javascript-nextjs",
 	"Nuxt":          "javascript-vue",
