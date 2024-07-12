@@ -142,7 +142,7 @@ func argsGetOrgImages(ctx context.Context, orgName string) ([]ImgInfo, error) {
 	}
 
 	var allImgs []ImgInfo
-	for n, _ := range apps {
+	for n := range apps {
 		app := &apps[n]
 		imgs, err := argsGetAppImages(ctx, app.Name)
 		if err != nil {
