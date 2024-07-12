@@ -228,11 +228,11 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		}
 	} else if newMachine != nil {
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
-		var err error
-		machine, err = createMachine(ctx, newMachine.Config, newMachine.Region)
+		newMachine, err := createMachine(ctx, newMachine.Config, newMachine.Region)
 		if err != nil {
 			return err
 		}
+		machine = newMachine
 
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", newMachine.ID))
 		newLease, err := acquireMachineLease(ctx, machine.ID)
@@ -247,24 +247,26 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
 
-	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-	err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl.Line(idx))
-	if err != nil {
-		return err
-	}
+	if !healthcheckResult.machineChecksPassed || healthcheckResult.smokeChecksPassed {
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
+		err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl.Line(idx))
+		if err != nil {
+			return err
+		}
 
-	// start the machine
-	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
-	err = startMachine(ctx, machine.ID, lease.Data.Nonce)
-	if err != nil {
-		return err
-	}
+		// start the machine
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
+		err = startMachine(ctx, machine.ID, lease.Data.Nonce)
+		if err != nil {
+			return err
+		}
 
-	// wait for the machine to reach the running state
-	sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
-	err = waitForMachineState(ctx, lm, []string{"started"}, md.waitTimeout, sl.Line(idx))
-	if err != nil {
-		return err
+		// wait for the machine to reach the running state
+		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
+		err = waitForMachineState(ctx, lm, []string{"started"}, md.waitTimeout, sl.Line(idx))
+		if err != nil {
+			return err
+		}
 	}
 
 	if !healthcheckResult.smokeChecksPassed {
