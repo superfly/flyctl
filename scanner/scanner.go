@@ -113,6 +113,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configurePhoenix,
 		configureRails,
 		configureRedwood,
+		configureMeteor,
 		configureJsFramework,
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
@@ -125,7 +126,6 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureFlask,
 		configurePython,
 		configureDeno,
-		configureMeteor,
 		configureNuxt,
 		configureNextJs,
 		configureNode,
