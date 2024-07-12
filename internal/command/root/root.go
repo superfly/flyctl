@@ -49,10 +49,10 @@ import (
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/regions"
+	"github.com/superfly/flyctl/internal/command/registry"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/scale"
-	"github.com/superfly/flyctl/internal/command/scan"
 	"github.com/superfly/flyctl/internal/command/secrets"
 	"github.com/superfly/flyctl/internal/command/services"
 	"github.com/superfly/flyctl/internal/command/settings"
@@ -112,11 +112,11 @@ func New() *cobra.Command {
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
-		group(scan.New(), "upkeep"),
 		group(secrets.New(), "configuring"),
 		group(ssh.New(), "upkeep"),
 		group(ssh.NewSFTP(), "upkeep"),
 		group(redis.New(), "dbs_and_extensions"),
+		group(registry.New(), "upkeep"),
 		group(checks.New(), "upkeep"),
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),

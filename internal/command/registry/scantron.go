@@ -1,4 +1,4 @@
-package scan
+package registry
 
 import (
 	"context"

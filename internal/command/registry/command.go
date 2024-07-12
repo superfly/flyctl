@@ -1,4 +1,4 @@
-package scan
+package registry
 
 import (
 	"github.com/spf13/cobra"
@@ -8,9 +8,9 @@ import (
 
 func New() *cobra.Command {
 	const (
-		usage = "scan"
-		short = "Scan machine images for vulnerabilities or to get an SBOM"
-		long  = "Scan machine images for vulnerabilities or to get an SBOM."
+		usage = "registry"
+		short = "Operate on registry images"
+		long  = "Scan registry images for an SBOM or vulnerabilities."
 	)
 	cmd := command.New(usage, short, long, nil)
 
