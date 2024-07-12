@@ -76,7 +76,13 @@ func runSbom(ctx context.Context) error {
 		return err
 	}
 
-	res, err := scantron(ctx, apiClient, app, machine, true)
+	imgPath := imageRefPath(&machine.ImageRef)
+	token, err := makeScantronToken(ctx, app.Organization.ID, app.ID)
+	if err != nil {
+		return err
+	}
+
+	res, err := scantronSbomReq(ctx, imgPath, token)
 	if err != nil {
 		return err
 	}

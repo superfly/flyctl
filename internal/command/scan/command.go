@@ -26,6 +26,7 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		newSbom(),
 		newVulns(),
+		newVulnSummary(),
 	)
 
 	return cmd
@@ -64,11 +65,13 @@ func promptForMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, e
 		return nil, err
 	}
 
-	// TODO: Perhaps we should allow selection of non-started machines,
-	// preferring the started machines over the non-started machines.
-	machines = lo.Filter(machines, func(machine *fly.Machine, _ int) bool {
-		return machine.State == fly.MachineStateStarted
-	})
+	if false {
+		// TODO: Perhaps we should allow selection of non-started machines,
+		// preferring the started machines over the non-started machines.
+		machines = lo.Filter(machines, func(machine *fly.Machine, _ int) bool {
+			return machine.State == fly.MachineStateStarted
+		})
+	}
 
 	options := []string{}
 	for _, machine := range machines {
@@ -77,7 +80,7 @@ func promptForMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, e
 	}
 
 	if len(machines) == 0 {
-		return nil, fmt.Errorf("there are no running machines")
+		return nil, fmt.Errorf("no machines found")
 	}
 
 	if anyMachine || len(machines) == 1 {
