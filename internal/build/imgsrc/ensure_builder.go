@@ -358,7 +358,7 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 				{
 					Protocol:           "tcp",
 					InternalPort:       8080,
-					Autostop:           fly.BoolPointer(false),
+					Autostop:           fly.Pointer(fly.MachineAutostopOff),
 					Autostart:          fly.BoolPointer(true),
 					MinMachinesRunning: fly.IntPointer(0),
 					Ports: []fly.MachinePort{
