@@ -277,6 +277,8 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 	for envName, envVal := range srcInfo.Env {
 		if envVal == "APP_FQDN" {
 			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
+		} else if envVal == "APP_URL" {
+			appConfig.SetEnvVariable(envName, "https://"+appConfig.AppName+".fly.dev")
 		} else {
 			appConfig.SetEnvVariable(envName, envVal)
 		}

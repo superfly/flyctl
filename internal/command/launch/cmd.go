@@ -106,6 +106,10 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		flag.Bool{
+			Name:        "no-create",
+			Description: "Do not create an app, only generate configuration files",
+		},
 	)
 
 	return
@@ -187,20 +191,22 @@ func run(ctx context.Context) (err error) {
 
 	var state *launchState = nil
 
-	defer func() {
-		if err != nil {
-			tracing.RecordError(span, err, "launch failed")
-			status.Error = err.Error()
+	if !flag.GetBool(ctx, "no-create") {
+		defer func() {
+			if err != nil {
+				tracing.RecordError(span, err, "launch failed")
+				status.Error = err.Error()
 
-			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
-				err = state.sourceInfo.FailureCallback(err)
+				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
+					err = state.sourceInfo.FailureCallback(err)
+				}
 			}
-		}
 
-		status.TraceID = span.SpanContext().TraceID().String()
-		status.Duration = time.Since(startTime)
-		metrics.LaunchStatus(ctx, status)
-	}()
+			status.TraceID = span.SpanContext().TraceID().String()
+			status.Duration = time.Since(startTime)
+			metrics.LaunchStatus(ctx, status)
+		}()
+	}
 
 	if err := warnLegacyBehavior(ctx); err != nil {
 		return err
