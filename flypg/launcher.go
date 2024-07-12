@@ -145,64 +145,64 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 				return err
 			}
 			machineConf.Image = imageRef
-
-			concurrency := &fly.MachineServiceConcurrency{
-				Type:      "connections",
-				HardLimit: 1000,
-				SoftLimit: 1000,
-			}
-
-			if config.Manager == ReplicationManager {
-				var bouncerPort = 5432
-				var pgPort = 5433
-
-				machineConf.Services = []fly.MachineService{
-					{
-						Protocol:     "tcp",
-						InternalPort: 5432,
-						Ports: []fly.MachinePort{
-							{
-								Port: &bouncerPort,
-								Handlers: []string{
-									"pg_tls",
-								},
-
-								ForceHTTPS: false,
-							},
-						},
-						Concurrency: concurrency,
-						Autostart:   &config.Autostart,
-					},
-					{
-						Protocol:     "tcp",
-						InternalPort: 5433,
-						Ports: []fly.MachinePort{
-							{
-								Port: &pgPort,
-								Handlers: []string{
-									"pg_tls",
-								},
-								ForceHTTPS: false,
-							},
-						},
-						Concurrency: concurrency,
-						Autostart:   &config.Autostart,
-					},
-				}
-			}
-
-			snapshot = config.SnapshotID
-			verb := "Provisioning"
-
-			if snapshot != nil {
-				verb = "Restoring"
-				if i > 0 {
-					snapshot = nil
-				}
-			}
-
-			fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 		}
+
+		concurrency := &fly.MachineServiceConcurrency{
+			Type:      "connections",
+			HardLimit: 1000,
+			SoftLimit: 1000,
+		}
+
+		if config.Manager == ReplicationManager {
+			var bouncerPort = 5432
+			var pgPort = 5433
+
+			machineConf.Services = []fly.MachineService{
+				{
+					Protocol:     "tcp",
+					InternalPort: 5432,
+					Ports: []fly.MachinePort{
+						{
+							Port: &bouncerPort,
+							Handlers: []string{
+								"pg_tls",
+							},
+
+							ForceHTTPS: false,
+						},
+					},
+					Concurrency: concurrency,
+					Autostart:   &config.Autostart,
+				},
+				{
+					Protocol:     "tcp",
+					InternalPort: 5433,
+					Ports: []fly.MachinePort{
+						{
+							Port: &pgPort,
+							Handlers: []string{
+								"pg_tls",
+							},
+							ForceHTTPS: false,
+						},
+					},
+					Concurrency: concurrency,
+					Autostart:   &config.Autostart,
+				},
+			}
+		}
+
+		snapshot = config.SnapshotID
+		verb := "Provisioning"
+
+		if snapshot != nil {
+			verb = "Restoring"
+			if i > 0 {
+				snapshot = nil
+			}
+		}
+
+		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
 
 		var vol *fly.Volume
 
