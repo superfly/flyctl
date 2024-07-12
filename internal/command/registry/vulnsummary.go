@@ -16,12 +16,14 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-// TODO: placeholder name.. figure out proper name for this one.
 func newVulnSummary() *cobra.Command {
 	const (
 		usage = "vulnsummary <vulnid> ... [flags]"
-		short = "Show vulnerabilities in machine images"
-		long  = "XXX todo. vulns in images across apps and machines, for running apps, or even stopped apps."
+		short = "Show a summary of possible vulnerabilities in registry images"
+		long  = "Summarize possible vulnerabilities in registry images in an org, by app.\n" +
+			"Limit scanning to a single app if specified. Limit scanning to images\n" +
+			"used by running machines if specified. Limit reporting to\n" +
+			"specific vulnerability IDs or severities if specified."
 	)
 	cmd := command.New(usage, short, long, runVulnSummary,
 		command.RequireSession,
@@ -36,7 +38,7 @@ func newVulnSummary() *cobra.Command {
 		flag.Bool{
 			Name:        "running",
 			Shorthand:   "r",
-			Description: "Only scan images for machines that are running, otherwise scan stopped machines as well.",
+			Description: "Only scan images for running machines",
 		},
 		flag.String{
 			Name:        "severity",
@@ -61,6 +63,7 @@ func runVulnSummary(ctx context.Context) error {
 	}
 
 	// fetch all image scans.
+	// TODO: spinner for long running fetches.
 	ios := iostreams.FromContext(ctx)
 	imageScan := map[string]*Scan{}
 	token := ""

@@ -19,12 +19,11 @@ import (
 func newVulns() *cobra.Command {
 	const (
 		usage = "vulns <vulnid> ... [flags]"
-		short = "Scan an application's image for vulnerabilities"
-		long  = "Generate a text or JSON report of vulnerabilities found in a application's image.\n" +
-			"If a machine is selected the image from that machine is scanned. Otherwise the image\n" +
-			"of the first running machine is scanned. When a severity is specified, any vulnerabilities\n" +
-			"less than the severity are omitted. When vulnIds are specified, any vulnerability not\n" +
-			"in the vulnID list is omitted."
+		short = "Report possible vulnerabilities in a registry image"
+		long  = "Report possible vulnerabilities in a registry image in JSON or text.\n" +
+			"The image is selected by name, or the image of the app's first machine\n" +
+			"is used unless interactive machine selection or machine ID is specified\n" +
+			"Limit text reporting to specific vulnerabilitie IDs or severities if specified."
 	)
 	cmd := command.New(usage, short, long, runVulns,
 		command.RequireSession,
