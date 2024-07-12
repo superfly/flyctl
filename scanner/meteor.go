@@ -38,7 +38,8 @@ func configureMeteor(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 	}
 
 	env := map[string]string{
-		"PORT": "3000",
+		"PORT":     "3000",
+		"ROOT_URL": "APP_FQDN",
 	}
 
 	s := &SourceInfo{
@@ -47,10 +48,6 @@ func configureMeteor(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 		SkipDatabase: true,
 		Env:          env,
 	}
-
-	s.Files = templates("templates/meteor")
-
-	s.Env["meteorVersion"] = meteorVersion
 
 	return s, nil
 }
