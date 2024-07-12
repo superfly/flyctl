@@ -23,7 +23,9 @@ func (p *VulnFilter) IsSpecified() bool {
 	return p.SeverityLevel > -1 && len(p.VulnIds) > 0
 }
 
-func getVulnFilter(ctx context.Context) (*VulnFilter, error) {
+// argsGetVulnFilter returns a VulnFilter from command line args
+// using `severity` and positional arguments.
+func argsGetVulnFilter(ctx context.Context) (*VulnFilter, error) {
 	vulnIds := flag.Args(ctx)
 	sev := flag.GetString(ctx, "severity")
 	if flag.IsSpecified(ctx, "severity") && !lo.Contains(allowedSeverities, sev) {

@@ -8,11 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -35,6 +33,11 @@ func newSbom() *cobra.Command {
 		cmd,
 		flag.App(),
 		flag.String{
+			Name:        "image",
+			Shorthand:   "i",
+			Description: "Scan the repository image",
+		},
+		flag.String{
 			Name:        "machine",
 			Description: "Scan the image of the machine with the specified ID",
 		},
@@ -44,7 +47,6 @@ func newSbom() *cobra.Command {
 			Description: "Select which machine to scan the image of from a list.",
 			Default:     false,
 		},
-		// TODO: output file
 	)
 
 	return cmd
@@ -62,21 +64,11 @@ func runSbom(ctx context.Context) error {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	machine, err := selectMachine(ctx, app)
+	imgPath, err := argsGetImgPath(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	imgPath := imageRefPath(&machine.ImageRef)
 	token, err := makeScantronToken(ctx, app.Organization.ID, app.ID)
 	if err != nil {
 		return err

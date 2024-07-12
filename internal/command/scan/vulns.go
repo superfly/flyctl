@@ -9,11 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -42,6 +40,11 @@ func newVulns() *cobra.Command {
 			Description: "Output the scan results in JSON format",
 		},
 		flag.String{
+			Name:        "image",
+			Shorthand:   "i",
+			Description: "Scan the repository image",
+		},
+		flag.String{
 			Name:        "machine",
 			Shorthand:   "m",
 			Description: "Scan the image of the machine with the specified ID",
@@ -52,57 +55,38 @@ func newVulns() *cobra.Command {
 			Description: "Select which machine to scan the image of from a list",
 			Default:     false,
 		},
-		flag.Bool{
-			Name:        "running",
-			Shorthand:   "r",
-			Description: "Only scan images for machines that are running, otherwise scan stopped machines as well.",
-		},
 		flag.String{
 			Name:        "severity",
 			Shorthand:   "S",
 			Description: fmt.Sprintf("Report only issues with a specific severity %v", allowedSeverities),
 		},
-		// TODO: output file
-		// TODO: format json/text
 	)
 
 	return cmd
 }
 
 func runVulns(ctx context.Context) error {
-	filter, err := getVulnFilter(ctx)
+	filter, err := argsGetVulnFilter(ctx)
 	if err != nil {
 		return err
 	}
 
 	if flag.IsSpecified(ctx, "json") && filter.IsSpecified() {
-		// We could support filtering of JSON results but we would need to
-		// fully represent the v2 trivy schema structures or import them.
 		return fmt.Errorf("filtering by severity or CVE is not supported when outputting JSON")
 	}
 
-	appName := appconfig.NameFromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
 	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed to get app: %w", err)
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create flaps client: %w", err)
-	}
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	machine, err := selectMachine(ctx, app)
+	imgPath, err := argsGetImgPath(ctx, app)
 	if err != nil {
 		return err
 	}
 
-	imgPath := imageRefPath(&machine.ImageRef)
 	token, err := makeScantronToken(ctx, app.Organization.ID, app.ID)
 	if err != nil {
 		return err

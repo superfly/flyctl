@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -9,13 +10,8 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -52,45 +48,20 @@ func newVulnSummary() *cobra.Command {
 	return cmd
 }
 
-// ImgInfo carries image information for a machine.
-type ImgInfo struct {
-	Org   string
-	OrgID string
-	App   string
-	AppID string
-	Mach  string
-	Path  string
-}
-
-func is400(err error) bool {
-	// Oh gross hack of all gross hacks.
-	// TODO: do better
-	return strings.Contains(err.Error(), "status code 400")
-}
-
 func runVulnSummary(ctx context.Context) error {
 	var err error
-	filter, err := getVulnFilter(ctx)
+	filter, err := argsGetVulnFilter(ctx)
 	if err != nil {
 		return err
 	}
 
-	// enumerate all images of interest.
-	var imgs []ImgInfo
-	if appName := flag.GetApp(ctx); appName != "" {
-		imgs, err = getAppImages(ctx, appName)
-	} else if orgName := flag.GetOrg(ctx); orgName != "" {
-		imgs, err = getOrgImages(ctx, orgName)
-	} else if appName := appconfig.NameFromContext(ctx); appName != "" {
-		imgs, err = getAppImages(ctx, appName)
-	} else {
-		err = fmt.Errorf("No org or application specified")
-	}
+	imgs, err := argsGetImages(ctx)
 	if err != nil {
 		return err
 	}
 
 	// fetch all image scans.
+	ios := iostreams.FromContext(ctx)
 	imageScan := map[string]*Scan{}
 	token := ""
 	tokenAppID := ""
@@ -109,9 +80,9 @@ func runVulnSummary(ctx context.Context) error {
 
 		scan, err := getVulnScan(ctx, img.Path, token)
 		if err != nil {
-			if is400(err) {
-				// TODO: not fmt.Printf, do better.
-				fmt.Printf("Skipping %s (%s) from unsupported repository\n", img.App, img.Mach)
+			errUnsupportedPath := ErrUnsupportedPath("")
+			if errors.As(err, &errUnsupportedPath) {
+				fmt.Fprintf(ios.Out, "Skipping %s (%s) from unsupported repository: %s\n", img.App, img.Mach, img.Path)
 				continue
 			}
 			return fmt.Errorf("Getting vulnerability scan for %s (%s): %w", img.App, img.Mach, err)
@@ -150,7 +121,6 @@ func runVulnSummary(ctx context.Context) error {
 	}
 
 	// Show what is being scanned.
-	ios := iostreams.FromContext(ctx)
 	lastOrg := ""
 	lastApp := ""
 	fmt.Fprintf(ios.Out, "Scanned images\n")
@@ -171,15 +141,16 @@ func runVulnSummary(ctx context.Context) error {
 		}
 	}
 	fmt.Fprintf(ios.Out, "\n")
-	fmt.Fprintf(ios.Out, "To scan an image run: flyctl image scan <imgpath>\n")
+	fmt.Fprintf(ios.Out, "To scan an image run: flyctl scan vulns -a <app> -i <imgpath>\n")
+	fmt.Fprintf(ios.Out, "To download an SBOM run: flyctl scan sbom -a <app> -i <imgpath>\n")
 	fmt.Fprintf(ios.Out, "\n")
 
 	// Report checkmark table with columns of apps and rows of vulns.
-	// TODO: use flyctl table stuff for pretty pretty
 	apps := lo.Keys(vidsByApp)
 	slices.SortFunc(apps, strings.Compare)
 	vids := lo.Keys(allVids)
 	slices.SortFunc(vids, cmpVulnId)
+	slices.Reverse(vids)
 
 	rows := [][]string{}
 	for _, vid := range vids {
@@ -194,74 +165,4 @@ func runVulnSummary(ctx context.Context) error {
 	render.Table(ios.Out, "Vulnerabilities in Apps", rows, cols...)
 
 	return nil
-}
-
-func getOrgImages(ctx context.Context, orgName string) ([]ImgInfo, error) {
-	client := flyutil.ClientFromContext(ctx)
-	org, err := client.GetOrganizationBySlug(ctx, orgName)
-	if err != nil {
-		return nil, err
-	}
-
-	apps, err := client.GetAppsForOrganization(ctx, org.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	allImgs := []ImgInfo{}
-	for _, app := range apps {
-		imgs, err := getAppImages(ctx, app.Name)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
-		}
-		allImgs = append(allImgs, imgs...)
-	}
-	return allImgs, nil
-
-}
-
-func getAppImages(ctx context.Context, appName string) ([]ImgInfo, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get app %q: %w", appName, err)
-	}
-
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create flaps client for %q: %w", appName, err)
-	}
-	org := app.Organization
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
-	machines, err := flapsClient.ListActive(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	if flag.GetBool(ctx, "running") {
-		machines = lo.Filter(machines, func(machine *fly.Machine, _ int) bool {
-			return machine.State == fly.MachineStateStarted
-		})
-	}
-
-	imgs := []ImgInfo{}
-	for _, machine := range machines {
-		ir := machine.ImageRef
-		imgPath := fmt.Sprintf("%s/%s@%s", ir.Registry, ir.Repository, ir.Digest)
-
-		img := ImgInfo{
-			Org:   org.Name,
-			OrgID: org.ID,
-			App:   app.Name,
-			AppID: app.ID,
-			Mach:  machine.Name,
-			Path:  imgPath,
-		}
-		imgs = append(imgs, img)
-	}
-	return imgs, nil
 }

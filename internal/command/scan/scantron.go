@@ -18,11 +18,10 @@ import (
 )
 
 const (
-	scantronTokenLife = "5m"
-	scantronTokenName = "ScantronToken"
+	scantronTokenLife  = "5m"
+	scantronTokenName  = "ScantronToken"
+	scantronDefaultUrl = "https://scantron.fly.dev"
 )
-
-var scantronUrl = "https://scantron.fly.dev"
 
 var httpClient = &http.Client{
 	Timeout: time.Second * 15,
@@ -36,6 +35,7 @@ func imageRefPath(imgRef *fly.MachineImageRef) string {
 // The `accept` parameter is used as a header, which indicates which information
 // scantron should serve up.
 func scantronReq(ctx context.Context, imgPath, token, accept string) (*http.Response, error) {
+	scantronUrl := scantronDefaultUrl
 	if val := os.Getenv("FLY_SCANTRON"); val != "" {
 		scantronUrl = val
 	}
@@ -87,6 +87,12 @@ type ScanVuln struct {
 	Severity         string
 }
 
+type ErrUnsupportedPath string
+
+func (e ErrUnsupportedPath) Error() string {
+	return fmt.Sprintf("Unsupported image path %q", string(e))
+}
+
 func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 	res, err := scantronVulnscanReq(ctx, imgPath, token)
 	if err != nil {
@@ -95,6 +101,9 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
+		if res.StatusCode == 422 {
+			return nil, ErrUnsupportedPath(imgPath)
+		}
 		return nil, fmt.Errorf("fetching scan results, status code %d", res.StatusCode)
 	}
 
