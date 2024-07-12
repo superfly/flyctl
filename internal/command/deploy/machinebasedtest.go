@@ -43,6 +43,7 @@ func (md *machineDeployment) runTestMachines(ctx context.Context, machineToTest 
 			return nil
 		}
 	})
+	machineChecks = append(machineChecks, md.appConfig.MachineChecks...)
 
 	if len(machineChecks) == 0 {
 		span.AddEvent("no machine checks")

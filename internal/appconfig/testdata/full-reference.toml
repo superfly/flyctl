@@ -162,6 +162,13 @@ host_dedication_id = "06031957"
     Content-Type = "application/json"
     Authorization = "super-duper-secret"
 
+[[machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"
+
 [[services]]
   internal_port = 8081
   protocol = "tcp"
