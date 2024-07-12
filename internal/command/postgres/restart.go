@@ -70,10 +70,10 @@ func runRestart(ctx context.Context) error {
 	input := fly.RestartMachineInput{
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
-	return machinesRestart(ctx, &input)
+	return machinesRestart(ctx, appName, &input)
 }
 
-func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err error) {
+func machinesRestart(ctx context.Context, appName string, input *fly.RestartMachineInput) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.20"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -92,7 +92,7 @@ func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err e
 		return err
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(appName, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 

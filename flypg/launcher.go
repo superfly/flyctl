@@ -21,13 +21,14 @@ import (
 )
 
 var (
-	volumeName     = "pg_data"
-	volumePath     = "/data"
-	Duration10s, _ = time.ParseDuration("10s")
-	Duration15s, _ = time.ParseDuration("15s")
-	CheckPathPg    = "/flycheck/pg"
-	CheckPathRole  = "/flycheck/role"
-	CheckPathVm    = "/flycheck/vm"
+	volumeName       = "pg_data"
+	volumePath       = "/data"
+	Duration10s, _   = time.ParseDuration("10s")
+	Duration15s, _   = time.ParseDuration("15s")
+	CheckPathPg      = "/flycheck/pg"
+	CheckPathRole    = "/flycheck/role"
+	CheckPathVm      = "/flycheck/vm"
+	BarmanSecretName = "S3_ARCHIVE_CONFIG"
 )
 
 const (
@@ -48,12 +49,20 @@ type CreateClusterInput struct {
 	Password           string
 	Region             string
 	VolumeSize         *int
-	VMSize             *fly.VMSize
-	SnapshotID         *string
-	Manager            string
-	Autostart          bool
-	ScaleToZero        bool
-	ForkFrom           string
+	// VMSize is deprecated, specify Guest instead.
+	VMSize                    *fly.VMSize
+	Guest                     *fly.MachineGuest
+	SnapshotID                *string
+	Manager                   string
+	Autostart                 bool
+	ScaleToZero               bool
+	ForkFrom                  string
+	BackupEnabled             bool
+	BarmanSecret              string
+	BarmanRemoteRestoreConfig string
+	RestoreTargetName         string
+	RestoreTargetTime         string
+	RestoreTargetInclusive    bool
 }
 
 func NewLauncher(client flyutil.Client) *Launcher {
@@ -89,6 +98,14 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		if err != nil {
 			return err
 		}
+
+		// TODO - We need to verify target image before we do this.
+		// Create the Tigris bucket for backup storage
+		if config.BackupEnabled {
+			if err := CreateTigrisBucket(ctx, config); err != nil {
+				return err
+			}
+		}
 	}
 
 	secrets, err := l.setSecrets(ctx, config)
@@ -108,7 +125,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	nodes := make([]*fly.Machine, 0)
 
 	for i := 0; i < config.InitialClusterSize; i++ {
-		machineConf := l.getPostgresConfig(config)
+		var (
+			machineConf *fly.MachineConfig
+			snapshot    *string
+		)
+
+		machineConf = l.getPostgresConfig(config)
 
 		machineConf.Image = config.ImageRef
 		if machineConf.Image == "" {
@@ -123,63 +145,64 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 				return err
 			}
 			machineConf.Image = imageRef
-		}
 
-		concurrency := &fly.MachineServiceConcurrency{
-			Type:      "connections",
-			HardLimit: 1000,
-			SoftLimit: 1000,
-		}
-
-		if config.Manager == ReplicationManager {
-			var bouncerPort int = 5432
-			var pgPort int = 5433
-			machineConf.Services = []fly.MachineService{
-				{
-					Protocol:     "tcp",
-					InternalPort: 5432,
-					Ports: []fly.MachinePort{
-						{
-							Port: &bouncerPort,
-							Handlers: []string{
-								"pg_tls",
-							},
-
-							ForceHTTPS: false,
-						},
-					},
-					Concurrency: concurrency,
-					Autostart:   &config.Autostart,
-				},
-				{
-					Protocol:     "tcp",
-					InternalPort: 5433,
-					Ports: []fly.MachinePort{
-						{
-							Port: &pgPort,
-							Handlers: []string{
-								"pg_tls",
-							},
-							ForceHTTPS: false,
-						},
-					},
-					Concurrency: concurrency,
-					Autostart:   &config.Autostart,
-				},
+			concurrency := &fly.MachineServiceConcurrency{
+				Type:      "connections",
+				HardLimit: 1000,
+				SoftLimit: 1000,
 			}
-		}
 
-		snapshot := config.SnapshotID
-		verb := "Provisioning"
+			if config.Manager == ReplicationManager {
+				var bouncerPort = 5432
+				var pgPort = 5433
 
-		if snapshot != nil {
-			verb = "Restoring"
-			if i > 0 {
-				snapshot = nil
+				machineConf.Services = []fly.MachineService{
+					{
+						Protocol:     "tcp",
+						InternalPort: 5432,
+						Ports: []fly.MachinePort{
+							{
+								Port: &bouncerPort,
+								Handlers: []string{
+									"pg_tls",
+								},
+
+								ForceHTTPS: false,
+							},
+						},
+						Concurrency: concurrency,
+						Autostart:   &config.Autostart,
+					},
+					{
+						Protocol:     "tcp",
+						InternalPort: 5433,
+						Ports: []fly.MachinePort{
+							{
+								Port: &pgPort,
+								Handlers: []string{
+									"pg_tls",
+								},
+								ForceHTTPS: false,
+							},
+						},
+						Concurrency: concurrency,
+						Autostart:   &config.Autostart,
+					},
+				}
 			}
-		}
 
-		fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
+			snapshot = config.SnapshotID
+			verb := "Provisioning"
+
+			if snapshot != nil {
+				verb = "Restoring"
+				if i > 0 {
+					snapshot = nil
+				}
+			}
+
+			fmt.Fprintf(io.Out, "%s %d of %d machines with image %s\n", verb, i+1, config.InitialClusterSize, machineConf.Image)
+		}
 
 		var vol *fly.Volume
 
@@ -296,10 +319,14 @@ func (l *Launcher) getPostgresConfig(config *CreateClusterInput) *fly.MachineCon
 	}
 
 	// Set VM resources
-	machineConfig.Guest = &fly.MachineGuest{
-		CPUKind:  config.VMSize.CPUClass,
-		CPUs:     int(config.VMSize.CPUCores),
-		MemoryMB: config.VMSize.MemoryMB,
+	if config.Guest != nil {
+		machineConfig.Guest = config.Guest
+	} else {
+		machineConfig.Guest = &fly.MachineGuest{
+			CPUKind:  config.VMSize.CPUClass,
+			CPUs:     int(config.VMSize.CPUCores),
+			MemoryMB: config.VMSize.MemoryMB,
+		}
 	}
 
 	// Metrics
@@ -415,6 +442,12 @@ func (l *Launcher) setSecrets(ctx context.Context, config *CreateClusterInput) (
 		"SU_PASSWORD":       suPassword,
 		"REPL_PASSWORD":     replPassword,
 		"OPERATOR_PASSWORD": opPassword,
+	}
+
+	if config.BarmanSecret != "" {
+		secrets[BarmanSecretName] = config.BarmanSecret
+	} else if config.BarmanRemoteRestoreConfig != "" {
+		secrets["S3_ARCHIVE_REMOTE_RESTORE_CONFIG"] = config.BarmanRemoteRestoreConfig
 	}
 
 	if config.Manager == ReplicationManager {
