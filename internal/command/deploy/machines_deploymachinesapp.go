@@ -820,7 +820,8 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		return nil
 	}
 
-	if err = lm.WaitForSmokeChecksToPass(ctx); err == nil {
+	err = lm.WaitForSmokeChecksToPass(ctx)
+	if err == nil {
 		return nil
 	}
 
