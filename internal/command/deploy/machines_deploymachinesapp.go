@@ -97,13 +97,6 @@ func (md *machineDeployment) restartMachinesApp(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_machines")
 	defer span.End()
 
-	if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
-		tracing.RecordError(span, err, "failed to acquire lease")
-		return err
-	}
-	defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
-	md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
-
 	machineUpdateEntries := lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *machineUpdateEntry {
 		return &machineUpdateEntry{leasableMachine: lm, launchInput: md.launchInputForRestart(lm.Machine())}
 	})
@@ -451,6 +444,13 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	switch md.strategy {
 	case "bluegreen":
+		if err := md.machineSet.AcquireLeases(ctx, md.leaseTimeout); err != nil {
+			tracing.RecordError(span, err, "failed to acquire lease")
+			return err
+		}
+		defer md.machineSet.ReleaseLeases(ctx) // skipcq: GO-S2307
+		md.machineSet.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
+
 		// TODO(billy) do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
