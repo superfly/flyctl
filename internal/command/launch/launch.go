@@ -47,19 +47,21 @@ func (state *launchState) Launch(ctx context.Context) error {
 		state.warnedNoCcHa = true
 	}
 
-	app, err := state.createApp(ctx)
-	if err != nil {
-		return err
-	}
+	if !flag.GetBool(ctx, "no-create") {
+		app, err := state.createApp(ctx)
+		if err != nil {
+			return err
+		}
 
-	fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
-	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
-	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
+		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
+		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
+		fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
+	}
 
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
 	if state.sourceInfo != nil && state.sourceInfo.GitHubActions.Deploy {
-		state.setupGitHubActions(ctx, app.Name)
+		state.setupGitHubActions(ctx, state.Plan.AppName)
 	}
 
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
@@ -67,9 +69,11 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
-	err = state.createDatabases(ctx)
-	if err != nil {
-		return err
+
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.createDatabases(ctx); err != nil {
+			return err
+		}
 	}
 	if err = state.satisfyScannerAfterDb(ctx); err != nil {
 		return err
@@ -84,8 +88,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Sentry
-	if err = state.launchSentry(ctx, app.Name); err != nil {
-		return err
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
+			return err
+		}
 	}
 
 	// Finally write application configuration to fly.toml
