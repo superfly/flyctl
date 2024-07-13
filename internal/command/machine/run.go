@@ -115,9 +115,8 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "autostop",
-		Description: "Automatically stop a Machine when there are no network requests for it. Options include 'off', 'stop', and 'suspend'.",
-		Default:     "off",
-		NoOptDefVal: "stop",
+		Description: "Automatically stop a Machine when there are no network requests for it",
+		NoOptDefVal: "true",
 	},
 	flag.String{
 		Name: "restart",
@@ -776,10 +775,22 @@ func determineMachineConfig(
 		}
 
 		if flag.IsSpecified(ctx, "autostop") {
-			if flag.GetBool(ctx, "autostop") {
-				s.Autostop = fly.Pointer(fly.MachineAutostopStop)
+			// We'll try to parse it as a boolean first for backward
+			// compatibility. (strconv.ParseBool is what the pflag
+			// library uses for booleans under the hood.)
+			asString := flag.GetString(ctx, "autostop")
+			if asBool, err := strconv.ParseBool(asString); err == nil {
+				if asBool {
+					s.Autostop = fly.Pointer(fly.MachineAutostopStop)
+				} else {
+					s.Autostop = fly.Pointer(fly.MachineAutostopOff)
+				}
 			} else {
-				s.Autostop = fly.Pointer(fly.MachineAutostopOff)
+				var value fly.MachineAutostop
+				if err := value.UnmarshalText([]byte(asString)); err != nil {
+					return nil, err
+				}
+				s.Autostop = fly.Pointer(value)
 			}
 		}
 
