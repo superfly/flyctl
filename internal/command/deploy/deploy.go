@@ -308,10 +308,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig, usingWireguard, recreateBuilder)
-	if err != nil && usingWireguard && httpFailover {
-		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
-		span.AddEvent("using http failover")
-		img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+	if err != nil {
+		noBuilder := strings.Contains(err.Error(), "Could not find App")
+		recreateBuilder = recreateBuilder || noBuilder
+		if noBuilder || (usingWireguard && httpFailover) {
+			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+			span.AddEvent("using http failover")
+			img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+		}
 	}
 
 	if err != nil {
