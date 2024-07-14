@@ -166,6 +166,11 @@ var CommonFlags = flag.Set{
 		Shorthand:   "s",
 		Description: "Signal to stop the machine with for bluegreen strategy (default: SIGINT)",
 	},
+	flag.Int{
+		Name:        "deploy-retries",
+		Description: "Number of times to retry a deployment if it fails",
+		Default:     5,
+	},
 }
 
 type Command struct {
@@ -491,6 +496,7 @@ func deployToMachines(
 		MaxConcurrent:         maxConcurrent,
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
+		DeployRetries:         flag.GetInt(ctx, "deploy-retries"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
