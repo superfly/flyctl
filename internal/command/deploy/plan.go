@@ -218,13 +218,15 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		if newMachine == nil {
 			destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
 		} else {
+			machine.LeaseNonce = lease.Data.Nonce
 			// if the config hasn't changed, we don't need to update the machine
 			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			newMachine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl.Line(idx))
+			updatedMachine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl.Line(idx), newMachine.State == "replacing")
+			newMachine.State = "started"
 			if err != nil {
 				return err
 			}
-			machine = newMachine
+			machine = updatedMachine
 		}
 	} else if newMachine != nil {
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
@@ -244,29 +246,37 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	var err error
 
+	shouldStart := newMachine.State == "started"
+
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
 
+	if !shouldStart {
+		sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
+		return nil
+	}
+
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-		err = waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl.Line(idx))
+		state, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl.Line(idx))
 		if err != nil {
 			return err
 		}
 
-		// start the machine
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
-		err = startMachine(ctx, machine.ID, lease.Data.Nonce)
-		if err != nil {
-			return err
+		if state != "started" {
+			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
+			err = startMachine(ctx, machine.ID, lease.Data.Nonce)
+			if err != nil {
+				return err
+			}
+
+			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
+			_, err = waitForMachineState(ctx, lm, []string{"started", "stopped"}, md.waitTimeout, sl.Line(idx))
+			if err != nil {
+				return err
+			}
 		}
 
-		// wait for the machine to reach the running state
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
-		err = waitForMachineState(ctx, lm, []string{"started"}, md.waitTimeout, sl.Line(idx))
-		if err != nil {
-			return err
-		}
 	}
 
 	if !healthcheckResult.smokeChecksPassed {
@@ -332,31 +342,34 @@ func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
 }
 
 // returns when the machine is in one of the possible states, or after passing the timeout threshold
-func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine) error {
+func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	var mutex sync.Mutex
 
 	var waitErr error
 	numCompleted := 0
-	successfulFinish := false
+	var successfulState string
 
 	for _, state := range possibleStates {
 		state := state
 		go func() {
 			err := lm.WaitForState(ctx, state, timeout, false)
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
-
 			mutex.Lock()
 			defer func() {
 				numCompleted += 1
 				mutex.Unlock()
 			}()
 
+			if successfulState != "" {
+				return
+			}
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
+
 			if err != nil {
 				waitErr = err
 			} else {
-				successfulFinish = true
+				successfulState = state
 			}
 		}()
 	}
@@ -364,9 +377,9 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 	// TODO(billy): i'm sure we can use channels here
 	for {
 		mutex.Lock()
-		if successfulFinish || numCompleted == len(possibleStates) {
-			mutex.Unlock()
-			return waitErr
+		if successfulState != "" || numCompleted == len(possibleStates) {
+			defer mutex.Unlock()
+			return successfulState, waitErr
 		}
 		mutex.Unlock()
 
@@ -390,29 +403,29 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 	return lease, nil
 }
 
-func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine) (*fly.Machine, error) {
+func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine *fly.Machine, newMachineConfig *fly.MachineConfig, sl statuslogger.StatusLine, shouldReplace bool) (*fly.Machine, error) {
 	if compareConfigs(oldMachine.Config, newMachineConfig) {
 		return oldMachine, nil
 	}
 
+	input, err := md.launchInputForUpdate(oldMachine)
+	if err != nil {
+		return nil, err
+	}
+	input.Config = newMachineConfig
+	if shouldReplace {
+		input.RequiresReplacement = shouldReplace
+	}
+
 	lm := mach.NewLeasableMachine(md.flapsClient, md.io, oldMachine, false)
-	err := md.updateMachine(ctx, &machineUpdateEntry{
+	entry := &machineUpdateEntry{
 		leasableMachine: lm,
-		launchInput: &fly.LaunchMachineInput{
-			Config: newMachineConfig,
-			ID:     oldMachine.ID,
-		},
-	}, sl)
+		launchInput:     input,
+	}
+	err = md.updateMachine(ctx, entry, sl)
 	if err != nil {
 		if strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
-			err := md.updateMachine(ctx, &machineUpdateEntry{
-				leasableMachine: lm,
-				launchInput: &fly.LaunchMachineInput{
-					Config:              newMachineConfig,
-					ID:                  oldMachine.ID,
-					RequiresReplacement: true,
-				},
-			}, sl)
+			err := md.updateMachine(ctx, entry, sl)
 
 			if err != nil {
 				return nil, err
@@ -461,16 +474,7 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 
 	sl.Logf("Updating %s", md.colorize.Bold(fmtID))
 	if err := md.updateMachineInPlace(ctx, e); err != nil {
-		switch {
-		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
-			// Replacing a machine with a volume will cause the placement logic to pick wthe same host
-			// dismissing the value of replacing it in case of lack of host capacity
-			return err
-		case strings.Contains(err.Error(), "could not reserve resource for machine"):
-			return replaceMachine()
-		default:
-			return err
-		}
+		return err
 	}
 	return nil
 }
@@ -479,6 +483,9 @@ func startMachine(ctx context.Context, machineID string, leaseNonce string) erro
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	_, err := flapsClient.Start(ctx, machineID, leaseNonce)
 	if err != nil {
+		if strings.Contains(err.Error(), "machine still active") {
+			return nil
+		}
 		fmt.Println("Failed to start machine", machineID, "due to error", err)
 		return err
 	}
