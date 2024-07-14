@@ -439,7 +439,16 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	newAppState := *oldAppState
 	newAppState.Machines = lo.Map(updateEntries, func(e *machineUpdateEntry, _ int) *fly.Machine {
-		return e.leasableMachine.Machine()
+		newMach := e.leasableMachine.Machine()
+		if !e.launchInput.SkipLaunch {
+			newMach.State = "started"
+		}
+
+		if e.launchInput.RequiresReplacement {
+			newMach.State = "replacing"
+		}
+		newMach.Config = e.launchInput.Config
+		return newMach
 	})
 
 	switch md.strategy {
