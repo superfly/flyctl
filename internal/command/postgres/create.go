@@ -34,6 +34,10 @@ func newCreate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.Detach(),
+		flag.Bool{
+			Name:        "enable-backup",
+			Description: "Enable WAL-based backups",
+		},
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -260,6 +264,16 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
+	if flag.GetString(ctx, "restore-target-name") != "" && flag.GetString(ctx, "restore-target-time") != "" {
+		return fmt.Errorf("Cannot specify both --restore-target-name and --restore-target-time")
+	}
+
+	if flag.GetString(ctx, "restore-target-name") != "" || flag.GetString(ctx, "restore-target-time") != "" {
+		if flag.GetString(ctx, "restore-target-app") == "" {
+			return fmt.Errorf("Must specify --restore-target-app when using --restore-target-name or --restore-target-time")
+		}
+	}
+
 	return CreateCluster(ctx, org, region, params)
 }
 
@@ -271,20 +285,27 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      params.Name,
-		Organization: org,
-		ImageRef:     params.PostgresConfiguration.ImageRef,
-		Region:       region.Code,
-		Manager:      params.Manager,
-		Autostart:    params.Autostart,
-		ForkFrom:     params.ForkFrom,
+		AppName:       params.Name,
+		Organization:  org,
+		ImageRef:      params.PostgresConfiguration.ImageRef,
+		Region:        region.Code,
+		Manager:       params.Manager,
+		Autostart:     params.Autostart,
+		ForkFrom:      params.ForkFrom,
+		BackupEnabled: flag.GetBool(ctx, "enable-backup"),
+		// Eventually we populate this with a full S3 endpoint, but use the
+		// restore app target for now.
+		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
+		RestoreTargetName:         flag.GetString(ctx, "restore-target-name"),
+		RestoreTargetTime:         flag.GetString(ctx, "restore-target-time"),
+		RestoreTargetInclusive:    flag.GetBool(ctx, "restore-target-inclusive"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
 
 	var config *PostgresConfiguration
 
-	if !customConfig {
+	if !customConfig && input.BarmanRemoteRestoreConfig == "" {
 		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
 
 		msg := "Select configuration:"
@@ -359,7 +380,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 		input.VolumeSize = fly.IntPointer(params.DiskGb)
 		input.Autostart = params.Autostart
-	} else {
+	} else if input.BarmanRemoteRestoreConfig == "" {
 		// Resolve configuration from pre-defined configuration.
 		vmSize, err := resolveVMSize(ctx, config.VMSize)
 		if err != nil {
