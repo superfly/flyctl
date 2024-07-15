@@ -825,7 +825,10 @@ func (s smokeChecksError) Suggestion() string {
 }
 
 func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine, showLogs bool) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "smoke_checks", trace.WithAttributes(attribute.String("machine.ID", lm.Machine().ID)))
+	defer span.End()
 	if md.skipSmokeChecks {
+		span.AddEvent("skipped")
 		return nil
 	}
 
@@ -841,10 +844,13 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 
 	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
 	if fly.IsNotAuthenticatedError(logErr) && showLogs {
+		span.AddEvent("not authorized to retrieve logs")
 		fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
 	} else {
 		if logErr != nil {
-			return fmt.Errorf("error getting logs for machine %s: %w", lm.Machine().ID, logErr)
+			err := fmt.Errorf("error getting logs for machine %s: %w", lm.Machine().ID, logErr)
+			span.RecordError(err)
+			return err
 		}
 		var log string
 		for _, l := range logs {
@@ -854,14 +860,17 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 			}
 		}
 
-		return &smokeChecksError{
+		err := &smokeChecksError{
 			err:       err,
 			machineID: lm.Machine().ID,
 			logs:      log,
 		}
+		span.RecordError(err)
+		return err
 	}
-
-	return fmt.Errorf("smoke checks for %s failed: %v", lm.Machine().ID, err)
+	err = fmt.Errorf("smoke checks for %s failed: %v", lm.Machine().ID, err)
+	span.RecordError(err)
+	return err
 }
 
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
