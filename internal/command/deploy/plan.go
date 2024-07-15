@@ -138,7 +138,6 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 
 			currentState, err := md.appState(ctx)
 			if err != nil {
-				fmt.Println("Failed to get current state:", err)
 				return err
 			}
 			err = md.updateMachines(ctx, currentState, newAppState, false, sl, skipHealthChecks, skipSmokeChecks)
@@ -430,14 +429,6 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	}
 	err = md.updateMachine(ctx, entry, sl)
 	if err != nil {
-		if strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
-			err := md.updateMachine(ctx, entry, sl)
-
-			if err != nil {
-				return nil, err
-			}
-		}
-
 		return nil, err
 	}
 	return lm.Machine(), nil
