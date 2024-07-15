@@ -245,7 +245,6 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 		}
 
 		url := fmt.Sprintf("https://%s.fly.dev/flyio/v1/settings", app.Name)
-		
 
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		if err != nil {
