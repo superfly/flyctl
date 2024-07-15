@@ -36,7 +36,7 @@ func newCreate() *cobra.Command {
 		flag.Detach(),
 		flag.Bool{
 			Name:        "enable-backups",
-			Description: "Enable WAL-based backups",
+			Description: "Create a new tigris bucket and enable WAL-based backups",
 		},
 		flag.String{
 			Name:        "name",

@@ -260,7 +260,7 @@ func runBackupCreate(ctx context.Context) error {
 
 func newBackupEnable() *cobra.Command {
 	const (
-		short = "Enable backups on a Postgres cluster"
+		short = "Enable backups on a Postgres cluster, creating a Tigris bucket for storage"
 		long  = short + "\n"
 
 		usage = "enable"
