@@ -97,7 +97,7 @@ func runMachineListDbs(ctx context.Context, app *fly.AppCompact) error {
 		return fmt.Errorf("no 6pn ips founds for %s app", app.Name)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
