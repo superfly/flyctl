@@ -196,7 +196,7 @@ func (e *unrecoverableError) Unwrap() error {
 }
 
 func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig) bool {
-	ctx, span := tracing.GetTracer().Start(ctx, "compare_configs")
+	_, span := tracing.GetTracer().Start(ctx, "compare_configs")
 	defer span.End()
 
 	opt := cmp.FilterPath(func(p cmp.Path) bool {
