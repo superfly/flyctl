@@ -466,11 +466,11 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 	fmtID := e.leasableMachine.FormattedMachineId()
 
 	replaceMachine := func() error {
-		statuslogger.Logf(ctx, "Replacing %s by new machine", md.colorize.Bold(fmtID))
+		sl.Logf("Replacing %s by new machine", fmtID)
 		if err := md.updateMachineByReplace(ctx, e); err != nil {
 			return err
 		}
-		statuslogger.Logf(ctx, "Created machine %s", md.colorize.Bold(fmtID))
+		sl.Logf("Created machine %s", fmtID)
 		return nil
 	}
 
