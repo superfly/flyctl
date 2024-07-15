@@ -124,8 +124,8 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			return updateErr
 		}
 
-		var unrecoverableErr unrecoverableError
-		if strings.Contains(updateErr.Error(), "context canceled") || errors.As(updateErr, &unrecoverableErr) || strings.Contains(updateErr.Error(), "Unrecoverable error") {
+		var unrecoverableErr *unrecoverableError
+		if errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
 			return updateErr
 		}
 
@@ -144,10 +144,10 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			err = md.updateMachines(ctx, currentState, newAppState, false, sl, skipHealthChecks, skipSmokeChecks)
 			if err == nil {
 				break
-			} else if strings.Contains(err.Error(), "context canceled") {
+			} else if errors.Is(err, context.Canceled) {
 				return err
 			} else {
-				if errors.As(err, &unrecoverableErr) || strings.Contains(err.Error(), "Unrecoverable error") {
+				if errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
 					return err
 				}
 				fmt.Println("Failed to update machines:", err, ". Retrying...")
@@ -166,11 +166,11 @@ type unrecoverableError struct {
 	err error
 }
 
-func (e unrecoverableError) Error() string {
+func (e *unrecoverableError) Error() string {
 	return fmt.Sprintf("Unrecoverable error: %s", e.err)
 }
 
-func (e unrecoverableError) Unwrap() error {
+func (e *unrecoverableError) Unwrap() error {
 	return e.err
 }
 
@@ -400,7 +400,7 @@ func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease,
 		// TODO: tell users how to manually clear the lease
 		// TODO: have a flag to automatically clear the lease
 		if strings.Contains(err.Error(), "failed to get lease") {
-			return nil, unrecoverableError{err: err}
+			return nil, &unrecoverableError{err: err}
 		} else {
 			return nil, err
 		}
