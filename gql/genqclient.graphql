@@ -188,7 +188,7 @@ mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile
 	}
 }
 
-mutation LogOut() {
+mutation LogOut {
 	logOut(input: {}) {
 		ok
 	}

@@ -80,10 +80,10 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		}
 
 		machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
+		defer release()
 		if err != nil {
 			return err
 		}
-		defer release()
 
 		confirmed, err := prompt.Confirm(ctx, fmt.Sprintf("%d Machines (%s) will be destroyed, continue?", len(machines), strings.Join(ids, ",")))
 		if err != nil {
@@ -106,10 +106,10 @@ func runMachineDestroy(ctx context.Context) (err error) {
 			return err
 		}
 		machine, release, err := mach.AcquireLease(ctx, machine)
+		defer release()
 		if err != nil {
 			return err
 		}
-		defer release()
 
 		err = singleDestroyRun(ctx, machine)
 		if err != nil {
@@ -122,10 +122,10 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		}
 
 		machines, release, err := mach.AcquireLeases(ctx, machines)
+		defer release()
 		if err != nil {
 			return err
 		}
-		defer release()
 
 		for _, machine := range machines {
 			err = singleDestroyRun(ctx, machine)

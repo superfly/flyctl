@@ -4,6 +4,7 @@ package sentry
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -14,6 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
@@ -84,6 +86,14 @@ func WithTraceID(ctx context.Context) CaptureOption {
 	}
 }
 
+func WithStatusCode(status int) CaptureOption {
+	return WithTag("status_code", fmt.Sprintf("%d", status))
+}
+
+func WithRequestID(requestID string) CaptureOption {
+	return WithTag("request_id", requestID)
+}
+
 func CaptureException(err error, opts ...CaptureOption) {
 	if !isInitialized() {
 		return
@@ -120,6 +130,29 @@ func CaptureExceptionWithAppInfo(ctx context.Context, err error, featureName str
 		)
 		return
 	}
+
+	var flapsErr *flaps.FlapsError
+
+	if errors.As(err, &flapsErr) {
+		CaptureException(
+			flapsErr,
+			WithTag("feature", featureName),
+			WithTag("app-platform-version", appCompact.PlatformVersion),
+			WithContexts(map[string]sentry.Context{
+				"app": map[string]interface{}{
+					"name": appCompact.Name,
+				},
+				"organization": map[string]interface{}{
+					"slug": appCompact.Organization.Slug,
+				},
+			}),
+			WithTraceID(ctx),
+			WithRequestID(flapsErr.FlyRequestId),
+			WithStatusCode(flapsErr.ResponseStatusCode),
+		)
+		return
+	}
+
 	CaptureException(
 		err,
 		WithTag("feature", featureName),

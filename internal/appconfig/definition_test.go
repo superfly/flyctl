@@ -237,6 +237,15 @@ func TestToDefinition(t *testing.T) {
 				},
 			},
 		},
+		"machine_checks": []any{
+			map[string]any{
+				"command":      []any{"curl", "https://fly.io"},
+				"image":        "curlimages/curl",
+				"entrypoint":   []any{"/bin/sh"},
+				"kill_signal":  "SIGKILL",
+				"kill_timeout": "5s",
+			},
+		},
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
@@ -267,8 +276,10 @@ func TestToDefinition(t *testing.T) {
 		},
 		"statics": []any{
 			map[string]any{
-				"guest_path": "/path/to/statics",
-				"url_prefix": "/static-assets",
+				"guest_path":     "/path/to/statics",
+				"url_prefix":     "/static-assets",
+				"tigris_bucket":  "example-bucket",
+				"index_document": "index.html",
 			},
 		},
 		"files": []any{
