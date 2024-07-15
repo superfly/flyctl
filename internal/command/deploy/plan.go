@@ -207,6 +207,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	var err error
 
 	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl.Line(idx))
+	// if machine is nil and the lease is nil, it means we don't need to check on this machine
 	if err != nil || (machine == nil && lease == nil) {
 		return err
 	}
@@ -330,7 +331,7 @@ func destroyMachine(ctx context.Context, machineID string, lease string) error {
 }
 
 func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
-	// TODO: remove this when valentin's work is done
+	// TODO: remove this when the flaps retry work is done:w
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	attempts := 0
 	for {
