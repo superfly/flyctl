@@ -13,7 +13,7 @@ import (
 )
 
 func CreateTigrisBucket(ctx context.Context, config *CreateClusterInput) error {
-	if !config.BackupEnabled {
+	if !config.BackupsEnabled {
 		return nil
 	}
 

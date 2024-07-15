@@ -57,7 +57,7 @@ type CreateClusterInput struct {
 	Autostart                 bool
 	ScaleToZero               bool
 	ForkFrom                  string
-	BackupEnabled             bool
+	BackupsEnabled             bool
 	BarmanSecret              string
 	BarmanRemoteRestoreConfig string
 	RestoreTargetName         string
@@ -115,7 +115,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 		// TODO - We need to verify target image before we do this.
 		// Create the Tigris bucket for backup storage
-		if config.BackupEnabled {
+		if config.BackupsEnabled {
 			if err := CreateTigrisBucket(ctx, config); err != nil {
 				return err
 			}

@@ -35,7 +35,7 @@ func newCreate() *cobra.Command {
 		flag.Org(),
 		flag.Detach(),
 		flag.Bool{
-			Name:        "enable-backup",
+			Name:        "enable-backups",
 			Description: "Enable WAL-based backups",
 		},
 		flag.String{
@@ -282,7 +282,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		Manager:       params.Manager,
 		Autostart:     params.Autostart,
 		ForkFrom:      params.ForkFrom,
-		BackupEnabled: flag.GetBool(ctx, "enable-backup"),
+		BackupsEnabled: flag.GetBool(ctx, "enable-backups"),
 		// Eventually we populate this with a full S3 endpoint, but use the
 		// restore app target for now.
 		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
