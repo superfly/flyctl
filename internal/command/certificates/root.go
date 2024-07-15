@@ -420,7 +420,7 @@ func printCloudflareInstructions(ctx context.Context, hostname string, cert *fly
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, "If you've already set this up, your certificate should be issued soon.")
-	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/app-guides/custom-domains-with-fly/")
+	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/networking/custom-domain/")
 
 	return nil
 }
