@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -215,7 +216,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
 
-	shouldStart := newMachine.State == "started" || newMachine.State == "replacing"
+	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
 
 	if !shouldStart {
 		sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
@@ -280,7 +281,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine) (*fly.Machine, *fly.MachineLease, error) {
 	if oldMachine != nil {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", oldMachine.ID))
-		lease, err := acquireMachineLease(ctx, oldMachine.ID)
+		lease, err := md.acquireMachineLease(ctx, oldMachine.ID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -305,7 +306,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		}
 
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", newMachine.ID))
-		lease, err := acquireMachineLease(ctx, machine.ID)
+		lease, err := md.acquireMachineLease(ctx, machine.ID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -393,9 +394,8 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 	}
 }
 
-func acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	lease, err := flapsClient.AcquireLease(ctx, machID, fly.IntPointer(3600))
+func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
+	lease, err := md.flapsClient.AcquireLease(ctx, machID, fly.IntPointer(3600))
 	if err != nil {
 		// TODO: tell users how to manually clear the lease
 		// TODO: have a flag to automatically clear the lease
