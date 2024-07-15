@@ -83,7 +83,7 @@ jobs:
           key: ${{ matrix.GOOS }}-${{ needs.meta.outputs.sha_short }}
       - name: Run GoReleaser
         if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
-        uses: goreleaser/goreleaser-action@v5
+        uses: goreleaser/goreleaser-action@v6
         with:
           distribution: goreleaser-pro
           version: latest
