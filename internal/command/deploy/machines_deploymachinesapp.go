@@ -199,6 +199,7 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 // Create machines for new process groups
 func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, processGroupMachineDiff ProcessGroupsDiff) (err error) {
 	groupsWithAutostopEnabled := make(map[string]bool)
+	groupsWithAutosuspendEnabled := make(map[string]bool)
 	groups := maps.Keys(processGroupMachineDiff.groupsNeedingMachines)
 	total := len(groups)
 	slices.Sort(groups)
@@ -223,10 +224,21 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		}
 
 		services := groupConfig.AllServices()
+		autostopSetting := fly.MachineAutostopSuspend
 		for _, s := range services {
-			if s.AutoStopMachines != nil && *s.AutoStopMachines {
-				groupsWithAutostopEnabled[name] = true
+			switch {
+			case s.AutoStopMachines == nil:
+				// Default is "off".
+				autostopSetting = fly.MachineAutostopOff
+			case *s.AutoStopMachines < autostopSetting:
+				autostopSetting = *s.AutoStopMachines
 			}
+		}
+		switch autostopSetting {
+		case fly.MachineAutostopStop:
+			groupsWithAutostopEnabled[name] = true
+		case fly.MachineAutostopSuspend:
+			groupsWithAutosuspendEnabled[name] = true
 		}
 
 		// Create spare machines that increases availability unless --ha=false was used
@@ -267,7 +279,16 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 		groupNames := lo.Keys(groupsWithAutostopEnabled)
 		slices.Sort(groupNames)
 		fmt.Fprintf(md.io.Out,
-			"\n%s The machines for [%s] have services with 'auto_stop_machines = true' that will be stopped when idling\n\n",
+			"\n%s The machines for [%s] have services with 'auto_stop_machines = \"stop\"' that will be stopped when idling\n\n",
+			md.colorize.Yellow("NOTE:"),
+			md.colorize.Bold(strings.Join(groupNames, ",")),
+		)
+	}
+	if len(groupsWithAutosuspendEnabled) > 0 {
+		groupNames := lo.Keys(groupsWithAutosuspendEnabled)
+		slices.Sort(groupNames)
+		fmt.Fprintf(md.io.Out,
+			"\n%s The machines for [%s] have services with 'auto_stop_machines = \"suspend\"' that will be suspended when idling\n\n",
 			md.colorize.Yellow("NOTE:"),
 			md.colorize.Bold(strings.Join(groupNames, ",")),
 		)
