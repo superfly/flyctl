@@ -389,7 +389,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 }
 
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "update_machines", trace.WithAttributes(
+	ctx, span := tracing.GetTracer().Start(ctx, "update_existing_machines", trace.WithAttributes(
 		attribute.String("strategy", md.strategy),
 	))
 	defer func() {
@@ -404,9 +404,6 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	}
 
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
-
-	ctx, span = tracing.GetTracer().Start(ctx, "rolling", trace.WithAttributes(attribute.String("strategy", md.strategy)))
-	defer span.End()
 
 	oldAppState, err := md.appState(ctx)
 	if err != nil {
