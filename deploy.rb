@@ -114,6 +114,18 @@ end
 
 event :start, { ts: ts() }
 
+APP_NAME = ENV["DEPLOY_APP_NAME"]
+if !APP_NAME
+  event :error, { type: :validation, message: "missing app name" }
+  exit 1
+end
+
+ORG_SLUG = ENV["DEPLOY_ORG_SLUG"]
+if !ORG_SLUG
+  event :error, { type: :validation, message: "missing organization slug" }
+  exit 1
+end
+
 if (git_repo = ENV["GIT_REPO"]) && !!git_repo
     in_step Step::GIT_PULL do
       `git config --global init.defaultBranch main`
@@ -130,7 +142,7 @@ if (git_repo = ENV["GIT_REPO"]) && !!git_repo
 end
 
 in_step Step::PLAN do
-  exec_capture("flyctl launch generate -a my-app-name -o personal")
+  exec_capture("flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG}")
   artifact :manifest, JSON.parse(File.read("manifest.json"))
 end
 
