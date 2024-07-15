@@ -52,6 +52,7 @@ type CreateClusterInput struct {
 	SnapshotID         *string
 	Manager            string
 	Autostart          bool
+	Autostop           bool
 	ScaleToZero        bool
 	ForkFrom           string
 }
@@ -73,6 +74,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 	// Ensure machines can be started when scaling to zero is enabled
 	if config.ScaleToZero {
 		config.Autostart = true
+		config.Autostop  = true
 	}
 
 	app, err := l.createApp(ctx, config)
@@ -150,6 +152,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 					},
 					Concurrency: concurrency,
 					Autostart:   &config.Autostart,
+					Autostop:    &config.Autostop,
 				},
 				{
 					Protocol:     "tcp",
@@ -165,6 +168,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 					},
 					Concurrency: concurrency,
 					Autostart:   &config.Autostart,
+					Autostop:    &config.Autostop,
 				},
 			}
 		}
