@@ -296,9 +296,6 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		// Eventually we populate this with a full S3 endpoint, but use the
 		// restore app target for now.
 		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
-		RestoreTargetName:         flag.GetString(ctx, "restore-target-name"),
-		RestoreTargetTime:         flag.GetString(ctx, "restore-target-time"),
-		RestoreTargetInclusive:    flag.GetBool(ctx, "restore-target-inclusive"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
