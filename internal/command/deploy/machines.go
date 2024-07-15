@@ -305,7 +305,7 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 			return err
 		}
 		if len(activeMachines) > 0 {
-			fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/apps/deploy/#machines-not-managed-by-fly-launch\n\n", aurora.Yellow("[WARNING]"))
+			fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
 			md.isFirstDeploy = true
 		}
 	}
