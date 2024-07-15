@@ -28,7 +28,7 @@ func New() *cobra.Command {
 	const (
 		short = "Manage Fly Volumes."
 
-		long = short + " Volumes are persistent storage for Fly Machines. Learn how how volumes work: https://fly.io/docs/reference/volumes/."
+		long = short + " Volumes are persistent storage for Fly Machines. Learn how how volumes work: https://fly.io/docs/volumes/overview/."
 
 		usage = "volumes"
 	)

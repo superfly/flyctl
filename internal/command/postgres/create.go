@@ -293,7 +293,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	var config *PostgresConfiguration
 
 	if !customConfig && input.BarmanRemoteRestoreConfig == "" {
-		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
+		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/")
 
 		msg := "Select configuration:"
 		configurations := postgresConfigurations(input.Manager)
