@@ -216,7 +216,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		lease = newLease
 
 		if newMachine == nil {
-			destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
+			return destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
 		} else {
 			machine.LeaseNonce = lease.Data.Nonce
 			// if the config hasn't changed, we don't need to update the machine
