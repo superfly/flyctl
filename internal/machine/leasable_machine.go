@@ -13,8 +13,11 @@ import (
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 )
 
@@ -255,6 +258,9 @@ func (lm *leasableMachine) isConstantlyRestarting(machine *fly.Machine) bool {
 }
 
 func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_smoke_checks")
+	defer span.End()
+
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, 10*time.Second))
 	defer cancel()
 
@@ -284,12 +290,15 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil
 		case err != nil:
+			span.RecordError(err)
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
 
 		switch {
 		case lm.isConstantlyRestarting(machine):
-			return fmt.Errorf("the app appears to be crashing")
+			err := fmt.Errorf("the app appears to be crashing")
+			span.RecordError(err)
+			return err
 		default:
 			select {
 			case <-time.After(b.Duration()):
@@ -300,6 +309,8 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_healthchecks", trace.WithAttributes(attribute.Int("num_checks", len(lm.Machine().Checks)), attribute.Int64("timeout_ms", timeout.Milliseconds())))
+	defer span.End()
 	if len(lm.Machine().Checks) == 0 {
 		return nil
 	}
@@ -327,10 +338,13 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
+			span.RecordError(err)
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			span.RecordError(err)
 			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
 		case err != nil:
+			span.RecordError(err)
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
 			if lm.showLogs && (!printedFirst || lm.io.IsInteractive()) {

@@ -18,6 +18,7 @@ import (
 
 func TestCompareConfig(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	// Test that two identical configs are equal
 	config1 := &fly.MachineConfig{
@@ -33,15 +34,15 @@ func TestCompareConfig(t *testing.T) {
 		},
 	}
 
-	assert.True(t, compareConfigs(config1, config2))
+	assert.True(t, compareConfigs(ctx, config1, config2))
 
 	// Test that fly_flyctl_version is ignored
 	config2.Metadata["fly_flyctl_version"] = "v2"
-	assert.True(t, compareConfigs(config1, config2))
+	assert.True(t, compareConfigs(ctx, config1, config2))
 
 	// Test that different images are not equal
 	config2.Image = "image2"
-	assert.False(t, compareConfigs(config1, config2))
+	assert.False(t, compareConfigs(ctx, config1, config2))
 }
 
 func TestAppState(t *testing.T) {
