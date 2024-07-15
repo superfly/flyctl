@@ -47,12 +47,22 @@ func (state *launchState) Launch(ctx context.Context) error {
 		state.warnedNoCcHa = true
 	}
 
-	app, err := state.createApp(ctx)
-	if err != nil {
-		return err
+	var app *fly.App
+	if flag.GetBool(ctx, "no-create-app") {
+		fmt.Fprintf(io.Out, "app config: %+v\n", state.appConfig)
+
+		app, err = state.getApp(ctx)
+		if err != nil {
+			return err
+		}
+	} else {
+		app, err = state.createApp(ctx)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
 	}
 
-	fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
 	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
 	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
 
@@ -190,5 +200,14 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		return nil, err
 	}
 
+	return app, nil
+}
+
+func (state *launchState) getApp(ctx context.Context) (*fly.App, error) {
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetApp(ctx, state.Plan.AppName)
+	if err != nil {
+		return nil, err
+	}
 	return app, nil
 }

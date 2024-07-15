@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
@@ -249,9 +250,12 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		}
 	}
 
+	appConfig.AppName = lp.AppName
+
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
+		Config:     appConfig,
 	}, buildCache, nil
 }
 
@@ -395,6 +399,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		LaunchManifest: LaunchManifest{
 			m.Plan,
 			m.PlanSource,
+			appConfig,
 		},
 		env: envVars,
 		planBuildCache: planBuildCache{
@@ -512,6 +517,16 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	appName := flag.GetString(ctx, "name")
 	cause := "specified on the command line"
 
+	if flag.GetBool(ctx, "force-name") {
+		if appName == "" {
+			return "", "", flyerr.GenericErr{
+				Err:     "app name required when using --force-name",
+				Suggest: "Specify the app name with the --name flag",
+			}
+		}
+		return appName, cause, nil
+	}
+
 	if !flag.GetBool(ctx, "generate-name") {
 		// --generate-name wasn't specified, so we try to get a name from the config file or directory name.
 		if appName == "" {
@@ -570,6 +585,12 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
+	if isGenerate(ctx) {
+		if slug := flag.GetString(ctx, flagnames.Org); slug != "" {
+			return &fly.Organization{Slug: slug}, "specified as flag", nil
+		}
+	}
+
 	client := flyutil.ClientFromContext(ctx)
 
 	orgs, err := client.GetOrganizations(ctx)

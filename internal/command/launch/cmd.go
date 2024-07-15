@@ -106,7 +106,23 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		// don't try to generate a name
+		flag.Bool{
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
+		},
 	)
+
+	cmd.AddCommand(newGenerate())
 
 	return
 }
@@ -214,6 +230,16 @@ func run(ctx context.Context) (err error) {
 	launchManifest, err = getManifestArgument(ctx)
 	if err != nil {
 		return err
+	}
+
+	if launchManifest != nil {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
 	}
 
 	// "--from" arg handling
