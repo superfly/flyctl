@@ -264,16 +264,6 @@ func run(ctx context.Context) (err error) {
 		}
 	}
 
-	if flag.GetString(ctx, "restore-target-name") != "" && flag.GetString(ctx, "restore-target-time") != "" {
-		return fmt.Errorf("Cannot specify both --restore-target-name and --restore-target-time")
-	}
-
-	if flag.GetString(ctx, "restore-target-name") != "" || flag.GetString(ctx, "restore-target-time") != "" {
-		if flag.GetString(ctx, "restore-target-app") == "" {
-			return fmt.Errorf("Must specify --restore-target-app when using --restore-target-name or --restore-target-time")
-		}
-	}
-
 	return CreateCluster(ctx, org, region, params)
 }
 
