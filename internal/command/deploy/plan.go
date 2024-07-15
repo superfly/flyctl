@@ -418,9 +418,7 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 		return nil, err
 	}
 	input.Config = newMachineConfig
-	if shouldReplace {
-		input.RequiresReplacement = shouldReplace
-	}
+	input.RequiresReplacement = input.RequiresReplacement || shouldReplace
 
 	lm := mach.NewLeasableMachine(md.flapsClient, md.io, oldMachine, false)
 	entry := &machineUpdateEntry{
@@ -431,7 +429,7 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	if err != nil {
 		return nil, err
 	}
-	return lm.Machine(), nil
+	return entry.leasableMachine.Machine(), nil
 }
 
 func createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
@@ -469,7 +467,7 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 		return replaceMachine()
 	}
 
-	sl.Logf("Updating %s", md.colorize.Bold(fmtID))
+	sl.Logf("Updating %s", fmtID)
 	if err := md.updateMachineInPlace(ctx, e); err != nil {
 		switch {
 		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
