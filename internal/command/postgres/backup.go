@@ -182,6 +182,11 @@ func newBackupCreate() *cobra.Command {
 			Description: "Backup name",
 			Shorthand:   "n",
 		},
+		flag.Bool{
+			Name:        "immediate-checkpoint",
+			Description: "Forces Postgres to perform an immediate checkpoint",
+			Shorthand:   "i",
+		},
 	)
 
 	return cmd
@@ -229,7 +234,10 @@ func runBackupCreate(ctx context.Context) error {
 	}
 	cmd := "flexctl backup create"
 
-	// TODO - Add support for `immediate-checkpoint` flag.
+	if flag.GetBool(ctx, "immediate-checkpoint") {
+		cmd += " --immediate-checkpoint"
+	}
+
 	name := flag.GetString(ctx, "name")
 	if name != "" {
 		cmd += " -n " + name
