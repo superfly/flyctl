@@ -197,7 +197,6 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		}
 
 		// even if we fail to update the machine, we need to clear the lease
-		// clear the existing lease
 		ctx := context.WithoutCancel(ctx)
 		err := clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
 		if err != nil {
@@ -206,50 +205,19 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		}
 	}()
 
-	// whether we need to create a new machine or update an existing one
-	if oldMachine != nil {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", oldMachine.ID))
-		newLease, err := acquireMachineLease(ctx, oldMachine.ID)
-		if err != nil {
-			return err
-		}
-		lease = newLease
-
-		if newMachine == nil {
-			return destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
-		} else {
-			machine.LeaseNonce = lease.Data.Nonce
-			// if the config hasn't changed, we don't need to update the machine
-			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
-			updatedMachine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl.Line(idx), newMachine.State == "replacing")
-			newMachine.State = "started"
-			if err != nil {
-				return err
-			}
-			machine = updatedMachine
-		}
-	} else if newMachine != nil {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
-		newMachine, err := createMachine(ctx, newMachine.Config, newMachine.Region)
-		if err != nil {
-			return err
-		}
-		machine = newMachine
-
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", newMachine.ID))
-		newLease, err := acquireMachineLease(ctx, machine.ID)
-		if err != nil {
-			return err
-		}
-		lease = newLease
+	machine, lease, err := md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl.Line(idx))
+	if err != nil || (machine == nil && lease == nil) {
+		return err
 	}
 
-	var err error
-
-	shouldStart := newMachine.State == "started"
+	if newMachine.State == "replacing" {
+		newMachine.State = "started"
+	}
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
+
+	shouldStart := newMachine.State == "started"
 
 	if !shouldStart {
 		sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
@@ -309,6 +277,46 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
 
 	return nil
+}
+
+func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine) (*fly.Machine, *fly.MachineLease, error) {
+	if oldMachine != nil {
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", oldMachine.ID))
+		lease, err := acquireMachineLease(ctx, oldMachine.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if newMachine == nil {
+			return nil, nil, destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
+		} else {
+			oldMachine.LeaseNonce = lease.Data.Nonce
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
+			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing")
+			if err != nil {
+				return nil, nil, err
+			}
+
+			return machine, lease, nil
+		}
+	} else if newMachine != nil {
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
+		machine, err := createMachine(ctx, newMachine.Config, newMachine.Region)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", newMachine.ID))
+		lease, err := acquireMachineLease(ctx, machine.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		return machine, lease, nil
+	} else {
+		// both old and new machines are nil, so just a noop
+		return nil, nil, nil
+	}
 }
 
 func destroyMachine(ctx context.Context, machineID string, lease string) error {
