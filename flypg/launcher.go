@@ -57,7 +57,7 @@ type CreateClusterInput struct {
 	Autostart                 bool
 	ScaleToZero               bool
 	ForkFrom                  string
-	BackupsEnabled             bool
+	BackupsEnabled            bool
 	BarmanSecret              string
 	BarmanRemoteRestoreConfig string
 	RestoreTargetName         string

@@ -275,13 +275,13 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:       params.Name,
-		Organization:  org,
-		ImageRef:      params.PostgresConfiguration.ImageRef,
-		Region:        region.Code,
-		Manager:       params.Manager,
-		Autostart:     params.Autostart,
-		ForkFrom:      params.ForkFrom,
+		AppName:        params.Name,
+		Organization:   org,
+		ImageRef:       params.PostgresConfiguration.ImageRef,
+		Region:         region.Code,
+		Manager:        params.Manager,
+		Autostart:      params.Autostart,
+		ForkFrom:       params.ForkFrom,
 		BackupsEnabled: flag.GetBool(ctx, "enable-backups"),
 		// Eventually we populate this with a full S3 endpoint, but use the
 		// restore app target for now.

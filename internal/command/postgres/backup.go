@@ -148,7 +148,7 @@ func runBackupRestore(ctx context.Context) error {
 		Region:                    leader.Region,
 		Manager:                   flypg.ReplicationManager,
 		Autostart:                 *leader.Config.Services[0].Autostart,
-		BackupsEnabled:             false,
+		BackupsEnabled:            false,
 		VolumeSize:                &leader.Config.Mounts[0].SizeGb,
 		Guest:                     leader.Config.Guest,
 		BarmanRemoteRestoreConfig: restoreSecret,
@@ -329,8 +329,8 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	pgInput := &flypg.CreateClusterInput{
-		AppName:       appName,
-		Organization:  org,
+		AppName:        appName,
+		Organization:   org,
 		BackupsEnabled: true,
 	}
 
