@@ -173,7 +173,11 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 
 	statusLines := map[string]statuslogger.StatusLine{}
 	for idx, machPair := range machineTuples {
-		statusLines[machPair.oldMachine.ID] = sl.Line(idx)
+		if machPair.oldMachine != nil {
+			statusLines[machPair.oldMachine.ID] = sl.Line(idx)
+		} else if machPair.newMachine != nil {
+			statusLines[machPair.newMachine.ID] = sl.Line(idx)
+		}
 	}
 
 	pgroup, ctx := errgroup.WithContext(ctx)
@@ -183,7 +187,11 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	for _, machineTuples := range machPairByProcessGroup {
 		machineTuples := machineTuples
 		pgroup.Go(func() error {
-			return md.updateProcessGroup(ctx, machineTuples, statusLines, poolSize)
+			err := md.updateProcessGroup(ctx, machineTuples, statusLines, poolSize)
+			if err != nil && strings.Contains(err.Error(), "lease currently held by") {
+				return &unrecoverableError{err: err}
+			}
+			return err
 		})
 	}
 
@@ -251,7 +259,14 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 		group.Go(func() error {
 			checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
 			machineCheckResult := checkResult.(*healthcheckResult)
-			sl := statusLines[machPair.oldMachine.ID]
+
+			var sl statuslogger.StatusLine
+			if oldMachine != nil {
+				sl = statusLines[oldMachine.ID]
+			} else if newMachine != nil {
+				sl = statusLines[newMachine.ID]
+			}
+
 			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
@@ -429,26 +444,10 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-		state, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
+		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
 		if err != nil {
 			span.RecordError(err)
 			return err
-		}
-
-		if state != "started" {
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
-			err = md.startMachine(ctx, machine.ID, lease.Data.Nonce)
-			if err != nil {
-				span.RecordError(err)
-				return err
-			}
-
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
-			_, err = waitForMachineState(ctx, lm, []string{"started", "stopped"}, md.waitTimeout, sl)
-			if err != nil {
-				span.RecordError(err)
-				return err
-			}
 		}
 	}
 
@@ -721,18 +720,5 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 			return err
 		}
 	}
-	return nil
-}
-
-func (md *machineDeployment) startMachine(ctx context.Context, machineID string, leaseNonce string) error {
-	_, err := md.flapsClient.Start(ctx, machineID, leaseNonce)
-	if err != nil {
-		if strings.Contains(err.Error(), "machine still active") {
-			return nil
-		}
-		fmt.Fprintln(md.io.ErrOut, "Failed to start machine", machineID, "due to error", err)
-		return err
-	}
-
 	return nil
 }
