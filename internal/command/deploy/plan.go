@@ -234,7 +234,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 		// even if we fail to update the machine, we need to clear the lease
 		ctx := context.WithoutCancel(ctx)
-		err := clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
+		err := md.clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
 		if err != nil {
 			span.RecordError(err)
 			sl.Line(idx).LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for machine %s", machine.ID))
@@ -271,7 +271,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 		if state != "started" {
 			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
-			err = startMachine(ctx, machine.ID, lease.Data.Nonce)
+			err = md.startMachine(ctx, machine.ID, lease.Data.Nonce)
 			if err != nil {
 				span.RecordError(err)
 				return err
@@ -337,7 +337,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 
 		if newMachine == nil {
 			span.AddEvent("Destroying old machine")
-			err := destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
+			err := md.destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
 			span.RecordError(err)
 			return nil, nil, err
 		} else {
@@ -354,7 +354,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 	} else if newMachine != nil {
 		span.AddEvent("Creating a new machine")
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
-		machine, err := createMachine(ctx, newMachine.Config, newMachine.Region)
+		machine, err := md.createMachine(ctx, newMachine.Config, newMachine.Region)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -372,9 +372,8 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 	}
 }
 
-func destroyMachine(ctx context.Context, machineID string, lease string) error {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	err := flapsClient.Destroy(ctx, fly.RemoveMachineInput{
+func (md *machineDeployment) destroyMachine(ctx context.Context, machineID string, lease string) error {
+	err := md.flapsClient.Destroy(ctx, fly.RemoveMachineInput{
 		ID:   machineID,
 		Kill: true,
 	}, lease)
@@ -385,12 +384,11 @@ func destroyMachine(ctx context.Context, machineID string, lease string) error {
 	return nil
 }
 
-func clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
-	// TODO: remove this when the flaps retry work is done:w
-	flapsClient := flapsutil.ClientFromContext(ctx)
+func (md *machineDeployment) clearMachineLease(ctx context.Context, machID, leaseNonce string) error {
+	// TODO: remove this when the flaps retry work is done
 	attempts := 0
 	for {
-		err := flapsClient.ReleaseLease(ctx, machID, leaseNonce)
+		err := md.flapsClient.ReleaseLease(ctx, machID, leaseNonce)
 		if err == nil {
 			return nil
 		}
@@ -503,9 +501,8 @@ func (md *machineDeployment) updateMachineConfig(ctx context.Context, oldMachine
 	return entry.leasableMachine.Machine(), nil
 }
 
-func createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	machine, err := flapsClient.Launch(ctx, fly.LaunchMachineInput{
+func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.MachineConfig, region string) (*fly.Machine, error) {
+	machine, err := md.flapsClient.Launch(ctx, fly.LaunchMachineInput{
 		Config: machConfig,
 		Region: region,
 	})
@@ -561,9 +558,8 @@ func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdate
 	return nil
 }
 
-func startMachine(ctx context.Context, machineID string, leaseNonce string) error {
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	_, err := flapsClient.Start(ctx, machineID, leaseNonce)
+func (md *machineDeployment) startMachine(ctx context.Context, machineID string, leaseNonce string) error {
+	_, err := md.flapsClient.Start(ctx, machineID, leaseNonce)
 	if err != nil {
 		if strings.Contains(err.Error(), "machine still active") {
 			return nil
