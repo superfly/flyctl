@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -145,7 +146,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		}
 
 		attempts := 0
-		// if we fail to update the machines, we should revert the state back if possible
+		// if we fail to update the machines, we should push the state forward if possible
 		for {
 			defer func() {
 				span.SetAttributes(attribute.Int("attempts", attempts))
@@ -171,7 +172,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 					span.RecordError(updateErr)
 					return err
 				}
-				fmt.Println("Failed to update machines:", err, ". Retrying...")
+				fmt.Fprintln(os.Stderr, "Failed to update machines:", err, ". Retrying...")
 			}
 			attempts += 1
 			time.Sleep(1 * time.Second)
@@ -202,6 +203,7 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 	opt := cmp.FilterPath(func(p cmp.Path) bool {
 		vx := p.Last().String()
 
+		// ignore the flyctl version used for the deployment. this is mostly useful for testing
 		if vx == `["fly_flyctl_version"]` {
 			return true
 		}
@@ -566,7 +568,7 @@ func startMachine(ctx context.Context, machineID string, leaseNonce string) erro
 		if strings.Contains(err.Error(), "machine still active") {
 			return nil
 		}
-		fmt.Println("Failed to start machine", machineID, "due to error", err)
+		fmt.Fprintln(os.Stderr, "Failed to start machine", machineID, "due to error", err)
 		return err
 	}
 
