@@ -111,25 +111,39 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		defer sl.Destroy(false)
 	}
 
+	machPairByProcessGroup := lo.GroupBy(machineTuples, func(machPair machinePairing) string {
+		if machPair.oldMachine != nil {
+			return machPair.oldMachine.ProcessGroup()
+		} else if machPair.newMachine != nil {
+			return machPair.newMachine.ProcessGroup()
+		} else {
+			return ""
+		}
+	})
+
 	group := errgroup.Group{}
 	group.SetLimit(md.maxConcurrent)
-	for idx, machPair := range machineTuples {
-		machPair := machPair
-		oldMachine := machPair.oldMachine
-		newMachine := machPair.newMachine
+	idx := 0
+	for _, machineTuples := range machPairByProcessGroup {
+		for _, machPair := range machineTuples {
+			machPair := machPair
+			oldMachine := machPair.oldMachine
+			newMachine := machPair.newMachine
 
-		idx := idx
-		group.Go(func() error {
-			checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
-			machineCheckResult := checkResult.(*healthcheckResult)
-			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, idx, sl, md.io, machineCheckResult)
-			if err != nil {
-				sl.Line(idx).LogStatus(statuslogger.StatusFailure, err.Error())
-				span.RecordError(err)
-				return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
-			}
-			return nil
-		})
+			idx := idx
+			group.Go(func() error {
+				checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
+				machineCheckResult := checkResult.(*healthcheckResult)
+				err := md.updateMachineWChecks(ctx, oldMachine, newMachine, idx, sl, md.io, machineCheckResult)
+				if err != nil {
+					sl.Line(idx).LogStatus(statuslogger.StatusFailure, err.Error())
+					span.RecordError(err)
+					return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
+				}
+				return nil
+			})
+			idx += 1
+		}
 	}
 
 	if updateErr := group.Wait(); updateErr != nil {
