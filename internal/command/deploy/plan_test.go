@@ -312,3 +312,120 @@ func TestUpdateMachines(t *testing.T) {
 	var unrecoverableErr *unrecoverableError
 	assert.ErrorAs(t, err, &unrecoverableErr)
 }
+
+func TestUpdateOrCreateMachine(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	io := iostreams.System()
+	ctx = iostreams.NewContext(ctx, io)
+
+	acquiredLease := false
+	destroyedMachine := false
+	updatedMachine := false
+	createMachine := false
+
+	reset := func() {
+		acquiredLease = false
+		destroyedMachine = false
+		updatedMachine = false
+		createMachine = false
+	}
+
+	flapsClient := &mock.FlapsClient{
+		AcquireLeaseFunc: func(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
+			acquiredLease = true
+			return &fly.MachineLease{
+				Data: &fly.MachineLeaseData{
+					Nonce: "nonce",
+				},
+			}, nil
+		},
+		DestroyFunc: func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+			destroyedMachine = true
+			return nil
+		},
+		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
+			updatedMachine = true
+			return &fly.Machine{
+				ID:     builder.ID,
+				Config: builder.Config,
+				State:  "started",
+			}, nil
+		},
+		LaunchFunc: func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
+			createMachine = true
+			return &fly.Machine{
+				ID:     builder.ID,
+				Config: builder.Config,
+				State:  "started",
+			}, nil
+		},
+	}
+
+	oldMachine := &fly.Machine{
+		ID: "machine1",
+		Config: &fly.MachineConfig{
+			Image: "image1",
+		},
+	}
+	newMachine := &fly.Machine{
+		ID: "machine1",
+		Config: &fly.MachineConfig{
+			Image: "image2",
+		},
+	}
+
+	md := &machineDeployment{
+		flapsClient: flapsClient,
+		io:          io,
+		app: &fly.AppCompact{
+			Name: "myapp",
+		},
+		appConfig: &appconfig.Config{AppName: "myapp"},
+	}
+
+	statuslogger := statuslogger.Create(ctx, 1, false)
+	sl := statuslogger.Line(0)
+
+	// destroy old machine
+	reset()
+	mach, lease, err := md.updateOrCreateMachine(ctx, oldMachine, nil, sl)
+	assert.NoError(t, err)
+	assert.True(t, acquiredLease)
+	assert.True(t, destroyedMachine)
+	assert.Nil(t, mach)
+	assert.Nil(t, lease)
+
+	// update old machine
+	reset()
+	mach, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl)
+	assert.NoError(t, err)
+	assert.True(t, acquiredLease)
+	assert.True(t, updatedMachine)
+	assert.NotNil(t, mach)
+	assert.NotNil(t, lease)
+	assert.Equal(t, mach.Config, newMachine.Config)
+
+	// create new machine
+	reset()
+	mach, lease, err = md.updateOrCreateMachine(ctx, nil, newMachine, sl)
+	assert.NoError(t, err)
+	assert.True(t, acquiredLease)
+	assert.True(t, createMachine)
+	assert.NotNil(t, mach)
+	assert.NotNil(t, lease)
+	assert.Equal(t, mach.Config, newMachine.Config)
+
+	// new and old machines are nil, so noop
+	reset()
+	mach, lease, err = md.updateOrCreateMachine(ctx, nil, nil, sl)
+	assert.NoError(t, err)
+	assert.False(t, acquiredLease)
+	assert.False(t, destroyedMachine)
+	assert.False(t, updatedMachine)
+	assert.False(t, createMachine)
+	assert.Nil(t, mach)
+	assert.Nil(t, lease)
+
+}
