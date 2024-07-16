@@ -257,6 +257,13 @@ func TestUpdateMachines(t *testing.T) {
 		GetProcessesFunc: func(ctx context.Context, machineID string) (fly.MachinePsResponse, error) {
 			return fly.MachinePsResponse{}, nil
 		},
+		RefreshLeaseFunc: func(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
+			return &fly.MachineLease{
+				Data: &fly.MachineLeaseData{
+					Nonce: "nonce",
+				},
+			}, nil
+		},
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
