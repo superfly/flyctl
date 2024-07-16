@@ -37,7 +37,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, e
 	if err != nil {
 		return nil, fmt.Errorf("error listing active machines for %s app: %w", appName, err)
 	}
-	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines)
+	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines, true)
 	appConfig, warnings, err := FromAppAndMachineSet(ctx, appName, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to grab app config from existing machines, error: %w", err)
