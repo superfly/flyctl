@@ -282,8 +282,9 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 				return err
 			}
 		}
-
 	}
+
+	md.warnAboutIncorrectListenAddress(ctx, lm)
 
 	if !healthcheckResult.smokeChecksPassed {
 		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
