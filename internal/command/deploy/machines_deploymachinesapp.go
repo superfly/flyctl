@@ -436,7 +436,12 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		// TODO(billy) do machine checks here
 		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
-		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, true, true)
+		return md.updateMachines(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+			pushForward:          true,
+			skipHealthChecks:     true,
+			skipSmokeChecks:      true,
+			skipLeaseAcquisition: false,
+		})
 	case "canary":
 		// create a new app state with just a single machine being updated, then the rest of the machines
 		canaryAppState := *oldAppState
@@ -448,15 +453,30 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 		})
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
-		if err := md.updateMachines(ctx, &canaryAppState, &newCanaryAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks); err != nil {
+		if err := md.updateMachines(ctx, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
+			pushForward:          true,
+			skipHealthChecks:     md.skipHealthChecks,
+			skipSmokeChecks:      md.skipSmokeChecks,
+			skipLeaseAcquisition: false,
+		}); err != nil {
 			return err
 		}
 
-		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks)
+		return md.updateMachines(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+			pushForward:          true,
+			skipHealthChecks:     md.skipHealthChecks,
+			skipSmokeChecks:      md.skipSmokeChecks,
+			skipLeaseAcquisition: false,
+		})
 	case "rolling":
 		fallthrough
 	default:
-		return md.updateMachines(ctx, oldAppState, &newAppState, true, nil, md.skipHealthChecks, md.skipSmokeChecks)
+		return md.updateMachines(ctx, oldAppState, &newAppState, nil, updateMachineSettings{
+			pushForward:          true,
+			skipHealthChecks:     md.skipHealthChecks,
+			skipSmokeChecks:      md.skipSmokeChecks,
+			skipLeaseAcquisition: false,
+		})
 	}
 }
 

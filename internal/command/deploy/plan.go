@@ -57,12 +57,19 @@ type healthcheckResult struct {
 
 var healthChecksPassed = sync.Map{}
 
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, pushForward bool, statusLogger statuslogger.StatusLogger, skipHealthChecks bool, skipSmokeChecks bool) error {
+type updateMachineSettings struct {
+	pushForward          bool
+	skipHealthChecks     bool
+	skipSmokeChecks      bool
+	skipLeaseAcquisition bool
+}
+
+func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
 		ctx, "update_machines",
-		trace.WithAttributes(attribute.Bool("push_forward", pushForward)),
-		trace.WithAttributes(attribute.Bool("skip_health_checks", skipHealthChecks)),
-		trace.WithAttributes(attribute.Bool("skip_smoke_checks", skipSmokeChecks)),
+		trace.WithAttributes(attribute.Bool("push_forward", settings.pushForward)),
+		trace.WithAttributes(attribute.Bool("skip_health_checks", settings.skipHealthChecks)),
+		trace.WithAttributes(attribute.Bool("skip_smoke_checks", settings.skipSmokeChecks)),
 	)
 	defer span.End()
 	ctx, cancel := context.WithCancel(ctx)
@@ -83,9 +90,9 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		// This means we want to update a machine
 		if newMachine, ok := newMachines[oldMachine.ID]; ok {
 			healthChecksPassed.LoadOrStore(oldMachine.ID, &healthcheckResult{
-				regularChecksPassed: skipHealthChecks,
-				machineChecksPassed: skipHealthChecks,
-				smokeChecksPassed:   skipSmokeChecks,
+				regularChecksPassed: settings.skipHealthChecks,
+				machineChecksPassed: settings.skipHealthChecks,
+				smokeChecksPassed:   settings.skipSmokeChecks,
 			})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: oldMachine, newMachine: newMachine})
 		}
@@ -95,9 +102,9 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		if _, ok := oldMachines[newMachine.ID]; !ok {
 			// This means we should create the new machine
 			healthChecksPassed.LoadOrStore(newMachine.ID, &healthcheckResult{
-				regularChecksPassed: skipHealthChecks,
-				machineChecksPassed: skipHealthChecks,
-				smokeChecksPassed:   skipSmokeChecks,
+				regularChecksPassed: settings.skipHealthChecks,
+				machineChecksPassed: settings.skipHealthChecks,
+				smokeChecksPassed:   settings.skipSmokeChecks,
 			})
 			machineTuples = append(machineTuples, machinePairing{oldMachine: nil, newMachine: newMachine})
 		}
@@ -131,76 +138,206 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
 	}
 
-	group := errgroup.Group{}
-	group.SetLimit(poolSize)
+	if !settings.skipLeaseAcquisition {
+		attempts := 0
+
+		defer func() {
+			span.SetAttributes(attribute.Int("lease_attempts", attempts))
+		}()
+
+		for {
+			err := md.acquireLeases(ctx, machineTuples, poolSize, sl)
+			if err == nil {
+				break
+			}
+			attempts += 1
+
+			var unrecoverableErr *unrecoverableError
+			if attempts > md.deployRetries || errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
+				span.RecordError(err)
+				return fmt.Errorf("failed to acquire leases: %w", err)
+			}
+		}
+
+		defer func() {
+			ctx := context.WithoutCancel(ctx)
+			err := md.releaseLeases(ctx, machineTuples, sl)
+			if err != nil {
+				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
+				span.RecordError(err)
+			}
+		}()
+	}
+
 	idx := 0
+	// We want to update by process group
 	for _, machineTuples := range machPairByProcessGroup {
+		group := errgroup.Group{}
+		group.SetLimit(poolSize)
+
 		for _, machPair := range machineTuples {
 			machPair := machPair
 			oldMachine := machPair.oldMachine
 			newMachine := machPair.newMachine
 
-			idx := idx
+			idxCopy := idx
+			idx += 1
 			group.Go(func() error {
 				checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
 				machineCheckResult := checkResult.(*healthcheckResult)
-				err := md.updateMachineWChecks(ctx, oldMachine, newMachine, idx, sl, md.io, machineCheckResult)
+				err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl.Line(idxCopy), md.io, machineCheckResult)
 				if err != nil {
-					sl.Line(idx).LogStatus(statuslogger.StatusFailure, err.Error())
+					sl.Line(idxCopy).LogStatus(statuslogger.StatusFailure, err.Error())
 					span.RecordError(err)
 					return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
 				}
 				return nil
 			})
-			idx += 1
-		}
-	}
-
-	if updateErr := group.Wait(); updateErr != nil {
-		if !pushForward {
-			span.RecordError(updateErr)
-			return updateErr
 		}
 
-		var unrecoverableErr *unrecoverableError
-		if errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
-			span.RecordError(updateErr)
-			return updateErr
-		}
-
-		attempts := 0
-		// if we fail to update the machines, we should push the state forward if possible
-		for {
-			defer func() {
-				span.SetAttributes(attribute.Int("attempts", attempts))
-			}()
-
-			if attempts > md.deployRetries {
+		if updateErr := group.Wait(); updateErr != nil {
+			if !settings.pushForward {
+				span.RecordError(updateErr)
 				return updateErr
 			}
 
-			currentState, err := md.appState(ctx)
-			if err != nil {
+			var unrecoverableErr *unrecoverableError
+			if errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
 				span.RecordError(updateErr)
-				return err
+				return updateErr
 			}
-			err = md.updateMachines(ctx, currentState, newAppState, false, sl, skipHealthChecks, skipSmokeChecks)
-			if err == nil {
-				break
-			} else if errors.Is(err, context.Canceled) {
-				span.RecordError(updateErr)
-				return err
-			} else {
-				if errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
+
+			attempts := 0
+			// if we fail to update the machines, we should push the state forward if possible
+			for {
+				defer func() {
+					span.SetAttributes(attribute.Int("update_attempts", attempts))
+				}()
+
+				if attempts > md.deployRetries {
+					return updateErr
+				}
+
+				currentState, err := md.appState(ctx)
+				if err != nil {
 					span.RecordError(updateErr)
 					return err
 				}
-				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, ". Retrying...")
+				err = md.updateMachines(ctx, currentState, newAppState, sl, updateMachineSettings{
+					pushForward:          false,
+					skipHealthChecks:     settings.skipHealthChecks,
+					skipSmokeChecks:      settings.skipSmokeChecks,
+					skipLeaseAcquisition: true,
+				})
+				if err == nil {
+					break
+				} else if errors.Is(err, context.Canceled) {
+					span.RecordError(updateErr)
+					return err
+				} else {
+					if errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
+						span.RecordError(updateErr)
+						return err
+					}
+					fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, ". Retrying...")
+				}
+				attempts += 1
+				time.Sleep(1 * time.Second)
 			}
-			attempts += 1
-			time.Sleep(1 * time.Second)
 		}
+	}
 
+	return nil
+}
+
+func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []machinePairing, poolSize int, statusLogger statuslogger.StatusLogger) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "acquire_leases")
+
+	leaseGroup := errgroup.Group{}
+	leaseGroup.SetLimit(poolSize)
+
+	for idx, machineTuple := range machineTuples {
+		machineTuple := machineTuple
+		idx := idx
+
+		leaseGroup.Go(func() error {
+			sl := statusLogger.Line(idx)
+
+			var machine *fly.Machine
+			if machineTuple.oldMachine != nil {
+				machine = machineTuple.oldMachine
+			} else if machineTuple.newMachine != nil {
+				machine = machineTuple.newMachine
+			} else {
+				return nil
+			}
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", machine.ID))
+
+			if machine.LeaseNonce == "" {
+				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for job %s", machine.ID))
+			}
+
+			lease, err := md.acquireMachineLease(ctx, machine.ID)
+			if err != nil {
+				sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to acquire lease for %s: %v", machine.ID, err))
+				return err
+			}
+
+			machine.LeaseNonce = lease.Data.Nonce
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for job %s", machine.ID))
+			return nil
+		})
+	}
+
+	if err := leaseGroup.Wait(); err != nil {
+		span.RecordError(err)
+		return err
+	}
+
+	return nil
+}
+
+func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []machinePairing, statusLogger statuslogger.StatusLogger) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "release_leases")
+	defer span.End()
+
+	leaseGroup := errgroup.Group{}
+	leaseGroup.SetLimit(len(machineTuples))
+
+	for idx, machineTuple := range machineTuples {
+		machineTuple := machineTuple
+		idx := idx
+
+		leaseGroup.Go(func() error {
+			sl := statusLogger.Line(idx)
+
+			var machine *fly.Machine
+			if machineTuple.oldMachine != nil {
+				machine = machineTuple.oldMachine
+			} else if machineTuple.newMachine != nil {
+				machine = machineTuple.newMachine
+			} else {
+				return nil
+			}
+
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing lease for %s", machine.ID))
+			if machine.LeaseNonce == "" {
+				sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Cleared lease for %s", machine.ID))
+				return nil
+			}
+			err := md.clearMachineLease(ctx, machine.ID, machine.LeaseNonce)
+			if err != nil {
+				sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for %s: %v", machine.ID, err))
+				return err
+			}
+
+			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Cleared lease for %s", machine.ID))
+			return nil
+		})
+	}
+
+	if err := leaseGroup.Wait(); err != nil {
+		span.RecordError(err)
 		return nil
 	}
 
@@ -238,7 +375,7 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 	return isEqual
 }
 
-func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, idx int, sl statuslogger.StatusLogger, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks", trace.WithAttributes(
 		attribute.Bool("smoke_checks", healthcheckResult.smokeChecksPassed),
 		attribute.Bool("machine_checks", healthcheckResult.machineChecksPassed),
@@ -249,24 +386,9 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	var machine *fly.Machine = oldMachine
 	var lease *fly.MachineLease
 
-	defer func() {
-		if machine == nil || lease == nil {
-			span.AddEvent("no lease to clear")
-			return
-		}
-
-		// even if we fail to update the machine, we need to clear the lease
-		ctx := context.WithoutCancel(ctx)
-		err := md.clearMachineLease(ctx, machine.ID, lease.Data.Nonce)
-		if err != nil {
-			span.RecordError(err)
-			sl.Line(idx).LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for machine %s", machine.ID))
-		}
-	}()
-
 	var err error
 
-	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl.Line(idx))
+	machine, lease, err = md.updateOrCreateMachine(ctx, oldMachine, newMachine, sl)
 	// if machine is nil and the lease is nil, it means we don't need to check on this machine
 	if err != nil || (machine == nil && lease == nil) {
 		span.RecordError(err)
@@ -279,28 +401,29 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	span.SetAttributes(attribute.Bool("should_start", shouldStart))
 
 	if !shouldStart {
-		sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
+		sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
 		return nil
 	}
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-		state, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl.Line(idx))
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
+		state, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
 		if err != nil {
 			span.RecordError(err)
 			return err
 		}
 
+		fmt.Println(state)
 		if state != "started" {
-			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Starting machine %s", oldMachine.ID))
 			err = md.startMachine(ctx, machine.ID, lease.Data.Nonce)
 			if err != nil {
 				span.RecordError(err)
 				return err
 			}
 
-			sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
-			_, err = waitForMachineState(ctx, lm, []string{"started", "stopped"}, md.waitTimeout, sl.Line(idx))
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach the 'started' state", machine.ID))
+			_, err = waitForMachineState(ctx, lm, []string{"started", "stopped"}, md.waitTimeout, sl)
 			if err != nil {
 				span.RecordError(err)
 				return err
@@ -311,7 +434,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	md.warnAboutIncorrectListenAddress(ctx, lm)
 
 	if !healthcheckResult.smokeChecksPassed {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
 		err = md.doSmokeChecks(ctx, lm, false)
 		if err != nil {
 			span.RecordError(err)
@@ -321,8 +444,8 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	}
 
 	if !healthcheckResult.machineChecksPassed {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running machine checks on machine %s", machine.ID))
-		err = md.runTestMachines(ctx, machine, sl.Line(idx))
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running machine checks on machine %s", machine.ID))
+		err = md.runTestMachines(ctx, machine, sl)
 		if err != nil {
 			span.RecordError(err)
 			return &unrecoverableError{err: err}
@@ -331,7 +454,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	}
 
 	if !healthcheckResult.regularChecksPassed {
-		sl.Line(idx).LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
 		err = lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
 		if err != nil {
 			span.RecordError(err)
@@ -340,7 +463,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		healthcheckResult.regularChecksPassed = true
 	}
 
-	sl.Line(idx).LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
+	sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Machine %s is now in a good state", machine.ID))
 
 	return nil
 }
@@ -351,28 +474,25 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 
 	if oldMachine != nil {
 		span.AddEvent("Old machine exists")
-		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", oldMachine.ID))
-		lease, err := md.acquireMachineLease(ctx, oldMachine.ID)
-		if err != nil {
-			span.RecordError(err)
-			return nil, nil, err
-		}
-
 		if newMachine == nil {
 			span.AddEvent("Destroying old machine")
-			err := md.destroyMachine(ctx, oldMachine.ID, lease.Data.Nonce)
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Destroying machine %s", oldMachine.ID))
+
+			err := md.destroyMachine(ctx, oldMachine.ID, oldMachine.LeaseNonce)
 			span.RecordError(err)
+
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Destroyed machine %s", oldMachine.ID))
 			return nil, nil, err
 		} else {
 			span.AddEvent("Updating old machine")
-			oldMachine.LeaseNonce = lease.Data.Nonce
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
 			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing")
 			if err != nil {
-				return oldMachine, lease, err
+				return oldMachine, nil, err
 			}
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updated machine config for %s", oldMachine.ID))
 
-			return machine, lease, nil
+			return machine, nil, nil
 		}
 	} else if newMachine != nil {
 		span.AddEvent("Creating a new machine")
@@ -387,6 +507,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		if err != nil {
 			return nil, nil, err
 		}
+		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquired lease for %s", newMachine.ID))
 
 		return machine, lease, nil
 	} else {
