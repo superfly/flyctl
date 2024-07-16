@@ -13,7 +13,6 @@ import (
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/ctrlc"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -250,8 +249,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		return err
 	}
 
-	flapsClient := flapsutil.ClientFromContext(ctx)
-	lm := mach.NewLeasableMachine(flapsClient, io, machine, false)
+	lm := mach.NewLeasableMachine(md.flapsClient, io, machine, false)
 
 	shouldStart := lo.Contains([]string{"started", "replacing"}, newMachine.State)
 	span.SetAttributes(attribute.Bool("should_start", shouldStart))
