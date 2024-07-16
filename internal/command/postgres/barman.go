@@ -39,7 +39,7 @@ var (
 
 func newBarman() *cobra.Command {
 	const (
-		short = "Manage databases in a cluster"
+		short = "Manage databases in a cluster (Deprecated)"
 		long  = short + "\n"
 	)
 
@@ -54,6 +54,8 @@ func newBarman() *cobra.Command {
 		newBarmanSwitchWal(),
 		newBarmanRecover(),
 	)
+
+	cmd.Hidden = true
 
 	flag.Add(cmd, flag.JSONOutput())
 	return cmd
@@ -407,14 +409,18 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 }
 
 func runBarmanCheck(ctx context.Context) error {
+	printDeprecationWarning(ctx)
 	return runConsole(ctx, "barman check pg")
 }
 
 func runBarmanListBackup(ctx context.Context) error {
+	printDeprecationWarning(ctx)
 	return runConsole(ctx, "barman list-backup pg")
 }
 
 func runBarmanShowBackup(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	io := iostreams.FromContext(ctx)
 	backupId := flag.FirstArg(ctx)
 	fmt.Printf("barman show-backup pg %s", backupId)
@@ -427,10 +433,13 @@ func runBarmanBackup(ctx context.Context) error {
 }
 
 func runBarmanSwitchWal(ctx context.Context) error {
+	printDeprecationWarning(ctx)
 	return runConsole(ctx, "barman switch-wal pg --force --archive")
 }
 
 func runBarmanRecover(ctx context.Context) error {
+	printDeprecationWarning(ctx)
+
 	appName := appconfig.NameFromContext(ctx)
 	backupId := flag.GetString(ctx, "backup-id")
 	targetTime := flag.GetString(ctx, "target-time")
@@ -449,6 +458,8 @@ func runBarmanRecover(ctx context.Context) error {
 }
 
 func runConsole(ctx context.Context, cmd string) error {
+	printDeprecationWarning(ctx)
+
 	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
@@ -548,4 +559,12 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 	// No VM was selected or passed as an argument, so just pick the first one for now
 	// Later, we might want to use 'nearest.of' but also resolve the machine IP to be able to start it
 	return selectedMachine.PrivateIP, nil
+}
+
+func printDeprecationWarning(ctx context.Context) {
+	io := iostreams.FromContext(ctx)
+	colorize := io.ColorScheme()
+
+	fmt.Fprintln(io.Out, colorize.Yellow("WARNING: This barman implementation has been deprecated!"))
+	fmt.Fprintln(io.Out, colorize.Yellow("More details on the new implementation can be found here: https://community.fly.io/t/fresh-produce-enhanced-wal-archiving-and-remote-restores"))
 }
