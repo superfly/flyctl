@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -185,7 +184,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 					span.RecordError(updateErr)
 					return err
 				}
-				fmt.Fprintln(os.Stderr, "Failed to update machines:", err, ". Retrying...")
+				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, ". Retrying...")
 			}
 			attempts += 1
 			time.Sleep(1 * time.Second)
@@ -577,7 +576,7 @@ func (md *machineDeployment) startMachine(ctx context.Context, machineID string,
 		if strings.Contains(err.Error(), "machine still active") {
 			return nil
 		}
-		fmt.Fprintln(os.Stderr, "Failed to start machine", machineID, "due to error", err)
+		fmt.Fprintln(md.io.ErrOut, "Failed to start machine", machineID, "due to error", err)
 		return err
 	}
 
