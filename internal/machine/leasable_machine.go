@@ -162,7 +162,9 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.HasLease() {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
-	lm.logStatusWaiting(ctx, fly.MachineStateStarted)
+	if lm.showLogs {
+		lm.logStatusWaiting(ctx, fly.MachineStateStarted)
+	}
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
 		return err
