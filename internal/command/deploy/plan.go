@@ -64,6 +64,8 @@ type updateMachineSettings struct {
 	skipLeaseAcquisition bool
 }
 
+const rollingStrategyMaxConcurrentGroups = 16
+
 func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
 		ctx, "update_machines",
@@ -169,82 +171,100 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		}()
 	}
 
-	idx := 0
+	statusLines := map[string]statuslogger.StatusLine{}
+	for idx, machPair := range machineTuples {
+		statusLines[machPair.oldMachine.ID] = sl.Line(idx)
+	}
+
+	pgroup, ctx := errgroup.WithContext(ctx)
+	pgroup.SetLimit(rollingStrategyMaxConcurrentGroups)
+
 	// We want to update by process group
 	for _, machineTuples := range machPairByProcessGroup {
-		group := errgroup.Group{}
-		group.SetLimit(poolSize)
+		machineTuples := machineTuples
+		pgroup.Go(func() error {
+			return md.updateProcessGroup(ctx, machineTuples, statusLines, poolSize)
+		})
+	}
 
-		for _, machPair := range machineTuples {
-			machPair := machPair
-			oldMachine := machPair.oldMachine
-			newMachine := machPair.newMachine
+	attempts := 0
+	if updateErr := pgroup.Wait(); updateErr != nil {
+		var unrecoverableErr *unrecoverableError
+		if !settings.pushForward || errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
+			span.RecordError(updateErr)
+			return updateErr
+		}
 
-			idxCopy := idx
-			idx += 1
-			group.Go(func() error {
-				checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
-				machineCheckResult := checkResult.(*healthcheckResult)
-				err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl.Line(idxCopy), md.io, machineCheckResult)
-				if err != nil {
-					sl.Line(idxCopy).LogStatus(statuslogger.StatusFailure, err.Error())
-					span.RecordError(err)
-					return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
-				}
-				return nil
+		// if we fail to update the machines, we should push the state forward if possible
+		for {
+			defer func() {
+				span.SetAttributes(attribute.Int("update_attempts", attempts))
+			}()
+
+			if attempts > md.deployRetries {
+				return updateErr
+			}
+
+			currentState, err := md.appState(ctx)
+			if err != nil {
+				span.RecordError(updateErr)
+				return err
+			}
+			err = md.updateMachines(ctx, currentState, newAppState, sl, updateMachineSettings{
+				pushForward:          false,
+				skipHealthChecks:     settings.skipHealthChecks,
+				skipSmokeChecks:      settings.skipSmokeChecks,
+				skipLeaseAcquisition: true,
 			})
-		}
-
-		if updateErr := group.Wait(); updateErr != nil {
-			if !settings.pushForward {
+			if err == nil {
+				break
+			} else if errors.Is(err, context.Canceled) {
 				span.RecordError(updateErr)
-				return updateErr
-			}
-
-			var unrecoverableErr *unrecoverableError
-			if errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
-				span.RecordError(updateErr)
-				return updateErr
-			}
-
-			attempts := 0
-			// if we fail to update the machines, we should push the state forward if possible
-			for {
-				defer func() {
-					span.SetAttributes(attribute.Int("update_attempts", attempts))
-				}()
-
-				if attempts > md.deployRetries {
-					return updateErr
-				}
-
-				currentState, err := md.appState(ctx)
-				if err != nil {
+				return err
+			} else {
+				if errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
 					span.RecordError(updateErr)
 					return err
 				}
-				err = md.updateMachines(ctx, currentState, newAppState, sl, updateMachineSettings{
-					pushForward:          false,
-					skipHealthChecks:     settings.skipHealthChecks,
-					skipSmokeChecks:      settings.skipSmokeChecks,
-					skipLeaseAcquisition: true,
-				})
-				if err == nil {
-					break
-				} else if errors.Is(err, context.Canceled) {
-					span.RecordError(updateErr)
-					return err
-				} else {
-					if errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
-						span.RecordError(updateErr)
-						return err
-					}
-					fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, ". Retrying...")
-				}
-				attempts += 1
-				time.Sleep(1 * time.Second)
+				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, ". Retrying...")
 			}
+			attempts += 1
+			time.Sleep(1 * time.Second)
 		}
+	}
+
+	return nil
+}
+
+func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTuples []machinePairing, statusLines map[string]statuslogger.StatusLine, poolSize int) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_process_group")
+	defer span.End()
+
+	group := errgroup.Group{}
+	group.SetLimit(poolSize)
+
+	for _, machPair := range machineTuples {
+		machPair := machPair
+		oldMachine := machPair.oldMachine
+		newMachine := machPair.newMachine
+
+		group.Go(func() error {
+			checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
+			machineCheckResult := checkResult.(*healthcheckResult)
+			sl := statusLines[machPair.oldMachine.ID]
+			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
+			if err != nil {
+				sl.LogStatus(statuslogger.StatusFailure, err.Error())
+				span.RecordError(err)
+				return fmt.Errorf("failed to update machine %s: %w", oldMachine.ID, err)
+			}
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		span.RecordError(err)
+		return err
 	}
 
 	return nil
