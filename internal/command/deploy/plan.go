@@ -304,6 +304,8 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			}
 
 			machine.LeaseNonce = lease.Data.Nonce
+			lm := mach.NewLeasableMachine(md.flapsClient, md.io, machine, false)
+			lm.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for job %s", machine.ID))
 			return nil
 		})
@@ -624,7 +626,8 @@ func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleS
 }
 
 func (md *machineDeployment) acquireMachineLease(ctx context.Context, machID string) (*fly.MachineLease, error) {
-	lease, err := md.flapsClient.AcquireLease(ctx, machID, fly.IntPointer(3600))
+	leaseTimeout := int(md.leaseTimeout)
+	lease, err := md.flapsClient.AcquireLease(ctx, machID, &leaseTimeout)
 	if err != nil {
 		// TODO: tell users how to manually clear the lease
 		// TODO: have a flag to automatically clear the lease
