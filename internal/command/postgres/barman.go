@@ -39,11 +39,12 @@ var (
 
 func newBarman() *cobra.Command {
 	const (
-		short = "Manage databases in a cluster (Deprecated)"
+		short = "Manage databases in a cluster (Deprecated, use `fly pg backup` instead)"
 		long  = short + "\n"
 	)
 
 	cmd := command.New("barman", short, long, nil)
+	cmd.Hidden = true
 
 	cmd.AddCommand(
 		newCreateBarman(),
