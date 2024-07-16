@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -120,8 +121,18 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		}
 	})
 
+	var poolSize int
+	switch mu := md.maxUnavailable; {
+	case mu >= 1:
+		poolSize = int(mu)
+	case mu > 0:
+		poolSize = int(math.Ceil(float64(len(machineTuples)) * mu))
+	default:
+		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
+	}
+
 	group := errgroup.Group{}
-	group.SetLimit(md.maxConcurrent)
+	group.SetLimit(poolSize)
 	idx := 0
 	for _, machineTuples := range machPairByProcessGroup {
 		for _, machPair := range machineTuples {
