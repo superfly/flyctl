@@ -633,7 +633,7 @@ func TestToMachineConfig_services(t *testing.T) {
 			Protocol:     "tcp",
 			InternalPort: 8080,
 			Autostart:    fly.Pointer(true),
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 			Ports: []fly.MachinePort{
 				{Port: fly.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
 				{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
@@ -643,13 +643,13 @@ func TestToMachineConfig_services(t *testing.T) {
 			Protocol:     "tcp",
 			InternalPort: 1000,
 			Autostart:    fly.Pointer(true),
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		},
 		{
 			Protocol:     "tcp",
 			InternalPort: 1001,
 			Autostart:    fly.Pointer(false),
-			Autostop:     fly.Pointer(false),
+			Autostop:     fly.Pointer(fly.MachineAutostopOff),
 		},
 		{
 			Protocol:     "tcp",
@@ -659,7 +659,7 @@ func TestToMachineConfig_services(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 1003,
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		},
 		{
 			Protocol:     "tcp",

@@ -50,7 +50,7 @@ func TestFlyLaunchV2(t *testing.T) {
 		"http_service": map[string]any{
 			"force_https":          true,
 			"internal_port":        int64(8080),
-			"auto_stop_machines":   true,
+			"auto_stop_machines":   "stop",
 			"auto_start_machines":  true,
 			"min_machines_running": int64(0),
 			"processes":            []any{"app"},
@@ -212,7 +212,7 @@ func TestFlyLaunchHA(t *testing.T) {
 [http_service]
 	internal_port = 80
 	auto_start_machines = true
-	auto_stop_machines = true
+	auto_stop_machines = "stop"
 	processes = ["app"]
 `)
 
