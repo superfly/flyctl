@@ -28,10 +28,11 @@ import (
 
 const staticsKeepVersions = 3
 
-type staticsS3Client struct {
-	s3     *s3.Client
-	bucket string
-	root   string
+type tigrisStaticsData struct {
+	s3              *s3.Client
+	bucket          string
+	root            string
+	originalStatics []appconfig.Static
 }
 
 func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
@@ -55,7 +56,7 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 	}
 
 	for _, extension := range response.AddOns.Nodes {
-		if extension.Name == md.staticsS3Client.bucket {
+		if extension.Name == md.tigrisStatics.bucket {
 			return nil
 		}
 	}
@@ -66,7 +67,7 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 		Options:              gql.AddOnOptions{},
 		ErrorCaptureCallback: nil,
 		OverrideRegion:       md.appConfig.PrimaryRegion,
-		OverrideName:         &md.staticsS3Client.bucket,
+		OverrideName:         &md.tigrisStatics.bucket,
 	}
 	params.Options["website"] = map[string]interface{}{
 		"domain_name": "",
@@ -81,16 +82,29 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 // Create the tigris bucket if not created.
 func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 
-	md.staticsS3Client.bucket = md.appConfig.AppName + "-statics"
+	md.tigrisStatics.bucket = md.appConfig.AppName + "-statics"
 
 	if err := md.staticsEnsureBucketCreated(ctx); err != nil {
 		return err
 	}
 
-	// TODO: Initialize the s3 client
-	// md.staticsS3Client =
+	// NOTE: This statics definition in the release sent to our API
+	//       should be correct and unmodified. *But*, because we're
+	//       modifying the app config in-place to ensure we don't have
+	//       double definitions for the static (both tigris & from local),
+	//       we'll pull an incorrect config if we grab it from machines.
+	//
+	// TODO(allison): We can probably solve this by sending the full statics config
+	//                to each machine as metadata and resynthesizing it during config save.
+	md.tigrisStatics.originalStatics = md.appConfig.Statics
+	md.appConfig.Statics = lo.Filter(md.appConfig.Statics, func(static appconfig.Static, _ int) bool {
+		return !staticIsCandidateForTigrisPush(static)
+	})
 
-	md.staticsS3Client.root = fmt.Sprintf("fly-statics/%s/%d", md.appConfig.AppName, md.releaseVersion)
+	// TODO: Initialize the s3 client
+	// md.tigrisStatics =
+
+	md.tigrisStatics.root = fmt.Sprintf("fly-statics/%s/%d", md.appConfig.AppName, md.releaseVersion)
 	return nil
 }
 
@@ -116,7 +130,7 @@ func staticIsCandidateForTigrisPush(static appconfig.Static) bool {
 }
 
 // Upload a directory to the tigris bucket with the given prefix `dest`.
-func (client *staticsS3Client) uploadDirectory(ctx context.Context, dest, localPath string) error {
+func (client *tigrisStaticsData) uploadDirectory(ctx context.Context, dest, localPath string) error {
 	// Recursively upload the directory to the bucket.
 	var files []string
 	localDir := os.DirFS(localPath)
@@ -198,7 +212,7 @@ func (client *staticsS3Client) uploadDirectory(ctx context.Context, dest, localP
 }
 
 // Delete all files with the given prefix `dir` from the bucket.
-func (client *staticsS3Client) deleteDirectory(ctx context.Context, dir string) error {
+func (client *tigrisStaticsData) deleteDirectory(ctx context.Context, dir string) error {
 
 	if runtime.GOOS == "windows" {
 		dir = strings.ReplaceAll(dir, "\\", "/")
@@ -241,7 +255,7 @@ func (client *staticsS3Client) deleteDirectory(ctx context.Context, dir string) 
 	return nil
 }
 
-func (client *staticsS3Client) deleteOldStatics(ctx context.Context, appName string) error {
+func (client *tigrisStaticsData) deleteOldStatics(ctx context.Context, appName string) error {
 	// List directories in the app's directory.
 	// Delete all versions except for the three latest versions.
 
@@ -307,17 +321,27 @@ func (md *machineDeployment) staticsPush(ctx context.Context) (err error) {
 	}()
 
 	staticNum := 0
-	for _, static := range md.appConfig.Statics {
+	for _, static := range md.tigrisStatics.originalStatics {
 		if !staticIsCandidateForTigrisPush(static) {
 			continue
 		}
-		dest := fmt.Sprintf("%s/%d", md.staticsS3Client.root, staticNum)
+		dest := fmt.Sprintf("%s/%d", md.tigrisStatics.root, staticNum)
 		staticNum += 1
 
-		err = md.staticsS3Client.uploadDirectory(ctx, dest, path.Clean(static.GuestPath))
+		err = md.tigrisStatics.uploadDirectory(ctx, dest, path.Clean(static.GuestPath))
 		if err != nil {
 			return err
 		}
+
+		// TODO(allison): Remove this hack. We should be creating virtual service definitions instead.
+		//                This is a temporary workaround to get something demoable.
+
+		md.appConfig.Statics = append(md.appConfig.Statics, appconfig.Static{
+			GuestPath:     dest,
+			UrlPrefix:     static.UrlPrefix,
+			TigrisBucket:  md.tigrisStatics.bucket,
+			IndexDocument: static.IndexDocument,
+		})
 	}
 
 	return nil
@@ -329,7 +353,7 @@ func (md *machineDeployment) staticsFinalize(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
 	// Delete old statics from the bucket.
-	err := md.staticsS3Client.deleteOldStatics(ctx, md.appConfig.AppName)
+	err := md.tigrisStatics.deleteOldStatics(ctx, md.appConfig.AppName)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "Failed to delete old statics: %v\n", err)
 	}
@@ -351,7 +375,7 @@ func (md *machineDeployment) staticsCleanupAfterFailure() {
 	deleteCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	err := md.staticsS3Client.deleteDirectory(deleteCtx, md.staticsS3Client.root)
+	err := md.tigrisStatics.deleteDirectory(deleteCtx, md.tigrisStatics.root)
 	if err != nil {
 		terminal.Debugf("Failed to delete statics: %v\n", err)
 	}
