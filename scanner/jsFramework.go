@@ -174,6 +174,11 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.RedisDesired = true
 	}
 
+	// infer object storage (Tigris) from dependencies
+	if deps["@aws-sdk/client-s3"] != nil {
+		srcInfo.ObjectStorageDesired = true
+	}
+
 	// if prisma is used, provider is definative
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
@@ -225,6 +230,12 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if startScript, ok := scripts["start"].(string); ok && strings.Contains(startScript, "meteor") {
+		srcInfo.Family = "Meteor"
+		srcInfo.Env = map[string]string{
+			"PORT":     "3000",
+			"ROOT_URL": "APP_URL",
+		}
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {

@@ -34,6 +34,11 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 
 	flag.Add(cmd, flag.JSONOutput())
 	flag.Add(cmd, flag.Org())
+	flag.Add(cmd, flag.Bool{
+		Name:        "quiet",
+		Shorthand:   "q",
+		Description: "Only list app names",
+	})
 
 	cmd.Aliases = []string{"ls"}
 	return cmd
@@ -41,6 +46,7 @@ the name, owner (org), status, and date/time of latest deploy for each app.
 
 func runList(ctx context.Context) (err error) {
 	client := flyutil.ClientFromContext(ctx)
+	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
@@ -68,6 +74,13 @@ func runList(ctx context.Context) (err error) {
 	verbose := flag.GetBool(ctx, "verbose")
 
 	rows := make([][]string, 0, len(apps))
+	if silence {
+		for _, app := range apps {
+			rows = append(rows, []string{app.Name})
+		}
+		_ = render.Table(out, "", rows)
+		return
+	}
 	for _, app := range apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {

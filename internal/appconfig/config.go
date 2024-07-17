@@ -58,6 +58,8 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
+	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
+
 	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
 
 	Compute []*Compute `toml:"vm,omitempty" json:"vm,omitempty"`
@@ -122,9 +124,10 @@ func (f File) toMachineFile() (*fly.File, error) {
 }
 
 type Static struct {
-	GuestPath    string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
-	UrlPrefix    string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
-	TigrisBucket string `toml:"tigris_bucket,omitempty" json:"tigris_bucket"`
+	GuestPath     string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
+	UrlPrefix     string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
+	TigrisBucket  string `toml:"tigris_bucket,omitempty" json:"tigris_bucket"`
+	IndexDocument string `toml:"index_document,omitempty" json:"index_document,omitempty"`
 }
 
 type Mount struct {

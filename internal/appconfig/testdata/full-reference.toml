@@ -103,6 +103,8 @@ host_dedication_id = "06031957"
 [[statics]]
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"
+  tigris_bucket = "example-bucket"
+  index_document = "index.html"
 
 [[files]]
   guest_path = "/path/to/hello.txt"
@@ -159,6 +161,13 @@ host_dedication_id = "06031957"
   [checks.status.headers]
     Content-Type = "application/json"
     Authorization = "super-duper-secret"
+
+[[machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"
 
 [[services]]
   internal_port = 8081
