@@ -169,7 +169,7 @@ var CommonFlags = flag.Set{
 	flag.Int{
 		Name:        "deploy-retries",
 		Description: "Number of times to retry a deployment if it fails",
-		Default:     5,
+		Default:     0,
 	},
 }
 
