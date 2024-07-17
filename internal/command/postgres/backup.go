@@ -27,7 +27,7 @@ func newBackup() *cobra.Command {
 	cmd := command.New("backup", short, long, nil)
 	cmd.Aliases = []string{"backups"}
 
-	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore())
+	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore(), newBackupConfig())
 	return cmd
 }
 
@@ -591,3 +591,53 @@ type TigrisBucketRole struct {
 // 	endpointUrl.Path = "/" + bucketName + "/" + bucketDirectory
 // 	config.BarmanRemoteRestoreConfig = se
 // }
+
+func newBackupConfig() *cobra.Command {
+	const (
+		short = "Manage backup configuration"
+		long  = short + "\n"
+	)
+
+	cmd := command.New("config", short, long, nil)
+
+	cmd.AddCommand(newConfigShowCmd())
+
+	return cmd
+}
+
+func newConfigShowCmd() *cobra.Command {
+	const (
+		short = "Show backup configuration"
+		long  = short + "\n"
+	)
+
+	cmd := command.New("show", short, long, runBackupConfigShow,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	return cmd
+}
+
+func runBackupConfigShow(ctx context.Context) error {
+	var (
+		appName = appconfig.NameFromContext(ctx)
+	)
+
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
+	return ExecOnLeader(ctx, appName, "flexctl backup config show")
+}
