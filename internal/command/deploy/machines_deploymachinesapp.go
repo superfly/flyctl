@@ -105,7 +105,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	if tigrisStatics && !md.restartOnly {
 		if err == nil {
-			md.staticsFinalize(ctx)
+			err = md.staticsFinalize(ctx)
 		} else {
 			md.staticsCleanupAfterFailure()
 		}
