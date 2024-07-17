@@ -27,7 +27,8 @@ func newBackup() *cobra.Command {
 	cmd := command.New("backup", short, long, nil)
 	cmd.Aliases = []string{"backups"}
 
-	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore(), newBackupConfig())
+	cmd.AddCommand(newBackupConfig(), newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore())
+
 	return cmd
 }
 
@@ -490,12 +491,12 @@ func newBackupConfig() *cobra.Command {
 
 	cmd := command.New("config", short, long, nil)
 
-	cmd.AddCommand(newConfigShowCmd())
+	cmd.AddCommand(newBackupConfigShow(), newBackupConfigUpdate())
 
 	return cmd
 }
 
-func newConfigShowCmd() *cobra.Command {
+func newBackupConfigShow() *cobra.Command {
 	const (
 		short = "Show backup configuration"
 		long  = short + "\n"
@@ -506,10 +507,44 @@ func newConfigShowCmd() *cobra.Command {
 		command.RequireAppName,
 	)
 
+	flag.Add(cmd, flag.App(), flag.AppConfig())
+
+	return cmd
+}
+
+func newBackupConfigUpdate() *cobra.Command {
+	const (
+		short = "Update backup configuration"
+		long  = short + "\n"
+
+		usage = "update"
+	)
+
+	cmd := command.New(usage, short, long, runBackupConfigUpdate,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
 	flag.Add(
 		cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "archive-timeout",
+			Description: "Archive timeout",
+		},
+		flag.String{
+			Name:        "recovery-window",
+			Description: "Recovery window",
+		},
+		flag.String{
+			Name:        "full-backup-frequency",
+			Description: "Full backup frequency",
+		},
+		flag.String{
+			Name:        "minimum-redundancy",
+			Description: "Minimum redundancy",
+		},
 	)
 
 	return cmd
@@ -530,4 +565,38 @@ func runBackupConfigShow(ctx context.Context) error {
 	}
 
 	return ExecOnLeader(ctx, appName, "flexctl backup config show")
+}
+
+func runBackupConfigUpdate(ctx context.Context) error {
+	var (
+		appName = appconfig.NameFromContext(ctx)
+	)
+
+	command := "flexctl backup config update"
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
+	if flag.GetString(ctx, "archive-timeout") != "" {
+		command += " --archive-timeout " + flag.GetString(ctx, "archive-timeout")
+	}
+
+	if flag.GetString(ctx, "recovery-window") != "" {
+		command += " --recovery-window " + flag.GetString(ctx, "recovery-window")
+	}
+
+	if flag.GetString(ctx, "full-backup-frequency") != "" {
+		command += " --full-backup-frequency " + flag.GetString(ctx, "full-backup-frequency")
+	}
+
+	if flag.GetString(ctx, "minimum-redundancy") != "" {
+		command += " --minimum-redundancy " + flag.GetString(ctx, "minimum-redundancy")
+	}
+
+	return ExecOnLeader(ctx, appName, command)
 }
