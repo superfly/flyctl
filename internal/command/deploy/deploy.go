@@ -166,6 +166,11 @@ var CommonFlags = flag.Set{
 		Shorthand:   "s",
 		Description: "Signal to stop the machine with for bluegreen strategy (default: SIGINT)",
 	},
+	flag.Int{
+		Name:        "deploy-retries",
+		Description: "Number of times to retry a deployment if it fails",
+		Default:     0,
+	},
 }
 
 type Command struct {
@@ -303,10 +308,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig, usingWireguard, recreateBuilder)
-	if err != nil && usingWireguard && httpFailover {
-		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
-		span.AddEvent("using http failover")
-		img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+	if err != nil {
+		noBuilder := strings.Contains(err.Error(), "Could not find App")
+		recreateBuilder = recreateBuilder || noBuilder
+		if noBuilder || (usingWireguard && httpFailover) {
+			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+			span.AddEvent("using http failover")
+			img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+		}
 	}
 
 	if err != nil {
@@ -491,6 +500,7 @@ func deployToMachines(
 		MaxConcurrent:         maxConcurrent,
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
+		DeployRetries:         flag.GetInt(ctx, "deploy-retries"),
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
