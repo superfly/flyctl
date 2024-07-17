@@ -51,6 +51,6 @@ func runIPAddressesList(ctx context.Context) error {
 	}
 
 	renderListTable(ctx, ipAddresses)
-	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/reference/services/#ip-addresses")
+	fmt.Println("Learn more about Fly.io public, private, shared and dedicated IP addresses in our docs: https://fly.io/docs/networking/services/")
 	return nil
 }
