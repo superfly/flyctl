@@ -21,7 +21,7 @@ func newMove() *cobra.Command {
 	const (
 		long = `Move an application to another
 organization the current user belongs to.
-`
+For details, see https://fly.io/docs/apps/move-app-org/.`
 		short = "Move an app to another organization."
 		usage = "move <app name>"
 	)
