@@ -27,7 +27,7 @@ require (
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ejcx/sshcert v1.1.0
-	github.com/getsentry/sentry-go v0.28.0
+	github.com/getsentry/sentry-go v0.28.1
 	github.com/go-logr/logr v1.4.2
 	github.com/gofrs/flock v0.8.1
 	github.com/google/go-cmp v0.6.0
