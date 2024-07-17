@@ -293,7 +293,7 @@ func TestUpdateMachines(t *testing.T) {
 	}
 
 	acquiredLeases = sync.Map{}
-	err := md.updateMachines(ctx, oldAppState, newAppState, nil, settings)
+	err := md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 
 	// let's make sure we retry deploys a few times
@@ -314,14 +314,14 @@ func TestUpdateMachines(t *testing.T) {
 		}, nil
 	}
 	acquiredLeases = sync.Map{}
-	err = md.updateMachines(ctx, oldAppState, newAppState, nil, settings)
+	err = md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, numFailures)
 
 	numFailures = 0
 	maxNumFailures = 10
 	acquiredLeases = sync.Map{}
-	err = md.updateMachines(ctx, oldAppState, newAppState, nil, settings)
+	err = md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
 	assert.Error(t, err)
 
 	var sentUnrecoverable atomic.Bool
@@ -339,7 +339,7 @@ func TestUpdateMachines(t *testing.T) {
 		}
 	}
 	acquiredLeases = sync.Map{}
-	err = md.updateMachines(ctx, oldAppState, newAppState, nil, settings)
+	err = md.updateMachinesWRecovery(ctx, oldAppState, newAppState, nil, settings)
 	assert.Error(t, err)
 	var unrecoverableErr *unrecoverableError
 	assert.ErrorAs(t, err, &unrecoverableErr)

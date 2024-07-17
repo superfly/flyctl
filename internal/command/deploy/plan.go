@@ -76,9 +76,9 @@ type updateMachineSettings struct {
 
 const rollingStrategyMaxConcurrentGroups = 16
 
-func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
+func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldAppState, newAppState *AppState, statusLogger statuslogger.StatusLogger, settings updateMachineSettings) error {
 	ctx, span := tracing.GetTracer().Start(
-		ctx, "update_machines",
+		ctx, "update_machines_w_recovery",
 		trace.WithAttributes(attribute.Bool("push_forward", settings.pushForward)),
 		trace.WithAttributes(attribute.Bool("skip_health_checks", settings.skipHealthChecks)),
 		trace.WithAttributes(attribute.Bool("skip_smoke_checks", settings.skipSmokeChecks)),
@@ -229,7 +229,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 				span.RecordError(updateErr)
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
-			err = md.updateMachines(ctx, currentState, newAppState, sl, updateMachineSettings{
+			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,
 				skipSmokeChecks:      settings.skipSmokeChecks,
@@ -688,49 +688,4 @@ func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.
 	}
 
 	return machine, nil
-}
-
-func (md *machineDeployment) updateMachine(ctx context.Context, e *machineUpdateEntry, sl statuslogger.StatusLine) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "update_machine", trace.WithAttributes(
-		attribute.String("id", e.launchInput.ID),
-		attribute.Bool("requires_replacement", e.launchInput.RequiresReplacement),
-	))
-	defer span.End()
-
-	fmtID := e.leasableMachine.FormattedMachineId()
-
-	replaceMachine := func() error {
-		sl.Logf("Replacing %s by new machine", fmtID)
-		if err := md.updateMachineByReplace(ctx, e); err != nil {
-			return err
-		}
-		sl.Logf("Created machine %s", fmtID)
-		return nil
-	}
-
-	if e.launchInput.RequiresReplacement {
-		return replaceMachine()
-	}
-
-	sl.Logf("Updating %s", fmtID)
-	if err := md.updateMachineInPlace(ctx, e); err != nil {
-		switch {
-		case len(e.leasableMachine.Machine().Config.Mounts) > 0:
-			// Replacing a machine with a volume will cause the placement logic to pick wthe same host
-			// dismissing the value of replacing it in case of lack of host capacity
-			return err
-		case strings.Contains(err.Error(), "could not reserve resource for machine"),
-			strings.Contains(err.Error(), "deploys to this host are temporarily disabled"):
-			err := replaceMachine()
-			if err != nil {
-				span.RecordError(err)
-			}
-
-			return err
-		default:
-			span.RecordError(err)
-			return err
-		}
-	}
-	return nil
 }
