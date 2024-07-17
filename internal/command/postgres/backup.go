@@ -196,7 +196,6 @@ func newBackupCreate() *cobra.Command {
 func runBackupCreate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
 	)
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -228,11 +227,6 @@ func runBackupCreate(ctx context.Context) error {
 		return err
 	}
 
-	// Ensure the backup is issued against the primary.
-	leader, err := pickLeader(ctx, machines)
-	if err != nil {
-		return err
-	}
 	cmd := "flexctl backup create"
 
 	if flag.GetBool(ctx, "immediate-checkpoint") {
@@ -244,27 +238,7 @@ func runBackupCreate(ctx context.Context) error {
 		cmd += " -n " + name
 	}
 
-	in := &fly.MachineExecRequest{
-		Cmd: cmd,
-	}
-
-	out, err := flapsClient.Exec(ctx, leader.ID, in)
-	if err != nil {
-		return err
-	}
-
-	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
-	}
-
-	if out.StdOut != "" {
-		fmt.Fprint(io.Out, out.StdOut)
-	}
-	if out.StdErr != "" {
-		fmt.Fprint(io.ErrOut, out.StdErr)
-	}
-
-	return nil
+	return ExecOnLeader(ctx, appName, cmd)
 }
 
 func newBackupEnable() *cobra.Command {
@@ -384,7 +358,6 @@ func newBackupList() *cobra.Command {
 func runBackupList(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
 	)
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -419,27 +392,7 @@ func runBackupList(ctx context.Context) error {
 
 	machine := machines[0]
 
-	in := &fly.MachineExecRequest{
-		Cmd: "flexctl backup list",
-	}
-
-	out, err := flapsClient.Exec(ctx, machine.ID, in)
-	if err != nil {
-		return err
-	}
-
-	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
-	}
-
-	if out.StdOut != "" {
-		fmt.Fprint(io.Out, out.StdOut)
-	}
-	if out.StdErr != "" {
-		fmt.Fprint(io.ErrOut, out.StdErr)
-	}
-
-	return nil
+	return ExecOnMachine(ctx, appName, machine.ID, "flexctl backup list")
 }
 
 func resolveRestoreTarget(ctx context.Context) string {
