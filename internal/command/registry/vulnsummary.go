@@ -159,6 +159,19 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 	spin := spinner.Run(ios, "Scanning...")
 	defer spin.Stop()
 
+	// Make all org tokens. Right now there will only be one.
+	orgToken := make(map[string]string)
+	for img, _ := range imgs {
+		if _, ok := orgToken[img.OrgID]; ok {
+			continue
+		}
+		token, err := makeScantronToken(ctx, img.OrgID)
+		if err != nil {
+			return nil, err
+		}
+		orgToken[img.OrgID] = token
+	}
+
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.SetLimit(concurrentScans)
 	mu := sync.Mutex{}
@@ -173,15 +186,10 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 			continue
 		}
 		imageScan[img.Path] = nil
+		token := orgToken[img.OrgID]
 		mu.Unlock()
 
 		eg.Go(func() error {
-			// TODO: fix me. dont make new token each time. make org-wide token.
-			token, err := makeScantronToken(ctx, img.OrgID, img.AppID)
-			if err != nil {
-				return err
-			}
-
 			scan, err := getVulnScan(ctx, img.Path, token)
 			if err != nil {
 				errUnsupportedPath := ErrUnsupportedPath("")

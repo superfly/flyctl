@@ -117,10 +117,8 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 	return scan, nil
 }
 
-func makeScantronToken(ctx context.Context, orgId, appId string) (string, error) {
-	resp, err := makeToken(ctx, scantronTokenName, orgId, scantronTokenLife, "deploy", &gql.LimitedAccessTokenOptions{
-		"app_id": appId,
-	})
+func makeScantronToken(ctx context.Context, orgId string) (string, error) {
+	resp, err := makeToken(ctx, scantronTokenName, orgId, scantronTokenLife, "read_organization_apps", &gql.LimitedAccessTokenOptions{})
 	if err != nil {
 		return "", err
 	}

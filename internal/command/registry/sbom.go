@@ -69,7 +69,7 @@ func runSbom(ctx context.Context) error {
 		return err
 	}
 
-	token, err := makeScantronToken(ctx, app.Organization.ID, app.ID)
+	token, err := makeScantronToken(ctx, app.Organization.ID)
 	if err != nil {
 		return err
 	}

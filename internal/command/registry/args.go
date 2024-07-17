@@ -16,6 +16,8 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/spinner"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 type Unit struct{}
@@ -158,6 +160,10 @@ func argsGetImgPath(ctx context.Context, app *fly.AppCompact) (string, error) {
 // argsGetImages returns a list of images in ImgInfo format from
 // command line args or the environment, using `org`, `app`, `running`.
 func argsGetImages(ctx context.Context) (map[ImgInfo]Unit, error) {
+	ios := iostreams.FromContext(ctx)
+	spin := spinner.Run(ios, "Finding images...")
+	defer spin.Stop()
+
 	if appName := flag.GetApp(ctx); appName != "" {
 		return argsGetAppImages(ctx, appName)
 	} else if orgName := flag.GetOrg(ctx); orgName != "" {
