@@ -150,6 +150,7 @@ type machineDeployment struct {
 	volumeInitialSize     int
 	deployRetries         int
 	buildID               string
+	staticsS3Client       staticsS3Client
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
