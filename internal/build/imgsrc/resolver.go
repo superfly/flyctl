@@ -225,6 +225,8 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
+	} else if r.dockerFactory.mode.UseDepot() {
+		strategies = append(strategies, &DepotBuilder{})
 	} else {
 		strategies = []imageBuilder{
 			&buildpacksBuilder{},
@@ -609,7 +611,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "start_heartbeat")
 	defer span.End()
 
-	if !r.dockerFactory.remote {
+	if !r.dockerFactory.remote || r.dockerFactory.mode.UseDepot() {
 		span.AddEvent("won't check heartbeart of non-remote build")
 		return nil, nil
 	}
