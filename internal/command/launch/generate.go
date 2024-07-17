@@ -50,6 +50,8 @@ func runGenerate(ctx context.Context) error {
 		return err
 	}
 
+	updateConfig(launchManifest.Plan, nil, launchManifest.Config)
+
 	file, err := os.Create(flag.GetString(ctx, "manifest-path"))
 	if err != nil {
 		return err

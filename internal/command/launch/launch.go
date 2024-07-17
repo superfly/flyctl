@@ -9,6 +9,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -32,7 +33,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
-	state.updateConfig(ctx)
+	updateConfig(state.Plan, state.env, state.appConfig)
 
 	if err := state.validateExtensions(ctx); err != nil {
 		return err
@@ -153,15 +154,15 @@ func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Con
 }
 
 // updateConfig populates the appConfig with the plan's values
-func (state *launchState) updateConfig(ctx context.Context) {
-	state.appConfig.AppName = state.Plan.AppName
-	state.appConfig.PrimaryRegion = state.Plan.RegionCode
-	if state.env != nil {
-		state.appConfig.SetEnvVariables(state.env)
+func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
+	appConfig.AppName = plan.AppName
+	appConfig.PrimaryRegion = plan.RegionCode
+	if env != nil {
+		appConfig.SetEnvVariables(env)
 	}
-	if state.Plan.HttpServicePort != 0 {
-		if state.appConfig.HTTPService == nil {
-			state.appConfig.HTTPService = &appconfig.HTTPService{
+	if plan.HttpServicePort != 0 {
+		if appConfig.HTTPService == nil {
+			appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
 				AutoStopMachines:   fly.Pointer(true),
@@ -169,11 +170,11 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				Processes:          []string{"app"},
 			}
 		}
-		state.appConfig.HTTPService.InternalPort = state.Plan.HttpServicePort
+		appConfig.HTTPService.InternalPort = plan.HttpServicePort
 	} else {
-		state.appConfig.HTTPService = nil
+		appConfig.HTTPService = nil
 	}
-	state.appConfig.Compute = state.Plan.Compute
+	appConfig.Compute = plan.Compute
 }
 
 // createApp creates the fly.io app for the plan

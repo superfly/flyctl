@@ -98,14 +98,15 @@ def in_step(step, &block)
   old_step = $current_step
   $current_step = step
   event :start
-  begin
-    ret = yield block
+  ret = begin
+    yield block
   rescue StandardError => e
     event :error, { type: :uncaught, message: e }
     exit 1
   end
   event :end
   $current_step = old_step
+  ret
 end
 
 def ts
@@ -141,26 +142,26 @@ if (git_repo = ENV["GIT_REPO"]) && !!git_repo
     end
 end
 
-in_step Step::PLAN do
-  exec_capture("flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG}")
-  artifact :manifest, JSON.parse(File.read("manifest.json"))
+manifest = in_step Step::PLAN do
+  exec_capture("flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json")
+  manifest = JSON.parse(File.read("/tmp/manifest.json"))
+  artifact :manifest, manifest
 end
 
-# in_step Step::DEPLOY do
-#   exec_capture("flyctl launch --from-manifest manifest.json")
-# end
+puts manifest
 
-# fly_json = begin
-#     JSON.parse(File.read("fly.json"))
-# rescue e
-#     event Step::ERROR, { type: :parse, message: "could not parse fly.json: #{e}" }
-#     exit 1
-# end
+if ENV["DEPLOY_NOW"]
+  in_step Step::DEPLOY do
+    vm_cpukind = manifest["plan"]["vm_cpukind"]
+    vm_cpus = manifest["plan"]["vm_cpus"]
+    vm_memory = manifest["plan"]["vm_memory"]
+    vm_size = manifest["plan"]["vm_size"]
+    region = manifest["plan"]["region"]
 
-# event Step::PREPARE, { config: fly_json }
+    File.write("/tmp/fly.json", manifest["config"].to_json)
 
-# event Step::DEPLOY
-# out = exec_capture("flyctl deploy -y")
-# event Step::DEPLOY
+    exec_capture("flyctl deploy -a #{APP_NAME} --region #{region} --vm-cpu-kind #{vm_cpukind} --vm-cpus #{vm_cpus} --vm-memory #{vm_memory} --vm-size #{vm_size} -c /tmp/fly.json")
+  end
+end
 
 event :end, { ts: ts() }
