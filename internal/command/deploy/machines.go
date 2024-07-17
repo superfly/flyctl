@@ -114,6 +114,7 @@ type machineDeployment struct {
 	maxConcurrent         int
 	volumeInitialSize     int
 	deployRetries         int
+	staticsS3Client       staticsS3Client
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
