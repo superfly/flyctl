@@ -113,8 +113,8 @@ type machineDeployment struct {
 	processGroups         map[string]bool
 	maxConcurrent         int
 	volumeInitialSize     int
+	tigrisStatics         tigrisStaticsData
 	deployRetries         int
-	staticsS3Client       staticsS3Client
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
