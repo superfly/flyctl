@@ -208,7 +208,6 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	if updateErr := pgroup.Wait(); updateErr != nil {
 		var unrecoverableErr *unrecoverableError
 		if !settings.pushForward || errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
-			fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", updateErr)
 			span.RecordError(updateErr)
 			return updateErr
 		}
@@ -246,7 +245,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 					span.RecordError(updateErr)
 					return err
 				}
-				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, ". Retrying...")
+				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, "Retrying...")
 			}
 			attempts += 1
 			time.Sleep(1 * time.Second)
