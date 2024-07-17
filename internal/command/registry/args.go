@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/samber/lo"
 
@@ -16,6 +18,8 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
+type Unit struct{}
+
 // ImgInfo carries image information for a machine.
 type ImgInfo struct {
 	Org   string
@@ -24,6 +28,43 @@ type ImgInfo struct {
 	AppID string
 	Mach  string
 	Path  string
+}
+
+func (a ImgInfo) Compare(b ImgInfo) int {
+	if d := strings.Compare(a.Org, b.Org); d != 0 {
+		return d
+	}
+	if d := strings.Compare(a.OrgID, b.OrgID); d != 0 {
+		return d
+	}
+	if d := strings.Compare(a.App, b.App); d != 0 {
+		return d
+	}
+	if d := strings.Compare(a.AppID, b.AppID); d != 0 {
+		return d
+	}
+	if d := strings.Compare(a.Mach, b.Mach); d != 0 {
+		return d
+	}
+	if d := strings.Compare(a.Path, b.Path); d != 0 {
+		return d
+	}
+	return 0
+}
+
+// AugmentMap includes all of src into targ.
+func AugmentMap[K comparable, V any](targ, src map[K]V) {
+	for k, v := range src {
+		targ[k] = v
+	}
+}
+
+// SortedKeys returns the keys in a map in sorted order.
+// Could be made generic.
+func SortedKeys(m map[ImgInfo]Unit) []ImgInfo {
+	keys := lo.Keys(m)
+	slices.SortFunc(keys, func(a, b ImgInfo) int { return a.Compare(b) })
+	return keys
 }
 
 // argsGetMachine returns the selected machine, using `select` and `machine`.
@@ -116,7 +157,7 @@ func argsGetImgPath(ctx context.Context, app *fly.AppCompact) (string, error) {
 
 // argsGetImages returns a list of images in ImgInfo format from
 // command line args or the environment, using `org`, `app`, `running`.
-func argsGetImages(ctx context.Context) ([]ImgInfo, error) {
+func argsGetImages(ctx context.Context) (map[ImgInfo]Unit, error) {
 	if appName := flag.GetApp(ctx); appName != "" {
 		return argsGetAppImages(ctx, appName)
 	} else if orgName := flag.GetOrg(ctx); orgName != "" {
@@ -129,7 +170,7 @@ func argsGetImages(ctx context.Context) ([]ImgInfo, error) {
 
 // argsGetOrgImages returns a list of images for an org in ImgInfo format
 // from `running`.
-func argsGetOrgImages(ctx context.Context, orgName string) ([]ImgInfo, error) {
+func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, error) {
 	client := flyutil.ClientFromContext(ctx)
 	org, err := client.GetOrganizationBySlug(ctx, orgName)
 	if err != nil {
@@ -141,14 +182,14 @@ func argsGetOrgImages(ctx context.Context, orgName string) ([]ImgInfo, error) {
 		return nil, err
 	}
 
-	var allImgs []ImgInfo
+	allImgs := make(map[ImgInfo]Unit)
 	for n := range apps {
 		app := &apps[n]
 		imgs, err := argsGetAppImages(ctx, app.Name)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
 		}
-		allImgs = append(allImgs, imgs...)
+		AugmentMap(allImgs, imgs)
 	}
 	return allImgs, nil
 
@@ -156,7 +197,7 @@ func argsGetOrgImages(ctx context.Context, orgName string) ([]ImgInfo, error) {
 
 // argsGetAppImages returns a list of images for an app in ImgInfo format
 // from `running`.
-func argsGetAppImages(ctx context.Context, appName string) ([]ImgInfo, error) {
+func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	app, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -184,7 +225,7 @@ func argsGetAppImages(ctx context.Context, appName string) ([]ImgInfo, error) {
 		})
 	}
 
-	var imgs []ImgInfo
+	imgs := make(map[ImgInfo]Unit)
 	for _, machine := range machines {
 		ir := machine.ImageRef
 		imgPath := fmt.Sprintf("%s/%s@%s", ir.Registry, ir.Repository, ir.Digest)
@@ -197,7 +238,7 @@ func argsGetAppImages(ctx context.Context, appName string) ([]ImgInfo, error) {
 			Mach:  machine.Name,
 			Path:  imgPath,
 		}
-		imgs = append(imgs, img)
+		imgs[img] = Unit{}
 	}
 	return imgs, nil
 }

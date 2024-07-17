@@ -6,14 +6,21 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/spinner"
 	"github.com/superfly/flyctl/iostreams"
+)
+
+const (
+	concurrentScans = 5 // TODO: think about the right value here.
 )
 
 func newVulnSummary() *cobra.Command {
@@ -62,42 +69,16 @@ func runVulnSummary(ctx context.Context) error {
 		return err
 	}
 
-	// fetch all image scans.
-	// TODO: spinner for long running fetches.
-	ios := iostreams.FromContext(ctx)
-	imageScan := map[string]*Scan{}
-	token := ""
-	tokenAppID := ""
-	for _, img := range imgs {
-		if _, ok := imageScan[img.Path]; ok {
-			continue
-		}
-
-		if img.AppID != tokenAppID {
-			tokenAppID = img.AppID
-			token, err = makeScantronToken(ctx, img.OrgID, img.AppID)
-			if err != nil {
-				return err
-			}
-		}
-
-		scan, err := getVulnScan(ctx, img.Path, token)
-		if err != nil {
-			errUnsupportedPath := ErrUnsupportedPath("")
-			if errors.As(err, &errUnsupportedPath) {
-				fmt.Fprintf(ios.Out, "Skipping %s (%s) from unsupported repository: %s\n", img.App, img.Mach, img.Path)
-				continue
-			}
-			return fmt.Errorf("Getting vulnerability scan for %s (%s): %w", img.App, img.Mach, err)
-		}
-		imageScan[img.Path] = filterScan(scan, filter)
+	imageScan, err := fetchImageScans(ctx, imgs, filter)
+	if err != nil {
+		return err
 	}
 
 	// calculate findings tables
 	allVids := map[string]bool{}
 	vidsByApp := map[string]map[string]bool{}
 	appImgsScanned := map[string]bool{}
-	for _, img := range imgs {
+	for img, _ := range imgs {
 		scan := imageScan[img.Path]
 		if scan == nil {
 			continue
@@ -124,10 +105,11 @@ func runVulnSummary(ctx context.Context) error {
 	}
 
 	// Show what is being scanned.
+	ios := iostreams.FromContext(ctx)
 	lastOrg := ""
 	lastApp := ""
 	fmt.Fprintf(ios.Out, "Scanned images\n")
-	for _, img := range imgs {
+	for _, img := range SortedKeys(imgs) {
 		scan := imageScan[img.Path]
 		if img.Org != lastOrg {
 			fmt.Fprintf(ios.Out, "Org: %s\n", img.Org)
@@ -168,4 +150,64 @@ func runVulnSummary(ctx context.Context) error {
 	render.Table(ios.Out, "Vulnerabilities in Apps", rows, cols...)
 
 	return nil
+}
+
+// fetchImageScans returns a scan for each image path.
+func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFilter) (map[string]*Scan, error) {
+	// TODO: spinner for long running fetches.
+	ios := iostreams.FromContext(ctx)
+	spin := spinner.Run(ios, "Scanning...")
+	defer spin.Stop()
+
+	eg, ctx := errgroup.WithContext(ctx)
+	eg.SetLimit(concurrentScans)
+	mu := sync.Mutex{}
+	imageScan := make(map[string]*Scan)
+	skipped := make(map[ImgInfo]Unit)
+	for img, _ := range imgs {
+		img := img
+		mu.Lock()
+		_, ok := imageScan[img.Path]
+		if ok {
+			mu.Unlock()
+			continue
+		}
+		imageScan[img.Path] = nil
+		mu.Unlock()
+
+		eg.Go(func() error {
+			// TODO: fix me. dont make new token each time. make org-wide token.
+			token, err := makeScantronToken(ctx, img.OrgID, img.AppID)
+			if err != nil {
+				return err
+			}
+
+			scan, err := getVulnScan(ctx, img.Path, token)
+			if err != nil {
+				errUnsupportedPath := ErrUnsupportedPath("")
+				if errors.As(err, &errUnsupportedPath) {
+					mu.Lock()
+					skipped[img] = Unit{}
+					mu.Unlock()
+					return nil
+				}
+				return fmt.Errorf("Getting vulnerability scan for %s (%s): %w", img.App, img.Mach, err)
+			}
+
+			scan = filterScan(scan, filter)
+			mu.Lock()
+			imageScan[img.Path] = scan
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+	spin.Stop()
+
+	for _, img := range SortedKeys(skipped) {
+		fmt.Fprintf(ios.Out, "Skipping %s (%s) from unsupported repository: %s\n", img.App, img.Mach, img.Path)
+	}
+	return imageScan, nil
 }

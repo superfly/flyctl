@@ -16,7 +16,7 @@ var allowedSeverities = []string{"LOW", "MEDIUM", "HIGH", "CRITICAL"}
 
 type VulnFilter struct {
 	SeverityLevel int
-	VulnIds       []string
+	VulnIds       map[string]bool
 }
 
 func (p *VulnFilter) IsSpecified() bool {
@@ -31,7 +31,18 @@ func argsGetVulnFilter(ctx context.Context) (*VulnFilter, error) {
 	if flag.IsSpecified(ctx, "severity") && !lo.Contains(allowedSeverities, sev) {
 		return nil, fmt.Errorf("severity (%s) must be one of %v", sev, allowedSeverities)
 	}
-	return &VulnFilter{severityLevel(sev), vulnIds}, nil
+
+	f := &VulnFilter{
+		SeverityLevel: severityLevel(sev),
+	}
+
+	if len(vulnIds) > 0 {
+		f.VulnIds = make(map[string]bool)
+		for _, vulnId := range vulnIds {
+			f.VulnIds[vulnId] = true
+		}
+	}
+	return f, nil
 }
 
 // severityLevel converts an `allowedSeverity` into an integer,
@@ -47,8 +58,8 @@ func filterVuln(vuln *ScanVuln, filter *VulnFilter) bool {
 	if filter.SeverityLevel > severityLevel(vuln.Severity) {
 		return false
 	}
-	if len(filter.VulnIds) > 0 {
-		if !lo.Contains(filter.VulnIds, vuln.VulnerabilityID) {
+	if filter.VulnIds != nil {
+		if !filter.VulnIds[vuln.VulnerabilityID] {
 			return false
 		}
 	}
