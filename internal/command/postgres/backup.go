@@ -103,7 +103,7 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersion(appName, machines); err != nil {
+	if err := hasRequiredVersionForBackup(appName, machines); err != nil {
 		return err
 	}
 
@@ -223,7 +223,7 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err := hasRequiredVersion(appName, machines); err != nil {
+	if err := hasRequiredVersionForBackup(appName, machines); err != nil {
 		return err
 	}
 
@@ -302,7 +302,7 @@ func runBackupEnable(ctx context.Context) error {
 		return err
 	}
 
-	if err := hasRequiredVersion(appName, machines); err != nil {
+	if err := hasRequiredVersionForBackup(appName, machines); err != nil {
 		return err
 	}
 
@@ -385,7 +385,7 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	err = hasRequiredVersion(appName, machines)
+	err = hasRequiredVersionForBackup(appName, machines)
 	if err != nil {
 		return err
 	}
@@ -413,7 +413,11 @@ func resolveRestoreTarget(ctx context.Context) string {
 	return target
 }
 
-func hasRequiredVersion(appName string, machines []*fly.Machine) error {
+func hasRequiredVersionForBackup(appName string, machines []*fly.Machine) error {
+	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.53", "")
+}
+
+func hasRequiredVersionForBackupConfig(appName string, machines []*fly.Machine) error {
 	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.53", "")
 }
 
@@ -517,6 +521,27 @@ func runBackupConfigShow(ctx context.Context) error {
 		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
 	}
 
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize flaps client: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	// Ensure the the app has the required flex version.
+	if err := hasRequiredVersionForBackupConfig(appName, machines); err != nil {
+		return err
+	}
+
 	return ExecOnLeader(ctx, appName, "flexctl backup config show")
 }
 
@@ -524,6 +549,27 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
 	)
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize flaps client: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	// Ensure the the app has the required flex version.
+	if err := hasRequiredVersionForBackupConfig(appName, machines); err != nil {
+		return err
+	}
 
 	command := "flexctl backup config update"
 	enabled, err := isBackupEnabled(ctx, appName)
