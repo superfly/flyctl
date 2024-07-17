@@ -23,7 +23,7 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/."
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/launch/volume-storage/."
 		usage = "create <volume name>"
 	)
 
@@ -182,7 +182,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/reference/volumes/"
+	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/volumes/overview/"
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {

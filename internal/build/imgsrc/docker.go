@@ -16,6 +16,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
@@ -135,20 +136,25 @@ const (
 )
 
 func (t DockerDaemonType) String() string {
-	switch t {
-	case DockerDaemonTypeLocal:
-		return "local"
-	case DockerDaemonTypeRemote:
-		return "remote"
-	case DockerDaemonTypeNone:
-		return "none"
-	case DockerDaemonTypePrefersLocal:
-		return "prefers-local"
-	case DockerDaemonTypeNixpacks:
-		return "nix-packs"
-	default:
+	strs := []string{}
+
+	if t&DockerDaemonTypeLocal != 0 {
+		strs = append(strs, "local")
+	}
+	if t&DockerDaemonTypeRemote != 0 {
+		strs = append(strs, "remote")
+	}
+	if t&DockerDaemonTypePrefersLocal != 0 {
+		strs = append(strs, "prefers-local")
+	}
+	if t&DockerDaemonTypeNixpacks != 0 {
+		strs = append(strs, "nix-packs")
+	}
+	if len(strs) == 0 {
 		return "none"
 	}
+
+	return strings.Join(strs, ", ")
 }
 
 func (t DockerDaemonType) AllowLocal() bool {
@@ -601,14 +607,14 @@ func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping
 func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag string) error {
 	filters := filters.NewArgs(filters.Arg("reference", tag))
 
-	images, err := docker.ImageList(ctx, types.ImageListOptions{Filters: filters})
+	images, err := docker.ImageList(ctx, image.ListOptions{Filters: filters})
 	if err != nil {
 		return err
 	}
 
-	for _, image := range images {
-		for _, tag := range image.RepoTags {
-			_, err := docker.ImageRemove(ctx, tag, types.ImageRemoveOptions{PruneChildren: true})
+	for _, i := range images {
+		for _, tag := range i.RepoTags {
+			_, err := docker.ImageRemove(ctx, tag, image.RemoveOptions{PruneChildren: true})
 			if err != nil {
 				terminal.Debug("Error deleting image", err)
 			}

@@ -145,6 +145,11 @@ This module is used on Dockerfile to start the Gunicorn server process.
 		checksPass(sourceDir, dirContains("pyproject.toml", "daphne")) {
 		vars["hasDaphne"] = true
 	}
+	if checksPass(sourceDir, dirContains("requirements.txt", "boto")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "boto")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "boto")) {
+		s.ObjectStorageDesired = true
+	}
 
 	asgiFiles, err := zglob.Glob(`./**/asgi.py`)
 

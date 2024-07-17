@@ -26,6 +26,7 @@ func New() *cobra.Command {
 
 	cmd.AddCommand(
 		newAttach(),
+		newBackup(),
 		newConfig(),
 		newConnect(),
 		newCreate(),
@@ -45,7 +46,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standalone string) error {
+func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, cluster, flex, standalone string) error {
 	_, dev := os.LookupEnv("FLY_DEV")
 	if dev {
 		return nil
@@ -55,6 +56,10 @@ func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standa
 		// Validate image version to ensure it's compatible with this feature.
 		if machine.ImageVersion() == "" || machine.ImageVersion() == "unknown" {
 			return fmt.Errorf("command is not compatible with this image")
+		}
+
+		if machine.ImageVersion() == "custom" {
+			continue
 		}
 
 		imageVersionStr := machine.ImageVersion()[1:]
@@ -100,8 +105,8 @@ func hasRequiredVersionOnMachines(machines []*fly.Machine, cluster, flex, standa
 		if imageVersion.LessThan(requiredVersion) {
 			return fmt.Errorf(
 				"%s is running an incompatible image version. (Current: %s, Required: >= %s)\n"+
-					"Please run 'flyctl pg update' to update to the latest available version",
-				machine.ID, imageVersion, requiredVersion.String())
+					"Please run 'flyctl image update -a %s' to update to the latest available version",
+				machine.ID, imageVersion, requiredVersion.String(), appName)
 		}
 
 	}
