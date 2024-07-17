@@ -31,7 +31,7 @@ type machinePairing struct {
 	newMachine *fly.Machine
 }
 
-func (md *machineDeployment) appState(ctx context.Context) (*AppState, error) {
+func (md *machineDeployment) appState(ctx context.Context, existingAppState *AppState) (*AppState, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "app_state")
 	defer span.End()
 
@@ -39,6 +39,16 @@ func (md *machineDeployment) appState(ctx context.Context) (*AppState, error) {
 	if err != nil {
 		span.RecordError(err)
 		return nil, err
+	}
+
+	if existingAppState != nil {
+		for _, machine := range machines {
+			if existingMachine, ok := lo.Find(existingAppState.Machines, func(m *fly.Machine) bool {
+				return m.ID == machine.ID
+			}); ok {
+				machine.LeaseNonce = existingMachine.LeaseNonce
+			}
+		}
 	}
 
 	// TODO: could this be a list of machine id -> config?
@@ -162,7 +172,6 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		}
 
 		defer func() {
-			ctx := context.WithoutCancel(ctx)
 			err := md.releaseLeases(ctx, machineTuples, sl)
 			if err != nil {
 				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
@@ -180,7 +189,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 		}
 	}
 
-	pgroup, ctx := errgroup.WithContext(ctx)
+	pgroup := errgroup.Group{}
 	pgroup.SetLimit(rollingStrategyMaxConcurrentGroups)
 
 	// We want to update by process group
@@ -199,6 +208,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 	if updateErr := pgroup.Wait(); updateErr != nil {
 		var unrecoverableErr *unrecoverableError
 		if !settings.pushForward || errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
+			fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", updateErr)
 			span.RecordError(updateErr)
 			return updateErr
 		}
@@ -210,13 +220,15 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 			}()
 
 			if attempts > md.deployRetries {
+				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", updateErr)
+				span.RecordError(updateErr)
 				return updateErr
 			}
 
-			currentState, err := md.appState(ctx)
+			currentState, err := md.appState(ctx, oldAppState)
 			if err != nil {
 				span.RecordError(updateErr)
-				return err
+				return fmt.Errorf("failed to get current app state: %w", err)
 			}
 			err = md.updateMachines(ctx, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
@@ -230,7 +242,7 @@ func (md *machineDeployment) updateMachines(ctx context.Context, oldAppState, ne
 				span.RecordError(updateErr)
 				return err
 			} else {
-				if errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
+				if errors.As(err, &unrecoverableErr) {
 					span.RecordError(updateErr)
 					return err
 				}
@@ -335,6 +347,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 }
 
 func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []machinePairing, statusLogger statuslogger.StatusLogger) error {
+	ctx = context.WithoutCancel(ctx)
 	ctx, span := tracing.GetTracer().Start(ctx, "release_leases")
 	defer span.End()
 

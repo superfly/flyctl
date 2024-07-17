@@ -70,7 +70,7 @@ func TestAppState(t *testing.T) {
 	md := &machineDeployment{
 		flapsClient: flapsClient,
 	}
-	appState, error := md.appState(ctx)
+	appState, error := md.appState(ctx, nil)
 	assert.NoError(t, error)
 
 	assert.Equal(t, appState.Machines, machines)

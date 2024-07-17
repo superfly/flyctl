@@ -405,7 +405,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 
 	fmt.Fprintf(md.io.Out, "Updating existing machines in '%s' with %s strategy\n", md.colorize.Bold(md.app.Name), md.strategy)
 
-	oldAppState, err := md.appState(ctx)
+	oldAppState, err := md.appState(ctx, nil)
 	if err != nil {
 		return err
 	}
