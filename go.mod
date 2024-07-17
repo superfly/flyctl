@@ -29,7 +29,7 @@ require (
 	github.com/ejcx/sshcert v1.1.0
 	github.com/getsentry/sentry-go v0.28.1
 	github.com/go-logr/logr v1.4.2
-	github.com/gofrs/flock v0.8.1
+	github.com/gofrs/flock v0.12.0
 	github.com/google/go-cmp v0.6.0
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
