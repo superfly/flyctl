@@ -88,6 +88,10 @@ func New() *cobra.Command {
 
 	flyctl.InitConfig()
 
+	hidden := func(cmd *cobra.Command) *cobra.Command {
+		cmd.Hidden = true
+		return cmd
+	}
 	root.AddCommand(
 		group(apps.New(), "deploy"),
 		group(machine.New(), "deploy"),
@@ -116,7 +120,7 @@ func New() *cobra.Command {
 		group(ssh.New(), "upkeep"),
 		group(ssh.NewSFTP(), "upkeep"),
 		group(redis.New(), "dbs_and_extensions"),
-		group(registry.New(), "upkeep"),
+		hidden(registry.New()),
 		group(checks.New(), "upkeep"),
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),
