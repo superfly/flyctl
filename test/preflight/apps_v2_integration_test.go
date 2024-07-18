@@ -52,7 +52,7 @@ func TestAppsV2Example(t *testing.T) {
 	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
 	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
 	require.True(t, *firstMachine.Config.Services[0].Autostart)
-	require.True(t, *firstMachine.Config.Services[0].Autostop)
+	require.Equal(t, fly.MachineAutostopOff, *firstMachine.Config.Services[0].Autostop)
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
