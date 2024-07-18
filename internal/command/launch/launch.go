@@ -160,7 +160,7 @@ func (state *launchState) updateConfig(ctx context.Context) {
 			state.appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
-				AutoStopMachines:   fly.Pointer(true),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
 				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}
