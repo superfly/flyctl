@@ -154,7 +154,6 @@ func runVulnSummary(ctx context.Context) error {
 
 // fetchImageScans returns a scan for each image path.
 func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFilter) (map[string]*Scan, error) {
-	// TODO: spinner for long running fetches.
 	ios := iostreams.FromContext(ctx)
 	spin := spinner.Run(ios, "Scanning...")
 	defer spin.Stop()

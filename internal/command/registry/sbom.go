@@ -8,10 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -53,23 +51,12 @@ func newSbom() *cobra.Command {
 }
 
 func runSbom(ctx context.Context) error {
-	var (
-		ios       = iostreams.FromContext(ctx)
-		appName   = appconfig.NameFromContext(ctx)
-		apiClient = flyutil.ClientFromContext(ctx)
-	)
-
-	app, err := apiClient.GetAppCompact(ctx, appName)
-	if err != nil {
-		return fmt.Errorf("failed to get app: %w", err)
-	}
-
-	imgPath, err := argsGetImgPath(ctx, app)
+	imgPath, orgId, err := argsGetImgPath(ctx)
 	if err != nil {
 		return err
 	}
 
-	token, err := makeScantronToken(ctx, app.Organization.ID)
+	token, err := makeScantronToken(ctx, orgId)
 	if err != nil {
 		return err
 	}
@@ -84,6 +71,7 @@ func runSbom(ctx context.Context) error {
 		return fmt.Errorf("failed fetching SBOM (status code %d)", res.StatusCode)
 	}
 
+	ios := iostreams.FromContext(ctx)
 	if _, err := io.Copy(ios.Out, res.Body); err != nil {
 		return fmt.Errorf("failed to read SBOM: %w", err)
 	}

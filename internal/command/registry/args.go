@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	"github.com/samber/lo"
+	"golang.org/x/sync/errgroup"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -69,7 +71,29 @@ func SortedKeys(m map[ImgInfo]Unit) []ImgInfo {
 	return keys
 }
 
-// argsGetMachine returns the selected machine, using `select` and `machine`.
+// argsGetAppCompact returns the AppCompact for the selected app, using `app`.
+func argsGetAppCompact(ctx context.Context) (*fly.AppCompact, error) {
+	appName := appconfig.NameFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetAppCompact(ctx, appName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get app: %w", err)
+	}
+	return app, nil
+}
+
+func getFlapsClient(ctx context.Context, app *fly.AppCompact) (*flaps.Client, error) {
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)
+	}
+	return flapsClient, nil
+}
+
+// argsGetMachine returns the selected machine, using `app`, `select` and `machine`.
 func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
 	if flag.IsSpecified(ctx, "machine") {
 		if flag.IsSpecified(ctx, "select") {
@@ -86,12 +110,9 @@ func argsGetMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, err
 func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
 	anyMachine := !flag.GetBool(ctx, "select")
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
+	flapsClient, err := getFlapsClient(ctx, app)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)
+		return nil, err
 	}
 
 	machines, err := flapsClient.ListActive(ctx)
@@ -122,12 +143,9 @@ func argsSelectMachine(ctx context.Context, app *fly.AppCompact) (*fly.Machine, 
 
 // argsGetMachineByID returns an app's machine using the `machine` argument.
 func argsGetMachineByID(ctx context.Context, app *fly.AppCompact) (*fly.Machine, error) {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
-	})
+	flapsClient, err := getFlapsClient(ctx, app)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create flaps client for app %s: %w", app.Name, err)
+		return nil, err
 	}
 
 	machineID := flag.GetString(ctx, "machine")
@@ -139,22 +157,29 @@ func argsGetMachineByID(ctx context.Context, app *fly.AppCompact) (*fly.Machine,
 	return machine, nil
 }
 
-// argsGetImgPath returns an image path from the command line or from a
-// selected app machine, using `image`, `select`, and `machine`.
-func argsGetImgPath(ctx context.Context, app *fly.AppCompact) (string, error) {
+// argsGetImgPath returns an image path and its OrgID from the command line or from a
+// selected app machine, using `app`, `image`, `select`, and `machine`.
+func argsGetImgPath(ctx context.Context) (string, string, error) {
+	app, err := argsGetAppCompact(ctx)
+	if err != nil {
+		return "", "", err
+	}
+
 	if flag.IsSpecified(ctx, "image") {
 		if flag.IsSpecified(ctx, "machine") || flag.IsSpecified(ctx, "select") {
-			return "", fmt.Errorf("image option cannot be used with machien and select options")
+			return "", "", fmt.Errorf("image option cannot be used with machine and select options")
 		}
-		return flag.GetString(ctx, "image"), nil
+
+		path := flag.GetString(ctx, "image")
+		return path, app.Organization.ID, nil
 	}
 
 	machine, err := argsGetMachine(ctx, app)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	return imageRefPath(&machine.ImageRef), nil
+	return imageRefPath(&machine.ImageRef), app.Organization.ID, nil
 }
 
 // argsGetImages returns a list of images in ImgInfo format from
@@ -188,17 +213,30 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 		return nil, err
 	}
 
+	eg, ctx := errgroup.WithContext(ctx)
+	eg.SetLimit(concurrentScans)
+	mu := sync.Mutex{}
 	allImgs := make(map[ImgInfo]Unit)
 	for n := range apps {
-		app := &apps[n]
-		imgs, err := argsGetAppImages(ctx, app.Name)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
-		}
-		AugmentMap(allImgs, imgs)
-	}
-	return allImgs, nil
+		n := n
+		eg.Go(func() error {
+			app := &apps[n]
+			imgs, err := argsGetAppImages(ctx, app.Name)
+			if err != nil {
+				return fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
+			}
 
+			mu.Lock()
+			AugmentMap(allImgs, imgs)
+			mu.Unlock()
+			return nil
+		})
+	}
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	return allImgs, nil
 }
 
 // argsGetAppImages returns a list of images for an app in ImgInfo format
