@@ -2,8 +2,14 @@ package deploy
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/fs"
+	"mime"
+	"net/http"
+	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -14,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
@@ -21,9 +29,34 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	extensions "github.com/superfly/flyctl/internal/command/extensions/core"
+	flyconfig "github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/macaroon/flyio"
+	"github.com/superfly/macaroon/resset"
+	"golang.org/x/crypto/nacl/box"
+)
+
+// TODO(allison): Replace this with the real tokenizer URL.
+const (
+	tigrisHostname = "fly.storage.tigris.dev"
+	// This URL is intentionally HTTP. We're funneling through tokenizer over HTTPS because:
+	//  1. This connection can not be HTTPS, because we're injecting authentication headers into the requests
+	//  2. This connection is still secure, because the connection *to* tokenizer is over HTTPS, and tokenizer
+	//     will forward requests upstream with HTTPS.
+	tigrisUrl = "http://" + tigrisHostname
+
+	tokenizerHostname = "ali-tokenizer.fly.dev"
+	tokenizerUrl      = "http://" + tokenizerHostname
+	// tokenizerHostname = "tokenizer.fly.io"
+	// tokenizerUrl      = "https://" + tokenizerHostname
+)
+
+// TODO(allison): Make this key NOT hard-coded
+const (
+	tokenizerKey = "6938518f3ea1ef2c8ed19459df943571dfb2d2bb330ed0b93ffa71c25b272c7d"
 )
 
 // TODO(allison): Delete the statics bucket when the app is deleted.
@@ -50,16 +83,28 @@ func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
 
 func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) error {
 
-	client := flyutil.ClientFromContext(ctx).GenqClient()
+	client := flyutil.ClientFromContext(ctx)
+	gqlClient := client.GenqClient()
 
-	response, err := gql.ListAddOns(ctx, client, "tigris")
+	response, err := gql.ListAddOns(ctx, gqlClient, "tigris")
 	if err != nil {
 		return err
 	}
 
 	for _, extension := range response.AddOns.Nodes {
 		if extension.Name == md.tigrisStatics.bucket {
-			return nil
+			if extension.Organization.Slug == md.app.Organization.Slug {
+				return nil
+			} else {
+				// TODO(allison): This is pretty gross, and it takes a *while* for a deleted tigris bucket's name to become
+				//                available again. Maybe we need another solution, such as storing the bucket name in the app's metadata.
+				return flyerr.GenericErr{
+					Err:      fmt.Sprintf("tigris bucket '%s' already exists in another organization", md.tigrisStatics.bucket),
+					Descript: "",
+					Suggest:  fmt.Sprintf("try deleting this tigris bucket (`fly storage destroy %s`), waiting a few moments, then attempt to deploy again", md.tigrisStatics.bucket),
+					DocUrl:   "",
+				}
+			}
 		}
 	}
 
@@ -82,8 +127,100 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 	params.Options["accelerate"] = false
 	params.Options["public"] = false
 
-	_, err = extensions.ProvisionExtension(ctx, params)
+	ext, err := extensions.ProvisionExtension(ctx, params)
+	if err != nil {
+		return err
+	}
+
+	secrets := ext.Data.Environment.(map[string]interface{})
+
+	tokenizedKey, err := md.staticsTokenizeTigrisSecrets(ctx, org, secrets)
+
+	// TODO(allison): Temporary, while working on the POC for Tokenizer
+	return os.WriteFile("tokenized_key", ([]byte)(tokenizedKey), 0644)
+
 	return err
+}
+
+func (md *machineDeployment) staticsTokenizeTigrisSecrets(ctx context.Context, org *fly.Organization, secrets map[string]interface{}) (string, error) {
+
+	client := flyutil.ClientFromContext(ctx)
+
+	orgId, err := strconv.ParseUint(org.InternalNumericID, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("failed to decode org ID for %s: %w", org.Slug, err)
+	}
+
+	// TODO(allison): We should just pass the whole app to deploy instead of re-grabbing it here
+	app, err := client.GetApp(ctx, md.app.Name)
+	if err != nil {
+		return "", err
+	}
+	appId := uint64(app.InternalNumericID)
+
+	type sigv4Processor struct {
+		AccessKey string `json:"access_key"`
+		SecretKey string `json:"secret_key"`
+	}
+	type flyioMacaroonAuthConfig struct {
+		Access flyio.Access `json:"access"`
+	}
+	type tokenizeInput struct {
+		Sigv4Processor          sigv4Processor          `json:"sigv4_processor"`
+		FlyioMacaroonAuthConfig flyioMacaroonAuthConfig `json:"flyio_macaroon_auth"`
+		AllowedHosts            []string                `json:"allowed_hosts"`
+	}
+
+	// TODO(allison): How do we handle moving an app between orgs?
+	//                We're locking this token behind a hard dependency on the App ID and Org ID, but I don't believe
+	//                *either* of these stay static when moving from one org to another.
+	//
+	input := tokenizeInput{
+		Sigv4Processor: sigv4Processor{
+			AccessKey: secrets["AWS_ACCESS_KEY_ID"].(string),
+			SecretKey: secrets["AWS_SECRET_ACCESS_KEY"].(string),
+		},
+		FlyioMacaroonAuthConfig: flyioMacaroonAuthConfig{
+			Access: flyio.Access{
+				Action: resset.ActionWrite,
+				OrgID:  &orgId,
+				AppID:  &appId,
+			},
+		},
+		AllowedHosts: []string{tigrisHostname},
+	}
+
+	inputJson, err := json.Marshal(input)
+	if err != nil {
+		return "", err
+	}
+
+	pubBytes, err := hex.DecodeString(tokenizerKey)
+	if err != nil {
+		return "", err
+	}
+	if len(pubBytes) != 32 {
+		return "", fmt.Errorf("bad public key size: %d", len(pubBytes))
+	}
+
+	sct, err := box.SealAnonymous(nil, inputJson, (*[32]byte)(pubBytes), nil)
+	if err != nil {
+		return "", err
+	}
+
+	return base64.StdEncoding.EncodeToString(sct), nil
+}
+
+type headerInjectTransport struct {
+	transport http.RoundTripper
+	token     string
+	macaroon  string
+}
+
+func (t *headerInjectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.Header.Add("Proxy-Tokenizer", t.token)
+	req.Header.Add("Proxy-Authorization", t.macaroon)
+	return t.transport.RoundTrip(req)
 }
 
 // Create the tigris bucket if not created.
@@ -108,8 +245,41 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 		return !staticIsCandidateForTigrisPush(static)
 	})
 
-	// TODO: Initialize the s3 client
-	// md.tigrisStatics =
+	// TODO(allison): Temporary, while working on the POC for Tokenizer
+	encryptedToken, err := os.ReadFile("tokenized_key")
+	if err != nil {
+		return err
+	}
+
+	s3Config, err := awsconfig.LoadDefaultConfig(ctx,
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy-access-key", "dummy-secret-key", "")),
+		awsconfig.WithRegion("auto"),
+	)
+	if err != nil {
+		return err
+	}
+	s3Config.BaseEndpoint = fly.Pointer(tigrisUrl)
+
+	parsedProxyUrl, err := url.Parse(tokenizerUrl)
+	if err != nil {
+		// Should be impossible, this is not runtime-controlled and issues would be caught before release.
+		return fmt.Errorf("could not parse tokenizer URL: %w", err)
+	}
+	s3HttpTransport := http.DefaultTransport.(*http.Transport).Clone()
+	s3HttpTransport.Proxy = http.ProxyURL(parsedProxyUrl)
+
+	cfg := flyconfig.FromContext(ctx)
+	userAuthHeader := cfg.Tokens.GraphQLHeader()
+
+	s3HttpClient := &http.Client{Transport: &headerInjectTransport{
+		transport: s3HttpTransport,
+		token:     string(encryptedToken),
+		macaroon:  userAuthHeader,
+	}}
+
+	s3Config.HTTPClient = s3HttpClient
+
+	md.tigrisStatics.s3 = s3.NewFromConfig(s3Config)
 
 	md.tigrisStatics.root = fmt.Sprintf("fly-statics/%s/%d", md.appConfig.AppName, md.releaseVersion)
 	return nil
@@ -338,7 +508,7 @@ func (md *machineDeployment) staticsPush(ctx context.Context) (err error) {
 		if !staticIsCandidateForTigrisPush(static) {
 			continue
 		}
-		dest := fmt.Sprintf("%s/%d", md.tigrisStatics.root, staticNum)
+		dest := fmt.Sprintf("%s/%d/", md.tigrisStatics.root, staticNum)
 		staticNum += 1
 
 		err = md.tigrisStatics.uploadDirectory(ctx, dest, path.Clean(static.GuestPath))
@@ -350,7 +520,7 @@ func (md *machineDeployment) staticsPush(ctx context.Context) (err error) {
 		//                This is a temporary workaround to get something demoable.
 
 		md.appConfig.Statics = append(md.appConfig.Statics, appconfig.Static{
-			GuestPath:     dest,
+			GuestPath:     "/" + dest,
 			UrlPrefix:     static.UrlPrefix,
 			TigrisBucket:  md.tigrisStatics.bucket,
 			IndexDocument: static.IndexDocument,
