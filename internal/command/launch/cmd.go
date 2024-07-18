@@ -157,7 +157,7 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 	if into == "" {
 		into = "."
 	} else {
-		err := os.MkdirAll(into, 0755)
+		err := os.MkdirAll(into, 0755) // skipcq: GSC-G301
 		if err != nil {
 			return ctx, fmt.Errorf("failed to create directory: %w", err)
 		}
