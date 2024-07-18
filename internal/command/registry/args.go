@@ -279,8 +279,8 @@ func argsGetOrgAppImages(ctx context.Context, orgName, orgId, appName string) (m
 			Org:   orgName,
 			OrgID: orgId,
 			App:   appName,
-			Mach: machine.Name,
-			Path: imgPath,
+			Mach:  machine.Name,
+			Path:  imgPath,
 		}
 		imgs[img] = Unit{}
 	}
