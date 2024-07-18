@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	fly "github.com/superfly/fly-go"
@@ -101,7 +102,14 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 		if res.StatusCode == 422 {
 			return nil, ErrUnsupportedPath(imgPath)
 		}
-		return nil, fmt.Errorf("fetching scan results, status code %d", res.StatusCode)
+
+		buf := make([]byte, 512)
+		n, _ := res.Body.Read(buf)
+		msg := strings.TrimSuffix(string(buf[:n]), "\n")
+		if msg == "" {
+			msg = "undetermined"
+		}
+		return nil, fmt.Errorf("status code %d: %q", res.StatusCode, msg)
 	}
 
 	scan := &Scan{}

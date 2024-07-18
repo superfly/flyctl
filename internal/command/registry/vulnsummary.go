@@ -179,7 +179,7 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 	eg.SetLimit(concurrentScans)
 	mu := sync.Mutex{}
 	imageScan := make(map[string]*Scan)
-	skipped := make(map[ImgInfo]Unit)
+	skipped := make(map[ImgInfo]string)
 	for img := range imgs {
 		img := img
 		mu.Lock()
@@ -196,13 +196,16 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 			scan, err := getVulnScan(ctx, img.Path, token)
 			if err != nil {
 				errUnsupportedPath := ErrUnsupportedPath("")
+				var msg string
 				if errors.As(err, &errUnsupportedPath) {
-					mu.Lock()
-					skipped[img] = Unit{}
-					mu.Unlock()
-					return nil
+					msg = "from unsupported repository"
+				} else {
+					msg = fmt.Sprintf("error getting scan: %v", err)
 				}
-				return fmt.Errorf("Getting vulnerability scan for %s (%s): %w", img.App, img.Mach, err)
+				mu.Lock()
+				skipped[img] = msg
+				mu.Unlock()
+				return nil
 			}
 
 			scan = filterScan(scan, filter)
@@ -217,8 +220,8 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 	}
 	spin.Stop()
 
-	for _, img := range SortedKeys(skipped) {
-		fmt.Fprintf(ios.Out, "Skipping %s (%s) from unsupported repository: %s\n", img.App, img.Mach, img.Path)
+	for img, msg := range skipped {
+		fmt.Fprintf(ios.Out, "Skipping %s (%s) %s\n", img.App, img.Mach, msg)
 	}
 	return imageScan, nil
 }
