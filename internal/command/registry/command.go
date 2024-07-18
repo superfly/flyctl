@@ -13,6 +13,7 @@ func New() *cobra.Command {
 		long  = "Scan registry images for an SBOM or vulnerabilities."
 	)
 	cmd := command.New(usage, short, long, nil)
+	cmd.Hidden = true
 
 	cmd.AddCommand(
 		newSbom(),
