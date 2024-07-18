@@ -101,8 +101,9 @@ func listen(ctx context.Context, ws *SyntheticsWs) error {
 }
 
 type ProbeMessage struct {
-	Module string `json:"module"`
-	Target string `json:"target"`
+	Module     string `json:"module"`
+	Target     string `json:"target"`
+	IPProtocol string `json:"ip_protocol"`
 }
 
 func processProbe(ctx context.Context, jsonMessage []byte, ws *SyntheticsWs) error {
@@ -126,7 +127,9 @@ func processProbe(ctx context.Context, jsonMessage []byte, ws *SyntheticsWs) err
 	})
 
 	module := config.Module{}
-	module.HTTP.IPProtocol = "ipv4"
+	module.HTTP = config.DefaultHTTPProbe
+
+	module.HTTP.IPProtocol = probeMessage.IPProtocol
 
 	var logBuf bytes.Buffer
 	sl := log.NewLogfmtLogger(log.NewSyncWriter(&logBuf))
