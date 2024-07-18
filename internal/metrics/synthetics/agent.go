@@ -3,7 +3,6 @@ package synthetics
 import (
 	"bytes"
 	"context"
-	"encoding/gob"
 	"encoding/json"
 	"os"
 	"time"
@@ -155,7 +154,7 @@ func processProbe(ctx context.Context, jsonMessage []byte, ws *SyntheticsWs) err
 	}
 
 	var buf bytes.Buffer
-	encoder := gob.NewEncoder(&buf)
+	encoder := json.NewEncoder(&buf)
 	err = encoder.Encode(mfs)
 	if err != nil {
 		return err
@@ -167,7 +166,7 @@ func processProbe(ctx context.Context, jsonMessage []byte, ws *SyntheticsWs) err
 	c := ws.wsConn
 	ws.lock.RUnlock()
 
-	err = c.Write(ctx, websocket.MessageBinary, data)
+	err = c.Write(ctx, websocket.MessageText, data)
 	if err != nil {
 		logger.Error("write error: ", err)
 		ws.resetConn(c, err)
