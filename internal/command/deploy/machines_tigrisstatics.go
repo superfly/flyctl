@@ -63,8 +63,13 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 		}
 	}
 
+	org, err := client.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
+	if err != nil {
+		return err
+	}
+
 	params := extensions.ExtensionParams{
-		AppName:              md.appConfig.AppName,
+		Organization:         org,
 		Provider:             "tigris",
 		Options:              gql.AddOnOptions{},
 		ErrorCaptureCallback: nil,
