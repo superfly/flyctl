@@ -21,9 +21,12 @@ import (
 func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps.Client, error) {
 	// Connect over wireguard depending on FLAPS URL.
 	if strings.TrimSpace(strings.ToLower(os.Getenv("FLY_FLAPS_BASE_URL"))) == "peer" {
-		orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
+		if opts.OrgSlug == "" {
+			orgSlug, err := resolveOrgSlugForApp(ctx, opts.AppCompact, opts.AppName)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve org for app '%s': %w", opts.AppName, err)
+			}
+			opts.OrgSlug = orgSlug
 		}
 
 		client := flyutil.ClientFromContext(ctx)
@@ -32,12 +35,11 @@ func NewClientWithOptions(ctx context.Context, opts flaps.NewClientOpts) (*flaps
 			return nil, fmt.Errorf("error establishing agent: %w", err)
 		}
 
-		dialer, err := agentclient.Dialer(ctx, orgSlug, "")
+		dialer, err := agentclient.Dialer(ctx, opts.OrgSlug, "")
 		if err != nil {
-			return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", orgSlug, err)
+			return nil, fmt.Errorf("flaps: can't build tunnel for %s: %w", opts.OrgSlug, err)
 		}
 		opts.DialContext = dialer.DialContext
-		opts.OrgSlug = orgSlug
 
 		flapsBaseUrlString := fmt.Sprintf("http://[%s]:4280", resolvePeerIP(dialer.State().Peer.Peerip))
 		if opts.BaseURL, err = url.Parse(flapsBaseUrlString); err != nil {
