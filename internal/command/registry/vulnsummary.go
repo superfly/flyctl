@@ -82,7 +82,7 @@ func runVulnSummary(ctx context.Context) error {
 	allVids := map[string]bool{}
 	vidsByApp := map[string]map[string]bool{}
 	appImgsScanned := map[AppPath]bool{}
-	for img, _ := range imgs {
+	for img := range imgs {
 		scan := imageScan[img.Path]
 		if scan == nil {
 			continue
@@ -164,7 +164,7 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 
 	// Make all org tokens. Right now there will only be one.
 	orgToken := make(map[string]string)
-	for img, _ := range imgs {
+	for img := range imgs {
 		if _, ok := orgToken[img.OrgID]; ok {
 			continue
 		}
@@ -180,7 +180,7 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 	mu := sync.Mutex{}
 	imageScan := make(map[string]*Scan)
 	skipped := make(map[ImgInfo]Unit)
-	for img, _ := range imgs {
+	for img := range imgs {
 		img := img
 		mu.Lock()
 		_, ok := imageScan[img.Path]
