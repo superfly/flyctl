@@ -17,7 +17,7 @@ import (
 func newVulns() *cobra.Command {
 	const (
 		usage = "vulns <vulnid> ... [flags]"
-		short = "Report possible vulnerabilities in a registry image"
+		short = "Report possible vulnerabilities in a registry image [experimental]"
 		long  = "Report possible vulnerabilities in a registry image in JSON or text.\n" +
 			"The image is selected by name, or the image of the app's first machine\n" +
 			"is used unless interactive machine selection or machine ID is specified\n" +

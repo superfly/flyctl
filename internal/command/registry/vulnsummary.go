@@ -26,7 +26,7 @@ const (
 func newVulnSummary() *cobra.Command {
 	const (
 		usage = "vulnsummary <vulnid> ... [flags]"
-		short = "Show a summary of possible vulnerabilities in registry images"
+		short = "Show a summary of possible vulnerabilities in registry images [experimental]"
 		long  = "Summarize possible vulnerabilities in registry images in an org, by app.\n" +
 			"Limit scanning to a single app if specified. Limit scanning to images\n" +
 			"used by running machines if specified. Limit reporting to\n" +

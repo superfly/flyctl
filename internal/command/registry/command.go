@@ -9,8 +9,9 @@ import (
 func New() *cobra.Command {
 	const (
 		usage = "registry"
-		short = "Operate on registry images"
-		long  = "Scan registry images for an SBOM or vulnerabilities."
+		short = "Operate on registry images [experimental]"
+		long  = "Scan registry images for an SBOM or vulnerabilities. These commands\n" +
+			"are experimental and subject to change."
 	)
 	cmd := command.New(usage, short, long, nil)
 	cmd.Hidden = true
