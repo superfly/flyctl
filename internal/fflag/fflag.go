@@ -23,12 +23,14 @@ type FeatureFlagClient struct {
 	flagsMutex sync.Mutex
 }
 
+type featureFlagClientContextKey struct{}
+
 func NewContextWithClient(ctx context.Context, ffClient *FeatureFlagClient) context.Context {
-	return context.WithValue(ctx, "featureFlagClient", ffClient)
+	return context.WithValue(ctx, featureFlagClientContextKey{}, ffClient)
 }
 
 func ClientFromContext(ctx context.Context) *FeatureFlagClient {
-	client := ctx.Value("featureFlagClient")
+	client := ctx.Value(featureFlagClientContextKey{})
 	if client == nil {
 		return nil
 	}
@@ -41,7 +43,7 @@ type UserInfo struct {
 }
 
 func NewClient(ctx context.Context, userInfo UserInfo) (*FeatureFlagClient, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "new_feature_flag_client")
+	_, span := tracing.GetTracer().Start(ctx, "new_feature_flag_client")
 	defer span.End()
 
 	orgID, err := strconv.Atoi(userInfo.OrganizationID)
