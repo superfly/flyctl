@@ -61,7 +61,7 @@ func AugmentMap[K comparable, V any](targ, src map[K]V) {
 
 // SortedKeys returns the keys in a map in sorted order.
 // Could be made generic.
-func SortedKeys(m map[ImgInfo]Unit) []ImgInfo {
+func SortedKeys[V any](m map[ImgInfo]V) []ImgInfo {
 	keys := lo.Keys(m)
 	slices.SortFunc(keys, func(a, b ImgInfo) int { return a.Compare(b) })
 	return keys

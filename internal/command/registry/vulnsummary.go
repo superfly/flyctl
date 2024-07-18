@@ -220,7 +220,8 @@ func fetchImageScans(ctx context.Context, imgs map[ImgInfo]Unit, filter *VulnFil
 	}
 	spin.Stop()
 
-	for img, msg := range skipped {
+	for _, img := range SortedKeys(skipped) {
+		msg := skipped[img]
 		fmt.Fprintf(ios.Out, "Skipping %s (%s) %s\n", img.App, img.Mach, msg)
 	}
 	return imageScan, nil
