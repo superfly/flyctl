@@ -76,6 +76,10 @@ func New() (cmd *cobra.Command) {
 			Name:        "from",
 			Description: "A github repo URL to use as a template for the new app",
 		},
+		flag.String{
+			Name:        "into",
+			Description: "Destination directory for github repo specified with --from",
+		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -149,7 +153,17 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 		return ctx, nil
 	}
 
-	entries, err := os.ReadDir(".")
+	into := flag.GetString(ctx, "into")
+	if into == "" {
+		into = "."
+	} else {
+		err := os.MkdirAll(into, 0755)
+		if err != nil {
+			return ctx, fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	entries, err := os.ReadDir(into)
 	if err != nil {
 		return ctx, fmt.Errorf("failed to read directory: %w", err)
 	}
@@ -159,12 +173,19 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", "--recurse-submodules", from, ".")
+	cmd := exec.Command("git", "clone", "--recurse-submodules", from, into)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return ctx, err
+	}
+
+	if into != "." {
+		err := os.Chdir(into)
+		if err != nil {
+			return ctx, fmt.Errorf("failed to change directory: %w", err)
+		}
 	}
 
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
