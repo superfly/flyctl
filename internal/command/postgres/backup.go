@@ -418,7 +418,7 @@ func hasRequiredVersionForBackup(appName string, machines []*fly.Machine) error 
 }
 
 func hasRequiredVersionForBackupConfig(appName string, machines []*fly.Machine) error {
-	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.53", "")
+	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.54", "")
 }
 
 func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
