@@ -25,7 +25,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	want := []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 81,
-		Autostop:     fly.Pointer(true),
+		Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		Ports: []fly.MachinePort{{
 			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
@@ -40,7 +40,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Protocol:     "tcp",
 		InternalPort: 81,
 		Autostart:    fly.Pointer(true),
-		Autostop:     fly.Pointer(true),
+		Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		Ports: []fly.MachinePort{{
 			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
@@ -55,7 +55,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Protocol:     "tcp",
 		InternalPort: 81,
 		Autostart:    fly.Pointer(false),
-		Autostop:     fly.Pointer(false),
+		Autostop:     fly.Pointer(fly.MachineAutostopOff),
 		Ports: []fly.MachinePort{{
 			Port:       fly.Pointer(80),
 			ForceHTTPS: false,

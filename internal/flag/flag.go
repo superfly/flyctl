@@ -92,6 +92,7 @@ type String struct {
 	Shorthand    string
 	Description  string
 	Default      string
+	NoOptDefVal  string
 	ConfName     string
 	EnvName      string
 	Hidden       bool
@@ -110,6 +111,9 @@ func (s String) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(s.Name)
 	f.Hidden = s.Hidden
+	if s.NoOptDefVal != "" {
+		f.NoOptDefVal = s.NoOptDefVal
+	}
 
 	// Aliases
 	for _, name := range s.Aliases {
