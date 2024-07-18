@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/fflag"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -275,11 +276,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
-	err = DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
+	err = DeployWithConfig(ctx, appConfig, 0, flag.GetYes(ctx))
 	return err
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID int, forceYes bool) (err error) {
 	span := trace.SpanFromContext(ctx)
 
 	io := iostreams.FromContext(ctx)
@@ -288,6 +289,18 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
+	}
+
+	// Start the feature flag client, if we haven't already
+	if fflag.ClientFromContext(ctx) == nil {
+		ffClient, err := fflag.NewClient(ctx, fflag.UserInfo{
+			OrganizationID: appCompact.Organization.InternalNumericID,
+			UserID:         userID,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create feature flag client: %w", err)
+		}
+		ctx = fflag.NewContextWithClient(ctx, ffClient)
 	}
 
 	for env := range appConfig.Env {
