@@ -201,12 +201,12 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 	client := flyutil.ClientFromContext(ctx)
 	org, err := client.GetOrganizationBySlug(ctx, orgName)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get org %q: %w", orgName, err)
 	}
 
 	apps, err := client.GetAppsForOrganization(ctx, org.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to list apps for %q: %w", orgName, err)
 	}
 
 	eg, ctx := errgroup.WithContext(ctx)
@@ -219,7 +219,7 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 			app := &apps[n]
 			imgs, err := argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)
 			if err != nil {
-				return fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
+				return fmt.Errorf("failed to fetch images for %q app: %w", app.Name, err)
 			}
 
 			mu.Lock()
