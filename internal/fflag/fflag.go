@@ -46,8 +46,7 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*FeatureFlagClient, erro
 
 	orgID, err := strconv.Atoi(userInfo.OrganizationID)
 	if err != nil {
-		span.RecordError(err)
-		return nil, err
+		orgID = 0
 	}
 
 	orgContext := ldcontext.NewBuilder("flyctl").Anonymous(true).SetInt("id", orgID).Kind(ldcontext.Kind("organization")).Build()
