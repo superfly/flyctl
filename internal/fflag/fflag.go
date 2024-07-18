@@ -61,6 +61,10 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*FeatureFlagClient, erro
 
 	go func() {
 		for {
+			if ffClient == nil {
+				return
+			}
+
 			flags, err := ffClient.updateFeatureFlags()
 			if err != nil {
 				return
