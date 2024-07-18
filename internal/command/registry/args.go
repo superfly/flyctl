@@ -29,7 +29,6 @@ type ImgInfo struct {
 	Org   string
 	OrgID string
 	App   string
-	AppID string
 	Mach  string
 	Path  string
 }
@@ -42,9 +41,6 @@ func (a ImgInfo) Compare(b ImgInfo) int {
 		return d
 	}
 	if d := strings.Compare(a.App, b.App); d != 0 {
-		return d
-	}
-	if d := strings.Compare(a.AppID, b.AppID); d != 0 {
 		return d
 	}
 	if d := strings.Compare(a.Mach, b.Mach); d != 0 {
@@ -221,7 +217,7 @@ func argsGetOrgImages(ctx context.Context, orgName string) (map[ImgInfo]Unit, er
 		n := n
 		eg.Go(func() error {
 			app := &apps[n]
-			imgs, err := argsGetAppImages(ctx, app.Name)
+			imgs, err := argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)
 			if err != nil {
 				return fmt.Errorf("could not fetch images for %q app: %w", app.Name, err)
 			}
@@ -248,15 +244,20 @@ func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, er
 		return nil, fmt.Errorf("failed to get app %q: %w", appName, err)
 	}
 
+	org := app.Organization
+	return argsGetOrgAppImages(ctx, org.Name, org.ID, app.Name)
+}
+
+// argsGetOrgAppImages returns a list of images for an org/app in ImgInfo format
+// from `running`.
+func argsGetOrgAppImages(ctx context.Context, orgName, orgId, appName string) (map[ImgInfo]Unit, error) {
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppCompact: app,
-		AppName:    app.Name,
+		OrgSlug: orgId,
+		AppName: appName,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create flaps client for %q: %w", appName, err)
 	}
-	org := app.Organization
-	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
@@ -275,12 +276,11 @@ func argsGetAppImages(ctx context.Context, appName string) (map[ImgInfo]Unit, er
 		imgPath := fmt.Sprintf("%s/%s@%s", ir.Registry, ir.Repository, ir.Digest)
 
 		img := ImgInfo{
-			Org:   org.Name,
-			OrgID: org.ID,
-			App:   app.Name,
-			AppID: app.ID,
-			Mach:  machine.Name,
-			Path:  imgPath,
+			Org:   orgName,
+			OrgID: orgId,
+			App:   appName,
+			Mach: machine.Name,
+			Path: imgPath,
 		}
 		imgs[img] = Unit{}
 	}

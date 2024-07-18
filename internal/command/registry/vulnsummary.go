@@ -75,16 +75,20 @@ func runVulnSummary(ctx context.Context) error {
 	}
 
 	// calculate findings tables
+	type AppPath struct {
+		App  string
+		Path string
+	}
 	allVids := map[string]bool{}
 	vidsByApp := map[string]map[string]bool{}
-	appImgsScanned := map[string]bool{}
+	appImgsScanned := map[AppPath]bool{}
 	for img, _ := range imgs {
 		scan := imageScan[img.Path]
 		if scan == nil {
 			continue
 		}
 
-		k := fmt.Sprintf("%s/%s", img.AppID, img.Path)
+		k := AppPath{img.App, img.Path}
 		if _, ok := appImgsScanned[k]; ok {
 			continue
 		}
