@@ -26,6 +26,8 @@ import (
 	"github.com/superfly/flyctl/terminal"
 )
 
+// TODO(allison): Delete the statics bucket when the app is deleted.
+
 const staticsKeepVersions = 3
 
 type tigrisStaticsData struct {
@@ -256,6 +258,12 @@ func (client *tigrisStaticsData) deleteDirectory(ctx context.Context, dir string
 }
 
 func (client *tigrisStaticsData) deleteOldStatics(ctx context.Context, appName string) error {
+
+	// TODO(allison): Note the current deployment version, and remove all versions except for current
+	//                if there are any versions newer than the current deployment.
+	//                Without this, deleting an app then recreating it would prevent uploading
+	//                statics to the new app.
+
 	// List directories in the app's directory.
 	// Delete all versions except for the three latest versions.
 
