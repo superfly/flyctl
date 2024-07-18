@@ -216,13 +216,10 @@ func ExecOnMachine(ctx context.Context, appName, machineId, command string) erro
 		return err
 	}
 
-	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
-	}
-
 	if out.StdOut != "" {
 		fmt.Fprint(io.Out, out.StdOut)
 	}
+
 	if out.StdErr != "" {
 		fmt.Fprint(io.ErrOut, out.StdErr)
 	}
