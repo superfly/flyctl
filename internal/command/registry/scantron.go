@@ -10,9 +10,6 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/macaroon"
-	"github.com/superfly/macaroon/flyio"
-	"github.com/superfly/macaroon/resset"
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
@@ -118,24 +115,11 @@ func getVulnScan(ctx context.Context, imgPath, token string) (*Scan, error) {
 }
 
 func makeScantronToken(ctx context.Context, orgId string) (string, error) {
-	resp, err := makeToken(ctx, scantronTokenName, orgId, scantronTokenLife, "read_organization_apps", &gql.LimitedAccessTokenOptions{})
+	resp, err := makeToken(ctx, scantronTokenName, orgId, scantronTokenLife, "registry_token", &gql.LimitedAccessTokenOptions{})
 	if err != nil {
 		return "", err
 	}
 
 	token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-	token, err = attenuateTokens(token,
-		&resset.IfPresent{
-			Ifs: macaroon.NewCaveatSet(
-				&flyio.FeatureSet{Features: resset.New[string](resset.ActionRead, orgFeatureBuilder)},
-				&flyio.AppFeatureSet{Features: resset.New[string](resset.ActionRead, appFeatureImages)},
-			),
-			Else: resset.ActionNone,
-		},
-	)
-	if err != nil {
-		return "", err
-	}
-
 	return token, nil
 }
