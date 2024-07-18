@@ -3,6 +3,7 @@
 require 'json'
 require 'time'
 require 'open3'
+require 'uri'
 
 LOG_PREFIX = ENV["LOG_PREFIX"]
 
@@ -132,18 +133,46 @@ if (git_repo = ENV["GIT_REPO"]) && !!git_repo
       `git config --global init.defaultBranch main`
       ref = ENV["GIT_REF"]
       artifact :git_info, { repository: git_repo, reference: ref }
+      
       exec_capture("git init")
-      exec_capture("git remote add origin #{git_repo}")
+      
+      git_repo_url = begin
+        URI(git_repo)
+      rescue StandardError => e
+        event :error, { type: :invalid_git_repo_url, message: e }
+        exit 1
+      end
+
+      if (user = ENV["GIT_URL_USER"]) && !!user
+        git_repo_url.user = user
+      end
+
+      if (password = ENV["GIT_URL_PASSWORD"]) && !!password
+        git_repo_url.password = password
+      end
+
+      exec_capture("git remote add origin #{git_repo_url.to_s}")
+
       ref = exec_capture("git remote show origin | sed -n '/HEAD branch/s/.*: //p'").chomp if !ref
+
       exec_capture("git -c protocol.version=2 fetch origin #{ref}")
       exec_capture("git reset --hard --recurse-submodules FETCH_HEAD")
+
       head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'"))
+      
       artifact :git_head, head
     end
 end
 
 manifest = in_step Step::PLAN do
-  exec_capture("flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json")
+  cmd = "flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
+  if (region = ENV["DEPLOY_APP_REGION"]) && !!region
+    cmd += "--region #{region}"
+  end
+  if (internal_port = ENV["DEPLOY_APP_INTERNAL_PORT"]) && !!internal_port
+    cmd += "--internal-port #{internal_port}"
+  end
+  exec_capture(cmd)
   manifest = JSON.parse(File.read("/tmp/manifest.json"))
   artifact :manifest, manifest
   manifest
@@ -151,14 +180,14 @@ end
 
 if ENV["DEPLOY_NOW"]
   in_step Step::DEPLOY do
-    vm_cpukind = manifest["plan"]["vm_cpukind"]
-    vm_cpus = manifest["plan"]["vm_cpus"]
-    vm_memory = manifest["plan"]["vm_memory"]
-    vm_size = manifest["plan"]["vm_size"]
+    vm_cpu_kind = ENV.fetch("DEPLOY_VM_CPU_KIND", manifest["plan"]["vm_cpu_kind"])
+    vm_cpus = ENV.fetch("DEPLOY_VM_CPUS", manifest["plan"]["vm_cpus"])
+    vm_memory = ENV.fetch("DEPLOY_VM_MEMORY", manifest["plan"]["vm_memory"])
+    vm_size = ENV.fetch("DEPLOY_VM_SIZE", manifest["plan"]["vm_size"])
 
     File.write("/tmp/fly.json", manifest["config"].to_json)
 
-    exec_capture("flyctl deploy -a #{APP_NAME} --vm-cpu-kind #{vm_cpukind} --vm-cpus #{vm_cpus} --vm-memory #{vm_memory} --vm-size #{vm_size} -c /tmp/fly.json")
+    exec_capture("flyctl deploy -a #{APP_NAME} --vm-cpu-kind #{vm_cpu_kind} --vm-cpus #{vm_cpus} --vm-memory #{vm_memory} --vm-size #{vm_size} -c /tmp/fly.json")
   end
 end
 

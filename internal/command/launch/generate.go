@@ -22,6 +22,11 @@ func newGenerate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.AppConfig(),
+		flag.Int{
+			Name:        "internal-port",
+			Description: "Set internal_port for all services in the generated fly.toml",
+			Default:     -1,
+		},
 		flag.Bool{
 			Name:        "ha",
 			Description: "Create spare machines that increases app availability",
@@ -51,6 +56,10 @@ func runGenerate(ctx context.Context) error {
 	}
 
 	updateConfig(launchManifest.Plan, nil, launchManifest.Config)
+
+	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+		launchManifest.Config.SetInternalPort(n)
+	}
 
 	file, err := os.Create(flag.GetString(ctx, "manifest-path"))
 	if err != nil {
