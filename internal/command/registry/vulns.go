@@ -115,7 +115,6 @@ func runVulns(ctx context.Context) error {
 func presentScan(ctx context.Context, scan *Scan) error {
 	ios := iostreams.FromContext(ctx)
 
-	// TODO: scan.Metadata?
 	fmt.Fprintf(ios.Out, "Report created at: %s\n", scan.CreatedAt)
 	for _, res := range scan.Results {
 		fmt.Fprintf(ios.Out, "Target %s: %s\n", res.Type, res.Target)

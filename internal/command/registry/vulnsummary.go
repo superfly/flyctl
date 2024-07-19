@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	concurrentScans = 5 // TODO: think about the right value here.
+	concurrentScans = 5
 )
 
 func newVulnSummary() *cobra.Command {
