@@ -124,7 +124,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	msg := "Deleting a volume is not reversible."
 	if matches <= 2 {
-		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
+		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/volumes/overview/", matches-1)
 	}
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 

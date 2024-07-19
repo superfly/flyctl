@@ -40,7 +40,7 @@ func getStatuspageUnresolvedIncidentsUrl() string {
 		return url
 	}
 
-	return "https://status.flyio.net/api/v2/incidents/unresolved.json"
+	return "https://incidents.flyio.net/v1/incidents"
 }
 
 func QueryStatuspageIncidents(ctx context.Context) {

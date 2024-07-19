@@ -237,7 +237,8 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		}},
 		Services: []Service{
 			{
-				InternalPort: 8080,
+				InternalPort:     8080,
+				AutoStopMachines: fly.Pointer(fly.MachineAutostopOff),
 				Ports: []fly.MachinePort{
 					{
 						Port:     fly.Pointer(80),
@@ -416,7 +417,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			InternalPort:       8080,
 			ForceHTTPS:         true,
 			AutoStartMachines:  fly.Pointer(false),
-			AutoStopMachines:   fly.Pointer(false),
+			AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
 			MinMachinesRunning: fly.Pointer(0),
 			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "donuts",
@@ -536,7 +537,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Protocol:           "tcp",
 				Processes:          []string{"app"},
 				AutoStartMachines:  fly.Pointer(false),
-				AutoStopMachines:   fly.Pointer(false),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
 				MinMachinesRunning: fly.Pointer(1),
 
 				Concurrency: &fly.MachineServiceConcurrency{

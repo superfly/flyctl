@@ -129,17 +129,17 @@ func newRegionsList() *cobra.Command {
 }
 
 func runRegionsAdd(ctx context.Context) error {
-	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/launch/scale-count/.")
 }
 
 func runRegionsRemove(ctx context.Context) error {
-	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/launch/scale-count/.")
 }
 
 func runRegionsSet(ctx context.Context) error {
-	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/launch/scale-count/.")
 }
 
 func runRegionsBackup(ctx context.Context) error {
-	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/apps/scale-count/.")
+	return fmt.Errorf("This command is no longer supported; use fly scale count to scale the number of Machines in a region. See https://fly.io/docs/launch/scale-count/.")
 }

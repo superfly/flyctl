@@ -127,7 +127,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -175,7 +175,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 
 		// Ensure leases are released before we issue restart.
 		releaseLeaseFunc()
-		if err := machinesRestart(ctx, &fly.RestartMachineInput{}); err != nil {
+		if err := machinesRestart(ctx, app.Name, &fly.RestartMachineInput{}); err != nil {
 			return err
 		}
 	}
