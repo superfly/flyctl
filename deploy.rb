@@ -159,7 +159,7 @@ if (git_repo = ENV["GIT_REPO"]) && !!git_repo
       exec_capture("git reset --hard --recurse-submodules FETCH_HEAD")
 
       head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'"))
-      
+
       artifact :git_head, head
     end
 end
@@ -167,27 +167,36 @@ end
 manifest = in_step Step::PLAN do
   cmd = "flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
   if (region = ENV["DEPLOY_APP_REGION"]) && !!region
-    cmd += "--region #{region}"
+    cmd += " --region #{region}"
   end
   if (internal_port = ENV["DEPLOY_APP_INTERNAL_PORT"]) && !!internal_port
-    cmd += "--internal-port #{internal_port}"
+    cmd += " --internal-port #{internal_port}"
   end
   exec_capture(cmd)
   manifest = JSON.parse(File.read("/tmp/manifest.json"))
+
+  vm_cpu_kind = ENV.fetch("DEPLOY_VM_CPU_KIND", manifest["plan"]["vm_cpu_kind"])
+  vm_cpus = ENV.fetch("DEPLOY_VM_CPUS", manifest["plan"]["vm_cpus"])
+  vm_memory = ENV.fetch("DEPLOY_VM_MEMORY", manifest["plan"]["vm_memory"])
+  vm_size = ENV.fetch("DEPLOY_VM_SIZE", manifest["plan"]["vm_size"])
+
+  # override this to be sure...
+  manifest["config"]["vm"] = [{
+    size: vm_size,
+    memory: vm_memory,
+    cpu_kind: vm_cpu_kind,
+    cpus: vm_cpus.to_i
+  }]
+
   artifact :manifest, manifest
   manifest
 end
 
 if ENV["DEPLOY_NOW"]
   in_step Step::DEPLOY do
-    vm_cpu_kind = ENV.fetch("DEPLOY_VM_CPU_KIND", manifest["plan"]["vm_cpu_kind"])
-    vm_cpus = ENV.fetch("DEPLOY_VM_CPUS", manifest["plan"]["vm_cpus"])
-    vm_memory = ENV.fetch("DEPLOY_VM_MEMORY", manifest["plan"]["vm_memory"])
-    vm_size = ENV.fetch("DEPLOY_VM_SIZE", manifest["plan"]["vm_size"])
-
     File.write("/tmp/fly.json", manifest["config"].to_json)
 
-    exec_capture("flyctl deploy -a #{APP_NAME} --vm-cpu-kind #{vm_cpu_kind} --vm-cpus #{vm_cpus} --vm-memory #{vm_memory} --vm-size #{vm_size} -c /tmp/fly.json")
+    exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json")
   end
 end
 
