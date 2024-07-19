@@ -115,8 +115,9 @@ var sharedFlags = flag.Set{
 	},
 	flag.String{
 		Name:        "autostop",
-		Description: "Automatically stop a Machine when there are no network requests for it",
-		NoOptDefVal: "true",
+		Description: "Automatically stop a Machine when there are no network requests for it. Options include 'off', 'stop', and 'suspend'.",
+		Default:     "off",
+		NoOptDefVal: "stop",
 	},
 	flag.String{
 		Name: "restart",

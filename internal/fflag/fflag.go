@@ -108,7 +108,7 @@ func (ffClient *FeatureFlagClient) updateFeatureFlags() (map[string]FeatureFlag,
 	ldContextB64 := base64.URLEncoding.EncodeToString([]byte(ldContextJSON))
 
 	request, err :=
-		http.NewRequest("GET", fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64), nil)
+		http.NewRequest("GET", fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64), http.NoBody)
 	if err != nil {
 		return nil, err
 	}
