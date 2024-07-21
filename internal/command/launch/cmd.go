@@ -12,6 +12,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/env"
@@ -19,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
@@ -147,10 +149,10 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	return &manifest, nil
 }
 
-func setupFromTemplate(ctx context.Context) (context.Context, error) {
+func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
-		return ctx, nil
+		return ctx, nil, nil
 	}
 
 	into := flag.GetString(ctx, "into")
@@ -159,16 +161,18 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 	} else {
 		err := os.MkdirAll(into, 0755) // skipcq: GSC-G301
 		if err != nil {
-			return ctx, fmt.Errorf("failed to create directory: %w", err)
+			return ctx, nil, fmt.Errorf("failed to create directory: %w", err)
 		}
 	}
 
+	var parentConfig *appconfig.Config
+
 	entries, err := os.ReadDir(into)
 	if err != nil {
-		return ctx, fmt.Errorf("failed to read directory: %w", err)
+		return ctx, nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 	if len(entries) > 0 {
-		return ctx, errors.New("directory not empty, refusing to clone from git")
+		return ctx, nil, errors.New("directory not empty, refusing to clone from git")
 	}
 
 	fmt.Printf("Launching from git repo %s\n", from)
@@ -178,18 +182,27 @@ func setupFromTemplate(ctx context.Context) (context.Context, error) {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return ctx, err
+		return ctx, nil, err
 	}
 
 	if into != "." {
 		err := os.Chdir(into)
 		if err != nil {
-			return ctx, fmt.Errorf("failed to change directory: %w", err)
+			return ctx, nil, fmt.Errorf("failed to change directory: %w", err)
 		}
+
+		wd, err := os.Getwd()
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed determining working directory: %w", err)
+		}
+
+		ctx = state.WithWorkingDirectory(ctx, wd)
+		parentConfig = appconfig.ConfigFromContext(ctx)
 	}
 
+	ctx = appconfig.WithConfig(ctx, nil)
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
-	return ctx, err
+	return ctx, parentConfig, err
 }
 
 func run(ctx context.Context) (err error) {
@@ -244,7 +257,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// "--from" arg handling
-	ctx, err = setupFromTemplate(ctx)
+	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
 		return err
 	}
@@ -256,7 +269,7 @@ func run(ctx context.Context) (err error) {
 
 	if launchManifest == nil {
 
-		launchManifest, cache, err = buildManifest(ctx, &recoverableErrors)
+		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
 			if errors.As(err, &recoverableErr) && canEnterUi {
