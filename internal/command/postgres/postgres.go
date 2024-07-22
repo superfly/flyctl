@@ -8,9 +8,12 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() *cobra.Command {
@@ -190,4 +193,58 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 	}
 
 	return nil
+}
+
+// Runs a command on the specified machine ID in the named app.
+func ExecOnMachine(ctx context.Context, appName, machineId, command string) error {
+	var (
+		io = iostreams.FromContext(ctx)
+	)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	in := &fly.MachineExecRequest{
+		Cmd: command,
+	}
+
+	out, err := flapsClient.Exec(ctx, machineId, in)
+	if err != nil {
+		return err
+	}
+
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
+	return nil
+}
+
+// Runs a command on the leader of the named cluster.
+func ExecOnLeader(ctx context.Context, appName, command string) error {
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return ExecOnMachine(ctx, appName, leader.ID, command)
 }
