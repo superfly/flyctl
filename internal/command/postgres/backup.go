@@ -64,6 +64,10 @@ func newBackupRestore() *cobra.Command {
 			Description: "Set to true to stop recovery after the specified time, or false to stop before it",
 			Default:     true,
 		},
+		flag.String{
+			Name:        "image-ref",
+			Description: "Specify a non-default base image for the restored Postgres app",
+		},
 	)
 
 	return cmd
@@ -139,12 +143,17 @@ func runBackupRestore(ctx context.Context) error {
 		return err
 	}
 
+	imageRef := flag.GetString(ctx, "image-ref")
+	if imageRef == "" {
+		imageRef = leader.FullImageRef()
+	}
+
 	// Build the input for the new cluster using the leader's configuration.
 	input := &flypg.CreateClusterInput{
 		AppName:                   destAppName,
 		Organization:              org,
 		InitialClusterSize:        1,
-		ImageRef:                  leader.FullImageRef(),
+		ImageRef:                  imageRef,
 		Region:                    leader.Region,
 		Manager:                   flypg.ReplicationManager,
 		Autostart:                 *leader.Config.Services[0].Autostart,
