@@ -190,7 +190,7 @@ func TestToDefinition(t *testing.T) {
 			"internal_port":        int64(8080),
 			"force_https":          true,
 			"auto_start_machines":  false,
-			"auto_stop_machines":   false,
+			"auto_stop_machines":   "off",
 			"min_machines_running": int64(0),
 			"concurrency": map[string]any{
 				"type":       "donuts",
@@ -331,7 +331,7 @@ func TestToDefinition(t *testing.T) {
 				"protocol":             "tcp",
 				"processes":            []any{"app"},
 				"auto_start_machines":  false,
-				"auto_stop_machines":   false,
+				"auto_stop_machines":   "off",
 				"min_machines_running": int64(1),
 				"concurrency": map[string]any{
 					"type":       "requests",

@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -276,11 +277,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
-	err = DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
+	err = DeployWithConfig(ctx, appConfig, 0, flag.GetYes(ctx))
 	return err
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID int, forceYes bool) (err error) {
 	span := trace.SpanFromContext(ctx)
 
 	io := iostreams.FromContext(ctx)
@@ -289,6 +290,18 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
+	}
+
+	// Start the feature flag client, if we haven't already
+	if launchdarkly.ClientFromContext(ctx) == nil {
+		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
+			OrganizationID: appCompact.Organization.InternalNumericID,
+			UserID:         userID,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create feature flag client: %w", err)
+		}
+		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
 	}
 
 	for env := range appConfig.Env {
