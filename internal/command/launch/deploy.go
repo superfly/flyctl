@@ -88,7 +88,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 				return err
 			}
 		}
-		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"))
+		return deploy.DeployWithConfig(ctx, state.appConfig, 0, flag.GetBool(ctx, "now"))
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct
