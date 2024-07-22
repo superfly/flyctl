@@ -308,6 +308,14 @@ func staticIsCandidateForTigrisPush(static appconfig.Static) bool {
 
 // Upload a directory to the tigris bucket with the given prefix `dest`.
 func (client *tigrisStaticsData) uploadDirectory(ctx context.Context, dest, localPath string) error {
+
+	// Clean the destination path.
+	// This is for the case where someone launches an app, it fails, then they
+	// just delete the app and re-launch it.
+	if err := client.deleteDirectory(ctx, dest); err != nil {
+		return err
+	}
+
 	// Recursively upload the directory to the bucket.
 	var files []string
 	localDir := os.DirFS(localPath)
@@ -432,12 +440,7 @@ func (client *tigrisStaticsData) deleteDirectory(ctx context.Context, dir string
 	return nil
 }
 
-func (client *tigrisStaticsData) deleteOldStatics(ctx context.Context, appName string) error {
-
-	// TODO(allison): Note the current deployment version, and remove all versions except for current
-	//                if there are any versions newer than the current deployment.
-	//                Without this, deleting an app then recreating it would prevent uploading
-	//                statics to the new app.
+func (client *tigrisStaticsData) deleteOldStatics(ctx context.Context, appName string, currentVer int) error {
 
 	// List directories in the app's directory.
 	// Delete all versions except for the three latest versions.
@@ -468,6 +471,22 @@ func (client *tigrisStaticsData) deleteOldStatics(ctx context.Context, appName s
 			return 0, false
 		}
 		return num, true
+	})
+
+	var ignore []int
+	for _, version := range versions {
+		if version > currentVer {
+			ignore = append(ignore, version)
+			terminal.Debugf("Deleting too-new static dir (likely for reused app name): %s\n", fmt.Sprintf("fly-statics/%s/%d/", appName, version))
+			err = client.deleteDirectory(ctx, fmt.Sprintf("fly-statics/%s/%d/", appName, version))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	versions = lo.Filter(versions, func(version int, _ int) bool {
+		return !lo.Contains(ignore, version)
 	})
 
 	// Sort the numbers in ascending order.
@@ -536,7 +555,7 @@ func (md *machineDeployment) staticsFinalize(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 
 	// Delete old statics from the bucket.
-	err := md.tigrisStatics.deleteOldStatics(ctx, md.appConfig.AppName)
+	err := md.tigrisStatics.deleteOldStatics(ctx, md.appConfig.AppName, md.releaseVersion)
 	if err != nil {
 		fmt.Fprintf(io.ErrOut, "Failed to delete old statics: %v\n", err)
 	}
