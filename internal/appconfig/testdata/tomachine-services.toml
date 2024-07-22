@@ -5,19 +5,19 @@ primary_region = "scl"
   internal_port = 8080
   force_https = true
   auto_start_machines = true
-  auto_stop_machines = true
+  auto_stop_machines = "stop"
 
 [[services]]
   protocol = "tcp"
   internal_port = 1000
   auto_start_machines = true
-  auto_stop_machines = true
+  auto_stop_machines = "stop"
 
 [[services]]
   protocol = "tcp"
   internal_port = 1001
   auto_start_machines = false
-  auto_stop_machines = false
+  auto_stop_machines = "off"
 
 [[services]]
   protocol = "tcp"
@@ -27,7 +27,7 @@ primary_region = "scl"
 [[services]]
   protocol = "tcp"
   internal_port = 1003
-  auto_stop_machines = true
+  auto_stop_machines = "stop"
 
 [[services]]
   protocol = "tcp"
