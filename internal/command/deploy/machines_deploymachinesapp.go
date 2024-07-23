@@ -498,6 +498,7 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_machines", trace.WithAttributes(
 		attribute.String("strategy", md.strategy),
+		attribute.Int("deploy_retries", md.deployRetries),
 	))
 	defer func() {
 		if err != nil {
@@ -507,7 +508,11 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	}()
 
 	if md.deployRetries > 0 {
-		return md.updateExistingMachinesWRecovery(ctx, updateEntries)
+		err := md.updateExistingMachinesWRecovery(ctx, updateEntries)
+		if err != nil {
+			span.RecordError(err)
+		}
+		return err
 	}
 
 	if len(updateEntries) == 0 {
@@ -526,19 +531,25 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	switch md.strategy {
 	case "bluegreen":
 		// TODO(billy) do machine checks here
-		return md.updateUsingBlueGreenStrategy(ctx, updateEntries)
+		err = md.updateUsingBlueGreenStrategy(ctx, updateEntries)
 	case "immediate":
-		return md.updateUsingImmediateStrategy(ctx, updateEntries)
+		err = md.updateUsingImmediateStrategy(ctx, updateEntries)
 	case "canary", "rolling":
 		fallthrough
 	default:
-		return md.updateUsingRollingStrategy(ctx, updateEntries)
+		err = md.updateUsingRollingStrategy(ctx, updateEntries)
 	}
+
+	if err != nil {
+		span.RecordError(err)
+	}
+
+	return err
 }
 
 // The code duplication is on purpose here. The plan is to completely move over to updateExistingMachinesWRecovery
 func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "update_existing_machines", trace.WithAttributes(
+	ctx, span := tracing.GetTracer().Start(ctx, "update_existing_machines_w_recovery", trace.WithAttributes(
 		attribute.String("strategy", md.strategy),
 	))
 	defer func() {
@@ -706,7 +717,11 @@ func (md *machineDeployment) updateUsingImmediateStrategy(parentCtx context.Cont
 		})
 	}
 
-	return updatesPool.Wait()
+	err := updatesPool.Wait()
+	if err != nil {
+		span.RecordError(err)
+	}
+	return err
 }
 
 func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Context, updateEntries []*machineUpdateEntry) error {
@@ -741,7 +756,11 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		})
 	}
 
-	return groupsPool.Wait()
+	err := groupsPool.Wait()
+	if err != nil {
+		span.RecordError(err)
+	}
+	return err
 }
 
 func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group string, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
