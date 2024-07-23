@@ -198,8 +198,12 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		pgroup.Go(func() error {
 			err := md.updateProcessGroup(ctx, machineTuples, statusLines, poolSize)
 			if err != nil && strings.Contains(err.Error(), "lease currently held by") {
-				return &unrecoverableError{err: err}
+				err := &unrecoverableError{err: err}
+				span.RecordError(err)
+				return err
 			}
+
+			span.RecordError(err)
 			return err
 		})
 	}
@@ -479,8 +483,9 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running machine checks on machine %s", machine.ID))
 		err = md.runTestMachines(ctx, machine, sl)
 		if err != nil {
+			err := &unrecoverableError{err: err}
 			span.RecordError(err)
-			return &unrecoverableError{err: err}
+			return err
 		}
 		healthcheckResult.machineChecksPassed = true
 	}
@@ -489,8 +494,9 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
 		err = lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
 		if err != nil {
+			err := &unrecoverableError{err: err}
 			span.RecordError(err)
-			return &unrecoverableError{err: err}
+			return err
 		}
 		healthcheckResult.regularChecksPassed = true
 	}
@@ -520,6 +526,7 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updating machine config for %s", oldMachine.ID))
 			machine, err := md.updateMachineConfig(ctx, oldMachine, newMachine.Config, sl, newMachine.State == "replacing")
 			if err != nil {
+				span.RecordError(err)
 				return oldMachine, nil, err
 			}
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Updated machine config for %s", oldMachine.ID))
@@ -531,12 +538,14 @@ func (md *machineDeployment) updateOrCreateMachine(ctx context.Context, oldMachi
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Creating machine for %s", newMachine.ID))
 		machine, err := md.createMachine(ctx, newMachine.Config, newMachine.Region)
 		if err != nil {
+			span.RecordError(err)
 			return nil, nil, err
 		}
 
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", newMachine.ID))
 		lease, err := md.acquireMachineLease(ctx, machine.ID)
 		if err != nil {
+			span.RecordError(err)
 			return nil, nil, err
 		}
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquired lease for %s", newMachine.ID))
