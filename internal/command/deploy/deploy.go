@@ -168,6 +168,11 @@ var CommonFlags = flag.Set{
 		Shorthand:   "s",
 		Description: "Signal to stop the machine with for bluegreen strategy (default: SIGINT)",
 	},
+	flag.String{
+		Name:        "deploy-retries",
+		Description: "Number of times to retry a deployment if it fails",
+		Default:     "auto",
+	},
 }
 
 type Command struct {
@@ -317,10 +322,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig, usingWireguard, recreateBuilder)
-	if err != nil && usingWireguard && httpFailover {
-		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
-		span.AddEvent("using http failover")
-		img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+	if err != nil {
+		noBuilder := strings.Contains(err.Error(), "Could not find App")
+		recreateBuilder = recreateBuilder || noBuilder
+		if noBuilder || (usingWireguard && httpFailover) {
+			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+			span.AddEvent("using http failover")
+			img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+		}
 	}
 
 	if err != nil {
@@ -478,6 +487,29 @@ func deployToMachines(
 
 	status.FlyctlVersion = buildinfo.Info().Version.String()
 
+	retriesFlag := flag.GetString(ctx, "deploy-retries")
+	deployRetries := 0
+
+	switch retriesFlag {
+	case "auto":
+		ldClient := launchdarkly.ClientFromContext(ctx)
+		retries := ldClient.GetFeatureFlagValue("deploy-retries", 0.0).(float64)
+		deployRetries = int(retries)
+
+	default:
+		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		retries, err := strconv.Atoi(retriesFlag)
+		if err != nil {
+			return invalidRetriesErr
+		}
+		if retries < 0 {
+			return invalidRetriesErr
+		}
+
+		span.SetAttributes(attribute.Int("set_deploy_retries", retries))
+		deployRetries = retries
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
@@ -505,6 +537,7 @@ func deployToMachines(
 		MaxConcurrent:         maxConcurrent,
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
+		DeployRetries:         deployRetries,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
