@@ -505,6 +505,7 @@ func deployToMachines(
 			return invalidRetriesErr
 		}
 
+		span.SetAttributes(attribute.Int("set_deploy_retries", retries))
 		deployRetries = retries
 	}
 
