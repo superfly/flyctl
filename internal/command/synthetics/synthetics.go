@@ -37,8 +37,6 @@ func runAgent(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	for {
-		<-ctx.Done()
-		return ctx.Err()
-	}
+	<-ctx.Done()
+	return ctx.Err()
 }
