@@ -342,10 +342,17 @@ func (cfg *Config) MergeFiles(files []*fly.File) error {
 	// First convert the Config files to Machine files.
 	cfgFiles := make([]*fly.File, 0, len(cfg.Files))
 	for _, f := range cfg.Files {
+		if slices.ContainsFunc(cfg.MergedFiles, func(mergedFile *fly.File) bool {
+			return mergedFile.GuestPath == f.GuestPath
+		}) {
+			continue
+		}
+
 		machineFile, err := f.toMachineFile()
 		if err != nil {
 			return err
 		}
+
 		cfgFiles = append(cfgFiles, machineFile)
 	}
 
@@ -354,6 +361,10 @@ func (cfg *Config) MergeFiles(files []*fly.File) error {
 		Files: cfgFiles,
 	}
 	fly.MergeFiles(mConfig, files)
+
+	if len(mConfig.Files) == 0 {
+		return nil
+	}
 
 	// Persist the merged files back to the config to be used later for deploying.
 	cfg.MergedFiles = mConfig.Files

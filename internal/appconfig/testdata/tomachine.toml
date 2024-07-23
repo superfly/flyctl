@@ -46,3 +46,7 @@ guest_path = "/guest/path"
 url_prefix = "/url/prefix"
 tigris_bucket = "example-bucket"
 index_document = "index.html"
+
+[[files]]
+  guest_path = "/path/to/hello.txt"
+  raw_value = "hello world"

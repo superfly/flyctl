@@ -53,6 +53,12 @@ func TestToMachineConfig(t *testing.T) {
 		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
 		},
+		Files: []*fly.File{
+			{
+				GuestPath: "/path/to/hello.txt",
+				RawValue:  fly.Pointer("aGVsbG8gd29ybGQ="),
+			},
+		},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -167,6 +173,12 @@ func TestToReleaseMachineConfig(t *testing.T) {
 		StopConfig: &fly.StopConfig{
 			Timeout: fly.MustParseDuration("10s"),
 			Signal:  fly.Pointer("SIGTERM"),
+		},
+		Files: []*fly.File{
+			{
+				GuestPath: "/path/to/hello.txt",
+				RawValue:  fly.Pointer("aGVsbG8gd29ybGQ="),
+			},
 		},
 	}
 
