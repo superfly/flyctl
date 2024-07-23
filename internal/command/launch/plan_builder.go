@@ -103,7 +103,7 @@ func (r *recoverableErrorBuilder) build() string {
 	return allErrors
 }
 
-func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
 	io := iostreams.FromContext(ctx)
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
@@ -113,7 +113,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
-	org, orgExplanation, err := determineOrg(ctx)
+	org, orgExplanation, err := determineOrg(ctx, parentConfig)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
@@ -420,8 +420,11 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		copyConfig := flag.GetBool(ctx, "copy-config")
-		if !flag.IsSpecified(ctx, "copy-config") {
+		// if both --from and --into are specified, we should return the config as the base config
+		fromInto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && (flag.GetString(ctx, "into") != "")
+		copyConfig := flag.GetBool(ctx, "copy-config") || fromInto
+
+		if !flag.IsSpecified(ctx, "copy-config") && !fromInto {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
@@ -526,7 +529,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 
 	taken := appName == ""
 
-	if !taken {
+	if !taken && !flag.GetBool(ctx, "no-create") {
 		var err error
 		// If the user can see an app with the same name as what they're about to launch,
 		// they *probably* want to deploy to that app instead.
@@ -569,8 +572,16 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
+func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
 	client := flyutil.ClientFromContext(ctx)
+
+	frominto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && flag.GetString(ctx, "into") != ""
+	if frominto && config != nil && config.AppName != "" {
+		org, err := client.GetOrganizationByApp(ctx, config.AppName)
+		if err == nil {
+			return org, fmt.Sprintf("from %s app", config.AppName), nil
+		}
+	}
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
