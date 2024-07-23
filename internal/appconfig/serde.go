@@ -51,6 +51,11 @@ func LoadConfig(path string) (cfg *Config, err error) {
 
 	cfg.configFilePath = path
 	// cfg.WriteToFile("patched-fly.toml")
+
+	if err := cfg.MergeFiles(nil); err != nil {
+		return nil, err
+	}
+
 	return cfg, nil
 }
 
