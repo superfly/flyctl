@@ -110,6 +110,10 @@ var CommonFlags = flag.Set{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
 	},
+	flag.Bool{
+		Name:        "flycast",
+		Description: "Allocate a private IPv6 addresses",
+	},
 	flag.StringArray{
 		Name:        "file-local",
 		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
@@ -509,6 +513,13 @@ func deployToMachines(
 		deployRetries = retries
 	}
 
+	var ip = "public"
+	if flag.GetBool(ctx, "flycast") {
+		ip = "private"
+	} else if flag.GetBool(ctx, "no-public-ips") {
+		ip = "none"
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
@@ -526,7 +537,8 @@ func deployToMachines(
 		MaxUnavailable:        maxUnavailable,
 		Guest:                 guest,
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
-		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
+		AllocIP:               ip,
+		Org:                   app.Organization.Slug,
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
 		ExcludeRegions:        excludeRegions,
