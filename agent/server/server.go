@@ -57,8 +57,7 @@ func Run(ctx context.Context, opt Options) (err error) {
 	monitorCtx, cancelMonitor := context.WithCancel(ctx)
 	config.MonitorTokens(monitorCtx, toks, nil)
 
-	syntheticsCtx, cancelSynthetics := context.WithCancel(ctx)
-	synthetics.StartSyntheticsMonitoringAgent(syntheticsCtx)
+	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
 	err = (&server{
 		Options:               opt,
@@ -68,7 +67,6 @@ func Run(ctx context.Context, opt Options) (err error) {
 		tunnels:               make(map[tunnelKey]*wg.Tunnel),
 		tokens:                toks,
 		cancelTokenMonitoring: cancelMonitor,
-		cancelSynthetics:      cancelSynthetics,
 	}).serve(ctx, l)
 
 	return
@@ -131,7 +129,6 @@ type server struct {
 	tunnels               map[tunnelKey]*wg.Tunnel
 	tokens                *tokens.Tokens
 	cancelTokenMonitoring func()
-	cancelSynthetics      func()
 }
 
 type terminateError struct{ error }
