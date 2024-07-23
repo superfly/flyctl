@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/metrics/synthetics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/wg"
@@ -55,6 +56,8 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 	monitorCtx, cancelMonitor := context.WithCancel(ctx)
 	config.MonitorTokens(monitorCtx, toks, nil)
+
+	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
 	err = (&server{
 		Options:               opt,
