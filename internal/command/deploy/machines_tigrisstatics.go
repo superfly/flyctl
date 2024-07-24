@@ -125,7 +125,8 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 		"domain_name": "",
 	}
 	params.Options["accelerate"] = false
-	params.Options["public"] = false
+	// TODO(allison): Make sure we still need this when virtual services drop :)
+	params.Options["public"] = true
 
 	ext, err := extensions.ProvisionExtension(ctx, params)
 	if err != nil {
