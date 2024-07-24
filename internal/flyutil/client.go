@@ -41,6 +41,7 @@ type Client interface {
 	DetachPostgresCluster(ctx context.Context, input fly.DetachPostgresClusterInput) error
 	EnablePostgresConsul(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
 	EnsureRemoteBuilder(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
+	EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error)
 	ExportDNSRecords(ctx context.Context, domainId string) (string, error)
 	FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetApp(ctx context.Context, appName string) (*fly.App, error)

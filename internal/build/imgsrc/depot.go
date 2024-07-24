@@ -10,18 +10,17 @@ import (
 	"path/filepath"
 	"time"
 
-	depotauth "github.com/depot/depot-go/auth"
 	depotbuild "github.com/depot/depot-go/build"
 	depotmachine "github.com/depot/depot-go/machine"
-	depotproject "github.com/depot/depot-go/project"
-	cliv1 "github.com/depot/depot-go/proto/depot/cli/v1"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -102,13 +101,6 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (*DeploymentImage, error) {
 	buildState.BuilderInitStart()
 
-	token, err := depotauth.ResolveToken(ctx, "")
-	if err != nil {
-		buildState.BuilderInitFinish()
-		return nil, err
-	}
-	project := depotproject.ResolveProjectID("")
-
 	{
 		msg := "Waiting for depot builder...\n"
 		if streams.IsInteractive() {
@@ -118,27 +110,19 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		}
 	}
 
-	req := &cliv1.CreateBuildRequest{
-		ProjectId: project,
-		Options: []*cliv1.BuildOptions{
-			{
-				Command:    cliv1.Command_COMMAND_FLYCTL,
-				Tags:       []string{opts.Tag},
-				TargetName: &opts.Target,
-				Push:       true,
-				Outputs: []*cliv1.BuildOutput{
-					{
-						Kind:       "image",
-						Attributes: map[string]string{"name": opts.Tag, "push": "true", "oci-mediatypes": "true"},
-					},
-				},
-			},
-		},
-	}
-
-	build, err := depotbuild.NewBuild(ctx, req, token)
+	apiClient := flyutil.ClientFromContext(ctx)
+	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
+		AppName: &opts.AppName,
+		Region:  fly.StringPointer("us-east-1"),
+	})
 	if err != nil {
 		streams.StopProgressIndicator()
+		buildState.BuilderInitFinish()
+		return nil, err
+	}
+
+	build, err := depotbuild.FromExistingBuild(ctx, *buildInfo.EnsureDepotRemoteBuilder.BuildId, *buildInfo.EnsureDepotRemoteBuilder.BuildToken)
+	if err != nil {
 		buildState.BuilderInitFinish()
 		return nil, err
 	}
