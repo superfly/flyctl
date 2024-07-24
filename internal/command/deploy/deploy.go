@@ -215,6 +215,20 @@ func New() *Command {
 			Description: "Do not run the release command during deployment.",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "remote-deploy",
+			Description: "Ships app configuration to a remote server that will deploy the app.",
+			Default:     false,
+		},
+		flag.String{
+			Name:        "manifest",
+			Description: "Path to a deploy manifest file to use for deployment.",
+		},
+		flag.Bool{
+			Name:        "export-manifest",
+			Description: "Export the current deployment configuration to a deploy manifest file, to resume it with --manifest.",
+			Default:     false,
+		},
 	)
 
 	return cmd
@@ -266,6 +280,15 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
+
+	if flag.GetString(ctx, "manifest") != "" {
+		path := flag.GetString(ctx, "manifest")
+		manifest, err := ManifestFromFile(path)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	}
 
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
@@ -399,6 +422,8 @@ func deployToMachines(
 	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
 	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
@@ -530,7 +555,7 @@ func deployToMachines(
 		ip = "none"
 	}
 
-	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+	args := MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
@@ -560,7 +585,15 @@ func deployToMachines(
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
 		BuildID:               img.BuildID,
-	})
+	}
+
+	if flag.GetBool(ctx, "export-manifest") {
+		fmt.Fprintln(io.Out, "Exporting deployment configuration to deploy manifest file")
+		fmt.Fprintln(io.Out, "Use --manifest to resume this deployment")
+		return exportManifest(ctx, app.Name, args)
+	}
+
+	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err

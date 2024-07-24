@@ -119,6 +119,8 @@ type machineDeployment struct {
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
 
@@ -136,7 +138,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		fmt.Fprintf(io.ErrOut, extraInfo)
 		tracing.RecordError(span, err, "failed to validate process groups")
 		return nil, err
 	}
@@ -198,7 +200,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
 
-	io := iostreams.FromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
@@ -247,6 +248,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		tracing.RecordError(span, err, "failed to set strategy")
 		return nil, err
 	}
+
 	if err := md.setMachinesForDeployment(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set machines for first deployemt")
 		return nil, err
