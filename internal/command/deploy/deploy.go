@@ -216,17 +216,16 @@ func New() *Command {
 		},
 		flag.Bool{
 			Name:        "remote-deploy",
-			Description: "Ships app configuration to a remote server that will deploy the app.",
+			Description: "Makes a deployment from a deploy manifest to a fly.io managed deployer",
 			Default:     false,
+		},
+		flag.String{
+			Name:        "export-manifest",
+			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
 		},
 		flag.String{
 			Name:        "manifest",
 			Description: "Path to a deploy manifest file to use for deployment.",
-		},
-		flag.Bool{
-			Name:        "export-manifest",
-			Description: "Export the current deployment configuration to a deploy manifest file, to resume it with --manifest.",
-			Default:     false,
 		},
 	)
 
@@ -576,10 +575,26 @@ func deployToMachines(
 		DeployRetries:         deployRetries,
 	}
 
-	if flag.GetBool(ctx, "export-manifest") {
-		fmt.Fprintln(io.Out, "Exporting deployment configuration to deploy manifest file")
-		fmt.Fprintln(io.Out, "Use --manifest to resume this deployment")
-		return exportManifest(ctx, app.Name, args)
+	var path = flag.GetString(ctx, "export-manifest")
+	switch path {
+	case "":
+		return fmt.Errorf("export-manifest flag must be set to a file path")
+	case "-":
+		manifest := NewManifest(app.Name, cfg, args)
+
+		return manifest.WriteTo(io.Out)
+
+	default:
+		if !strings.HasSuffix(path, ".json") {
+			path += ".json"
+		}
+
+		manifest := NewManifest(app.Name, cfg, args)
+
+		if err = manifest.WriteToFile(path); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
 	}
 
 	md, err := NewMachineDeployment(ctx, args)
