@@ -341,18 +341,34 @@ func (client *tigrisStaticsData) uploadDirectory(ctx context.Context, dest, loca
 	close(workQueue)
 
 	workerErr := make(chan error, 1)
-	workerCtx, cancelWorker := context.WithCancel(ctx)
+	workerCtx, cancelWorkers := context.WithCancel(ctx)
 	wg := sync.WaitGroup{}
+	defer cancelWorkers()
 
-	worker := func() {
+	worker := func() error {
 		defer wg.Done()
 		for file := range workQueue {
 
 			reader, err := os.Open(filepath.Join(localPath, file))
 			if err != nil {
-				workerErr <- err
-				cancelWorker()
-				return
+				return err
+			}
+
+			mimeType := "application/octet-stream"
+			if detectedMime := mime.TypeByExtension(filepath.Ext(file)); detectedMime != "" {
+				mimeType = detectedMime
+			} else {
+				first512 := make([]byte, 512)
+				_, err = reader.Read(first512)
+				if err != nil {
+					return fmt.Errorf("failed to read static file %s: %w", file, err)
+				} else {
+					_, err = reader.Seek(0, 0)
+					if err != nil {
+						return fmt.Errorf("failed to seek static file %s: %w", file, err)
+					}
+					mimeType = http.DetectContentType(first512)
+				}
 			}
 
 			if runtime.GOOS == "windows" {
@@ -363,14 +379,13 @@ func (client *tigrisStaticsData) uploadDirectory(ctx context.Context, dest, loca
 
 			// Upload the file to the bucket.
 			_, err = client.s3.PutObject(workerCtx, &s3.PutObjectInput{
-				Bucket: &client.bucket,
-				Key:    fly.Pointer(path.Join(dest, file)),
-				Body:   reader,
+				Bucket:      &client.bucket,
+				Key:         fly.Pointer(path.Join(dest, file)),
+				Body:        reader,
+				ContentType: &mimeType,
 			})
 			if err != nil {
-				workerErr <- err
-				cancelWorker()
-				return
+				return err
 			}
 
 			err = reader.Close()
@@ -378,11 +393,18 @@ func (client *tigrisStaticsData) uploadDirectory(ctx context.Context, dest, loca
 				terminal.Debugf("failed to close file %s: %v", file, err)
 			}
 		}
+		return nil
 	}
 
 	for i := 0; i < 5; i++ {
 		wg.Add(1)
-		go worker()
+		go func() {
+			err := worker()
+			if err != nil {
+				workerErr <- err
+				cancelWorkers()
+			}
+		}()
 	}
 
 	wg.Wait()
