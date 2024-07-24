@@ -279,9 +279,19 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
 
-	if flag.GetString(ctx, "manifest") != "" {
-		path := flag.GetString(ctx, "manifest")
-		manifest, err := ManifestFromFile(path)
+	var manifestPath = flag.GetString(ctx, "manifest")
+
+	switch manifestPath {
+	case "-":
+		manifest, err := ManifestFromReader(io.In)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	case "":
+		break
+	default:
+		manifest, err := ManifestFromFile(manifestPath)
 		if err != nil {
 			return err
 		}
@@ -578,11 +588,16 @@ func deployToMachines(
 	var path = flag.GetString(ctx, "export-manifest")
 	switch path {
 	case "":
-		return fmt.Errorf("export-manifest flag must be set to a file path")
+		manifest := NewManifest(app.Name, cfg, args)
+
+		if err = manifest.WriteToFile(defaultManifestPath); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", defaultManifestPath)
 	case "-":
 		manifest := NewManifest(app.Name, cfg, args)
 
-		return manifest.WriteTo(io.Out)
+		return manifest.Encode(io.Out)
 
 	default:
 		if !strings.HasSuffix(path, ".json") {

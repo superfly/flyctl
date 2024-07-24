@@ -76,6 +76,40 @@ type MachineDeploymentArgs struct {
 	DeployRetries         int
 }
 
+func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
+	return MachineDeploymentArgs{
+		AppCompact:            app,
+		DeploymentImage:       manifest.DeploymentImage,
+		Strategy:              manifest.Strategy,
+		EnvFromFlags:          manifest.EnvFromFlags,
+		PrimaryRegionFlag:     manifest.PrimaryRegionFlag,
+		SkipSmokeChecks:       manifest.SkipSmokeChecks,
+		SkipHealthChecks:      manifest.SkipHealthChecks,
+		SkipDNSChecks:         manifest.SkipDNSChecks,
+		SkipReleaseCommand:    manifest.SkipReleaseCommand,
+		MaxUnavailable:        manifest.MaxUnavailable,
+		RestartOnly:           manifest.RestartOnly,
+		WaitTimeout:           manifest.WaitTimeout,
+		StopSignal:            manifest.StopSignal,
+		LeaseTimeout:          manifest.LeaseTimeout,
+		ReleaseCmdTimeout:     manifest.ReleaseCmdTimeout,
+		Guest:                 manifest.Guest,
+		IncreasedAvailability: manifest.IncreasedAvailability,
+		UpdateOnly:            manifest.UpdateOnly,
+		Files:                 manifest.Files,
+		ExcludeRegions:        manifest.ExcludeRegions,
+		OnlyRegions:           manifest.OnlyRegions,
+		ExcludeMachines:       manifest.ExcludeMachines,
+		OnlyMachines:          manifest.OnlyMachines,
+		ProcessGroups:         manifest.ProcessGroups,
+		MaxConcurrent:         manifest.MaxConcurrent,
+		VolumeInitialSize:     manifest.VolumeInitialSize,
+		RestartPolicy:         manifest.RestartPolicy,
+		RestartMaxRetries:     manifest.RestartMaxRetries,
+		DeployRetries:         manifest.DeployRetries,
+	}
+}
+
 type machineDeployment struct {
 	apiClient             flyutil.Client
 	flapsClient           flapsutil.FlapsClient
