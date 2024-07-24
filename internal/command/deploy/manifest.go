@@ -103,7 +103,7 @@ func ManifestFromFile(filename string) (*DeployManifest, error) {
 	return ManifestFromReader(file)
 }
 
-func (m *DeployManifest) WriteTo(w io.Writer) error {
+func (m *DeployManifest) Encode(w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(m)
@@ -116,7 +116,7 @@ func (m *DeployManifest) WriteToFile(filename string) error {
 	}
 	defer file.Close()
 
-	return m.WriteTo(file)
+	return m.Encode(file)
 }
 
 func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
@@ -125,10 +125,13 @@ func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 	)
 	app, err := client.GetAppCompact(ctx, manifest.AppName)
 	if err != nil {
+		sentry.CaptureException(err)
 		return err
 	}
 
-	args := MachineDeploymentArgs{}
+	ctx = appconfig.WithConfig(ctx, manifest.Config)
+
+	args := argsFromManifest(manifest, app)
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
