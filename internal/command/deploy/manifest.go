@@ -103,27 +103,20 @@ func ManifestFromFile(filename string) (*DeployManifest, error) {
 	return ManifestFromReader(file)
 }
 
-func ManifestIntoWriter(w io.Writer, manifest *DeployManifest) error {
+func (m *DeployManifest) WriteTo(w io.Writer) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(manifest)
+	return enc.Encode(m)
 }
 
-func ManifestIntoFile(manifest *DeployManifest, filename string) error {
+func (m *DeployManifest) WriteToFile(filename string) error {
 	file, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
 	defer file.Close()
-	return ManifestIntoWriter(file, manifest)
-}
 
-func exportManifest(ctx context.Context, appName string, args MachineDeploymentArgs) error {
-	config := appconfig.ConfigFromContext(ctx)
-
-	manifest := NewManifest(appName, config, args)
-
-	return ManifestIntoFile(manifest, defaultManifestPath)
+	return m.WriteTo(file)
 }
 
 func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
