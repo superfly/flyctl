@@ -409,8 +409,11 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
+	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
+	if machineConf.Restart != nil && machineConf.Restart.Policy == fly.MachineRestartPolicySpotPrice {
+		input.SkipLaunch = true
+	}
 
 	machine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
