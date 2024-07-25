@@ -394,6 +394,12 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		return nil, nil, retErr
 	}
 
+	retErr = flapsClient.Wait(ctx, mach, "started", 60*time.Second)
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
+		return nil, nil, retErr
+	}
+
 	return
 }
 
