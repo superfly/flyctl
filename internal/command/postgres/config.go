@@ -30,7 +30,7 @@ func newConfig() (cmd *cobra.Command) {
 	cmd = command.New("config", short, long, nil)
 
 	cmd.AddCommand(
-		newBackupConfigUpdate(),
+		newConfigShow(),
 		newConfigUpdate(),
 	)
 
