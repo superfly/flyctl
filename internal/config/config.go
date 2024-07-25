@@ -174,7 +174,7 @@ func (cfg *Config) applyFile(path string) (err error) {
 	}
 	w.SendMetrics = true
 	w.AutoUpdate = true
-	w.SyntheticsAgent = false
+	w.SyntheticsAgent = true
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.Tokens = tokens.ParseFromFile(w.AccessToken, path)
