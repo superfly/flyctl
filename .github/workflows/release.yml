@@ -168,4 +168,3 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.installationToken.outputs.token }}
         run: scripts/publish_docs.sh ${{ github.ref_name }}
-
