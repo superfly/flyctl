@@ -214,6 +214,8 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 				return true
 			}
 		}
+	case mConfig.Restart != nil && mConfig.Restart.Policy == fly.MachineRestartPolicySpotPrice:
+		return true
 	}
 	return false
 }
