@@ -9,6 +9,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/extensions/enveloop"
 	"github.com/superfly/flyctl/internal/command/extensions/kafka"
 	"github.com/superfly/flyctl/internal/command/extensions/kubernetes"
+	"github.com/superfly/flyctl/internal/command/extensions/mysql"
 	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/extensions/tigris"
@@ -34,6 +35,7 @@ func New() (cmd *cobra.Command) {
 		vector.New(),
 		enveloop.New(),
 		arcjet.New(),
+		mysql.New(),
 	)
 	return
 }
