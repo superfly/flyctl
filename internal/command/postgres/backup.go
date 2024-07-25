@@ -27,7 +27,8 @@ func newBackup() *cobra.Command {
 	cmd := command.New("backup", short, long, nil)
 	cmd.Aliases = []string{"backups"}
 
-	cmd.AddCommand(newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore())
+	cmd.AddCommand(newBackupConfig(), newBackupCreate(), newBackupEnable(), newBackupList(), newBackupRestore())
+
 	return cmd
 }
 
@@ -106,7 +107,7 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersion(appName, machines); err != nil {
+	if err := hasRequiredVersionForBackup(appName, machines); err != nil {
 		return err
 	}
 
@@ -204,7 +205,6 @@ func newBackupCreate() *cobra.Command {
 func runBackupCreate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
 	)
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -232,15 +232,10 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err := hasRequiredVersion(appName, machines); err != nil {
+	if err := hasRequiredVersionForBackup(appName, machines); err != nil {
 		return err
 	}
 
-	// Ensure the backup is issued against the primary.
-	leader, err := pickLeader(ctx, machines)
-	if err != nil {
-		return err
-	}
 	cmd := "flexctl backup create"
 
 	if flag.GetBool(ctx, "immediate-checkpoint") {
@@ -252,27 +247,7 @@ func runBackupCreate(ctx context.Context) error {
 		cmd += " -n " + name
 	}
 
-	in := &fly.MachineExecRequest{
-		Cmd: cmd,
-	}
-
-	out, err := flapsClient.Exec(ctx, leader.ID, in)
-	if err != nil {
-		return err
-	}
-
-	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
-	}
-
-	if out.StdOut != "" {
-		fmt.Fprint(io.Out, out.StdOut)
-	}
-	if out.StdErr != "" {
-		fmt.Fprint(io.ErrOut, out.StdErr)
-	}
-
-	return nil
+	return ExecOnLeader(ctx, appName, cmd)
 }
 
 func newBackupEnable() *cobra.Command {
@@ -336,7 +311,7 @@ func runBackupEnable(ctx context.Context) error {
 		return err
 	}
 
-	if err := hasRequiredVersion(appName, machines); err != nil {
+	if err := hasRequiredVersionForBackup(appName, machines); err != nil {
 		return err
 	}
 
@@ -392,7 +367,6 @@ func newBackupList() *cobra.Command {
 func runBackupList(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		io      = iostreams.FromContext(ctx)
 	)
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -420,34 +394,14 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	err = hasRequiredVersion(appName, machines)
+	err = hasRequiredVersionForBackup(appName, machines)
 	if err != nil {
 		return err
 	}
 
 	machine := machines[0]
 
-	in := &fly.MachineExecRequest{
-		Cmd: "flexctl backup list",
-	}
-
-	out, err := flapsClient.Exec(ctx, machine.ID, in)
-	if err != nil {
-		return err
-	}
-
-	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
-	}
-
-	if out.StdOut != "" {
-		fmt.Fprint(io.Out, out.StdOut)
-	}
-	if out.StdErr != "" {
-		fmt.Fprint(io.ErrOut, out.StdErr)
-	}
-
-	return nil
+	return ExecOnMachine(ctx, appName, machine.ID, "flexctl backup list")
 }
 
 func resolveRestoreTarget(ctx context.Context) string {
@@ -468,8 +422,12 @@ func resolveRestoreTarget(ctx context.Context) string {
 	return target
 }
 
-func hasRequiredVersion(appName string, machines []*fly.Machine) error {
+func hasRequiredVersionForBackup(appName string, machines []*fly.Machine) error {
 	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.53", "")
+}
+
+func hasRequiredVersionForBackupConfig(appName string, machines []*fly.Machine) error {
+	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.54", "")
 }
 
 func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
@@ -489,4 +447,164 @@ func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func newBackupConfig() *cobra.Command {
+	const (
+		short = "Manage backup configuration"
+		long  = short + "\n"
+	)
+
+	cmd := command.New("config", short, long, nil)
+
+	cmd.AddCommand(newBackupConfigShow(), newBackupConfigUpdate())
+
+	return cmd
+}
+
+func newBackupConfigShow() *cobra.Command {
+	const (
+		short = "Show backup configuration"
+		long  = short + "\n"
+	)
+
+	cmd := command.New("show", short, long, runBackupConfigShow,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(cmd, flag.App(), flag.AppConfig())
+
+	return cmd
+}
+
+func newBackupConfigUpdate() *cobra.Command {
+	const (
+		short = "Update backup configuration"
+		long  = short + "\n"
+
+		usage = "update"
+	)
+
+	cmd := command.New(usage, short, long, runBackupConfigUpdate,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(
+		cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.String{
+			Name:        "archive-timeout",
+			Description: "Archive timeout",
+		},
+		flag.String{
+			Name:        "recovery-window",
+			Description: "Recovery window",
+		},
+		flag.String{
+			Name:        "full-backup-frequency",
+			Description: "Full backup frequency",
+		},
+		flag.String{
+			Name:        "minimum-redundancy",
+			Description: "Minimum redundancy",
+		},
+	)
+
+	return cmd
+}
+
+func runBackupConfigShow(ctx context.Context) error {
+	var (
+		appName = appconfig.NameFromContext(ctx)
+	)
+
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize flaps client: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	// Ensure the the app has the required flex version.
+	if err := hasRequiredVersionForBackupConfig(appName, machines); err != nil {
+		return err
+	}
+
+	return ExecOnLeader(ctx, appName, "flexctl backup config show")
+}
+
+func runBackupConfigUpdate(ctx context.Context) error {
+	var (
+		appName = appconfig.NameFromContext(ctx)
+	)
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize flaps client: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	// Ensure the the app has the required flex version.
+	if err := hasRequiredVersionForBackupConfig(appName, machines); err != nil {
+		return err
+	}
+
+	command := "flexctl backup config update"
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
+	if flag.GetString(ctx, "archive-timeout") != "" {
+		command += " --archive-timeout " + flag.GetString(ctx, "archive-timeout")
+	}
+
+	if flag.GetString(ctx, "recovery-window") != "" {
+		command += " --recovery-window " + flag.GetString(ctx, "recovery-window")
+	}
+
+	if flag.GetString(ctx, "full-backup-frequency") != "" {
+		command += " --full-backup-frequency " + flag.GetString(ctx, "full-backup-frequency")
+	}
+
+	if flag.GetString(ctx, "minimum-redundancy") != "" {
+		command += " --minimum-redundancy " + flag.GetString(ctx, "minimum-redundancy")
+	}
+
+	return ExecOnLeader(ctx, appName, command)
 }
