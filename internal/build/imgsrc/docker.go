@@ -108,13 +108,16 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useNixpacks bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNixpacks bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
 	}
 	if allowRemote {
 		daemonType = daemonType | DockerDaemonTypeRemote
+	}
+	if useDepot {
+		daemonType = daemonType | DockerDaemonTypeDepot
 	}
 	if useNixpacks {
 		daemonType = daemonType | DockerDaemonTypeNixpacks
@@ -133,6 +136,7 @@ const (
 	DockerDaemonTypeNone
 	DockerDaemonTypePrefersLocal
 	DockerDaemonTypeNixpacks
+	DockerDaemonTypeDepot
 )
 
 func (t DockerDaemonType) String() string {
@@ -149,6 +153,9 @@ func (t DockerDaemonType) String() string {
 	}
 	if t&DockerDaemonTypeNixpacks != 0 {
 		strs = append(strs, "nix-packs")
+	}
+	if t&DockerDaemonTypeDepot != 0 {
+		strs = append(strs, "depot")
 	}
 	if len(strs) == 0 {
 		return "none"
@@ -179,6 +186,10 @@ func (t DockerDaemonType) IsAvailable() bool {
 
 func (t DockerDaemonType) UseNixpacks() bool {
 	return (t & DockerDaemonTypeNixpacks) != 0
+}
+
+func (t DockerDaemonType) UseDepot() bool {
+	return (t & DockerDaemonTypeDepot) != 0
 }
 
 func (t DockerDaemonType) PrefersLocal() bool {
