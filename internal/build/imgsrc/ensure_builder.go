@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
 )
 
@@ -410,6 +411,8 @@ func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) err
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	mach.WaitForAnyMachineState(ctx, builderMachine, []string{"started", "stopped"}, 60*time.Second, nil)
 
 	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
 		ID: builderMachine.ID,
