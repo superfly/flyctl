@@ -541,6 +541,14 @@ func BuildTarget() String {
 	}
 }
 
+func Depot() Bool {
+	return Bool{
+		Name:        "depot",
+		Default:     false,
+		Description: "Deploy using depot to build the image",
+	}
+}
+
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
