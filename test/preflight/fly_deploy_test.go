@@ -196,6 +196,35 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
+func TestFlyDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	require.NoError(t, err)
+
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app":    appName,
+		"region": f.PrimaryRegion(),
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
+
+	f.Fly("deploy --depot --ha=false")
+
+	f.Fly("deploy --depot --strategy immediate --ha=false")
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+}
+
 func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
