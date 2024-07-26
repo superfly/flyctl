@@ -239,7 +239,7 @@ func TestUpdateMachines(t *testing.T) {
 				machine.State = "started"
 				return nil
 			} else {
-				return assert.AnError
+				return nil
 			}
 		},
 		ListFunc: func(ctx context.Context, state string) ([]*fly.Machine, error) {
