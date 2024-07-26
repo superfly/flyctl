@@ -65,15 +65,16 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 
 		if validateBuilderErr == BuilderMachineNotStarted {
 			err := restartBuilderMachine(ctx, builderMachine)
-			if err != nil {
-				if errors.Is(err, ShouldReplaceBuilderMachine) {
-					span.AddEvent("recreating builder due to resource reservation error")
-				} else {
-					tracing.RecordError(span, err, "error restarting builder machine")
-					return nil, nil, err
-				}
+			switch {
+			case errors.Is(err, ShouldReplaceBuilderMachine):
+				span.AddEvent("recreating builder due to resource reservation error")
+			case err != nil:
+				tracing.RecordError(span, err, "error restarting builder machine")
+				return nil, nil, err
+			default:
+				return builderMachine, builderApp, nil
+
 			}
-			return builderMachine, builderApp, nil
 		}
 
 		if validateBuilderErr != NoBuilderApp {
