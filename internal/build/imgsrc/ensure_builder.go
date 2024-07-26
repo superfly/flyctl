@@ -73,6 +73,7 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 					return nil, nil, err
 				}
 			}
+			return builderMachine, builderApp, nil
 		}
 
 		if validateBuilderErr != NoBuilderApp {
