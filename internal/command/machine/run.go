@@ -124,6 +124,11 @@ var sharedFlags = flag.Set{
 		Description: `Set the restart policy for a Machine. Options include 'no', 'always', and 'on-fail'.
 	Default is 'on-fail' for Machines created by 'fly deploy' and Machines with a schedule. Default is 'always' for Machines created by 'fly m run'.`,
 	},
+	flag.Float64{
+		Name:        "gpu-bid-price",
+		Description: `Set the GPU price to bid for (HELP!)`,
+		Hidden:      true,
+	},
 	flag.StringSlice{
 		Name:        "standby-for",
 		Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
@@ -404,8 +409,11 @@ func runMachineRun(ctx context.Context) error {
 		return nil
 	}
 
-	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
 	input.Config = machineConf
+	input.SkipLaunch = (len(machineConf.Standbys) > 0 || isCreate)
+	if machineConf.Restart != nil && machineConf.Restart.Policy == fly.MachineRestartPolicySpotPrice {
+		input.SkipLaunch = true
+	}
 
 	machine, err := flapsClient.Launch(ctx, input)
 	if err != nil {
@@ -733,6 +741,11 @@ func determineMachineConfig(
 	case "always":
 		machineConf.Restart = &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
+		}
+	case "spot-price":
+		machineConf.Restart = &fly.MachineRestart{
+			Policy:      fly.MachineRestartPolicySpotPrice,
+			GPUBidPrice: float32(flag.GetFloat64(ctx, "gpu-bid-price")),
 		}
 	case "":
 		if flag.IsSpecified(ctx, "restart") {
