@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -63,17 +64,15 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			span.AddEvent("builder machine not started, restarting")
-			flapsClient := flapsutil.ClientFromContext(ctx)
-
-			if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
-				ID: builderMachine.ID,
-			}, ""); err != nil {
-				tracing.RecordError(span, err, "error restarting builder machine")
-				return nil, nil, err
+			err := restartBuilderMachine(ctx, builderMachine)
+			if err != nil {
+				if errors.Is(err, ShouldReplaceBuilderMachine) {
+					span.AddEvent("recreating builder due to resource reservation error")
+				} else {
+					tracing.RecordError(span, err, "error restarting builder machine")
+					return nil, nil, err
+				}
 			}
-
-			return builderMachine, builderApp, nil
 		}
 
 		if validateBuilderErr != NoBuilderApp {
@@ -128,6 +127,8 @@ func (e ValidateBuilderError) Error() string {
 		return "invalid machine count"
 	case BuilderMachineNotStarted:
 		return "builder machine not started"
+	case ShouldReplaceBuilderMachine:
+		return "should replace builder machine"
 	default:
 		return "unknown error validating builder"
 	}
@@ -138,6 +139,7 @@ const (
 	NoBuilderVolume
 	InvalidMachineCount
 	BuilderMachineNotStarted
+	ShouldReplaceBuilderMachine
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
@@ -392,5 +394,38 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 		return nil, nil, retErr
 	}
 
+	retErr = flapsClient.Wait(ctx, mach, "started", 60*time.Second)
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
+		return nil, nil, retErr
+	}
+
 	return
+}
+
+func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
+	defer span.End()
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
+		ID: builderMachine.ID,
+	}, ""); err != nil {
+		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
+			strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
+			span.RecordError(err)
+			return ShouldReplaceBuilderMachine
+		}
+
+		tracing.RecordError(span, err, "error restarting builder machine")
+		return err
+	}
+
+	if err := flapsClient.Wait(ctx, builderMachine, "started", time.Second*60); err != nil {
+		tracing.RecordError(span, err, "error waiting for builder machine to start")
+		return err
+	}
+
+	return nil
 }

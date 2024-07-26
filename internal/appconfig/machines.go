@@ -59,6 +59,10 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	// StopConfig
 	c.tomachineSetStopConfig(mConfig)
 
+	// Files
+	mConfig.Files = nil
+	fly.MergeFiles(mConfig, c.MergedFiles)
+
 	return mConfig, nil
 }
 

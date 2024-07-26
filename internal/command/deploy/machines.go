@@ -60,7 +60,8 @@ type MachineDeploymentArgs struct {
 	ReleaseCmdTimeout     *time.Duration
 	Guest                 *fly.MachineGuest
 	IncreasedAvailability bool
-	AllocPublicIP         bool
+	AllocIP               string
+	Org                   string
 	UpdateOnly            bool
 	Files                 []*fly.File
 	ExcludeRegions        map[string]bool
@@ -261,7 +262,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 
 	// Provisioning must come after setVolumes
-	if err := md.provisionFirstDeploy(ctx, args.AllocPublicIP); err != nil {
+	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
 		tracing.RecordError(span, err, "failed to provision first depoloy")
 		return nil, err
 	}

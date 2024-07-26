@@ -21,7 +21,7 @@ func newDestroy() *cobra.Command {
 	const (
 		short = "Destroy Fly machines"
 		long  = `Destroy one or more Fly machines.
-This command requires a machine to be in a stopped state unless the force flag is used.
+This command requires a machine to be in a stopped or suspended state unless the force flag is used.
 `
 		usage = "destroy [flags] ID ID ..."
 	)
@@ -176,7 +176,7 @@ func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, for
 	)
 
 	switch machine.State {
-	case "stopped":
+	case "stopped", "suspended":
 		break
 	case "destroyed":
 		return fmt.Errorf("machine %s has already been destroyed", machine.ID)
@@ -186,7 +186,7 @@ func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, for
 		}
 	default:
 		if !force {
-			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped, either stop first or use --force flag", machine.ID, machine.State)
+			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped or suspended, either stop first or use --force flag", machine.ID, machine.State)
 		}
 	}
 	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machine.ID, machine.State)
