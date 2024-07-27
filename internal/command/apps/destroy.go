@@ -17,10 +17,10 @@ import (
 
 func newDestroy() *cobra.Command {
 	const (
-		long = "Delete an application from the Fly platform."
+		long = "Delete one or more applications from the Fly platform."
 
-		short = "Permanently destroy an app."
-		usage = "destroy <app name>"
+		short = "Permanently destroy one or more appa."
+		usage = "destroy <app name(s)>"
 	)
 
 	destroy := command.New(usage, short, long, RunDestroy,
