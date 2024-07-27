@@ -217,6 +217,10 @@ func TestCreateBuilder(t *testing.T) {
 				State: "started",
 			}, nil
 		},
+		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+			time.Sleep(1 * time.Second)
+			return nil
+		},
 	}
 	ctx = flyutil.NewContextWithClient(ctx, &apiClient)
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)

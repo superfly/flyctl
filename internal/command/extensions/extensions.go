@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/extensions/tigris"
 	"github.com/superfly/flyctl/internal/command/extensions/vector"
+	"github.com/superfly/flyctl/internal/command/extensions/wafris"
 )
 
 func New() (cmd *cobra.Command) {
@@ -36,6 +37,7 @@ func New() (cmd *cobra.Command) {
 		enveloop.New(),
 		arcjet.New(),
 		mysql.New(),
+		wafris.New(),
 	)
 	return
 }

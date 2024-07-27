@@ -65,13 +65,15 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 
 		if validateBuilderErr == BuilderMachineNotStarted {
 			err := restartBuilderMachine(ctx, builderMachine)
-			if err != nil {
-				if errors.Is(err, ShouldReplaceBuilderMachine) {
-					span.AddEvent("recreating builder due to resource reservation error")
-				} else {
-					tracing.RecordError(span, err, "error restarting builder machine")
-					return nil, nil, err
-				}
+			switch {
+			case errors.Is(err, ShouldReplaceBuilderMachine):
+				span.AddEvent("recreating builder due to resource reservation error")
+			case err != nil:
+				tracing.RecordError(span, err, "error restarting builder machine")
+				return nil, nil, err
+			default:
+				return builderMachine, builderApp, nil
+
 			}
 		}
 
@@ -391,6 +393,12 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 	})
 	if retErr != nil {
 		tracing.RecordError(span, retErr, "error launching builder machine")
+		return nil, nil, retErr
+	}
+
+	retErr = flapsClient.Wait(ctx, mach, "started", 60*time.Second)
+	if retErr != nil {
+		tracing.RecordError(span, retErr, "error waiting for builder machine to start")
 		return nil, nil, retErr
 	}
 
