@@ -45,6 +45,10 @@ func RunDestroy(ctx context.Context) error {
 	apps := flag.Args(ctx)
 	client := flyutil.ClientFromContext(ctx)
 
+	if len(apps) == 0 {
+		return fmt.Errorf("no app names provided")
+	}
+
 	for _, appName := range apps {
 
 		if !flag.GetYes(ctx) {
