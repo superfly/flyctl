@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
@@ -122,11 +123,10 @@ func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs
 }
 
 func isFlyInfraTarget(target string) bool {
-	var flyInfraHosts = map[string]bool{
-		"api.fly.io":       true,
-		"api.machines.dev": true,
-		"fly.io":           true,
-		"registry.fly.io":  true,
+	var flyInfraDomains = []string{
+		"fly.io",
+		"flyio.net",
+		"machines.dev",
 	}
 
 	parsedURL, err := url.Parse(target)
@@ -139,7 +139,11 @@ func isFlyInfraTarget(target string) bool {
 		host = parsedURL.Host
 	}
 
-	_, existsInFlyInfraDomains := flyInfraHosts[host]
+	for _, flyInfraDomain := range flyInfraDomains {
+		if strings.HasSuffix(host, "."+flyInfraDomain) || host == flyInfraDomain {
+			return true
+		}
+	}
 
-	return existsInFlyInfraDomains
+	return false
 }
