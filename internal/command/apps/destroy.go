@@ -26,7 +26,7 @@ func newDestroy() *cobra.Command {
 	destroy := command.New(usage, short, long, RunDestroy,
 		command.RequireSession)
 
-	destroy.Args = cobra.ExactArgs(1)
+	destroy.Args = cobra.ArbitraryArgs
 
 	flag.Add(destroy,
 		flag.Yes(),
@@ -42,30 +42,33 @@ func newDestroy() *cobra.Command {
 func RunDestroy(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	appName := flag.FirstArg(ctx)
+	apps := flag.Args(ctx)
 	client := flyutil.ClientFromContext(ctx)
 
-	if !flag.GetYes(ctx) {
-		const msg = "Destroying an app is not reversible."
-		fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+	for _, appName := range apps {
 
-		switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", appName); {
-		case err == nil:
-			if !confirmed {
-				return nil
+		if !flag.GetYes(ctx) {
+			const msg = "Destroying an app is not reversible."
+			fmt.Fprintln(io.ErrOut, colorize.Red(msg))
+
+			switch confirmed, err := prompt.Confirmf(ctx, "Destroy app %s?", appName); {
+			case err == nil:
+				if !confirmed {
+					return nil
+				}
+			case prompt.IsNonInteractive(err):
+				return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+			default:
+				return err
 			}
-		case prompt.IsNonInteractive(err):
-			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
-		default:
+		}
+
+		if err := client.DeleteApp(ctx, appName); err != nil {
 			return err
 		}
-	}
 
-	if err := client.DeleteApp(ctx, appName); err != nil {
-		return err
+		fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
 	}
-
-	fmt.Fprintf(io.Out, "Destroyed app %s\n", appName)
 
 	return nil
 }
