@@ -3,6 +3,7 @@ package flag
 import (
 	"context"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -38,12 +39,20 @@ func FirstArg(ctx context.Context) string {
 	return ""
 }
 
+func FromEnv(name string) string {
+	var_name := "FLY_" + strings.ToUpper(name)
+	var_name = strings.ReplaceAll(var_name, "-", "_")
+	return env.First(var_name)
+}
+
 // GetString returns the value of the named string flag ctx carries.
 func GetString(ctx context.Context, name string) string {
-	if v, err := FromContext(ctx).GetString(name); err != nil {
-		return ""
-	} else {
+	if v, err := FromContext(ctx).GetString(name); err == nil && v != "" {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		return v
+	} else {
+		return ""
 	}
 }
 
@@ -55,20 +64,32 @@ func SetString(ctx context.Context, name, value string) error {
 // GetInt returns the value of the named int flag ctx carries. It panics
 // in case ctx carries no flags or in case the named flag isn't an int one.
 func GetInt(ctx context.Context, name string) int {
-	if v, err := FromContext(ctx).GetInt(name); err != nil {
-		panic(err)
-	} else {
+	if v, err := FromContext(ctx).GetInt(name); err == nil {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		if i, err := strconv.Atoi(v); err == nil {
+			return i
+		} else {
+			panic(err)
+		}
+	} else {
+		panic(err)
 	}
 }
 
 // GetFloat64 returns the value of the named int flag ctx carries. It panics
 // in case ctx carries no flags or in case the named flag isn't a float64 one.
 func GetFloat64(ctx context.Context, name string) float64 {
-	if v, err := FromContext(ctx).GetFloat64(name); err != nil {
-		panic(err)
-	} else {
+	if v, err := FromContext(ctx).GetFloat64(name); err == nil {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			return f
+		} else {
+			panic(err)
+		}
+	} else {
+		panic(err)
 	}
 }
 
@@ -119,11 +140,14 @@ func GetDuration(ctx context.Context, name string) time.Duration {
 
 // GetBool returns the value of the named boolean flag ctx carries.
 func GetBool(ctx context.Context, name string) bool {
-	if v, err := FromContext(ctx).GetBool(name); err != nil {
-		return false
-	} else {
+	if v, err := FromContext(ctx).GetBool(name); err == nil {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
 	}
+	return false
 }
 
 // IsSpecified returns whether a flag has been specified at all or not.
@@ -136,9 +160,6 @@ func IsSpecified(ctx context.Context, name string) bool {
 // GetOrg is shorthand for GetString(ctx, Org).
 func GetOrg(ctx context.Context) string {
 	org := GetString(ctx, flagnames.Org)
-	if org == "" {
-		org = env.First("FLY_ORG")
-	}
 	return org
 }
 
