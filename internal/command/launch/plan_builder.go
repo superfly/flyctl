@@ -424,7 +424,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 		fromInto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && (flag.GetString(ctx, "into") != "")
 		copyConfig := flag.GetBool(ctx, "copy-config") || fromInto
 
-		if !flag.IsSpecified(ctx, "copy-config") && !fromInto {
+		if !flag.IsSpecified(ctx, "copy-config") && !fromInto && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
