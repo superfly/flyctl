@@ -420,11 +420,11 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		// if both --from and --into are specified, we should return the config as the base config
-		fromInto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && (flag.GetString(ctx, "into") != "")
-		copyConfig := flag.GetBool(ctx, "copy-config") || fromInto
+		// if --attach is specified, we should return the config as the base config
+		attach := flag.GetBool(ctx, "attach")
+		copyConfig := flag.GetBool(ctx, "copy-config") || attach
 
-		if !flag.IsSpecified(ctx, "copy-config") && !fromInto {
+		if !flag.IsSpecified(ctx, "copy-config") && !attach {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
@@ -575,8 +575,7 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
 	client := flyutil.ClientFromContext(ctx)
 
-	frominto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && flag.GetString(ctx, "into") != ""
-	if frominto && config != nil && config.AppName != "" {
+	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
 		org, err := client.GetOrganizationByApp(ctx, config.AppName)
 		if err == nil {
 			return org, fmt.Sprintf("from %s app", config.AppName), nil

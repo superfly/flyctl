@@ -348,7 +348,7 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 		return err
 	}
 	var ip = "public"
-	if flag.GetBool(ctx, "flycast") {
+	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
 		ip = "private"
 	} else if flag.GetBool(ctx, "no-public-ips") {
 		ip = "none"
@@ -523,7 +523,7 @@ func deployToMachines(
 	}
 
 	var ip = "public"
-	if flag.GetBool(ctx, "flycast") {
+	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
 		ip = "private"
 	} else if flag.GetBool(ctx, "no-public-ips") {
 		ip = "none"
