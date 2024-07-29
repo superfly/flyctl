@@ -18,6 +18,10 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
+const (
+	backupConfigVersion = "0.0.54"
+)
+
 func newBackup() *cobra.Command {
 	const (
 		short = "Backup commands"
@@ -426,10 +430,6 @@ func hasRequiredVersionForBackup(appName string, machines []*fly.Machine) error 
 	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.53", "")
 }
 
-func hasRequiredVersionForBackupConfig(appName string, machines []*fly.Machine) error {
-	return hasRequiredVersionOnMachines(appName, machines, "", "0.0.54", "")
-}
-
 func isBackupEnabled(ctx context.Context, appName string) (bool, error) {
 	var (
 		client = flyutil.ClientFromContext(ctx)
@@ -547,7 +547,7 @@ func runBackupConfigShow(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionForBackupConfig(appName, machines); err != nil {
+	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
 		return err
 	}
 
@@ -576,7 +576,7 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionForBackupConfig(appName, machines); err != nil {
+	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
 		return err
 	}
 
