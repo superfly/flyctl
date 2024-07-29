@@ -42,7 +42,7 @@ func renderListTable(ctx context.Context, ipAddresses []fly.IPAddress) {
 	render.Table(out, "", rows, "Version", "IP", "Type", "Region", "Network", "Service", "Created At")
 }
 
-func formatNetwork(ipAddr api.IPAddress) string {
+func formatNetwork(ipAddr fly.IPAddress) string {
 	if ipAddr.Network == nil {
 		return ""
 	}
