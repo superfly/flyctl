@@ -50,7 +50,7 @@ func runGenerate(ctx context.Context) error {
 	ctx = context.WithValue(ctx, genContextKey{}, true)
 
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: false}
-	launchManifest, _, err := buildManifest(ctx, &recoverableErrors)
+	launchManifest, planBuildCache, err := buildManifest(ctx, &recoverableErrors)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,9 @@ func runGenerate(ctx context.Context) error {
 		launchManifest.Config.SetInternalPort(n)
 	}
 
-	file, err := os.Create(flag.GetString(ctx, "manifest-path"))
+	manifestPath := flag.GetString(ctx, "manifest-path")
+
+	file, err := os.Create(manifestPath)
 	if err != nil {
 		return err
 	}
@@ -70,7 +72,29 @@ func runGenerate(ctx context.Context) error {
 	jsonEncoder := json.NewEncoder(file)
 	jsonEncoder.SetIndent("", "  ")
 
-	return jsonEncoder.Encode(launchManifest)
+	if err := jsonEncoder.Encode(launchManifest); err != nil {
+		return err
+	}
+
+	state := &launchState{workingDir: ".", configPath: "fly.json", LaunchManifest: *launchManifest, env: map[string]string{}, planBuildCache: *planBuildCache, cache: map[string]interface{}{}}
+
+	if err := state.satisfyScannerBeforeDb(ctx); err != nil {
+		return err
+	}
+
+	if err := state.satisfyScannerBeforeDb(ctx); err != nil {
+		return err
+	}
+
+	if err = state.createDockerIgnore(ctx); err != nil {
+		return err
+	}
+
+	if err = state.scannerSetAppconfig(ctx); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type genContextKey struct{}

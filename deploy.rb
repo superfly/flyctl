@@ -4,6 +4,7 @@ require 'json'
 require 'time'
 require 'open3'
 require 'uri'
+require 'securerandom'
 
 LOG_PREFIX = ENV["LOG_PREFIX"]
 
@@ -11,6 +12,7 @@ module Step
   ROOT = :__root__
   GIT_PULL = :git_pull
   PLAN = :plan
+  BUILD = :build
   DEPLOY = :deploy
 end
 
@@ -130,7 +132,7 @@ end
 
 if (git_repo = ENV["GIT_REPO"]) && !!git_repo
     in_step Step::GIT_PULL do
-      `git config --global init.defaultBranch main`
+      # `git config --global init.defaultBranch main`
       ref = ENV["GIT_REF"]
       artifact :git_info, { repository: git_repo, reference: ref }
       
@@ -189,14 +191,28 @@ manifest = in_step Step::PLAN do
   }]
 
   artifact :manifest, manifest
+
+  exec_capture("git add -A")
+  diff = exec_capture("git diff --cached")
+  artifact :diff, diff
+
   manifest
+end
+
+# Write the fly config file to a tmp directory
+File.write("/tmp/fly.json", manifest["config"].to_json)
+
+image_tag = SecureRandom.hex(16)
+image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+
+in_step Step::BUILD do
+  exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
+  artifact :docker_image, image_ref
 end
 
 if ENV["DEPLOY_NOW"]
   in_step Step::DEPLOY do
-    File.write("/tmp/fly.json", manifest["config"].to_json)
-
-    exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json")
+    exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --image #{image_ref}")
   end
 end
 
