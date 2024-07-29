@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	backupVersion = "0.0.53"
+	backupVersion       = "0.0.53"
 	backupConfigVersion = "0.0.54"
 )
 
@@ -599,7 +599,6 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		return err
 	}
 
-	command := "flexctl backup config update"
 	enabled, err := isBackupEnabled(ctx, appName)
 	if err != nil {
 		return err
@@ -608,6 +607,8 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	if !enabled {
 		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
 	}
+
+	command := "flexctl backup config update"
 
 	if flag.GetString(ctx, "archive-timeout") != "" {
 		command += " --archive-timeout " + flag.GetString(ctx, "archive-timeout")
