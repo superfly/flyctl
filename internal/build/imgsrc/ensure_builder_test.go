@@ -265,7 +265,7 @@ func TestRestartBuilderMachine(t *testing.T) {
 	ctx := context.Background()
 
 	couldNotReserveResources := false
-	waitedForStartOrStop := true
+	waitedForStartOrStop := false
 	flapsClient := mock.FlapsClient{
 		RestartFunc: func(ctx context.Context, input fly.RestartMachineInput, nonce string) error {
 			if couldNotReserveResources {
