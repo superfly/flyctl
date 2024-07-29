@@ -45,6 +45,10 @@ func runList(ctx context.Context) (err error) {
 
 	for _, addon := range response.AddOns.Nodes {
 		options, _ := addon.Options.(map[string]interface{})
+
+		if options == nil {
+			options = make(map[string]interface{})
+		}
 		eviction := "Disabled"
 
 		if options["eviction"] != nil && options["eviction"].(bool) {
