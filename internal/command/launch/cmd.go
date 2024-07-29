@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -18,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -81,6 +85,10 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "into",
 			Description: "Destination directory for github repo specified with --from",
+		},
+		flag.Bool{
+			Name:        "attach",
+			Description: "Attach this new application to the current application",
 		},
 		flag.Bool{
 			Name:        "manifest",
@@ -156,6 +164,11 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 	}
 
 	into := flag.GetString(ctx, "into")
+
+	if into == "" && flag.GetBool(ctx, "attach") {
+		into = filepath.Join(".", "fly", "apps", filepath.Base(from))
+	}
+
 	if into == "" {
 		into = "."
 	} else {
@@ -257,6 +270,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// "--from" arg handling
+	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
 		return err
@@ -360,6 +374,32 @@ func run(ctx context.Context) (err error) {
 	err = state.Launch(ctx)
 	if err != nil {
 		return err
+	}
+
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+		ctx, err = command.LoadAppConfigIfPresent(ctx)
+		if err != nil {
+			return err
+		}
+
+		config := appconfig.ConfigFromContext(ctx)
+
+		exports := config.Experimental.Attached.Secrets.Export
+
+		if len(exports) > 0 {
+			flycast := config.AppName + ".flycast"
+			for name, secret := range exports {
+				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
+			}
+
+			apiClient := flyutil.ClientFromContext(parentCtx)
+			_, err := apiClient.SetSecrets(parentCtx, parentConfig.AppName, exports)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", parentConfig.AppName, strings.Join(lo.Keys(exports), ", "))
+		}
 	}
 
 	return nil
