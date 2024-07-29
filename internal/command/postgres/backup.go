@@ -238,7 +238,7 @@ func runBackupCreate(ctx context.Context) error {
 		cmd += " -n " + name
 	}
 
-	return ExecOnLeader(ctx, appName, cmd)
+	return ExecOnLeader(ctx, flapsClient, cmd)
 }
 
 func newBackupEnable() *cobra.Command {
@@ -392,7 +392,7 @@ func runBackupList(ctx context.Context) error {
 
 	machine := machines[0]
 
-	return ExecOnMachine(ctx, appName, machine.ID, "flexctl backup list")
+	return ExecOnMachine(ctx, flapsClient, machine.ID, "flexctl backup list")
 }
 
 func resolveRestoreTarget(ctx context.Context) string {
@@ -542,7 +542,7 @@ func runBackupConfigShow(ctx context.Context) error {
 		return err
 	}
 
-	return ExecOnLeader(ctx, appName, "flexctl backup config show")
+	return ExecOnLeader(ctx, flapsClient, "flexctl backup config show")
 }
 
 func runBackupConfigUpdate(ctx context.Context) error {
@@ -597,5 +597,5 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		command += " --minimum-redundancy " + flag.GetString(ctx, "minimum-redundancy")
 	}
 
-	return ExecOnLeader(ctx, appName, command)
+	return ExecOnLeader(ctx, flapsClient, command)
 }

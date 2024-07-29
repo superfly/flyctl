@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -196,22 +195,16 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 }
 
 // Runs a command on the specified machine ID in the named app.
-func ExecOnMachine(ctx context.Context, appName, machineId, command string) error {
+func ExecOnMachine(ctx context.Context, client *flaps.Client, machineId, command string) error {
 	var (
 		io = iostreams.FromContext(ctx)
 	)
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
 
 	in := &fly.MachineExecRequest{
 		Cmd: command,
 	}
 
-	out, err := flapsClient.Exec(ctx, machineId, in)
+	out, err := client.Exec(ctx, machineId, in)
 	if err != nil {
 		return err
 	}
@@ -228,15 +221,8 @@ func ExecOnMachine(ctx context.Context, appName, machineId, command string) erro
 }
 
 // Runs a command on the leader of the named cluster.
-func ExecOnLeader(ctx context.Context, appName, command string) error {
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-
-	machines, err := flapsClient.ListActive(ctx)
+func ExecOnLeader(ctx context.Context, client *flaps.Client, command string) error {
+	machines, err := client.ListActive(ctx)
 	if err != nil {
 		return err
 	}
@@ -246,5 +232,5 @@ func ExecOnLeader(ctx context.Context, appName, command string) error {
 		return err
 	}
 
-	return ExecOnMachine(ctx, appName, leader.ID, command)
+	return ExecOnMachine(ctx, client, leader.ID, command)
 }
