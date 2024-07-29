@@ -460,7 +460,7 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 
 	if !healthcheckResult.machineChecksPassed || !healthcheckResult.smokeChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for machine %s to reach a good state", oldMachine.ID))
-		_, err := waitForMachineState(ctx, lm, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
+		_, err := mach.WaitForAnyMachineState(ctx, machine, []string{"stopped", "started", "suspended"}, md.waitTimeout, sl)
 		if err != nil {
 			span.RecordError(err)
 			return err
@@ -473,8 +473,9 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
 		err = md.doSmokeChecks(ctx, lm, false)
 		if err != nil {
+			err := &unrecoverableError{err: err}
 			span.RecordError(err)
-			return &unrecoverableError{err: err}
+			return err
 		}
 		healthcheckResult.smokeChecksPassed = true
 	}
@@ -493,11 +494,16 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	if !healthcheckResult.regularChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
 		err = lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
-		if err != nil {
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			span.RecordError(err)
+			return err
+		case err != nil:
 			err := &unrecoverableError{err: err}
 			span.RecordError(err)
 			return err
 		}
+
 		healthcheckResult.regularChecksPassed = true
 	}
 
@@ -581,66 +587,6 @@ func (md *machineDeployment) clearMachineLease(ctx context.Context, machID, leas
 		if attempts > 5 {
 			return err
 		}
-		time.Sleep(1 * time.Second)
-	}
-}
-
-// returns when the machine is in one of the possible states, or after passing the timeout threshold
-func waitForMachineState(ctx context.Context, lm mach.LeasableMachine, possibleStates []string, timeout time.Duration, sl statuslogger.StatusLine) (string, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_machine_state", trace.WithAttributes(
-		attribute.StringSlice("possible_states", possibleStates),
-	))
-	defer span.End()
-
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	var mutex sync.Mutex
-
-	var waitErr error
-	numCompleted := 0
-	var successfulState string
-
-	for _, state := range possibleStates {
-		state := state
-		go func() {
-			err := lm.WaitForState(ctx, state, timeout, false)
-			mutex.Lock()
-			defer func() {
-				numCompleted += 1
-				mutex.Unlock()
-			}()
-
-			if successfulState != "" {
-				return
-			}
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Machine %s reached %s state", lm.Machine().ID, state))
-
-			if err != nil {
-				waitErr = err
-			} else {
-				successfulState = state
-			}
-		}()
-	}
-
-	// TODO(billy): i'm sure we can use channels here
-	for {
-		mutex.Lock()
-		if successfulState != "" || numCompleted == len(possibleStates) {
-			defer mutex.Unlock()
-			if successfulState != "" {
-				span.SetAttributes(attribute.String("state", successfulState))
-			}
-
-			if waitErr != nil {
-				span.RecordError(waitErr)
-			}
-
-			return successfulState, waitErr
-		}
-		mutex.Unlock()
-
 		time.Sleep(1 * time.Second)
 	}
 }
