@@ -60,6 +60,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
+	"github.com/superfly/flyctl/internal/command/synthetics"
 	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
@@ -134,6 +135,7 @@ func New() *cobra.Command {
 		settings.New(),
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
+		synthetics.New(),
 		curl.New(),       // TODO: deprecate
 		domains.New(),    // TODO: deprecate
 		open.New(),       // TODO: deprecate

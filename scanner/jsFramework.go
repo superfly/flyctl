@@ -207,7 +207,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if len(m) > 0 && name == "port" {
 				portFromDockerfile, err := strconv.Atoi(m[i])
 				if err == nil {
-					fmt.Printf("got port\n")
 					srcInfo.Port = portFromDockerfile
 					continue
 				}

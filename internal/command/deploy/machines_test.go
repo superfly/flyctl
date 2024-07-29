@@ -21,7 +21,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		},
 		img:        "super/balloon",
 		appConfig:  appConfig,
-		machineSet: machine.NewMachineSet(nil, nil, nil),
+		machineSet: machine.NewMachineSet(nil, nil, nil, true),
 	}
 	return md, nil
 }

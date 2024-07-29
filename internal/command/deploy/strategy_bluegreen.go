@@ -11,9 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"errors"
+
 	"github.com/avast/retry-go/v4"
 	"github.com/hashicorp/go-multierror"
-	"github.com/pkg/errors"
 	"github.com/sourcegraph/conc/pool"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -31,6 +32,7 @@ import (
 // TODO(ali): Use statuslogger here
 
 var (
+	ErrTagForDeletion        = errors.New("failed to mark as safe for deletion")
 	ErrAborted               = errors.New("deployment aborted by user")
 	ErrWaitTimeout           = errors.New("wait timeout")
 	ErrCreateGreenMachine    = errors.New("failed to create green machines")
@@ -159,7 +161,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 				return err
 			}
 
-			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw)
+			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw, true)
 			defer greenMachine.ReleaseLease(ctx)
 
 			lock.Lock()
@@ -700,7 +702,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	fmt.Fprintf(bg.io.ErrOut, "\nCreating green machines\n")
 	if err := bg.CreateGreenMachines(ctx); err != nil {
-		return errors.Wrap(err, ErrCreateGreenMachine.Error())
+		return errors.Join(err, ErrCreateGreenMachine)
 	}
 
 	if bg.isAborted() {
@@ -713,7 +715,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to start\n")
 	if err := bg.WaitForGreenMachinesToBeStarted(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to wait for start")
-		return errors.Wrap(err, ErrWaitForStartedState.Error())
+		return errors.Join(err, ErrWaitForStartedState)
 	}
 
 	if bg.isAborted() {
@@ -723,7 +725,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all green machines to be healthy\n")
 	if err := bg.WaitForGreenMachinesToBeHealthy(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to wait for health")
-		return errors.Wrap(err, ErrWaitForHealthy.Error())
+		return errors.Join(err, ErrWaitForHealthy)
 	}
 
 	if bg.isAborted() {
@@ -733,7 +735,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nMarking green machines as ready\n")
 	if err := bg.MarkGreenMachinesAsReadyForTraffic(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to mark as ready for traffic")
-		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
+		return errors.Join(err, ErrMarkReadyForTraffic)
 	}
 
 	// after this point, a rollback should never delete green machines.
@@ -746,7 +748,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nCheckpointing deployment, this may take a few seconds...\n")
 	if err := bg.TagBlueMachinesAsSafeForDeletion(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to mark as ready for traffic")
-		return errors.Wrap(err, ErrMarkReadyForTraffic.Error())
+		return errors.Join(err, ErrTagForDeletion)
 	}
 
 	if bg.isAborted() {
@@ -762,7 +764,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	// Stop fly-proxy from sending new traffic to the old machines
 	if err := bg.CordonBlueMachines(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to cordon blue machines")
-		return errors.Wrap(err, ErrCordonBlueMachines.Error())
+		return errors.Join(err, ErrCordonBlueMachines)
 	}
 
 	if bg.isAborted() {
@@ -780,7 +782,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 	fmt.Fprintf(bg.io.ErrOut, "\nStopping all blue machines\n")
 	if err := bg.StopBlueMachines(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to stop blue machines")
-		return errors.Wrap(err, ErrStopBlueMachines.Error())
+		return errors.Join(err, ErrStopBlueMachines)
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting for all blue machines to stop\n")
@@ -793,14 +795,14 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 				fmt.Fprintf(bg.io.ErrOut, "  %v\n", err)
 			}
 		} else {
-			return errors.Wrap(err, ErrWaitForStoppedState.Error())
+			return errors.Join(err, ErrWaitForStoppedState)
 		}
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDestroying all blue machines\n")
 	if err := bg.DestroyBlueMachines(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to destroy blue machines")
-		return errors.Wrap(err, ErrDestroyBlueMachines.Error())
+		return errors.Join(err, ErrDestroyBlueMachines)
 	}
 
 	fmt.Fprintf(bg.io.ErrOut, "\nDeployment Complete\n")
@@ -900,7 +902,7 @@ func (bg *blueGreen) CanDestroyGreenMachines(err error) bool {
 	}
 
 	// this ensures aborts after green machines are healthy don't delete green machines
-	if strings.Contains(err.Error(), ErrAborted.Error()) && bg.rollbackLog.canDeleteGreenMachines {
+	if errors.Is(err, ErrAborted) && bg.rollbackLog.canDeleteGreenMachines {
 		return true
 	}
 
