@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
 )
 
@@ -64,7 +65,7 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			err := restartBuilderMachine(ctx, builderMachine)
+			err := startBuilder(ctx, builderMachine)
 			switch {
 			case errors.Is(err, ShouldReplaceBuilderMachine):
 				span.AddEvent("recreating builder due to resource reservation error")
@@ -405,11 +406,21 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 	return
 }
 
-func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) error {
+func startBuilder(ctx context.Context, builderMachine *fly.Machine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	state, err := mach.WaitForAnyMachineState(ctx, builderMachine, []string{"started", "stopped"}, 60*time.Second, nil)
+	if err != nil {
+		tracing.RecordError(span, err, "error waiting for builder machine to start or stop")
+		return err
+	}
+
+	if state == "started" {
+		return nil
+	}
 
 	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
 		ID: builderMachine.ID,
