@@ -241,6 +241,16 @@ func runBackupCreate(ctx context.Context) error {
 		return err
 	}
 
+	// Ensure the backup is issued against the primary.
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	if !hasRequiredMemoryForBackup(*leader) {
+		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
+	}
+
 	cmd := "flexctl backup create"
 
 	if flag.GetBool(ctx, "immediate-checkpoint") {
@@ -316,8 +326,21 @@ func runBackupEnable(ctx context.Context) error {
 		return err
 	}
 
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
 		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	if !hasRequiredMemoryForBackup(*leader) {
+		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
 	}
 
 	org, err := client.GetOrganizationByApp(ctx, appName)
