@@ -13,8 +13,9 @@ import (
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
-	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
@@ -146,7 +147,7 @@ const (
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder")
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder", trace.WithAttributes(attribute.String("bulder_app", app.Name)))
 	defer span.End()
 
 	if app == nil {
@@ -412,33 +413,36 @@ func startBuilder(ctx context.Context, builderMachine *fly.Machine) error {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	state, err := mach.WaitForAnyMachineState(ctx, builderMachine, []string{"started", "stopped"}, 60*time.Second, nil)
-	if err != nil {
-		tracing.RecordError(span, err, "error waiting for builder machine to start or stop")
-		return err
-	}
+	retries := 0
 
-	if state == "started" {
-		return nil
-	}
+	for {
+		_, err := flapsClient.Start(ctx, builderMachine.ID, "")
+		if err == nil {
+			return nil
+		}
 
-	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
-		ID: builderMachine.ID,
-	}, ""); err != nil {
 		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
 			strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
 			span.RecordError(err)
 			return ShouldReplaceBuilderMachine
+
 		}
 
-		tracing.RecordError(span, err, "error restarting builder machine")
-		return err
-	}
+		var flapsErr *flaps.FlapsError
+		if errors.As(err, &flapsErr) && (flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 || flapsErr.ResponseStatusCode == 412) {
+			span.AddEvent(fmt.Sprintf("non-server error %v", flapsErr.Error()))
+		} else {
+			// we really should only retry server 500s
+			span.RecordError(err)
+			return err
+		}
 
-	if err := flapsClient.Wait(ctx, builderMachine, "started", time.Second*60); err != nil {
-		tracing.RecordError(span, err, "error waiting for builder machine to start")
-		return err
-	}
+		retries += 1
+		if retries > 5 {
+			span.RecordError(err)
+			return err
+		}
 
-	return nil
+		time.Sleep(1 * time.Second)
+	}
 }

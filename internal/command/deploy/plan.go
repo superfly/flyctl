@@ -473,8 +473,9 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Running smoke checks on machine %s", machine.ID))
 		err = md.doSmokeChecks(ctx, lm, false)
 		if err != nil {
+			err := &unrecoverableError{err: err}
 			span.RecordError(err)
-			return &unrecoverableError{err: err}
+			return err
 		}
 		healthcheckResult.smokeChecksPassed = true
 	}
@@ -493,11 +494,16 @@ func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachin
 	if !healthcheckResult.regularChecksPassed {
 		sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Checking health of machine %s", machine.ID))
 		err = lm.WaitForHealthchecksToPass(ctx, md.waitTimeout)
-		if err != nil {
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			span.RecordError(err)
+			return err
+		case err != nil:
 			err := &unrecoverableError{err: err}
 			span.RecordError(err)
 			return err
 		}
+
 		healthcheckResult.regularChecksPassed = true
 	}
 
