@@ -158,7 +158,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		return nil, nil, err
 	}
 
-	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
+	appName, appNameExplanation, err := determineAppName(ctx, parentConfig, appConfig, configPath)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
@@ -481,7 +481,7 @@ func validateAppName(appName string) error {
 }
 
 // determineAppName determines the app name from the config file or directory name
-func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
+func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appConfig *appconfig.Config, configPath string) (string, string, error) {
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
 		// Remove any existing haikus so we don't keep adding to the end.
@@ -524,6 +524,19 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 		if appName == "" {
 			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
 			cause = "derived from your directory name"
+		}
+
+		if parentConfig != nil && parentConfig.AppName != "" {
+			appName = parentConfig.AppName + "-" + appName
+			if cause == "from your fly.toml" {
+				cause = "from parent name and fly.toml"
+			} else if cause == "derived from your directory name" {
+				if flag.GetString(ctx, "into") != "" {
+					cause = "from parent name and --into"
+				} else if flag.GetString(ctx, "from") != "" {
+					cause = "from parent name and --from"
+				}
+			}
 		}
 	}
 
