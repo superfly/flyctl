@@ -285,13 +285,13 @@ func TestRestartBuilderMachine(t *testing.T) {
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
-	err := restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err := startBuilder(ctx, &fly.Machine{ID: "bigmachine"})
 	assert.NoError(t, err)
 	assert.True(t, waitedForStartOrStop)
 
 	waitedForStartOrStop = false
 	couldNotReserveResources = true
-	err = restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err = startBuilder(ctx, &fly.Machine{ID: "bigmachine"})
 	assert.True(t, waitedForStartOrStop)
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
