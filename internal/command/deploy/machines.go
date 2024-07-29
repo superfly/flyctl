@@ -116,6 +116,15 @@ type machineDeployment struct {
 	deployRetries         int
 }
 
+type PostDeploymentInfo struct {
+	FlyctlVersion string `json:"flyctl_version"`
+	Error         string `json:"error"`
+}
+
+type ReleaseMetadata struct {
+	PostDeploymentInfo PostDeploymentInfo `json:"post_deployment_info"`
+}
+
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
@@ -553,17 +562,29 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string) error {
+func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *ReleaseMetadata) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
 		attribute.String("status", status),
 	))
 	defer span.End()
 
-	_, err := md.apiClient.UpdateRelease(ctx, fly.UpdateReleaseInput{
-		ReleaseId: md.releaseId,
-		Status:    status,
-	})
+	var input fly.UpdateReleaseInput
+
+	if metadata != nil {
+		input = fly.UpdateReleaseInput{
+			ReleaseId: md.releaseId,
+			Status:    status,
+			Metadata:  metadata,
+		}
+	} else {
+		input = fly.UpdateReleaseInput{
+			ReleaseId: md.releaseId,
+			Status:    status,
+		}
+	}
+	_, err := md.apiClient.UpdateRelease(ctx, input)
+
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
 		return err
