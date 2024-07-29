@@ -15,8 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
 )
 
 func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
@@ -148,7 +146,7 @@ const (
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder", trace.WithAttributes(attribute.String("bulder_app", app.Name)))
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder")
 	defer span.End()
 
 	if app == nil {
