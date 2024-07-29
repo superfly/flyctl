@@ -9,9 +9,9 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newReset() (cmd *cobra.Command) {
@@ -33,7 +33,7 @@ func newReset() (cmd *cobra.Command) {
 func runReset(ctx context.Context) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
-		client   = client.FromContext(ctx).API().GenqClient
+		client   = flyutil.ClientFromContext(ctx).GenqClient()
 		colorize = io.ColorScheme()
 		out      = io.Out
 	)
@@ -51,7 +51,6 @@ func runReset(ctx context.Context) (err error) {
 	`
 
 	response, err := gql.ResetAddOnPassword(ctx, client, name)
-
 	if err != nil {
 		return
 	}

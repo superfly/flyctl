@@ -2,23 +2,76 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/client"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
 )
+
+func (state *launchState) setupGitHubActions(ctx context.Context, appName string) error {
+	state.sourceInfo.Files = append(state.sourceInfo.Files, state.sourceInfo.GitHubActions.Files...)
+
+	if state.sourceInfo.GitHubActions.Secrets {
+		gh, err := exec.LookPath("gh")
+
+		if err != nil {
+			fmt.Println("Run `fly tokens create deploy -x 999999h` to create a token and set it as the FLY_API_TOKEN secret in your GitHub repository settings")
+			fmt.Println("See https://docs.github.com/en/actions/security-guides/using-secrets-in-github-actions")
+		} else {
+			apiClient := flyutil.ClientFromContext(ctx)
+
+			expiry := "999999h"
+
+			app, err := apiClient.GetAppCompact(ctx, appName)
+			if err != nil {
+				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			}
+
+			resp, err := gql.CreateLimitedAccessToken(
+				ctx,
+				apiClient.GenqClient(),
+				appName,
+				app.Organization.ID,
+				"deploy",
+				&gql.LimitedAccessTokenOptions{
+					"app_id": app.ID,
+				},
+				expiry,
+			)
+			if err != nil {
+				return fmt.Errorf("failed creating token: %w", err)
+			} else {
+				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+				fmt.Println(token)
+
+				fmt.Println("Setting FLY_API_TOKEN secret in GitHub repository settings")
+				cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
+				cmd.Stdin = strings.NewReader(token)
+				err = cmd.Run()
+
+				if err != nil {
+					return fmt.Errorf("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
 
 // satisfyScannerBeforeDb performs operations that the scanner requests that must be done before databases are created
 func (state *launchState) satisfyScannerBeforeDb(ctx context.Context) error {
@@ -92,27 +145,28 @@ func (state *launchState) scannerCreateSecrets(ctx context.Context) error {
 
 	for _, secret := range state.sourceInfo.Secrets {
 		val := ""
-		// If a secret should be a random default, just generate it without displaying
-		// Otherwise, prompt to type it in
-		if secret.Generate != nil {
+
+		switch {
+		case secret.Generate != nil:
 			if val, err = secret.Generate(); err != nil {
 				return fmt.Errorf("could not generate random string: %w", err)
 			}
-		} else if secret.Value != "" {
+		case secret.Value != "":
 			val = secret.Value
-		} else {
-			prompt := fmt.Sprintf("Set secret %s:", secret.Key)
-			surveyInput := &survey.Input{Message: prompt, Help: secret.Help}
-			survey.AskOne(surveyInput, &val)
+		default:
+			message := fmt.Sprintf("Set secret %s:", secret.Key)
+			err = prompt.StringWithHelp(ctx, &val, message, "", secret.Help, false)
+			if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
+				return err
+			}
 		}
-
 		if val != "" {
 			secrets[secret.Key] = val
 		}
 	}
 
 	if len(secrets) > 0 {
-		apiClient := client.FromContext(ctx).API()
+		apiClient := flyutil.ClientFromContext(ctx)
 		_, err := apiClient.SetSecrets(ctx, state.Plan.AppName, secrets)
 		if err != nil {
 			return err
@@ -127,14 +181,14 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 		return nil
 	}
 
-	err := state.sourceInfo.Callback(state.Plan.AppName, state.sourceInfo, state.Plan)
+	err := state.sourceInfo.Callback(state.Plan.AppName, state.sourceInfo, state.Plan, flag.ExtraArgsFromContext(ctx))
 
 	if state.sourceInfo.MergeConfig != nil {
 		if err == nil {
 			cfg, err := appconfig.LoadConfig(state.sourceInfo.MergeConfig.Name)
 			if err == nil {
 				// In theory, any part of the configuration could be merged here, but for now
-				// we will only copy over the processes, release command, and volume
+				// we will only copy over the processes, release command, env, volume, and statics
 				if state.sourceInfo.Processes == nil {
 					state.sourceInfo.Processes = cfg.Processes
 				}
@@ -143,8 +197,22 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 					state.sourceInfo.ReleaseCmd = cfg.Deploy.ReleaseCommand
 				}
 
+				if len(cfg.Env) > 0 {
+					if len(state.sourceInfo.Env) == 0 {
+						state.sourceInfo.Env = cfg.Env
+					} else {
+						clone := maps.Clone(state.sourceInfo.Env)
+						maps.Copy(clone, cfg.Env)
+						state.sourceInfo.Env = clone
+					}
+				}
+
 				if len(state.sourceInfo.Volumes) == 0 && len(cfg.Mounts) > 0 {
 					state.sourceInfo.Volumes = []scanner.Volume{cfg.Mounts[0]}
+				}
+
+				if len(state.sourceInfo.Statics) == 0 && len(cfg.Statics) > 0 {
+					state.sourceInfo.Statics = cfg.Statics
 				}
 			}
 		}
@@ -198,10 +266,6 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		return nil
 	}
 
-	if srcInfo.Port > 0 {
-		appConfig.SetInternalPort(srcInfo.Port)
-	}
-
 	if srcInfo.HttpCheckPath != "" {
 		appConfig.SetHttpCheck(srcInfo.HttpCheckPath, srcInfo.HttpCheckHeaders)
 	}
@@ -213,6 +277,8 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 	for envName, envVal := range srcInfo.Env {
 		if envVal == "APP_FQDN" {
 			appConfig.SetEnvVariable(envName, appConfig.AppName+".fly.dev")
+		} else if envVal == "APP_URL" {
+			appConfig.SetEnvVariable(envName, "https://"+appConfig.AppName+".fly.dev")
 		} else {
 			appConfig.SetEnvVariable(envName, envVal)
 		}

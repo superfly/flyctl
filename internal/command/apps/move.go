@@ -6,9 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flyutil"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/logger"
@@ -19,11 +19,11 @@ import (
 
 func newMove() *cobra.Command {
 	const (
-		long = `The APPS MOVE command will move an application to another
+		long = `Move an application to another
 organization the current user belongs to.
-`
-		short = "Move an app to another organization"
-		usage = "move <APPNAME>"
+For details, see https://fly.io/docs/apps/move-app-org/.`
+		short = "Move an app to another organization."
+		usage = "move <app name>"
 	)
 
 	move := command.New(usage, short, long, RunMove,
@@ -51,7 +51,7 @@ organization the current user belongs to.
 func RunMove(ctx context.Context) error {
 	var (
 		appName  = flag.FirstArg(ctx)
-		client   = client.FromContext(ctx).API()
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		logger   = logger.FromContext(ctx)
@@ -94,9 +94,9 @@ Please confirm whether you wish to restart this app now.`
 	return runMoveAppOnMachines(ctx, app, org)
 }
 
-func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *api.Organization) error {
+func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *fly.Organization) error {
 	var (
-		client           = client.FromContext(ctx).API()
+		client           = flyutil.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
@@ -117,7 +117,7 @@ func runMoveAppOnMachines(ctx context.Context, app *api.AppCompact, targetOrg *a
 	}
 
 	for _, machine := range machines {
-		input := &api.LaunchMachineInput{
+		input := &fly.LaunchMachineInput{
 			Name:             machine.Name,
 			Region:           machine.Region,
 			Config:           machine.Config,

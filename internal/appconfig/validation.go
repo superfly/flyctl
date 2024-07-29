@@ -11,7 +11,7 @@ import (
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/sentry"
 )
@@ -35,6 +35,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 		cfg.validateMachineConversion,
 		cfg.validateConsoleCommand,
 		cfg.validateMounts,
+		cfg.validateRestartPolicy,
 	}
 
 	extra_info = fmt.Sprintf("Validating %s\n", cfg.ConfigFilePath())
@@ -60,7 +61,7 @@ func (cfg *Config) Validate(ctx context.Context) (err error, extra_info string) 
 	return nil, extra_info
 }
 
-func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extra_info string) {
+func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err error, extraInfo string) {
 	if len(groups) == 0 {
 		return cfg.Validate(ctx)
 	}
@@ -70,7 +71,7 @@ func (cfg *Config) ValidateGroups(ctx context.Context, groups []string) (err err
 		if err != nil {
 			return
 		}
-		err, extra_info = config.Validate(ctx)
+		err, extraInfo = config.Validate(ctx)
 		if err != nil {
 			return
 		}
@@ -188,14 +189,14 @@ func (cfg *Config) validateServicesSection() (extraInfo string, err error) {
 	return extraInfo, err
 }
 
-func validateServiceCheckDurations(interval, timeout, gracePeriod *api.Duration, proto string) (extraInfo string) {
+func validateServiceCheckDurations(interval, timeout, gracePeriod *fly.Duration, proto string) (extraInfo string) {
 	extraInfo += validateSingleServiceCheckDuration(interval, false, proto, "an interval")
 	extraInfo += validateSingleServiceCheckDuration(timeout, false, proto, "a timeout")
 	extraInfo += validateSingleServiceCheckDuration(gracePeriod, true, proto, "a grace period")
 	return
 }
 
-func validateSingleServiceCheckDuration(d *api.Duration, zeroOK bool, proto, description string) (extraInfo string) {
+func validateSingleServiceCheckDuration(d *fly.Duration, zeroOK bool, proto, description string) (extraInfo string) {
 	switch {
 	case d == nil:
 		// Do nothing.
@@ -274,6 +275,11 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 
+		if m.SnapshotRetention != nil && (*m.SnapshotRetention < 1 || *m.SnapshotRetention > 60) {
+			extraInfo += fmt.Sprintf("mount '%s' has a snapshot_retention value which is not between 1 and 60 days inclusive\n", m.Source)
+			err = ValidationError
+		}
+
 		var autoExtendSizeIncrement, autoExtendSizeLimit int
 		var vErr error
 		if m.AutoExtendSizeIncrement != "" {
@@ -318,5 +324,34 @@ func (cfg *Config) validateMounts() (extraInfo string, err error) {
 			}
 		}
 	}
+	return
+}
+
+func (cfg *Config) validateRestartPolicy() (extraInfo string, err error) {
+	if cfg.Restart == nil {
+		return
+	}
+
+	for _, restart := range cfg.Restart {
+		validGroupNames := cfg.ProcessNames()
+
+		// first make sure restart.Processes matches a valid process name.
+		for _, processName := range restart.Processes {
+			if !slices.Contains(validGroupNames, processName) {
+				extraInfo += fmt.Sprintf("Restart policy specifies '%s' as one of its processes, but no processes are defined with that name; "+
+					"update fly.toml [processes] to add '%s' process or remove it from restart policy's processes list\n",
+					processName, processName,
+				)
+				err = ValidationError
+			}
+		}
+
+		_, vErr := parseRestartPolicy(restart.Policy)
+		if vErr != nil {
+			extraInfo += fmt.Sprintf("%s\n", vErr)
+			err = ValidationError
+		}
+	}
+
 	return
 }

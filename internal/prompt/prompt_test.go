@@ -16,8 +16,8 @@ func TestIsNonInteractive(t *testing.T) {
 	}{
 		{assert.AnError, false},
 		{fmt.Errorf("wrapped: %w", assert.AnError), false},
-		{errNonInteractive, true},
-		{fmt.Errorf("wrapped: %w", errNonInteractive), true},
+		{ErrNonInteractive, true},
+		{fmt.Errorf("wrapped: %w", ErrNonInteractive), true},
 		{NonInteractiveError("some error"), true},
 	}
 

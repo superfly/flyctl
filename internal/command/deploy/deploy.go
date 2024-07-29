@@ -9,33 +9,38 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/attribute"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/build/imgsrc"
-	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/render"
-	"github.com/superfly/flyctl/internal/sentry"
-
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/internal/cmdutil"
+	"go.opentelemetry.io/otel/trace"
 )
 
+var defaultMaxConcurrent = 16
+
 var CommonFlags = flag.Set{
-	flag.Region(),
 	flag.Image(),
 	flag.Now(),
 	flag.RemoteOnly(false),
 	flag.LocalOnly(),
 	flag.Push(),
+	flag.Wireguard(),
+	flag.HttpsFailover(),
 	flag.Detach(),
 	flag.Strategy(),
 	flag.Dockerfile(),
@@ -49,16 +54,14 @@ var CommonFlags = flag.Set{
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
 	flag.BpVolume(),
-	flag.Bool{
-		Name:        "provision-extensions",
-		Description: "Provision any extensions assigned as a default to first deployments",
-	},
+	flag.RecreateBuilder(),
+	flag.Yes(),
+	flag.VMSizeFlags,
 	flag.StringArray{
 		Name:        "env",
 		Shorthand:   "e",
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	},
-	flag.Yes(),
 	flag.String{
 		Name:        "wait-timeout",
 		Description: "Time duration to wait for individual machines to transition states and become healthy.",
@@ -107,6 +110,10 @@ var CommonFlags = flag.Set{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
 	},
+	flag.Bool{
+		Name:        "flycast",
+		Description: "Allocate a private IPv6 addresses",
+	},
 	flag.StringArray{
 		Name:        "file-local",
 		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
@@ -120,34 +127,62 @@ var CommonFlags = flag.Set{
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
 	flag.StringSlice{
-		Name:        "exclude-regions",
-		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --exclude-regions iad,sea --exclude-regions syd will exclude all three iad, sea, and syd regions. Applied after --only-regions. V2 machines platform only.",
+		Name:        "regions",
+		Aliases:     []string{"only-regions"},
+		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times.",
 	},
 	flag.StringSlice{
-		Name:        "only-regions",
-		Description: "Deploy to machines only in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times. --only-regions iad,sea --only-regions syd will deploy to all three iad, sea, and syd regions. Applied before --exclude-regions. V2 machines platform only.",
+		Name:        "exclude-regions",
+		Description: "Deploy to all machines except machines in these regions. Multiple regions can be specified with comma separated values or by providing the flag multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "only-machines",
+		Description: "Deploy to machines only with these IDs. Multiple IDs can be specified with comma separated values or by providing the flag multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "exclude-machines",
+		Description: "Deploy to all machines except machines with these IDs. Multiple IDs can be specified with comma separated values or by providing the flag multiple times.",
+	},
+	flag.StringSlice{
+		Name:        "process-groups",
+		Description: "Deploy to machines only in these process groups",
 	},
 	flag.StringArray{
 		Name:        "label",
 		Description: "Add custom metadata to an image via docker labels",
 	},
 	flag.Int{
+		Name:        "max-concurrent",
+		Description: "Maximum number of machines to operate on concurrently.",
+		Default:     defaultMaxConcurrent,
+	},
+	flag.Int{
 		Name:        "immediate-max-concurrent",
 		Description: "Maximum number of machines to update concurrently when using the immediate deployment strategy.",
-		Default:     16,
+		Default:     defaultMaxConcurrent,
+		Hidden:      true,
 	},
 	flag.Int{
 		Name:        "volume-initial-size",
 		Description: "The initial size in GB for volumes created on first deploy",
 	},
-	flag.VMSizeFlags,
-	flag.StringSlice{
-		Name:        "process-groups",
-		Description: "Deploy to machines only in these process groups",
+	flag.String{
+		Name:        "signal",
+		Shorthand:   "s",
+		Description: "Signal to stop the machine with for bluegreen strategy (default: SIGINT)",
+	},
+	flag.String{
+		Name:        "deploy-retries",
+		Description: "Number of times to retry a deployment if it fails",
+		Default:     "auto",
 	},
 }
 
-func New() (cmd *cobra.Command) {
+type Command struct {
+	*cobra.Command
+}
+
+func New() *Command {
 	const (
 		long = `Deploy Fly applications from source or an image using a local or remote builder.
 
@@ -156,15 +191,15 @@ func New() (cmd *cobra.Command) {
 		short = "Deploy Fly applications"
 	)
 
-	cmd = command.New("deploy [WORKING_DIRECTORY]", short, long, run,
+	cmd := &Command{}
+	cmd.Command = command.New("deploy [WORKING_DIRECTORY]", short, long, cmd.run,
 		command.RequireSession,
 		command.ChangeWorkingDirectoryToFirstArgIfPresent,
 		command.RequireAppName,
 	)
-
 	cmd.Args = cobra.MaximumNArgs(1)
 
-	flag.Add(cmd,
+	flag.Add(cmd.Command,
 		CommonFlags,
 		flag.App(),
 		flag.AppConfig(),
@@ -174,29 +209,55 @@ func New() (cmd *cobra.Command) {
 			Description: "Do not create Machines for new process groups",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "skip-release-command",
+			Description: "Do not run the release command during deployment.",
+			Default:     false,
+		},
 	)
 
-	return
+	return cmd
 }
 
-func run(ctx context.Context) error {
+func (cmd *Command) run(ctx context.Context) (err error) {
+	io := iostreams.FromContext(ctx)
+	appName := appconfig.NameFromContext(ctx)
+
 	hook := ctrlc.Hook(func() {
 		metrics.FlushMetrics(ctx)
 	})
 
 	defer hook.Done()
 
-	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	tp, err := tracing.InitTraceProvider(ctx, appName)
 	if err != nil {
-		return fmt.Errorf("could not create flaps client: %w", err)
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
 
-	client := client.FromContext(ctx).API()
+	defer tp.Shutdown(ctx)
 
-	ctx, span := tracing.CMDSpan(ctx, appName, "cmd.deploy")
+	ctx, span := tracing.CMDSpan(ctx, "cmd.deploy")
 	defer span.End()
+
+	defer func() {
+		if err != nil {
+			tracing.RecordError(span, err, "error deploying")
+		}
+	}()
+
+	// Instantiate FLAPS client if we haven't initialized one via a unit test.
+	if flapsutil.ClientFromContext(ctx) == nil {
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: appName,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create flaps client: %w", err)
+		}
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
+	}
+
+	client := flyutil.ClientFromContext(ctx)
 
 	user, err := client.GetCurrentUser(ctx)
 	if err != nil {
@@ -224,29 +285,56 @@ func run(ctx context.Context) error {
 	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
-	return DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
+	err = DeployWithConfig(ctx, appConfig, 0, flag.GetYes(ctx))
+	return err
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID int, forceYes bool) (err error) {
+	span := trace.SpanFromContext(ctx)
+
 	io := iostreams.FromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return err
 	}
 
-	for _, potentialSecretSubstr := range commonSecretSubstrings {
-		for env := range appConfig.Env {
-			if strings.Contains(env, potentialSecretSubstr) {
-				warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), env)
-				fmt.Fprintln(io.ErrOut, warning)
-			}
+	// Start the feature flag client, if we haven't already
+	if launchdarkly.ClientFromContext(ctx) == nil {
+		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
+			OrganizationID: appCompact.Organization.InternalNumericID,
+			UserID:         userID,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create feature flag client: %w", err)
+		}
+		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
+	}
+
+	for env := range appConfig.Env {
+		if containsCommonSecretSubstring(env) {
+			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/apps/secrets/\n", aurora.Yellow("WARN"), env)
+			fmt.Fprintln(io.ErrOut, warning)
 		}
 	}
 
+	httpFailover := flag.GetHTTPSFailover(ctx)
+	usingWireguard := flag.GetWireguard(ctx)
+	recreateBuilder := flag.GetRecreateBuilder(ctx)
+
 	// Fetch an image ref or build from source to get the final image reference to deploy
-	img, err := determineImage(ctx, appConfig)
+	img, err := determineImage(ctx, appConfig, usingWireguard, recreateBuilder)
+	if err != nil {
+		noBuilder := strings.Contains(err.Error(), "Could not find App")
+		recreateBuilder = recreateBuilder || noBuilder
+		if noBuilder || (usingWireguard && httpFailover) {
+			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+			span.AddEvent("using http failover")
+			img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+		}
+	}
+
 	if err != nil {
 		return fmt.Errorf("failed to fetch an image or build from source: %w", err)
 	}
@@ -259,9 +347,18 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
-
-	if appURL := appConfig.URL(); appURL != nil {
+	var ip = "public"
+	if flag.GetBool(ctx, "flycast") {
+		ip = "private"
+	} else if flag.GetBool(ctx, "no-public-ips") {
+		ip = "none"
+	}
+	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
 		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
+	} else if ip == "private" {
+		fmt.Fprintf(io.Out, "\nYour your newly deployed app is available in the organizations' private network under http://%s.flycast\n", appName)
+	} else if ip == "none" {
+		fmt.Fprintf(io.Out, "\nYour app is deployed but does not have a public or private IP address\n")
 	}
 
 	return err
@@ -297,15 +394,29 @@ func parseDurationFlag(ctx context.Context, flagName string) (*time.Duration, er
 // in a rare twist, the guest param takes precedence over CLI flags!
 func deployToMachines(
 	ctx context.Context,
-	appConfig *appconfig.Config,
-	appCompact *api.AppCompact,
+	cfg *appconfig.Config,
+	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
+	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
-	ctx = appconfig.WithConfig(ctx, appConfig)
+	ctx = appconfig.WithConfig(ctx, cfg)
 
+	startTime := time.Now()
+	var status metrics.DeployStatusPayload
+
+	metrics.Started(ctx, "deploy")
+	// TODO: remove this once there is nothing upstream using it
 	metrics.Started(ctx, "deploy_machines")
+
 	defer func() {
+		if err != nil {
+			status.Error = err.Error()
+		}
+		status.TraceID = span.SpanContext().TraceID().String()
+		status.Duration = time.Since(startTime)
+		metrics.DeployStatus(ctx, status)
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
@@ -334,19 +445,29 @@ func deployToMachines(
 		return err
 	}
 
-	excludeRegions := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "exclude-regions") {
-		reg := strings.TrimSpace(r)
-		if reg != "" {
-			excludeRegions[reg] = struct{}{}
-		}
+	excludeRegions := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "exclude-regions") {
+		excludeRegions[r] = true
 	}
-	onlyRegions := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "only-regions") {
-		reg := strings.TrimSpace(r)
-		if reg != "" {
-			onlyRegions[reg] = struct{}{}
-		}
+
+	onlyRegions := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "regions") {
+		onlyRegions[r] = true
+	}
+
+	excludeMachines := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "exclude-machines") {
+		excludeMachines[r] = true
+	}
+
+	onlyMachines := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "only-machines") {
+		onlyMachines[r] = true
+	}
+
+	processGroups := make(map[string]bool)
+	for _, r := range flag.GetNonEmptyStringSlice(ctx, "process-groups") {
+		processGroups[r] = true
 	}
 
 	// We default the flag to 0.33 so that --help can show the actual default value,
@@ -354,53 +475,98 @@ func deployToMachines(
 	// We use 0.0 to denote unspecified, as that value is invalid for maxUnavailable.
 	var maxUnavailable *float64 = nil
 	if flag.IsSpecified(ctx, "max-unavailable") {
-		maxUnavailable = api.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
+		maxUnavailable = fly.Pointer(flag.GetFloat64(ctx, "max-unavailable"))
 		// Validation to ensure that 0.0 is *purely* the "unspecified" value
 		if *maxUnavailable <= 0 {
 			return fmt.Errorf("the value for --max-unavailable must be > 0")
 		}
 	}
 
-	processGroups := make(map[string]interface{})
-	for _, r := range flag.GetStringSlice(ctx, "process-groups") {
-		reg := strings.TrimSpace(r)
-		if reg != "" {
-			processGroups[reg] = struct{}{}
+	maxConcurrent := flag.GetInt(ctx, "max-concurrent")
+	immediateMaxConcurrent := flag.GetInt(ctx, "immediate-max-concurrent")
+	if maxConcurrent == defaultMaxConcurrent && immediateMaxConcurrent != defaultMaxConcurrent {
+		maxConcurrent = immediateMaxConcurrent
+	}
+
+	status.AppName = app.Name
+	status.OrgSlug = app.Organization.Slug
+	status.Image = img.Tag
+	status.PrimaryRegion = cfg.PrimaryRegion
+	status.Strategy = cfg.DeployStrategy()
+	if flag.GetString(ctx, "strategy") != "" {
+		status.Strategy = flag.GetString(ctx, "strategy")
+	}
+
+	status.FlyctlVersion = buildinfo.Info().Version.String()
+
+	retriesFlag := flag.GetString(ctx, "deploy-retries")
+	deployRetries := 0
+
+	switch retriesFlag {
+	case "auto":
+		ldClient := launchdarkly.ClientFromContext(ctx)
+		retries := ldClient.GetFeatureFlagValue("deploy-retries", 0.0).(float64)
+		deployRetries = int(retries)
+
+	default:
+		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		retries, err := strconv.Atoi(retriesFlag)
+		if err != nil {
+			return invalidRetriesErr
 		}
+		if retries < 0 {
+			return invalidRetriesErr
+		}
+
+		span.SetAttributes(attribute.Int("set_deploy_retries", retries))
+		deployRetries = retries
+	}
+
+	var ip = "public"
+	if flag.GetBool(ctx, "flycast") {
+		ip = "private"
+	} else if flag.GetBool(ctx, "no-public-ips") {
+		ip = "none"
 	}
 
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
-		AppCompact:             appCompact,
-		DeploymentImage:        img.Tag,
-		Strategy:               flag.GetString(ctx, "strategy"),
-		EnvFromFlags:           flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:      appConfig.PrimaryRegion,
-		SkipSmokeChecks:        flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
-		SkipHealthChecks:       flag.GetDetach(ctx),
-		SkipDNSChecks:          flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
-		WaitTimeout:            waitTimeout,
-		ReleaseCmdTimeout:      releaseCmdTimeout,
-		LeaseTimeout:           leaseTimeout,
-		MaxUnavailable:         maxUnavailable,
-		Guest:                  guest,
-		IncreasedAvailability:  flag.GetBool(ctx, "ha"),
-		AllocPublicIP:          !flag.GetBool(ctx, "no-public-ips"),
-		UpdateOnly:             flag.GetBool(ctx, "update-only"),
-		Files:                  files,
-		ExcludeRegions:         excludeRegions,
-		OnlyRegions:            onlyRegions,
-		ImmediateMaxConcurrent: flag.GetInt(ctx, "immediate-max-concurrent"),
-		VolumeInitialSize:      flag.GetInt(ctx, "volume-initial-size"),
-		ProcessGroups:          processGroups,
+		AppCompact:            app,
+		DeploymentImage:       img.Tag,
+		Strategy:              flag.GetString(ctx, "strategy"),
+		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
+		PrimaryRegionFlag:     cfg.PrimaryRegion,
+		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
+		SkipHealthChecks:      flag.GetDetach(ctx),
+		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
+		SkipReleaseCommand:    flag.GetBool(ctx, "skip-release-command"),
+		WaitTimeout:           waitTimeout,
+		StopSignal:            flag.GetString(ctx, "signal"),
+		ReleaseCmdTimeout:     releaseCmdTimeout,
+		LeaseTimeout:          leaseTimeout,
+		MaxUnavailable:        maxUnavailable,
+		Guest:                 guest,
+		IncreasedAvailability: flag.GetBool(ctx, "ha"),
+		AllocIP:               ip,
+		Org:                   app.Organization.Slug,
+		UpdateOnly:            flag.GetBool(ctx, "update-only"),
+		Files:                 files,
+		ExcludeRegions:        excludeRegions,
+		OnlyRegions:           onlyRegions,
+		ExcludeMachines:       excludeMachines,
+		OnlyMachines:          onlyMachines,
+		MaxConcurrent:         maxConcurrent,
+		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
+		ProcessGroups:         processGroups,
+		DeployRetries:         deployRetries,
 	})
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err
 	}
 
 	err = md.DeployMachinesApp(ctx)
 	if err != nil {
-		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", appCompact)
+		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 	}
 	return err
 }
@@ -430,11 +596,6 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 		cfg.SetEnvVariables(parsedEnv)
 	}
 
-	// FIXME: this is a confusing flag; I thought it meant only update machines in the provided region, which resulted in a minor disaster :-)
-	if v := flag.GetRegion(ctx); v != "" {
-		cfg.PrimaryRegion = v
-	}
-
 	// Always prefer the app name passed via --app
 	if appName != "" {
 		cfg.AppName = appName
@@ -442,14 +603,14 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 
 	err, extraInfo := cfg.Validate(ctx)
 	if extraInfo != "" {
-		fmt.Fprintf(io.Out, extraInfo)
+		fmt.Fprint(io.Out, extraInfo)
 	}
 	if err != nil {
 		tracing.RecordError(span, err, "validate config")
 		return nil, err
 	}
 
-	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.MaxUnavailable != nil {
+	if cfg.Deploy != nil && cfg.Deploy.Strategy != "rolling" && cfg.Deploy.Strategy != "canary" && cfg.Deploy.MaxUnavailable != nil {
 		if !config.FromContext(ctx).JSONOutput {
 			fmt.Fprintf(io.Out, "Warning: max-unavailable set for non-rolling strategy '%s', ignoring\n", cfg.Deploy.Strategy)
 		}

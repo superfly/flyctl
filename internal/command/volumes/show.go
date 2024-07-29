@@ -5,17 +5,16 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newShow() (cmd *cobra.Command) {
@@ -25,7 +24,7 @@ func newShow() (cmd *cobra.Command) {
 		long = short
 	)
 
-	cmd = command.New("show [id]", short, long, runShow,
+	cmd = command.New("show <volume id>", short, long, runShow,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
@@ -42,7 +41,7 @@ func newShow() (cmd *cobra.Command) {
 
 func runShow(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
 	volumeID := flag.FirstArg(ctx)
 
@@ -59,12 +58,14 @@ func runShow(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
-	var volume *api.Volume
+	var volume *fly.Volume
 	if volumeID == "" {
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {

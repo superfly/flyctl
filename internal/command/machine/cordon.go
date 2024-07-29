@@ -5,9 +5,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,16 +41,22 @@ func runMachineCordon(ctx context.Context) (err error) {
 		args = flag.Args(ctx)
 	)
 
-	machineIDs, ctx, err := selectManyMachineIDs(ctx, args)
+	machines, ctx, err := selectManyMachines(ctx, args)
 	if err != nil {
 		return err
 	}
 
-	flapsClient := flaps.FromContext(ctx)
+	machines, release, err := mach.AcquireLeases(ctx, machines)
+	defer release()
+	if err != nil {
+		return err
+	}
 
-	for _, machineID := range machineIDs {
-		fmt.Fprintf(io.Out, "Activating cordon on machine %s...\n", machineID)
-		if err = flapsClient.Cordon(ctx, machineID); err != nil {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+
+	for _, machine := range machines {
+		fmt.Fprintf(io.Out, "Activating cordon on machine %s...\n", machine.ID)
+		if err = flapsClient.Cordon(ctx, machine.ID, machine.LeaseNonce); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "done!\n")

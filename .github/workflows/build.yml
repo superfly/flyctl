@@ -33,6 +33,7 @@ jobs:
         with:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl
+          overwrite: true
 
   preflight:
     needs: test_build

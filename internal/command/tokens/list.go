@@ -5,11 +5,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -41,7 +41,7 @@ func newList() *cobra.Command {
 }
 
 func runList(ctx context.Context) (err error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	var rows [][]string
 
@@ -59,7 +59,7 @@ func runList(ctx context.Context) (err error) {
 		}
 
 		for _, token := range tokens {
-			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
 
 	case "org":
@@ -69,9 +69,9 @@ func runList(ctx context.Context) (err error) {
 		}
 
 		for _, token := range org.LimitedAccessTokens.Nodes {
-			rows = append(rows, []string{token.Id, token.Name, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
 	}
-	_ = render.Table(out, "", rows, "ID", "Name", "Expires At")
+	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At")
 	return nil
 }

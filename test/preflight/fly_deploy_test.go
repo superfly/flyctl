@@ -4,6 +4,9 @@
 package preflight
 
 import (
+	"fmt"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -12,13 +15,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	//"github.com/superfly/flyctl/api"
+	//fly "github.com/superfly/fly-go"
 
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 func TestFlyDeployHA(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	if f.SecondaryRegion() == "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
@@ -34,7 +41,7 @@ func TestFlyDeployHA(t *testing.T) {
 	`, f.ReadFile("fly.toml"))
 
 	x := f.FlyAllowExitFailure("deploy")
-	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fullfill mounts defined in fly.toml`)
+	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
 
 	// Create two volumes because fly launch will start 2 machines because of HA setup
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
@@ -52,6 +59,7 @@ func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -69,6 +77,7 @@ func TestFlyDeploy_DeployToken_FailingSmokeCheck(t *testing.T) {
 
 func TestFlyDeploy_DeployToken_FailingReleaseCommand(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
 	appName := f.CreateRandomAppName()
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
 	appConfig := f.ReadFile("fly.toml")
@@ -111,5 +120,177 @@ func TestFlyDeploySlowMetrics(t *testing.T) {
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
+	f.Fly("deploy")
+}
+
+func getRootPath() string {
+	_, b, _, _ := runtime.Caller(0)
+	return filepath.Dir(b)
+}
+
+func copyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
+	src := fmt.Sprintf("%s/fixtures/%s", getRootPath(), name)
+	return testlib.CopyDir(src, workDir, exclusion)
+}
+
+func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	require.NoError(t, err)
+
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app":    appName,
+		"region": f.PrimaryRegion(),
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
+
+	f.Fly("deploy --remote-only --ha=false")
+
+	f.Fly("deploy --remote-only --strategy immediate --ha=false")
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+}
+
+func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this uses a fixture with a size, no need to run it on alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	require.NoError(t, err)
+
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app":    appName,
+		"region": f.PrimaryRegion(),
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
+
+	f.Fly("deploy --remote-only --ha=false --wg=false")
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+}
+
+func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this pins a specific size, we can skip it for alternate VM sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	require.NoError(t, err)
+
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app": appName,
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
+
+	f.Fly("wireguard websockets enable")
+
+	f.Fly("deploy --remote-only --ha=false")
+
+	f.Fly("wireguard websockets disable")
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+}
+
+func TestFlyDeploy_DeployMachinesCheck(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+		[[http_service.machine_checks]]
+            image = "curlimages/curl"
+   			entrypoint = ["/bin/sh", "-c"]
+			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
+		`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.Fly("deploy")
+	output := deployRes.StdOutString()
+	require.Contains(f, output, "Test Machine")
+}
+
+func TestFlyDeploy_NoServiceDeployMachinesCheck(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+		[[machine_checks]]
+			image = "curlimages/curl"
+			entrypoint = ["/bin/sh", "-c"]
+			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
+		`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.Fly("deploy")
+	output := deployRes.StdOutString()
+	require.Contains(f, output, "Test Machine")
+}
+
+func TestFlyDeploy_DeployMachinesCheckCanary(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
+	appConfig := f.ReadFile("fly.toml")
+	appConfig += `
+		[[http_service.machine_checks]]
+            image = "curlimages/curl"
+   			entrypoint = ["/bin/sh", "-c"]
+			command = ["curl http://[$FLY_TEST_MACHINE_IP]:80"]
+		`
+	f.WriteFlyToml(appConfig)
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOut().String())
+	deployRes := f.Fly("deploy")
+	output := deployRes.StdOutString()
+	require.Contains(f, output, "Test Machine")
+}
+
+func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
 	f.Fly("deploy")
 }

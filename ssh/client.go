@@ -3,6 +3,7 @@ package ssh
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net"
 
@@ -61,7 +62,7 @@ func (c *Client) Connect(ctx context.Context) error {
 
 	tcpConn, err := c.Dial(ctx, "tcp", c.Addr)
 	if err != nil {
-		return err
+		return fmt.Errorf("dial: %w", err)
 	}
 
 	conf := &ssh.ClientConfig{

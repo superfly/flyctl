@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -35,7 +35,7 @@ func newDelete() *cobra.Command {
 }
 
 func runDelete(ctx context.Context) error {
-	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, api.AdminOnly)
+	org, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, fly.AdminOnly)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,7 @@ func runDelete(ctx context.Context) error {
 		}
 	}
 
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 	if _, err := client.DeleteOrganization(ctx, org.ID); err != nil {
 		return fmt.Errorf("failed deleting organization %s", err)
 	}

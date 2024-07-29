@@ -7,16 +7,16 @@ import (
 	"strings"
 
 	"github.com/dustin/go-humanize"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 	"golang.org/x/net/publicsuffix"
 )
@@ -138,7 +138,7 @@ Displays results in the same format as the SHOW command.`
 
 func runCertificatesList(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	certs, err := apiClient.GetAppCertificates(ctx, appName)
 	if err != nil {
@@ -149,7 +149,7 @@ func runCertificatesList(ctx context.Context) error {
 }
 
 func runCertificatesShow(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -168,7 +168,7 @@ func runCertificatesShow(ctx context.Context) error {
 }
 
 func runCertificatesCheck(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -187,7 +187,7 @@ func runCertificatesCheck(ctx context.Context) error {
 }
 
 func runCertificatesAdd(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -202,16 +202,14 @@ func runCertificatesAdd(ctx context.Context) error {
 func runCertificatesRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
 	if !flag.GetYes(ctx) {
-		confirm := false
-		prompt := &survey.Confirm{
-			Message: fmt.Sprintf("Remove certificate %s from app %s?", hostname, appName),
-		}
-		err := survey.AskOne(prompt, &confirm)
+		message := fmt.Sprintf("Remove certificate %s from app %s?", hostname, appName)
+
+		confirm, err := prompt.Confirm(ctx, message)
 		if err != nil {
 			return err
 		}
@@ -234,7 +232,7 @@ func runCertificatesRemove(ctx context.Context) error {
 	return nil
 }
 
-func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCertificate, hostcheck *api.HostnameCheck) error {
+func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCertificate, hostcheck *fly.HostnameCheck) error {
 	io := iostreams.FromContext(ctx)
 
 	// print a blank line, easier to read!
@@ -242,7 +240,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCerti
 
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	alternateHostname := getAlternateHostname(hostname)
 
 	// These are the IPs we have for the app
@@ -251,8 +249,8 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCerti
 		return err
 	}
 
-	var ipV4 api.IPAddress
-	var ipV6 api.IPAddress
+	var ipV4 fly.IPAddress
+	var ipV6 fly.IPAddress
 	var configuredipV4 bool
 	var configuredipV6 bool
 
@@ -389,7 +387,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *api.AppCerti
 	return nil
 }
 
-func printDNSValidationInstructions(ctx context.Context, stepcnt int, hostname string, cert *api.AppCertificate) {
+func printDNSValidationInstructions(ctx context.Context, stepcnt int, hostname string, cert *fly.AppCertificate) {
 	io := iostreams.FromContext(ctx)
 
 	fmt.Fprintf(io.Out, "You can validate your ownership of %s by:\n\n", hostname)
@@ -410,7 +408,7 @@ func isCloudflareProxied(provider string, ip net.IP) bool {
 	return false
 }
 
-func printCloudflareInstructions(ctx context.Context, hostname string, cert *api.AppCertificate) error {
+func printCloudflareInstructions(ctx context.Context, hostname string, cert *fly.AppCertificate) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -422,12 +420,12 @@ func printCloudflareInstructions(ctx context.Context, hostname string, cert *api
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, "If you've already set this up, your certificate should be issued soon.")
-	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/app-guides/custom-domains-with-fly/")
+	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/networking/custom-domain/")
 
 	return nil
 }
 
-func printCertificate(ctx context.Context, cert *api.AppCertificate) {
+func printCertificate(ctx context.Context, cert *fly.AppCertificate) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	hostname := flag.FirstArg(ctx)
@@ -468,7 +466,7 @@ func readableCertAuthority(ca string) string {
 	return ca
 }
 
-func printCertificates(ctx context.Context, certs []api.AppCertificateCompact) error {
+func printCertificates(ctx context.Context, certs []fly.AppCertificateCompact) error {
 	io := iostreams.FromContext(ctx)
 
 	if config.FromContext(ctx).JSONOutput {

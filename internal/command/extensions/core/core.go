@@ -7,15 +7,17 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"sort"
 	"time"
 
 	"github.com/briandowns/spinner"
+	"github.com/samber/lo"
 	"github.com/skratchdot/open-golang/open"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -29,10 +31,17 @@ type Extension struct {
 }
 
 type ExtensionParams struct {
-	AppName      string
-	Organization *api.Organization
-	Provider     string
-	Options      map[string]interface{}
+	AppName              string
+	Organization         *fly.Organization
+	Provider             string
+	PlanID               string
+	OrganizationPlanID   string
+	Options              map[string]interface{}
+	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
+
+	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
+	OverrideRegion string
+	OverrideName   *string
 }
 
 // Common flags that should be used for all extension commands
@@ -41,7 +50,7 @@ var SharedFlags = flag.Set{
 }
 
 func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension Extension, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
@@ -49,7 +58,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	var targetOrg gql.OrganizationData
 
 	resp, err := gql.GetAddOnProvider(ctx, client, params.Provider)
-
 	if err != nil {
 		return
 	}
@@ -58,7 +66,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	// Ensure users have agreed to the provider terms of service
 	err = AgreeToProviderTos(ctx, provider)
-
 	if err != nil {
 		return extension, err
 	}
@@ -80,7 +87,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	} else {
 		resp, err := gql.GetOrganization(ctx, client, params.Organization.Slug)
-
 		if err != nil {
 			return extension, err
 		}
@@ -92,16 +98,21 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	// Prompt to name the provisioned resource, or use the target app name like in Sentry's case
 	if provider.SelectName {
-		name = flag.GetString(ctx, "name")
-
-		if name == "" {
-			if provider.NameSuffix != "" && targetApp.Name != "" {
-				name = targetApp.Name + "-" + provider.NameSuffix
+		if override := params.OverrideName; override != nil {
+			name = *override
+		} else {
+			if name == "" {
+				name = flag.GetString(ctx, "name")
 			}
-			err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
 
-			if err != nil {
-				return
+			if name == "" {
+				if provider.NameSuffix != "" && targetApp.Name != "" {
+					name = targetApp.Name + "-" + provider.NameSuffix
+				}
+				err = prompt.String(ctx, &name, "Choose a name, use the default, or leave blank to generate one:", name, false)
+				if err != nil {
+					return
+				}
 			}
 		}
 	} else {
@@ -115,22 +126,35 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 		Type:           gql.AddOnType(provider.Name),
 	}
 
+	if params.PlanID != "" {
+		input.PlanId = params.PlanID
+	}
+
+	if params.OrganizationPlanID != "" {
+		input.OrganizationPlanId = params.OrganizationPlanID
+	}
+
 	var inExcludedRegion bool
 	var primaryRegion string
 
 	if provider.SelectRegion {
 
 		excludedRegions, err := GetExcludedRegions(ctx, provider)
-
 		if err != nil {
 			return extension, err
 		}
 
-		cfg := appconfig.ConfigFromContext(ctx)
+		desiredRegion := params.OverrideRegion
+		if desiredRegion != "" {
+			cfg := appconfig.ConfigFromContext(ctx)
+			if cfg != nil && cfg.PrimaryRegion != "" {
+				desiredRegion = cfg.PrimaryRegion
+			}
+		}
 
-		if cfg != nil && cfg.PrimaryRegion != "" {
+		if desiredRegion != "" {
 
-			primaryRegion = cfg.PrimaryRegion
+			primaryRegion = desiredRegion
 
 			if slices.Contains(excludedRegions, primaryRegion) {
 				inExcludedRegion = true
@@ -142,7 +166,6 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 				Message:             "Choose the primary region (can't be changed later)",
 				ExcludedRegionCodes: excludedRegions,
 			})
-
 			if err != nil {
 				return extension, err
 			}
@@ -158,13 +181,11 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	// Pass the detected platform family to the API
 	if provider.DetectPlatform {
 		absDir, err := filepath.Abs(".")
-
 		if err != nil {
 			return extension, err
 		}
 
-		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{})
-
+		detectedPlatform, err = scanner.Scan(absDir, &scanner.ScannerConfig{Colorize: io.ColorScheme()})
 		if err != nil {
 			return extension, err
 		}
@@ -180,6 +201,10 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	input.Options = params.Options
 	createResp, err := gql.CreateExtension(ctx, client, input)
 
+	if params.ErrorCaptureCallback != nil {
+		err = params.ErrorCaptureCallback(ctx, err, &params)
+	}
+
 	if err != nil {
 		return
 	}
@@ -188,7 +213,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 	extension.App = &targetApp
 
 	if provider.AsyncProvisioning {
-		err = WaitForProvision(ctx, extension.Data.Name)
+		err = WaitForProvision(ctx, extension.Data.Name, params.Provider)
 		if err != nil {
 			return
 		}
@@ -220,7 +245,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 }
 
 func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData) error {
-	client := client.FromContext(ctx).API().GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 	out := iostreams.FromContext(ctx).Out
 
 	// Internal providers like kubernetes don't need ToS agreement
@@ -230,7 +255,6 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 
 	// Check if the provider ToS was agreed to already
 	agreed, err := AgreedToProviderTos(ctx, provider.Name)
-
 	if err != nil {
 		return err
 	}
@@ -264,9 +288,9 @@ func AgreeToProviderTos(ctx context.Context, provider gql.ExtensionProviderData)
 	return err
 }
 
-func WaitForProvision(ctx context.Context, name string) error {
+func WaitForProvision(ctx context.Context, name string, provider string) error {
 	io := iostreams.FromContext(ctx)
-	client := client.FromContext(ctx).API().GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	s := spinner.New(spinner.CharSets[9], 200*time.Millisecond)
 	s.Writer = io.ErrOut
@@ -281,8 +305,7 @@ func WaitForProvision(ctx context.Context, name string) error {
 
 	for {
 
-		resp, err := gql.GetAddOn(ctx, client, name)
-
+		resp, err := gql.GetAddOn(ctx, client, name, provider)
 		if err != nil {
 			return err
 		}
@@ -310,7 +333,6 @@ func WaitForProvision(ctx context.Context, name string) error {
 }
 
 func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData) (excludedRegions []string, err error) {
-
 	for _, region := range provider.ExcludedRegions {
 		excludedRegions = append(excludedRegions, region.Code)
 	}
@@ -319,12 +341,9 @@ func GetExcludedRegions(ctx context.Context, provider gql.ExtensionProviderData)
 }
 
 func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) (err error) {
-	var (
-		client = client.FromContext(ctx).API().GenqClient
-	)
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	resp, err := gql.GetAddOnProvider(ctx, client, providerName)
-
 	if err != nil {
 		return
 	}
@@ -332,13 +351,11 @@ func OpenOrgDashboard(ctx context.Context, orgSlug string, providerName string) 
 	provider := resp.AddOnProvider.ExtensionProviderData
 
 	err = AgreeToProviderTos(ctx, provider)
-
 	if err != nil {
 		return err
 	}
 
 	result, err := gql.GetExtensionSsoLink(ctx, client, orgSlug, providerName)
-
 	if err != nil {
 		return err
 	}
@@ -359,19 +376,15 @@ func openUrl(ctx context.Context, url string) (err error) {
 	return
 }
 
-func OpenDashboard(ctx context.Context, extensionName string) (err error) {
-	var (
-		client = client.FromContext(ctx).API().GenqClient
-	)
+func OpenDashboard(ctx context.Context, extensionName string, provider gql.AddOnType) (err error) {
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
-	result, err := gql.GetAddOn(ctx, client, extensionName)
-
+	result, err := gql.GetAddOn(ctx, client, extensionName, string(provider))
 	if err != nil {
 		return err
 	}
 
 	err = AgreeToProviderTos(ctx, result.AddOn.AddOnProvider.ExtensionProviderData)
-
 	if err != nil {
 		return err
 	}
@@ -383,12 +396,11 @@ func OpenDashboard(ctx context.Context, extensionName string) (err error) {
 }
 
 func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData, app *gql.AppData, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 	appName := appconfig.NameFromContext(ctx)
 
 	if len(flag.Args(ctx)) == 1 {
-
-		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx))
+		response, err := gql.GetAddOn(ctx, client, flag.FirstArg(ctx), string(provider))
 		if err != nil {
 			return nil, nil, err
 		}
@@ -397,7 +409,6 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 
 	} else if appName != "" {
 		resp, err := gql.GetAppWithAddons(ctx, client, appName, provider)
-
 		if err != nil {
 			return nil, nil, err
 		}
@@ -418,7 +429,7 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
 	var (
 		io              = iostreams.FromContext(ctx)
-		client          = client.FromContext(ctx).API().GenqClient
+		client          = flyutil.ClientFromContext(ctx).GenqClient()
 		setSecrets bool = true
 	)
 
@@ -431,7 +442,6 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 
 	if app.Name != "" {
 		appResp, err := gql.GetApp(ctx, client, app.Name)
-
 		if err != nil {
 			return err
 		}
@@ -453,39 +463,41 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 		setSecrets = false
 	}
 
+	keys := lo.Keys(secrets)
+	sort.Strings(keys)
+
 	if setSecrets {
 		extension.SetsSecrets = true
 		fmt.Fprintf(io.Out, "Setting the following secrets on %s:\n", app.Name)
 		input := gql.SetSecretsInput{
 			AppId: app.Id,
 		}
-		for key, value := range secrets {
-			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: value.(string)})
-			fmt.Println(key)
+		for _, key := range keys {
+			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
 		}
 
 		fmt.Fprintln(io.Out)
 
 		_, err = gql.SetSecrets(ctx, client, input)
-
 		if err != nil {
 			return err
 		}
 	} else {
-		fmt.Fprintf(io.Out, "Set one or more of the following secrets on your target app.\n")
-		for key, value := range secrets {
-			fmt.Println(key + ": " + value.(string))
-		}
-	}
+		fmt.Fprintf(io.Out, "Set the following secrets on your target app.\n")
 
+		for _, key := range keys {
+			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+		}
+
+	}
 	return err
 }
 
 func AgreedToProviderTos(ctx context.Context, providerName string) (bool, error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	tosResp, err := gql.AgreedToProviderTos(ctx, client, providerName)
-
 	if err != nil {
 		return false, err
 	}
@@ -496,7 +508,6 @@ func Status(ctx context.Context, provider gql.AddOnType) (err error) {
 	io := iostreams.FromContext(ctx)
 
 	extension, app, err := Discover(ctx, provider)
-
 	if err != nil {
 		return err
 	}
@@ -629,6 +640,7 @@ var PlatformMap = map[string]string{
 	"NodeJS":        "node",
 	"NodeJS/Prisma": "node",
 	"Laravel":       "php-laravel",
+	"Meteor":        "javascript-meteor",
 	"NestJS":        "node",
 	"NextJS":        "javascript-nextjs",
 	"Nuxt":          "javascript-vue",

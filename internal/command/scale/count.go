@@ -9,12 +9,13 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"golang.org/x/exp/maps"
 )
 
@@ -46,11 +47,13 @@ For pricing, see https://fly.io/docs/about/pricing/`
 
 func runScaleCount(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	appConfig, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
@@ -63,7 +66,7 @@ func runScaleCount(ctx context.Context) error {
 	groupName := flag.GetProcessGroup(ctx)
 
 	if groupName == "" {
-		groupName = api.MachineProcessGroupApp
+		groupName = fly.MachineProcessGroupApp
 	}
 
 	groups, err := parseGroupCounts(args, groupName)

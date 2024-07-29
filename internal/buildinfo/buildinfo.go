@@ -132,3 +132,7 @@ func Commit() string {
 	}
 	return rev + dirty
 }
+
+func UserAgent() string {
+	return fmt.Sprintf("flyctl/%s", Version())
+}

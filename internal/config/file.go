@@ -3,14 +3,15 @@ package config
 import (
 	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 
+	"github.com/superfly/flyctl/wg"
 	"gopkg.in/yaml.v3"
 
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/filemu"
-	"github.com/superfly/flyctl/wg"
 )
 
 func ReadAccessToken(path string) (string, error) {
@@ -48,6 +49,14 @@ func SetSendMetrics(path string, sendMetrics bool) error {
 	})
 }
 
+// SetSyntheticsAgent sets the value of the synthetics agent flag at the configuration file
+// found at path.
+func SetSyntheticsAgent(path string, syntheticsAgent bool) error {
+	return set(path, map[string]interface{}{
+		SyntheticsAgentFileKey: syntheticsAgent,
+	})
+}
+
 // SetAutoUpdate sets the value of the autoupdate flag at the configuration file
 // found at path.
 func SetAutoUpdate(path string, autoUpdate bool) error {
@@ -56,7 +65,7 @@ func SetAutoUpdate(path string, autoUpdate bool) error {
 	})
 }
 
-func SetWireGuardState(path string, state map[string]*wg.WireGuardState) error {
+func SetWireGuardState(path string, state wg.States) error {
 	return set(path, map[string]interface{}{
 		WireGuardStateFileKey: state,
 	})
@@ -127,6 +136,9 @@ func unmarshalUnlocked(path string, v interface{}) (err error) {
 	}()
 
 	err = yaml.NewDecoder(f).Decode(v)
+	if err == io.EOF {
+		err = nil
+	}
 
 	return
 }

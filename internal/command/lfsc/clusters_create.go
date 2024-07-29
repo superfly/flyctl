@@ -6,10 +6,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -40,7 +40,7 @@ func newClustersCreate() *cobra.Command {
 }
 
 func runClustersCreate(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	orgID, err := getOrgID(ctx)
 	if err != nil {
@@ -66,7 +66,7 @@ func runClustersCreate(ctx context.Context) error {
 		return err
 	}
 
-	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient, clusterName, orgID, "litefs_cloud",
+	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient(), clusterName, orgID, "litefs_cloud",
 		&gql.LimitedAccessTokenOptions{
 			"cluster": clusterName,
 		},
@@ -79,7 +79,7 @@ func runClustersCreate(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
 	fmt.Fprintf(out, "Cluster %q successfully created in %s.\n\n", cluster.Name, cluster.Region)
 	fmt.Fprintf(out, "Run the following to set the auth token on your application:\n\n")
-	fmt.Fprintf(out, "fly secrets set LFSC_AUTH_TOKEN=%q\n\n",
+	fmt.Fprintf(out, "fly secrets set LITEFS_CLOUD_TOKEN=%q\n\n",
 		resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader)
 
 	return nil

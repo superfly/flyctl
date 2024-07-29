@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 )
 
-// Usual Config response for api.GetConfig GQL call
+// Usual Config response for fly.GetConfig GQL call
 var GetConfigJSON = []byte(`
 {
   "env": {},
@@ -19,6 +19,15 @@ var GetConfigJSON = []byte(`
   "kill_signal": "SIGINT",
   "kill_timeout": 5,
   "processes": [],
+  "restart" : [
+	{
+		"policy": "always",
+		"retries": 3,
+		"processes": [
+			"app"
+		]
+	}
+  ],
   "services": [
     {
       "concurrency": {
@@ -63,7 +72,7 @@ var GetConfigJSON = []byte(`
 `)
 
 func TestFromDefinition(t *testing.T) {
-	definition := &api.Definition{}
+	definition := &fly.Definition{}
 	err := json.Unmarshal(GetConfigJSON, definition)
 	assert.NoError(t, err)
 
@@ -71,8 +80,15 @@ func TestFromDefinition(t *testing.T) {
 	assert.NoError(t, err)
 
 	assert.Equal(t, &Config{
-		KillSignal:  api.Pointer("SIGINT"),
-		KillTimeout: api.MustParseDuration("5s"),
+		KillSignal:  fly.Pointer("SIGINT"),
+		KillTimeout: fly.MustParseDuration("5s"),
+		Restart: []Restart{
+			{
+				Policy:     RestartPolicyAlways,
+				MaxRetries: 3,
+				Processes:  []string{"app"},
+			},
+		},
 		Experimental: &Experimental{
 			AutoRollback: true,
 		},
@@ -81,28 +97,28 @@ func TestFromDefinition(t *testing.T) {
 			{
 				InternalPort: 8080,
 				Protocol:     "tcp",
-				Concurrency: &api.MachineServiceConcurrency{
+				Concurrency: &fly.MachineServiceConcurrency{
 					Type:      "connections",
 					HardLimit: 25,
 					SoftLimit: 20,
 				},
-				Ports: []api.MachinePort{
+				Ports: []fly.MachinePort{
 					{
-						Port:       api.Pointer(80),
+						Port:       fly.Pointer(80),
 						Handlers:   []string{"http"},
 						ForceHTTPS: true,
 					},
 					{
-						Port:     api.Pointer(443),
+						Port:     fly.Pointer(443),
 						Handlers: []string{"tls", "http"},
 					},
 				},
 				Processes: []string{"app"},
 				TCPChecks: []*ServiceTCPCheck{
 					{
-						Timeout:     api.MustParseDuration("2s"),
-						Interval:    api.MustParseDuration("15s"),
-						GracePeriod: api.MustParseDuration("1s"),
+						Timeout:     fly.MustParseDuration("2s"),
+						Interval:    fly.MustParseDuration("15s"),
+						GracePeriod: fly.MustParseDuration("1s"),
 					},
 				},
 			},
@@ -119,7 +135,7 @@ func TestToDefinition(t *testing.T) {
 
 	definition, err := cfg.ToDefinition()
 	assert.NoError(t, err)
-	assert.Equal(t, &api.Definition{
+	assert.Equal(t, &fly.Definition{
 		"app":                "foo",
 		"primary_region":     "sea",
 		"kill_signal":        "SIGTERM",
@@ -162,11 +178,19 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 
+		"restart": []any{
+			map[string]any{
+				"policy":    "always",
+				"retries":   int64(3),
+				"processes": []any{"web"},
+			},
+		},
+
 		"http_service": map[string]any{
 			"internal_port":        int64(8080),
 			"force_https":          true,
 			"auto_start_machines":  false,
-			"auto_stop_machines":   false,
+			"auto_stop_machines":   "off",
 			"min_machines_running": int64(0),
 			"concurrency": map[string]any{
 				"type":       "donuts",
@@ -203,8 +227,25 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
+			"machine_checks": []any{
+				map[string]any{
+					"command":      []any{"curl", "https://fly.io"},
+					"image":        "curlimages/curl",
+					"entrypoint":   []any{"/bin/sh"},
+					"kill_signal":  "SIGKILL",
+					"kill_timeout": "5s",
+				},
+			},
 		},
-
+		"machine_checks": []any{
+			map[string]any{
+				"command":      []any{"curl", "https://fly.io"},
+				"image":        "curlimages/curl",
+				"entrypoint":   []any{"/bin/sh"},
+				"kill_signal":  "SIGKILL",
+				"kill_timeout": "5s",
+			},
+		},
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
@@ -235,8 +276,10 @@ func TestToDefinition(t *testing.T) {
 		},
 		"statics": []any{
 			map[string]any{
-				"guest_path": "/path/to/statics",
-				"url_prefix": "/static-assets",
+				"guest_path":     "/path/to/statics",
+				"url_prefix":     "/static-assets",
+				"tigris_bucket":  "example-bucket",
+				"index_document": "index.html",
 			},
 		},
 		"files": []any{
@@ -255,9 +298,10 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 		"mounts": []any{map[string]any{
-			"source":       "data",
-			"destination":  "/data",
-			"initial_size": "30gb",
+			"source":             "data",
+			"destination":        "/data",
+			"initial_size":       "30gb",
+			"snapshot_retention": int64(17),
 		}},
 		"processes": map[string]any{
 			"web":  "run web",
@@ -287,7 +331,7 @@ func TestToDefinition(t *testing.T) {
 				"protocol":             "tcp",
 				"processes":            []any{"app"},
 				"auto_start_machines":  false,
-				"auto_stop_machines":   false,
+				"auto_stop_machines":   "off",
 				"min_machines_running": int64(1),
 				"concurrency": map[string]any{
 					"type":       "requests",
@@ -331,6 +375,15 @@ func TestToDefinition(t *testing.T) {
 						"path":     "/check2",
 					},
 				},
+				"machine_checks": []any{
+					map[string]any{
+						"command":      []any{"curl", "https://fly.io"},
+						"image":        "curlimages/curl",
+						"entrypoint":   []any{"/bin/sh"},
+						"kill_signal":  "SIGKILL",
+						"kill_timeout": "5s",
+					},
+				},
 			},
 		},
 	}, definition)
@@ -353,7 +406,7 @@ func TestFromDefinitionChecksAsList(t *testing.T) {
 	require.NoError(t, err)
 
 	want := map[string]*ToplevelCheck{
-		"pg": {Port: api.Pointer(80)},
+		"pg": {Port: fly.Pointer(80)},
 	}
 	assert.Equal(t, want, cfg.Checks)
 }
@@ -367,23 +420,23 @@ func TestFromDefinitionChecksAsEmptyList(t *testing.T) {
 func TestFromDefinitionKillTimeoutInteger(t *testing.T) {
 	cfg, err := cfgFromJSON(`{"kill_timeout": 20}`)
 	require.NoError(t, err)
-	assert.Equal(t, api.MustParseDuration("20s"), cfg.KillTimeout)
+	assert.Equal(t, fly.MustParseDuration("20s"), cfg.KillTimeout)
 }
 
 func TestFromDefinitionKillTimeoutFloat(t *testing.T) {
 	cfg, err := cfgFromJSON(`{"kill_timeout": 1.5}`)
 	require.NoError(t, err)
-	assert.Equal(t, api.MustParseDuration("1s"), cfg.KillTimeout)
+	assert.Equal(t, fly.MustParseDuration("1s"), cfg.KillTimeout)
 }
 
 func TestFromDefinitionKillTimeoutString(t *testing.T) {
 	cfg, err := cfgFromJSON(`{"kill_timeout": "10s"}`)
 	require.NoError(t, err)
-	assert.Equal(t, api.MustParseDuration("10s"), cfg.KillTimeout)
+	assert.Equal(t, fly.MustParseDuration("10s"), cfg.KillTimeout)
 }
 
-func dFromJSON(jsonBody string) (*api.Definition, error) {
-	ret := &api.Definition{}
+func dFromJSON(jsonBody string) (*fly.Definition, error) {
+	ret := &fly.Definition{}
 	err := json.Unmarshal([]byte(jsonBody), ret)
 	return ret, err
 }

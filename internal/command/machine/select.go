@@ -7,11 +7,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -24,7 +25,7 @@ var selectFlag = flag.Bool{
 	Hidden:      true,
 }
 
-func selectOneMachine(ctx context.Context, appName string, machineID string, haveMachineID bool) (*api.Machine, context.Context, error) {
+func selectOneMachine(ctx context.Context, appName string, machineID string, haveMachineID bool) (*fly.Machine, context.Context, error) {
 	if err := checkSelectConditions(ctx, haveMachineID); err != nil {
 		return nil, nil, err
 	}
@@ -39,14 +40,14 @@ func selectOneMachine(ctx context.Context, appName string, machineID string, hav
 		return nil, nil, err
 	}
 
-	var machine *api.Machine
+	var machine *fly.Machine
 	if shouldPrompt(ctx, haveMachineID) {
 		machine, err = promptForOneMachine(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
 	} else {
-		machine, err = flaps.FromContext(ctx).Get(ctx, machineID)
+		machine, err = flapsutil.ClientFromContext(ctx).Get(ctx, machineID)
 		if err != nil {
 			if err := rewriteMachineNotFoundErrors(ctx, err, machineID); err != nil {
 				return nil, nil, err
@@ -57,7 +58,7 @@ func selectOneMachine(ctx context.Context, appName string, machineID string, hav
 	return machine, ctx, nil
 }
 
-func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machine, context.Context, error) {
+func selectManyMachines(ctx context.Context, machineIDs []string) ([]*fly.Machine, context.Context, error) {
 	haveMachineIDs := len(machineIDs) > 0
 	if err := checkSelectConditions(ctx, haveMachineIDs); err != nil {
 		return nil, nil, err
@@ -68,14 +69,14 @@ func selectManyMachines(ctx context.Context, machineIDs []string) ([]*api.Machin
 		return nil, nil, err
 	}
 
-	var machines []*api.Machine
+	var machines []*fly.Machine
 	if shouldPrompt(ctx, haveMachineIDs) {
 		machines, err = promptForManyMachines(ctx)
 		if err != nil {
 			return nil, nil, err
 		}
 	} else {
-		flapsClient := flaps.FromContext(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
 		for _, machineID := range machineIDs {
 			machine, err := flapsClient.Get(ctx, machineID)
 			if err != nil {
@@ -115,11 +116,13 @@ func selectManyMachineIDs(ctx context.Context, machineIDs []string) ([]string, c
 }
 
 func buildContextFromAppName(ctx context.Context, appName string) (context.Context, error) {
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	return ctx, nil
 }
 
@@ -135,27 +138,32 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 		// NOTE: assuming that we validated the command line arguments
 		// correctly, we must have at least one machine ID when no app
 		// is set.
-		client := client.FromContext(ctx).API()
-		var gqlMachine *api.GqlMachine
+		client := flyutil.ClientFromContext(ctx)
+		var gqlMachine *fly.GqlMachine
 		gqlMachine, err = client.GetMachine(ctx, machineIDs[0])
 		if err != nil {
 			return nil, fmt.Errorf("could not get machine from GraphQL to determine app name: %w", err)
 		}
 		ctx = appconfig.WithName(ctx, gqlMachine.App.Name)
-		flapsClient, err = flaps.New(ctx, gqlMachine.App)
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppCompact: gqlMachine.App,
+			AppName:    gqlMachine.App.Name,
+		})
 	} else {
-		flapsClient, err = flaps.NewFromAppName(ctx, appName)
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: appName,
+		})
 	}
 	if err != nil {
 		return nil, fmt.Errorf("could not create flaps client: %w", err)
 	}
 
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	return ctx, nil
 }
 
-func promptForOneMachine(ctx context.Context) (*api.Machine, error) {
-	machines, err := flaps.FromContext(ctx).List(ctx, "")
+func promptForOneMachine(ctx context.Context) (*fly.Machine, error) {
+	machines, err := flapsutil.ClientFromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
 	} else if len(machines) == 0 {
@@ -170,8 +178,8 @@ func promptForOneMachine(ctx context.Context) (*api.Machine, error) {
 	return machines[selection], nil
 }
 
-func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
-	machines, err := flaps.FromContext(ctx).List(ctx, "")
+func promptForManyMachines(ctx context.Context) ([]*fly.Machine, error) {
+	machines, err := flapsutil.ClientFromContext(ctx).List(ctx, "")
 	if err != nil {
 		return nil, fmt.Errorf("could not get a list of machines: %w", err)
 	} else if len(machines) == 0 {
@@ -184,7 +192,7 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 		return nil, fmt.Errorf("could not prompt for machines: %w", err)
 	}
 
-	var selectedMachines []*api.Machine
+	var selectedMachines []*fly.Machine
 	for _, selection := range selections {
 		selectedMachines = append(selectedMachines, machines[selection])
 	}
@@ -194,7 +202,7 @@ func promptForManyMachines(ctx context.Context) ([]*api.Machine, error) {
 	return selectedMachines, nil
 }
 
-func sortAndBuildOptions(machines []*api.Machine) []string {
+func sortAndBuildOptions(machines []*fly.Machine) []string {
 	sort.Slice(machines, func(i, j int) bool {
 		return machines[i].ID < machines[j].ID
 	})
@@ -214,13 +222,13 @@ func sortAndBuildOptions(machines []*api.Machine) []string {
 	return options
 }
 
-func getMachineRole(machine *api.Machine) string {
-	if machine.State != api.MachineStateStarted {
+func getMachineRole(machine *fly.Machine) string {
+	if machine.State != fly.MachineStateStarted {
 		return ""
 	}
 	for _, check := range machine.Checks {
 		if check.Name == "role" {
-			if check.Status == api.Passing {
+			if check.Status == fly.Passing {
 				return check.Output
 			} else {
 				return "error"

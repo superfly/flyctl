@@ -6,10 +6,10 @@ import (
 	"net"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newRelease() *cobra.Command {
@@ -33,7 +33,7 @@ func newRelease() *cobra.Command {
 }
 
 func runReleaseIPAddress(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 

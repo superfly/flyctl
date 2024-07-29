@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/proxy"
 )
@@ -35,7 +35,7 @@ func newProxy() *cobra.Command {
 }
 
 func runMachineProxy(ctx context.Context) error {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	orgSlug := flag.GetOrg(ctx)
 
 	if orgSlug == "" {
@@ -59,12 +59,12 @@ func runMachineProxy(ctx context.Context) error {
 	}
 
 	// do this explicitly so we can get the DNS server address
-	_, err = agentclient.Establish(ctx, orgSlug)
+	_, err = agentclient.Establish(ctx, orgSlug, "")
 	if err != nil {
 		return err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, flag.GetBool(ctx, "quiet"))
+	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, "", flag.GetBool(ctx, "quiet"))
 	if err != nil {
 		return err
 	}

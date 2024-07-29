@@ -34,8 +34,8 @@ func Started(ctx context.Context, metricSlug string) {
 	}
 
 	SendNoData(ctx, metricSlug+"/started")
-
 }
+
 func Status(ctx context.Context, metricSlug string, success bool) {
 	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
 		if _, ok := unmatchedStatuses[metricSlug]; ok {
@@ -52,8 +52,79 @@ func Status(ctx context.Context, metricSlug string, success bool) {
 	Send(ctx, metricSlug+"/status", map[string]bool{"success": success})
 }
 
-func Send[T any](ctx context.Context, metricSlug string, value T) {
+type LaunchStatusPayload struct {
+	TraceID  string        `json:"traceId"`
+	Error    string        `json:"error"`
+	Duration time.Duration `json:"duration"`
 
+	AppName          string `json:"app"`
+	OrgSlug          string `json:"org"`
+	Region           string `json:"region"`
+	HighAvailability bool   `json:"ha"`
+
+	VM struct {
+		Size     string `json:"size"`
+		Memory   string `json:"memory"`
+		ProcessN int    `json:"processCount"`
+	} `json:"vm"`
+
+	HasPostgres bool `json:"hasPostgres"`
+	HasRedis    bool `json:"hasRedis"`
+	HasSentry   bool `json:"hasSentry"`
+
+	ScannerFamily string `json:"scanner_family"`
+	FlyctlVersion string `json:"flyctlVersion"`
+}
+
+func LaunchStatus(ctx context.Context, payload LaunchStatusPayload) {
+	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
+		if _, ok := unmatchedStatuses["launch"]; ok {
+			delete(unmatchedStatuses, "launch")
+			return true
+		}
+		return false
+	})
+	if !ok {
+		terminal.Debug("Metrics: Attempted to send launch status for launch, but no start event was sent")
+		// logger.FromContext(ctx).Debug("Metrics: Attempted to send launch status for launch, but no start event was sent")
+		return
+	}
+
+	Send(ctx, "launch/status", payload)
+}
+
+type DeployStatusPayload struct {
+	TraceID  string        `json:"traceId"`
+	Error    string        `json:"error"`
+	Duration time.Duration `json:"duration"`
+
+	AppName       string `json:"app"`
+	OrgSlug       string `json:"org"`
+	PrimaryRegion string `json:"primary_region"`
+	Image         string `json:"image"`
+	Strategy      string `json:"strategy"`
+
+	FlyctlVersion string `json:"flyctlVersion"`
+}
+
+func DeployStatus(ctx context.Context, payload DeployStatusPayload) {
+	ok := withUnmatchedStatuses(func(unmatchedStatuses map[string]struct{}) bool {
+		if _, ok := unmatchedStatuses["deploy"]; ok {
+			delete(unmatchedStatuses, "deploy")
+			return true
+		}
+		return false
+	})
+
+	if !ok {
+		terminal.Debug("Metrics: Attempted to send deploy status for deploy, but no start event was sent")
+		return
+	}
+
+	Send(ctx, "deploy/status", payload)
+}
+
+func Send[T any](ctx context.Context, metricSlug string, value T) {
 	valJson, err := json.Marshal(value)
 	if err != nil {
 		return

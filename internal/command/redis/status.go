@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -36,10 +36,10 @@ func runStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		name   = flag.FirstArg(ctx)
-		client = client.FromContext(ctx).API().GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	response, err := gql.GetAddOn(ctx, client, name)
+	response, err := gql.GetAddOn(ctx, client, name, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return err
 	}

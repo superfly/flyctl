@@ -14,9 +14,6 @@ build: generate
 test: FORCE
 	go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
 
-test-api: FORCE
-	cd ./api && go test ./... -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=$(NOW_RFC3339)'" --run=$(T)
-
 raw-preflight-test:
 	if [ -r .direnv/preflight ]; then . .direnv/preflight; fi; \
 	go test ./test/preflight --tags=integration -v -timeout 10m --run="$(T)"
@@ -37,5 +34,9 @@ lint:
 
 pre:
 	pre-commit run --all-files
+
+# Installs a "production" build. Can be used to test metrics against production data.
+install-fake-production:
+	go install -tags production -ldflags="-X 'github.com/superfly/flyctl/internal/buildinfo.buildDate=2000-01-01T00:00:00Z' -X 'github.com/superfly/flyctl/internal/buildinfo.buildVersion=9.9.9'" .
 
 FORCE:

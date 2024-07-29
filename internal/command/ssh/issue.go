@@ -13,17 +13,17 @@ import (
 	"os"
 	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/ejcx/sshcert"
 	"github.com/spf13/cobra"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -77,7 +77,7 @@ validity.`
 }
 
 func runSSHIssue(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 
 	org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
@@ -171,10 +171,11 @@ func runSSHIssue(ctx context.Context) (err error) {
 
 	for pf == nil && cf == nil {
 		if rootname == "" {
-			prompt := "Path to store private key: "
-			if err := survey.AskOne(&survey.Input{Message: prompt}, &rootname); err != nil {
+			message := "Path to store private key: "
+			if err := prompt.String(ctx, &rootname, message, "", true); err != nil {
 				return err
 			}
+
 		}
 
 		if flag.GetBool(ctx, "dotssh") {
@@ -287,7 +288,7 @@ func MarshalED25519PrivateKey(key ed25519.PrivateKey, comment string) []byte {
 	})
 }
 
-func populateAgent(icert *api.IssuedCertificate, priv ed25519.PrivateKey) error {
+func populateAgent(icert *fly.IssuedCertificate, priv ed25519.PrivateKey) error {
 	acon, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
 	if err != nil {
 		return fmt.Errorf("can't connect to SSH agent: %w", err)

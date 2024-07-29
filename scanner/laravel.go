@@ -3,22 +3,22 @@ package scanner
 import (
 	"bufio"
 	"encoding/base64"
+	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/superfly/flyctl/helpers"
+	"io/fs"
+	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/blang/semver"
+	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
-
-type ComposerLock struct {
-	Platform PhpVersion `json:"platform,omitempty"`
-}
-
-type PhpVersion struct {
-	Version string `json:"php"`
-}
 
 // setup Laravel with a sqlite database
 func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -26,8 +26,6 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	if !checksPass(sourceDir, fileExists("artisan")) {
 		return nil, nil
 	}
-
-	files := templates("templates/laravel")
 
 	s := &SourceInfo{
 		Env: map[string]string{
@@ -39,7 +37,6 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 			"SESSION_SECURE_COOKIE": "true",
 		},
 		Family: "Laravel",
-		Files:  files,
 		Port:   8080,
 		Secrets: []Secret{
 			{
@@ -56,8 +53,14 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		ConsoleCommand: "php /var/www/html/artisan tinker",
 	}
 
-	phpVersion, err := extractPhpVersion()
+	// Min PHP version to use generator
+	minVersion, err := semver.Make("8.1.0")
+	if err != nil {
+		panic(err)
+	}
 
+	// The detected PHP version
+	phpVersion, err := extractPhpVersion()
 	if err != nil || phpVersion == "" {
 		// Fallback to 8.0, which has
 		// the broadest compatibility
@@ -69,6 +72,15 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		"NODE_VERSION": "18",
 	}
 
+	// Use default scanner templates if < min version(8.1.0)
+	phpNVersion, err := semver.Make(phpVersion + ".0")
+	if err != nil || phpNVersion.LT(minVersion) {
+		s.Files = templates("templates/laravel")
+	} else {
+		// Else use dockerfile-laravel generator
+		s.Callback = LaravelCallback
+	}
+
 	// Extract DB, Redis config from dotenv
 	db, redis, skipDB := extractConnections(".env")
 	s.SkipDatabase = skipDB
@@ -78,6 +90,106 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	}
 
 	return s, nil
+}
+
+func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
+	// create temporary fly.toml for merge purposes
+	flyToml := "fly.toml"
+	_, err := os.Stat(flyToml)
+	if os.IsNotExist(err) {
+		// create a fly.toml consisting only of an app name
+		contents := fmt.Sprintf("app = \"%s\"\n", appName)
+		err := os.WriteFile(flyToml, []byte(contents), 0644)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		// inform caller of the presence of this file
+		srcInfo.MergeConfig = &MergeConfigStruct{
+			Name:      flyToml,
+			Temporary: true,
+		}
+	}
+
+	// generate Dockerfile if it doesn't already exist
+	dockerfileExists := true
+	_, err = os.Stat("Dockerfile")
+	if errors.Is(err, fs.ErrNotExist) {
+		dockerfileExists = false
+	}
+
+	// check first to see if the package is already installed
+	installed := false
+
+	data, err := os.ReadFile("composer.json")
+	if err == nil {
+		var composerJson map[string]interface{}
+		err = json.Unmarshal(data, &composerJson)
+		if err == nil {
+			// check for the package in the composer.json
+			require, ok := composerJson["require"].(map[string]interface{})
+			if ok && require["fly-apps/dockerfile-laravel"] != nil {
+				installed = true
+			}
+
+			requireDev, ok := composerJson["require-dev"].(map[string]interface{})
+			if ok && requireDev["fly-apps/dockerfile-laravel"] != nil {
+				installed = true
+			}
+		}
+	}
+
+	// check if executable is available
+	vendorPath := filepath.Join("vendor", "bin", "dockerfile-laravel")
+	_, err = os.Stat(vendorPath)
+	if os.IsNotExist(err) {
+		installed = false
+	}
+
+	// install fly-apps/dockerfile-laravel if it's not already installed
+	if !installed {
+		args := []string{"composer", "require", "--dev", "fly-apps/dockerfile-laravel"}
+		fmt.Printf("installing: %s\n", strings.Join(args, " "))
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+
+		if err := cmd.Run(); err != nil && !dockerfileExists {
+			return fmt.Errorf("Dockerfile doesn't exist and failed to install fly-apps/dockerfile-laravel: %w", err)
+		}
+	}
+
+	args := []string{vendorPath, "generate"}
+	if dockerfileExists {
+		args = append(args, "--skip")
+	}
+
+	// add additional flags from launch command
+	if len(flags) > 0 {
+		args = append(args, flags...)
+	}
+
+	fmt.Printf("Running: %s\n", strings.Join(args, " "))
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to generate Dockerfile: %w", err)
+	}
+
+	// provide some advice
+	srcInfo.DeployDocs += fmt.Sprintf(`
+If you need custom packages installed, or have problems with your deployment
+build, you may need to edit the Dockerfile for app-specific changes. If you
+need help, please post on https://community.fly.io.
+
+Now: run 'fly deploy' to deploy your %s app.
+`, srcInfo.Family)
+
+	return nil
 }
 
 func extractPhpVersion() (string, error) {

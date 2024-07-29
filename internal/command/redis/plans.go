@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -32,23 +32,10 @@ func newPlans() (cmd *cobra.Command) {
 func runPlans(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API().GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	_ = `# @genqlient
-  query ListAddOnPlans {
-		addOnPlans {
-			nodes {
-				id
-				displayName
-			  maxDataSize
-				pricePerMonth
-			}
-		}
-  }
-	`
-
-	result, err := gql.ListAddOnPlans(ctx, client)
+	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
 
 	var rows [][]string
 
@@ -58,7 +45,7 @@ func runPlans(ctx context.Context) (err error) {
 
 		row := []string{
 			plan.DisplayName,
-			plan.MaxDataSize,
+			plan.Description,
 		}
 
 		var price string
@@ -67,7 +54,7 @@ func runPlans(ctx context.Context) (err error) {
 		rows = append(rows, row)
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Max Data Size")
+	_ = render.Table(out, "", rows, "Name", "Description")
 
 	return
 }

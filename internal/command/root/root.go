@@ -8,7 +8,6 @@ import (
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/agent"
@@ -32,6 +31,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/extensions"
 	"github.com/superfly/flyctl/internal/command/history"
 	"github.com/superfly/flyctl/internal/command/image"
+	"github.com/superfly/flyctl/internal/command/incidents"
 	"github.com/superfly/flyctl/internal/command/info"
 	"github.com/superfly/flyctl/internal/command/ips"
 	"github.com/superfly/flyctl/internal/command/jobs"
@@ -41,7 +41,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
-	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -50,6 +49,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/regions"
+	"github.com/superfly/flyctl/internal/command/registry"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/scale"
@@ -60,11 +60,13 @@ import (
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
+	"github.com/superfly/flyctl/internal/command/synthetics"
 	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
 	"github.com/superfly/flyctl/internal/command/wireguard"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 // New initializes and returns a reference to a new root command.
@@ -74,7 +76,7 @@ func New() *cobra.Command {
 		short = "The Fly.io command line interface"
 	)
 
-	root := command.New("flyctl", short, long, run)
+	root := command.New("fly", short, long, run)
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true
@@ -96,7 +98,7 @@ func New() *cobra.Command {
 		group(platform.New(), "more_help"),
 		group(docs.New(), "more_help"),
 		group(releases.New(), "upkeep"),
-		group(deploy.New(), "deploy"),
+		group(deploy.New().Command, "deploy"),
 		group(history.New(), "upkeep"),
 		group(status.New(), "deploy"),
 		group(logs.New(), "upkeep"),
@@ -106,6 +108,7 @@ func New() *cobra.Command {
 		group(lfsc.New(), "dbs_and_extensions"),
 		agent.New(),
 		group(image.New(), "configuring"),
+		group(incidents.New(), "upkeep"),
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
@@ -114,6 +117,7 @@ func New() *cobra.Command {
 		group(ssh.New(), "upkeep"),
 		group(ssh.NewSFTP(), "upkeep"),
 		group(redis.New(), "dbs_and_extensions"),
+		group(registry.New(), "upkeep"),
 		group(checks.New(), "upkeep"),
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),
@@ -129,9 +133,9 @@ func New() *cobra.Command {
 		group(wireguard.New(), "upkeep"),
 		group(console.New(), "upkeep"),
 		settings.New(),
-		group(mysql.New(), "dbs_and_extensions"),
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
+		synthetics.New(),
 		curl.New(),       // TODO: deprecate
 		domains.New(),    // TODO: deprecate
 		open.New(),       // TODO: deprecate
@@ -190,7 +194,7 @@ func run(ctx context.Context) error {
 	cmd.Printf("  %s\n", "flyctl [command]")
 	cmd.Println()
 
-	if !client.FromContext(ctx).Authenticated() {
+	if !flyutil.ClientFromContext(ctx).Authenticated() {
 		msg := `It doesn't look like you're logged in. Try "fly auth signup" to create an account, or "fly auth login" to log in to an existing account.`
 		cmd.Println(text.Wrap(msg, 80))
 		cmd.Println()

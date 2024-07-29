@@ -18,11 +18,11 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -77,9 +77,9 @@ func run(ctx context.Context) error {
 }
 
 func fetchRegionCodes(ctx context.Context) (codes []string, err error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
-	var regions []api.Region
+	var regions []fly.Region
 	if regions, _, err = client.PlatformRegions(ctx); err != nil {
 		err = fmt.Errorf("failed retrieving regions: %w", err)
 

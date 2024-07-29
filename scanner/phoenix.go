@@ -82,7 +82,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	}
 
 	// We found Phoenix, so lets check if its a recent version.
-	releaseCmd := exec.Command("mix", "run", "-e", "\"true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)\"")
+	releaseCmd := exec.Command("mix", "run", "-e", "true = Code.ensure_loaded?(Mix.Tasks.Phx.Gen.Release)")
 	releaseCmd.Stdout = os.Stdout
 	releaseCmd.Stderr = os.Stderr
 	err = releaseCmd.Run()
@@ -108,15 +108,24 @@ a Postgres database.
 `
 	}
 
-	// Add migration task if we find ecto
-	if checksPass(sourceDir, dirContains("mix.exs", "ecto")) {
+	if checksPass(sourceDir, dirContains("mix.exs", "postgrex")) {
+		s.DatabaseDesired = DatabaseKindPostgres
 		s.ReleaseCmd = "/app/bin/migrate"
+	} else if checksPass(sourceDir, dirContains("mix.exs", "ecto_sqlite3")) {
+		s.DatabaseDesired = DatabaseKindSqlite
+		s.Env["DATABASE_PATH"] = "/mnt/name/name.db"
+		s.Volumes = []Volume{
+			{
+				Source:      "name",
+				Destination: "/mnt/name",
+			},
+		}
 	}
 
 	return s, nil
 }
 
-func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan) error {
+func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	envEExPath := "rel/env.sh.eex"
 	envEExContents := `
 # configure node for distributed erlang with IPV6 support
@@ -125,6 +134,11 @@ export ECTO_IPV6="true"
 export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
 export RELEASE_DISTRIBUTION="name"
 export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
+
+# Uncomment to send crash dumps to stderr
+# This can be useful for debugging, but may log sensitive information
+# export ERL_CRASH_DUMP=/dev/stderr
+# export ERL_CRASH_DUMP_BYTES=4096
 `
 	_, err := os.Stat(envEExPath)
 	if os.IsNotExist(err) {

@@ -2,20 +2,17 @@ package preparers
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"io/fs"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/pflag"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/state"
@@ -33,19 +30,10 @@ type Preparer func(context.Context) (context.Context, error)
 func LoadConfig(ctx context.Context) (context.Context, error) {
 	logger := logger.FromContext(ctx)
 
-	cfg := config.New()
-
-	// Apply config from the config file, if it exists
-	path := filepath.Join(state.ConfigDirectory(ctx), config.FileName)
-	if err := cfg.ApplyFile(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+	cfg, err := config.Load(ctx, filepath.Join(state.ConfigDirectory(ctx), config.FileName))
+	if err != nil {
 		return nil, err
 	}
-
-	// Apply config from the environment, overriding anything from the file
-	cfg.ApplyEnv()
-
-	// Finally, apply command line options, overriding any previous setting
-	cfg.ApplyFlags(flagctx.FromContext(ctx))
 
 	logger.Debug("config initialized.")
 
@@ -57,15 +45,18 @@ func InitClient(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 
 	// TODO: refactor so that api package does NOT depend on global state
-	api.SetBaseURL(cfg.APIBaseURL)
-	api.SetErrorLog(cfg.LogGQLErrors)
-	api.SetInstrumenter(instrument.ApiAdapter)
-	api.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
+	fly.SetBaseURL(cfg.APIBaseURL)
+	fly.SetErrorLog(cfg.LogGQLErrors)
+	fly.SetInstrumenter(instrument.ApiAdapter)
+	fly.SetTransport(otelhttp.NewTransport(http.DefaultTransport))
 
-	c := client.FromTokens(cfg.Tokens)
-	logger.Debug("client initialized.")
+	if flyutil.ClientFromContext(ctx) == nil {
+		client := flyutil.NewClientFromOptions(ctx, fly.ClientOptions{Tokens: cfg.Tokens})
+		logger.Debug("client initialized.")
+		ctx = flyutil.NewContextWithClient(ctx, client)
+	}
 
-	return client.NewContext(ctx, c), nil
+	return ctx, nil
 }
 
 func DetermineConfigDir(ctx context.Context) (context.Context, error) {
@@ -87,7 +78,6 @@ func DetermineConfigDir(ctx context.Context) (context.Context, error) {
 //     This will set flag.Changed to true, as if it were specified manually.
 //   - If none of the flags were set, the main flag will remain its default value.
 func ApplyAliases(ctx context.Context) (context.Context, error) {
-
 	var (
 		invalidFlagNames []string
 		invalidTypes     []string
@@ -148,20 +138,4 @@ func ApplyAliases(ctx context.Context) (context.Context, error) {
 		}
 	}
 	return ctx, err
-}
-
-// This method sets the user auth token as an environment variable called FLY_OTEL_AUTH_KEY
-// Why is this necessary? It's quite difficult to get the auth token when we initialize the tracer.
-// There's no assurance it will exist at the time of creation, so we use this preparer to set it
-// And then in the tracer, we use a GRPC interceptor to pull it out when sending the traces.
-// *Another approach would be to load the config in the interceptor, and pull the tokens from it.
-// except it only came to my mind after writing this so let's stick with this for now.
-func SetOtelAuthenticationKey(ctx context.Context) (context.Context, error) {
-	token := config.Tokens(ctx).Flaps()
-	if token == "" {
-		token = os.Getenv("FLY_API_TOKEN")
-	}
-
-	os.Setenv("FLY_OTEL_AUTH_KEY", token)
-	return ctx, nil
 }

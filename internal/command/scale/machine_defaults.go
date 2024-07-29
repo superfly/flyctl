@@ -4,30 +4,30 @@ import (
 	"strconv"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 )
 
 type defaultValues struct {
 	image           string
-	guest           *api.MachineGuest
-	guestPerGroup   map[string]*api.MachineGuest
+	guest           *fly.MachineGuest
+	guestPerGroup   map[string]*fly.MachineGuest
 	volsize         int
 	volsizeByName   map[string]int
 	releaseId       string
 	releaseVersion  string
 	appConfig       *appconfig.Config
-	existingVolumes map[string]map[string][]*api.Volume
+	existingVolumes map[string]map[string][]*fly.Volume
 	snapshotID      *string
 }
 
-func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*api.Machine, volumes []api.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *api.MachineGuest) *defaultValues {
+func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fly.Machine, volumes []fly.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *fly.MachineGuest) *defaultValues {
 	guestPerGroup := lo.Associate(
-		lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 			return m.Config.Guest != nil
 		}),
-		func(m *api.Machine) (string, *api.MachineGuest) {
+		func(m *fly.Machine) (string, *fly.MachineGuest) {
 			return m.ProcessGroup(), m.Config.Guest
 		},
 	)
@@ -59,7 +59,7 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 		defaults.snapshotID = &snapshotID
 	}
 
-	defaults.volsizeByName = lo.Reduce(volumes, func(agg map[string]int, v api.Volume, _ int) map[string]int {
+	defaults.volsizeByName = lo.Reduce(volumes, func(agg map[string]int, v fly.Volume, _ int) map[string]int {
 		agg[v.Name] = lo.Max([]int{agg[v.Name], v.SizeGb})
 		return agg
 	}, make(map[string]int))
@@ -67,13 +67,13 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 	if !withNewVolumes {
 		defaults.existingVolumes = lo.MapValues(
 			lo.GroupBy(
-				lo.FilterMap(volumes, func(v api.Volume, _ int) (*api.Volume, bool) {
+				lo.FilterMap(volumes, func(v fly.Volume, _ int) (*fly.Volume, bool) {
 					return &v, !v.IsAttached()
 				}),
-				func(v *api.Volume) string { return v.Name },
+				func(v *fly.Volume) string { return v.Name },
 			),
-			func(vl []*api.Volume, _ string) map[string][]*api.Volume {
-				return lo.GroupBy(vl, func(v *api.Volume) string {
+			func(vl []*fly.Volume, _ string) map[string][]*fly.Volume {
+				return lo.GroupBy(vl, func(v *fly.Volume) string {
 					return v.Region
 				})
 			},
@@ -82,7 +82,7 @@ func newDefaults(appConfig *appconfig.Config, latest api.Release, machines []*ap
 	return &defaults
 }
 
-func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, error) {
+func (d *defaultValues) ToMachineConfig(groupName string) (*fly.MachineConfig, error) {
 	mc, err := d.appConfig.ToMachineConfig(groupName, nil)
 	if err != nil {
 		return nil, err
@@ -93,19 +93,19 @@ func (d *defaultValues) ToMachineConfig(groupName string) (*api.MachineConfig, e
 	}
 
 	mc.Image = d.image
-	mc.Mounts = lo.Map(mc.Mounts, func(mount api.MachineMount, _ int) api.MachineMount {
+	mc.Mounts = lo.Map(mc.Mounts, func(mount fly.MachineMount, _ int) fly.MachineMount {
 		mount.SizeGb = lo.ValueOr(d.volsizeByName, mount.Name, d.volsize)
 		mount.Encrypted = true
 		return mount
 	})
-	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
-	mc.Metadata[api.MachineConfigMetadataKeyFlyReleaseVersion] = d.releaseVersion
-	mc.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
+	mc.Metadata[fly.MachineConfigMetadataKeyFlyReleaseId] = d.releaseId
+	mc.Metadata[fly.MachineConfigMetadataKeyFlyReleaseVersion] = d.releaseVersion
+	mc.Metadata[fly.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
 
 	return mc, nil
 }
 
-func (d *defaultValues) PopAvailableVolumes(mConfig *api.MachineConfig, region string, delta int) []*api.Volume {
+func (d *defaultValues) PopAvailableVolumes(mConfig *fly.MachineConfig, region string, delta int) []*fly.Volume {
 	if delta <= 0 || len(mConfig.Mounts) == 0 {
 		return nil
 	}
@@ -118,18 +118,19 @@ func (d *defaultValues) PopAvailableVolumes(mConfig *api.MachineConfig, region s
 	return availableVolumes
 }
 
-func (d *defaultValues) CreateVolumeRequest(mConfig *api.MachineConfig, region string, delta int) *api.CreateVolumeRequest {
+func (d *defaultValues) CreateVolumeRequest(mConfig *fly.MachineConfig, region string, delta int) *fly.CreateVolumeRequest {
 	if len(mConfig.Mounts) == 0 || delta <= 0 {
 		return nil
 	}
 	mount := mConfig.Mounts[0]
-	return &api.CreateVolumeRequest{
+	return &fly.CreateVolumeRequest{
 		Name:                mount.Name,
 		Region:              region,
 		SizeGb:              &mount.SizeGb,
-		Encrypted:           api.Pointer(mount.Encrypted),
-		RequireUniqueZone:   api.Pointer(false),
+		Encrypted:           fly.Pointer(mount.Encrypted),
+		RequireUniqueZone:   fly.Pointer(false),
 		SnapshotID:          d.snapshotID,
 		ComputeRequirements: mConfig.Guest,
+		ComputeImage:        mConfig.Image,
 	}
 }

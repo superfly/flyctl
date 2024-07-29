@@ -4,20 +4,20 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	cfg, err := getAppV2ConfigFromReleases(ctx, apiClient, appName)
 	if cfg == nil {
-		cfg, err = getAppV2ConfigFromMachines(ctx, apiClient, appName)
+		cfg, err = getAppV2ConfigFromMachines(ctx, appName)
 	}
 	if err != nil {
 		return nil, err
@@ -29,15 +29,15 @@ func FromRemoteApp(ctx context.Context, appName string) (*Config, error) {
 	return cfg, nil
 }
 
-func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appName string) (*Config, error) {
-	flapsClient := flaps.FromContext(ctx)
+func getAppV2ConfigFromMachines(ctx context.Context, appName string) (*Config, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	activeMachines, err := machine.ListActive(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("error listing active machines for %s app: %w", appName, err)
 	}
-	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines)
+	machineSet := machine.NewMachineSet(flapsClient, io, activeMachines, true)
 	appConfig, warnings, err := FromAppAndMachineSet(ctx, appName, machineSet)
 	if err != nil {
 		return nil, fmt.Errorf("failed to grab app config from existing machines, error: %w", err)
@@ -48,7 +48,7 @@ func getAppV2ConfigFromMachines(ctx context.Context, apiClient *api.Client, appN
 	return appConfig, nil
 }
 
-func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appName string) (*Config, error) {
+func getAppV2ConfigFromReleases(ctx context.Context, apiClient flyutil.Client, appName string) (*Config, error) {
 	_ = `# @genqlient
 	query FlyctlConfigCurrentRelease($appName: String!) {
 		app(name:$appName) {
@@ -58,7 +58,7 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appN
 		}
 	}
 	`
-	resp, err := gql.FlyctlConfigCurrentRelease(ctx, apiClient.GenqClient, appName)
+	resp, err := gql.FlyctlConfigCurrentRelease(ctx, apiClient.GenqClient(), appName)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func getAppV2ConfigFromReleases(ctx context.Context, apiClient *api.Client, appN
 		return nil, fmt.Errorf("likely a bug, could not convert config definition of type %T to api map[string]any", configDefinition)
 	}
 
-	appConfig, err := FromDefinition(api.DefinitionPtr(configMapDefinition))
+	appConfig, err := FromDefinition(fly.DefinitionPtr(configMapDefinition))
 	if err != nil {
 		return nil, fmt.Errorf("error creating appv2 Config from api definition: %w", err)
 	}

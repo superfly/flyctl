@@ -5,17 +5,16 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newUpdate() *cobra.Command {
@@ -23,10 +22,9 @@ func newUpdate() *cobra.Command {
 		short = "Update a volume for an app."
 
 		long = short + ` Volumes are persistent storage for
-		Fly Machines. Learn how to add a volume to
-		your app: https://fly.io/docs/apps/volume-storage/`
+		Fly Machines.`
 
-		usage = "update <volumename>"
+		usage = "update <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runUpdate,
@@ -41,7 +39,11 @@ func newUpdate() *cobra.Command {
 		flag.AppConfig(),
 		flag.Int{
 			Name:        "snapshot-retention",
-			Description: "Snapshot retention in days (min 5)",
+			Description: "Snapshot retention in days",
+		},
+		flag.Bool{
+			Name:        "scheduled-snapshots",
+			Description: "Activate/deactivate scheduled automatic snapshots",
 		},
 	)
 
@@ -52,7 +54,7 @@ func newUpdate() *cobra.Command {
 func runUpdate(ctx context.Context) error {
 	var (
 		cfg      = config.FromContext(ctx)
-		client   = client.FromContext(ctx).API()
+		client   = flyutil.ClientFromContext(ctx)
 		volumeID = flag.FirstArg(ctx)
 	)
 
@@ -69,19 +71,25 @@ func runUpdate(ctx context.Context) error {
 		appName = *n
 	}
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
 	var snapshotRetention *int
 	if flag.GetInt(ctx, "snapshot-retention") != 0 {
-		snapshotRetention = api.Pointer(flag.GetInt(ctx, "snapshot-retention"))
+		snapshotRetention = fly.Pointer(flag.GetInt(ctx, "snapshot-retention"))
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	input := api.UpdateVolumeRequest{
+	input := fly.UpdateVolumeRequest{
 		SnapshotRetention: snapshotRetention,
+	}
+
+	if flag.IsSpecified(ctx, "scheduled-snapshots") {
+		input.AutoBackupEnabled = fly.BoolPointer(flag.GetBool(ctx, "scheduled-snapshots"))
 	}
 
 	updatedVolume, err := flapsClient.UpdateVolume(ctx, volumeID, input)

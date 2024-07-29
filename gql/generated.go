@@ -52,10 +52,12 @@ func (v *AddOnData) GetOptions() interface{} { return v.Options }
 type AddOnType string
 
 const (
+	// An Arcjet site
+	AddOnTypeArcjet AddOnType = "arcjet"
+	// An Enveloop project
+	AddOnTypeEnveloop AddOnType = "enveloop"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
-	// A PlanetScale database
-	AddOnTypePlanetscale AddOnType = "planetscale"
 	// An Upstash Redis database
 	AddOnTypeRedis AddOnType = "redis"
 	// A Sentry project endpoint
@@ -64,8 +66,14 @@ const (
 	AddOnTypeSupabase AddOnType = "supabase"
 	// A Tigris Data bucket
 	AddOnTypeTigris AddOnType = "tigris"
+	// An Upstash Kafka cluster
+	AddOnTypeUpstashKafka AddOnType = "upstash_kafka"
 	// An Upstash Redis database
 	AddOnTypeUpstashRedis AddOnType = "upstash_redis"
+	// An Upstash Vector cluster
+	AddOnTypeUpstashVector AddOnType = "upstash_vector"
+	// A Wafris firewall
+	AddOnTypeWafris AddOnType = "wafris"
 )
 
 // AgentGetInstancesApp includes the requested fields of the GraphQL type App.
@@ -547,181 +555,6 @@ type AppDataSecretsSecret struct {
 // GetName returns AppDataSecretsSecret.Name, and is useful for accessing the field via an interface.
 func (v *AppDataSecretsSecret) GetName() string { return v.Name }
 
-type BuildFinalImageInput struct {
-	// Sha256 id of docker image
-	Id string `json:"id"`
-	// Size in bytes of the docker image
-	SizeBytes int64 `json:"sizeBytes"`
-	// Tag used for docker image
-	Tag string `json:"tag"`
-}
-
-// GetId returns BuildFinalImageInput.Id, and is useful for accessing the field via an interface.
-func (v *BuildFinalImageInput) GetId() string { return v.Id }
-
-// GetSizeBytes returns BuildFinalImageInput.SizeBytes, and is useful for accessing the field via an interface.
-func (v *BuildFinalImageInput) GetSizeBytes() int64 { return v.SizeBytes }
-
-// GetTag returns BuildFinalImageInput.Tag, and is useful for accessing the field via an interface.
-func (v *BuildFinalImageInput) GetTag() string { return v.Tag }
-
-type BuildImageOptsInput struct {
-	// Set of build time variables passed to cli
-	BuildArgs interface{} `json:"buildArgs"`
-	// Fly.toml build.buildpacks setting
-	BuildPacks []string `json:"buildPacks"`
-	// Fly.toml build.builder setting
-	Builder string `json:"builder"`
-	// Builtin builder to use
-	BuiltIn string `json:"builtIn"`
-	// Builtin builder settings
-	BuiltInSettings interface{} `json:"builtInSettings"`
-	// Path to dockerfile, if one exists
-	DockerfilePath string `json:"dockerfilePath"`
-	// Unused in cli?
-	ExtraBuildArgs interface{} `json:"extraBuildArgs"`
-	// Image label to use when tagging and pushing to the fly registry
-	ImageLabel string `json:"imageLabel"`
-	// Unused in cli?
-	ImageRef string `json:"imageRef"`
-	// Do not use the build cache when building the image
-	NoCache bool `json:"noCache"`
-	// Whether publishing to the registry was requested
-	Publish bool `json:"publish"`
-	// Docker tag used to publish image to registry
-	Tag string `json:"tag"`
-	// Set the target build stage to build if the Dockerfile has more than one stage
-	Target string `json:"target"`
-}
-
-// GetBuildArgs returns BuildImageOptsInput.BuildArgs, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetBuildArgs() interface{} { return v.BuildArgs }
-
-// GetBuildPacks returns BuildImageOptsInput.BuildPacks, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetBuildPacks() []string { return v.BuildPacks }
-
-// GetBuilder returns BuildImageOptsInput.Builder, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetBuilder() string { return v.Builder }
-
-// GetBuiltIn returns BuildImageOptsInput.BuiltIn, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetBuiltIn() string { return v.BuiltIn }
-
-// GetBuiltInSettings returns BuildImageOptsInput.BuiltInSettings, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetBuiltInSettings() interface{} { return v.BuiltInSettings }
-
-// GetDockerfilePath returns BuildImageOptsInput.DockerfilePath, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetDockerfilePath() string { return v.DockerfilePath }
-
-// GetExtraBuildArgs returns BuildImageOptsInput.ExtraBuildArgs, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetExtraBuildArgs() interface{} { return v.ExtraBuildArgs }
-
-// GetImageLabel returns BuildImageOptsInput.ImageLabel, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetImageLabel() string { return v.ImageLabel }
-
-// GetImageRef returns BuildImageOptsInput.ImageRef, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetImageRef() string { return v.ImageRef }
-
-// GetNoCache returns BuildImageOptsInput.NoCache, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetNoCache() bool { return v.NoCache }
-
-// GetPublish returns BuildImageOptsInput.Publish, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetPublish() bool { return v.Publish }
-
-// GetTag returns BuildImageOptsInput.Tag, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetTag() string { return v.Tag }
-
-// GetTarget returns BuildImageOptsInput.Target, and is useful for accessing the field via an interface.
-func (v *BuildImageOptsInput) GetTarget() string { return v.Target }
-
-type BuildStrategyAttemptInput struct {
-	// Optional error message from strategy
-	Error string `json:"error"`
-	// Optional note about this strategy or its result
-	Note string `json:"note"`
-	// Result attempting this strategy
-	Result string `json:"result"`
-	// Build strategy attempted
-	Strategy string `json:"strategy"`
-}
-
-// GetError returns BuildStrategyAttemptInput.Error, and is useful for accessing the field via an interface.
-func (v *BuildStrategyAttemptInput) GetError() string { return v.Error }
-
-// GetNote returns BuildStrategyAttemptInput.Note, and is useful for accessing the field via an interface.
-func (v *BuildStrategyAttemptInput) GetNote() string { return v.Note }
-
-// GetResult returns BuildStrategyAttemptInput.Result, and is useful for accessing the field via an interface.
-func (v *BuildStrategyAttemptInput) GetResult() string { return v.Result }
-
-// GetStrategy returns BuildStrategyAttemptInput.Strategy, and is useful for accessing the field via an interface.
-func (v *BuildStrategyAttemptInput) GetStrategy() string { return v.Strategy }
-
-type BuildTimingsInput struct {
-	// Time to build and push the image, measured by flyctl
-	BuildAndPushMs int64 `json:"buildAndPushMs"`
-	// Time to build the image including create context, measured by flyctl
-	BuildMs int64 `json:"buildMs"`
-	// Time to initialize client used to connect to either remote or local builder
-	BuilderInitMs int64 `json:"builderInitMs"`
-	// Time to create the build context tar file, measured by flyctl
-	ContextBuildMs int64 `json:"contextBuildMs"`
-	// Time for builder to build image after receiving context, measured by flyctl
-	ImageBuildMs int64 `json:"imageBuildMs"`
-	// Time to push completed image to registry, measured by flyctl
-	PushMs int64 `json:"pushMs"`
-}
-
-// GetBuildAndPushMs returns BuildTimingsInput.BuildAndPushMs, and is useful for accessing the field via an interface.
-func (v *BuildTimingsInput) GetBuildAndPushMs() int64 { return v.BuildAndPushMs }
-
-// GetBuildMs returns BuildTimingsInput.BuildMs, and is useful for accessing the field via an interface.
-func (v *BuildTimingsInput) GetBuildMs() int64 { return v.BuildMs }
-
-// GetBuilderInitMs returns BuildTimingsInput.BuilderInitMs, and is useful for accessing the field via an interface.
-func (v *BuildTimingsInput) GetBuilderInitMs() int64 { return v.BuilderInitMs }
-
-// GetContextBuildMs returns BuildTimingsInput.ContextBuildMs, and is useful for accessing the field via an interface.
-func (v *BuildTimingsInput) GetContextBuildMs() int64 { return v.ContextBuildMs }
-
-// GetImageBuildMs returns BuildTimingsInput.ImageBuildMs, and is useful for accessing the field via an interface.
-func (v *BuildTimingsInput) GetImageBuildMs() int64 { return v.ImageBuildMs }
-
-// GetPushMs returns BuildTimingsInput.PushMs, and is useful for accessing the field via an interface.
-func (v *BuildTimingsInput) GetPushMs() int64 { return v.PushMs }
-
-type BuilderMetaInput struct {
-	// Local or remote builder type
-	BuilderType string `json:"builderType"`
-	// Whther or not buildkit is enabled on builder
-	BuildkitEnabled bool `json:"buildkitEnabled"`
-	// Docker version reported by builder
-	DockerVersion string `json:"dockerVersion"`
-	// Platform reported by the builder
-	Platform string `json:"platform"`
-	// Remote builder app used
-	RemoteAppName string `json:"remoteAppName"`
-	// Remote builder machine used
-	RemoteMachineId string `json:"remoteMachineId"`
-}
-
-// GetBuilderType returns BuilderMetaInput.BuilderType, and is useful for accessing the field via an interface.
-func (v *BuilderMetaInput) GetBuilderType() string { return v.BuilderType }
-
-// GetBuildkitEnabled returns BuilderMetaInput.BuildkitEnabled, and is useful for accessing the field via an interface.
-func (v *BuilderMetaInput) GetBuildkitEnabled() bool { return v.BuildkitEnabled }
-
-// GetDockerVersion returns BuilderMetaInput.DockerVersion, and is useful for accessing the field via an interface.
-func (v *BuilderMetaInput) GetDockerVersion() string { return v.DockerVersion }
-
-// GetPlatform returns BuilderMetaInput.Platform, and is useful for accessing the field via an interface.
-func (v *BuilderMetaInput) GetPlatform() string { return v.Platform }
-
-// GetRemoteAppName returns BuilderMetaInput.RemoteAppName, and is useful for accessing the field via an interface.
-func (v *BuilderMetaInput) GetRemoteAppName() string { return v.RemoteAppName }
-
-// GetRemoteMachineId returns BuilderMetaInput.RemoteMachineId, and is useful for accessing the field via an interface.
-func (v *BuilderMetaInput) GetRemoteMachineId() string { return v.RemoteMachineId }
-
 // CreateAddOnCreateAddOnCreateAddOnPayload includes the requested fields of the GraphQL type CreateAddOnPayload.
 // The GraphQL type's documentation follows.
 //
@@ -780,6 +613,8 @@ type CreateAddOnInput struct {
 	Options interface{} `json:"options"`
 	// The organization which owns the add-on
 	OrganizationId string `json:"organizationId"`
+	// A provider organization plan to set along with provisioning
+	OrganizationPlanId string `json:"organizationPlanId"`
 	// The add-on plan ID
 	PlanId string `json:"planId"`
 	// Desired primary region for the add-on
@@ -804,6 +639,9 @@ func (v *CreateAddOnInput) GetOptions() interface{} { return v.Options }
 
 // GetOrganizationId returns CreateAddOnInput.OrganizationId, and is useful for accessing the field via an interface.
 func (v *CreateAddOnInput) GetOrganizationId() string { return v.OrganizationId }
+
+// GetOrganizationPlanId returns CreateAddOnInput.OrganizationPlanId, and is useful for accessing the field via an interface.
+func (v *CreateAddOnInput) GetOrganizationPlanId() string { return v.OrganizationPlanId }
 
 // GetPlanId returns CreateAddOnInput.PlanId, and is useful for accessing the field via an interface.
 func (v *CreateAddOnInput) GetPlanId() string { return v.PlanId }
@@ -975,6 +813,7 @@ type CreateAppInput struct {
 	AppRoleId string `json:"appRoleId"`
 	// A unique identifier for the client performing the mutation.
 	ClientMutationId string `json:"clientMutationId"`
+	EnableSubdomains bool   `json:"enableSubdomains"`
 	Heroku           bool   `json:"heroku"`
 	Machines         bool   `json:"machines"`
 	// The name of the new application. Defaults to a random name.
@@ -992,6 +831,9 @@ func (v *CreateAppInput) GetAppRoleId() string { return v.AppRoleId }
 
 // GetClientMutationId returns CreateAppInput.ClientMutationId, and is useful for accessing the field via an interface.
 func (v *CreateAppInput) GetClientMutationId() string { return v.ClientMutationId }
+
+// GetEnableSubdomains returns CreateAppInput.EnableSubdomains, and is useful for accessing the field via an interface.
+func (v *CreateAppInput) GetEnableSubdomains() bool { return v.EnableSubdomains }
 
 // GetHeroku returns CreateAppInput.Heroku, and is useful for accessing the field via an interface.
 func (v *CreateAppInput) GetHeroku() bool { return v.Heroku }
@@ -1021,40 +863,6 @@ type CreateAppResponse struct {
 
 // GetCreateApp returns CreateAppResponse.CreateApp, and is useful for accessing the field via an interface.
 func (v *CreateAppResponse) GetCreateApp() CreateAppCreateAppCreateAppPayload { return v.CreateApp }
-
-// Autogenerated input type of CreateBuild
-type CreateBuildInput struct {
-	// The name of the app being built
-	AppName string `json:"appName"`
-	// Whether builder is remote or local
-	BuilderType string `json:"builderType"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// Options set for building image
-	ImageOpts BuildImageOptsInput `json:"imageOpts"`
-	// The ID of the machine being built (only set for machine builds)
-	MachineId string `json:"machineId"`
-	// List of available build strategies that will be attempted
-	StrategiesAvailable []string `json:"strategiesAvailable"`
-}
-
-// GetAppName returns CreateBuildInput.AppName, and is useful for accessing the field via an interface.
-func (v *CreateBuildInput) GetAppName() string { return v.AppName }
-
-// GetBuilderType returns CreateBuildInput.BuilderType, and is useful for accessing the field via an interface.
-func (v *CreateBuildInput) GetBuilderType() string { return v.BuilderType }
-
-// GetClientMutationId returns CreateBuildInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *CreateBuildInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetImageOpts returns CreateBuildInput.ImageOpts, and is useful for accessing the field via an interface.
-func (v *CreateBuildInput) GetImageOpts() BuildImageOptsInput { return v.ImageOpts }
-
-// GetMachineId returns CreateBuildInput.MachineId, and is useful for accessing the field via an interface.
-func (v *CreateBuildInput) GetMachineId() string { return v.MachineId }
-
-// GetStrategiesAvailable returns CreateBuildInput.StrategiesAvailable, and is useful for accessing the field via an interface.
-func (v *CreateBuildInput) GetStrategiesAvailable() []string { return v.StrategiesAvailable }
 
 // CreateExtensionCreateAddOnCreateAddOnPayload includes the requested fields of the GraphQL type CreateAddOnPayload.
 // The GraphQL type's documentation follows.
@@ -1190,40 +998,6 @@ func (v *CreateLimitedAccessTokenResponse) GetCreateLimitedAccessToken() CreateL
 	return v.CreateLimitedAccessToken
 }
 
-// Autogenerated input type of CreateRelease
-type CreateReleaseInput struct {
-	// The ID of the app
-	AppId string `json:"appId"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// app definition
-	Definition interface{} `json:"definition"`
-	// The image to deploy
-	Image string `json:"image"`
-	// nomad or machines
-	PlatformVersion string `json:"platformVersion"`
-	// The strategy for replacing existing instances. Defaults to canary.
-	Strategy DeploymentStrategy `json:"strategy"`
-}
-
-// GetAppId returns CreateReleaseInput.AppId, and is useful for accessing the field via an interface.
-func (v *CreateReleaseInput) GetAppId() string { return v.AppId }
-
-// GetClientMutationId returns CreateReleaseInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *CreateReleaseInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetDefinition returns CreateReleaseInput.Definition, and is useful for accessing the field via an interface.
-func (v *CreateReleaseInput) GetDefinition() interface{} { return v.Definition }
-
-// GetImage returns CreateReleaseInput.Image, and is useful for accessing the field via an interface.
-func (v *CreateReleaseInput) GetImage() string { return v.Image }
-
-// GetPlatformVersion returns CreateReleaseInput.PlatformVersion, and is useful for accessing the field via an interface.
-func (v *CreateReleaseInput) GetPlatformVersion() string { return v.PlatformVersion }
-
-// GetStrategy returns CreateReleaseInput.Strategy, and is useful for accessing the field via an interface.
-func (v *CreateReleaseInput) GetStrategy() DeploymentStrategy { return v.Strategy }
-
 // CreateTosAgreementCreateExtensionTosAgreementCreateExtensionTosAgreementPayload includes the requested fields of the GraphQL type CreateExtensionTosAgreementPayload.
 // The GraphQL type's documentation follows.
 //
@@ -1270,23 +1044,6 @@ type DeleteAddOnResponse struct {
 func (v *DeleteAddOnResponse) GetDeleteAddOn() DeleteAddOnDeleteAddOnDeleteAddOnPayload {
 	return v.DeleteAddOn
 }
-
-type DeploymentStrategy string
-
-const (
-	// Launch all new instances before shutting down previous instances
-	DeploymentStrategyBluegreen DeploymentStrategy = "BLUEGREEN"
-	// Ensure new instances are healthy before continuing with a rolling deployment
-	DeploymentStrategyCanary DeploymentStrategy = "CANARY"
-	// Deploy new instances all at once
-	DeploymentStrategyImmediate DeploymentStrategy = "IMMEDIATE"
-	// Incrementally replace old instances with new ones
-	DeploymentStrategyRolling DeploymentStrategy = "ROLLING"
-	// Incrementally replace old instances with new ones, 1 by 1
-	DeploymentStrategyRollingOne DeploymentStrategy = "ROLLING_ONE"
-	// Deploy new instances all at once
-	DeploymentStrategySimple DeploymentStrategy = "SIMPLE"
-)
 
 // ExtensionData includes the GraphQL fields of AddOn requested by the fragment ExtensionData.
 type ExtensionData struct {
@@ -1397,62 +1154,6 @@ type ExtensionProviderDataExcludedRegionsRegion struct {
 // GetCode returns ExtensionProviderDataExcludedRegionsRegion.Code, and is useful for accessing the field via an interface.
 func (v *ExtensionProviderDataExcludedRegionsRegion) GetCode() string { return v.Code }
 
-// Autogenerated input type of FinishBuild
-type FinishBuildInput struct {
-	// The name of the app being built
-	AppName string `json:"appName"`
-	// Build id returned by createBuild() mutation
-	BuildId string `json:"buildId"`
-	// Metadata about the builder
-	BuilderMeta BuilderMetaInput `json:"builderMeta"`
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// Information about the docker image that was built
-	FinalImage BuildFinalImageInput `json:"finalImage"`
-	// Log or error output
-	Logs string `json:"logs"`
-	// The ID of the machine being built (only set for machine builds)
-	MachineId string `json:"machineId"`
-	// Indicate whether build completed or failed
-	Status string `json:"status"`
-	// Build strategies attempted and their result, should be in order of attempt
-	StrategiesAttempted []BuildStrategyAttemptInput `json:"strategiesAttempted"`
-	// Timings for different phases of the build
-	Timings BuildTimingsInput `json:"timings"`
-}
-
-// GetAppName returns FinishBuildInput.AppName, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetAppName() string { return v.AppName }
-
-// GetBuildId returns FinishBuildInput.BuildId, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetBuildId() string { return v.BuildId }
-
-// GetBuilderMeta returns FinishBuildInput.BuilderMeta, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetBuilderMeta() BuilderMetaInput { return v.BuilderMeta }
-
-// GetClientMutationId returns FinishBuildInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetFinalImage returns FinishBuildInput.FinalImage, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetFinalImage() BuildFinalImageInput { return v.FinalImage }
-
-// GetLogs returns FinishBuildInput.Logs, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetLogs() string { return v.Logs }
-
-// GetMachineId returns FinishBuildInput.MachineId, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetMachineId() string { return v.MachineId }
-
-// GetStatus returns FinishBuildInput.Status, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetStatus() string { return v.Status }
-
-// GetStrategiesAttempted returns FinishBuildInput.StrategiesAttempted, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetStrategiesAttempted() []BuildStrategyAttemptInput {
-	return v.StrategiesAttempted
-}
-
-// GetTimings returns FinishBuildInput.Timings, and is useful for accessing the field via an interface.
-func (v *FinishBuildInput) GetTimings() BuildTimingsInput { return v.Timings }
-
 // FlyctlConfigCurrentReleaseApp includes the requested fields of the GraphQL type App.
 type FlyctlConfigCurrentReleaseApp struct {
 	// The latest release of this application, without any config processing
@@ -1482,47 +1183,6 @@ type FlyctlConfigCurrentReleaseResponse struct {
 
 // GetApp returns FlyctlConfigCurrentReleaseResponse.App, and is useful for accessing the field via an interface.
 func (v *FlyctlConfigCurrentReleaseResponse) GetApp() FlyctlConfigCurrentReleaseApp { return v.App }
-
-// FlyctlDeployGetLatestImageApp includes the requested fields of the GraphQL type App.
-type FlyctlDeployGetLatestImageApp struct {
-	// The latest release of this application, without any config processing
-	CurrentReleaseUnprocessed FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed `json:"currentReleaseUnprocessed"`
-}
-
-// GetCurrentReleaseUnprocessed returns FlyctlDeployGetLatestImageApp.CurrentReleaseUnprocessed, and is useful for accessing the field via an interface.
-func (v *FlyctlDeployGetLatestImageApp) GetCurrentReleaseUnprocessed() FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed {
-	return v.CurrentReleaseUnprocessed
-}
-
-// FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed includes the requested fields of the GraphQL type ReleaseUnprocessed.
-type FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed struct {
-	// Unique ID
-	Id string `json:"id"`
-	// The version of the release
-	Version int `json:"version"`
-	// Docker image URI
-	ImageRef string `json:"imageRef"`
-}
-
-// GetId returns FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed.Id, and is useful for accessing the field via an interface.
-func (v *FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed) GetId() string { return v.Id }
-
-// GetVersion returns FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed.Version, and is useful for accessing the field via an interface.
-func (v *FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed) GetVersion() int { return v.Version }
-
-// GetImageRef returns FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed.ImageRef, and is useful for accessing the field via an interface.
-func (v *FlyctlDeployGetLatestImageAppCurrentReleaseUnprocessed) GetImageRef() string {
-	return v.ImageRef
-}
-
-// FlyctlDeployGetLatestImageResponse is returned by FlyctlDeployGetLatestImage on success.
-type FlyctlDeployGetLatestImageResponse struct {
-	// Find an app by name
-	App FlyctlDeployGetLatestImageApp `json:"app"`
-}
-
-// GetApp returns FlyctlDeployGetLatestImageResponse.App, and is useful for accessing the field via an interface.
-func (v *FlyctlDeployGetLatestImageResponse) GetApp() FlyctlDeployGetLatestImageApp { return v.App }
 
 // GetAddOnAddOn includes the requested fields of the GraphQL type AddOn.
 type GetAddOnAddOn struct {
@@ -1695,6 +1355,7 @@ type GetAddOnAddOnAddOnPlan struct {
 	Id          string `json:"id"`
 	Name        string `json:"name"`
 	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
 }
 
 // GetId returns GetAddOnAddOnAddOnPlan.Id, and is useful for accessing the field via an interface.
@@ -1705,6 +1366,9 @@ func (v *GetAddOnAddOnAddOnPlan) GetName() string { return v.Name }
 
 // GetDisplayName returns GetAddOnAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOnAddOnPlan) GetDisplayName() string { return v.DisplayName }
+
+// GetDescription returns GetAddOnAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOnAddOnPlan) GetDescription() string { return v.Description }
 
 // GetAddOnAddOnAddOnProvider includes the requested fields of the GraphQL type AddOnProvider.
 type GetAddOnAddOnAddOnProvider struct {
@@ -2740,6 +2404,7 @@ func (v *ListAddOnPlansAddOnPlansAddOnPlanConnection) GetNodes() []ListAddOnPlan
 // ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan struct {
 	Id            string `json:"id"`
+	Description   string `json:"description"`
 	DisplayName   string `json:"displayName"`
 	MaxDataSize   string `json:"maxDataSize"`
 	PricePerMonth int    `json:"pricePerMonth"`
@@ -2747,6 +2412,11 @@ type ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan struct {
 
 // GetId returns ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan.Id, and is useful for accessing the field via an interface.
 func (v *ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan) GetId() string { return v.Id }
+
+// GetDescription returns ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan) GetDescription() string {
+	return v.Description
+}
 
 // GetDisplayName returns ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *ListAddOnPlansAddOnPlansAddOnPlanConnectionNodesAddOnPlan) GetDisplayName() string {
@@ -2838,11 +2508,17 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOns
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan includes the requested fields of the GraphQL type AddOnPlan.
 type ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan struct {
 	DisplayName string `json:"displayName"`
+	Description string `json:"description"`
 }
 
 // GetDisplayName returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.DisplayName, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDisplayName() string {
 	return v.DisplayName
+}
+
+// GetDescription returns ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan.Description, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOnAddOnPlan) GetDescription() string {
+	return v.Description
 }
 
 // ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization includes the requested fields of the GraphQL type Organization.
@@ -2885,77 +2561,6 @@ type LogOutResponse struct {
 
 // GetLogOut returns LogOutResponse.LogOut, and is useful for accessing the field via an interface.
 func (v *LogOutResponse) GetLogOut() LogOutLogOutLogOutPayload { return v.LogOut }
-
-// MachinesCreateReleaseCreateReleaseCreateReleasePayload includes the requested fields of the GraphQL type CreateReleasePayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of CreateRelease.
-type MachinesCreateReleaseCreateReleaseCreateReleasePayload struct {
-	Release MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease `json:"release"`
-}
-
-// GetRelease returns MachinesCreateReleaseCreateReleaseCreateReleasePayload.Release, and is useful for accessing the field via an interface.
-func (v *MachinesCreateReleaseCreateReleaseCreateReleasePayload) GetRelease() MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease {
-	return v.Release
-}
-
-// MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease includes the requested fields of the GraphQL type Release.
-type MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease struct {
-	// Unique ID
-	Id string `json:"id"`
-	// The version of the release
-	Version int `json:"version"`
-}
-
-// GetId returns MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease.Id, and is useful for accessing the field via an interface.
-func (v *MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease) GetId() string { return v.Id }
-
-// GetVersion returns MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease.Version, and is useful for accessing the field via an interface.
-func (v *MachinesCreateReleaseCreateReleaseCreateReleasePayloadRelease) GetVersion() int {
-	return v.Version
-}
-
-// MachinesCreateReleaseResponse is returned by MachinesCreateRelease on success.
-type MachinesCreateReleaseResponse struct {
-	CreateRelease MachinesCreateReleaseCreateReleaseCreateReleasePayload `json:"createRelease"`
-}
-
-// GetCreateRelease returns MachinesCreateReleaseResponse.CreateRelease, and is useful for accessing the field via an interface.
-func (v *MachinesCreateReleaseResponse) GetCreateRelease() MachinesCreateReleaseCreateReleaseCreateReleasePayload {
-	return v.CreateRelease
-}
-
-// MachinesUpdateReleaseResponse is returned by MachinesUpdateRelease on success.
-type MachinesUpdateReleaseResponse struct {
-	UpdateRelease MachinesUpdateReleaseUpdateReleaseUpdateReleasePayload `json:"updateRelease"`
-}
-
-// GetUpdateRelease returns MachinesUpdateReleaseResponse.UpdateRelease, and is useful for accessing the field via an interface.
-func (v *MachinesUpdateReleaseResponse) GetUpdateRelease() MachinesUpdateReleaseUpdateReleaseUpdateReleasePayload {
-	return v.UpdateRelease
-}
-
-// MachinesUpdateReleaseUpdateReleaseUpdateReleasePayload includes the requested fields of the GraphQL type UpdateReleasePayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of UpdateRelease.
-type MachinesUpdateReleaseUpdateReleaseUpdateReleasePayload struct {
-	Release MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease `json:"release"`
-}
-
-// GetRelease returns MachinesUpdateReleaseUpdateReleaseUpdateReleasePayload.Release, and is useful for accessing the field via an interface.
-func (v *MachinesUpdateReleaseUpdateReleaseUpdateReleasePayload) GetRelease() MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease {
-	return v.Release
-}
-
-// MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease includes the requested fields of the GraphQL type Release.
-type MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease struct {
-	// Unique ID
-	Id string `json:"id"`
-}
-
-// GetId returns MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease.Id, and is useful for accessing the field via an interface.
-func (v *MachinesUpdateReleaseUpdateReleaseUpdateReleasePayloadRelease) GetId() string { return v.Id }
 
 // OrganizationData includes the GraphQL fields of Organization requested by the fragment OrganizationData.
 type OrganizationData struct {
@@ -3032,67 +2637,6 @@ type ResetAddOnPasswordResponse struct {
 // GetResetAddOnPassword returns ResetAddOnPasswordResponse.ResetAddOnPassword, and is useful for accessing the field via an interface.
 func (v *ResetAddOnPasswordResponse) GetResetAddOnPassword() ResetAddOnPasswordResetAddOnPasswordResetAddOnPasswordPayload {
 	return v.ResetAddOnPassword
-}
-
-// ResolverCreateBuildCreateBuildCreateBuildPayload includes the requested fields of the GraphQL type CreateBuildPayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of CreateBuild.
-type ResolverCreateBuildCreateBuildCreateBuildPayload struct {
-	// build id
-	Id string `json:"id"`
-	// stored build status
-	Status string `json:"status"`
-}
-
-// GetId returns ResolverCreateBuildCreateBuildCreateBuildPayload.Id, and is useful for accessing the field via an interface.
-func (v *ResolverCreateBuildCreateBuildCreateBuildPayload) GetId() string { return v.Id }
-
-// GetStatus returns ResolverCreateBuildCreateBuildCreateBuildPayload.Status, and is useful for accessing the field via an interface.
-func (v *ResolverCreateBuildCreateBuildCreateBuildPayload) GetStatus() string { return v.Status }
-
-// ResolverCreateBuildResponse is returned by ResolverCreateBuild on success.
-type ResolverCreateBuildResponse struct {
-	CreateBuild ResolverCreateBuildCreateBuildCreateBuildPayload `json:"createBuild"`
-}
-
-// GetCreateBuild returns ResolverCreateBuildResponse.CreateBuild, and is useful for accessing the field via an interface.
-func (v *ResolverCreateBuildResponse) GetCreateBuild() ResolverCreateBuildCreateBuildCreateBuildPayload {
-	return v.CreateBuild
-}
-
-// ResolverFinishBuildFinishBuildFinishBuildPayload includes the requested fields of the GraphQL type FinishBuildPayload.
-// The GraphQL type's documentation follows.
-//
-// Autogenerated return type of FinishBuild.
-type ResolverFinishBuildFinishBuildFinishBuildPayload struct {
-	// build id
-	Id string `json:"id"`
-	// stored build status
-	Status string `json:"status"`
-	// wall clock time for this build
-	WallclockTimeMs int `json:"wallclockTimeMs"`
-}
-
-// GetId returns ResolverFinishBuildFinishBuildFinishBuildPayload.Id, and is useful for accessing the field via an interface.
-func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetId() string { return v.Id }
-
-// GetStatus returns ResolverFinishBuildFinishBuildFinishBuildPayload.Status, and is useful for accessing the field via an interface.
-func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetStatus() string { return v.Status }
-
-// GetWallclockTimeMs returns ResolverFinishBuildFinishBuildFinishBuildPayload.WallclockTimeMs, and is useful for accessing the field via an interface.
-func (v *ResolverFinishBuildFinishBuildFinishBuildPayload) GetWallclockTimeMs() int {
-	return v.WallclockTimeMs
-}
-
-// ResolverFinishBuildResponse is returned by ResolverFinishBuild on success.
-type ResolverFinishBuildResponse struct {
-	FinishBuild ResolverFinishBuildFinishBuildFinishBuildPayload `json:"finishBuild"`
-}
-
-// GetFinishBuild returns ResolverFinishBuildResponse.FinishBuild, and is useful for accessing the field via an interface.
-func (v *ResolverFinishBuildResponse) GetFinishBuild() ResolverFinishBuildFinishBuildFinishBuildPayload {
-	return v.FinishBuild
 }
 
 type RuntimeType string
@@ -3322,25 +2866,6 @@ type UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn struct {
 // GetId returns UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn.Id, and is useful for accessing the field via an interface.
 func (v *UpdateAddOnUpdateAddOnUpdateAddOnPayloadAddOn) GetId() string { return v.Id }
 
-// Autogenerated input type of UpdateRelease
-type UpdateReleaseInput struct {
-	// A unique identifier for the client performing the mutation.
-	ClientMutationId string `json:"clientMutationId"`
-	// The ID of the release
-	ReleaseId string `json:"releaseId"`
-	// The new status for the release
-	Status string `json:"status"`
-}
-
-// GetClientMutationId returns UpdateReleaseInput.ClientMutationId, and is useful for accessing the field via an interface.
-func (v *UpdateReleaseInput) GetClientMutationId() string { return v.ClientMutationId }
-
-// GetReleaseId returns UpdateReleaseInput.ReleaseId, and is useful for accessing the field via an interface.
-func (v *UpdateReleaseInput) GetReleaseId() string { return v.ReleaseId }
-
-// GetStatus returns UpdateReleaseInput.Status, and is useful for accessing the field via an interface.
-func (v *UpdateReleaseInput) GetStatus() string { return v.Status }
-
 type VMCountInput struct {
 	// The desired count
 	Count int `json:"count"`
@@ -3455,21 +2980,17 @@ type __FlyctlConfigCurrentReleaseInput struct {
 // GetAppName returns __FlyctlConfigCurrentReleaseInput.AppName, and is useful for accessing the field via an interface.
 func (v *__FlyctlConfigCurrentReleaseInput) GetAppName() string { return v.AppName }
 
-// __FlyctlDeployGetLatestImageInput is used internally by genqlient
-type __FlyctlDeployGetLatestImageInput struct {
-	AppName string `json:"appName"`
-}
-
-// GetAppName returns __FlyctlDeployGetLatestImageInput.AppName, and is useful for accessing the field via an interface.
-func (v *__FlyctlDeployGetLatestImageInput) GetAppName() string { return v.AppName }
-
 // __GetAddOnInput is used internally by genqlient
 type __GetAddOnInput struct {
-	Name string `json:"name"`
+	Name     string `json:"name"`
+	Provider string `json:"provider"`
 }
 
 // GetName returns __GetAddOnInput.Name, and is useful for accessing the field via an interface.
 func (v *__GetAddOnInput) GetName() string { return v.Name }
+
+// GetProvider returns __GetAddOnInput.Provider, and is useful for accessing the field via an interface.
+func (v *__GetAddOnInput) GetProvider() string { return v.Provider }
 
 // __GetAddOnProviderInput is used internally by genqlient
 type __GetAddOnProviderInput struct {
@@ -3531,6 +3052,14 @@ type __GetOrganizationInput struct {
 // GetSlug returns __GetOrganizationInput.Slug, and is useful for accessing the field via an interface.
 func (v *__GetOrganizationInput) GetSlug() string { return v.Slug }
 
+// __ListAddOnPlansInput is used internally by genqlient
+type __ListAddOnPlansInput struct {
+	AddOnType AddOnType `json:"addOnType"`
+}
+
+// GetAddOnType returns __ListAddOnPlansInput.AddOnType, and is useful for accessing the field via an interface.
+func (v *__ListAddOnPlansInput) GetAddOnType() AddOnType { return v.AddOnType }
+
 // __ListAddOnsInput is used internally by genqlient
 type __ListAddOnsInput struct {
 	AddOnType AddOnType `json:"addOnType"`
@@ -3539,22 +3068,6 @@ type __ListAddOnsInput struct {
 // GetAddOnType returns __ListAddOnsInput.AddOnType, and is useful for accessing the field via an interface.
 func (v *__ListAddOnsInput) GetAddOnType() AddOnType { return v.AddOnType }
 
-// __MachinesCreateReleaseInput is used internally by genqlient
-type __MachinesCreateReleaseInput struct {
-	Input CreateReleaseInput `json:"input"`
-}
-
-// GetInput returns __MachinesCreateReleaseInput.Input, and is useful for accessing the field via an interface.
-func (v *__MachinesCreateReleaseInput) GetInput() CreateReleaseInput { return v.Input }
-
-// __MachinesUpdateReleaseInput is used internally by genqlient
-type __MachinesUpdateReleaseInput struct {
-	Input UpdateReleaseInput `json:"input"`
-}
-
-// GetInput returns __MachinesUpdateReleaseInput.Input, and is useful for accessing the field via an interface.
-func (v *__MachinesUpdateReleaseInput) GetInput() UpdateReleaseInput { return v.Input }
-
 // __ResetAddOnPasswordInput is used internally by genqlient
 type __ResetAddOnPasswordInput struct {
 	Name string `json:"name"`
@@ -3562,22 +3075,6 @@ type __ResetAddOnPasswordInput struct {
 
 // GetName returns __ResetAddOnPasswordInput.Name, and is useful for accessing the field via an interface.
 func (v *__ResetAddOnPasswordInput) GetName() string { return v.Name }
-
-// __ResolverCreateBuildInput is used internally by genqlient
-type __ResolverCreateBuildInput struct {
-	Input CreateBuildInput `json:"input"`
-}
-
-// GetInput returns __ResolverCreateBuildInput.Input, and is useful for accessing the field via an interface.
-func (v *__ResolverCreateBuildInput) GetInput() CreateBuildInput { return v.Input }
-
-// __ResolverFinishBuildInput is used internally by genqlient
-type __ResolverFinishBuildInput struct {
-	Input FinishBuildInput `json:"input"`
-}
-
-// GetInput returns __ResolverFinishBuildInput.Input, and is useful for accessing the field via an interface.
-func (v *__ResolverFinishBuildInput) GetInput() FinishBuildInput { return v.Input }
 
 // __SetNomadVMCountInput is used internally by genqlient
 type __SetNomadVMCountInput struct {
@@ -3648,29 +3145,29 @@ query AgentGetInstances ($appName: String!) {
 `
 
 func AgentGetInstances(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	appName string,
 ) (*AgentGetInstancesResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "AgentGetInstances",
 		Query:  AgentGetInstances_Operation,
 		Variables: &__AgentGetInstancesInput{
 			AppName: appName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data AgentGetInstancesResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ AgentGetInstancesResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by AgreedToProviderTos.
@@ -3686,29 +3183,29 @@ query AgreedToProviderTos ($addOnProviderName: String!) {
 `
 
 func AgreedToProviderTos(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	addOnProviderName string,
 ) (*AgreedToProviderTosResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "AgreedToProviderTos",
 		Query:  AgreedToProviderTos_Operation,
 		Variables: &__AgreedToProviderTosInput{
 			AddOnProviderName: addOnProviderName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data AgreedToProviderTosResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ AgreedToProviderTosResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by AllApps.
@@ -3726,29 +3223,29 @@ query AllApps ($orgSlug: String!) {
 `
 
 func AllApps(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	orgSlug string,
 ) (*AllAppsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "AllApps",
 		Query:  AllApps_Operation,
 		Variables: &__AllAppsInput{
 			OrgSlug: orgSlug,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data AllAppsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ AllAppsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateAddOn.
@@ -3767,29 +3264,29 @@ mutation CreateAddOn ($input: CreateAddOnInput!) {
 `
 
 func CreateAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateAddOnInput,
 ) (*CreateAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateAddOn",
 		Query:  CreateAddOn_Operation,
 		Variables: &__CreateAddOnInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateApp.
@@ -3831,29 +3328,29 @@ fragment OrganizationData on Organization {
 `
 
 func CreateApp(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateAppInput,
 ) (*CreateAppResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateApp",
 		Query:  CreateApp_Operation,
 		Variables: &__CreateAppInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateAppResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateAppResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateExtension.
@@ -3874,29 +3371,29 @@ fragment ExtensionData on AddOn {
 `
 
 func CreateExtension(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input CreateAddOnInput,
 ) (*CreateExtensionResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateExtension",
 		Query:  CreateExtension_Operation,
 		Variables: &__CreateExtensionInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateExtensionResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateExtensionResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateLimitedAccessToken.
@@ -3911,15 +3408,15 @@ mutation CreateLimitedAccessToken ($name: String!, $organizationId: ID!, $profil
 `
 
 func CreateLimitedAccessToken(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 	organizationId string,
 	profile string,
 	profileParams interface{},
 	expiry string,
 ) (*CreateLimitedAccessTokenResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateLimitedAccessToken",
 		Query:  CreateLimitedAccessToken_Operation,
 		Variables: &__CreateLimitedAccessTokenInput{
@@ -3930,18 +3427,18 @@ func CreateLimitedAccessToken(
 			Expiry:         expiry,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateLimitedAccessTokenResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateLimitedAccessTokenResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateTosAgreement.
@@ -3954,29 +3451,29 @@ mutation CreateTosAgreement ($providerName: String!) {
 `
 
 func CreateTosAgreement(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	providerName string,
 ) (*CreateTosAgreementResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateTosAgreement",
 		Query:  CreateTosAgreement_Operation,
 		Variables: &__CreateTosAgreementInput{
 			ProviderName: providerName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateTosAgreementResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateTosAgreementResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by DeleteAddOn.
@@ -3989,29 +3486,29 @@ mutation DeleteAddOn ($name: String) {
 `
 
 func DeleteAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*DeleteAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "DeleteAddOn",
 		Query:  DeleteAddOn_Operation,
 		Variables: &__DeleteAddOnInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data DeleteAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ DeleteAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by FlyctlConfigCurrentRelease.
@@ -4026,74 +3523,35 @@ query FlyctlConfigCurrentRelease ($appName: String!) {
 `
 
 func FlyctlConfigCurrentRelease(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	appName string,
 ) (*FlyctlConfigCurrentReleaseResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "FlyctlConfigCurrentRelease",
 		Query:  FlyctlConfigCurrentRelease_Operation,
 		Variables: &__FlyctlConfigCurrentReleaseInput{
 			AppName: appName,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data FlyctlConfigCurrentReleaseResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ FlyctlConfigCurrentReleaseResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
-}
-
-// The query or mutation executed by FlyctlDeployGetLatestImage.
-const FlyctlDeployGetLatestImage_Operation = `
-query FlyctlDeployGetLatestImage ($appName: String!) {
-	app(name: $appName) {
-		currentReleaseUnprocessed {
-			id
-			version
-			imageRef
-		}
-	}
-}
-`
-
-func FlyctlDeployGetLatestImage(
-	ctx context.Context,
-	client graphql.Client,
-	appName string,
-) (*FlyctlDeployGetLatestImageResponse, error) {
-	req := &graphql.Request{
-		OpName: "FlyctlDeployGetLatestImage",
-		Query:  FlyctlDeployGetLatestImage_Operation,
-		Variables: &__FlyctlDeployGetLatestImageInput{
-			AppName: appName,
-		},
-	}
-	var err error
-
-	var data FlyctlDeployGetLatestImageResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAddOn.
 const GetAddOn_Operation = `
-query GetAddOn ($name: String) {
-	addOn(name: $name) {
+query GetAddOn ($name: String, $provider: String) {
+	addOn(name: $name, provider: $provider) {
 		... AddOnData
 		publicUrl
 		privateIp
@@ -4117,6 +3575,7 @@ query GetAddOn ($name: String) {
 			id
 			name
 			displayName
+			description
 		}
 	}
 }
@@ -4173,29 +3632,31 @@ fragment OrganizationData on Organization {
 `
 
 func GetAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
+	provider string,
 ) (*GetAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAddOn",
 		Query:  GetAddOn_Operation,
 		Variables: &__GetAddOnInput{
-			Name: name,
+			Name:     name,
+			Provider: provider,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAddOnProvider.
@@ -4229,29 +3690,29 @@ fragment ExtensionProviderData on AddOnProvider {
 `
 
 func GetAddOnProvider(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*GetAddOnProviderResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAddOnProvider",
 		Query:  GetAddOnProvider_Operation,
 		Variables: &__GetAddOnProviderInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAddOnProviderResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAddOnProviderResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetApp.
@@ -4284,29 +3745,29 @@ fragment OrganizationData on Organization {
 `
 
 func GetApp(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*GetAppResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetApp",
 		Query:  GetApp_Operation,
 		Variables: &__GetAppInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAppResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAppResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAppWithAddons.
@@ -4353,12 +3814,12 @@ fragment OrganizationData on Organization {
 `
 
 func GetAppWithAddons(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 	addOnType AddOnType,
 ) (*GetAppWithAddonsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAppWithAddons",
 		Query:  GetAppWithAddons_Operation,
 		Variables: &__GetAppWithAddonsInput{
@@ -4366,18 +3827,18 @@ func GetAppWithAddons(
 			AddOnType: addOnType,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAppWithAddonsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAppWithAddonsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetAppsByRole.
@@ -4412,12 +3873,12 @@ fragment OrganizationData on Organization {
 `
 
 func GetAppsByRole(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	role string,
 	organizationId string,
 ) (*GetAppsByRoleResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetAppsByRole",
 		Query:  GetAppsByRole_Operation,
 		Variables: &__GetAppsByRoleInput{
@@ -4425,18 +3886,18 @@ func GetAppsByRole(
 			OrganizationId: organizationId,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetAppsByRoleResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetAppsByRoleResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetExtensionSsoLink.
@@ -4449,12 +3910,12 @@ query GetExtensionSsoLink ($orgSlug: String!, $provider: String!) {
 `
 
 func GetExtensionSsoLink(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	orgSlug string,
 	provider string,
 ) (*GetExtensionSsoLinkResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetExtensionSsoLink",
 		Query:  GetExtensionSsoLink_Operation,
 		Variables: &__GetExtensionSsoLinkInput{
@@ -4462,18 +3923,18 @@ func GetExtensionSsoLink(
 			Provider: provider,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetExtensionSsoLinkResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetExtensionSsoLinkResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetNearestRegion.
@@ -4488,25 +3949,25 @@ query GetNearestRegion {
 `
 
 func GetNearestRegion(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 ) (*GetNearestRegionResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetNearestRegion",
 		Query:  GetNearestRegion_Operation,
 	}
-	var err error
+	var err_ error
 
-	var data GetNearestRegionResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetNearestRegionResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by GetOrganization.
@@ -4527,37 +3988,38 @@ fragment OrganizationData on Organization {
 `
 
 func GetOrganization(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	slug string,
 ) (*GetOrganizationResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "GetOrganization",
 		Query:  GetOrganization_Operation,
 		Variables: &__GetOrganizationInput{
 			Slug: slug,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data GetOrganizationResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ GetOrganizationResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ListAddOnPlans.
 const ListAddOnPlans_Operation = `
-query ListAddOnPlans {
-	addOnPlans {
+query ListAddOnPlans ($addOnType: AddOnType!) {
+	addOnPlans(type: $addOnType) {
 		nodes {
 			id
+			description
 			displayName
 			maxDataSize
 			pricePerMonth
@@ -4567,25 +4029,29 @@ query ListAddOnPlans {
 `
 
 func ListAddOnPlans(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
+	addOnType AddOnType,
 ) (*ListAddOnPlansResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ListAddOnPlans",
 		Query:  ListAddOnPlans_Operation,
+		Variables: &__ListAddOnPlansInput{
+			AddOnType: addOnType,
+		},
 	}
-	var err error
+	var err_ error
 
-	var data ListAddOnPlansResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ListAddOnPlansResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ListAddOns.
@@ -4597,6 +4063,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			name
 			addOnPlan {
 				displayName
+				description
 			}
 			privateIp
 			primaryRegion
@@ -4612,29 +4079,29 @@ query ListAddOns ($addOnType: AddOnType) {
 `
 
 func ListAddOns(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	addOnType AddOnType,
 ) (*ListAddOnsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ListAddOns",
 		Query:  ListAddOns_Operation,
 		Variables: &__ListAddOnsInput{
 			AddOnType: addOnType,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ListAddOnsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ListAddOnsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by LogOut.
@@ -4647,100 +4114,25 @@ mutation LogOut {
 `
 
 func LogOut(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 ) (*LogOutResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "LogOut",
 		Query:  LogOut_Operation,
 	}
-	var err error
+	var err_ error
 
-	var data LogOutResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ LogOutResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
-}
-
-// The query or mutation executed by MachinesCreateRelease.
-const MachinesCreateRelease_Operation = `
-mutation MachinesCreateRelease ($input: CreateReleaseInput!) {
-	createRelease(input: $input) {
-		release {
-			id
-			version
-		}
-	}
-}
-`
-
-func MachinesCreateRelease(
-	ctx context.Context,
-	client graphql.Client,
-	input CreateReleaseInput,
-) (*MachinesCreateReleaseResponse, error) {
-	req := &graphql.Request{
-		OpName: "MachinesCreateRelease",
-		Query:  MachinesCreateRelease_Operation,
-		Variables: &__MachinesCreateReleaseInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data MachinesCreateReleaseResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
-// The query or mutation executed by MachinesUpdateRelease.
-const MachinesUpdateRelease_Operation = `
-mutation MachinesUpdateRelease ($input: UpdateReleaseInput!) {
-	updateRelease(input: $input) {
-		release {
-			id
-		}
-	}
-}
-`
-
-func MachinesUpdateRelease(
-	ctx context.Context,
-	client graphql.Client,
-	input UpdateReleaseInput,
-) (*MachinesUpdateReleaseResponse, error) {
-	req := &graphql.Request{
-		OpName: "MachinesUpdateRelease",
-		Query:  MachinesUpdateRelease_Operation,
-		Variables: &__MachinesUpdateReleaseInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data MachinesUpdateReleaseResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ResetAddOnPassword.
@@ -4755,102 +4147,29 @@ mutation ResetAddOnPassword ($name: String!) {
 `
 
 func ResetAddOnPassword(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	name string,
 ) (*ResetAddOnPasswordResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ResetAddOnPassword",
 		Query:  ResetAddOnPassword_Operation,
 		Variables: &__ResetAddOnPasswordInput{
 			Name: name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ResetAddOnPasswordResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ResetAddOnPasswordResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
-}
-
-// The query or mutation executed by ResolverCreateBuild.
-const ResolverCreateBuild_Operation = `
-mutation ResolverCreateBuild ($input: CreateBuildInput!) {
-	createBuild(input: $input) {
-		id
-		status
-	}
-}
-`
-
-func ResolverCreateBuild(
-	ctx context.Context,
-	client graphql.Client,
-	input CreateBuildInput,
-) (*ResolverCreateBuildResponse, error) {
-	req := &graphql.Request{
-		OpName: "ResolverCreateBuild",
-		Query:  ResolverCreateBuild_Operation,
-		Variables: &__ResolverCreateBuildInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data ResolverCreateBuildResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
-}
-
-// The query or mutation executed by ResolverFinishBuild.
-const ResolverFinishBuild_Operation = `
-mutation ResolverFinishBuild ($input: FinishBuildInput!) {
-	finishBuild(input: $input) {
-		id
-		status
-		wallclockTimeMs
-	}
-}
-`
-
-func ResolverFinishBuild(
-	ctx context.Context,
-	client graphql.Client,
-	input FinishBuildInput,
-) (*ResolverFinishBuildResponse, error) {
-	req := &graphql.Request{
-		OpName: "ResolverFinishBuild",
-		Query:  ResolverFinishBuild_Operation,
-		Variables: &__ResolverFinishBuildInput{
-			Input: input,
-		},
-	}
-	var err error
-
-	var data ResolverFinishBuildResponse
-	resp := &graphql.Response{Data: &data}
-
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
-	)
-
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by SetNomadVMCount.
@@ -4867,29 +4186,29 @@ mutation SetNomadVMCount ($input: SetVMCountInput!) {
 `
 
 func SetNomadVMCount(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input SetVMCountInput,
 ) (*SetNomadVMCountResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "SetNomadVMCount",
 		Query:  SetNomadVMCount_Operation,
 		Variables: &__SetNomadVMCountInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data SetNomadVMCountResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ SetNomadVMCountResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by SetSecrets.
@@ -4914,29 +4233,29 @@ mutation SetSecrets ($input: SetSecretsInput!) {
 `
 
 func SetSecrets(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	input SetSecretsInput,
 ) (*SetSecretsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "SetSecrets",
 		Query:  SetSecrets_Operation,
 		Variables: &__SetSecretsInput{
 			Input: input,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data SetSecretsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ SetSecretsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by UpdateAddOn.
@@ -4951,14 +4270,14 @@ mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $op
 `
 
 func UpdateAddOn(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	addOnId string,
 	planId string,
 	readRegions []string,
 	options interface{},
 ) (*UpdateAddOnResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "UpdateAddOn",
 		Query:  UpdateAddOn_Operation,
 		Variables: &__UpdateAddOnInput{
@@ -4968,16 +4287,16 @@ func UpdateAddOn(
 			Options:     options,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data UpdateAddOnResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ UpdateAddOnResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }

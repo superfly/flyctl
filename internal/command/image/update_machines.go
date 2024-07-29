@@ -5,16 +5,16 @@ import (
 	"fmt"
 	"strings"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
+func updateImageForMachines(ctx context.Context, app *fly.AppCompact) error {
 	var (
 		io = iostreams.FromContext(ctx)
 
@@ -29,7 +29,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 		return err
 	}
 
-	eligible := map[*api.Machine]api.MachineConfig{}
+	eligible := map[*fly.Machine]fly.MachineConfig{}
 
 	// Loop through machines and compare/confirm changes.
 	for _, machine := range machines {
@@ -57,7 +57,7 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	for machine, machineConf := range eligible {
-		input := &api.LaunchMachineInput{
+		input := &fly.LaunchMachineInput{
 			Region:           machine.Region,
 			Config:           &machineConf,
 			SkipHealthChecks: skipHealthChecks,
@@ -73,11 +73,11 @@ func updateImageForMachines(ctx context.Context, app *api.AppCompact) error {
 }
 
 type member struct {
-	Machine      *api.Machine
-	TargetConfig api.MachineConfig
+	Machine      *fly.Machine
+	TargetConfig fly.MachineConfig
 }
 
-func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err error) {
+func updatePostgresOnMachines(ctx context.Context, app *fly.AppCompact) (err error) {
 	var (
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
@@ -163,7 +163,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	// Update replicas
 	for _, member := range members["replica"] {
 		machine := member.Machine
-		input := &api.LaunchMachineInput{
+		input := &fly.LaunchMachineInput{
 			Region: machine.Region,
 			Config: &member.TargetConfig,
 		}
@@ -175,7 +175,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	// Update any barman nodes
 	for _, member := range members["barman"] {
 		machine := member.Machine
-		input := &api.LaunchMachineInput{
+		input := &fly.LaunchMachineInput{
 			Region:           machine.Region,
 			Config:           &member.TargetConfig,
 			SkipHealthChecks: true,
@@ -190,7 +190,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			primary := members["primary"][0]
 			machine := primary.Machine
 
-			input := &api.LaunchMachineInput{
+			input := &fly.LaunchMachineInput{
 				Region: machine.Region,
 				Config: &primary.TargetConfig,
 			}
@@ -224,7 +224,7 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 			}
 
 			// Update leader
-			input := &api.LaunchMachineInput{
+			input := &fly.LaunchMachineInput{
 				Region: machine.Region,
 				Config: &leader.TargetConfig,
 			}
@@ -239,12 +239,12 @@ func updatePostgresOnMachines(ctx context.Context, app *api.AppCompact) (err err
 	return nil
 }
 
-func machineRole(machine *api.Machine) (role string) {
+func machineRole(machine *fly.Machine) (role string) {
 	role = "unknown"
 
 	for _, check := range machine.Checks {
 		if check.Name == "role" {
-			if check.Status == api.Passing {
+			if check.Status == fly.Passing {
 				role = check.Output
 			} else {
 				role = "error"
@@ -255,9 +255,9 @@ func machineRole(machine *api.Machine) (role string) {
 	return role
 }
 
-func resolveImage(ctx context.Context, machine api.Machine) (string, error) {
+func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 	var (
-		client = client.FromContext(ctx).API()
+		client = flyutil.ClientFromContext(ctx)
 		image  = flag.GetString(ctx, "image")
 	)
 

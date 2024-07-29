@@ -5,13 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"path/filepath"
+	"strings"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
@@ -32,6 +34,14 @@ retrieved from the Fly service and saved in TOML format.`
 		flag.App(),
 		flag.AppConfig(),
 		flag.Yes(),
+		flag.Bool{
+			Name:        "json",
+			Description: "Output the configuration in JSON format",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Output the configuration in YAML format",
+		},
 	)
 	return
 }
@@ -43,11 +53,13 @@ func runSave(ctx context.Context) error {
 		autoConfirm = flag.GetBool(ctx, "yes")
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	cfg, err := appconfig.FromRemoteApp(ctx, appName)
 	if err != nil {
@@ -61,6 +73,12 @@ func runSave(ctx context.Context) error {
 	configfilename, err := appconfig.ResolveConfigFileFromPath(path)
 	if err != nil {
 		return err
+	}
+
+	if flag.GetBool(ctx, "json") {
+		configfilename = strings.TrimSuffix(configfilename, filepath.Ext(configfilename)) + ".json"
+	} else if flag.GetBool(ctx, "yaml") {
+		configfilename = strings.TrimSuffix(configfilename, filepath.Ext(configfilename)) + ".yaml"
 	}
 
 	if exists, _ := appconfig.ConfigFileExistsAtPath(configfilename); exists && !autoConfirm {
@@ -83,7 +101,6 @@ func runSave(ctx context.Context) error {
 }
 
 func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configPath string) error {
-
 	io := iostreams.FromContext(ctx)
 
 	oldCfg, err := loadPrevConfig(configPath)
@@ -97,12 +114,11 @@ func keepPrevSections(ctx context.Context, currentCfg *appconfig.Config, configP
 	}
 
 	if !flag.GetYes(ctx) {
-		confirm := false
 		fmt.Fprintf(io.Out, "\nSome sections of the config file are not kept remotely, such as the [build] section.\n")
-		prompt := &survey.Confirm{
-			Message: "Would you like to transfer the [build] section from the current config to the new one?",
-		}
-		err := survey.AskOne(prompt, &confirm)
+
+		message := "Would you like to transfer the [build] section from the current config to the new one?"
+
+		confirm, err := prompt.Confirm(ctx, message)
 		if err != nil {
 			return err
 		}

@@ -11,6 +11,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
+type extraArgsContextKey struct{}
+
 func makeAlias[T any](template T, name string) T {
 	var ret T
 	value := reflect.ValueOf(&ret).Elem()
@@ -90,6 +92,7 @@ type String struct {
 	Shorthand    string
 	Description  string
 	Default      string
+	NoOptDefVal  string
 	ConfName     string
 	EnvName      string
 	Hidden       bool
@@ -108,6 +111,9 @@ func (s String) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(s.Name)
 	f.Hidden = s.Hidden
+	if s.NoOptDefVal != "" {
+		f.NoOptDefVal = s.NoOptDefVal
+	}
 
 	// Aliases
 	for _, name := range s.Aliases {
@@ -399,6 +405,36 @@ func GetRemoteOnly(ctx context.Context) bool {
 	return GetBool(ctx, remoteOnlyName)
 }
 
+const wireguard = "wg"
+
+// Wireguard returns a boolean flag indicating whether to build over wireguard or not
+func Wireguard() Bool {
+	return Bool{
+		Name:        wireguard,
+		Description: "Determines whether communication with remote builders are conducted over wireguard or plain internet(https)",
+		Default:     true,
+	}
+}
+
+func GetWireguard(ctx context.Context) bool {
+	return GetBool(ctx, wireguard)
+}
+
+const httpsFailover = "https-failover"
+
+func HttpsFailover() Bool {
+	return Bool{
+		Name:        httpsFailover,
+		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
+		Aliases:     []string{"http-failover"},
+		Default:     true,
+	}
+}
+
+func GetHTTPSFailover(ctx context.Context) bool {
+	return GetBool(ctx, httpsFailover)
+}
+
 const localOnlyName = "local-only"
 
 // RemoteOnly returns a boolean flag for deploying remotely
@@ -516,7 +552,7 @@ func Nixpacks() Bool {
 func Strategy() String {
 	return String{
 		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. The default strategy is rolling.",
 	}
 }
 
@@ -556,6 +592,18 @@ This option may set DOCKER_HOST environment variable for the build container if 
 	}
 }
 
+func RecreateBuilder() Bool {
+	return Bool{
+		Name:        "recreate-builder",
+		Description: "Recreate the builder app, if it exists",
+		Default:     false,
+	}
+}
+
+func GetRecreateBuilder(ctx context.Context) bool {
+	return GetBool(ctx, "recreate-builder")
+}
+
 // BuildpacksVolume the host volume that will be mounted to the buildpacks build container
 const BuildpacksVolume = "buildpacks-volume"
 
@@ -572,4 +620,18 @@ func BpVolume() StringSlice {
 Repeat for each volume in order (comma-separated lists not accepted)
 `,
 	}
+}
+
+// WithExtraArgs derives a context that carries extraArgs from ctx.
+func WithExtraArgs(ctx context.Context, extraArgs []string) context.Context {
+	return context.WithValue(ctx, extraArgsContextKey{}, extraArgs)
+}
+
+// ExtraArgsFromContext returns the extraArgs ctx carries.
+func ExtraArgsFromContext(ctx context.Context) []string {
+	if extraArgs, ok := ctx.Value(extraArgsContextKey{}).([]string); ok {
+		return extraArgs
+	}
+
+	return []string{}
 }

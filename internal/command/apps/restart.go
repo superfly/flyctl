@@ -6,22 +6,22 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/internal/flag/completion"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/completion"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
 func newRestart() *cobra.Command {
 	const (
-		long  = `The APPS RESTART command will perform a rolling restart against all running VMs`
-		short = "Restart an application"
-		usage = "restart [APPNAME]"
+		long  = `Restart an application. Perform a rolling restart against all running Machines.`
+		short = "Restart an application."
+		usage = "restart <app name>"
 	)
 
 	cmd := command.New(usage, short, long, runRestart,
@@ -52,7 +52,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = flag.FirstArg(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	if appName == "" {
@@ -78,14 +78,17 @@ func runRestart(ctx context.Context) error {
 	return runMachinesRestart(ctx, app)
 }
 
-func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
-	input := &api.RestartMachineInput{
+func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
+	input := &fly.RestartMachineInput{
 		ForceStop:        flag.GetBool(ctx, "force-stop"),
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
 
 	// Rolling restart against exclusively the machines managed by the Apps platform
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return err
 	}
@@ -108,5 +111,4 @@ func runMachinesRestart(ctx context.Context, app *api.AppCompact) error {
 	}
 
 	return nil
-
 }

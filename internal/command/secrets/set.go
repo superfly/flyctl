@@ -6,13 +6,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newSet() (cmd *cobra.Command) {
@@ -34,7 +34,7 @@ func newSet() (cmd *cobra.Command) {
 }
 
 func runSet(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -66,8 +66,8 @@ func runSet(ctx context.Context) (err error) {
 	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
 
-func SetSecretsAndDeploy(ctx context.Context, app *api.AppCompact, secrets map[string]string, stage bool, detach bool) error {
-	client := client.FromContext(ctx).API()
+func SetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets map[string]string, stage bool, detach bool) error {
+	client := flyutil.ClientFromContext(ctx)
 	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}

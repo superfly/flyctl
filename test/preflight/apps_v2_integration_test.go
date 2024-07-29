@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
@@ -52,7 +52,7 @@ func TestAppsV2Example(t *testing.T) {
 	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
 	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
 	require.True(t, *firstMachine.Config.Services[0].Autostart)
-	require.True(t, *firstMachine.Config.Services[0].Autostop)
+	require.Equal(t, fly.MachineAutostopOff, *firstMachine.Config.Services[0].Autostop)
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
@@ -214,7 +214,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 		return cmd
 	}
 
-	expectMachinesInGroups := func(machines []*api.Machine, expected map[string]int) {
+	expectMachinesInGroups := func(machines []*fly.Machine, expected map[string]int) {
 		found := map[string]int{}
 		for _, m := range machines {
 			if m.Config == nil || m.Config.Metadata == nil {
@@ -223,7 +223,7 @@ func TestAppsV2Config_ProcessGroups(t *testing.T) {
 			// When apps machines are deployed, blank process groups should be canonicalized to
 			// "app". If they are blank or unset, this is an error state.
 			group := "[unspecified]"
-			if val, ok := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]; ok {
+			if val, ok := m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]; ok {
 				group = val
 			}
 			found[group]++
@@ -300,7 +300,7 @@ bar_web = "bash -c 'while true; do sleep 10; done'"
 	webMachId := ""
 	barWebMachId := ""
 	for _, m := range machines {
-		group := m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup]
+		group := m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup]
 		switch group {
 		case "web":
 			webMachId = m.ID
@@ -443,6 +443,7 @@ func TestDeployDetachBatching(t *testing.T) {
 
 func TestErrOutput(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -455,16 +456,27 @@ func TestErrOutput(t *testing.T) {
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
-	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+	// This should fail on GPU machines because they're performance VMs.
+	if f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	} else {
+		f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+	}
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	// Not applicable for GPU machines since this size is too small.
+	if !f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	}
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "memory size for config is too high")
+	if !f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too high")
 
-	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+		res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+	}
 }
 
 func TestImageLabel(t *testing.T) {

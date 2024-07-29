@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -46,12 +46,12 @@ func runProxy(ctx context.Context) (err error) {
 }
 
 func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.ConnectParams, string, error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
 	var index int
 	var options []string
 
-	result, err := gql.ListAddOns(ctx, client.GenqClient, "redis")
+	result, err := gql.ListAddOns(ctx, client.GenqClient(), "upstash_redis")
 	if err != nil {
 		return nil, "", err
 	}
@@ -67,7 +67,7 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 		return nil, "", err
 	}
 
-	response, err := gql.GetAddOn(ctx, client.GenqClient, databases[index].Name)
+	response, err := gql.GetAddOn(ctx, client.GenqClient(), databases[index].Name, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return nil, "", err
 	}
@@ -79,7 +79,7 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 		return nil, "", err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, database.Organization.Slug, false)
+	dialer, err := agentclient.ConnectToTunnel(ctx, database.Organization.Slug, "", false)
 	if err != nil {
 		return nil, "", err
 	}
@@ -90,5 +90,4 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 		Dialer:           dialer,
 		RemoteHost:       database.PrivateIp,
 	}, database.Password, nil
-
 }

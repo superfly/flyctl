@@ -9,10 +9,10 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -41,7 +41,6 @@ func runDestroy(ctx context.Context) (err error) {
 	colorize := io.ColorScheme()
 
 	extension, _, err := extensions_core.Discover(ctx, gql.AddOnTypeKubernetes)
-
 	if err != nil {
 		return err
 	}
@@ -64,7 +63,7 @@ func runDestroy(ctx context.Context) (err error) {
 
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API().GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
 	_, err = gql.DeleteAddOn(ctx, client, extension.Name)

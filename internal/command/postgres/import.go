@@ -8,14 +8,16 @@ import (
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -75,7 +77,7 @@ func newImport() *cobra.Command {
 
 func runImport(ctx context.Context) error {
 	var (
-		client  = client.FromContext(ctx).API()
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 
 		sourceURI = flag.FirstArg(ctx)
@@ -95,6 +97,25 @@ func runImport(ctx context.Context) error {
 	if !app.IsPostgresApp() {
 		return fmt.Errorf("The target app must be a Postgres app")
 	}
+
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return fmt.Errorf("could not retrieve machines: %w", err)
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines are available on this app %s", appName)
+	}
+	leader, _ := machinesNodeRoles(ctx, machines)
+	machineID := leader.ID
 
 	// Resolve region
 	region, err := prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
@@ -123,20 +144,21 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("failed to build context: %s", err)
 	}
 
-	machineConfig := &api.MachineConfig{
+	machineConfig := &fly.MachineConfig{
 		Env: map[string]string{
 			"POSTGRES_PASSWORD": "pass",
+			"PG_MACHINE_ID":     machineID,
 		},
-		Guest: &api.MachineGuest{
+		Guest: &fly.MachineGuest{
 			CPUKind:  vmSize.CPUClass,
 			CPUs:     int(vmSize.CPUCores),
 			MemoryMB: vmSize.MemoryMB,
 		},
-		DNS: &api.DNSConfig{
+		DNS: &fly.DNSConfig{
 			SkipRegistration: true,
 		},
-		Restart: api.MachineRestart{
-			Policy: api.MachineRestartPolicyNo,
+		Restart: &fly.MachineRestart{
+			Policy: fly.MachineRestartPolicyNo,
 		},
 		AutoDestroy: true,
 	}
@@ -151,7 +173,7 @@ func runImport(ctx context.Context) error {
 	machineConfig.Image = imageRef
 
 	ephemeralInput := &mach.EphemeralInput{
-		LaunchInput: api.LaunchMachineInput{
+		LaunchInput: fly.LaunchMachineInput{
 			Region: region.Code,
 			Config: machineConfig,
 		},

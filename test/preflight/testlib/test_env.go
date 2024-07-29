@@ -9,13 +9,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/shlex"
 	"github.com/oklog/ulid/v2"
 	"github.com/pelletier/go-toml/v2"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -32,6 +33,7 @@ type FlyctlTestEnv struct {
 	cmdHistory          []*FlyctlResult
 	noHistoryOnFail     bool
 	id                  string
+	VMSize              string
 }
 
 func (f *FlyctlTestEnv) OrgSlug() string {
@@ -51,6 +53,9 @@ func (f *FlyctlTestEnv) PrimaryRegion() string {
 }
 
 func (f *FlyctlTestEnv) SecondaryRegion() string {
+	if len(f.otherRegions) == 0 {
+		return ""
+	}
 	return f.otherRegions[0]
 }
 
@@ -126,7 +131,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 			flyctlBin = "fly"
 		}
 	}
-	tryToStopAgentsInOriginalHomeDir(t, flyctlBin)
+	tryToStopAgentsInOriginalHomeDir(flyctlBin)
 	// tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
 	cfg.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
 	if cfg.logLevel != "" {
@@ -149,6 +154,7 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		originalAccessToken: cfg.accessToken,
 		noHistoryOnFail:     cfg.noHistoryOnFail,
 		env:                 cfg.envVariables,
+		VMSize:              os.Getenv("FLY_PREFLIGHT_TEST_VM_SIZE"),
 	}
 	testEnv.verifyTestOrgExists()
 	t.Cleanup(func() {
@@ -178,14 +184,23 @@ type testingTWrapper interface {
 	TempDir() string
 }
 
+// Fly runs a flyctl the result
 func (f *FlyctlTestEnv) Fly(flyctlCmd string, vals ...interface{}) *FlyctlResult {
+	if f.VMSize != "" {
+		if strings.HasPrefix(flyctlCmd, "machine run ") || strings.HasPrefix(flyctlCmd, "launch ") {
+			flyctlCmd += fmt.Sprintf(" --vm-size %s ", f.VMSize)
+		}
+	}
+
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{}, flyctlCmd, vals...)
 }
 
+// FlyAllowExitFailure runs a flyctl command and returns the result, but does not fail the test if the command exits with a non-zero status
 func (f *FlyctlTestEnv) FlyAllowExitFailure(flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(context.TODO(), FlyCmdConfig{NoAssertSuccessfulExit: true}, flyctlCmd, vals...)
 }
 
+// FlyC runs a flyctl command with a context and returns the result
 func (f *FlyctlTestEnv) FlyC(ctx context.Context, flyctlCmd string, vals ...interface{}) *FlyctlResult {
 	return f.FlyContextAndConfig(ctx, FlyCmdConfig{}, flyctlCmd, vals...)
 }
@@ -295,18 +310,18 @@ func (f *FlyctlTestEnv) CreateRandomAppMachines() string {
 	return appName
 }
 
-func (f *FlyctlTestEnv) MachinesList(appName string) []*api.Machine {
+func (f *FlyctlTestEnv) MachinesList(appName string) []*fly.Machine {
 	time.Sleep(800 * time.Millisecond) // fly m list is eventually consistent, yay!
 	cmdResult := f.Fly("machines list --app %s --json", appName)
 	cmdResult.AssertSuccessfulExit()
-	var machList []*api.Machine
+	var machList []*fly.Machine
 	cmdResult.StdOutJSON(&machList)
 	return machList
 }
 
-func (f *FlyctlTestEnv) VolumeList(appName string) []*api.Volume {
+func (f *FlyctlTestEnv) VolumeList(appName string) []*fly.Volume {
 	cmdResult := f.Fly("volume list --app %s --json", appName)
-	var list []*api.Volume
+	var list []*fly.Volume
 	cmdResult.StdOutJSON(&list)
 	return list
 }
@@ -328,6 +343,7 @@ func (f *FlyctlTestEnv) ReadFile(path string) string {
 	return string(content)
 }
 
+// WriteFlyToml writes a fly.toml file with the given format and values
 func (f *FlyctlTestEnv) WriteFlyToml(format string, vals ...any) {
 	f.WriteFile("fly.toml", format, vals...)
 }
@@ -426,4 +442,8 @@ func (f *FlyctlTestEnv) Skipped() bool {
 
 func (f *FlyctlTestEnv) TempDir() string {
 	return f.t.TempDir()
+}
+
+func (f *FlyctlTestEnv) IsGpuMachine() bool {
+	return strings.Contains(f.VMSize, "a10") || strings.Contains(f.VMSize, "l40s")
 }

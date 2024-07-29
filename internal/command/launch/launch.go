@@ -3,29 +3,36 @@ package launch
 import (
 	"context"
 	"fmt"
+	"path/filepath"
+	"strings"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // Launch launches the app described by the plan. This is the main entry point for launching a plan.
 func (state *launchState) Launch(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "state.launch")
+	defer span.End()
 
 	io := iostreams.FromContext(ctx)
-
-	// TODO(Allison): are we still supporting the launch-into usecase?
-	// I'm assuming *not* for now, because it's confusing UX and this
-	// is the perfect time to remove it.
 
 	if err := state.updateComputeFromDeprecatedGuestFields(ctx); err != nil {
 		return err
 	}
 
 	state.updateConfig(ctx)
+
+	if err := state.validateExtensions(ctx); err != nil {
+		return err
+	}
 
 	org, err := state.Org(ctx)
 	if err != nil {
@@ -36,23 +43,33 @@ func (state *launchState) Launch(ctx context.Context) error {
 		state.warnedNoCcHa = true
 	}
 
-	app, err := state.createApp(ctx)
-	if err != nil {
-		return err
+	if !flag.GetBool(ctx, "no-create") {
+		app, err := state.createApp(ctx)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
+		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
+		fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
 	}
 
-	fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
-	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
-	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
+	// TODO: ideally this would be passed as a part of the plan to the Launch UI
+	// and allow choices of what actions are desired to be make there.
+	if state.sourceInfo != nil && state.sourceInfo.GitHubActions.Deploy {
+		state.setupGitHubActions(ctx, state.Plan.AppName)
+	}
 
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
 		return err
 	}
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
-	err = state.createDatabases(ctx)
-	if err != nil {
-		return err
+
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.createDatabases(ctx); err != nil {
+			return err
+		}
 	}
 	if err = state.satisfyScannerAfterDb(ctx); err != nil {
 		return err
@@ -66,9 +83,30 @@ func (state *launchState) Launch(ctx context.Context) error {
 		state.appConfig.SetInternalPort(n)
 	}
 
+	// Sentry
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
+			return err
+		}
+	}
+
 	// Finally write application configuration to fly.toml
-	state.appConfig.SetConfigFilePath(state.configPath)
-	if err := state.appConfig.WriteToDisk(ctx, state.configPath); err != nil {
+	configDir, configFile := filepath.Split(state.configPath)
+	configFileOverride := flag.GetString(ctx, flagnames.AppConfigFilePath)
+	if configFileOverride != "" {
+		configFile = configFileOverride
+	}
+
+	// Resolve config format flags if applicable
+	if flag.GetBool(ctx, "json") {
+		configFile = strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".json"
+	} else if flag.GetBool(ctx, "yaml") {
+		configFile = strings.TrimSuffix(configFile, filepath.Ext(configFile)) + ".yaml"
+	}
+
+	configPath := filepath.Join(configDir, configFile)
+	state.appConfig.SetConfigFilePath(configPath)
+	if err := state.appConfig.WriteToDisk(ctx, configPath); err != nil {
 		return err
 	}
 
@@ -84,7 +122,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 // Apply the freestanding Guest fields to the appConfig's Compute field
 // This is temporary, but allows us to start using Compute-based plans in flyctl *now* while the UI catches up in time.
 func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Context) error {
-
 	if len(state.Plan.Compute) != 0 {
 		// If the UI returns a compute field, then we don't need to do any forward-compat patching.
 		return nil
@@ -118,9 +155,9 @@ func (state *launchState) updateConfig(ctx context.Context) {
 		if state.appConfig.HTTPService == nil {
 			state.appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
-				AutoStartMachines:  api.Pointer(true),
-				AutoStopMachines:   api.Pointer(true),
-				MinMachinesRunning: api.Pointer(0),
+				AutoStartMachines:  fly.Pointer(true),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
+				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}
 		}
@@ -132,13 +169,13 @@ func (state *launchState) updateConfig(ctx context.Context) {
 }
 
 // createApp creates the fly.io app for the plan
-func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
-	apiClient := client.FromContext(ctx).API()
+func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
+	apiClient := flyutil.ClientFromContext(ctx)
 	org, err := state.Org(ctx)
 	if err != nil {
 		return nil, err
 	}
-	app, err := apiClient.CreateApp(ctx, api.CreateAppInput{
+	app, err := apiClient.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
 		Name:            state.Plan.AppName,
 		PreferredRegion: &state.Plan.RegionCode,
@@ -148,7 +185,10 @@ func (state *launchState) createApp(ctx context.Context) (*api.App, error) {
 		return nil, err
 	}
 
-	if err := flaps.WaitForApp(ctx, app.Name); err != nil {
+	f, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{AppName: app.Name})
+	if err != nil {
+		return nil, err
+	} else if err := f.WaitForApp(ctx, app.Name); err != nil {
 		return nil, err
 	}
 

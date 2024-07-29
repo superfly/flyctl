@@ -17,10 +17,10 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 var nameErrorRx = regexp.MustCompile(`\[.*?\]:53`)
@@ -63,7 +63,7 @@ attached to the current app (you can pass an app in with -a <appname>).`
 
 func run(ctx context.Context) error {
 	var (
-		client = client.FromContext(ctx).API()
+		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 
 		err error
@@ -91,7 +91,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	d, err := agentclient.Dialer(ctx, orgSlug)
+	d, err := agentclient.Dialer(ctx, orgSlug, "")
 	if err != nil {
 		return err
 	}
@@ -230,7 +230,7 @@ func roundTrip(conn net.Conn, m *dns.Msg) (*dns.Msg, error) {
 // address of the nameserver.
 func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.Resolver, string, error) {
 	// do this explicitly so we can get the DNS server address
-	ts, err := c.Establish(ctx, orgSlug)
+	ts, err := c.Establish(ctx, orgSlug, "")
 	if err != nil {
 		return nil, "", err
 	}
@@ -238,7 +238,7 @@ func ResolverForOrg(ctx context.Context, c *agent.Client, orgSlug string) (*net.
 	return &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
-			d, err := c.Dialer(ctx, orgSlug)
+			d, err := c.Dialer(ctx, orgSlug, "")
 			if err != nil {
 				return nil, err
 			}

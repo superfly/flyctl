@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+// FlyctlResult is the result of running a flyctl command
 type FlyctlResult struct {
 	t                     testingTWrapper
 	argsStr               string
@@ -55,7 +56,7 @@ func (r *FlyctlResult) StdErrString() string {
 func (r *FlyctlResult) AssertSuccessfulExit() {
 	r.t.Helper()
 	if r.exitCode != 0 {
-		r.t.Fatalf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [strderr]: %s", r.exitCode, r.cmdStr, r.stdOut.String(), r.stdErr.String())
+		r.t.Fatalf("expected successful zero exit code, got %d, for command: %s [stdout]: %s [stderr]: %s", r.exitCode, r.cmdStr, r.stdOut.String(), r.stdErr.String())
 	}
 }
 

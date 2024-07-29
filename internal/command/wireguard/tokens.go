@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/olekukonko/tablewriter"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
@@ -20,7 +20,7 @@ import (
 
 func runWireguardTokenList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -49,7 +49,7 @@ func runWireguardTokenList(ctx context.Context) error {
 
 func runWireguardTokenCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -102,7 +102,7 @@ and 'pubkey' (the public key of the gateway), which you can inject into a
 
 func runWireguardTokenDelete(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -146,7 +146,7 @@ func tokenRequest(method, path, token string, data interface{}) (*http.Response,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Add("Authorization", api.AuthorizationHeader(token))
+	req.Header.Add("Authorization", fly.AuthorizationHeader(token))
 	req.Header.Add("Content-Type", "application/json")
 
 	return (&http.Client{}).Do(req)
@@ -185,7 +185,7 @@ func generateTokenConf(ctx context.Context, idx int, stat *PeerStatusJson, privk
 		defer w.Close() // skipcq: GO-S2307
 	}
 
-	generateWgConf(&api.CreatedWireGuardPeer{
+	generateWgConf(&fly.CreatedWireGuardPeer{
 		Peerip:     stat.Us,
 		Pubkey:     stat.Pubkey,
 		Endpointip: stat.Them,

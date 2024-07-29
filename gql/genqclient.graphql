@@ -8,8 +8,8 @@ fragment AddOnData on AddOn {
 	options
 }
 
-query GetAddOn($name: String) {
-	addOn(name: $name) {
+query GetAddOn($name: String, $provider: String) {
+	addOn(name: $name, provider: $provider) {
 		...AddOnData
 		publicUrl
 		privateIp
@@ -33,6 +33,7 @@ query GetAddOn($name: String) {
 			id
 			name
 			displayName
+			description
 		}
 	}
 }
@@ -187,7 +188,7 @@ mutation CreateLimitedAccessToken($name: String!, $organizationId: ID!, $profile
 	}
 }
 
-mutation LogOut() {
+mutation LogOut {
 	logOut(input: {}) {
 		ok
 	}
@@ -243,6 +244,7 @@ query ListAddOns($addOnType: AddOnType) {
 			name
 			addOnPlan {
 				displayName
+				description
 			}
 			privateIp
 			primaryRegion
@@ -260,6 +262,18 @@ query ListAddOns($addOnType: AddOnType) {
 		updateAddOn(input: {addOnId: $addOnId, planId: $planId, readRegions: $readRegions, options: $options}) {
 			addOn {
 				id
+			}
+		}
+  }
+
+ query ListAddOnPlans($addOnType: AddOnType!) {
+		addOnPlans(type: $addOnType) {
+			nodes {
+				id
+				description
+				displayName
+			  maxDataSize
+				pricePerMonth
 			}
 		}
   }

@@ -9,10 +9,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/internal/wireguard"
@@ -22,7 +22,7 @@ import (
 
 func runWireguardList(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -105,13 +105,13 @@ func runWireguardReset(ctx context.Context) error {
 		return err
 	}
 
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	agentclient, err := agent.Establish(ctx, apiClient)
 	if err != nil {
 		return err
 	}
 
-	conf, err := agentclient.Reestablish(ctx, org.Slug)
+	conf, err := agentclient.Reestablish(ctx, org.Slug, "")
 	if err != nil {
 		return err
 	}
@@ -122,7 +122,7 @@ func runWireguardReset(ctx context.Context) error {
 
 func runWireguardCreate(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {
@@ -141,7 +141,10 @@ func runWireguardCreate(ctx context.Context) error {
 		name = args[2]
 	}
 
-	state, err := wireguard.Create(apiClient, org, region, name)
+	// TODO: allow custom network
+	network := ""
+
+	state, err := wireguard.Create(apiClient, org, region, name, network, "static")
 	if err != nil {
 		return err
 	}
@@ -174,7 +177,7 @@ func runWireguardCreate(ctx context.Context) error {
 
 func runWireguardRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	org, err := orgByArg(ctx)
 	if err != nil {

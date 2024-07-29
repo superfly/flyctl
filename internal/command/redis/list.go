@@ -9,9 +9,9 @@ import (
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -36,16 +36,16 @@ func newList() (cmd *cobra.Command) {
 func runList(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = client.FromContext(ctx).API().GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	response, err := gql.ListAddOns(ctx, client, "redis")
+	response, err := gql.ListAddOns(ctx, client, "upstash_redis")
 
 	var rows [][]string
 
 	for _, addon := range response.AddOns.Nodes {
 		options, _ := addon.Options.(map[string]interface{})
-		var eviction = "Disabled"
+		eviction := "Disabled"
 
 		if options["eviction"] != nil && options["eviction"].(bool) {
 			eviction = "Enabled"

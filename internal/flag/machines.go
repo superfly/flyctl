@@ -8,12 +8,12 @@ import (
 
 	"github.com/docker/go-units"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 )
 
 var (
-	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s"}
+	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"}
 	gpuKindAliases = map[string]string{
 		"a100-40gb": "a100-pcie-40gb",
 		"a100-80gb": "a100-sxm4-80gb",
@@ -21,14 +21,14 @@ var (
 )
 
 // Returns a MachineGuest based on the flags provided overwriting a default VM
-func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.MachineGuest, error) {
-	defaultVMSize := api.DefaultVMSize
+func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.MachineGuest, error) {
+	defaultVMSize := fly.DefaultVMSize
 	if IsSpecified(ctx, "vm-gpu-kind") {
-		defaultVMSize = api.DefaultGPUVMSize
+		defaultVMSize = fly.DefaultGPUVMSize
 	}
 
 	if guest == nil {
-		guest = &api.MachineGuest{}
+		guest = &fly.MachineGuest{}
 		guest.SetSize(defaultVMSize)
 	}
 
@@ -71,10 +71,14 @@ func GetMachineGuest(ctx context.Context, guest *api.MachineGuest) (*api.Machine
 		if !slices.Contains(validGPUKinds, m) {
 			return nil, fmt.Errorf("--vm-gpu-kind must be set to one of: %v", strings.Join(validGPUKinds, ", "))
 		}
-		guest.GPUKind = m
-
-		if guest.GPUs == 0 {
-			guest.GPUs = 1
+		if m == "none" {
+			guest.GPUs = 0
+			guest.GPUKind = ""
+		} else {
+			guest.GPUKind = m
+			if guest.GPUs == 0 {
+				guest.GPUs = 1
+			}
 		}
 	}
 

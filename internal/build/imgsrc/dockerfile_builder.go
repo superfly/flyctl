@@ -1,17 +1,21 @@
 package imgsrc
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
-	"github.com/containerd/console"
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/system"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
 	"github.com/docker/docker/pkg/progress"
@@ -22,6 +26,7 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdfmt"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/metrics"
@@ -209,7 +214,7 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 
 	build.ImageBuildStart()
 	terminal.Debug("fetching docker server info")
-	serverInfo, err := func() (types.Info, error) {
+	serverInfo, err := func() (system.Info, error) {
 		infoCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		return docker.Info(infoCtx)
@@ -288,9 +293,92 @@ func (*dockerfileBuilder) Run(ctx context.Context, dockerFactory *dockerClientFa
 		Size: img.Size,
 	}
 
+	if opts.UseOverlaybd && dockerFactory.IsRemote() {
+		obdImage, err := buildOverlaybdImage(ctx, dockerFactory.appName, docker, opts)
+		if err != nil {
+			terminal.Warnf("failed to build lazy-loaded image, not using lazy-loading: %v", err)
+		} else {
+			di = *obdImage
+		}
+	}
+
 	span.SetAttributes(di.ToSpanAttributes()...)
 
 	return &di, "", nil
+}
+
+func buildOverlaybdImage(ctx context.Context, appName string, docker *dockerclient.Client, opts ImageOptions) (*DeploymentImage, error) {
+	if !opts.Publish {
+		return nil, errors.New("lazy loaded images require --push")
+	}
+
+	terminal.Info("Building lazy-loading image, please wait...")
+
+	daemonHost := docker.DaemonHost()
+	parsed, err := url.Parse(daemonHost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse daemon host: %w", err)
+	}
+	hostPort := parsed.Host
+	host, _, _ := net.SplitHostPort(hostPort)
+	parsed.Host = host + ":8080"
+	parsed.Scheme = "http"
+	parsed.Path = "/flyio/v1/buildOverlaybdImage"
+	rchabUrl := parsed.String()
+
+	terminal.Debugf("rchab url: %s", rchabUrl)
+
+	repo := strings.Split(opts.Tag, ":")[0]
+	version := strings.Split(opts.Tag, ":")[1]
+
+	if !strings.HasPrefix(repo, "registry.fly.io/") {
+		return nil, fmt.Errorf("lazy loaded images must be pushed to registry.fly.io, not %s", repo)
+	}
+
+	terminal.Debugf("overlaybd repo: %s, version: %s", repo, version)
+
+	creds := registryAuth(config.Tokens(ctx).Docker())
+
+	body := map[string]string{
+		"repo":   repo,
+		"input":  version,
+		"output": version + "-obd",
+		"creds":  creds.Username + ":" + creds.Password,
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", rchabUrl, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Version().String()))
+	req.SetBasicAuth(appName, config.Tokens(ctx).Docker())
+
+	res, err := docker.HTTPClient().Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to post to /buildOverlaybdImage: %w", err)
+	}
+	defer res.Body.Close() //skipcq: GO-S2307
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(res.Body)
+	terminal.Debugf("rchab response: %s", buf.String())
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("building lazy image returned status %d: %s", res.StatusCode, buf.String())
+	}
+	hash := buf.String()
+
+	terminal.Info("Lazy-loading image built successfully!")
+
+	return &DeploymentImage{
+		ID:   hash,
+		Tag:  repo + ":" + version + "-obd",
+		Size: 0,
+	}, nil
 }
 
 func normalizeBuildArgsForDocker(buildArgs map[string]string) (map[string]*string, error) {
@@ -395,7 +483,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	dialer := func(ctx context.Context, _ string) (net.Conn, error) {
 		return docker.DialHijack(ctx, "/grpc", "h2c", map[string][]string{})
 	}
-	bc, err := client.New(ctx, "", client.WithContextDialer(dialer), client.WithFailFast())
+	bc, err := client.New(ctx, "", client.WithContextDialer(dialer))
 	if err != nil {
 		return "", err
 	}
@@ -404,21 +492,16 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	statusCh := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
-		var (
-			con console.Console
-			err error
-		)
-		// On GitHub Actions, os.Stderr is not console.
-		// https://community.fly.io/t/error-failed-to-fetch-an-image-or-build-from-source-error-building-provided-file-is-not-a-console/14273
-		con, err = console.ConsoleFromFile(os.Stderr)
+		var err error
+
+		display, err := progressui.NewDisplay(os.Stderr, "auto")
 		if err != nil {
-			// It should be nil, but just in case.
-			con = nil
+			return err
 		}
 		// Don't use `ctx` here.
 		// Cancelling the context kills the reader of statusCh which blocks bc.Solve below.
-		// bc.Solve closes statusCh at the end and DisplaySolveStatus returns by reading the closed channel.
-		_, err = progressui.DisplaySolveStatus(context.Background(), con, os.Stdout, statusCh)
+		// bc.Solve closes statusCh at the end and UpdateFrom returns by reading the closed channel.
+		_, err = display.UpdateFrom(context.Background(), statusCh)
 		return err
 	})
 	var res *client.SolveResponse

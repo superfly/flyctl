@@ -7,20 +7,20 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/AlecAivazis/survey/v2"
 	"github.com/docker/docker/pkg/ioutils"
 	"github.com/mattn/go-colorable"
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/ip"
@@ -79,7 +79,7 @@ func quiet(ctx context.Context) bool {
 	return flag.GetBool(ctx, "quiet")
 }
 
-func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *api.AppCompact, console bool) (addr string, err error) {
+func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, app *fly.AppCompact, console bool) (addr string, err error) {
 	addr, err = addrForMachines(ctx, app, console)
 	if err != nil {
 		return
@@ -87,7 +87,7 @@ func lookupAddress(ctx context.Context, cli *agent.Client, dialer agent.Dialer, 
 
 	// wait for the addr to be resolved in dns unless it's an ip address
 	if !ip.IsV6(addr) {
-		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr); err != nil {
+		if err := cli.WaitForDNS(ctx, dialer, app.Organization.Slug, addr, ""); err != nil {
 			captureError(ctx, err, app)
 			return "", errors.Wrapf(err, "host unavailable at %s", addr)
 		}
@@ -112,7 +112,7 @@ func newConsole() *cobra.Command {
 	return cmd
 }
 
-func captureError(ctx context.Context, err error, app *api.AppCompact) {
+func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 	// ignore cancelled errors
 	if errors.Is(err, context.Canceled) {
 		return
@@ -133,7 +133,7 @@ func captureError(ctx context.Context, err error, app *api.AppCompact) {
 }
 
 func runConsole(ctx context.Context) error {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	if !quiet(ctx) {
@@ -145,7 +145,12 @@ func runConsole(ctx context.Context) error {
 		return fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := BringUpAgent(ctx, client, app, quiet(ctx))
+	network, err := client.GetAppNetwork(ctx, app.Name)
+	if err != nil {
+		return fmt.Errorf("get app network: %w", err)
+	}
+
+	agentclient, dialer, err := BringUpAgent(ctx, client, app, *network, quiet(ctx))
 	if err != nil {
 		return err
 	}
@@ -216,9 +221,12 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 	return err
 }
 
-func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (addr string, err error) {
+func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (addr string, err error) {
 	out := iostreams.FromContext(ctx).Out
-	flapsClient, err := flaps.New(ctx, app)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppCompact: app,
+		AppName:    app.Name,
+	})
 	if err != nil {
 		return "", err
 	}
@@ -228,7 +236,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		return "", err
 	}
 
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 		return m.State == "started"
 	})
 
@@ -237,7 +245,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 
 	if region := flag.GetRegion(ctx); region != "" {
-		machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 			return m.Region == region
 		})
 		if len(machines) < 1 {
@@ -246,7 +254,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 	}
 
 	if group := flag.GetProcessGroup(ctx); group != "" {
-		machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+		machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 			return m.ProcessGroup() == group
 		})
 		if len(machines) < 1 {
@@ -256,8 +264,8 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 
 	var namesWithRegion []string
 	machineID := flag.GetString(ctx, "machine")
-	var selectedMachine *api.Machine
-	multipleGroups := len(lo.UniqBy(machines, func(m *api.Machine) string { return m.ProcessGroup() })) > 1
+	var selectedMachine *fly.Machine
+	multipleGroups := len(lo.UniqBy(machines, func(m *fly.Machine) string { return m.ProcessGroup() })) > 1
 
 	for _, machine := range machines {
 		if machine.ID == machineID {
@@ -269,7 +277,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 		role := ""
 		for _, check := range machine.Checks {
 			if check.Name == "role" {
-				if check.Status == api.Passing {
+				if check.Status == fly.Passing {
 					role = check.Output
 				} else {
 					role = "error"
@@ -294,13 +302,7 @@ func addrForMachines(ctx context.Context, app *api.AppCompact, console bool) (ad
 
 		selected := 0
 
-		prompt := &survey.Select{
-			Message:  "Select VM:",
-			Options:  namesWithRegion,
-			PageSize: 15,
-		}
-
-		if err := survey.AskOne(prompt, &selected); err != nil {
+		if prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
 			return "", fmt.Errorf("selecting VM: %w", err)
 		}
 

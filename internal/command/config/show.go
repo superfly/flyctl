@@ -2,21 +2,21 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/flaps"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 func newShow() (cmd *cobra.Command) {
 	const (
 		short = "Show an app's configuration"
-		long  = `Show an application's configuration. The configuration is presented
+		long  = `Show an application's configuration. The configuration is presented by default
 in JSON format. The configuration data is retrieved from the Fly service.`
 	)
 	cmd = command.New("show", short, long, runShow,
@@ -29,7 +29,15 @@ in JSON format. The configuration data is retrieved from the Fly service.`
 	flag.Add(cmd, flag.App(), flag.AppConfig(),
 		flag.Bool{
 			Name:        "local",
-			Description: "Parse and show local fly.toml as JSON",
+			Description: "Parse and show local fly.toml file instead of fetching from the Fly service",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Show configuration in YAML format",
+		},
+		flag.Bool{
+			Name:        "toml",
+			Description: "Show configuration in TOML format",
 		},
 	)
 	return
@@ -42,11 +50,13 @@ func runShow(ctx context.Context) error {
 	var cfg *appconfig.Config
 
 	if !flag.GetBool(ctx, "local") {
-		flapsClient, err := flaps.NewFromAppName(ctx, appName)
+		flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppName: appName,
+		})
 		if err != nil {
 			return err
 		}
-		ctx = flaps.NewContext(ctx, flapsClient)
+		ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 		cfg, err = appconfig.FromRemoteApp(ctx, appName)
 		if err != nil {
@@ -59,10 +69,19 @@ func runShow(ctx context.Context) error {
 		}
 	}
 
-	b, err := json.MarshalIndent(cfg, "", "  ")
+	format := "json"
+
+	if flag.GetBool(ctx, "yaml") {
+		format = "yaml"
+	} else if flag.GetBool(ctx, "toml") {
+		format = "toml"
+	}
+
+	_, err := cfg.WriteTo(io.Out, format)
+
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(io.Out, string(b))
+
 	return nil
 }

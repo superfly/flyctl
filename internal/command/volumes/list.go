@@ -3,17 +3,18 @@ package volumes
 import (
 	"context"
 	"fmt"
+
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newList() *cobra.Command {
@@ -33,6 +34,10 @@ func newList() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name:        "all",
+			Description: "Show all volumes including those in destroyed states",
+		},
 	)
 
 	flag.Add(cmd, flag.JSONOutput())
@@ -41,7 +46,7 @@ func newList() *cobra.Command {
 
 func runList(ctx context.Context) error {
 	cfg := config.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	appName := appconfig.NameFromContext(ctx)
 
@@ -50,12 +55,19 @@ func runList(ctx context.Context) error {
 		return err
 	}
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
-	volumes, err := flapsClient.GetVolumes(ctx)
+	var volumes []fly.Volume
+	if flag.GetBool(ctx, "all") {
+		volumes, err = flapsClient.GetAllVolumes(ctx)
+	} else {
+		volumes, err = flapsClient.GetVolumes(ctx)
+	}
 	if err != nil {
 		return fmt.Errorf("failed retrieving volumes: %w", err)
 	}
@@ -66,5 +78,5 @@ func runList(ctx context.Context) error {
 		return render.JSON(out, volumes)
 	}
 
-	return renderTable(ctx, volumes, app, out)
+	return renderTable(ctx, volumes, app, out, true)
 }

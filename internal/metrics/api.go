@@ -9,8 +9,10 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 )
 
-var Enabled = true
-var done sync.WaitGroup
+var (
+	Enabled = true
+	done    sync.WaitGroup
+)
 
 type metricsMessage struct {
 	Metric  string          `json:"m"`

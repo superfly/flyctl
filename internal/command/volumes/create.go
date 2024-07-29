@@ -5,30 +5,26 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-
-		long = short + ` Volumes are persistent storage for
-		Fly Machines. The default size is 3 GB. Learn how to add a volume to
-		your app: https://fly.io/docs/apps/volume-storage/`
-
-		usage = "create <volumename>"
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/launch/volume-storage/."
+		usage = "create <volume name>"
 	)
 
 	cmd := command.New(usage, short, long, runCreate,
@@ -44,13 +40,13 @@ func newCreate() *cobra.Command {
 		flag.Int{
 			Name:        "size",
 			Shorthand:   "s",
-			Default:     3,
-			Description: "The size of volume in gigabytes. The default is 3.",
+			Default:     deploy.DefaultVolumeInitialSizeGB,
+			Description: "The size of volume in gigabytes",
 		},
 		flag.Int{
 			Name:        "snapshot-retention",
 			Default:     5,
-			Description: "Snapshot retention in days (min 5)",
+			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
 			Name:        "no-encryption",
@@ -59,7 +55,7 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
-			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Description: "Place the volume in a separate hardware zone from existing volumes to help ensure availability",
 			Default:     true,
 		},
 		flag.String{
@@ -83,24 +79,26 @@ func newCreate() *cobra.Command {
 func runCreate(ctx context.Context) error {
 	var (
 		cfg    = config.FromContext(ctx)
-		client = client.FromContext(ctx).API()
+		client = flyutil.ClientFromContext(ctx)
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
 		count      = flag.GetInt(ctx, "count")
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)
 
 	// fetch AppBasic in the background while we prompt for confirmation
-	appFuture := future.Spawn(func() (*api.AppBasic, error) {
+	appFuture := future.Spawn(func() (*fly.AppBasic, error) {
 		return client.GetAppBasic(ctx, appName)
 	})
 
@@ -115,7 +113,7 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	var region *api.Region
+	var region *fly.Region
 	if region, err = prompt.Region(ctx, !app.Organization.PaidPlan, prompt.RegionParams{
 		Message: "",
 	}); err != nil {
@@ -124,7 +122,7 @@ func runCreate(ctx context.Context) error {
 
 	var snapshotID *string
 	if flag.GetString(ctx, "snapshot-id") != "" {
-		snapshotID = api.StringPointer(flag.GetString(ctx, "snapshot-id"))
+		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
 	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
@@ -132,21 +130,21 @@ func runCreate(ctx context.Context) error {
 		return err
 	}
 
-	input := api.CreateVolumeRequest{
+	input := fly.CreateVolumeRequest{
 		Name:                volumeName,
 		Region:              region.Code,
-		SizeGb:              api.Pointer(flag.GetInt(ctx, "size")),
-		Encrypted:           api.Pointer(!flag.GetBool(ctx, "no-encryption")),
-		RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		SizeGb:              fly.Pointer(flag.GetInt(ctx, "size")),
+		Encrypted:           fly.Pointer(!flag.GetBool(ctx, "no-encryption")),
+		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
-		SnapshotRetention:   api.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
 		volume, err := flapsClient.CreateVolume(ctx, input)
 		if err != nil {
-			return fmt.Errorf("failed creating volume: %w", err)
+			return err
 		}
 
 		if cfg.JSONOutput {
@@ -184,7 +182,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/reference/volumes/"
+	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/volumes/overview/"
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {

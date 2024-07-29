@@ -9,13 +9,14 @@ import (
 	"time"
 
 	"github.com/jpillora/backoff"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
 )
 
-func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string, timeout time.Duration) error {
-	var flapsClient = flaps.FromContext(ctx)
+func WaitForStartOrStop(ctx context.Context, machine *fly.Machine, action string, timeout time.Duration) error {
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
@@ -53,7 +54,7 @@ func WaitForStartOrStop(ctx context.Context, machine *api.Machine, action string
 			}
 		default:
 			var flapsErr *flaps.FlapsError
-			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config.Restart.Policy == api.MachineRestartPolicyNo {
+			if strings.Contains(err.Error(), "machine failed to reach desired state") && machine.Config.Restart != nil && machine.Config.Restart.Policy == fly.MachineRestartPolicyNo {
 				return fmt.Errorf("machine failed to reach desired start state, and restart policy was set to %s restart", machine.Config.Restart.Policy)
 			}
 			if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusBadRequest {

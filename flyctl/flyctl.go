@@ -6,7 +6,7 @@ import (
 	"path"
 
 	"github.com/spf13/viper"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/instrument"
 	"github.com/superfly/flyctl/terminal"
@@ -84,9 +84,9 @@ func initViper() {
 		viper.BindEnv(key)
 	}
 
-	api.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
-	api.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
-	api.SetInstrumenter(instrument.ApiAdapter)
+	fly.SetBaseURL(viper.GetString(ConfigAPIBaseURL))
+	fly.SetErrorLog(viper.GetBool(ConfigGQLErrorLogging))
+	fly.SetInstrumenter(instrument.ApiAdapter)
 }
 
 func loadConfig() error {

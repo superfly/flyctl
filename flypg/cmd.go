@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -26,20 +26,20 @@ type commandResponse struct {
 
 type Command struct {
 	ctx    context.Context
-	app    *api.AppCompact
+	app    *fly.AppCompact
 	dialer agent.Dialer
 	io     *iostreams.IOStreams
 }
 
-func NewCommand(ctx context.Context, app *api.AppCompact) (*Command, error) {
-	client := client.FromContext(ctx).API()
+func NewCommand(ctx context.Context, app *fly.AppCompact) (*Command, error) {
+	client := flyutil.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
 		return nil, fmt.Errorf("error establishing agent: %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug)
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
 	if err != nil {
 		return nil, fmt.Errorf("ssh: can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}

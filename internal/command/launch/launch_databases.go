@@ -6,17 +6,19 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flypg"
+	"github.com/superfly/flyctl/gql"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
+	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
-
 	if state.Plan.Postgres.FlyPostgres != nil {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
@@ -25,11 +27,27 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
+	if state.Plan.Postgres.SupabasePostgres != nil {
+		err := state.createSupabasePostgres(ctx)
+		if err != nil {
+			// TODO(Ali): Make error printing here better.
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Supabase Postgres database: %s\n", err)
+		}
+	}
+
 	if state.Plan.Redis.UpstashRedis != nil {
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
-			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Redis database: %s\n", err)
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Upstash Redis: %s\n", err)
+		}
+	}
+
+	if state.Plan.ObjectStorage.TigrisObjectStorage != nil {
+		err := state.createTigrisObjectStorage(ctx)
+		if err != nil {
+			// TODO(Ali): Make error printing here better.
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Tigris object storage: %s\n", err)
 		}
 	}
 
@@ -50,7 +68,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
 		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = client.FromContext(ctx).API()
+		apiClient = flyutil.ClientFromContext(ctx)
 		io        = iostreams.FromContext(ctx)
 	)
 
@@ -139,6 +157,32 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	return nil
 }
 
+func (state *launchState) createSupabasePostgres(ctx context.Context) error {
+	postgresPlan := state.Plan.Postgres.SupabasePostgres
+
+	org, err := state.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	params := extensions_core.ExtensionParams{
+		AppName:              state.Plan.AppName,
+		Organization:         org,
+		Provider:             "supabase",
+		OverrideName:         fly.Pointer(postgresPlan.GetDbName(state.Plan)),
+		OverrideRegion:       postgresPlan.GetRegion(state.Plan),
+		ErrorCaptureCallback: supabase.CaptureFreeLimitError,
+	}
+
+	_, err = extensions_core.ProvisionExtension(ctx, params)
+
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+
 func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	redisPlan := state.Plan.Redis.UpstashRedis
 	dbName := fmt.Sprintf("%s-redis", state.Plan.AppName)
@@ -151,15 +195,15 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		return err
 	}
 
-	var readReplicaRegions []api.Region
+	var readReplicaRegions []fly.Region
 	{
-		client := client.FromContext(ctx).API()
+		client := flyutil.ClientFromContext(ctx)
 		regions, _, err := client.PlatformRegions(ctx)
 		if err != nil {
 			return err
 		}
 		for _, code := range redisPlan.ReadReplicas {
-			if region, ok := lo.Find(regions, func(r api.Region) bool { return r.Code == code }); ok {
+			if region, ok := lo.Find(regions, func(r fly.Region) bool { return r.Code == code }); ok {
 				readReplicaRegions = append(readReplicaRegions, region)
 			} else {
 				return fmt.Errorf("region %s not found", code)
@@ -172,4 +216,36 @@ func (state *launchState) createUpstashRedis(ctx context.Context) error {
 		return err
 	}
 	return redis.AttachDatabase(ctx, db, state.Plan.AppName)
+}
+
+func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
+	tigrisPlan := state.Plan.ObjectStorage.TigrisObjectStorage
+
+	org, err := state.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	params := extensions_core.ExtensionParams{
+		Provider:       "tigris",
+		Organization:   org,
+		AppName:        state.Plan.AppName,
+		OverrideName:   fly.Pointer(tigrisPlan.Name),
+		OverrideRegion: state.Plan.RegionCode,
+		Options: gql.AddOnOptions{
+			"public":     tigrisPlan.Public,
+			"accelerate": tigrisPlan.Accelerate,
+			"website": map[string]interface{}{
+				"domain_name": tigrisPlan.WebsiteDomainName,
+			},
+		},
+	}
+
+	_, err = extensions_core.ProvisionExtension(ctx, params)
+
+	if err != nil {
+		return err
+	}
+
+	return err
 }

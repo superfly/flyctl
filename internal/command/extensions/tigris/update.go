@@ -5,11 +5,13 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func update() (cmd *cobra.Command) {
@@ -25,9 +27,21 @@ func update() (cmd *cobra.Command) {
 		flag.Org(),
 		extensions_core.SharedFlags,
 
+		flag.String{
+			Name:        "custom-domain",
+			Description: "A custom domain name pointing at your bucket",
+			Hidden:      true,
+		},
+
 		flag.Bool{
 			Name:        "clear-shadow",
 			Description: "Remove an existing shadow bucket",
+		},
+
+		flag.Bool{
+			Name:        "clear-custom-domain",
+			Description: "Remove a custom domain from a bucket",
+			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -40,10 +54,12 @@ func update() (cmd *cobra.Command) {
 }
 
 func runUpdate(ctx context.Context) (err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	io := iostreams.FromContext(ctx)
+
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	id := flag.FirstArg(ctx)
-	response, err := gql.GetAddOn(ctx, client, id)
+	response, err := gql.GetAddOn(ctx, client, id, string(gql.AddOnTypeTigris))
 	if err != nil {
 		return
 	}
@@ -95,6 +111,31 @@ func runUpdate(ctx context.Context) (err error) {
 		options["accelerate"] = false
 	} else if flag.IsSpecified(ctx, "accelerate") {
 		options["accelerate"] = flag.GetBool(ctx, "accelerate")
+	}
+
+	if flag.IsSpecified(ctx, "custom-domain") {
+		domain := flag.GetString(ctx, "custom-domain")
+
+		if domain != addOn.Name {
+			return fmt.Errorf("The custom domain must match the bucket name: %s != %s", domain, addOn.Name)
+		}
+		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
+
+		confirm, err := prompt.Confirm(ctx, "Continue with the update?")
+
+		if err != nil || !confirm {
+			return err
+		}
+
+		options["website"] = map[string]interface{}{
+			"domain_name": domain,
+		}
+	}
+
+	if flag.GetBool(ctx, "clear-custom-domain") {
+		options["website"] = map[string]interface{}{
+			"domain_name": "",
+		}
 	}
 
 	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)

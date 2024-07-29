@@ -7,25 +7,25 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 )
 
 func newList() *cobra.Command {
 	const (
-		long = `The APPS LIST command will show the applications currently
-registered and available to this user. The list will include applications
-from all the organizations the user is a member of. Each application will
-be shown with its name, owner and when it was last deployed.
+		long = `List the applications currently
+available to this user. The list includes applications
+from all the organizations the user is a member of. The list shows
+the name, owner (org), status, and date/time of latest deploy for each app.
 `
-		short = "List applications"
+		short = "List applications."
 	)
 
 	cmd := command.New("list", short, long, runList,
@@ -34,24 +34,30 @@ be shown with its name, owner and when it was last deployed.
 
 	flag.Add(cmd, flag.JSONOutput())
 	flag.Add(cmd, flag.Org())
+	flag.Add(cmd, flag.Bool{
+		Name:        "quiet",
+		Shorthand:   "q",
+		Description: "Only list app names",
+	})
 
 	cmd.Aliases = []string{"ls"}
 	return cmd
 }
 
 func runList(ctx context.Context) (err error) {
-	client := client.FromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
+	silence := flag.GetBool(ctx, "quiet")
 	cfg := config.FromContext(ctx)
 	org, err := getOrg(ctx)
 	if err != nil {
 		return fmt.Errorf("error getting organization: %w", err)
 	}
 
-	var apps []api.App
+	var apps []fly.App
 	if org != nil {
-		apps, err = client.API().GetAppsForOrganization(ctx, org.ID)
+		apps, err = client.GetAppsForOrganization(ctx, org.ID)
 	} else {
-		apps, err = client.API().GetApps(ctx, nil)
+		apps, err = client.GetApps(ctx, nil)
 	}
 
 	if err != nil {
@@ -65,9 +71,16 @@ func runList(ctx context.Context) (err error) {
 		return
 	}
 
-	var verbose = flag.GetBool(ctx, "verbose")
+	verbose := flag.GetBool(ctx, "verbose")
 
 	rows := make([][]string, 0, len(apps))
+	if silence {
+		for _, app := range apps {
+			rows = append(rows, []string{app.Name})
+		}
+		_ = render.Table(out, "", rows)
+		return
+	}
 	for _, app := range apps {
 		latestDeploy := ""
 		if app.Deployed && app.CurrentRelease != nil {
@@ -91,8 +104,8 @@ func runList(ctx context.Context) (err error) {
 	return
 }
 
-func getOrg(ctx context.Context) (*api.Organization, error) {
-	client := client.FromContext(ctx).API()
+func getOrg(ctx context.Context) (*fly.Organization, error) {
+	client := flyutil.ClientFromContext(ctx)
 
 	orgName := flag.GetOrg(ctx)
 

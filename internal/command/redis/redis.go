@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 // TODO: make internal once the open command has been deprecated
@@ -36,10 +36,9 @@ func New() (cmd *cobra.Command) {
 }
 
 func GetExcludedRegions(ctx context.Context) (excludedRegions []string, err error) {
-	client := client.FromContext(ctx).API().GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	response, err := gql.GetAddOnProvider(ctx, client, "upstash_redis")
-
 	if err != nil {
 		return nil, err
 	}

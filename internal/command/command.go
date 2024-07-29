@@ -10,14 +10,17 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api/tokens"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cache"
@@ -25,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -60,10 +64,14 @@ var commonPreparers = []preparers.Preparer{
 	preparers.LoadConfig,
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
+	startMetrics,
+	notifyStatuspageIncidents,
+}
+
+var authPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
-	startMetrics,
-	preparers.SetOtelAuthenticationKey,
+	notifyHostIssues,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -94,6 +102,11 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 
 		// run the common preparers
 		if ctx, err = prepare(ctx, commonPreparers...); err != nil {
+			return
+		}
+
+		// run the preparers that perform or require authorization
+		if ctx, err = prepare(ctx, authPreparers...); err != nil {
 			return
 		}
 
@@ -322,6 +335,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 // would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
+
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
@@ -347,11 +361,14 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
+		{"version"},
 		{"version", "upgrade"},
 		{"settings", "autoupdate"},
 	}) {
 		return ctx, nil
 	}
+
+	logger.FromContext(ctx).Debug("checking for updates...")
 
 	if !update.Check() {
 		return ctx, nil
@@ -492,6 +509,41 @@ func startMetrics(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	incidents.QueryStatuspageIncidents(ctx)
+
+	return ctx, nil
+}
+
+func notifyHostIssues(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "hosts", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	appCtx, err := LoadAppNameIfPresent(ctx)
+	if err == nil {
+		incidents.QueryHostIssues(appCtx)
+	}
+
+	return ctx, nil
+}
+
 func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 	metrics.Enabled = false
 	return ctx, nil
@@ -499,38 +551,54 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !client.FromContext(ctx).Authenticated() {
-		return nil, client.ErrNoAuthToken
+	if !flyutil.ClientFromContext(ctx).Authenticated() {
+		io := iostreams.FromContext(ctx)
+		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
+		if io.IsInteractive() &&
+			!env.IsCI() &&
+			!flag.GetBool(ctx, "now") &&
+			!flag.GetBool(ctx, "json") &&
+			!flag.GetBool(ctx, "quiet") &&
+			!flag.GetBool(ctx, "yes") {
+
+			// Ask before we start opening things
+			confirmed, err := prompt.Confirm(ctx, "You must be logged in to do this. Would you like to sign in?")
+			if err != nil {
+				return nil, err
+			}
+			if !confirmed {
+				return nil, fly.ErrNoAuthToken
+			}
+
+			// Attempt to log the user in
+			token, err := webauth.RunWebLogin(ctx, false)
+			if err != nil {
+				return nil, err
+			}
+			if err := webauth.SaveToken(ctx, token); err != nil {
+				return nil, err
+			}
+
+			// Reload the config
+			logger.FromContext(ctx).Debug("reloading config after login")
+			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
+				return nil, err
+			}
+
+			// first reset the client
+			ctx = flyutil.NewContextWithClient(ctx, nil)
+
+			// Re-run the auth preparers to update the client with the new token
+			logger.FromContext(ctx).Debug("re-running auth preparers after login")
+			if ctx, err = prepare(ctx, authPreparers...); err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, fly.ErrNoAuthToken
+		}
 	}
 
-	return updateMacaroons(ctx)
-}
-
-// updateMacaroons prune any invalid/expired macaroons and fetch needed third
-// party discharges
-func updateMacaroons(ctx context.Context) (context.Context, error) {
-	log := logger.FromContext(ctx)
-
-	toks := config.Tokens(ctx)
-
-	updated, err := toks.Update(ctx,
-		tokens.WithUserURLCallback(tryOpenUserURL),
-		tokens.WithDebugger(log),
-	)
-
-	if err != nil {
-		log.Warn("Failed to upgrade authentication token. Command may fail.")
-		log.Debug(err)
-	}
-
-	if !updated || toks.FromConfigFile == "" {
-		return ctx, nil
-	}
-
-	if err := config.SetAccessToken(toks.FromConfigFile, toks.All()); err != nil {
-		log.Warn("Failed to persist authentication token.")
-		log.Debug(err)
-	}
+	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
 
 	return ctx, nil
 }
@@ -553,6 +621,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 	// Shortcut to avoid unmarshaling and querying Web when
 	// LoadAppConfigIfPresent is chained with RequireAppName
 	if cfg := appconfig.ConfigFromContext(ctx); cfg != nil {
+		metrics.IsUsingGPU = cfg.IsUsingGPU()
 		return ctx, nil
 	}
 
@@ -564,6 +633,7 @@ func LoadAppConfigIfPresent(ctx context.Context) (context.Context, error) {
 			if err := cfg.SetMachinesPlatform(); err != nil {
 				logger.Warnf("WARNING the config file at '%s' is not valid: %s", path, err)
 			}
+			metrics.IsUsingGPU = cfg.IsUsingGPU()
 			return appconfig.WithConfig(ctx, cfg), nil // we loaded a configuration file
 		case errors.Is(err, fs.ErrNotExist):
 			logger.Debugf("no app config found at %s; skipped.", path)
@@ -587,7 +657,11 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
+	paths = append(paths,
+		filepath.Join(wd, appconfig.DefaultConfigFileName),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".json", 1)),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".yaml", 1)),
+	)
 
 	return
 }

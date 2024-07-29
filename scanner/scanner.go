@@ -10,9 +10,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/iostreams"
 )
 
-//go:embed templates templates/*/.dockerignore templates/**/.fly
+//go:embed templates templates/*/.dockerignore templates/**/.fly templates/**/.github
 var content embed.FS
 
 type InitCommand struct {
@@ -72,13 +73,16 @@ type SourceInfo struct {
 	PostgresInitCommandCondition bool
 	DatabaseDesired              DatabaseKind
 	RedisDesired                 bool
+	GitHubActions                GitHubActionsStruct
+	ObjectStorageDesired         bool
 	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error
+	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
 	HttpCheckPath                string
 	HttpCheckHeaders             map[string]string
 	ConsoleCommand               string
 	MergeConfig                  *MergeConfigStruct
 	AutoInstrumentErrors         bool
+	FailureCallback              func(err error) error
 }
 
 type SourceFile struct {
@@ -93,6 +97,13 @@ type Volume = appconfig.Mount
 type ScannerConfig struct {
 	Mode         string
 	ExistingPort int
+	Colorize     *iostreams.ColorScheme
+}
+
+type GitHubActionsStruct struct {
+	Deploy  bool
+	Secrets bool
+	Files   []SourceFile
 }
 
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -111,6 +122,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureRuby,
 		configureGo,
 		configureElixir,
+		configureFlask,
 		configurePython,
 		configureDeno,
 		configureNuxt,
@@ -118,6 +130,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		configureNode,
 		configureStatic,
 		configureDotnet,
+		configureRust,
 	}
 
 	for _, scanner := range scanners {
@@ -126,6 +139,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 			return nil, err
 		}
 		if si != nil {
+			github_actions(sourceDir, &si.GitHubActions)
 			return si, nil
 		}
 	}
@@ -171,10 +185,6 @@ func templatesFilter(name string, filter func(input []byte) []byte) (files []Sou
 		}
 
 		data, err := fs.ReadFile(content, path)
-		if err != nil {
-			return err
-		}
-
 		if err != nil {
 			return err
 		}

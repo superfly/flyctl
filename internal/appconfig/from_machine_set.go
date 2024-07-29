@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
@@ -103,9 +103,10 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 	}
 	for _, s := range m.Machine().Config.Statics {
 		statics = append(statics, Static{
-			GuestPath:    s.GuestPath,
-			UrlPrefix:    s.UrlPrefix,
-			TigrisBucket: s.TigrisBucket,
+			GuestPath:     s.GuestPath,
+			UrlPrefix:     s.UrlPrefix,
+			TigrisBucket:  s.TigrisBucket,
+			IndexDocument: s.IndexDocument,
 		})
 	}
 	if len(m.Machine().Config.Mounts) > 0 {
@@ -197,7 +198,7 @@ func processGroupsFromMachineSet(ctx context.Context, ms machine.MachineSet) (*p
 	report := counter.Report()
 	if report.mostCommon != "" {
 		processGroups.processes = make(map[string]string)
-		processGroups.processes[api.MachineProcessGroupApp] = report.mostCommon
+		processGroups.processes[fly.MachineProcessGroupApp] = report.mostCommon
 	}
 	if len(report.otherValues) > 0 {
 		var otherMachineIds []string

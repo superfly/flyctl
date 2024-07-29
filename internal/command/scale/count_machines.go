@@ -8,12 +8,12 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -23,16 +23,16 @@ const maxConcurrentActions = 5
 
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
 
-	var latestCompleteRelease api.Release
+	var latestCompleteRelease fly.Release
 	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
 	case err != nil:
 		return err
@@ -47,7 +47,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		regions = strings.Split(v, ",")
 	}
 	if len(regions) == 0 {
-		regions = lo.Uniq(lo.Map(machines, func(m *api.Machine, _ int) string { return m.Region }))
+		regions = lo.Uniq(lo.Map(machines, func(m *fly.Machine, _ int) string { return m.Region }))
 		if len(regions) == 0 {
 			regions = []string{appConfig.PrimaryRegion}
 		}
@@ -161,15 +161,15 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	return updatePool.Wait()
 }
 
-func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine, error) {
-	flapsClient := flaps.FromContext(ctx)
+func launchMachine(ctx context.Context, action *planItem, idx int) (*fly.Machine, error) {
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
 	input := helpers.Clone(*action.LaunchMachineInput)
 
 	if len(input.Config.Mounts) > 0 {
-		var volume *api.Volume
+		var volume *fly.Volume
 
 		switch {
 		case idx < len(action.Volumes):
@@ -199,9 +199,9 @@ func launchMachine(ctx context.Context, action *planItem, idx int) (*api.Machine
 	return flapsClient.Launch(ctx, input)
 }
 
-func destroyMachine(ctx context.Context, machine *api.Machine) error {
-	flapsClient := flaps.FromContext(ctx)
-	input := api.RemoveMachineInput{
+func destroyMachine(ctx context.Context, machine *fly.Machine) error {
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	input := fly.RemoveMachineInput{
 		ID:   machine.ID,
 		Kill: true,
 	}
@@ -213,12 +213,12 @@ type planItem struct {
 	Region    string
 	// The number of machines to add or remove
 	Delta              int
-	Machines           []*api.Machine
-	LaunchMachineInput *api.LaunchMachineInput
+	Machines           []*fly.Machine
+	LaunchMachineInput *fly.LaunchMachineInput
 	// Volumes to reuse
-	Volumes []*api.Volume
+	Volumes []*fly.Volume
 	// Input used to create new volumes
-	CreateVolumeRequest *api.CreateVolumeRequest
+	CreateVolumeRequest *fly.CreateVolumeRequest
 }
 
 func (pi *planItem) VolumesDelta() int {
@@ -241,10 +241,10 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
-	machineGroups := lo.GroupBy(machines, func(m *api.Machine) string {
+	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
 
@@ -256,11 +256,11 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 		}
 		seenGroups[groupName] = true
 
-		perRegionMachines := lo.GroupBy(groupMachines, func(m *api.Machine) string {
+		perRegionMachines := lo.GroupBy(groupMachines, func(m *fly.Machine) string {
 			return m.Region
 		})
 
-		currentPerRegionCount := lo.MapEntries(perRegionMachines, func(k string, v []*api.Machine) (string, int) {
+		currentPerRegionCount := lo.MapEntries(perRegionMachines, func(k string, v []*fly.Machine) (string, int) {
 			return k, len(v)
 		})
 
@@ -279,7 +279,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				Region:              region,
 				Delta:               delta,
 				Machines:            perRegionMachines[region],
-				LaunchMachineInput:  &api.LaunchMachineInput{Region: region, Config: mConfig},
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
 				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
 			})
@@ -307,7 +307,7 @@ func computeActions(machines []*api.Machine, expectedGroupCounts map[string]int,
 				GroupName:           groupName,
 				Region:              region,
 				Delta:               delta,
-				LaunchMachineInput:  &api.LaunchMachineInput{Region: region, Config: mConfig},
+				LaunchMachineInput:  &fly.LaunchMachineInput{Region: region, Config: mConfig},
 				Volumes:             defaults.PopAvailableVolumes(mConfig, region, delta),
 				CreateVolumeRequest: defaults.CreateVolumeRequest(mConfig, region, delta),
 			})

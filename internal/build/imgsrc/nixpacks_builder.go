@@ -130,21 +130,14 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", err
 		}
 
-		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName)
+		machine, app, err := remoteBuilderMachine(ctx, dockerFactory.apiClient, dockerFactory.appName, false)
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()
 			return nil, "", err
 		}
 
-		var remoteHost string
-		for _, ip := range machine.IPs.Nodes {
-			terminal.Debugf("checking ip %+v\n", ip)
-			if ip.Kind == "privatenet" {
-				remoteHost = ip.IP
-				break
-			}
-		}
+		remoteHost := machine.PrivateIP
 
 		if remoteHost == "" {
 			build.BuilderInitFinish()
@@ -152,7 +145,7 @@ func (*nixpacksBuilder) Run(ctx context.Context, dockerFactory *dockerClientFact
 			return nil, "", fmt.Errorf("could not find machine IP")
 		}
 
-		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug, false)
+		dialer, err := agentclient.ConnectToTunnel(ctx, app.Organization.Slug, "", false)
 		if err != nil {
 			build.BuilderInitFinish()
 			build.BuildFinish()

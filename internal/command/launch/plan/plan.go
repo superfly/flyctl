@@ -1,7 +1,7 @@
 package plan
 
 import (
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/version"
 )
@@ -26,11 +26,14 @@ type LaunchPlan struct {
 	// As of writing this, however, the UI does not return this field.
 	Compute []*appconfig.Compute `json:"compute"`
 
-	HttpServicePort int `json:"http_service_port,omitempty"`
+	HttpServicePort             int  `json:"http_service_port,omitempty"`
+	HttpServicePortSetByScanner bool `json:"http_service_port_set_by_scanner,omitempty"`
 
-	Postgres PostgresPlan `json:"postgres"`
-
-	Redis RedisPlan `json:"redis"`
+	Postgres      PostgresPlan      `json:"postgres"`
+	Redis         RedisPlan         `json:"redis"`
+	GitHubActions GitHubActionsPlan `json:"github_actions"`
+	Sentry        bool              `json:"sentry"`
+	ObjectStorage ObjectStoragePlan `json:"object_storage"`
 
 	ScannerFamily string          `json:"scanner_family"`
 	FlyctlVersion version.Version `json:"flyctl_version"`
@@ -38,9 +41,9 @@ type LaunchPlan struct {
 
 // Guest returns the guest described by the *raw* guest fields in a Plan.
 // When the UI starts returning Compute, this will be deprecated.
-func (p *LaunchPlan) Guest() *api.MachineGuest {
+func (p *LaunchPlan) Guest() *fly.MachineGuest {
 	// TODO(Allison): Determine whether we should use VmSize or CPUKind/CPUs
-	guest := api.MachineGuest{
+	guest := fly.MachineGuest{
 		CPUs:    p.CPUs,
 		CPUKind: p.CPUKind,
 	}

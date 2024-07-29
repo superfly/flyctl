@@ -71,9 +71,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	}
 
 	srcInfo := &SourceInfo{
-		Family:     "NodeJS",
-		SkipDeploy: true,
-		Callback:   JsFrameworkCallback,
+		Family:   "NodeJS",
+		Callback: JsFrameworkCallback,
 	}
 
 	_, err = os.Stat("bun.lockb")
@@ -175,6 +174,11 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.RedisDesired = true
 	}
 
+	// infer object storage (Tigris) from dependencies
+	if deps["@aws-sdk/client-s3"] != nil {
+		srcInfo.ObjectStorageDesired = true
+	}
+
 	// if prisma is used, provider is definative
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
@@ -203,7 +207,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if len(m) > 0 && name == "port" {
 				portFromDockerfile, err := strconv.Atoi(m[i])
 				if err == nil {
-					fmt.Printf("got port\n")
 					srcInfo.Port = portFromDockerfile
 					continue
 				}
@@ -226,6 +229,12 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if startScript, ok := scripts["start"].(string); ok && strings.Contains(startScript, "meteor") {
+		srcInfo.Family = "Meteor"
+		srcInfo.Env = map[string]string{
+			"PORT":     "3000",
+			"ROOT_URL": "APP_URL",
+		}
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
@@ -236,6 +245,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
+	} else if devdeps["@sveltejs/kit"] != nil {
+		srcInfo.Family = "SvelteKit"
 	} else if scripts["dev"] == "vite" {
 		srcInfo.Family = "Vite"
 		srcInfo.Port = 80
@@ -244,7 +255,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	return srcInfo, nil
 }
 
-func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan) error {
+func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	// create temporary fly.toml for merge purposes
 	flyToml := "fly.toml"
 	_, err := os.Stat(flyToml)
@@ -353,6 +364,11 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			xcmdpath, err = filepath.Abs(xcmdpath)
 			if err != nil {
 				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
+			}
+
+			// add additional flags from launch command
+			if len(flags) > 0 {
+				args = append(args, flags...)
 			}
 
 			// execute (via npx, bunx, or bun x) the docker module

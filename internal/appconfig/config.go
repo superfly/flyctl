@@ -10,8 +10,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/internal/machine"
+	fly "github.com/superfly/fly-go"
 )
 
 const (
@@ -19,9 +18,17 @@ const (
 	DefaultConfigFileName = "fly.toml"
 )
 
+type RestartPolicy string
+
+const (
+	RestartPolicyAlways    RestartPolicy = "always"
+	RestartPolicyNever     RestartPolicy = "never"
+	RestartPolicyOnFailure RestartPolicy = "on-failure"
+)
+
 func NewConfig() *Config {
 	return &Config{
-		defaultGroupName: api.MachineProcessGroupApp,
+		defaultGroupName: fly.MachineProcessGroupApp,
 		configFilePath:   "--config path unset--",
 	}
 }
@@ -32,7 +39,7 @@ type Config struct {
 	AppName        string        `toml:"app,omitempty" json:"app,omitempty"`
 	PrimaryRegion  string        `toml:"primary_region,omitempty" json:"primary_region,omitempty"`
 	KillSignal     *string       `toml:"kill_signal,omitempty" json:"kill_signal,omitempty"`
-	KillTimeout    *api.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
+	KillTimeout    *fly.Duration `toml:"kill_timeout,omitempty" json:"kill_timeout,omitempty"`
 	SwapSizeMB     *int          `toml:"swap_size_mb,omitempty" json:"swap_size_mb,omitempty"`
 	ConsoleCommand string        `toml:"console_command,omitempty" json:"console_command,omitempty"`
 
@@ -51,6 +58,10 @@ type Config struct {
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
 
+	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
+
+	Restart []Restart `toml:"restart,omitempty" json:"restart,omitempty"`
+
 	Compute []*Compute `toml:"vm,omitempty" json:"vm,omitempty"`
 
 	// Others, less important.
@@ -58,7 +69,7 @@ type Config struct {
 	Metrics []*Metrics `toml:"metrics,omitempty" json:"metrics,omitempty"`
 
 	// MergedFiles is a list of files that have been merged from the app config and flags.
-	MergedFiles []*api.File `toml:"-" json:"-"`
+	MergedFiles []*fly.File `toml:"-" json:"-"`
 
 	// Path to application configuration file, usually fly.toml.
 	configFilePath string
@@ -71,16 +82,16 @@ type Config struct {
 }
 
 type Metrics struct {
-	*api.MachineMetrics
+	*fly.MachineMetrics
 	Processes []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 type Deploy struct {
 	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	ReleaseCommandTimeout *api.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
+	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
 	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
-	WaitTimeout           *api.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
+	WaitTimeout           *fly.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
 }
 
 type File struct {
@@ -91,8 +102,8 @@ type File struct {
 	Processes  []string `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
-func (f File) toMachineFile() (*api.File, error) {
-	file := &api.File{
+func (f File) toMachineFile() (*fly.File, error) {
+	file := &fly.File{
 		GuestPath: f.GuestPath,
 	}
 	switch {
@@ -113,15 +124,17 @@ func (f File) toMachineFile() (*api.File, error) {
 }
 
 type Static struct {
-	GuestPath    string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
-	UrlPrefix    string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
-	TigrisBucket string `toml:"tigris_bucket,omitempty" json:"tigris_bucket"`
+	GuestPath     string `toml:"guest_path" json:"guest_path,omitempty" validate:"required"`
+	UrlPrefix     string `toml:"url_prefix" json:"url_prefix,omitempty" validate:"required"`
+	TigrisBucket  string `toml:"tigris_bucket,omitempty" json:"tigris_bucket"`
+	IndexDocument string `toml:"index_document,omitempty" json:"index_document,omitempty"`
 }
 
 type Mount struct {
 	Source                  string   `toml:"source,omitempty" json:"source,omitempty"`
 	Destination             string   `toml:"destination,omitempty" json:"destination,omitempty"`
 	InitialSize             string   `toml:"initial_size,omitempty" json:"initial_size,omitempty"`
+	SnapshotRetention       *int     `toml:"snapshot_retention,omitempty" json:"snapshot_retention,omitempty"`
 	AutoExtendSizeThreshold int      `toml:"auto_extend_size_threshold,omitempty" json:"auto_extend_size_threshold,omitempty"`
 	AutoExtendSizeIncrement string   `toml:"auto_extend_size_increment,omitempty" json:"auto_extend_size_increment,omitempty"`
 	AutoExtendSizeLimit     string   `toml:"auto_extend_size_limit,omitempty" json:"auto_extend_size_limit,omitempty"`
@@ -141,19 +154,25 @@ type Build struct {
 }
 
 type Experimental struct {
-	Cmd          []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
-	Entrypoint   []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
-	Exec         []string `toml:"exec,omitempty" json:"exec,omitempty"`
-	AutoRollback bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
-	EnableConsul bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
-	EnableEtcd   bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	Cmd            []string `toml:"cmd,omitempty" json:"cmd,omitempty"`
+	Entrypoint     []string `toml:"entrypoint,omitempty" json:"entrypoint,omitempty"`
+	Exec           []string `toml:"exec,omitempty" json:"exec,omitempty"`
+	AutoRollback   bool     `toml:"auto_rollback,omitempty" json:"auto_rollback,omitempty"`
+	EnableConsul   bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
+	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
+	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 }
 
 type Compute struct {
 	Size              string `json:"size,omitempty" toml:"size,omitempty"`
 	Memory            string `json:"memory,omitempty" toml:"memory,omitempty"`
-	*api.MachineGuest `toml:",inline" json:",inline"`
+	*fly.MachineGuest `toml:",inline" json:",inline"`
 	Processes         []string `json:"processes,omitempty" toml:"processes,omitempty"`
+}
+type Restart struct {
+	Policy     RestartPolicy `toml:"policy,omitempty" json:"policy,omitempty"`
+	MaxRetries int           `toml:"retries,omitempty" json:"retries,omitempty"`
+	Processes  []string      `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
 func (c *Config) ConfigFilePath() string {
@@ -164,21 +183,39 @@ func (c *Config) SetConfigFilePath(configFilePath string) {
 	c.configFilePath = configFilePath
 }
 
-func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
+func (c *Config) DetermineIPType(ipType string) string {
+	// If the app is a flycast app, then it requires a private IP
+	if ipType == "private" {
+		return "private"
+	}
+
+	// If there is a service that is not http or https on standard points, then it requires a dedicated IP
 	for _, service := range c.Services {
 		switch service.Protocol {
 		case "udp":
-			return true
+			return "dedicated"
 		case "tcp":
 			for _, p := range service.Ports {
 				if p.HasNonHttpPorts() {
-					return true
+					return "dedicated"
 				} else if p.ContainsPort(80) && !reflect.DeepEqual(p.Handlers, []string{"http"}) {
-					return true
+					return "dedicated"
 				} else if p.ContainsPort(443) && !(reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
-					return true
+					return "dedicated"
 				}
 			}
+		}
+	}
+
+	// Use shared IP if there are no services that require a dedicated IP
+	return "shared"
+}
+
+// IsUsingGPU returns true if any VMs have a gpu-kind set.
+func (c *Config) IsUsingGPU() bool {
+	for _, vm := range c.Compute {
+		if vm != nil && vm.MachineGuest != nil && vm.MachineGuest.GPUKind != "" {
+			return true
 		}
 	}
 	return false
@@ -301,9 +338,9 @@ func (cfg *Config) URL() *url.URL {
 
 // MergeFiles merges the provided files with the files in the config wherein the provided files
 // take precedence.
-func (cfg *Config) MergeFiles(files []*api.File) error {
+func (cfg *Config) MergeFiles(files []*fly.File) error {
 	// First convert the Config files to Machine files.
-	cfgFiles := make([]*api.File, 0, len(cfg.Files))
+	cfgFiles := make([]*fly.File, 0, len(cfg.Files))
 	for _, f := range cfg.Files {
 		machineFile, err := f.toMachineFile()
 		if err != nil {
@@ -313,13 +350,20 @@ func (cfg *Config) MergeFiles(files []*api.File) error {
 	}
 
 	// Merge the config files with the provided files.
-	mConfig := &api.MachineConfig{
+	mConfig := &fly.MachineConfig{
 		Files: cfgFiles,
 	}
-	machine.MergeFiles(mConfig, files)
+	fly.MergeFiles(mConfig, files)
 
 	// Persist the merged files back to the config to be used later for deploying.
 	cfg.MergedFiles = mConfig.Files
 
 	return nil
+}
+
+func (cfg *Config) DeployStrategy() string {
+	if cfg.Deploy == nil {
+		return ""
+	}
+	return cfg.Deploy.Strategy
 }

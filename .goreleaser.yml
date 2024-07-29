@@ -96,7 +96,7 @@ changelog:
       - "^test:"
 
 brews:
-  - tap:
+  - repository:
       owner: superfly
       name: homebrew-tap
     folder: Formula

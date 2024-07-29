@@ -8,10 +8,10 @@ import (
 
 	"github.com/superfly/flyctl/iostreams"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -43,12 +43,10 @@ organization later.
 }
 
 func runCreate(ctx context.Context) error {
-
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 	user, err := client.GetCurrentUser(ctx)
-
 	if err != nil {
 		return err
 	}
@@ -58,11 +56,10 @@ func runCreate(ctx context.Context) error {
 	name = flag.FirstArg(ctx)
 
 	if user.EnablePaidHobby {
-		fmt.Fprintf(io.Out, "New organizations start on the $5/mo Hobby Plan.\n\n")
+		fmt.Fprintf(io.Out, "New organizations start on the Pay As You Go plan.\n\n")
 
 		if name == "" {
 			confirmed, err := prompt.Confirm(ctx, "Do you still want to create the organization?")
-
 			if err != nil {
 				return err
 			}
@@ -87,7 +84,6 @@ func runCreate(ctx context.Context) error {
 	}
 
 	org, err := client.CreateOrganization(ctx, name)
-
 	if err != nil {
 		return fmt.Errorf("failed creating organization: %w", err)
 	}
@@ -95,7 +91,6 @@ func runCreate(ctx context.Context) error {
 	if io := iostreams.FromContext(ctx); config.FromContext(ctx).JSONOutput {
 		_ = render.JSON(io.Out, org)
 	} else {
-
 		fmt.Fprintf(io.Out, "Your organization %s (%s) was created successfully. Visit %s to add a credit card and enable deployment.\n", org.Name, org.Slug, colorize.Green(fmt.Sprintf("https://fly.io/dashboard/%s/billing", org.Slug)))
 	}
 

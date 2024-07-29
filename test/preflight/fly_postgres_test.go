@@ -4,18 +4,25 @@
 package preflight
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 func TestPostgres_singleNode(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
+	appName := f.CreateRandomAppName() // Since this explicitly sets a size, no need to test on GPUs/alternate
+
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
 
 	f.Fly(
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
@@ -28,6 +35,13 @@ func TestPostgres_singleNode(t *testing.T) {
 
 func TestPostgres_autostart(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -59,8 +73,15 @@ func TestPostgres_FlexFailover(t *testing.T) {
 	}
 
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
-	findLeaderID := func(ml []*api.Machine) string {
+	findLeaderID := func(ml []*fly.Machine) string {
 		for _, mach := range ml {
 			for _, chk := range mach.Checks {
 				if chk.Name == "role" && chk.Output == "primary" {
@@ -86,6 +107,13 @@ func TestPostgres_FlexFailover(t *testing.T) {
 
 func TestPostgres_NoMachines(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -100,6 +128,13 @@ func TestPostgres_NoMachines(t *testing.T) {
 
 func TestPostgres_haConfigSave(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
@@ -116,6 +151,13 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
 
@@ -127,6 +169,18 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
 		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
 	)
+	sshErr := backoff.Retry(func() error {
+		sshWorks := f.FlyAllowExitFailure("ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT 1'\"", firstAppName)
+		if sshWorks.ExitCode() != 0 {
+			return fmt.Errorf("non-zero exit code running fly ssh console")
+		} else {
+			return nil
+		}
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(100*time.Millisecond),
+		backoff.WithMaxElapsedTime(3*time.Second),
+	), 3))
+	require.NoError(f, sshErr, "failed to connect to first app's postgres over ssh")
 
 	f.Fly(
 		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'CREATE TABLE app_name (app_name TEXT)'\"",
@@ -158,6 +212,13 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 
 func TestPostgres_ImportFailure(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
+	// Since this explicitly sets a size, no need to test on GPUs/alternate
+	// sizes.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly(

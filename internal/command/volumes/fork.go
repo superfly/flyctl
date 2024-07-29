@@ -5,17 +5,16 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/iostreams"
-
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newFork() *cobra.Command {
@@ -24,7 +23,7 @@ func newFork() *cobra.Command {
 
 		long = short + ` Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
 
-		usage = "fork [id]"
+		usage = "fork <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runFork,
@@ -50,6 +49,7 @@ func newFork() *cobra.Command {
 		flag.Bool{
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Default:     true,
 		},
 		flag.String{
 			Name:        "region",
@@ -68,15 +68,17 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
-		client  = client.FromContext(ctx).API()
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return err
 	}
 
-	var vol *api.Volume
+	var vol *fly.Volume
 	if volID == "" {
 		app, err := client.GetAppBasic(ctx, appName)
 		if err != nil {
@@ -100,23 +102,25 @@ func runFork(ctx context.Context) error {
 
 	var machinesOnly *bool
 	if flag.IsSpecified(ctx, "machines-only") {
-		machinesOnly = api.Pointer(flag.GetBool(ctx, "machines-only"))
+		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
 	}
 
 	var requireUniqueZone *bool
 	if flag.IsSpecified(ctx, "require-unique-zone") {
-		requireUniqueZone = api.Pointer(flag.GetBool(ctx, "require-unique-zone"))
+		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
 	}
 
 	region := flag.GetString(ctx, "region")
 
-	var attachedMachineGuest *api.MachineGuest
+	var attachedMachineImage string
+	var attachedMachineGuest *fly.MachineGuest
 	if vol.AttachedMachine != nil {
 		m, err := flapsClient.Get(ctx, *vol.AttachedMachine)
 		if err != nil {
 			return err
 		}
 		attachedMachineGuest = m.Config.Guest
+		attachedMachineImage = m.FullImageRef()
 	}
 
 	computeRequirements, err := flag.GetMachineGuest(ctx, attachedMachineGuest)
@@ -124,12 +128,13 @@ func runFork(ctx context.Context) error {
 		return err
 	}
 
-	input := api.CreateVolumeRequest{
+	input := fly.CreateVolumeRequest{
 		Name:                name,
 		MachinesOnly:        machinesOnly,
 		RequireUniqueZone:   requireUniqueZone,
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
+		ComputeImage:        attachedMachineImage,
 		Region:              region,
 	}
 

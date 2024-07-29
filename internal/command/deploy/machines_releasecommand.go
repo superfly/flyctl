@@ -10,10 +10,11 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -68,18 +69,23 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
 	}
 
-	if exitCode != 0 {
-		statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
+	if exitCode != 0 || flag.GetBool(ctx, "verbose") {
+		if exitCode != 0 {
+			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
+		}
+
 		// Preemptive cleanup of the logger so that the logs have a clean place to write to
 		loggerCleanup(false)
 
 		time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
-		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
-			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+		if exitCode != 0 {
+			fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
+				md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+		}
 		fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
 			releaseCmdMachine.Machine().ID)
 		releaseCmdLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
-		if api.IsNotAuthenticatedError(err) {
+		if fly.IsNotAuthenticatedError(err) {
 			fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", releaseCmdMachine.Machine().ID, md.appConfig.AppName, releaseCmdMachine.Machine().ID)
 		} else {
 			if err != nil {
@@ -89,7 +95,9 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 				fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
 			}
 		}
-		return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
+		if exitCode != 0 {
+			return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
+		}
 	}
 	statuslogger.LogfStatus(ctx,
 		statuslogger.StatusSuccess,
@@ -101,7 +109,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 
 // dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
 // a mismatch will result in a delete+recreate op
-func dedicatedHostIdMismatch(m *api.Machine, ac *appconfig.Config) bool {
+func dedicatedHostIdMismatch(m *fly.Machine, ac *appconfig.Config) bool {
 	return strings.TrimSpace(ac.HostDedicationID) != "" && m.Config.Guest.HostDedicationID != ac.HostDedicationID
 }
 
@@ -138,7 +146,7 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	}
 
 	statuslogger.Logf(ctx, "Created release_command machine %s", md.colorize.Bold(releaseCmdMachine.ID))
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*api.Machine{releaseCmdMachine})
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*fly.Machine{releaseCmdMachine}, true)
 	return nil
 }
 
@@ -149,7 +157,7 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
 	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
 
-	if err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStopped, md.waitTimeout, false); err != nil {
+	if err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false); err != nil {
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return err
 	}
@@ -168,9 +176,9 @@ func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) er
 	return nil
 }
 
-func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Machine) *api.LaunchMachineInput {
+func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Machine) *fly.LaunchMachineInput {
 	if origMachineRaw == nil {
-		origMachineRaw = &api.Machine{
+		origMachineRaw = &fly.Machine{
 			Region: md.appConfig.PrimaryRegion,
 		}
 	}
@@ -185,28 +193,28 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *api.Ma
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
-	return &api.LaunchMachineInput{
+	return &fly.LaunchMachineInput{
 		Config: mConfig,
 		Region: origMachineRaw.Region,
 	}
 }
 
-func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
-	defaultGuest := api.MachinePresets[api.DefaultVMSize]
-	desiredGuest := api.MachinePresets["shared-cpu-2x"]
+func (md *machineDeployment) inferReleaseCommandGuest() *fly.MachineGuest {
+	defaultGuest := fly.MachinePresets[fly.DefaultVMSize]
+	desiredGuest := fly.MachinePresets["shared-cpu-2x"]
 	if mg := md.machineGuest; mg != nil && (mg.CPUKind != defaultGuest.CPUKind || mg.CPUs != defaultGuest.CPUs || mg.MemoryMB != defaultGuest.MemoryMB) {
 		desiredGuest = mg
 	}
 	if !md.machineSet.IsEmpty() {
 		group := md.appConfig.DefaultProcessName()
-		ram := func(m *api.Machine) int {
+		ram := func(m *fly.Machine) int {
 			if m != nil && m.Config != nil && m.Config.Guest != nil {
 				return m.Config.Guest.MemoryMB
 			}
 			return 0
 		}
 
-		maxRamMach := lo.Reduce(md.machineSet.GetMachines(), func(prevBest *api.Machine, lm machine.LeasableMachine, _ int) *api.Machine {
+		maxRamMach := lo.Reduce(md.machineSet.GetMachines(), func(prevBest *fly.Machine, lm machine.LeasableMachine, _ int) *fly.Machine {
 			mach := lm.Machine()
 			if mach.ProcessGroup() != group {
 				return prevBest
@@ -221,7 +229,7 @@ func (md *machineDeployment) inferReleaseCommandGuest() *api.MachineGuest {
 }
 
 func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, releaseCmdMachine machine.LeasableMachine) error {
-	err := releaseCmdMachine.WaitForState(ctx, api.MachineStateStarted, md.waitTimeout, false)
+	err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateStarted, md.waitTimeout, false)
 	if err != nil {
 		var flapsErr *flaps.FlapsError
 		if errors.As(err, &flapsErr) && flapsErr.ResponseStatusCode == http.StatusNotFound {
@@ -231,7 +239,7 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to start: %w", releaseCmdMachine.Machine().ID, err)
 	}
-	err = releaseCmdMachine.WaitForState(ctx, api.MachineStateDestroyed, md.releaseCmdTimeout, true)
+	err = releaseCmdMachine.WaitForState(ctx, fly.MachineStateDestroyed, md.releaseCmdTimeout, true)
 	if err != nil {
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)

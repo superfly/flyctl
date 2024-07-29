@@ -7,6 +7,9 @@ swap_size_mb = 512
 [deploy]
   release_command = "migrate-db"
 
+[[restart]]
+  policy = "always"
+
 [env]
   FOO = "BAR"
 
@@ -17,6 +20,11 @@ swap_size_mb = 512
 [http_service]
   internal_port = 8080
   force_https = true
+
+  [[http_service.machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
 
 [checks.listening]
   port = 8080
@@ -36,3 +44,5 @@ swap_size_mb = 512
 [[statics]]
 guest_path = "/guest/path"
 url_prefix = "/url/prefix"
+tigris_bucket = "example-bucket"
+index_document = "index.html"

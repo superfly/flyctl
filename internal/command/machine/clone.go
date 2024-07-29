@@ -9,12 +9,12 @@ import (
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
@@ -22,9 +22,8 @@ import (
 
 func newClone() *cobra.Command {
 	const (
-		short = "Clone a Fly Machine."
-		long  = short + ` The new Machine will be a copy of the specified Machine.
-If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine.`
+		short = "Clone a Fly Machine"
+		long  = "Clone a Fly Machine. The new Machine will be a copy of the specified Machine. If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine."
 
 		usage = "clone [machine_id]"
 	)
@@ -73,8 +72,8 @@ If the original Machine has a volume, then a new empty volume will be created an
 		},
 		flag.Bool{
 			Name:        "volume-requires-unique-zone",
-			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default false.",
-			Default:     false,
+			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default true.",
+			Default:     true,
 		},
 		flag.Detach(),
 		flag.VMSizeFlags,
@@ -97,9 +96,9 @@ func runMachineClone(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	var vol *api.Volume
+	var vol *fly.Volume
 	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
 		splitVolumeInfo := strings.Split(volumeInfo, ":")
 		volID := splitVolumeInfo[0]
@@ -163,7 +162,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		if len(splitVolumeInfo) == 2 {
 			// patches the source config so the loop below attaches the volume on the passed mount path
 			if len(source.Config.Mounts) == 0 {
-				source.Config.Mounts = []api.MachineMount{
+				source.Config.Mounts = []fly.MachineMount{
 					{
 						Path: splitVolumeInfo[1],
 					},
@@ -176,7 +175,7 @@ func runMachineClone(ctx context.Context) (err error) {
 	}
 
 	for _, mnt := range source.Config.Mounts {
-		var vol *api.Volume
+		var vol *fly.Volume
 		if volID != "" {
 			fmt.Fprintf(out, "Attaching existing volume %s\n", colorize.Bold(volID))
 			vol, err = flapsClient.GetVolume(ctx, volID)
@@ -196,7 +195,7 @@ func runMachineClone(ctx context.Context) (err error) {
 					return err
 				}
 				if len(snapshots) > 0 {
-					snapshot := lo.MaxBy(snapshots, func(i, j api.VolumeSnapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
+					snapshot := lo.MaxBy(snapshots, func(i, j fly.VolumeSnapshot) bool { return i.CreatedAt.After(j.CreatedAt) })
 					snapshotID = &snapshot.ID
 					fmt.Fprintf(out, "Creating new volume from snapshot %s of %s\n", colorize.Bold(*snapshotID), colorize.Bold(mnt.Volume))
 				} else {
@@ -210,14 +209,15 @@ func runMachineClone(ctx context.Context) (err error) {
 				fmt.Fprintf(io.Out, "Creating new volume from snapshot: %s\n", colorize.Bold(*snapshotID))
 			}
 
-			volInput := api.CreateVolumeRequest{
+			volInput := fly.CreateVolumeRequest{
 				Name:                mnt.Name,
 				Region:              region,
 				SizeGb:              &mnt.SizeGb,
 				Encrypted:           &mnt.Encrypted,
 				SnapshotID:          snapshotID,
-				RequireUniqueZone:   api.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
+				RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "volume-requires-unique-zone")),
 				ComputeRequirements: targetConfig.Guest,
+				ComputeImage:        targetConfig.Image,
 			}
 			vol, err = flapsClient.CreateVolume(ctx, volInput)
 			if err != nil {
@@ -225,7 +225,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			}
 		}
 
-		targetConfig.Mounts = []api.MachineMount{
+		targetConfig.Mounts = []fly.MachineMount{
 			{
 				Volume:                 vol.ID,
 				Path:                   mnt.Path,
@@ -247,7 +247,7 @@ func runMachineClone(ctx context.Context) (err error) {
 		targetConfig.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
 	}
 
-	input := api.LaunchMachineInput{
+	input := fly.LaunchMachineInput{
 		Name:       flag.GetString(ctx, "name"),
 		Region:     region,
 		Config:     targetConfig,
@@ -276,7 +276,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			return err
 		}
 
-		if err = watch.MachinesChecks(ctx, []*api.Machine{launchedMachine}); err != nil {
+		if err = watch.MachinesChecks(ctx, []*fly.Machine{launchedMachine}); err != nil {
 			return fmt.Errorf("error while watching health checks: %w", err)
 		}
 	}

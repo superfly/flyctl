@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/google/shlex"
-	"github.com/superfly/flyctl/api"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -25,10 +25,8 @@ func main() {
 func run() error {
 	var (
 		ctx       = context.TODO()
-		apiClient = api.NewClientFromOptions(api.ClientOptions{
+		apiClient = flyutil.NewClientFromOptions(ctx, fly.ClientOptions{
 			AccessToken: os.Getenv("FLY_PREFLIGHT_TEST_ACCESS_TOKEN"),
-			Name:        buildinfo.Name(),
-			Version:     buildinfo.Version().String(),
 			BaseURL:     "https://api.fly.io",
 			Logger:      logger.FromEnv(iostreams.System().ErrOut),
 		})
@@ -47,7 +45,7 @@ func run() error {
 			}
 		}
 	}`
-	resp, err := gql.AllApps(ctx, apiClient.GenqClient, os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"))
+	resp, err := gql.AllApps(ctx, apiClient.GenqClient(), os.Getenv("FLY_PREFLIGHT_TEST_FLY_ORG"))
 	if err != nil {
 		return err
 	}

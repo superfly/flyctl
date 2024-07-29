@@ -15,10 +15,10 @@ import (
 
 	"github.com/pkg/sftp"
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 
 	"github.com/chzyer/readline"
 	"github.com/google/shlex"
@@ -87,7 +87,7 @@ func newGet() *cobra.Command {
 }
 
 func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -95,7 +95,7 @@ func newSFTPConnection(ctx context.Context) (*sftp.Client, error) {
 		return nil, fmt.Errorf("get app: %w", err)
 	}
 
-	agentclient, dialer, err := BringUpAgent(ctx, client, app, quiet(ctx))
+	agentclient, dialer, err := BringUpAgent(ctx, client, app, "", quiet(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func runGet(ctx context.Context) error {
 	}
 	defer rf.Close()
 
-	f, err := os.OpenFile(local, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0644)
+	f, err := os.OpenFile(local, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o644)
 	if err != nil {
 		return fmt.Errorf("get: local file %s: %w", local, err)
 	}
@@ -311,7 +311,7 @@ func (sc *sftpContext) getDir(rpath string, args []string) {
 		return
 	}
 
-	f, err := os.OpenFile(lpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+	f, err := os.OpenFile(lpath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		sc.out("get %s -> %s: %s", rpath, lpath, err)
 		return
@@ -502,7 +502,7 @@ func (sc *sftpContext) get(args ...string) error {
 		}
 		defer rf.Close()
 
-		f, err := os.OpenFile(localFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
+		f, err := os.OpenFile(localFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 		if err != nil {
 			sc.out("get %s -> %s: %s", rpath, localFile, err)
 			return

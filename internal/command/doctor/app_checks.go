@@ -11,12 +11,12 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/miekg/dns"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/command/apps"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -26,10 +26,10 @@ type AppChecker struct {
 	checks     map[string]string
 	color      *iostreams.ColorScheme
 	ctx        context.Context
-	app        *api.AppCompact
+	app        *fly.AppCompact
 	workDir    string
 	appConfig  *appconfig.Config
-	apiClient  *api.Client
+	apiClient  flyutil.Client
 }
 
 func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorScheme) (*AppChecker, error) {
@@ -41,7 +41,7 @@ func NewAppChecker(ctx context.Context, jsonOutput bool, color *iostreams.ColorS
 		return nil, nil
 	}
 
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 	appCompact, err := apiClient.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (ac *AppChecker) checkAll() map[string]string {
 	return ac.checks
 }
 
-func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
+func (ac *AppChecker) checkIpsAllocated() []fly.IPAddress {
 	ac.lprint(nil, "Checking that app has ip addresses allocated... ")
 
 	ipAddresses, err := ac.apiClient.GetIPAddresses(ac.ctx, ac.app.Name)
@@ -127,7 +127,7 @@ func (ac *AppChecker) checkIpsAllocated() []api.IPAddress {
 	return ipAddresses
 }
 
-func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
+func (ac *AppChecker) checkDnsRecords(ipAddresses []fly.IPAddress) {
 	v4s := make(map[string]bool)
 	v6s := make(map[string]bool)
 	for _, ip := range ipAddresses {
@@ -191,7 +191,7 @@ func (ac *AppChecker) checkDnsRecords(ipAddresses []api.IPAddress) {
 }
 
 func getFirstFlyDevNameserver(dnsClient *dns.Client) (string, error) {
-	const resolver = "9.9.9.9:53"
+	const resolver = "8.8.8.8:53"
 	msg := &dns.Msg{}
 	flydev := "fly.dev"
 	msg.SetQuestion(dns.Fqdn(flydev), dns.TypeNS)

@@ -4,28 +4,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/google/shlex"
 	"github.com/logrusorgru/aurora"
 	"github.com/morikuni/aec"
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
-	"github.com/superfly/flyctl/flaps"
-	"github.com/superfly/flyctl/gql"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -33,7 +34,7 @@ const (
 	DefaultReleaseCommandTimeout  = 5 * time.Minute
 	DefaultLeaseTtl               = 13 * time.Second
 	DefaultMaxUnavailable         = 0.33
-	DefaultVolumeInitialSizeGB    = 3
+	DefaultVolumeInitialSizeGB    = 1
 	DefaultGPUVolumeInitialSizeGB = 100
 )
 
@@ -42,68 +43,80 @@ type MachineDeployment interface {
 }
 
 type MachineDeploymentArgs struct {
-	AppCompact             *api.AppCompact
-	DeploymentImage        string
-	Strategy               string
-	EnvFromFlags           []string
-	PrimaryRegionFlag      string
-	SkipSmokeChecks        bool
-	SkipHealthChecks       bool
-	SkipDNSChecks          bool
-	MaxUnavailable         *float64
-	RestartOnly            bool
-	WaitTimeout            *time.Duration
-	LeaseTimeout           *time.Duration
-	ReleaseCmdTimeout      *time.Duration
-	Guest                  *api.MachineGuest
-	IncreasedAvailability  bool
-	AllocPublicIP          bool
-	UpdateOnly             bool
-	Files                  []*api.File
-	ExcludeRegions         map[string]interface{}
-	OnlyRegions            map[string]interface{}
-	ImmediateMaxConcurrent int
-	VolumeInitialSize      int
-	ProcessGroups          map[string]interface{}
+	AppCompact            *fly.AppCompact
+	DeploymentImage       string
+	Strategy              string
+	EnvFromFlags          []string
+	PrimaryRegionFlag     string
+	SkipSmokeChecks       bool
+	SkipHealthChecks      bool
+	SkipDNSChecks         bool
+	SkipReleaseCommand    bool
+	MaxUnavailable        *float64
+	RestartOnly           bool
+	WaitTimeout           *time.Duration
+	StopSignal            string
+	LeaseTimeout          *time.Duration
+	ReleaseCmdTimeout     *time.Duration
+	Guest                 *fly.MachineGuest
+	IncreasedAvailability bool
+	AllocIP               string
+	Org                   string
+	UpdateOnly            bool
+	Files                 []*fly.File
+	ExcludeRegions        map[string]bool
+	OnlyRegions           map[string]bool
+	ExcludeMachines       map[string]bool
+	OnlyMachines          map[string]bool
+	ProcessGroups         map[string]bool
+	MaxConcurrent         int
+	VolumeInitialSize     int
+	RestartPolicy         *fly.MachineRestartPolicy
+	RestartMaxRetries     int
+	DeployRetries         int
 }
 
 type machineDeployment struct {
-	apiClient              *api.Client
-	gqlClient              graphql.Client
-	flapsClient            *flaps.Client
-	io                     *iostreams.IOStreams
-	colorize               *iostreams.ColorScheme
-	app                    *api.AppCompact
-	appConfig              *appconfig.Config
-	img                    string
-	machineSet             machine.MachineSet
-	releaseCommandMachine  machine.MachineSet
-	volumes                map[string][]api.Volume
-	strategy               string
-	releaseId              string
-	releaseVersion         int
-	skipSmokeChecks        bool
-	skipHealthChecks       bool
-	skipDNSChecks          bool
-	maxUnavailable         float64
-	restartOnly            bool
-	waitTimeout            time.Duration
-	leaseTimeout           time.Duration
-	leaseDelayBetween      time.Duration
-	releaseCmdTimeout      time.Duration
-	isFirstDeploy          bool
-	machineGuest           *api.MachineGuest
-	increasedAvailability  bool
-	listenAddressChecked   sync.Map
-	updateOnly             bool
-	excludeRegions         map[string]interface{}
-	onlyRegions            map[string]interface{}
-	immediateMaxConcurrent int
-	volumeInitialSize      int
-	processGroups          map[string]interface{}
+	apiClient             flyutil.Client
+	flapsClient           flapsutil.FlapsClient
+	io                    *iostreams.IOStreams
+	colorize              *iostreams.ColorScheme
+	app                   *fly.AppCompact
+	appConfig             *appconfig.Config
+	img                   string
+	machineSet            machine.MachineSet
+	releaseCommandMachine machine.MachineSet
+	volumes               map[string][]fly.Volume
+	strategy              string
+	releaseId             string
+	releaseVersion        int
+	skipSmokeChecks       bool
+	skipHealthChecks      bool
+	skipDNSChecks         bool
+	skipReleaseCommand    bool
+	maxUnavailable        float64
+	restartOnly           bool
+	waitTimeout           time.Duration
+	stopSignal            string
+	leaseTimeout          time.Duration
+	leaseDelayBetween     time.Duration
+	releaseCmdTimeout     time.Duration
+	isFirstDeploy         bool
+	machineGuest          *fly.MachineGuest
+	increasedAvailability bool
+	listenAddressChecked  sync.Map
+	updateOnly            bool
+	excludeRegions        map[string]bool
+	onlyRegions           map[string]bool
+	excludeMachines       map[string]bool
+	onlyMachines          map[string]bool
+	processGroups         map[string]bool
+	maxConcurrent         int
+	volumeInitialSize     int
+	deployRetries         int
 }
 
-func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (MachineDeployment, error) {
+func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
 
@@ -129,10 +142,17 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	if args.AppCompact == nil {
 		return nil, fmt.Errorf("BUG: args.AppCompact should be set when calling this method")
 	}
-	flapsClient, err := flaps.New(ctx, args.AppCompact)
-	if err != nil {
-		tracing.RecordError(span, err, "failed to init flaps client")
-		return nil, err
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
+	if flapsClient == nil {
+		flapsClient, err = flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+			AppCompact: args.AppCompact,
+			AppName:    args.AppCompact.Name,
+		})
+		if err != nil {
+			tracing.RecordError(span, err, "failed to init flaps client")
+			return nil, err
+		}
 	}
 
 	if appConfig.Deploy != nil {
@@ -177,43 +197,48 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	io := iostreams.FromContext(ctx)
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
 	if appConfig.Deploy != nil && appConfig.Deploy.MaxUnavailable != nil {
 		maxUnavailable = *appConfig.Deploy.MaxUnavailable
 	}
 
-	immedateMaxConcurrent := args.ImmediateMaxConcurrent
-	if immedateMaxConcurrent < 1 {
-		immedateMaxConcurrent = 1
+	maxConcurrent := args.MaxConcurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 1
 	}
 
 	md := &machineDeployment{
-		apiClient:              apiClient,
-		gqlClient:              apiClient.GenqClient,
-		flapsClient:            flapsClient,
-		io:                     io,
-		colorize:               io.ColorScheme(),
-		app:                    args.AppCompact,
-		appConfig:              appConfig,
-		img:                    args.DeploymentImage,
-		skipSmokeChecks:        args.SkipSmokeChecks,
-		skipHealthChecks:       args.SkipHealthChecks,
-		restartOnly:            args.RestartOnly,
-		maxUnavailable:         maxUnavailable,
-		waitTimeout:            waitTimeout,
-		leaseTimeout:           leaseTimeout,
-		leaseDelayBetween:      leaseDelayBetween,
-		releaseCmdTimeout:      releaseCmdTimeout,
-		increasedAvailability:  args.IncreasedAvailability,
-		updateOnly:             args.UpdateOnly,
-		machineGuest:           args.Guest,
-		excludeRegions:         args.ExcludeRegions,
-		onlyRegions:            args.OnlyRegions,
-		immediateMaxConcurrent: immedateMaxConcurrent,
-		volumeInitialSize:      args.VolumeInitialSize,
-		processGroups:          args.ProcessGroups,
+		apiClient:             apiClient,
+		flapsClient:           flapsClient,
+		io:                    io,
+		colorize:              io.ColorScheme(),
+		app:                   args.AppCompact,
+		appConfig:             appConfig,
+		img:                   args.DeploymentImage,
+		skipSmokeChecks:       args.SkipSmokeChecks,
+		skipHealthChecks:      args.SkipHealthChecks,
+		skipDNSChecks:         args.SkipDNSChecks,
+		skipReleaseCommand:    args.SkipReleaseCommand,
+		restartOnly:           args.RestartOnly,
+		maxUnavailable:        maxUnavailable,
+		waitTimeout:           waitTimeout,
+		stopSignal:            args.StopSignal,
+		leaseTimeout:          leaseTimeout,
+		leaseDelayBetween:     leaseDelayBetween,
+		releaseCmdTimeout:     releaseCmdTimeout,
+		increasedAvailability: args.IncreasedAvailability,
+		updateOnly:            args.UpdateOnly,
+		machineGuest:          args.Guest,
+		excludeRegions:        args.ExcludeRegions,
+		onlyRegions:           args.OnlyRegions,
+		excludeMachines:       args.ExcludeMachines,
+		onlyMachines:          args.OnlyMachines,
+		maxConcurrent:         maxConcurrent,
+		volumeInitialSize:     args.VolumeInitialSize,
+		processGroups:         args.ProcessGroups,
+		deployRetries:         args.DeployRetries,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
@@ -237,7 +262,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	}
 
 	// Provisioning must come after setVolumes
-	if err := md.provisionFirstDeploy(ctx, args.AllocPublicIP); err != nil {
+	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
 		tracing.RecordError(span, err, "failed to provision first depoloy")
 		return nil, err
 	}
@@ -256,7 +281,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (Mach
 	return md, nil
 }
 
-func (md *machineDeployment) setFirstDeploy(ctx context.Context) error {
+func (md *machineDeployment) setFirstDeploy(_ context.Context) error {
 	// Due to https://github.com/superfly/web/issues/1397 we have to be extra careful
 	// by checking for any existent machine.
 	// This is not exaustive as the app could still be scaled down to zero but the
@@ -275,7 +300,8 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		return err
 	}
 
-	if len(machines) == 0 {
+	nMachines := len(machines)
+	if nMachines == 0 {
 		terminal.Debug("Found no machines that are part of Fly Apps Platform. Checking for active machines...")
 		activeMachines, err := md.flapsClient.ListActive(ctx)
 		if err != nil {
@@ -283,57 +309,82 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 			return err
 		}
 		if len(activeMachines) > 0 {
-			fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/apps/deploy/#machines-not-managed-by-fly-launch\n\n", aurora.Yellow("[WARNING]"))
+			fmt.Fprintf(md.io.ErrOut, "%s Your app doesn't have any Fly Launch machines, so we'll create one now. Learn more at \nhttps://fly.io/docs/launch/\n\n", aurora.Yellow("[WARNING]"))
 			md.isFirstDeploy = true
 		}
 	}
 
-	if len(md.onlyRegions) > 0 {
-		var onlyRegionMachines []*api.Machine
-		for _, m := range machines {
-			if _, present := md.onlyRegions[m.Region]; present {
-				onlyRegionMachines = append(onlyRegionMachines, m)
+	filtersApplied := map[string]struct{}{}
+	machines = slices.DeleteFunc(machines, func(m *fly.Machine) bool {
+		if len(md.onlyRegions) > 0 {
+			filtersApplied["--regions"] = struct{}{}
+
+			if !md.onlyRegions[m.Region] {
+				return true
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--only-regions filter applied, deploying to %d/%d machines\n", len(onlyRegionMachines), len(machines))
-		machines = onlyRegionMachines
-	}
-	if len(md.excludeRegions) > 0 {
-		var excludeRegionMachines []*api.Machine
-		for _, m := range machines {
-			if _, present := md.excludeRegions[m.Region]; !present {
-				excludeRegionMachines = append(excludeRegionMachines, m)
+
+		if len(md.excludeRegions) > 0 {
+			filtersApplied["--exclude-regions"] = struct{}{}
+
+			if md.excludeRegions[m.Region] {
+				return true
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--exclude-regions filter applied, deploying to %d/%d machines\n", len(excludeRegionMachines), len(machines))
-		machines = excludeRegionMachines
-	}
-	if len(md.processGroups) > 0 {
-		var processGroupMachines []*api.Machine
-		for _, m := range machines {
-			if _, present := md.processGroups[m.ProcessGroup()]; present {
-				processGroupMachines = append(processGroupMachines, m)
+
+		if len(md.onlyMachines) > 0 {
+			filtersApplied["--only-machines"] = struct{}{}
+
+			if !md.onlyMachines[m.ID] {
+				return true
 			}
 		}
-		fmt.Fprintf(md.io.ErrOut, "--process-groups filter applied, deploying to %d/%d machines\n", len(processGroupMachines), len(machines))
-		machines = processGroupMachines
+
+		if len(md.excludeMachines) > 0 {
+			filtersApplied["--exclude-machines"] = struct{}{}
+
+			if md.excludeMachines[m.ID] {
+				return true
+			}
+		}
+
+		if len(md.processGroups) > 0 {
+			filtersApplied["--process-groups"] = struct{}{}
+
+			if !md.processGroups[m.ProcessGroup()] {
+				return true
+			}
+		}
+
+		return false
+	})
+
+	if len(filtersApplied) > 0 {
+		s := ""
+		if len(filtersApplied) > 1 {
+			s = "s"
+		}
+
+		filtersAppliedStr := strings.Join(maps.Keys(filtersApplied), "/")
+
+		fmt.Fprintf(md.io.ErrOut, "%s filter%s applied, deploying to %d/%d machines\n", filtersAppliedStr, s, len(machines), nMachines)
 	}
 
 	for _, m := range machines {
 		if m.Config != nil && m.Config.Metadata != nil {
-			m.Config.Metadata[api.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
-			if m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] == "" {
-				m.Config.Metadata[api.MachineConfigMetadataKeyFlyProcessGroup] = md.appConfig.DefaultProcessName()
+			m.Config.Metadata[fly.MachineConfigMetadataKeyFlyctlVersion] = buildinfo.Version().String()
+			if m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup] == "" {
+				m.Config.Metadata[fly.MachineConfigMetadataKeyFlyProcessGroup] = md.appConfig.DefaultProcessName()
 			}
 		}
 	}
 
-	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines)
-	var releaseCmdSet []*api.Machine
+	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines, true)
+	var releaseCmdSet []*fly.Machine
 	if releaseCmdMachine != nil {
-		releaseCmdSet = []*api.Machine{releaseCmdMachine}
+		releaseCmdSet = []*fly.Machine{releaseCmdMachine}
 	}
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, releaseCmdSet)
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, releaseCmdSet, true)
 	return nil
 }
 
@@ -347,17 +398,17 @@ func (md *machineDeployment) setVolumes(ctx context.Context) error {
 		return fmt.Errorf("Error fetching application volumes: %w", err)
 	}
 
-	unattached := lo.Filter(volumes, func(v api.Volume, _ int) bool {
-		return v.AttachedAllocation == nil && v.AttachedMachine == nil
+	unattached := lo.Filter(volumes, func(v fly.Volume, _ int) bool {
+		return v.AttachedAllocation == nil && v.AttachedMachine == nil && v.HostStatus == "ok"
 	})
 
-	md.volumes = lo.GroupBy(unattached, func(v api.Volume) string {
+	md.volumes = lo.GroupBy(unattached, func(v fly.Volume) string {
 		return v.Name
 	})
 	return nil
 }
 
-func (md *machineDeployment) popVolumeFor(name, region string) *api.Volume {
+func (md *machineDeployment) popVolumeFor(name, region string) *fly.Volume {
 	volumes := md.volumes[name]
 	for idx, v := range volumes {
 		if region == "" || region == v.Region {
@@ -370,10 +421,10 @@ func (md *machineDeployment) popVolumeFor(name, region string) *api.Volume {
 
 func (md *machineDeployment) validateVolumeConfig() error {
 	machineGroups := lo.GroupBy(
-		lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *api.Machine {
+		lo.Map(md.machineSet.GetMachines(), func(lm machine.LeasableMachine, _ int) *fly.Machine {
 			return lm.Machine()
 		}),
-		func(m *api.Machine) string {
+		func(m *fly.Machine) string {
 			return m.ProcessGroup()
 		})
 
@@ -423,7 +474,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 
 			// Compute the volume differences per region
 			for volSrc, regions := range needsVol {
-				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v api.Volume) string { return v.Region })
+				currentPerRegion := lo.CountValuesBy(md.volumes[volSrc], func(v fly.Volume) string { return v.Region })
 				needsPerRegion := lo.CountValues(regions)
 
 				var missing []string
@@ -436,7 +487,7 @@ func (md *machineDeployment) validateVolumeConfig() error {
 				if len(missing) > 0 {
 					// TODO: May change this by a prompt to create new volumes right away (?)
 					return fmt.Errorf(
-						"Process group '%s' needs volumes with name '%s' to fullfill mounts defined in fly.toml; "+
+						"Process group '%s' needs volumes with name '%s' to fulfill mounts defined in fly.toml; "+
 							"Run `fly volume create %s -r REGION -n COUNT` for the following regions and counts: %s",
 						groupName, volSrc, volSrc, strings.Join(missing, " "),
 					)
@@ -462,7 +513,7 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 	if md.img != "" {
 		return nil
 	}
-	latestImg, err := md.latestImage(ctx)
+	latestImg, err := md.apiClient.LatestImage(ctx, md.app.Name)
 	if err == nil {
 		md.img = latestImg
 		return nil
@@ -472,28 +523,6 @@ func (md *machineDeployment) setImg(ctx context.Context) error {
 		return nil
 	}
 	return fmt.Errorf("could not find image to use for deployment; backend error was: %w", err)
-}
-
-func (md *machineDeployment) latestImage(ctx context.Context) (string, error) {
-	_ = `# @genqlient
-	       query FlyctlDeployGetLatestImage($appName:String!) {
-	               app(name:$appName) {
-	                       currentReleaseUnprocessed {
-	                               id
-	                               version
-	                               imageRef
-	                       }
-	               }
-	       }
-	      `
-	resp, err := gql.FlyctlDeployGetLatestImage(ctx, md.gqlClient, md.app.Name)
-	if err != nil {
-		return "", err
-	}
-	if resp.App.CurrentReleaseUnprocessed.ImageRef == "" {
-		return "", fmt.Errorf("current release not found for app %s", md.app.Name)
-	}
-	return resp.App.CurrentReleaseUnprocessed.ImageRef, nil
 }
 
 func (md *machineDeployment) setStrategy() error {
@@ -508,24 +537,13 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "create_backend_release")
 	defer span.End()
 
-	_ = `# @genqlient
-	mutation MachinesCreateRelease($input:CreateReleaseInput!) {
-		createRelease(input:$input) {
-			release {
-				id
-				version
-			}
-		}
-	}
-	`
-	input := gql.CreateReleaseInput{
+	resp, err := md.apiClient.CreateRelease(ctx, fly.CreateReleaseInput{
 		AppId:           md.app.Name,
 		PlatformVersion: "machines",
-		Strategy:        gql.DeploymentStrategy(strings.ToUpper(md.strategy)),
+		Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig,
 		Image:           md.img,
-	}
-	resp, err := gql.MachinesCreateRelease(ctx, md.gqlClient, input)
+	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
 		return err
@@ -542,20 +560,10 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	))
 	defer span.End()
 
-	_ = `# @genqlient
-	mutation MachinesUpdateRelease($input:UpdateReleaseInput!) {
-		updateRelease(input:$input) {
-			release {
-				id
-			}
-		}
-	}
-	`
-	input := gql.UpdateReleaseInput{
+	_, err := md.apiClient.UpdateRelease(ctx, fly.UpdateReleaseInput{
 		ReleaseId: md.releaseId,
 		Status:    status,
-	}
-	_, err := gql.MachinesUpdateRelease(ctx, md.gqlClient, input)
+	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
 		return err
@@ -571,7 +579,7 @@ func (md *machineDeployment) logClearLinesAbove(count int) {
 	}
 }
 
-func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable *float64, files []*api.File) (*appconfig.Config, error) {
+func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, primaryRegion, strategy string, maxUnavailable *float64, files []*fly.File) (*appconfig.Config, error) {
 	appConfig := appconfig.ConfigFromContext(ctx)
 	if appConfig == nil {
 		return nil, fmt.Errorf("BUG: application configuration must come in the context, be sure to pass it before calling NewMachineDeployment")
@@ -621,8 +629,8 @@ func determineAppConfigForMachines(ctx context.Context, envFromFlags []string, p
 func (md *machineDeployment) ProcessNames() (names []string) {
 	names = md.appConfig.ProcessNames()
 	if len(md.processGroups) > 0 {
-		names = lo.Filter(names, func(name string, _ int) bool {
-			return md.processGroups[name] != nil
+		names = slices.DeleteFunc(names, func(name string) bool {
+			return !md.processGroups[name]
 		})
 	}
 	return
@@ -635,6 +643,7 @@ func (md *machineDeployment) ToSpanAttributes() []attribute.KeyValue {
 		attribute.String("deployment.strategy", md.strategy),
 		attribute.Bool("deployment.skip_smoke_checks", md.skipSmokeChecks),
 		attribute.Bool("deployment.skip_health_checks", md.skipHealthChecks),
+		attribute.Bool("deployment.skip_dns_checks", md.skipDNSChecks),
 		attribute.Bool("deployment.restart_only", md.restartOnly),
 		attribute.Float64("deployment.max_unavailable", md.maxUnavailable),
 		attribute.Float64("deployment.wait_timeout", md.waitTimeout.Seconds()),
@@ -643,7 +652,7 @@ func (md *machineDeployment) ToSpanAttributes() []attribute.KeyValue {
 		attribute.Float64("deployment.release_cmd_timeout", md.releaseCmdTimeout.Seconds()),
 		attribute.Bool("deployment.increased_availability", md.increasedAvailability),
 		attribute.Bool("deployment.update_only", md.updateOnly),
-		attribute.Int("deployment.immediate_max_concurrency", md.immediateMaxConcurrent),
+		attribute.Int("deployment.max_concurrency", md.maxConcurrent),
 		attribute.Int("deployment.volume_initial_size", md.volumeInitialSize),
 	}
 
@@ -663,5 +672,4 @@ func (md *machineDeployment) ToSpanAttributes() []attribute.KeyValue {
 	}
 
 	return attrs
-
 }

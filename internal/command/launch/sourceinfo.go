@@ -23,6 +23,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	scannerConfig := &scanner.ScannerConfig{
 		ExistingPort: appConfig.InternalPort(),
 		Mode:         "launch",
+		Colorize:     io.ColorScheme(),
 	}
 	// Detect if --copy-config and --now flags are set. If so, limited set of
 	// fly.toml file updates. Helpful for deploying PRs when the project is

@@ -9,13 +9,13 @@ import (
 	"time"
 
 	"github.com/superfly/flyctl/agent"
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/command/ping"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
@@ -29,7 +29,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 		return fmt.Errorf("wireguard ping gateway: can't get org %s: %w", orgSlug, err)
 	}
 
-	pinger, err := ac.Pinger(ctx, orgSlug)
+	pinger, err := ac.Pinger(ctx, orgSlug, "")
 	if err != nil {
 		return fmt.Errorf("wireguard ping gateway: %w", err)
 	}
@@ -59,7 +59,7 @@ func runPersonalOrgPing(ctx context.Context, orgSlug string) (err error) {
 }
 
 func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
 	ac, err := agent.DefaultClient(ctx)
 	if err != nil {
@@ -73,7 +73,7 @@ func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
 	}
 
-	_, err = ac.Resolve(ctx, org.Slug, "_api.internal")
+	_, err = ac.Resolve(ctx, org.Slug, "_api.internal", "")
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: failed to lookup _api.internal: %w", err)
 	}
@@ -82,8 +82,7 @@ func runPersonalOrgCheckDns(ctx context.Context, orgSlug string) error {
 }
 
 func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
-
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	// Set up the agent connection
 	ac, err := agent.DefaultClient(ctx)
@@ -99,13 +98,13 @@ func runPersonalOrgCheckFlaps(ctx context.Context, orgSlug string) error {
 		return fmt.Errorf("wireguard dialer: can't get org %s: %w", orgSlug, err)
 	}
 
-	wgDialer, err := ac.ConnectToTunnel(ctx, org.Slug, true)
+	wgDialer, err := ac.ConnectToTunnel(ctx, org.Slug, "", true)
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: %w", err)
 	}
 
 	// Resolve the IP address of _api.internal
-	ip, err := ac.Resolve(ctx, org.Slug, "_api.internal:4280")
+	ip, err := ac.Resolve(ctx, org.Slug, "_api.internal:4280", "")
 	if err != nil {
 		return fmt.Errorf("wireguard dialer: failed to resolve _api.internal: %w", err)
 	}

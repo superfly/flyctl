@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/lfsc-go"
 )
 
@@ -82,7 +82,7 @@ func regionFlag() flag.String {
 
 // newLFSCClient returns an lfsc.Client with a temporary auth token.
 func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	// Determine the org via flag or environment variable first.
 	// If neither is available, use the local app's org, if available.
@@ -92,7 +92,7 @@ func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error
 	}
 
 	// Acquire a temporary auth token to access LiteFS Cloud.
-	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient, "flyctl-lfsc", orgID, "litefs_cloud",
+	resp, err := gql.CreateLimitedAccessToken(ctx, apiClient.GenqClient(), "flyctl-lfsc", orgID, "litefs_cloud",
 		&gql.LimitedAccessTokenOptions{
 			"cluster": clusterName,
 		},
@@ -110,7 +110,7 @@ func newLFSCClient(ctx context.Context, clusterName string) (*lfsc.Client, error
 }
 
 func getOrgID(ctx context.Context) (string, error) {
-	apiClient := client.FromContext(ctx).API()
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	if slug := flag.GetOrg(ctx); slug != "" {
 		org, err := apiClient.GetOrganizationBySlug(ctx, slug)

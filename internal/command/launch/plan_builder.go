@@ -4,14 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
 	"unicode"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/client"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
@@ -20,11 +20,11 @@ import (
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
-	"github.com/superfly/graphql"
 )
 
 type recoverableInUiError struct {
@@ -40,9 +40,11 @@ func (e recoverableInUiError) String() string {
 	}
 	return e.base.Error()
 }
+
 func (e recoverableInUiError) Error() string {
 	return e.base.Error()
 }
+
 func (e recoverableInUiError) Unwrap() error {
 	return e.base
 }
@@ -59,9 +61,12 @@ const recoverableSpecifyInUi = "must be specified in UI"
 // Doing this can lead to double-calculation, especially of scanners which could
 // have a lot of processing to do. Hence, a cache :)
 type planBuildCache struct {
-	appConfig    *appconfig.Config
-	sourceInfo   *scanner.SourceInfo
-	warnedNoCcHa bool // true => We have already warned that deploying ha is impossible for an org with no payment method
+	appConfig  *appconfig.Config
+	sourceInfo *scanner.SourceInfo
+	// true means we've checked the app name, but not necessarily that it's okay. only that an error, if present, has been flagged already.
+	// used to skip double-validating in stateFromManifest
+	appNameValidated bool
+	warnedNoCcHa     bool // true => We have already warned that deploying ha is impossible for an org with no payment method
 }
 
 func appNameTakenErr(appName string) error {
@@ -72,19 +77,34 @@ func appNameTakenErr(appName string) error {
 	}
 }
 
-func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *planBuildCache, error) {
+type recoverableErrorBuilder struct {
+	canEnterUi bool
+	errors     []recoverableInUiError
+}
 
-	io := iostreams.FromContext(ctx)
-
-	var recoverableInUiErrors []recoverableInUiError
-	tryRecoverErr := func(e error) error {
-		var asRecoverableErr recoverableInUiError
-		if errors.As(e, &asRecoverableErr) && canEnterUi {
-			recoverableInUiErrors = append(recoverableInUiErrors, asRecoverableErr)
-			return nil
-		}
-		return e
+func (r *recoverableErrorBuilder) tryRecover(e error) error {
+	var asRecoverableErr recoverableInUiError
+	if errors.As(e, &asRecoverableErr) && r.canEnterUi {
+		r.errors = append(r.errors, asRecoverableErr)
+		return nil
 	}
+	return e
+}
+
+func (r *recoverableErrorBuilder) build() string {
+	if len(r.errors) == 0 {
+		return ""
+	}
+
+	var allErrors string
+	for _, err := range r.errors {
+		allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
+	}
+	return allErrors
+}
+
+func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
+	io := iostreams.FromContext(ctx)
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
@@ -93,16 +113,16 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
-	org, orgExplanation, err := determineOrg(ctx)
+	org, orgExplanation, err := determineOrg(ctx, parentConfig)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	region, regionExplanation, err := determineRegion(ctx, appConfig, org.PaidPlan)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -140,14 +160,14 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
 
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)
 	if err != nil {
-		if err := tryRecoverErr(err); err != nil {
+		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -177,6 +197,7 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		HttpServicePort:  httpServicePort,
 		Postgres:         plan.PostgresPlan{},
 		Redis:            plan.RedisPlan{},
+		GitHubActions:    plan.GitHubActionsPlan{},
 		FlyctlVersion:    buildinfo.Info().Version,
 	}
 
@@ -187,12 +208,15 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 		computeSource:  computeExplanation,
 		postgresSource: "not requested",
 		redisSource:    "not requested",
+		tigrisSource:   "not requested",
+		sentrySource:   "not requested",
 	}
 
 	buildCache := &planBuildCache{
-		appConfig:    appConfig,
-		sourceInfo:   srcInfo,
-		warnedNoCcHa: false,
+		appConfig:        appConfig,
+		sourceInfo:       srcInfo,
+		appNameValidated: true, // validated in determineAppName
+		warnedNoCcHa:     false,
 	}
 
 	if planValidateHighAvailability(ctx, lp, org, true) {
@@ -215,36 +239,66 @@ func buildManifest(ctx context.Context, canEnterUi bool) (*LaunchManifest, *plan
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
 		}
+		if srcInfo.ObjectStorageDesired {
+			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
+			planSource.tigrisSource = scannerSource
+		}
 		if srcInfo.Port != 0 {
 			lp.HttpServicePort = srcInfo.Port
+			lp.HttpServicePortSetByScanner = true
 		}
-	}
-
-	if len(recoverableInUiErrors) != 0 {
-
-		var allErrors string
-		for _, err := range recoverableInUiErrors {
-			allErrors += fmt.Sprintf(" * %s\n", strings.ReplaceAll(err.String(), "\n", "\n   "))
-		}
-		err = recoverableInUiError{errors.New(allErrors)}
 	}
 
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
-	}, buildCache, err
-
+	}, buildCache, nil
 }
 
-func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache) (*launchState, error) {
+// Check to see if they own the named app, and if so, prompt them to try deploying instead.
+// Returns a whether or not the app is known to be taken.
+// false doesn't necessarily mean available, just not visible to the user, while true means the app name is definitively taken.
+// Returns an error only if the prompt library encounters an error. (this should never occur)
+func nudgeTowardsDeploy(ctx context.Context, appName string) (bool, error) {
 
+	client := flyutil.ClientFromContext(ctx)
+	io := iostreams.FromContext(ctx)
+
+	if flag.GetYes(ctx) {
+		return false, nil
+	}
+
+	if _, err := client.GetApp(ctx, appName); err != nil {
+		// The user can't see the app. Let them proceed.
+		return false, nil
+	}
+
+	// The user can see the app. Prompt them to deploy.
+	fmt.Fprintf(io.Out, "App '%s' already exists. You can deploy to it with `fly deploy`.\n", appName)
+
+	switch confirmed, err := prompt.Confirm(ctx, "Continue launching a new app? "); {
+	case err == nil:
+		if !confirmed {
+			// We've redirected the user to use 'fly deploy'
+			// Exit directly with code 0 so this isn't flagged as a failed launch
+			os.Exit(0)
+		}
+	case prompt.IsNonInteractive(err):
+		// Should be impossible - we're only called if recoverableErrors.canEnterUi is true
+		return true, nil
+	default:
+		return true, err
+	}
+	return true, nil
+}
+
+func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *planBuildCache, recoverableErrors *recoverableErrorBuilder) (*launchState, error) {
 	var (
-		io        = iostreams.FromContext(ctx)
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
+		io     = iostreams.FromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 	)
 
-	org, err := clientApi.GetOrganizationBySlug(ctx, m.Plan.OrgSlug)
+	org, err := client.GetOrganizationRemoteBuilderBySlug(ctx, m.Plan.OrgSlug)
 	if err != nil {
 		return nil, err
 	}
@@ -252,17 +306,19 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 	// If we potentially are deploying, launch a remote builder to prepare for deployment.
 	if !flag.GetBool(ctx, "no-deploy") {
 		// TODO: determine if eager remote builder is still required here
-		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, clientApi, org.Slug)
+		go imgsrc.EagerlyEnsureRemoteBuilder(ctx, client, org, flag.GetRecreateBuilder(ctx))
 	}
 
 	var (
-		appConfig    *appconfig.Config
-		copiedConfig bool
-		warnedNoCcHa bool
+		appConfig        *appconfig.Config
+		copiedConfig     bool
+		warnedNoCcHa     bool
+		appNameValidated bool
 	)
 	if optionalCache != nil {
 		appConfig = optionalCache.appConfig
 		warnedNoCcHa = optionalCache.warnedNoCcHa
+		appNameValidated = optionalCache.appNameValidated
 	} else {
 		appConfig, copiedConfig, err = determineBaseAppConfig(ctx)
 		if err != nil {
@@ -286,8 +342,23 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		}
 	}
 
-	if taken, _ := appNameTaken(ctx, m.Plan.AppName); taken {
-		return nil, appNameTakenErr(m.Plan.AppName)
+	// We don't check the app name being taken unless we can go to the UI, because
+	// it'll fail when creating the app *anyway*, so unless you can use the UI it'll be the same result.
+	if recoverableErrors.canEnterUi && !appNameValidated {
+		taken, err := appNameTaken(ctx, m.Plan.AppName)
+		if err != nil {
+			return nil, flyerr.GenericErr{
+				Err:     "unable to determine app name availability",
+				Suggest: "Please try again in a minute",
+			}
+		}
+		if taken {
+			err := recoverableErrors.tryRecover(recoverableInUiError{appNameTakenErr(m.Plan.AppName)})
+			if err != nil {
+				return nil, err
+			}
+			m.PlanSource.appNameSource = recoverableSpecifyInUi
+		}
 	}
 
 	workingDir := flag.GetString(ctx, "path")
@@ -349,8 +420,11 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		copyConfig := flag.GetBool(ctx, "copy-config")
-		if !flag.IsSpecified(ctx, "copy-config") {
+		// if both --from and --into are specified, we should return the config as the base config
+		fromInto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && (flag.GetString(ctx, "into") != "")
+		copyConfig := flag.GetBool(ctx, "copy-config") || fromInto
+
+		if !flag.IsSpecified(ctx, "copy-config") && !fromInto {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
@@ -408,14 +482,17 @@ func validateAppName(appName string) error {
 
 // determineAppName determines the app name from the config file or directory name
 func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
-
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
+		// Remove any existing haikus so we don't keep adding to the end.
+		b := haikunator.Haikunator().Delimiter(delimiter)
+		prefix = b.TrimSuffix(prefix)
+
 		if prefix != "" {
 			prefix += delimiter
 		}
-		for i := 1; i < 10; i++ {
-			outName := prefix + haikunator.Haikunator().Delimiter(delimiter).String()
+		for i := 1; i < 5; i++ {
+			outName := prefix + b.String()
 			if taken, _ := appNameTaken(ctx, outName); !taken {
 				return outName, true
 			}
@@ -427,7 +504,7 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	//
 	// Get initial name:
 	//  1. If we've specified --name, use that name.
-	//  2. If we've specified --generate-name, generate a unique name (meaning, jump over step 3)
+	//  2. If we've specified --generate-name, generate a unique name (meaning: jump to step 5)
 	//  3. If we've provided an existing config file, use the app name from that.
 	//  4. Use the directory name.
 	//  5. If none of those sanitize into valid app names, generate one with Haikunator.
@@ -437,18 +514,38 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 
 	appName := flag.GetString(ctx, "name")
 	cause := "specified on the command line"
-	if !flag.GetBool(ctx, "generate-name") && appName == "" {
-		appName = appConfig.AppName
-		cause = "from your fly.toml"
-	}
-	if appName == "" {
-		appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
-		cause = "derived from your directory name"
-	}
-	if appName == "" {
 
+	if !flag.GetBool(ctx, "generate-name") {
+		// --generate-name wasn't specified, so we try to get a name from the config file or directory name.
+		if appName == "" {
+			appName = appConfig.AppName
+			cause = "from your fly.toml"
+		}
+		if appName == "" {
+			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
+			cause = "derived from your directory name"
+		}
+	}
+
+	taken := appName == ""
+
+	if !taken && !flag.GetBool(ctx, "no-create") {
+		var err error
+		// If the user can see an app with the same name as what they're about to launch,
+		// they *probably* want to deploy to that app instead.
+		taken, err = nudgeTowardsDeploy(ctx, appName)
+		if err != nil {
+			return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+		}
+	}
+
+	if !taken {
+		taken, _ = appNameTaken(ctx, appName)
+	}
+
+	if taken {
 		var found bool
-		appName, found = findUniqueAppName("")
+		appName, found = findUniqueAppName(appName)
 		cause = "generated"
 
 		if !found {
@@ -461,46 +558,37 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 	if err := validateAppName(appName); err != nil {
 		return "", recoverableSpecifyInUi, recoverableInUiError{err}
 	}
-	// If the app name is already taken, try to generate a unique suffix.
-	if taken, _ := appNameTaken(ctx, appName); taken {
-
-		var found bool
-		appName, found = findUniqueAppName(appName)
-		if !found {
-			return "", recoverableSpecifyInUi, recoverableInUiError{appNameTakenErr(appName)}
-		}
-	}
 	return appName, cause, nil
 }
 
 func appNameTaken(ctx context.Context, name string) (bool, error) {
-	client := client.FromContext(ctx).API()
-	// TODO: I believe this will only check apps that are visible to you.
-	//       We should probably expose a global uniqueness check.
-	_, err := client.GetAppBasic(ctx, name)
+	client := flyutil.ClientFromContext(ctx)
+
+	available, err := client.AppNameAvailable(ctx, name)
 	if err != nil {
-		if api.IsNotFoundError(err) || graphql.IsNotFoundError(err) {
-			return false, nil
-		}
 		return false, err
 	}
-
-	return true, nil
+	return !available, nil
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context) (*api.Organization, string, error) {
-	var (
-		client    = client.FromContext(ctx)
-		clientApi = client.API()
-	)
+func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
+	client := flyutil.ClientFromContext(ctx)
 
-	orgs, err := clientApi.GetOrganizations(ctx)
+	frominto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && flag.GetString(ctx, "into") != ""
+	if frominto && config != nil && config.AppName != "" {
+		org, err := client.GetOrganizationByApp(ctx, config.AppName)
+		if err == nil {
+			return org, fmt.Sprintf("from %s app", config.AppName), nil
+		}
+	}
+
+	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, "", err
 	}
 
-	bySlug := make(map[string]api.Organization, len(orgs))
+	bySlug := make(map[string]fly.Organization, len(orgs))
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
@@ -510,7 +598,12 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 	orgSlug := flag.GetOrg(ctx)
 	if orgSlug == "" {
 		if !foundPersonal {
-			return nil, "", errors.New("no personal organization found")
+			if len(orgs) == 0 {
+				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
+			} else {
+				o := orgs[0]
+				return &o, fmt.Sprintf("defaulting to '%s'", o.Slug), nil
+			}
 		}
 
 		return &personal, "fly launch defaults to the personal org", nil
@@ -532,9 +625,8 @@ func determineOrg(ctx context.Context) (*api.Organization, string, error) {
 //  1. the primary_region field of the config, if one exists
 //  2. the region specified on the command line, if specified
 //  3. the nearest region to the user
-func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*api.Region, string, error) {
-
-	client := client.FromContext(ctx)
+func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan bool) (*fly.Region, string, error) {
+	client := flyutil.ClientFromContext(ctx)
 	regionCode := flag.GetRegion(ctx)
 	explanation := "specified on the command line"
 
@@ -545,7 +637,7 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 
 	// Get the closest region
 	// TODO(allison): does this return paid regions for free orgs?
-	closestRegion, closestRegionErr := client.API().GetNearestRegion(ctx)
+	closestRegion, closestRegionErr := client.GetNearestRegion(ctx)
 
 	if regionCode != "" {
 		region, err := getRegionByCode(ctx, regionCode)
@@ -561,8 +653,8 @@ func determineRegion(ctx context.Context, config *appconfig.Config, paidPlan boo
 }
 
 // getRegionByCode returns the region with the IATA code, or an error if it doesn't exist
-func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error) {
-	apiClient := client.FromContext(ctx).API()
+func getRegionByCode(ctx context.Context, regionCode string) (*fly.Region, error) {
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	allRegions, _, err := apiClient.PlatformRegions(ctx)
 	if err != nil {
@@ -583,8 +675,8 @@ func getRegionByCode(ctx context.Context, regionCode string) (*api.Region, error
 //
 // This is because this function is meant for backwards compatibility with
 // the Web UI's guest definition, which doesn't have these fields.
-func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
-	for k, v := range api.MachinePresets {
+func applyGuestToCompute(c *appconfig.Compute, g *fly.MachineGuest) {
+	for k, v := range fly.MachinePresets {
 		if reflect.DeepEqual(*v, *g) {
 			c.MachineGuest = nil
 			c.Memory = ""
@@ -615,7 +707,7 @@ func applyGuestToCompute(c *appconfig.Compute, g *api.MachineGuest) {
 	}
 }
 
-func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
+func guestToCompute(g *fly.MachineGuest) *appconfig.Compute {
 	var c appconfig.Compute
 	applyGuestToCompute(&c, g)
 	return &c
@@ -624,12 +716,11 @@ func guestToCompute(g *api.MachineGuest) *appconfig.Compute {
 // determineCompute returns the guest type to use for a new app.
 // Currently, it defaults to shared-cpu-1x
 func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *scanner.SourceInfo) ([]*appconfig.Compute, string, error) {
-
 	if len(config.Compute) > 0 {
 		return config.Compute, "from your fly.toml", nil
 	}
 
-	def := helpers.Clone(api.MachinePresets["shared-cpu-1x"])
+	def := helpers.Clone(fly.MachinePresets["shared-cpu-1x"])
 	def.MemoryMB = 1024
 	reason := "most apps need about 1GB of RAM"
 
@@ -644,8 +735,7 @@ func determineCompute(ctx context.Context, config *appconfig.Config, srcInfo *sc
 	return []*appconfig.Compute{guestToCompute(guest)}, reason, nil
 }
 
-func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *api.Organization, print bool) bool {
-
+func planValidateHighAvailability(ctx context.Context, p *plan.LaunchPlan, org *fly.Organization, print bool) bool {
 	if !org.Billable && p.HighAvailability {
 		if print {
 			fmt.Fprintln(iostreams.FromContext(ctx).ErrOut, "Warning: This organization has no payment method, turning off high availability")

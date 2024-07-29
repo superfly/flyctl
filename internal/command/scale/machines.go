@@ -5,21 +5,24 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 )
 
-func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*api.VMSize, error) {
-	flapsClient, err := flaps.NewFromAppName(ctx, appName)
+func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB int) (*fly.VMSize, error) {
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
 	if err != nil {
 		return nil, err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// Quickly validate sizeName before any network call
-	if err := (&api.MachineGuest{}).SetSize(sizeName); err != nil && sizeName != "" {
+	if err := (&fly.MachineGuest{}).SetSize(sizeName); err != nil && sizeName != "" {
 		return nil, err
 	}
 
@@ -56,7 +59,7 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 			machine.Config.Guest.MemoryMB = memoryMB
 		}
 
-		input := &api.LaunchMachineInput{
+		input := &fly.LaunchMachineInput{
 			Name:   machine.Name,
 			Region: machine.Region,
 			Config: machine.Config,
@@ -66,8 +69,8 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 		}
 	}
 
-	// Return api.VMSize to remain compatible with v1 scale app signature
-	size := &api.VMSize{
+	// Return fly.VMSize to remain compatible with v1 scale app signature
+	size := &fly.VMSize{
 		Name:     machines[0].Config.Guest.ToSize(),
 		MemoryMB: machines[0].Config.Guest.MemoryMB,
 		CPUCores: float32(machines[0].Config.Guest.CPUs),
@@ -76,13 +79,13 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	return size, nil
 }
 
-func listMachinesWithGroup(ctx context.Context, group string) ([]*api.Machine, error) {
+func listMachinesWithGroup(ctx context.Context, group string) ([]*fly.Machine, error) {
 	machines, err := mach.ListActive(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	machines = lo.Filter(machines, func(m *api.Machine, _ int) bool {
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
 		return m.ProcessGroup() == group
 	})
 

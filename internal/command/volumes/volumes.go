@@ -12,13 +12,14 @@ import (
 	"github.com/dustin/go-humanize"
 	"github.com/spf13/cobra"
 
-	"github.com/superfly/flyctl/api"
-	"github.com/superfly/flyctl/flaps"
+	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/volumes/lsvd"
 	"github.com/superfly/flyctl/internal/command/volumes/snapshots"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 )
@@ -27,9 +28,9 @@ func New() *cobra.Command {
 	const (
 		short = "Manage Fly Volumes."
 
-		long = short
+		long = short + " Volumes are persistent storage for Fly Machines. Learn how how volumes work: https://fly.io/docs/volumes/overview/."
 
-		usage = "volumes <command>"
+		usage = "volumes"
 	)
 
 	cmd := command.New(usage, short, long, nil)
@@ -51,7 +52,7 @@ func New() *cobra.Command {
 	return cmd
 }
 
-func printVolume(w io.Writer, vol *api.Volume, appName string) error {
+func printVolume(w io.Writer, vol *fly.Volume, appName string) error {
 	var buf bytes.Buffer
 
 	fmt.Fprintf(&buf, "%20s: %s\n", "ID", vol.ID)
@@ -63,6 +64,7 @@ func printVolume(w io.Writer, vol *api.Volume, appName string) error {
 	fmt.Fprintf(&buf, "%20s: %t\n", "Encrypted", vol.Encrypted)
 	fmt.Fprintf(&buf, "%20s: %s\n", "Created at", vol.CreatedAt.Format(time.RFC822))
 	fmt.Fprintf(&buf, "%20s: %d\n", "Snapshot retention", vol.SnapshotRetention)
+	fmt.Fprintf(&buf, "%20s: %t\n", "Scheduled snapshots", vol.AutoBackupEnabled)
 
 	_, err := buf.WriteTo(w)
 
@@ -71,10 +73,10 @@ func printVolume(w io.Writer, vol *api.Volume, appName string) error {
 
 func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, error) {
 	var (
-		volumes []api.Volume
+		volumes []fly.Volume
 		err     error
 
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 	)
 
 	if volumes, err = flapsClient.GetVolumes(ctx); err != nil {
@@ -91,8 +93,9 @@ func countVolumesMatchingName(ctx context.Context, volumeName string) (int32, er
 	return matches, nil
 }
 
-func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, out io.Writer) error {
+func renderTable(ctx context.Context, volumes []fly.Volume, app *fly.AppBasic, out io.Writer, showHostStatus bool) error {
 	rows := make([][]string, 0, len(volumes))
+	unreachableVolumes := false
 	for _, volume := range volumes {
 		var attachedVMID string
 
@@ -100,8 +103,14 @@ func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, o
 			attachedVMID = *volume.AttachedMachine
 		}
 
+		note := ""
+		if showHostStatus && volume.HostStatus == "unreachable" {
+			unreachableVolumes = true
+			note = "*"
+		}
+
 		rows = append(rows, []string{
-			volume.ID,
+			volume.ID + note,
 			volume.State,
 			volume.Name,
 			strconv.Itoa(volume.SizeGb) + "GB",
@@ -113,10 +122,16 @@ func renderTable(ctx context.Context, volumes []api.Volume, app *api.AppBasic, o
 		})
 	}
 
-	return render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At")
+	if err := render.Table(out, "", rows, "ID", "State", "Name", "Size", "Region", "Zone", "Encrypted", "Attached VM", "Created At"); err != nil {
+		return err
+	}
+	if showHostStatus && unreachableVolumes {
+		fmt.Fprintln(out, "* These volumes' hosts could not be reached.")
+	}
+	return nil
 }
 
-func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *api.AppBasic) (*api.Volume, error) {
+func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *fly.AppBasic) (*fly.Volume, error) {
 	if !iostreams.FromContext(ctx).IsInteractive() {
 		return nil, fmt.Errorf("volume ID must be specified when not running interactively")
 	}
@@ -128,7 +143,7 @@ func selectVolume(ctx context.Context, flapsClient *flaps.Client, app *api.AppBa
 		return nil, fmt.Errorf("no volumes found in app '%s'", app.Name)
 	}
 	out := new(bytes.Buffer)
-	err = renderTable(ctx, volumes, app, out)
+	err = renderTable(ctx, volumes, app, out, false)
 	if err != nil {
 		return nil, err
 	}

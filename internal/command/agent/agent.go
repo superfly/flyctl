@@ -10,9 +10,9 @@ import (
 
 	"github.com/superfly/flyctl/agent"
 
-	"github.com/superfly/flyctl/client"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/env"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 )
 
@@ -48,7 +48,7 @@ func New() (cmd *cobra.Command) {
 }
 
 func establish(ctx context.Context) (ac *agent.Client, err error) {
-	client := client.FromContext(ctx).API()
+	client := flyutil.ClientFromContext(ctx)
 
 	if ac, err = agent.Establish(ctx, client); err != nil {
 		err = fmt.Errorf("failed establishing connection to agent: %w", err)

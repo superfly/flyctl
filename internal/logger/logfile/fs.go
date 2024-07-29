@@ -46,6 +46,9 @@ func retainLogs(logsDir string) error {
 
 	// Iterate through the log directory, and take note of all log files fitting the flyctl-*.log pattern.
 	err := filepath.Walk(logsDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if filepath.Ext(path) == ".log" && strings.HasPrefix(info.Name(), "flyctl-") {
 			date, err := parseLogName(info.Name())
 			if err != nil {
