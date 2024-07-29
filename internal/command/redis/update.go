@@ -76,7 +76,6 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
-	fmt.Println(addOn)
 	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", promptDefault, promptOptions...)
 
 	if err != nil {
