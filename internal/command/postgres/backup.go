@@ -241,6 +241,11 @@ func runBackupCreate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+
+	if !hasRequiredMemoryForBackup(*leader) {
+		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
+	}
+
 	cmd := "flexctl backup create"
 
 	if flag.GetBool(ctx, "immediate-checkpoint") {
@@ -334,6 +339,19 @@ func runBackupEnable(ctx context.Context) error {
 	machines, err := flapsClient.ListActive(ctx)
 	if err != nil {
 		return err
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	if !hasRequiredMemoryForBackup(*leader) {
+		return fmt.Errorf("backup creation requires at least 512MB of memory. Use `fly m update %s --vm-memory 512` to scale up.", leader.ID)
 	}
 
 	if err := hasRequiredVersion(appName, machines); err != nil {
