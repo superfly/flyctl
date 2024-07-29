@@ -62,6 +62,7 @@ func runUpdate(ctx context.Context) (err error) {
 
 	var index int
 	var promptOptions []string
+	var promptDefault string
 
 	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
 	if err != nil {
@@ -70,9 +71,13 @@ func runUpdate(ctx context.Context) (err error) {
 
 	for _, plan := range result.AddOnPlans.Nodes {
 		promptOptions = append(promptOptions, fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description))
+		if addOn.AddOnPlan.Id == plan.Id {
+			promptDefault = fmt.Sprintf("%s: %s", plan.DisplayName, plan.Description)
+		}
 	}
 
-	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", "", promptOptions...)
+	fmt.Println(addOn)
+	err = prompt.Select(ctx, &index, "Select an Upstash Redis plan", promptDefault, promptOptions...)
 
 	if err != nil {
 		return fmt.Errorf("failed to select a plan: %w", err)
@@ -85,6 +90,10 @@ func runUpdate(ctx context.Context) (err error) {
 	// options := &Options{}
 
 	options, _ := addOn.Options.(map[string]interface{})
+
+	if options == nil {
+		options = make(map[string]interface{})
+	}
 
 	if err != nil {
 		return
