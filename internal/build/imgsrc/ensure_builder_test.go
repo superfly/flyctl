@@ -2,7 +2,9 @@ package imgsrc
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -215,6 +217,10 @@ func TestCreateBuilder(t *testing.T) {
 				State: "started",
 			}, nil
 		},
+		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+			time.Sleep(1 * time.Second)
+			return nil
+		},
 	}
 	ctx = flyutil.NewContextWithClient(ctx, &apiClient)
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
@@ -252,4 +258,33 @@ func TestCreateBuilder(t *testing.T) {
 	launchShouldFail = true
 	_, _, err = createBuilder(ctx, org, "ord", "builder")
 	assert.Error(t, err)
+}
+
+func TestRestartBuilderMachine(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	couldNotReserveResources := false
+	flapsClient := mock.FlapsClient{
+		RestartFunc: func(ctx context.Context, input fly.RestartMachineInput, nonce string) error {
+			if couldNotReserveResources {
+				return &flaps.FlapsError{
+					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
+				}
+			}
+			return nil
+		},
+		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
+			return nil
+		},
+	}
+
+	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
+	err := restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	assert.NoError(t, err)
+
+	couldNotReserveResources = true
+	err = restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	assert.Error(t, err)
+	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
 }

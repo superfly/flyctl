@@ -11,11 +11,11 @@ import (
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
-func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPublicIPs bool) error {
+func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, ipType string, org string) error {
 	if !md.isFirstDeploy || md.restartOnly {
 		return nil
 	}
-	if err := md.provisionIpsOnFirstDeploy(ctx, allocPublicIPs); err != nil {
+	if err := md.provisionIpsOnFirstDeploy(ctx, ipType, org); err != nil {
 		fmt.Fprintf(md.io.ErrOut, "Failed to provision IP addresses. Use `fly ips` commands to remediate it. ERROR: %s", err)
 	}
 	if err := md.provisionVolumesOnFirstDeploy(ctx); err != nil {
@@ -24,9 +24,9 @@ func (md *machineDeployment) provisionFirstDeploy(ctx context.Context, allocPubl
 	return nil
 }
 
-func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allocPublicIPs bool) error {
+func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, ipType string, org string) error {
 	// Provision only if the app hasn't been deployed and have services defined
-	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 || !allocPublicIPs {
+	if !md.isFirstDeploy || len(md.appConfig.AllServices()) == 0 || ipType == "none" {
 		return nil
 	}
 
@@ -39,8 +39,8 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allo
 		return nil
 	}
 
-	switch md.appConfig.HasNonHttpAndHttpsStandardServices() {
-	case true:
+	switch md.appConfig.DetermineIPType(ipType) {
+	case "dedicated":
 		hasUdpService := md.appConfig.HasUdpService()
 
 		ipStuffStr := "a dedicated ipv4 address"
@@ -65,7 +65,7 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allo
 			}
 		}
 
-	case false:
+	case "shared":
 		fmt.Fprintf(md.io.Out, "Provisioning ips for %s\n", md.colorize.Bold(md.app.Name))
 		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "v6", "", nil, "")
 		if err != nil {
@@ -79,6 +79,14 @@ func (md *machineDeployment) provisionIpsOnFirstDeploy(ctx context.Context, allo
 		}
 		fmt.Fprintf(md.io.Out, "  Shared ipv4: %s\n", v4Shared)
 		fmt.Fprintf(md.io.Out, "  Add a dedicated ipv4 with: fly ips allocate-v4\n")
+
+	case "private":
+		fmt.Fprintf(md.io.Out, "Provisioning ip address for %s\n", md.colorize.Bold(md.app.Name))
+		v6Addr, err := md.apiClient.AllocateIPAddress(ctx, md.app.Name, "private_v6", org, nil, "")
+		if err != nil {
+			return fmt.Errorf("error allocating ipv6 after detecting first deploy and presence of services: %w", err)
+		}
+		fmt.Fprintf(md.io.Out, "  Private ipv6: %s\n", v6Addr.Address)
 	}
 
 	fmt.Fprintln(md.io.Out)

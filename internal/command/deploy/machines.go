@@ -60,7 +60,8 @@ type MachineDeploymentArgs struct {
 	ReleaseCmdTimeout     *time.Duration
 	Guest                 *fly.MachineGuest
 	IncreasedAvailability bool
-	AllocPublicIP         bool
+	AllocIP               string
+	Org                   string
 	UpdateOnly            bool
 	Files                 []*fly.File
 	ExcludeRegions        map[string]bool
@@ -72,6 +73,7 @@ type MachineDeploymentArgs struct {
 	VolumeInitialSize     int
 	RestartPolicy         *fly.MachineRestartPolicy
 	RestartMaxRetries     int
+	DeployRetries         int
 }
 
 type machineDeployment struct {
@@ -111,6 +113,7 @@ type machineDeployment struct {
 	processGroups         map[string]bool
 	maxConcurrent         int
 	volumeInitialSize     int
+	deployRetries         int
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -235,6 +238,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		maxConcurrent:         maxConcurrent,
 		volumeInitialSize:     args.VolumeInitialSize,
 		processGroups:         args.ProcessGroups,
+		deployRetries:         args.DeployRetries,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
@@ -258,7 +262,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 	}
 
 	// Provisioning must come after setVolumes
-	if err := md.provisionFirstDeploy(ctx, args.AllocPublicIP); err != nil {
+	if err := md.provisionFirstDeploy(ctx, args.AllocIP, args.Org); err != nil {
 		tracing.RecordError(span, err, "failed to provision first depoloy")
 		return nil, err
 	}
@@ -375,12 +379,12 @@ func (md *machineDeployment) setMachinesForDeployment(ctx context.Context) error
 		}
 	}
 
-	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines)
+	md.machineSet = machine.NewMachineSet(md.flapsClient, md.io, machines, true)
 	var releaseCmdSet []*fly.Machine
 	if releaseCmdMachine != nil {
 		releaseCmdSet = []*fly.Machine{releaseCmdMachine}
 	}
-	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, releaseCmdSet)
+	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, releaseCmdSet, true)
 	return nil
 }
 

@@ -103,7 +103,7 @@ func (r *recoverableErrorBuilder) build() string {
 	return allErrors
 }
 
-func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
+func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
 	io := iostreams.FromContext(ctx)
 
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
@@ -113,7 +113,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 
 	// TODO(allison): possibly add some automatic suffixing to app names if they already exist
 
-	org, orgExplanation, err := determineOrg(ctx)
+	org, orgExplanation, err := determineOrg(ctx, parentConfig)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
@@ -158,7 +158,7 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 		return nil, nil, err
 	}
 
-	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
+	appName, appNameExplanation, err := determineAppName(ctx, parentConfig, appConfig, configPath)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
@@ -420,8 +420,11 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		copyConfig := flag.GetBool(ctx, "copy-config")
-		if !flag.IsSpecified(ctx, "copy-config") {
+		// if --attach is specified, we should return the config as the base config
+		attach := flag.GetBool(ctx, "attach")
+		copyConfig := flag.GetBool(ctx, "copy-config") || attach
+
+		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
@@ -478,7 +481,7 @@ func validateAppName(appName string) error {
 }
 
 // determineAppName determines the app name from the config file or directory name
-func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
+func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appConfig *appconfig.Config, configPath string) (string, string, error) {
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
 		// Remove any existing haikus so we don't keep adding to the end.
@@ -522,11 +525,24 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
 			cause = "derived from your directory name"
 		}
+
+		if parentConfig != nil && parentConfig.AppName != "" {
+			appName = parentConfig.AppName + "-" + appName
+			if cause == "from your fly.toml" {
+				cause = "from parent name and fly.toml"
+			} else if cause == "derived from your directory name" {
+				if flag.GetString(ctx, "into") != "" {
+					cause = "from parent name and --into"
+				} else if flag.GetString(ctx, "from") != "" {
+					cause = "from parent name and --from"
+				}
+			}
+		}
 	}
 
 	taken := appName == ""
 
-	if !taken {
+	if !taken && !flag.GetBool(ctx, "no-create") {
 		var err error
 		// If the user can see an app with the same name as what they're about to launch,
 		// they *probably* want to deploy to that app instead.
@@ -569,8 +585,15 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 }
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
-func determineOrg(ctx context.Context) (*fly.Organization, string, error) {
+func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
 	client := flyutil.ClientFromContext(ctx)
+
+	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
+		org, err := client.GetOrganizationByApp(ctx, config.AppName)
+		if err == nil {
+			return org, fmt.Sprintf("from %s app", config.AppName), nil
+		}
+	}
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {

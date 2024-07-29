@@ -13,6 +13,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const clientSideID string = "6557a71bbffb5f134b84b15c"
@@ -84,12 +85,18 @@ func (ldClient *Client) monitor(ctx context.Context) {
 }
 
 func (ldClient *Client) GetFeatureFlagValue(key string, defaultValue any) any {
+	_, span := tracing.GetTracer().Start(context.Background(), "get_feature_flag_value")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("flag", key))
+
 	ldClient.flagsMutex.Lock()
 	defer ldClient.flagsMutex.Unlock()
 
 	if flag, ok := ldClient.flags[key]; ok {
 		return flag.Value
 	}
+	span.SetAttributes(attribute.Bool("default_flag", true))
 	return defaultValue
 
 }
