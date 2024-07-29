@@ -517,6 +517,13 @@ func MachineVMSizes() []fly.VMSize {
 			MemoryGB: 0.25,
 		},
 		{
+			Name:     "shared-cpu-1x",
+			CPUClass: "shared",
+			CPUCores: 1,
+			MemoryMB: 1024,
+			MemoryGB: 1,
+		},
+		{
 			Name:     "shared-cpu-2x",
 			CPUClass: "shared",
 			CPUCores: 2,
