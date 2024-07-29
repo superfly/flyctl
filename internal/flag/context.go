@@ -97,20 +97,24 @@ func GetFloat64(ctx context.Context, name string) float64 {
 // Preserves commas (unlike the following `GetStringSlice`): in `--flag x,y` the value is string[]{`x,y`}.
 // This is useful to pass key-value pairs like environment variables or build arguments.
 func GetStringArray(ctx context.Context, name string) []string {
-	if v, err := FromContext(ctx).GetStringArray(name); err != nil {
-		return []string{}
-	} else {
+	if v, err := FromContext(ctx).GetStringArray(name); err == nil {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		return []string{v}
+	} else {
+		return []string{}
 	}
 }
 
 // GetStringSlice returns the values of the named string flag ctx carries.
 // Can be comma separated or passed "by repeated flags": `--flag x,y` is equivalent to `--flag x --flag y`.
 func GetStringSlice(ctx context.Context, name string) []string {
-	if v, err := FromContext(ctx).GetStringSlice(name); err != nil {
-		return []string{}
-	} else {
+	if v, err := FromContext(ctx).GetStringSlice(name); err == nil {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		return strings.Split(v, ",")
+	} else {
+		return []string{}
 	}
 }
 
@@ -131,10 +135,16 @@ func GetNonEmptyStringSlice(ctx context.Context, name string) []string {
 
 // GetDuration returns the value of the named duration flag ctx carries.
 func GetDuration(ctx context.Context, name string) time.Duration {
-	if v, err := FromContext(ctx).GetDuration(name); err != nil {
-		return 0
-	} else {
+	if v, err := FromContext(ctx).GetDuration(name); err == nil {
 		return v
+	} else if v := FromEnv(name); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		} else {
+			return 0
+		}
+	} else {
+		return 0
 	}
 }
 
