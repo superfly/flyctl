@@ -19,6 +19,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -48,7 +49,7 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	onInterruptContext := context.WithoutCancel(ctx)
 
-	if err := md.updateReleaseInBackend(ctx, "running"); err != nil {
+	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
 		tracing.RecordError(span, err, "failed to update release")
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
@@ -61,6 +62,12 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	var status string
+	metadata := &ReleaseMetadata{
+		PostDeploymentInfo: PostDeploymentInfo{
+			FlyctlVersion: buildinfo.Info().Version.String(),
+		},
+	}
+
 	switch {
 	case err == nil:
 		status = "complete"
@@ -71,10 +78,11 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		ctx, cancel = context.WithTimeout(onInterruptContext, time.Second)
 		defer cancel()
 	default:
+		metadata.PostDeploymentInfo.Error = err.Error()
 		status = "failed"
 	}
 
-	if updateErr := md.updateReleaseInBackend(ctx, status); updateErr != nil {
+	if updateErr := md.updateReleaseInBackend(ctx, status, metadata); updateErr != nil {
 		if err == nil {
 			err = fmt.Errorf("failed to set final release status: %w", updateErr)
 		} else {
