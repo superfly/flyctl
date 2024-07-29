@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
@@ -64,7 +67,7 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 		}
 
 		if validateBuilderErr == BuilderMachineNotStarted {
-			err := restartBuilderMachine(ctx, builderMachine)
+			err := startBuilder(ctx, builderMachine)
 			switch {
 			case errors.Is(err, ShouldReplaceBuilderMachine):
 				span.AddEvent("recreating builder due to resource reservation error")
@@ -145,7 +148,7 @@ const (
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder")
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder", trace.WithAttributes(attribute.String("bulder_app", app.Name)))
 	defer span.End()
 
 	if app == nil {
@@ -405,29 +408,41 @@ func createBuilder(ctx context.Context, org *fly.Organization, region, builderNa
 	return
 }
 
-func restartBuilderMachine(ctx context.Context, builderMachine *fly.Machine) error {
+func startBuilder(ctx context.Context, builderMachine *fly.Machine) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "restart_builder_machine")
 	defer span.End()
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	if err := flapsClient.Restart(ctx, fly.RestartMachineInput{
-		ID: builderMachine.ID,
-	}, ""); err != nil {
-		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
-			strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
+	var retries int
+
+	for {
+		var flapsErr *flaps.FlapsError
+		_, err := flapsClient.Start(ctx, builderMachine.ID, "")
+		switch {
+		case err == nil:
+			return nil
+		case retries >= 5:
+			span.RecordError(err)
+			return err
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			span.RecordError(err)
+			return err
+		case strings.Contains(err.Error(), "could not reserve resource for machine"),
+			strings.Contains(err.Error(), "deploys to this host are temporarily disabled"):
 			span.RecordError(err)
 			return ShouldReplaceBuilderMachine
+		case !errors.As(err, &flapsErr):
+			span.RecordError(err)
+		case flapsErr.ResponseStatusCode == http.StatusPreconditionFailed,
+			flapsErr.ResponseStatusCode >= 500:
+			span.AddEvent(fmt.Sprintf("non-server error %v", flapsErr.Error()))
+		default:
+			// we only retry server 500s
+			span.RecordError(err)
+			return err
 		}
-
-		tracing.RecordError(span, err, "error restarting builder machine")
-		return err
+		retries++
+		time.Sleep(1 * time.Second)
 	}
-
-	if err := flapsClient.Wait(ctx, builderMachine, "started", time.Second*60); err != nil {
-		tracing.RecordError(span, err, "error waiting for builder machine to start")
-		return err
-	}
-
-	return nil
 }
