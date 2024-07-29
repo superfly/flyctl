@@ -106,16 +106,31 @@ func WaitForAnyMachineState(ctx context.Context, mach *fly.Machine, possibleStat
 	for {
 		select {
 		case result := <-channel:
+			span.AddEvent("machine_state_change", trace.WithAttributes(
+				attribute.String("state", result.state),
+				attribute.String("machine_id", mach.ID),
+				attribute.String("err", fmt.Sprintf("%v", result.err)),
+			))
 			numCompleted += 1
-			if result.err == nil || numCompleted == len(possibleStates) {
+			if result.err == nil {
 				return result.state, nil
 			}
+			if numCompleted == len(possibleStates) {
+				err := &WaitTimeoutErr{
+					machineID:    mach.ID,
+					timeout:      timeout,
+					desiredState: strings.Join(possibleStates, ", "),
+				}
+				return "", err
+			}
 		case <-ctx.Done():
-			return "", &WaitTimeoutErr{
+			err := &WaitTimeoutErr{
 				machineID:    mach.ID,
 				timeout:      timeout,
 				desiredState: strings.Join(possibleStates, ", "),
 			}
+			span.RecordError(err)
+			return "", err
 		}
 	}
 }
