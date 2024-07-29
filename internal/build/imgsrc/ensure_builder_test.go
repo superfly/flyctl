@@ -266,25 +266,23 @@ func TestRestartBuilderMachine(t *testing.T) {
 
 	couldNotReserveResources := false
 	flapsClient := mock.FlapsClient{
-		RestartFunc: func(ctx context.Context, input fly.RestartMachineInput, nonce string) error {
+		StartFunc: func(ctx context.Context, machineID string, nonce string) (*fly.MachineStartResponse, error) {
 			if couldNotReserveResources {
-				return &flaps.FlapsError{
+				return nil, &flaps.FlapsError{
 					OriginalError: fmt.Errorf("failed to restart VM xyzabc: unknown: could not reserve resource for machine: insufficient memory available to fulfill request"),
 				}
 			}
-			return nil
-		},
-		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
-			return nil
+			return nil, nil
 		},
 	}
 
 	ctx = flapsutil.NewContextWithClient(ctx, &flapsClient)
-	err := restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err := startBuilder(ctx, &fly.Machine{ID: "bigmachine"})
 	assert.NoError(t, err)
 
 	couldNotReserveResources = true
-	err = restartBuilderMachine(ctx, &fly.Machine{ID: "bigmachine"})
+	err = startBuilder(ctx, &fly.Machine{ID: "bigmachine"})
 	assert.Error(t, err)
 	assert.ErrorIs(t, err, ShouldReplaceBuilderMachine)
+
 }
