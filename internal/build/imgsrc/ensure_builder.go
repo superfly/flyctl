@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -413,36 +414,35 @@ func startBuilder(ctx context.Context, builderMachine *fly.Machine) error {
 
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
-	retries := 0
+	var retries int
 
 	for {
+		var flapsErr *flaps.FlapsError
 		_, err := flapsClient.Start(ctx, builderMachine.ID, "")
-		if err == nil {
+		switch {
+		case err == nil:
 			return nil
-		}
-
-		if strings.Contains(err.Error(), "could not reserve resource for machine") ||
-			strings.Contains(err.Error(), "deploys to this host are temporarily disabled") {
+		case retries >= 5:
+			span.RecordError(err)
+			return err
+		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+			span.RecordError(err)
+			return err
+		case strings.Contains(err.Error(), "could not reserve resource for machine"),
+			strings.Contains(err.Error(), "deploys to this host are temporarily disabled"):
 			span.RecordError(err)
 			return ShouldReplaceBuilderMachine
-
-		}
-
-		var flapsErr *flaps.FlapsError
-		if errors.As(err, &flapsErr) && (flapsErr.ResponseStatusCode >= 500 && flapsErr.ResponseStatusCode < 600 || flapsErr.ResponseStatusCode == 412) {
+		case !errors.As(err, &flapsErr):
+			span.RecordError(err)
+		case flapsErr.ResponseStatusCode == http.StatusPreconditionFailed,
+			flapsErr.ResponseStatusCode >= 500:
 			span.AddEvent(fmt.Sprintf("non-server error %v", flapsErr.Error()))
-		} else {
-			// we really should only retry server 500s
+		default:
+			// we only retry server 500s
 			span.RecordError(err)
 			return err
 		}
-
-		retries += 1
-		if retries > 5 {
-			span.RecordError(err)
-			return err
-		}
-
+		retries++
 		time.Sleep(1 * time.Second)
 	}
 }
