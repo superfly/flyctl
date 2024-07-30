@@ -2,12 +2,15 @@ package flag
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/superfly/flyctl/internal/command_context"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag/flagctx"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
@@ -39,17 +42,31 @@ func FirstArg(ctx context.Context) string {
 	return ""
 }
 
-func FromEnv(name string) string {
-	var_name := "FLY_" + strings.ToUpper(name)
+func CmdParentName(cmd *cobra.Command) cobra.Command {
+	parent := cmd.Parent()
+	if strings.ToUpper(parent.Name()) == "FLY" {
+		return *cmd
+	} else {
+		return CmdParentName(parent)
+	}
+}
+
+func FromEnv(ctx context.Context, name string) string {
+	cmd := command_context.FromContext(ctx)
+	baseCmd := CmdParentName(cmd)
+	cmdName := baseCmd.Name()
+	var_name := "FLY_" + strings.ToUpper(cmdName) + "_" + strings.ToUpper(name)
 	var_name = strings.ReplaceAll(var_name, "-", "_")
-	return env.First(var_name)
+	value := env.First(var_name)
+	fmt.Printf("var_name: %s value: %s\n", var_name, value)
+	return value
 }
 
 // GetString returns the value of the named string flag ctx carries.
 func GetString(ctx context.Context, name string) string {
 	if v, err := FromContext(ctx).GetString(name); err == nil && v != "" {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		return v
 	} else {
 		return ""
@@ -66,7 +83,7 @@ func SetString(ctx context.Context, name, value string) error {
 func GetInt(ctx context.Context, name string) int {
 	if v, err := FromContext(ctx).GetInt(name); err == nil {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		if i, err := strconv.Atoi(v); err == nil {
 			return i
 		} else {
@@ -82,7 +99,7 @@ func GetInt(ctx context.Context, name string) int {
 func GetFloat64(ctx context.Context, name string) float64 {
 	if v, err := FromContext(ctx).GetFloat64(name); err == nil {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		if f, err := strconv.ParseFloat(v, 64); err == nil {
 			return f
 		} else {
@@ -99,7 +116,7 @@ func GetFloat64(ctx context.Context, name string) float64 {
 func GetStringArray(ctx context.Context, name string) []string {
 	if v, err := FromContext(ctx).GetStringArray(name); err == nil {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		return []string{v}
 	} else {
 		return []string{}
@@ -111,7 +128,7 @@ func GetStringArray(ctx context.Context, name string) []string {
 func GetStringSlice(ctx context.Context, name string) []string {
 	if v, err := FromContext(ctx).GetStringSlice(name); err == nil {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		return strings.Split(v, ",")
 	} else {
 		return []string{}
@@ -137,7 +154,7 @@ func GetNonEmptyStringSlice(ctx context.Context, name string) []string {
 func GetDuration(ctx context.Context, name string) time.Duration {
 	if v, err := FromContext(ctx).GetDuration(name); err == nil {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
 			return d
 		} else {
@@ -150,9 +167,10 @@ func GetDuration(ctx context.Context, name string) time.Duration {
 
 // GetBool returns the value of the named boolean flag ctx carries.
 func GetBool(ctx context.Context, name string) bool {
-	if v, err := FromContext(ctx).GetBool(name); err == nil {
+	isSpecified := IsSpecified(ctx, name)
+	if v, err := FromContext(ctx).GetBool(name); err == nil && isSpecified {
 		return v
-	} else if v := FromEnv(name); v != "" {
+	} else if v := FromEnv(ctx, name); v != "" {
 		if b, err := strconv.ParseBool(v); err == nil {
 			return b
 		}
