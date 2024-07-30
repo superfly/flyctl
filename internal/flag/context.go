@@ -2,7 +2,6 @@ package flag
 
 import (
 	"context"
-	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -42,23 +41,29 @@ func FirstArg(ctx context.Context) string {
 	return ""
 }
 
-func CmdParentName(cmd *cobra.Command) cobra.Command {
-	parent := cmd.Parent()
-	if strings.ToUpper(parent.Name()) == "FLY" {
-		return *cmd
+func EnvNameFromCmd(cmd *cobra.Command) string {
+	if cmd.Parent() != nil {
+		varname := EnvNameFromCmd(cmd.Parent()) + "_" + cmd.Name()
+		return strings.ToUpper(varname)
 	} else {
-		return CmdParentName(parent)
+		return strings.ToUpper(cmd.Name())
 	}
+
 }
 
 func FromEnv(ctx context.Context, name string) string {
 	cmd := command_context.FromContext(ctx)
-	baseCmd := CmdParentName(cmd)
-	cmdName := baseCmd.Name()
-	var_name := "FLY_" + strings.ToUpper(cmdName) + "_" + strings.ToUpper(name)
-	var_name = strings.ReplaceAll(var_name, "-", "_")
-	value := env.First(var_name)
-	fmt.Printf("var_name: %s value: %s\n", var_name, value)
+	value := ""
+	for cmd != nil {
+		var_name := EnvNameFromCmd(cmd) + "_" + strings.ToUpper(name)
+		var_name = strings.ReplaceAll(var_name, "-", "_")
+		value = env.First(var_name)
+		if value == "" {
+			cmd = cmd.Parent()
+		} else {
+			return value
+		}
+	}
 	return value
 }
 
