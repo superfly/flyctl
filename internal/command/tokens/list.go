@@ -47,13 +47,12 @@ func runList(ctx context.Context) (err error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
 	var rows [][]string
+	var scope = "app"
 
-	// Get flags
-	
-	// Organization Name
+
+	// Get Organization Name, if org flag passed 
 	orgFlag := flag.GetString(ctx, "org")
 	var org *fly.Organization
-	var scope string
 	if orgFlag!=""{
 		// Get the org name if flag indicated
 		org, err = orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
@@ -62,40 +61,34 @@ func runList(ctx context.Context) (err error) {
 		}
 		scope = "org"
 	}
-	fmt.Println( "ORG IS: ")
-	fmt.Println( org)
-
-	// App Name
+	
+	// Get App Name, if no org flag, OR if app flag passed
+	// Make sure app belongs to a selected org, else return error
 	appFlag := flag.GetString(ctx, "app")
 	var appName string
 	if orgFlag == "" || appFlag!="" {
-		// BY default( orgflag not passed ), OR when --a passed
+		
 		appName = appconfig.NameFromContext(ctx)
 		if appName == ""{
 			return command.ErrRequireAppName
 		}
 
-		// Check if app belongs to org if it exists
+		// Check if app belongs to org if it was selected
 		if org != nil {
 			app, err := apiClient.GetAppCompact(ctx, appName)
 			if err != nil {
 				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 			}
-			fmt.Println("checking app's org: ")
-			fmt.Println(app)
 
-			
-			if app.Organization.Name != org.Name {
-				return fmt.Errorf("APp does not belong to org!")
-			}else{
-				scope = "org"
+			if app.Organization.Slug != org.Slug {
+				return fmt.Errorf("failed to retrieve tokens, selected application \"%s\" does not belong to selected organization \"%s\"!", appName, org.Slug )
 			}
-
-		}else{
-			scope = "app"
 		}
-	}
 
+		// Scope would be app, even when its organization is passed
+		scope = "app"
+		
+	}
 	
 	switch scope {
 	case "app":
