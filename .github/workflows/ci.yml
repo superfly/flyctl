@@ -240,7 +240,7 @@ jobs:
     if: ${{ !contains(github.ref, 'pre') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: vedantmgoyal2009/winget-releaser@v2
+      - uses: vedantmgoyal9/winget-releaser@main
         with:
           identifier: Fly-io.flyctl
           installers-regex: '_Windows_\w+\.zip$'
