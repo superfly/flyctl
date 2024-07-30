@@ -45,15 +45,15 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 
 	var dockerfile string
 
-	if opts.DockerfilePath != "" {
-		if !helpers.FileExists(opts.DockerfilePath) {
-			build.BuildFinish()
-			err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
-			tracing.RecordError(span, err, "failed to find dockerfile")
-			return nil, "", err
-		}
+	switch {
+	case opts.DockerfilePath != "" && !helpers.FileExists(opts.DockerfilePath):
+		build.BuildFinish()
+		err := fmt.Errorf("dockerfile '%s' not found", opts.DockerfilePath)
+		tracing.RecordError(span, err, "failed to find dockerfile")
+		return nil, "", err
+	case opts.DockerfilePath != "":
 		dockerfile = opts.DockerfilePath
-	} else {
+	default:
 		dockerfile = ResolveDockerfile(opts.WorkingDir)
 	}
 
@@ -110,41 +110,12 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		}
 	}
 
-	apiClient := flyutil.ClientFromContext(ctx)
-	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
-	if region != "" {
-		region = "fly-" + region
-	}
-
-	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
-		AppName: &opts.AppName,
-		Region:  &region,
-	})
-	if err != nil {
-		streams.StopProgressIndicator()
-		buildState.BuilderInitFinish()
-		return nil, err
-	}
-
-	build, err := depotbuild.FromExistingBuild(ctx, *buildInfo.EnsureDepotRemoteBuilder.BuildId, *buildInfo.EnsureDepotRemoteBuilder.BuildToken)
-	if err != nil {
-		buildState.BuilderInitFinish()
-		return nil, err
-	}
-
-	// Set the buildErr to any error that represents the build failing.
-	var buildErr error
-	defer build.Finish(buildErr)
-
-	var buildkit *depotmachine.Machine
-	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams)
 	if buildErr != nil {
 		streams.StopProgressIndicator()
-		buildState.BuilderInitFinish()
 		return nil, buildErr
 	}
 	defer buildkit.Release()
-	buildState.BuilderInitFinish()
 
 	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancelConnect()
@@ -174,6 +145,43 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	tb.Done(link)
 
 	return newDeploymentImage(res, opts.Tag)
+}
+
+func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams) (*depotmachine.Machine, *depotbuild.Build, error) {
+	apiClient := flyutil.ClientFromContext(ctx)
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	if region != "" {
+		region = "fly-" + region
+	}
+
+	defer buildState.BuilderInitFinish()
+
+	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
+		AppName: &appName,
+		Region:  &region,
+	})
+	if err != nil {
+		streams.StopProgressIndicator()
+		return nil, nil, err
+	}
+
+	build, err := depotbuild.FromExistingBuild(ctx, *buildInfo.EnsureDepotRemoteBuilder.BuildId, *buildInfo.EnsureDepotRemoteBuilder.BuildToken)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Set the buildErr to any error that represents the build failing.
+	var buildErr error
+	defer build.Finish(buildErr)
+
+	var buildkit *depotmachine.Machine
+	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+	if buildErr != nil {
+		streams.StopProgressIndicator()
+		return nil, nil, buildErr
+	}
+
+	return buildkit, &build, err
 }
 
 func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOptions, dockerfilePath string) (*client.SolveResponse, error) {
