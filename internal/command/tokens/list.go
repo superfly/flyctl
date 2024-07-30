@@ -12,6 +12,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+
+	fly "github.com/superfly/fly-go"
 )
 
 func newList() *cobra.Command {
@@ -35,6 +37,7 @@ func newList() *cobra.Command {
 			Description: "either 'app' or 'org'",
 			Default:     "app",
 		},
+		flag.Org(),
 	)
 
 	return cmd
@@ -45,7 +48,55 @@ func runList(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
 	var rows [][]string
 
-	scope := flag.GetString(ctx, "scope")
+	// Get flags
+	
+	// Organization Name
+	orgFlag := flag.GetString(ctx, "org")
+	var org *fly.Organization
+	var scope string
+	if orgFlag!=""{
+		// Get the org name if flag indicated
+		org, err = orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
+		if err != nil {
+			return fmt.Errorf("failed retrieving org %w", err)
+		}
+		scope = "org"
+	}
+	fmt.Println( "ORG IS: ")
+	fmt.Println( org)
+
+	// App Name
+	appFlag := flag.GetString(ctx, "app")
+	var appName string
+	if orgFlag == "" || appFlag!="" {
+		// BY default( orgflag not passed ), OR when --a passed
+		appName = appconfig.NameFromContext(ctx)
+		if appName == ""{
+			return command.ErrRequireAppName
+		}
+
+		// Check if app belongs to org if it exists
+		if org != nil {
+			app, err := apiClient.GetAppCompact(ctx, appName)
+			if err != nil {
+				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
+			}
+			fmt.Println("checking app's org: ")
+			fmt.Println(app)
+
+			
+			if app.Organization.Name != org.Name {
+				return fmt.Errorf("APp does not belong to org!")
+			}else{
+				scope = "org"
+			}
+
+		}else{
+			scope = "app"
+		}
+	}
+
+	
 	switch scope {
 	case "app":
 		appName := appconfig.NameFromContext(ctx)
