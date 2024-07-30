@@ -23,6 +23,7 @@ func TestAllowedDockerDaemonMode(t *testing.T) {
 		{true, false, true, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypePrefersLocal},
 		{true, true, false, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote},
 		{true, true, true, false, false, DockerDaemonTypeNone | DockerDaemonTypeLocal | DockerDaemonTypeRemote | DockerDaemonTypePrefersLocal},
+		{true, true, false, true, false, DockerDaemonTypeNone | DockerDaemonTypeDepot | DockerDaemonTypeRemote | DockerDaemonTypeLocal},
 	}
 
 	for _, test := range tests {
