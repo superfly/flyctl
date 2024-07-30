@@ -245,6 +245,7 @@ func runMachineClone(ctx context.Context) (err error) {
 			}
 		}
 		targetConfig.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		targetConfig.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
 	}
 
 	input := fly.LaunchMachineInput{
