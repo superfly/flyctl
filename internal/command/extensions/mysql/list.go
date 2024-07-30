@@ -40,7 +40,7 @@ func runList(ctx context.Context) (err error) {
 		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	response, err := gql.ListAddOns(ctx, client, "supabase")
+	response, err := gql.ListAddOns(ctx, client, "fly_mysql")
 
 	var rows [][]string
 
