@@ -111,9 +111,14 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	}
 
 	apiClient := flyutil.ClientFromContext(ctx)
+	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+	if region != "" {
+		region = "fly-" + region
+	}
+
 	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
 		AppName: &opts.AppName,
-		Region:  fly.StringPointer("us-east-1"),
+		Region:  &region,
 	})
 	if err != nil {
 		streams.StopProgressIndicator()
