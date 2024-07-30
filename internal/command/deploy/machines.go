@@ -569,20 +569,12 @@ func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status 
 	))
 	defer span.End()
 
-	var input fly.UpdateReleaseInput
-
-	if metadata != nil {
-		input = fly.UpdateReleaseInput{
-			ReleaseId: md.releaseId,
-			Status:    status,
-			Metadata:  metadata,
-		}
-	} else {
-		input = fly.UpdateReleaseInput{
-			ReleaseId: md.releaseId,
-			Status:    status,
-		}
+	input := fly.UpdateReleaseInput{
+		ReleaseId: md.releaseId,
+		Status:    status,
+		Metadata:  metadata,
 	}
+
 	_, err := md.apiClient.UpdateRelease(ctx, input)
 
 	if err != nil {
