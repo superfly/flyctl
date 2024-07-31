@@ -1,4 +1,4 @@
-package mysql
+package fly_mysql
 
 import (
 	"context"
