@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 const (
@@ -86,7 +88,7 @@ func NewManifest(AppName string, config *appconfig.Config, args MachineDeploymen
 	}
 }
 
-func ManifestFromReader(r io.Reader) (*DeployManifest, error) {
+func manifestFromReader(r io.Reader) (*DeployManifest, error) {
 	manifest := &DeployManifest{}
 	if err := json.NewDecoder(r).Decode(manifest); err != nil {
 		return nil, err
@@ -94,13 +96,13 @@ func ManifestFromReader(r io.Reader) (*DeployManifest, error) {
 	return manifest, nil
 }
 
-func ManifestFromFile(filename string) (*DeployManifest, error) {
+func manifestFromFile(filename string) (*DeployManifest, error) {
 	file, err := os.Open(filename)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	return ManifestFromReader(file)
+	return manifestFromReader(file)
 }
 
 func (m *DeployManifest) Encode(w io.Writer) error {
@@ -122,7 +124,11 @@ func (m *DeployManifest) WriteToFile(filename string) error {
 func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
 	var (
 		client = flyutil.ClientFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
 	)
+
+	fmt.Fprintf(io.Out, "Resuming %s deploy from manifest\n", manifest.AppName)
+
 	app, err := client.GetAppCompact(ctx, manifest.AppName)
 	if err != nil {
 		sentry.CaptureException(err)

@@ -283,7 +283,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	switch manifestPath {
 	case "-":
-		manifest, err := ManifestFromReader(io.In)
+		manifest, err := manifestFromReader(io.In)
 		if err != nil {
 			return err
 		}
@@ -291,7 +291,7 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	case "":
 		break
 	default:
-		manifest, err := ManifestFromFile(manifestPath)
+		manifest, err := manifestFromFile(manifestPath)
 		if err != nil {
 			return err
 		}

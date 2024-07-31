@@ -191,7 +191,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		}
 	}
 
-	if appConfig.Deploy != nil {
+	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to split release command")
