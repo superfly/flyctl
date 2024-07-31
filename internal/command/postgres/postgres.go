@@ -117,6 +117,14 @@ func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, clust
 }
 
 func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, flexVersion string) error {
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines provided")
+	}
+
+	if !IsFlex(machines[0]) {
+		return fmt.Errorf("not a Flex cluster")
+	}
+
 	err := hasRequiredVersionOnMachines(appName, machines, "", flexVersion, "")
 	if strings.Contains(err.Error(), "Malformed version") {
 		return fmt.Errorf("This image is not compatible with this feature. Please attempt an update with `fly image update -a %s`", appName)
