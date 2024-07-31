@@ -8,9 +8,11 @@ import (
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() *cobra.Command {
@@ -169,6 +171,10 @@ func pickLeader(ctx context.Context, machines []*fly.Machine) (*fly.Machine, err
 	return nil, fmt.Errorf("no active leader found")
 }
 
+func hasRequiredMemoryForBackup(machine fly.Machine) bool {
+	return machine.Config.Guest.MemoryMB >= 512
+}
+
 func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) error {
 	machines, err := mach.ListActive(ctx)
 	if err != nil {
@@ -190,4 +196,45 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 	}
 
 	return nil
+}
+
+// Runs a command on the specified machine ID in the named app.
+func ExecOnMachine(ctx context.Context, client *flaps.Client, machineId, command string) error {
+	var (
+		io = iostreams.FromContext(ctx)
+	)
+
+	in := &fly.MachineExecRequest{
+		Cmd: command,
+	}
+
+	out, err := client.Exec(ctx, machineId, in)
+	if err != nil {
+		return err
+	}
+
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
+	return nil
+}
+
+// Runs a command on the leader of the named cluster.
+func ExecOnLeader(ctx context.Context, client *flaps.Client, command string) error {
+	machines, err := client.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return ExecOnMachine(ctx, client, leader.ID, command)
 }

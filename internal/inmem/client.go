@@ -164,6 +164,10 @@ func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region
 	panic("TODO")
 }
 
+func (m *Client) EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error) {
+	panic("TODO")
+}
+
 func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {
 	panic("TODO")
 }

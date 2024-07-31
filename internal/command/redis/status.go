@@ -54,6 +54,10 @@ func runStatus(ctx context.Context) (err error) {
 
 	options, _ := addOn.Options.(map[string]interface{})
 
+	if options == nil {
+		options = make(map[string]interface{})
+	}
+
 	evictionStatus := "Disabled"
 
 	if options["eviction"] != nil && options["eviction"].(bool) {

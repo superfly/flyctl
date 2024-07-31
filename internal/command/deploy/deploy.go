@@ -50,6 +50,7 @@ var CommonFlags = flag.Set{
 	flag.BuildSecret(),
 	flag.BuildTarget(),
 	flag.NoCache(),
+	flag.Depot(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
@@ -379,9 +380,18 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID i
 	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
-
-	if appURL := appConfig.URL(); appURL != nil {
+	var ip = "public"
+	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
+		ip = "private"
+	} else if flag.GetBool(ctx, "no-public-ips") {
+		ip = "none"
+	}
+	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
 		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
+	} else if ip == "private" {
+		fmt.Fprintf(io.Out, "\nYour your newly deployed app is available in the organizations' private network under http://%s.flycast\n", appName)
+	} else if ip == "none" {
+		fmt.Fprintf(io.Out, "\nYour app is deployed but does not have a public or private IP address\n")
 	}
 
 	return err
@@ -548,7 +558,7 @@ func deployToMachines(
 	}
 
 	var ip = "public"
-	if flag.GetBool(ctx, "flycast") {
+	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
 		ip = "private"
 	} else if flag.GetBool(ctx, "no-public-ips") {
 		ip = "none"

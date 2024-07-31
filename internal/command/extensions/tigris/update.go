@@ -66,6 +66,7 @@ func runUpdate(ctx context.Context) (err error) {
 	addOn := response.AddOn
 
 	options, _ := addOn.Options.(map[string]interface{})
+
 	if options == nil {
 		options = make(map[string]interface{})
 	}

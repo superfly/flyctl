@@ -4,16 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net"
+	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
-	"github.com/prometheus/blackbox_exporter/config"
-	"github.com/prometheus/blackbox_exporter/prober"
-	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/superfly/flyctl/internal/logger"
-	"nhooyr.io/websocket"
 )
 
 func RunAgent(ctx context.Context) error {
@@ -66,37 +65,9 @@ func RunAgent(ctx context.Context) error {
 		}
 	}()
 
-	go listen(ctx, ws)
+	go ws.listen(ctx)
 
 	return nil
-}
-
-func listen(ctx context.Context, ws *SyntheticsWs) error {
-	logger := logger.FromContext(ctx)
-	logger.Debug("start listening for probes")
-	for ctx.Err() == nil {
-		ws.lock.RLock()
-		c := ws.wsConn
-		ws.lock.RUnlock()
-
-		_, message, err := c.Read(ctx)
-		if err != nil {
-			logger.Error("read error: ", err)
-			ws.resetConn(c, err)
-			continue
-		}
-
-		logger.Debug("received from server", string(message))
-
-		err = processProbe(ctx, message, ws)
-		if err != nil {
-			logger.Error("failed processing probe", err)
-		}
-
-	}
-	logger.Debug("stop listening for probes")
-
-	return ctx.Err()
 }
 
 type ProbeMessage struct {
@@ -105,55 +76,35 @@ type ProbeMessage struct {
 	IPProtocol string `json:"ip_protocol"`
 }
 
-func processProbe(ctx context.Context, jsonMessage []byte, ws *SyntheticsWs) error {
+func processProbe(ctx context.Context, probeMessageJSON []byte, ws *SyntheticsWs) error {
 	logger := logger.FromContext(ctx)
 	logger.Debug("proccessing probes")
 
 	probeMessage := ProbeMessage{}
-	err := json.Unmarshal(jsonMessage, &probeMessage)
+	err := json.Unmarshal(probeMessageJSON, &probeMessage)
 	if err != nil {
 		logger.Error("JSON parse error:", err)
 		return err
 	}
 
-	probeSuccessGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_success",
-		Help: "Displays whether or not the probe was a success",
-	})
-	probeDurationGauge := prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "probe_duration_seconds",
-		Help: "Returns how long the probe took to complete in seconds",
-	})
+	var (
+		buf    bytes.Buffer
+		mfs    []*dto.MetricFamily
+		logBuf bytes.Buffer
+	)
 
-	module := config.Module{}
-	module.HTTP = config.DefaultHTTPProbe
-
-	module.HTTP.IPProtocol = probeMessage.IPProtocol
-
-	var logBuf bytes.Buffer
 	sl := log.NewLogfmtLogger(log.NewSyncWriter(&logBuf))
 
-	start := time.Now()
-	registry := prometheus.NewRegistry()
-	registry.MustRegister(probeSuccessGauge)
-	registry.MustRegister(probeDurationGauge)
-	success := prober.ProbeHTTP(ctx, probeMessage.Target, module, registry, sl)
-	duration := time.Since(start).Seconds()
-	probeDurationGauge.Set(duration)
-
-	if success {
-		probeSuccessGauge.Set(1)
-		level.Info(sl).Log("msg", "Probe succeeded", "duration_seconds", duration)
+	if !isFlyInfraTarget(probeMessage.Target) {
+		logger.Warnf("skipping probe message for non-fly infra endpoint %s", probeMessage.Target)
 	} else {
-		level.Error(sl).Log("msg", "Probe failed", "duration_seconds", duration)
+		mfs, err = probeHTTP(ctx, probeMessage, sl)
+		if err != nil {
+			logger.Errorf("error processing probe for endpoint %s. error: %v", probeMessage.Target, err)
+			return err
+		}
 	}
 
-	mfs, err := registry.Gather()
-	if err != nil {
-		return err
-	}
-
-	var buf bytes.Buffer
 	encoder := json.NewEncoder(&buf)
 	err = encoder.Encode(mfs)
 	if err != nil {
@@ -161,18 +112,38 @@ func processProbe(ctx context.Context, jsonMessage []byte, ws *SyntheticsWs) err
 	}
 
 	data := buf.Bytes()
-
-	ws.lock.RLock()
-	c := ws.wsConn
-	ws.lock.RUnlock()
-
-	err = c.Write(ctx, websocket.MessageText, data)
+	err = ws.write(ctx, data)
 	if err != nil {
-		logger.Error("write error: ", err)
-		ws.resetConn(c, err)
 		return err
 	}
+
 	logger.Debugf("probe result sent to server. log: %s", &logBuf)
 
 	return nil
+}
+
+func isFlyInfraTarget(target string) bool {
+	var flyInfraDomains = []string{
+		"fly.io",
+		"flyio.net",
+		"machines.dev",
+	}
+
+	parsedURL, err := url.Parse(target)
+	if err != nil {
+		return false
+	}
+
+	host, _, err := net.SplitHostPort(parsedURL.Host)
+	if err != nil {
+		host = parsedURL.Host
+	}
+
+	for _, flyInfraDomain := range flyInfraDomains {
+		if strings.HasSuffix(host, "."+flyInfraDomain) || host == flyInfraDomain {
+			return true
+		}
+	}
+
+	return false
 }

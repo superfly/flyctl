@@ -2,7 +2,7 @@ module github.com/superfly/flyctl
 
 go 1.22
 
-toolchain go1.22.0
+toolchain go1.22.2
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -22,6 +22,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
+	github.com/depot/depot-go v0.3.0
 	github.com/docker/docker v26.1.4+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/docker/go-units v0.5.0
@@ -61,7 +62,8 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/blackbox_exporter v0.25.0
-	github.com/prometheus/client_golang v1.19.0
+	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/client_model v0.6.1
 	github.com/r3labs/diff v1.1.0
 	github.com/samber/lo v1.46.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966
@@ -70,7 +72,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/superfly/fly-go v0.1.19-0.20240716210409-e3d434ec3f18
+	github.com/superfly/fly-go v0.1.19
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.14-0.20240702184853-b8ac52a1fc77
@@ -100,6 +102,7 @@ require (
 )
 
 require (
+	connectrpc.com/connect v1.16.1 // indirect
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230811130428-ced1acdcaa24 // indirect
 	github.com/Azure/azure-sdk-for-go v68.0.0+incompatible // indirect
@@ -223,7 +226,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.52.2 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/rivo/tview v0.0.0-20220307222120-9994674d60a8 // indirect
@@ -271,4 +273,5 @@ require (
 replace (
 	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
+	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.19-0.20240724162007-8bcc00062656
 )

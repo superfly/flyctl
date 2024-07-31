@@ -41,6 +41,7 @@ type Client struct {
 	DeleteOrganizationMembershipFunc       func(ctx context.Context, orgId, userId string) (string, string, error)
 	DetachPostgresClusterFunc              func(ctx context.Context, input fly.DetachPostgresClusterInput) error
 	EnablePostgresConsulFunc               func(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
+	EnsureDepotRemoteBuilderFunc           func(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error)
 	EnsureRemoteBuilderFunc                func(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
 	ExportDNSRecordsFunc                   func(ctx context.Context, domainId string) (string, error)
 	FinishBuildFunc                        func(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
@@ -212,6 +213,10 @@ func (m *Client) EnablePostgresConsul(ctx context.Context, appName string) (*fly
 
 func (m *Client) EnsureRemoteBuilder(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error) {
 	return m.EnsureRemoteBuilderFunc(ctx, orgID, appName, region)
+}
+
+func (m *Client) EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error) {
+	return m.EnsureDepotRemoteBuilderFunc(ctx, input)
 }
 
 func (m *Client) ExportDNSRecords(ctx context.Context, domainId string) (string, error) {

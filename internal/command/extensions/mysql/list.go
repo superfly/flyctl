@@ -1,8 +1,7 @@
-package redis
+package mysql
 
 import (
 	"context"
-	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -10,14 +9,15 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
+	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 )
 
-func newList() (cmd *cobra.Command) {
+func list() (cmd *cobra.Command) {
 	const (
-		long  = `List Upstash Redis databases for an organization`
+		long  = `List your MySQL databases`
 		short = long
 		usage = "list"
 	)
@@ -28,6 +28,7 @@ func newList() (cmd *cobra.Command) {
 
 	flag.Add(cmd,
 		flag.Org(),
+		extensions_core.SharedFlags,
 	)
 
 	return cmd
@@ -39,33 +40,19 @@ func runList(ctx context.Context) (err error) {
 		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	response, err := gql.ListAddOns(ctx, client, "upstash_redis")
+	response, err := gql.ListAddOns(ctx, client, "fly_mysql")
 
 	var rows [][]string
 
 	for _, addon := range response.AddOns.Nodes {
-		options, _ := addon.Options.(map[string]interface{})
-
-		if options == nil {
-			options = make(map[string]interface{})
-		}
-		eviction := "Disabled"
-
-		if options["eviction"] != nil && options["eviction"].(bool) {
-			eviction = "Enabled"
-		}
-
 		rows = append(rows, []string{
 			addon.Name,
 			addon.Organization.Slug,
-			addon.AddOnPlan.DisplayName,
-			eviction,
 			addon.PrimaryRegion,
-			strings.Join(addon.ReadRegions, ","),
 		})
 	}
 
-	_ = render.Table(out, "", rows, "Name", "Org", "Plan", "Eviction", "Primary Region", "Read Regions")
+	_ = render.Table(out, "", rows, "Name", "Org", "Primary Region")
 
 	return
 }
