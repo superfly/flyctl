@@ -66,6 +66,7 @@ func runList(ctx context.Context) (err error) {
 			return command.ErrRequireAppName
 		}
 		
+		
 		// --org passed must match the selected app's org
 		if orgFlag != "" {
 			
