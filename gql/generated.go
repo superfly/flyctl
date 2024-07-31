@@ -56,6 +56,8 @@ const (
 	AddOnTypeArcjet AddOnType = "arcjet"
 	// An Enveloop project
 	AddOnTypeEnveloop AddOnType = "enveloop"
+	// A MySQL database
+	AddOnTypeFlyMysql AddOnType = "fly_mysql"
 	// A Kubernetes cluster
 	AddOnTypeKubernetes AddOnType = "kubernetes"
 	// An Upstash Redis database
