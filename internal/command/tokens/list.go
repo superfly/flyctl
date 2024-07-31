@@ -67,7 +67,6 @@ func runList(ctx context.Context) (err error) {
 		}
 		// --org passed must match the selected app's org
 		if orgFlag != "" {
-			
 			// Get app details, so we can identify its organization slug
 			app, err := apiClient.GetAppCompact(ctx, appName)
 			if err != nil {
@@ -85,7 +84,6 @@ func runList(ctx context.Context) (err error) {
 				return fmt.Errorf("failed to retrieve tokens, selected application \"%s\" does not belong to selected organization \"%s\"", appName, org.Slug )
 			}
 		}
-		
 		tokens, err := apiClient.GetAppLimitedAccessTokens(ctx, appName)
 		if err != nil {
 			return fmt.Errorf("failed retrieving tokens for app %s: %w", appName, err)
@@ -97,7 +95,6 @@ func runList(ctx context.Context) (err error) {
 		}
 
 	case "org":
-		
 		org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 		if err != nil {
 			return fmt.Errorf("failed retrieving org %w", err)
@@ -117,13 +114,11 @@ func determineScope(scopeStr string, appFlagStr string , orgFlagStr string, conf
 	// --scope is prioritized,
 	// secondly --app or --config flags,
 	// --org flag is only used when there are no other flags provided but it
-	
 	if scopeStr!=""{
 		if scopeStr!="app" && scopeStr!="org"{
 			return "", fmt.Errorf("Please provide a valid scope: \"app\" or \"org\"")
 		}
 		return scopeStr, nil
-
 	}else if orgFlagStr != "" && appFlagStr =="" && configFlagStr == ""{
 		return "org", nil
 	}else{
