@@ -123,7 +123,7 @@ func runBackupRestore(ctx context.Context) error {
 
 	// Ensure the the app has the required flex version.
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	// TODO - Use this to create new Tigris access keys. However, if we can't yet revoke
@@ -252,7 +252,7 @@ func runBackupCreate(ctx context.Context) error {
 	}
 
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	if !hasRequiredMemoryForBackup(*leader) {
@@ -348,7 +348,7 @@ func runBackupEnable(ctx context.Context) error {
 	}
 
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	if !hasRequiredMemoryForBackup(*leader) {
@@ -441,7 +441,7 @@ func runBackupList(ctx context.Context) error {
 	}
 
 	if err = hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	return ExecOnMachine(ctx, flapsClient, machine.ID, "flexctl backup list")
@@ -587,7 +587,7 @@ func runBackupConfigShow(ctx context.Context) error {
 
 	// Ensure the the app has the required flex version.
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	return ExecOnLeader(ctx, flapsClient, "flexctl backup config show")
@@ -620,7 +620,7 @@ func runBackupConfigUpdate(ctx context.Context) error {
 
 	// Ensure the the app has the required flex version.
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -651,4 +651,11 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	}
 
 	return ExecOnLeader(ctx, flapsClient, command)
+}
+
+func handleMalformedVersionErrors(appName string, err error) error {
+	if strings.Contains(err.Error(), "Malformed version") {
+		return fmt.Errorf("This image is not compatible with this feature. Please attempt an update with `fly image update -a %s`", appName)
+	}
+	return err
 }
