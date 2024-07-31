@@ -86,15 +86,6 @@ func runBackupRestore(ctx context.Context) error {
 		destAppName = flag.FirstArg(ctx)
 	)
 
-	enabled, err := isBackupEnabled(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	if !enabled {
-		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
-	}
-
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -111,15 +102,28 @@ func runBackupRestore(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
-	}
-
 	// Resolve the leader
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
+	}
+
+	if !IsFlex(leader) {
+		return fmt.Errorf("backups are only supported on Flexclusters")
+	}
+
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
+	// Ensure the the app has the required flex version.
+	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	// TODO - Use this to create new Tigris access keys. However, if we can't yet revoke
@@ -212,15 +216,6 @@ func runBackupCreate(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	enabled, err := isBackupEnabled(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	if !enabled {
-		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
-	}
-
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -237,14 +232,27 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
-	}
-
 	// Ensure the backup is issued against the primary.
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
+	}
+
+	if !IsFlex(leader) {
+		return fmt.Errorf("backups are only supported on Flexclusters")
+	}
+
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
+	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	if !hasRequiredMemoryForBackup(*leader) {
@@ -330,13 +338,17 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
-	}
-
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
 		return err
+	}
+
+	if !IsFlex(leader) {
+		return fmt.Errorf("backups are only supported on Flexclusters")
+	}
+
+	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	if !hasRequiredMemoryForBackup(*leader) {
@@ -397,6 +409,28 @@ func runBackupList(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
+		AppName: appName,
+	})
+	if err != nil {
+		return fmt.Errorf("list of machines could not be retrieved: %w", err)
+	}
+
+	machines, err := flapsClient.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(machines) == 0 {
+		return fmt.Errorf("No active machines")
+	}
+
+	machine := machines[0]
+
+	if !IsFlex(machine) {
+		return fmt.Errorf("backups are only supported on Flexclusters")
+	}
+
 	enabled, err := isBackupEnabled(ctx, appName)
 	if err != nil {
 		return err
@@ -406,27 +440,9 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
 	}
 
-	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: appName,
-	})
-	if err != nil {
-		return fmt.Errorf("list of machines could not be retrieved: %w", err)
-	}
-
-	machines, err := flapsClient.List(ctx, "started")
-	if err != nil {
-		return err
-	}
-
-	if len(machines) == 0 {
-		return fmt.Errorf("No active machines")
-	}
-
 	if err = hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
-
-	machine := machines[0]
 
 	return ExecOnMachine(ctx, flapsClient, machine.ID, "flexctl backup list")
 }
@@ -540,15 +556,6 @@ func runBackupConfigShow(ctx context.Context) error {
 		appName = appconfig.NameFromContext(ctx)
 	)
 
-	enabled, err := isBackupEnabled(ctx, appName)
-	if err != nil {
-		return err
-	}
-
-	if !enabled {
-		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
-	}
-
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: appName,
 	})
@@ -565,9 +572,22 @@ func runBackupConfigShow(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
+	if !IsFlex(machines[0]) {
+		return fmt.Errorf("backups are only supported on Flexclusters")
+	}
+
+	enabled, err := isBackupEnabled(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	if !enabled {
+		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
+	}
+
 	// Ensure the the app has the required flex version.
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	return ExecOnLeader(ctx, flapsClient, "flexctl backup config show")
@@ -594,9 +614,13 @@ func runBackupConfigUpdate(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
+	if !IsFlex(machines[0]) {
+		return fmt.Errorf("backups are only supported on Flexclusters")
+	}
+
 	// Ensure the the app has the required flex version.
 	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
-		return err
+		return handleMalformedVersionErrors(appName, err)
 	}
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -627,4 +651,11 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	}
 
 	return ExecOnLeader(ctx, flapsClient, command)
+}
+
+func handleMalformedVersionErrors(appName string, err error) error {
+	if strings.Contains(err.Error(), "Malformed version") {
+		return fmt.Errorf("This image is not compatible with this feature. Please attempt an update with `fly image update -a %s`", appName)
+	}
+	return err
 }
