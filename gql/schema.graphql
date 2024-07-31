@@ -3608,7 +3608,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
-  
+
   """
   path: [String!]
 
