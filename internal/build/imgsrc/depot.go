@@ -115,6 +115,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		streams.StopProgressIndicator()
 		return nil, buildErr
 	}
+	defer build.Finish(buildErr)
 	defer buildkit.Release()
 
 	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Minute)
@@ -172,11 +173,11 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 
 	// Set the buildErr to any error that represents the build failing.
 	var buildErr error
-	defer build.Finish(buildErr)
 
 	var buildkit *depotmachine.Machine
 	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
 	if buildErr != nil {
+		build.Finish(buildErr)
 		streams.StopProgressIndicator()
 		return nil, nil, buildErr
 	}
