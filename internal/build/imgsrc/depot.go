@@ -177,6 +177,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	var buildkit *depotmachine.Machine
 	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
 	if buildErr != nil {
+		build.Finish(buildErr)
 		streams.StopProgressIndicator()
 		return nil, nil, buildErr
 	}
