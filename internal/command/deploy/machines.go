@@ -116,15 +116,6 @@ type machineDeployment struct {
 	deployRetries         int
 }
 
-type PostDeploymentInfo struct {
-	FlyctlVersion string `json:"flyctl_version"`
-	Error         string `json:"error"`
-}
-
-type ReleaseMetadata struct {
-	PostDeploymentInfo PostDeploymentInfo `json:"post_deployment_info"`
-}
-
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
@@ -562,7 +553,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *ReleaseMetadata) error {
+func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
 		attribute.String("status", status),
