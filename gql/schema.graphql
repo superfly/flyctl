@@ -3602,7 +3602,7 @@ input CreateUserSignupInput {
   clientMutationId: String
 
   """
-
+  
   """
   path: [String!]
 
@@ -8555,6 +8555,11 @@ type Queries {
   Find a domain by name
   """
   domain(name: String!): Domain
+
+  """
+  internal field for inter-service authz check
+  """
+  flapsAuthzCheck: Boolean!
   githubIntegration: GithubIntegration! @deprecated(reason: "deprecated")
   herokuIntegration: HerokuIntegration!
 
@@ -8973,6 +8978,7 @@ type Release implements Node {
   """
   imageRef: String
   inProgress: Boolean! @deprecated(reason: "use deployment.inProgress")
+  metadata: JSON
 
   """
   The reason for the release
@@ -10851,6 +10857,11 @@ input UpdateReleaseInput {
   clientMutationId: String
 
   """
+  The metadata for the release
+  """
+  metadata: JSON
+
+  """
   The ID of the release
   """
   releaseId: ID!
@@ -10858,7 +10869,7 @@ input UpdateReleaseInput {
   """
   The new status for the release
   """
-  status: String!
+  status: String
 }
 
 """
