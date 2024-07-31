@@ -112,7 +112,7 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
 		return err
 	}
 
@@ -237,7 +237,7 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
 		return err
 	}
 
@@ -330,7 +330,7 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
 		return err
 	}
 
@@ -422,7 +422,7 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("No active machines")
 	}
 
-	if err = hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
+	if err = hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
 		return err
 	}
 
@@ -566,7 +566,7 @@ func runBackupConfigShow(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupConfigVersion); err != nil {
 		return err
 	}
 
@@ -595,7 +595,7 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupConfigVersion); err != nil {
 		return err
 	}
 

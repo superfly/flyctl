@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
@@ -113,6 +114,14 @@ func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, clust
 
 	}
 	return nil
+}
+
+func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, flexVersion string) error {
+	err := hasRequiredVersionOnMachines(appName, machines, "", flexVersion, "")
+	if strings.Contains(err.Error(), "Malformed version") {
+		return fmt.Errorf("This image is not compatible with this feature. Please attempt an update with `fly image update -a %s`", appName)
+	}
+	return err
 }
 
 func IsFlex(machine *fly.Machine) bool {
