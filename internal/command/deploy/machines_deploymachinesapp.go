@@ -62,8 +62,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 	}
 
 	var status string
-	metadata := &ReleaseMetadata{
-		PostDeploymentInfo: PostDeploymentInfo{
+	metadata := &fly.ReleaseMetadata{
+		PostDeploymentInfo: fly.PostDeploymentInfo{
 			FlyctlVersion: buildinfo.Info().Version.String(),
 		},
 	}
