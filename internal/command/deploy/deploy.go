@@ -215,6 +215,19 @@ func New() *Command {
 			Description: "Do not run the release command during deployment.",
 			Default:     false,
 		},
+		flag.Bool{
+			Name:        "remote-deploy",
+			Description: "Makes a deployment from a deploy manifest to a fly.io managed deployer",
+			Default:     false,
+		},
+		flag.String{
+			Name:        "export-manifest",
+			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
+		},
+		flag.String{
+			Name:        "manifest",
+			Description: "Path to a deploy manifest file to use for deployment.",
+		},
 	)
 
 	return cmd
@@ -266,6 +279,25 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
+
+	var manifestPath = flag.GetString(ctx, "manifest")
+
+	switch manifestPath {
+	case "-":
+		manifest, err := manifestFromReader(io.In)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	case "":
+		break
+	default:
+		manifest, err := manifestFromFile(manifestPath)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	}
 
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
@@ -399,6 +431,8 @@ func deployToMachines(
 	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
 	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
@@ -530,7 +564,7 @@ func deployToMachines(
 		ip = "none"
 	}
 
-	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+	args := MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
@@ -559,7 +593,36 @@ func deployToMachines(
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
-	})
+	}
+
+	var path = flag.GetString(ctx, "export-manifest")
+	switch path {
+	case "":
+		manifest := NewManifest(app.Name, cfg, args)
+
+		if err = manifest.WriteToFile(defaultManifestPath); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", defaultManifestPath)
+	case "-":
+		manifest := NewManifest(app.Name, cfg, args)
+
+		return manifest.Encode(io.Out)
+
+	default:
+		if !strings.HasSuffix(path, ".json") {
+			path += ".json"
+		}
+
+		manifest := NewManifest(app.Name, cfg, args)
+
+		if err = manifest.WriteToFile(path); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
+	}
+
+	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err
