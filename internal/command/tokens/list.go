@@ -123,5 +123,5 @@ func determineScope(scopeStr string, appFlagStr string , orgFlagStr string, conf
 		return "org", nil
 	}else{
 		return "app", nil
-	}	
+	}
 }
