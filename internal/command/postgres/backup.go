@@ -122,8 +122,8 @@ func runBackupRestore(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return handleMalformedVersionErrors(appName, err)
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
+		return err
 	}
 
 	// TODO - Use this to create new Tigris access keys. However, if we can't yet revoke
@@ -251,8 +251,8 @@ func runBackupCreate(ctx context.Context) error {
 		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
 	}
 
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return handleMalformedVersionErrors(appName, err)
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
+		return err
 	}
 
 	if !hasRequiredMemoryForBackup(*leader) {
@@ -347,8 +347,8 @@ func runBackupEnable(ctx context.Context) error {
 		return fmt.Errorf("backups are only supported on Flexclusters")
 	}
 
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return handleMalformedVersionErrors(appName, err)
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
+		return err
 	}
 
 	if !hasRequiredMemoryForBackup(*leader) {
@@ -440,8 +440,8 @@ func runBackupList(ctx context.Context) error {
 		return fmt.Errorf("backups are not enabled. Run `fly pg backup enable -a %s` to enable them", appName)
 	}
 
-	if err = hasRequiredVersionOnMachines(appName, machines, "", backupVersion, ""); err != nil {
-		return handleMalformedVersionErrors(appName, err)
+	if err = hasRequiredFlexVersionOnMachines(appName, machines, backupVersion); err != nil {
+		return err
 	}
 
 	return ExecOnMachine(ctx, flapsClient, machine.ID, "flexctl backup list")
@@ -586,8 +586,8 @@ func runBackupConfigShow(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
-		return handleMalformedVersionErrors(appName, err)
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupConfigVersion); err != nil {
+		return err
 	}
 
 	return ExecOnLeader(ctx, flapsClient, "flexctl backup config show")
@@ -619,8 +619,8 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	}
 
 	// Ensure the the app has the required flex version.
-	if err := hasRequiredVersionOnMachines(appName, machines, "", backupConfigVersion, ""); err != nil {
-		return handleMalformedVersionErrors(appName, err)
+	if err := hasRequiredFlexVersionOnMachines(appName, machines, backupConfigVersion); err != nil {
+		return err
 	}
 
 	enabled, err := isBackupEnabled(ctx, appName)
@@ -651,11 +651,4 @@ func runBackupConfigUpdate(ctx context.Context) error {
 	}
 
 	return ExecOnLeader(ctx, flapsClient, command)
-}
-
-func handleMalformedVersionErrors(appName string, err error) error {
-	if strings.Contains(err.Error(), "Malformed version") {
-		return fmt.Errorf("This image is not compatible with this feature. Please attempt an update with `fly image update -a %s`", appName)
-	}
-	return err
 }
