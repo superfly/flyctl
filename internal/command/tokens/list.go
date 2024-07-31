@@ -41,8 +41,6 @@ func newList() *cobra.Command {
 	return cmd
 }
 
-
-
 func runList(ctx context.Context) (err error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	out := iostreams.FromContext(ctx).Out
@@ -53,8 +51,8 @@ func runList(ctx context.Context) (err error) {
 	appFlag := flag.GetString(ctx, "app")
 	configFlag := flag.GetString(ctx, "config")
 	orgFlag := flag.GetString(ctx, "org")
-	scope, err = determineScope( scope, appFlag, orgFlag, configFlag )
-	if err!= nil{
+	scope, err = determineScope(scope, appFlag, orgFlag, configFlag)
+	if err != nil {
 		return fmt.Errorf("failed retrieving scope: %w", err)
 	}
 
@@ -81,7 +79,7 @@ func runList(ctx context.Context) (err error) {
 
 			// Throw an error if app's org slug does not match --org slug
 			if app.Organization.Slug != org.Slug {
-				return fmt.Errorf("failed to retrieve tokens, selected application \"%s\" does not belong to selected organization \"%s\"", appName, org.Slug )
+				return fmt.Errorf("failed to retrieve tokens, selected application \"%s\" does not belong to selected organization \"%s\"", appName, org.Slug)
 			}
 		}
 		tokens, err := apiClient.GetAppLimitedAccessTokens(ctx, appName)
@@ -89,7 +87,7 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("failed retrieving tokens for app %s: %w", appName, err)
 		}
 
-		fmt.Fprintln(out, "Tokens for app \""+ appName+"\":" )
+		fmt.Fprintln(out, "Tokens for app \""+appName+"\":")
 		for _, token := range tokens {
 			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
@@ -100,7 +98,7 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
-		fmt.Fprintln(out, "Tokens for app \""+ org.Slug+"\":" )
+		fmt.Fprintln(out, "Tokens for app \""+org.Slug+"\":")
 		for _, token := range org.LimitedAccessTokens.Nodes {
 			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
@@ -110,18 +108,18 @@ func runList(ctx context.Context) (err error) {
 	return nil
 }
 
-func determineScope(scopeStr string, appFlagStr string , orgFlagStr string, configFlagStr string) (scope string, err error){
+func determineScope(scopeStr string, appFlagStr string, orgFlagStr string, configFlagStr string) (scope string, err error) {
 	// --scope is prioritized,
 	// secondly --app or --config flags,
 	// --org flag is only used when there are no other flags provided but it
-	if scopeStr!=""{
-		if scopeStr!="app" && scopeStr!="org"{
+	if scopeStr != "" {
+		if scopeStr != "app" && scopeStr != "org" {
 			return "", fmt.Errorf("Please provide a valid scope: \"app\" or \"org\"")
 		}
 		return scopeStr, nil
-	}else if orgFlagStr != "" && appFlagStr =="" && configFlagStr == ""{
+	} else if orgFlagStr != "" && appFlagStr == "" && configFlagStr == "" {
 		return "org", nil
-	}else{
+	} else {
 		return "app", nil
 	}
 }
