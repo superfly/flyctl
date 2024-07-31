@@ -48,7 +48,7 @@ func runList(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
 	var rows [][]string
 
-	// Determine scope based on flags passed 
+	// Determine scope based on flags passed
 	scope := flag.GetString(ctx, "scope")
 	appFlag := flag.GetString(ctx, "app")
 	configFlag := flag.GetString(ctx, "config")
@@ -75,7 +75,7 @@ func runList(ctx context.Context) (err error) {
 				return fmt.Errorf("failed retrieving app %s: %w", appName, err)
 			}
 
-			// Get organization details, so we can get its slug 
+			// Get organization details, so we can get its slug
 			org, err := orgs.OrgFromEnvVarOrFirstArgOrSelect(ctx)
 			if err != nil {
 				return fmt.Errorf("failed retrieving org %w", err)
@@ -115,8 +115,8 @@ func runList(ctx context.Context) (err error) {
 }
 
 func determineScope(scopeStr string, appFlagStr string , orgFlagStr string, configFlagStr string) (scope string, err error){
-	// --scope is prioritized, 
-	// secondly --app or --config flags, 
+	// --scope is prioritized,
+	// secondly --app or --config flags,
 	// --org flag is only used when there are no other flags provided but it
 	
 	if scopeStr!=""{
@@ -130,5 +130,4 @@ func determineScope(scopeStr string, appFlagStr string , orgFlagStr string, conf
 	}else{
 		return "app", nil
 	}	
-
 }
