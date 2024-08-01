@@ -290,7 +290,6 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 		}
 		return deployFromManifest(ctx, manifest)
 	case "":
-		break
 	default:
 		manifest, err := manifestFromFile(manifestPath)
 		if err != nil {
@@ -597,31 +596,32 @@ func deployToMachines(
 	}
 
 	var path = flag.GetString(ctx, "export-manifest")
-	switch path {
-	case "":
-		manifest := NewManifest(app.Name, cfg, args)
-
-		if err = manifest.WriteToFile(defaultManifestPath); err != nil {
-			return err
-		}
-		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", defaultManifestPath)
-	case "-":
+	switch {
+	case path == "-":
 		manifest := NewManifest(app.Name, cfg, args)
 
 		return manifest.Encode(io.Out)
 
-	default:
+	case path != "":
 		if !strings.HasSuffix(path, ".json") {
 			path += ".json"
 		}
-
 		manifest := NewManifest(app.Name, cfg, args)
 
 		if err = manifest.WriteToFile(path); err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
+	default:
 	}
+
+	// if flag.GetBool(ctx, "remote-deploy") {
+	// 	// create a manifest and deploy it to a remote deployer
+	// 	fmt.Fprintln(io.Out, "Generating deploy manifest...")
+	// 	manifest := NewManifest(app.Name, cfg, args)
+
+	// 	return deployRemotely(ctx, manifest)
+	// }
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
