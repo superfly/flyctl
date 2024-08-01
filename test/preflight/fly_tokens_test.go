@@ -36,17 +36,17 @@ func TestTokensListDeterminesScopeApp(t *testing.T){
 		// --config flag only
 		"tokens list -c fly.toml",
 		// --app flag, with --org flag 
-		"tokens list -a "+appName+" -o kathryn-tan",
+		"tokens list -a "+appName+" -o "+f.OrgSlug(),
 		// --config flag, with --org flag 
-		"tokens list -c fly.toml -o kathryn-tan",
+		"tokens list -c fly.toml -o "+f.OrgSlug(),
 		// --scope is app 
 		"tokens list -s app -a "+appName,
 		// --scope is app, with --org flag
-		"tokens list -s app -a "+appName+" -o kathryn-tan",
+		"tokens list -s app -a "+appName+" -o "+f.OrgSlug(),
 		// --scope is org, but --config flag added
-		"tokens list -s app -c fly.toml -o kathryn-tan",
+		"tokens list -s app -c fly.toml -o "+f.OrgSlug(),
 		// --scope is org, but --app flag added
-		"tokens list -s org kathryn-tan -a "+appName,
+		"tokens list -s org "+f.OrgSlug()+" -a "+appName,
 	}
 
 	for _, cmd_:= range commandList {
@@ -67,9 +67,9 @@ func TestTokensListDeterminesScopeOrg(t *testing.T){
 	// List of commands to verify scope org is selected for
 	commandList := [2](string){
 		// --org flag alone
-		"tokens list --org kathryn-tan", 
+		"tokens list --org "+f.OrgSlug(), 
 		// --scope org
-		"tokens list --scope org kathryn-tan",
+		"tokens list --scope org "+f.OrgSlug(),
 	}
 
 	for _, cmd_:= range commandList {
