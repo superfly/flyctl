@@ -115,8 +115,10 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		streams.StopProgressIndicator()
 		return nil, buildErr
 	}
-	defer build.Finish(buildErr)
-	defer buildkit.Release()
+	defer func() {
+		buildkit.Release()
+		build.Finish(buildErr)
+	}()
 
 	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancelConnect()
