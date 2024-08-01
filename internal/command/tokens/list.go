@@ -98,7 +98,7 @@ func runList(ctx context.Context) (err error) {
 			return fmt.Errorf("failed retrieving org %w", err)
 		}
 
-		fmt.Fprintln(out, "Tokens for app \""+org.Slug+"\":")
+		fmt.Fprintln(out, "Tokens for organization \""+org.Slug+"\":")
 		for _, token := range org.LimitedAccessTokens.Nodes {
 			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
 		}
@@ -109,16 +109,16 @@ func runList(ctx context.Context) (err error) {
 }
 
 func determineScope(scopeStr string, appFlagStr string, orgFlagStr string, configFlagStr string) (scope string, err error) {
-	// --scope is prioritized,
-	// secondly --app or --config flags,
-	// --org flag is only used when there are no other flags provided but it
-	if scopeStr != "" {
-		if scopeStr != "app" && scopeStr != "org" {
-			return "", fmt.Errorf("Please provide a valid scope: \"app\" or \"org\"")
-		}
-		return scopeStr, nil
-	} else if orgFlagStr != "" && appFlagStr == "" && configFlagStr == "" {
+	// app scope is given highest priority, as it is more granular than org, identified by --app|--config|--scope=app
+	// org scope is only used when specified by --org|--scope=org withought any app scope indicator
+	// If scope is neither app nor org, but provided by the user, throw an error; there are only two scopes: app|org
+	// the default scope, when all else fails, is app scope
+	if appFlagStr != "" || configFlagStr != "" || scopeStr == "app" {
+		return "app", nil
+	}else if orgFlagStr != "" || scopeStr == "org" {
 		return "org", nil
+	} else if scopeStr != "" && scopeStr !="app" && scopeStr!="org" {
+		return "", fmt.Errorf("Please provide a valid scope: \"app\" or \"org\".")
 	} else {
 		return "app", nil
 	}
