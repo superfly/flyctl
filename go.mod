@@ -72,12 +72,11 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/superfly/fly-go v0.1.19
+	github.com/superfly/fly-go v0.1.21
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.14-0.20240702184853-b8ac52a1fc77
 	github.com/superfly/tokenizer v0.0.2
-	github.com/vektah/gqlparser v1.3.1
 	github.com/vektah/gqlparser/v2 v2.5.16
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
 	go.opentelemetry.io/otel v1.28.0
@@ -86,7 +85,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.28.0
 	go.opentelemetry.io/otel/trace v1.28.0
 	golang.org/x/crypto v0.25.0
-	golang.org/x/exp v0.0.0-20240613232115-7f521ea00fb8
+	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56
 	golang.org/x/mod v0.19.0
 	golang.org/x/net v0.27.0
 	golang.org/x/sync v0.7.0
@@ -259,7 +258,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/tools v0.22.0 // indirect
+	golang.org/x/tools v0.23.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240701130421-f6361c86f094 // indirect
@@ -273,5 +272,5 @@ require (
 replace (
 	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
-	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.19-0.20240724162007-8bcc00062656
+	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.21
 )

@@ -589,17 +589,21 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string) error {
+func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
 		attribute.String("status", status),
 	))
 	defer span.End()
 
-	_, err := md.apiClient.UpdateRelease(ctx, fly.UpdateReleaseInput{
+	input := fly.UpdateReleaseInput{
 		ReleaseId: md.releaseId,
 		Status:    status,
-	})
+		Metadata:  metadata,
+	}
+
+	_, err := md.apiClient.UpdateRelease(ctx, input)
+
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
 		return err
