@@ -1,7 +1,9 @@
 package deploy
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -119,6 +121,16 @@ func (m *DeployManifest) WriteToFile(filename string) error {
 	defer file.Close()
 
 	return m.Encode(file)
+}
+
+func (m *DeployManifest) ToBase64() (string, error) {
+	buf := new(bytes.Buffer)
+	if err := m.Encode(buf); err != nil {
+		return "", err
+	}
+	base64Encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	return base64Encoded, nil
 }
 
 func deployFromManifest(ctx context.Context, manifest *DeployManifest) error {
