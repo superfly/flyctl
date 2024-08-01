@@ -17,10 +17,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-const (
-	defaultManifestPath = "fly_deploy_manifest.json"
-)
-
 type DeployManifest struct {
 	AppName               string
 	Config                *appconfig.Config         `json:"config"`
@@ -103,7 +99,9 @@ func manifestFromFile(filename string) (*DeployManifest, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 	return manifestFromReader(file)
 }
 
@@ -118,7 +116,9 @@ func (m *DeployManifest) WriteToFile(filename string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	return m.Encode(file)
 }
