@@ -115,9 +115,9 @@ func determineScope(scopeStr string, appFlagStr string, orgFlagStr string, confi
 	// the default scope, when all else fails, is app scope
 	if appFlagStr != "" || configFlagStr != "" || scopeStr == "app" {
 		return "app", nil
-	}else if orgFlagStr != "" || scopeStr == "org" {
+	} else if orgFlagStr != "" || scopeStr == "org" {
 		return "org", nil
-	} else if scopeStr != "" && scopeStr !="app" && scopeStr!="org" {
+	} else if scopeStr != "" && scopeStr != "app" && scopeStr != "org" {
 		return "", fmt.Errorf("Please provide a valid scope: \"app\" or \"org\".")
 	} else {
 		return "app", nil
