@@ -16,6 +16,15 @@ module Step
   DEPLOY = :deploy
 end
 
+module Artifact
+  META = :meta
+  GIT_INFO = :git_info
+  GIT_HEAD = :git_head
+  MANIFEST = :manifest
+  DIFF = :diff
+  DOCKER_IMAGE = :docker_image
+end
+
 $current_step = Step::ROOT
 
 $counter = 0
@@ -116,44 +125,68 @@ def ts
   Time.now.utc.iso8601(6)
 end
 
+def get_env(name)
+  value = ENV[name]&.strip
+  if value.nil? || value.empty?
+    return nil
+  end
+  value
+end
+
+# start of actual logic
+
 event :start, { ts: ts() }
 
-APP_NAME = ENV["DEPLOY_APP_NAME"]
+APP_NAME = get_env("DEPLOY_APP_NAME")
 if !APP_NAME
   event :error, { type: :validation, message: "missing app name" }
   exit 1
 end
 
-ORG_SLUG = ENV["DEPLOY_ORG_SLUG"]
+ORG_SLUG = get_env("DEPLOY_ORG_SLUG")
 if !ORG_SLUG
   event :error, { type: :validation, message: "missing organization slug" }
   exit 1
 end
 
-if (git_repo = ENV["GIT_REPO"]) && !!git_repo
+GIT_REPO = get_env("GIT_REPO")
+
+DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
+
+steps = []
+
+steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository"}) if GIT_REPO
+steps.push({id: Step::PLAN, description: "Plan deployment"})
+steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
+steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+
+artifact Artifact::META, { steps: steps }
+
+GIT_REPO_URL = if GIT_REPO
+  repo_url = begin
+    URI(GIT_REPO)
+  rescue StandardError => e
+    event :error, { type: :invalid_git_repo_url, message: e }
+    exit 1
+  end
+  if (user = get_env("GIT_URL_USER"))
+    repo_url.user = user.strip
+  end
+  if (password = get_env("GIT_URL_PASSWORD"))
+    repo_url.password = password.strip
+  end
+  repo_url
+end
+
+if GIT_REPO_URL
     in_step Step::GIT_PULL do
-      # `git config --global init.defaultBranch main`
-      ref = ENV["GIT_REF"]
-      artifact :git_info, { repository: git_repo, reference: ref }
+      `git config --global init.defaultBranch main` # NOTE: this is to avoid a large warning message
+      ref = get_env("GIT_REF")
+      artifact Artifact::GIT_INFO, { repository: GIT_REPO, reference: ref }
       
       exec_capture("git init")
-      
-      git_repo_url = begin
-        URI(git_repo)
-      rescue StandardError => e
-        event :error, { type: :invalid_git_repo_url, message: e }
-        exit 1
-      end
 
-      if (user = ENV["GIT_URL_USER"]) && !!user
-        git_repo_url.user = user
-      end
-
-      if (password = ENV["GIT_URL_PASSWORD"]) && !!password
-        git_repo_url.password = password
-      end
-
-      exec_capture("git remote add origin #{git_repo_url.to_s}")
+      exec_capture("git remote add origin #{GIT_REPO_URL.to_s}")
 
       ref = exec_capture("git remote show origin | sed -n '/HEAD branch/s/.*: //p'").chomp if !ref
 
@@ -162,16 +195,16 @@ if (git_repo = ENV["GIT_REPO"]) && !!git_repo
 
       head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'"))
 
-      artifact :git_head, head
+      artifact Artifact::GIT_HEAD, head
     end
 end
 
 manifest = in_step Step::PLAN do
   cmd = "flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
-  if (region = ENV["DEPLOY_APP_REGION"]) && !!region
+  if (region = get_env("DEPLOY_APP_REGION"))
     cmd += " --region #{region}"
   end
-  if (internal_port = ENV["DEPLOY_APP_INTERNAL_PORT"]) && !!internal_port
+  if (internal_port = get_env("DEPLOY_APP_INTERNAL_PORT"))
     cmd += " --internal-port #{internal_port}"
   end
   exec_capture(cmd)
@@ -190,11 +223,11 @@ manifest = in_step Step::PLAN do
     cpus: vm_cpus.to_i
   }]
 
-  artifact :manifest, manifest
+  artifact Artifact::MANIFEST, manifest
 
   exec_capture("git add -A")
   diff = exec_capture("git diff --cached")
-  artifact :diff, diff
+  artifact Artifact::DIFF, diff
 
   manifest
 end
@@ -207,10 +240,10 @@ image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
 in_step Step::BUILD do
   exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
-  artifact :docker_image, image_ref
+  artifact Artifact::DOCKER_IMAGE, image_ref
 end
 
-if ENV["DEPLOY_NOW"]
+if DEPLOY_NOW
   in_step Step::DEPLOY do
     exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --image #{image_ref}")
   end
