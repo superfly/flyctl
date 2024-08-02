@@ -323,8 +323,11 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			}
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", machine.ID))
 
-			if machine.LeaseNonce == "" {
+			if machine.LeaseNonce != "" {
+				span.AddEvent(fmt.Sprintf("Machine %s already has a lease", machine.ID))
 				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for job %s", machine.ID))
+				return nil
+
 			}
 
 			lease, err := md.acquireMachineLease(ctx, machine.ID)
