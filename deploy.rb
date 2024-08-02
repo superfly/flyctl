@@ -13,6 +13,7 @@ module Step
   GIT_PULL = :git_pull
   PLAN = :plan
   BUILD = :build
+  FLY_POSTGRES_CREATE = :fly_postgres_create
   DEPLOY = :deploy
 end
 
@@ -22,6 +23,7 @@ module Artifact
   GIT_HEAD = :git_head
   MANIFEST = :manifest
   DIFF = :diff
+  FLY_POSTGRES = :fly_postgres
   DOCKER_IMAGE = :docker_image
 end
 
@@ -151,17 +153,6 @@ end
 
 GIT_REPO = get_env("GIT_REPO")
 
-DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
-
-steps = []
-
-steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository"}) if GIT_REPO
-steps.push({id: Step::PLAN, description: "Plan deployment"})
-steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
-steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
-
-artifact Artifact::META, { steps: steps }
-
 GIT_REPO_URL = if GIT_REPO
   repo_url = begin
     URI(GIT_REPO)
@@ -177,6 +168,34 @@ GIT_REPO_URL = if GIT_REPO
   end
   repo_url
 end
+
+PG_PROVIDER = get_env("DEPLOY_PG_PROVIDER")
+FLY_PG_PROVIDER = PG_PROVIDER == "fly_postgres"
+
+PG_NAME = get_env("DEPLOY_PG_NAME")
+PG_FLY_CONFIG = get_env("DEPLOY_PG_FLY_CONFIG")
+PG_REGION = get_env("DEPLOY_PG_REGION")
+
+if FLY_PG_PROVIDER
+  if !PG_FLY_CONFIG
+    event :error, { type: :validation, message: "Missing DEPLOY_PG_FLY_CONFIG" }
+    exit 1
+  end
+end
+
+DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
+
+steps = []
+
+steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository"}) if GIT_REPO
+steps.push({id: Step::PLAN, description: "Plan deployment"})
+steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
+steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG_PROVIDER
+steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+
+artifact Artifact::META, { steps: steps }
+
+APP_REGION = get_env("DEPLOY_APP_REGION")
 
 if GIT_REPO_URL
     in_step Step::GIT_PULL do
@@ -201,7 +220,7 @@ end
 
 manifest = in_step Step::PLAN do
   cmd = "flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
-  if (region = get_env("DEPLOY_APP_REGION"))
+  if (region = APP_REGION)
     cmd += " --region #{region}"
   end
   if (internal_port = get_env("DEPLOY_APP_INTERNAL_PORT"))
@@ -241,6 +260,31 @@ image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 in_step Step::BUILD do
   exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
   artifact Artifact::DOCKER_IMAGE, image_ref
+end
+
+
+
+if FLY_PG_PROVIDER
+  in_step Step::FLY_POSTGRES_CREATE do
+    cmd = "flyctl pg create --flex --config-name #{PG_FLY_CONFIG} --org #{ORG_SLUG}"
+  
+
+    pg_name = PG_NAME
+    pg_name ||= "#{APP_NAME}-db-#{SecureRandom.hex(2)}"
+    
+    cmd += " --name #{pg_name}"
+
+    region = PG_REGION
+    region ||= APP_REGION
+
+    cmd += " --region #{region}" if region
+
+    artifact Artifact::FLY_POSTGRES, { name: pg_name, region: region, config: PG_FLY_CONFIG }
+
+    exec_capture(cmd)
+
+    exec_capture("flyctl pg attach #{pg_name} --app #{APP_NAME} -y")
+  end
 end
 
 if DEPLOY_NOW

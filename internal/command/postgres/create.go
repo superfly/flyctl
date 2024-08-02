@@ -87,6 +87,10 @@ func newCreate() *cobra.Command {
 			Description: "Automatically start a stopped Postgres app when a network request is received",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "config-name",
+			Description: "Configuration name to use for sizing",
+		},
 	)
 
 	return cmd
@@ -280,41 +284,49 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		ForkFrom:     params.ForkFrom,
 	}
 
-	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
-
 	var config *PostgresConfiguration
+	customConfig := false
 
-	if !customConfig {
-		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
+	configName := flag.GetString(ctx, "config-name")
+	if conf, ok := flexConfigs[configName]; ok {
+		config = &conf
+		customConfig = false
+	} else {
 
-		msg := "Select configuration:"
-		configurations := postgresConfigurations(input.Manager)
-		var selected int
+		customConfig = params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
 
-		options := []string{}
-		for i, cfg := range configurations {
-			options = append(options, cfg.Description)
-			if selected == 0 && !strings.HasPrefix(cfg.Description, "Dev") {
-				selected = i
+		if !customConfig {
+			fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
+
+			msg := "Select configuration:"
+			configurations := postgresConfigurations(input.Manager)
+			var selected int
+
+			options := []string{}
+			for i, cfg := range configurations {
+				options = append(options, cfg.Description)
+				if selected == 0 && !strings.HasPrefix(cfg.Description, "Dev") {
+					selected = i
+				}
 			}
-		}
 
-		if err := prompt.Select(ctx, &selected, msg, configurations[selected].Description, options...); err != nil {
-			return err
-		}
-		config = &postgresConfigurations(input.Manager)[selected]
-
-		if input.Manager == flypg.ReplicationManager && config.VMSize == "shared-cpu-1x" {
-			confirm, err := prompt.Confirm(ctx, "Scale single node pg to zero after one hour?")
-			if err != nil {
+			if err := prompt.Select(ctx, &selected, msg, configurations[selected].Description, options...); err != nil {
 				return err
 			}
-			input.ScaleToZero = confirm
-		}
+			config = &postgresConfigurations(input.Manager)[selected]
 
-		if config.VMSize == "" {
-			// User has opted into choosing a custom configuration.
-			customConfig = true
+			if input.Manager == flypg.ReplicationManager && config.VMSize == "shared-cpu-1x" {
+				confirm, err := prompt.Confirm(ctx, "Scale single node pg to zero after one hour?")
+				if err != nil {
+					return err
+				}
+				input.ScaleToZero = confirm
+			}
+
+			if config.VMSize == "" {
+				// User has opted into choosing a custom configuration.
+				customConfig = true
+			}
 		}
 	}
 
@@ -464,37 +476,45 @@ func stolonConfigurations() []PostgresConfiguration {
 	}
 }
 
+var flexConfigs = map[string]PostgresConfiguration{
+	"dev": {
+		Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
+		DiskGb:             1,
+		InitialClusterSize: 1,
+		MemoryMb:           256,
+		VMSize:             "shared-cpu-1x",
+	},
+	"prod_sm": {
+		Description:        "Production (High Availability) - 3 nodes, 2x shared CPUs, 4GB RAM, 40GB disk",
+		DiskGb:             40,
+		InitialClusterSize: 3,
+		MemoryMb:           4096,
+		VMSize:             "shared-cpu-2x",
+	},
+	"prod_lg": {
+		Description:        "Production (High Availability) - 3 nodes, 4x shared CPUs, 8GB RAM, 80GB disk",
+		DiskGb:             80,
+		InitialClusterSize: 3,
+		MemoryMb:           8192,
+		VMSize:             "shared-cpu-4x",
+	},
+	"custom": {
+		Description:        "Specify custom configuration",
+		DiskGb:             0,
+		InitialClusterSize: 0,
+		MemoryMb:           0,
+		VMSize:             "",
+	},
+}
+
 func flexConfigurations() []PostgresConfiguration {
-	return []PostgresConfiguration{
-		{
-			Description:        "Development - Single node, 1x shared CPU, 256MB RAM, 1GB disk",
-			DiskGb:             1,
-			InitialClusterSize: 1,
-			MemoryMb:           256,
-			VMSize:             "shared-cpu-1x",
-		},
-		{
-			Description:        "Production (High Availability) - 3 nodes, 2x shared CPUs, 4GB RAM, 40GB disk",
-			DiskGb:             40,
-			InitialClusterSize: 3,
-			MemoryMb:           4096,
-			VMSize:             "shared-cpu-2x",
-		},
-		{
-			Description:        "Production (High Availability) - 3 nodes, 4x shared CPUs, 8GB RAM, 80GB disk",
-			DiskGb:             80,
-			InitialClusterSize: 3,
-			MemoryMb:           8192,
-			VMSize:             "shared-cpu-4x",
-		},
-		{
-			Description:        "Specify custom configuration",
-			DiskGb:             0,
-			InitialClusterSize: 0,
-			MemoryMb:           0,
-			VMSize:             "",
-		},
+	var configs = []PostgresConfiguration{}
+
+	for _, conf := range flexConfigs {
+		configs = append(configs, conf)
 	}
+
+	return configs
 }
 
 // machineVMSizes represents the available VM configurations for Machines.
