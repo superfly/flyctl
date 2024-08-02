@@ -215,11 +215,6 @@ func New() *Command {
 			Description: "Do not run the release command during deployment.",
 			Default:     false,
 		},
-		flag.Bool{
-			Name:        "remote-deploy",
-			Description: "Makes a deployment from a deploy manifest to a fly.io managed deployer",
-			Default:     false,
-		},
 		flag.String{
 			Name:        "export-manifest",
 			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
