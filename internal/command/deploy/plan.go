@@ -321,11 +321,13 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			} else {
 				return nil
 			}
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", machine.ID))
 
-			if machine.LeaseNonce == "" {
-				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for job %s", machine.ID))
+			if machine.LeaseNonce != "" {
+				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Already have lease for %s", machine.ID))
+				return nil
 			}
+
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquiring lease for %s", machine.ID))
 
 			lease, err := md.acquireMachineLease(ctx, machine.ID)
 			if err != nil {
@@ -336,7 +338,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			machine.LeaseNonce = lease.Data.Nonce
 			lm := mach.NewLeasableMachine(md.flapsClient, md.io, machine, false)
 			lm.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
-			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Waiting for job %s", machine.ID))
+			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Acquired lease for %s", machine.ID))
 			return nil
 		})
 	}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
@@ -60,9 +61,18 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	// remove the cancel from ctx so we can still releases leases if the command was aborted
+	if ctx.Err() != nil {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+
+		fmt.Fprintf(io.Out, "Releasing lease for machine %s...\n", machine.ID)
+	}
+
 	if err := flapsClient.ReleaseLease(ctx, machine.ID, machine.LeaseNonce); err != nil {
 		if !strings.Contains(err.Error(), "lease not found") {
-			fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s", machine.ID, err.Error())
+			fmt.Fprintf(io.Out, "failed to release lease for machine %s: %s\n", machine.ID, err.Error())
 		}
 	}
 }
@@ -70,6 +80,22 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 // AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
 func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, releaseLeaseFunc, error) {
+	// if we haven't gotten the lease after 2s, we print a message so users
+	// aren't left wondering.
+	abortStatusUpdate := make(chan struct{})
+	defer close(abortStatusUpdate)
+	go func() {
+		timer := time.NewTimer(2 * time.Second)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			io := iostreams.FromContext(ctx)
+			fmt.Fprintf(io.Out, "Waiting on lease for machine %s...\n", machine.ID)
+		case <-abortStatusUpdate:
+		}
+	}()
+
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	lease, err := flapsClient.AcquireLease(ctx, machine.ID, fly.IntPointer(120))
