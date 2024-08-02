@@ -126,9 +126,12 @@ func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, f
 	}
 
 	err := hasRequiredVersionOnMachines(appName, machines, "", flexVersion, "")
-	if strings.Contains(err.Error(), "Malformed version") {
-		return fmt.Errorf("This image is not compatible with this feature.")
+	if err != nil {
+		if strings.Contains(err.Error(), "Malformed version") {
+			return fmt.Errorf("this image is not compatible with this feature")
+		}
 	}
+
 	return err
 }
 
