@@ -37,7 +37,6 @@ require (
 	github.com/haileys/go-harlog v0.0.0-20230517070437-0f99204b5a57
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/go-version v1.7.0
-	github.com/heroku/heroku-go/v5 v5.5.0
 	github.com/inancgumus/screen v0.0.0-20190314163918-06e984b86ed3
 	github.com/itchyny/json2yaml v0.1.4
 	github.com/jinzhu/copier v0.4.0
@@ -72,11 +71,10 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/superfly/fly-go v0.1.21
+	github.com/superfly/fly-go v0.1.22-0.20240802153530-1487eea07345
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.14-0.20240702184853-b8ac52a1fc77
-	github.com/superfly/tokenizer v0.0.2
 	github.com/vektah/gqlparser/v2 v2.5.16
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
 	go.opentelemetry.io/otel v1.28.0
@@ -164,7 +162,6 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
-	github.com/elazarl/goproxy v0.0.0-20230808193330-2592e75ae04a // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -221,7 +218,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
-	github.com/pborman/uuid v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
@@ -272,5 +268,5 @@ require (
 replace (
 	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
-	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.21
+	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.22-0.20240802153530-1487eea07345
 )
