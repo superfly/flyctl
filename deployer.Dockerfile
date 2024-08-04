@@ -1,6 +1,6 @@
 FROM debian:bookworm
 
-RUN apt update && apt install -y --no-install-recommends ruby git curl clang g++ libncurses5 libncurses-dev libncurses5-dev make unzip locales openssl libssl-dev
+RUN apt update && apt install -y --no-install-recommends ruby ruby-bundler git curl clang g++ libncurses5 libncurses-dev libncurses5-dev make unzip locales openssl libssl-dev
 
 # Erlang + Elixir
 COPY --from=hexpm/elixir:1.17.2-erlang-27.0.1-debian-bookworm-20240722-slim /usr/local/bin/ /usr/local/bin

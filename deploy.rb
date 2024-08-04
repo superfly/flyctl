@@ -5,6 +5,7 @@ require 'time'
 require 'open3'
 require 'uri'
 require 'securerandom'
+require 'fileutils'
 
 LOG_PREFIX = ENV["LOG_PREFIX"]
 
@@ -220,12 +221,17 @@ end
 
 manifest = in_step Step::PLAN do
   cmd = "flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
+  
   if (region = APP_REGION)
     cmd += " --region #{region}"
   end
+  
   if (internal_port = get_env("DEPLOY_APP_INTERNAL_PORT"))
     cmd += " --internal-port #{internal_port}"
   end
+
+  cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
+
   exec_capture(cmd)
   manifest = JSON.parse(File.read("/tmp/manifest.json"))
 
@@ -255,14 +261,19 @@ end
 File.write("/tmp/fly.json", manifest["config"].to_json)
 
 image_tag = SecureRandom.hex(16)
-image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-in_step Step::BUILD do
+image_ref = in_step Step::BUILD do
+  if (image_ref = manifest.dig("config","build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
+    info("Skipping build, using image defined in fly config: #{image_ref}")
+    return image_ref
+  end
+
+  image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+
   exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
   artifact Artifact::DOCKER_IMAGE, image_ref
+  image_ref
 end
-
-
 
 if FLY_PG_PROVIDER
   in_step Step::FLY_POSTGRES_CREATE do

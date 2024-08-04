@@ -38,6 +38,11 @@ func newGenerate() *cobra.Command {
 			Description: "Path to write the manifest to",
 			Default:     "manifest.json",
 		},
+		flag.Bool{
+			Name:        "copy-config",
+			Description: "Use the configuration file if present without prompting",
+			Default:     false,
+		},
 	)
 
 	// not that useful anywhere else yet
