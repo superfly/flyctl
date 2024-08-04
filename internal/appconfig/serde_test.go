@@ -510,6 +510,11 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		Processes: map[string]string{
 			"web":  "run web",
 			"task": "task all day",
+			"cron": "run jobs",
+		},
+
+		Schedules: map[string]string{
+			"cron": "hourly",
 		},
 
 		Checks: map[string]*ToplevelCheck{

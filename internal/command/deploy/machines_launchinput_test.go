@@ -331,7 +331,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 		ID:     "ab1234567890",
 		Region: "ord",
 		Config: &fly.MachineConfig{
-			Schedule:    "24/7",
+			Schedule:    "",
 			AutoDestroy: true,
 			Guest: &fly.MachineGuest{
 				CPUKind: "other",
@@ -348,7 +348,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.Equal(t, "ord", li.Region)
-	assert.Equal(t, "24/7", li.Config.Schedule)
+	assert.Equal(t, "", li.Config.Schedule)
 	assert.Equal(t, true, li.Config.AutoDestroy)
 	assert.Equal(t, &fly.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, li.Config.DNS)
@@ -357,7 +357,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 	li = md.launchInputForRestart(origMachineRaw)
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.Equal(t, "ord", li.Region)
-	assert.Equal(t, "24/7", li.Config.Schedule)
+	assert.Equal(t, "", li.Config.Schedule)
 	assert.Equal(t, true, li.Config.AutoDestroy)
 	assert.Equal(t, &fly.MachineGuest{CPUKind: "other"}, li.Config.Guest)
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, li.Config.DNS)

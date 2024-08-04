@@ -51,6 +51,7 @@ type Config struct {
 
 	// Fields that are process group aware must come after Processes
 	Processes        map[string]string         `toml:"processes,omitempty" json:"processes,omitempty"`
+	Schedules        map[string]string         `toml:"schedules,omitempty" json:"schedules,omitempty"`
 	Mounts           []Mount                   `toml:"mounts,omitempty" json:"mounts,omitempty"`
 	HTTPService      *HTTPService              `toml:"http_service,omitempty" json:"http_service,omitempty"`
 	Services         []Service                 `toml:"services,omitempty" json:"services,omitempty"`
