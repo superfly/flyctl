@@ -4,6 +4,7 @@ package logs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -44,7 +45,7 @@ Use --no-tail to only fetch the logs in the buffer.
 
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(cmd,
+	flag.Add(cmd, 
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
@@ -53,6 +54,10 @@ Use --no-tail to only fetch the logs in the buffer.
 			Name:        "instance",
 			Shorthand:   "i",
 			Description: "Filter by instance ID",
+		},
+		flag.String{
+			Name:        "machine",
+			Description: "Filter by machine ID",
 		},
 		flag.Bool{
 			Name:        "no-tail",
@@ -63,13 +68,32 @@ Use --no-tail to only fetch the logs in the buffer.
 	return
 }
 
+func getMachineID(instanceStr string, machineStr string) (string, error){
+	if instanceStr!="" && machineStr!="" && instanceStr!=machineStr{
+		return "", fmt.Errorf("--instance does not match the --machine provided. Both flags identify the machine instance to get logs for. Hence, if both are provided, please make sure they match.")
+	}else if machineStr!=""{
+		return machineStr, nil
+	}else if instanceStr!=""{
+		return instanceStr, nil
+	}else{
+		return "", nil
+	}
+}
+
 func run(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
+	instanceStr := flag.GetString(ctx, "instance")
+	machineStr := flag.GetString(ctx, "machine")
+
+	machineID, err := getMachineID(instanceStr, machineStr)
+	if err!=nil{
+		return fmt.Errorf("failed retrieving logs: %w", err)
+	}
 
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),
 		RegionCode: config.FromContext(ctx).Region,
-		VMID:       flag.GetString(ctx, "instance"),
+		VMID:       machineID,
 		NoTail:     flag.GetBool(ctx, "no-tail"),
 	}
 
