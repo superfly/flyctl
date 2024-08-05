@@ -1,4 +1,4 @@
-package mysql
+package fly_mysql
 
 import (
 	"github.com/spf13/cobra"
@@ -13,7 +13,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("mysql", short, long, nil)
-	cmd.AddCommand(create(), list())
+	cmd.AddCommand(create(), list(), status(), destroy())
 
 	return cmd
 }
