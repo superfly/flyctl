@@ -43,16 +43,19 @@ func TestAppsV2Example(t *testing.T) {
 	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", appUrl)
 
 	machList := f.MachinesList(appName)
+	t.Logf("machines: %+v", machList)
 	require.Equal(t, len(machList), 1, "There should be exactly one machine")
 	firstMachine := machList[0]
 
 	// DisableMachineAutostart is deprecated and should be nil always
 	require.Nil(t, firstMachine.Config.DisableMachineAutostart)
 	require.Equal(t, 1, len(firstMachine.Config.Services))
-	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
-	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
-	require.True(t, *firstMachine.Config.Services[0].Autostart)
-	require.Equal(t, fly.MachineAutostopOff, *firstMachine.Config.Services[0].Autostop)
+
+	require.NotNil(t, firstMachine.Config.Services[0].Autostart, "autostart is defined")
+	require.True(t, *firstMachine.Config.Services[0].Autostart, "autostart should be true")
+
+	require.NotNil(t, firstMachine.Config.Services[0].Autostop, "autostop is defined")
+	require.Equal(t, fly.MachineAutostopOff, *firstMachine.Config.Services[0].Autostop, "autostop should be off")
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {

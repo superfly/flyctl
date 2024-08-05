@@ -74,15 +74,17 @@ func TestFlyVolumeLs(t *testing.T) {
 	require.Len(f, ls, 1)
 	require.Equal(f, v1.ID, ls[0].ID)
 	lsAllRes := f.Fly("vol ls --all -a %s --json", appName)
-	var lsAll []*fly.Volume
-	lsAllRes.StdOutJSON(&lsAll)
-	require.Len(f, lsAll, 2)
+
+	var volumes []*fly.Volume
+	lsAllRes.StdOutJSON(&volumes)
+	t.Logf("volumes: %v", volumes)
+	assert.Len(f, volumes, 2)
 	var lsAllIds []string
-	for _, v := range lsAll {
+	for _, v := range volumes {
 		lsAllIds = append(lsAllIds, v.ID)
 	}
-	require.Contains(f, lsAllIds, v1.ID)
-	require.Contains(f, lsAllIds, v2.ID)
+	assert.Contains(f, lsAllIds, v1.ID)
+	assert.Contains(f, lsAllIds, v2.ID)
 }
 
 func TestFlyVolume_CreateFromDestroyedVolSnapshot(t *testing.T) {

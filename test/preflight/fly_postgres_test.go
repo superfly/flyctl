@@ -226,6 +226,8 @@ func TestPostgres_ImportFailure(t *testing.T) {
 		f.OrgSlug(), appName, f.PrimaryRegion(),
 	)
 
+	time.Sleep(5 * time.Second)
+
 	result := f.FlyAllowExitFailure(
 		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
 		appName, f.PrimaryRegion(), appName,
