@@ -265,14 +265,14 @@ image_tag = SecureRandom.hex(16)
 image_ref = in_step Step::BUILD do
   if (image_ref = manifest.dig("config","build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
     info("Skipping build, using image defined in fly config: #{image_ref}")
-    return image_ref
+    image_ref
+  else
+    image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+
+    exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
+    artifact Artifact::DOCKER_IMAGE, image_ref
+    image_ref
   end
-
-  image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
-
-  exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
-  artifact Artifact::DOCKER_IMAGE, image_ref
-  image_ref
 end
 
 if FLY_PG_PROVIDER
