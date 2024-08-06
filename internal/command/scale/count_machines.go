@@ -272,6 +272,7 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int,
 		mConfig := groupMachines[0].Config
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
+		delete(mConfig.Env, "FLY_STANDBY_FOR")
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
