@@ -4,35 +4,35 @@
 package preflight
 
 import (
-	"testing"
+	"fmt"
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 	"strings"
-	"fmt"
-	"github.com/superfly/flyctl/internal/command/logs"
+	"testing"
 )
 
-func TestFuncGetMachineId(t *testing.T){
+func TestFuncGetMachineId(t *testing.T) {
 	// Test if clashing instance and machine flag values throw proper error
-	t.Run("TestFuncThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T){
-		_, err := logs.GetMachineID("sampleInstanceId","sampleMachineId")
+	t.Run("TestFuncThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T) {
+		_, err := logs.GetMachineID("sampleInstanceId", "sampleMachineId")
 		require.Contains(t, err.Error(), `--instance does not match the --machine`)
 	})
 
 	// Test if --machine works, by matching the machine argument(second argument) passed with result
-	t.Run("TestFuncReturnsMachineIdIfProvided", func(tt *testing.T){
-		machineId, _ := logs.GetMachineID("","sampleMachineId")
+	t.Run("TestFuncReturnsMachineIdIfProvided", func(tt *testing.T) {
+		machineId, _ := logs.GetMachineID("", "sampleMachineId")
 		require.Contains(t, machineId, "sampleMachineId")
 	})
 
 	// Test if --instance works, by matching the instance argument(first argument) passed with result
-	t.Run("TestFuncReturnsInstanceIdIfProvided", func(tt *testing.T){
-		machineId, _ := logs.GetMachineID("sampleInstanceId","")
+	t.Run("TestFuncReturnsInstanceIdIfProvided", func(tt *testing.T) {
+		machineId, _ := logs.GetMachineID("sampleInstanceId", "")
 		require.Contains(t, machineId, "sampleInstanceId")
 	})
 }
 
-func TestFlyLogsBehavior(t *testing.T){
+func TestFlyLogsBehavior(t *testing.T) {
 
 	// Get library from preflight test lib using env variables form  .direnv/preflight
 	f := testlib.NewTestEnvFromEnv(t)
@@ -49,37 +49,37 @@ func TestFlyLogsBehavior(t *testing.T){
 
 	// Try to get an instance id from running `fly machines list`
 	machineListResult := f.Fly("machines list").StdOutString()
-	instanceId, err := getInstanceIdFromListOutput( machineListResult )
+	instanceId, err := getInstanceIdFromListOutput(machineListResult)
 
-	if instanceId!="" && err == nil{
+	if instanceId != "" && err == nil {
 		// Test `flyctl logs` with different flag combinations
 
 		// Test if clashing instance and machine flag values throw proper error
-		t.Run("TestThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T){
-			res := f.FlyAllowExitFailure("logs --no-tail --instance "+instanceId+" --machine instanceIdB")
+		t.Run("TestThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T) {
+			res := f.FlyAllowExitFailure("logs --no-tail --instance " + instanceId + " --machine instanceIdB")
 			require.Contains(tt, res.StdErrString(), `--instance does not match the --machine`)
 		})
 
 		// Test if --machine works, should not throw an error
-		t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T){
-			f.Fly( "logs --no-tail --machine "+instanceId)
+		t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T) {
+			f.Fly("logs --no-tail --machine " + instanceId)
 		})
 
 		// Test if --instance works, should not throw an error
-		t.Run("TestRunsWhenInstanceIdProvided", func(tt *testing.T){
-			f.Fly( "logs --no-tail --instance "+instanceId)
+		t.Run("TestRunsWhenInstanceIdProvided", func(tt *testing.T) {
+			f.Fly("logs --no-tail --instance " + instanceId)
 		})
 	}
 }
 
-func getInstanceIdFromListOutput(machineListResultStr string) (string, error){
+func getInstanceIdFromListOutput(machineListResultStr string) (string, error) {
 	// This function aims to get the instance id from the output of fly machine list
-	
+
 	// SIZE is the substring before the first instance id
-	res:=strings.Split(machineListResultStr, "SIZE")
-	if len(res) > 1{
+	res := strings.Split(machineListResultStr, "SIZE")
+	if len(res) > 1 {
 		// Get the first item separated by space
-		res2:=strings.Fields( res[1])
+		res2 := strings.Fields(res[1])
 		if len(res2) > 1 {
 			// First item in list will be the instance id
 			return res2[0], nil

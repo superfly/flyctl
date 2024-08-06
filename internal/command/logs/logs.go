@@ -45,7 +45,7 @@ Use --no-tail to only fetch the logs in the buffer.
 
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(cmd, 
+	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
 		flag.Region(),
@@ -64,14 +64,14 @@ Use --no-tail to only fetch the logs in the buffer.
 	return
 }
 
-func GetMachineID(instanceStr string, machineStr string) (string, error){
-	if instanceStr!="" && machineStr!="" && instanceStr!=machineStr{
+func GetMachineID(instanceStr string, machineStr string) (string, error) {
+	if instanceStr != "" && machineStr != "" && instanceStr != machineStr {
 		return "", fmt.Errorf("--instance does not match the --machine provided. Both flags identify the machine instance to get logs for. Hence, if both are provided, please make sure they match.")
-	}else if machineStr!=""{
+	} else if machineStr != "" {
 		return machineStr, nil
-	}else if instanceStr!=""{
+	} else if instanceStr != "" {
 		return instanceStr, nil
-	}else{
+	} else {
 		return "", nil
 	}
 }
@@ -82,7 +82,7 @@ func run(ctx context.Context) error {
 	machineStr := flag.GetString(ctx, "machine")
 
 	machineID, err := GetMachineID(instanceStr, machineStr)
-	if err!=nil{
+	if err != nil {
 		return fmt.Errorf("failed retrieving logs: %w", err)
 	}
 
