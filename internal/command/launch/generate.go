@@ -87,7 +87,7 @@ func runGenerate(ctx context.Context) error {
 		return err
 	}
 
-	if err := state.satisfyScannerBeforeDb(ctx); err != nil {
+	if err = state.satisfyScannerAfterDb(ctx); err != nil {
 		return err
 	}
 
