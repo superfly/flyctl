@@ -51,13 +51,9 @@ Use --no-tail to only fetch the logs in the buffer.
 		flag.Region(),
 		flag.JSONOutput(),
 		flag.String{
-			Name:        "instance",
-			Shorthand:   "i",
-			Description: "Filter by instance ID",
-		},
-		flag.String{
 			Name:        "machine",
 			Description: "Filter by machine ID",
+			Aliases:     []string{"instance"},
 		},
 		flag.Bool{
 			Name:        "no-tail",
@@ -68,7 +64,7 @@ Use --no-tail to only fetch the logs in the buffer.
 	return
 }
 
-func getMachineID(instanceStr string, machineStr string) (string, error){
+func GetMachineID(instanceStr string, machineStr string) (string, error){
 	if instanceStr!="" && machineStr!="" && instanceStr!=machineStr{
 		return "", fmt.Errorf("--instance does not match the --machine provided. Both flags identify the machine instance to get logs for. Hence, if both are provided, please make sure they match.")
 	}else if machineStr!=""{
@@ -85,7 +81,7 @@ func run(ctx context.Context) error {
 	instanceStr := flag.GetString(ctx, "instance")
 	machineStr := flag.GetString(ctx, "machine")
 
-	machineID, err := getMachineID(instanceStr, machineStr)
+	machineID, err := GetMachineID(instanceStr, machineStr)
 	if err!=nil{
 		return fmt.Errorf("failed retrieving logs: %w", err)
 	}
