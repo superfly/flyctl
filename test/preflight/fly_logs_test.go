@@ -4,15 +4,15 @@
 package preflight
 
 import (
-	"fmt"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/test/preflight/testlib"
-	"strings"
 	"testing"
 )
 
 func TestFuncGetMachineId(t *testing.T) {
+	// Test the function responsible for machine flag behavior
+
 	// Test if clashing instance and machine flag values throw proper error
 	t.Run("TestFuncThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T) {
 		_, err := logs.GetMachineID("sampleInstanceId", "sampleMachineId")
@@ -33,6 +33,7 @@ func TestFuncGetMachineId(t *testing.T) {
 }
 
 func TestFlyLogsMachineFlagBehavior(t *testing.T) {
+	// Test `flyctl logs` with different flag combinations
 
 	// Get library from preflight test lib using env variables form  .direnv/preflight
 	f := testlib.NewTestEnvFromEnv(t)
@@ -40,50 +41,26 @@ func TestFlyLogsMachineFlagBehavior(t *testing.T) {
 		t.Skip()
 	}
 
-	// Create fly.toml in current directory for the purpose of getting instance id that will make flyctl run properly
-	appName := f.CreateRandomAppName()
-	f.Fly(
-		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
-		f.OrgSlug(), appName, f.PrimaryRegion(),
-	)
+	// Create app, Create Machine, get Machine ID
+	appName := f.CreateRandomAppMachines()
+	f.Fly("machine run -a %s nginx --port 80:81 --autostop --region %s", appName, f.PrimaryRegion())
+	ml := f.MachinesList(appName)
+	require.Equal(f, 1, len(ml))
+	machineId := ml[0].ID
 
-	// Try to get an instance id from running `fly machines list`
-	machineListResult := f.Fly("machines list").StdOutString()
-	instanceId, err := getInstanceIdFromListOutput(machineListResult)
+	// Test if clashing instance and machine flag values throw proper error
+	t.Run("TestThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T) {
+		res := f.FlyAllowExitFailure("logs --app "+appName+" --no-tail --instance " + machineId + " --machine instanceIdB")
+		require.Contains(tt, res.StdErrString(), `--instance does not match the --machine`)
+	})
 
-	if instanceId != "" && err == nil {
-		// Test `flyctl logs` with different flag combinations
+	// Test if --machine works, should not throw an error
+	t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T) {
+		f.Fly("logs --app "+appName+" --no-tail --machine " + machineId)
+	})
 
-		// Test if clashing instance and machine flag values throw proper error
-		t.Run("TestThrowsErrorWhenInstanceAndMachineClash", func(tt *testing.T) {
-			res := f.FlyAllowExitFailure("logs --no-tail --instance " + instanceId + " --machine instanceIdB")
-			require.Contains(tt, res.StdErrString(), `--instance does not match the --machine`)
-		})
-
-		// Test if --machine works, should not throw an error
-		t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T) {
-			f.Fly("logs --no-tail --machine " + instanceId)
-		})
-
-		// Test if --instance works, should not throw an error
-		t.Run("TestRunsWhenInstanceIdProvided", func(tt *testing.T) {
-			f.Fly("logs --no-tail --instance " + instanceId)
-		})
-	}
-}
-
-func getInstanceIdFromListOutput(machineListResultStr string) (string, error) {
-	// This function aims to get the instance id from the output of fly machine list
-
-	// SIZE is the substring before the first instance id
-	res := strings.Split(machineListResultStr, "SIZE")
-	if len(res) > 1 {
-		// Get the first item separated by space
-		res2 := strings.Fields(res[1])
-		if len(res2) > 1 {
-			// First item in list will be the instance id
-			return res2[0], nil
-		}
-	}
-	return "", fmt.Errorf("Unable to retrieve the instance id from the output of fly machine list")
+	// Test if --instance works, should not throw an error
+	t.Run("TestRunsWhenInstanceIdProvided", func(tt *testing.T) {
+		f.Fly("logs  --app "+appName+" --no-tail --instance " + machineId)
+	})
 }
