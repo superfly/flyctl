@@ -32,7 +32,7 @@ func TestFuncGetMachineId(t *testing.T) {
 	})
 }
 
-func TestFlyLogsBehavior(t *testing.T) {
+func TestFlyLogsMachineFlagBehavior(t *testing.T) {
 
 	// Get library from preflight test lib using env variables form  .direnv/preflight
 	f := testlib.NewTestEnvFromEnv(t)
