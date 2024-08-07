@@ -771,15 +771,19 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 			defer close(errChan)
 
 			go func() {
-				// for cold machines, we can update all of them at once.
-				// there's no need for protection against downtime since the machines are already stopped
-				startIdx += len(coldMachines)
-				poolSize := len(coldMachines)
-				if poolSize >= 50 {
-					poolSize = 50
+				var err error
+				if len(coldMachines) > 0 {
+					// for cold machines, we can update all of them at once.
+					// there's no need for protection against downtime since the machines are already stopped
+					startIdx += len(coldMachines)
+					poolSize := len(coldMachines)
+					if poolSize >= 50 {
+						poolSize = 50
+					}
+					err = md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
 				}
 
-				errChan <- md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
+				errChan <- err
 			}()
 
 			go func() {
