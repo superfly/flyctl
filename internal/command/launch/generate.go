@@ -22,6 +22,17 @@ func newGenerate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.AppConfig(),
+		flag.String{
+			Name:        "name",
+			Description: `Name of the new app`,
+		},
+		// don't try to generate a name
+		flag.Bool{
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
 		flag.Int{
 			Name:        "internal-port",
 			Description: "Set internal_port for all services in the generated fly.toml",

@@ -153,17 +153,17 @@ func buildManifest(ctx context.Context, recoverableErrors *recoverableErrorBuild
 	}
 	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
 
-	var srcInfo *scanner.SourceInfo
-	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
 		}
+	}
+
+	var srcInfo *scanner.SourceInfo
+	srcInfo, appConfig.Build, err = determineSourceInfo(ctx, appConfig, copiedConfig, workingDir)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	compute, computeExplanation, err := determineCompute(ctx, appConfig, srcInfo)

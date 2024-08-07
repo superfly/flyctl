@@ -220,7 +220,7 @@ if GIT_REPO_URL
 end
 
 manifest = in_step Step::PLAN do
-  cmd = "flyctl launch generate -a #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
+  cmd = "flyctl launch generate --force-name -a #{APP_NAME} --name #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
   
   if (region = APP_REGION)
     cmd += " --region #{region}"
