@@ -196,15 +196,79 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 	for _, machineTuples := range machPairByProcessGroup {
 		machineTuples := machineTuples
 		pgroup.Go(func() error {
-			err := md.updateProcessGroup(ctx, machineTuples, statusLines, poolSize)
-			if err != nil && strings.Contains(err.Error(), "lease currently held by") {
-				err := &unrecoverableError{err: err}
+
+			errChan := make(chan error, 1)
+			wg := sync.WaitGroup{}
+
+			// defer close(coldError)
+			// defer close(warmError)
+
+			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
+				if e.oldMachine != nil && e.oldMachine.State == "started" {
+					return true
+				}
+				if e.newMachine != nil && e.newMachine.State == "started" {
+					return true
+				}
+				return false
+			})
+
+			coldMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
+				if e.oldMachine != nil && e.oldMachine.State != "started" {
+					return true
+				}
+				if e.newMachine != nil && e.newMachine.State != "started" {
+					return true
+				}
+				return false
+			})
+
+			fmt.Println("length of warmMachines", len(warmMachines))
+			fmt.Println("length of coldMachines", len(coldMachines))
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// for warm machines, we update them in chunks of size, md.maxUnavailable.
+				// this is to prevent downtime/low-latency during deployments
+				poolSize := md.getPoolSize(len(warmMachines))
+				fmt.Println("poolSize", poolSize)
+				err := md.updateProcessGroup(ctx, warmMachines, statusLines, poolSize)
+				if err != nil {
+					errChan <- err
+				}
+
+			}()
+
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+
+				// for cold machines, we can update all of them at once.
+				// there's no need for protection against downtime since the machines are already stopped
+				poolSize := len(coldMachines)
+				if poolSize >= 50 {
+					poolSize = 50
+				}
+				err := md.updateProcessGroup(ctx, coldMachines, statusLines, poolSize)
+				if err != nil {
+					errChan <- err
+				}
+			}()
+
+			wg.Wait()
+			close(errChan)
+
+			err := <-errChan
+			if err != nil {
 				span.RecordError(err)
+				if strings.Contains(err.Error(), "lease currently held by") {
+					err = &unrecoverableError{err: err}
+				}
 				return err
 			}
 
-			span.RecordError(err)
-			return err
+			return nil
 		})
 	}
 
