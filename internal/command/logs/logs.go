@@ -4,7 +4,6 @@ package logs
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"time"
 
@@ -66,32 +65,14 @@ Use --no-tail to only fetch the logs in the buffer.
 	return
 }
 
-func GetMachineID(instanceStr string, machineStr string) (string, error) {
-	if instanceStr != "" && machineStr != "" && instanceStr != machineStr {
-		return "", fmt.Errorf("--instance does not match the --machine provided. Both flags identify the machine instance to get logs for. Hence, if both are provided, please make sure they match.")
-	} else if machineStr != "" {
-		return machineStr, nil
-	} else if instanceStr != "" {
-		return instanceStr, nil
-	} else {
-		return "", nil
-	}
-}
 
 func run(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
-	instanceStr := flag.GetString(ctx, "instance")
-	machineStr := flag.GetString(ctx, "machine")
-
-	machineID, err := GetMachineID(instanceStr, machineStr)
-	if err != nil {
-		return fmt.Errorf("failed retrieving logs: %w", err)
-	}
 
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),
 		RegionCode: config.FromContext(ctx).Region,
-		VMID:       machineID,
+		VMID:        flag.GetString(ctx, "machine"),
 		NoTail:     flag.GetBool(ctx, "no-tail"),
 	}
 
