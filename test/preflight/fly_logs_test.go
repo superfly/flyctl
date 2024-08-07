@@ -5,7 +5,6 @@ package preflight
 
 import (
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 	"testing"
 )
@@ -28,22 +27,22 @@ func TestFlyLogsMachineFlagBehavior(t *testing.T) {
 	machineId := ml[0].ID
 
 	// Test if --machine works, should not throw an error
-	t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T) {
+	t.Run("TestRunsWhenMachineFlagProvided", func(tt *testing.T) {
 		f.Fly("logs --app "+appName+" --no-tail --machine " + machineId)
 	})
 
 	// Test if shorthand -m works, should not throw an error
-	t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T) {
+	t.Run("TestRunsWhenMachineShorthandProvided", func(tt *testing.T) {
 		f.Fly("logs --app "+appName+" --no-tail -m " + machineId)
 	})
 
 	// Test if --instance works, should not throw an error
-	t.Run("TestRunsWhenInstanceIdProvided", func(tt *testing.T) {
+	t.Run("TestRunsWhenInstanceFlagProvided", func(tt *testing.T) {
 		f.Fly("logs  --app "+appName+" --no-tail --instance " + machineId)
 	})
 
 	// Test if alias shorthand -i works, should not throw an error
-	t.Run("TestRunsWhenMachineIdProvided", func(tt *testing.T) {
+	t.Run("TestRunsWhenInstanceShorthandProvided", func(tt *testing.T) {
 		f.Fly("logs --app "+appName+" --no-tail -i " + machineId)
 	})
 }
