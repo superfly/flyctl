@@ -249,19 +249,23 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				if err != nil {
 					errChan <- err
 				}
-
 			}()
 
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				// for cold machines, we can even update all of them at once. there's no need for protection against downtime since the machines are already stopped
-				// but in order not to overload our apis, we update them in batches of >= 30
+
 				poolSize := len(coldMachines)
 				if poolSize >= stoppedMachinesPoolSize {
 					poolSize = stoppedMachinesPoolSize
 				}
-				err := md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
+
+				var err error
+				if len(coldMachines) > 0 {
+					// for cold machines, we can even update all of them at once. there's no need for protection against downtime since the machines are already stopped
+					// but in order not to overload our apis, we update them in batches of >= 30
+					err = md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
+				}
 				if err != nil {
 					errChan <- err
 				}

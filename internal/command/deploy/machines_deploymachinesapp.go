@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff"
@@ -768,31 +769,42 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 
 		groupsPool.Go(func(ctx context.Context) error {
 			errChan := make(chan error, 2)
-			defer close(errChan)
+			wg := sync.WaitGroup{}
 
+			wg.Add(1)
 			go func() {
+				poolSize := len(coldMachines)
+				if poolSize >= 50 {
+					poolSize = 50
+				}
+
 				var err error
 				if len(coldMachines) > 0 {
 					// for cold machines, we can update all of them at once.
 					// there's no need for protection against downtime since the machines are already stopped
 					startIdx += len(coldMachines)
-					poolSize := len(coldMachines)
-					if poolSize >= 50 {
-						poolSize = 50
-					}
 					err = md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
 				}
 
-				errChan <- err
+				if err != nil {
+					errChan <- err
+				}
 			}()
 
+			wg.Add(1)
 			go func() {
 				// for warm machines, we update them in chunks of size, md.maxUnavailable.
 				// this is to prevent downtime/low-latency during deployments
 				startIdx += len(warmMachines)
 				poolSize := md.getPoolSize(len(warmMachines))
-				errChan <- md.updateEntriesGroup(ctx, group, warmMachines, sl, startIdx-len(warmMachines), poolSize)
+				err := md.updateEntriesGroup(ctx, group, warmMachines, sl, startIdx-len(warmMachines), poolSize)
+				if err != nil {
+					errChan <- err
+				}
 			}()
+
+			wg.Wait()
+			close(errChan)
 
 			err := <-errChan
 			if err != nil {
@@ -813,7 +825,6 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		span.RecordError(err)
 	}
 
-	fmt.Println("updatecomplete", err)
 	return err
 }
 
