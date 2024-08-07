@@ -155,6 +155,10 @@ func New() *cobra.Command {
 			Name:        "file-secret",
 			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
 		},
+		flag.StringSlice{
+			Name:        "volume",
+			Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+		},
 		flag.VMSizeFlags,
 	)
 
