@@ -52,8 +52,10 @@ Use --no-tail to only fetch the logs in the buffer.
 		flag.JSONOutput(),
 		flag.String{
 			Name:        "machine",
+			Shorthand:   "m",
 			Description: "Filter by machine ID",
-			Aliases:     []string{"instance"},
+			Aliases: []string{"instance"},
+			UseAliasShortHand: true,	
 		},
 		flag.Bool{
 			Name:        "no-tail",
