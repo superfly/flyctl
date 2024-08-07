@@ -50,9 +50,11 @@ Use --no-tail to only fetch the logs in the buffer.
 		flag.Region(),
 		flag.JSONOutput(),
 		flag.String{
-			Name:        "instance",
-			Shorthand:   "i",
-			Description: "Filter by instance ID",
+			Name:        "machine",
+			Shorthand:   "m",
+			Description: "Filter by machine ID",
+			Aliases: []string{"instance"},
+			UseAliasShortHand: true,	
 		},
 		flag.Bool{
 			Name:        "no-tail",
@@ -63,13 +65,14 @@ Use --no-tail to only fetch the logs in the buffer.
 	return
 }
 
+
 func run(ctx context.Context) error {
 	client := flyutil.ClientFromContext(ctx)
 
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),
 		RegionCode: config.FromContext(ctx).Region,
-		VMID:       flag.GetString(ctx, "instance"),
+		VMID:        flag.GetString(ctx, "machine"),
 		NoTail:     flag.GetBool(ctx, "no-tail"),
 	}
 
