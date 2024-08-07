@@ -197,8 +197,8 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		machineTuples := machineTuples
 		pgroup.Go(func() error {
 
-			warmError := make(chan error, 1)
-			coldError := make(chan error, 1)
+			errChan := make(chan error, 1)
+			wg := sync.WaitGroup{}
 
 			// defer close(coldError)
 			// defer close(warmError)
@@ -226,30 +226,40 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			fmt.Println("length of warmMachines", len(warmMachines))
 			fmt.Println("length of coldMachines", len(coldMachines))
 
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
 				// for warm machines, we update them in chunks of size, md.maxUnavailable.
 				// this is to prevent downtime/low-latency during deployments
 				poolSize := md.getPoolSize(len(warmMachines))
 				fmt.Println("poolSize", poolSize)
-				warmError <- md.updateProcessGroup(ctx, warmMachines, statusLines, poolSize)
+				err := md.updateProcessGroup(ctx, warmMachines, statusLines, poolSize)
+				if err != nil {
+					errChan <- err
+				}
+
 			}()
 
+			wg.Add(1)
 			go func() {
+				defer wg.Done()
+
 				// for cold machines, we can update all of them at once.
 				// there's no need for protection against downtime since the machines are already stopped
 				poolSize := len(coldMachines)
 				if poolSize >= 50 {
 					poolSize = 50
 				}
-				coldError <- md.updateProcessGroup(ctx, coldMachines, statusLines, poolSize)
+				err := md.updateProcessGroup(ctx, coldMachines, statusLines, poolSize)
+				if err != nil {
+					errChan <- err
+				}
 			}()
 
-			var err error
-			select {
-			case err = <-warmError:
-			case err = <-coldError:
-			}
+			wg.Wait()
+			close(errChan)
 
+			err := <-errChan
 			if err != nil {
 				span.RecordError(err)
 				if strings.Contains(err.Error(), "lease currently held by") {
@@ -258,7 +268,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				return err
 			}
 
-			return err
+			return nil
 		})
 	}
 
