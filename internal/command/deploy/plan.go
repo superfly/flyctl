@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +20,36 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/sync/errgroup"
 )
+
+const (
+	stoppedMachinesPoolSize = 30
+)
+
+type MachineLogger struct {
+	store map[string]statuslogger.StatusLine
+	sl    statuslogger.StatusLogger
+}
+
+func NewMachineLogger(store map[string]statuslogger.StatusLine, sl statuslogger.StatusLogger) *MachineLogger {
+	return &MachineLogger{
+		store: store,
+		sl:    sl,
+	}
+}
+
+func (m *MachineLogger) initFromMachinePairs(mp []machinePairing) {
+	for idx, machPair := range mp {
+		if machPair.oldMachine != nil {
+			m.store[machPair.oldMachine.ID] = m.sl.Line(idx)
+		} else if machPair.newMachine != nil {
+			m.store[machPair.newMachine.ID] = m.sl.Line(idx)
+		}
+	}
+}
+
+func (m *MachineLogger) getLoggerFromID(id string) statuslogger.StatusLine {
+	return m.store[id]
+}
 
 type AppState struct {
 	Machines []*fly.Machine
@@ -130,6 +159,13 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		defer sl.Destroy(false)
 	}
 
+	machineLogger := NewMachineLogger(
+		map[string]statuslogger.StatusLine{},
+		sl,
+	)
+
+	machineLogger.initFromMachinePairs(machineTuples)
+
 	machPairByProcessGroup := lo.GroupBy(machineTuples, func(machPair machinePairing) string {
 		if machPair.oldMachine != nil {
 			return machPair.oldMachine.ProcessGroup()
@@ -140,15 +176,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		}
 	})
 
-	var poolSize int
-	switch mu := md.maxUnavailable; {
-	case mu >= 1:
-		poolSize = int(mu)
-	case mu > 0:
-		poolSize = int(math.Ceil(float64(len(machineTuples)) * mu))
-	default:
-		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
-	}
+	poolSize := md.getPoolSize(len(machineTuples))
 
 	if !settings.skipLeaseAcquisition {
 		attempts := 0
@@ -158,7 +186,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		}()
 
 		for {
-			err := md.acquireLeases(ctx, machineTuples, poolSize, sl)
+			err := md.acquireLeases(ctx, machineTuples, poolSize, machineLogger)
 			if err == nil {
 				break
 			}
@@ -172,21 +200,12 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		}
 
 		defer func() {
-			err := md.releaseLeases(ctx, machineTuples, sl)
+			err := md.releaseLeases(ctx, machineTuples, machineLogger)
 			if err != nil {
 				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
 				span.RecordError(err)
 			}
 		}()
-	}
-
-	statusLines := map[string]statuslogger.StatusLine{}
-	for idx, machPair := range machineTuples {
-		if machPair.oldMachine != nil {
-			statusLines[machPair.oldMachine.ID] = sl.Line(idx)
-		} else if machPair.newMachine != nil {
-			statusLines[machPair.newMachine.ID] = sl.Line(idx)
-		}
 	}
 
 	pgroup := errgroup.Group{}
@@ -197,11 +216,8 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		machineTuples := machineTuples
 		pgroup.Go(func() error {
 
-			errChan := make(chan error, 1)
+			errChan := make(chan error, 2)
 			wg := sync.WaitGroup{}
-
-			// defer close(coldError)
-			// defer close(warmError)
 
 			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
 				if e.oldMachine != nil && e.oldMachine.State == "started" {
@@ -223,17 +239,13 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				return false
 			})
 
-			fmt.Println("length of warmMachines", len(warmMachines))
-			fmt.Println("length of coldMachines", len(coldMachines))
-
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 				// for warm machines, we update them in chunks of size, md.maxUnavailable.
 				// this is to prevent downtime/low-latency during deployments
 				poolSize := md.getPoolSize(len(warmMachines))
-				fmt.Println("poolSize", poolSize)
-				err := md.updateProcessGroup(ctx, warmMachines, statusLines, poolSize)
+				err := md.updateProcessGroup(ctx, warmMachines, machineLogger, poolSize)
 				if err != nil {
 					errChan <- err
 				}
@@ -243,14 +255,13 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-
-				// for cold machines, we can update all of them at once.
-				// there's no need for protection against downtime since the machines are already stopped
+				// for cold machines, we can even update all of them at once. there's no need for protection against downtime since the machines are already stopped
+				// but in order not to overload our apis, we update them in batches of >= 30
 				poolSize := len(coldMachines)
-				if poolSize >= 50 {
-					poolSize = 50
+				if poolSize >= stoppedMachinesPoolSize {
+					poolSize = stoppedMachinesPoolSize
 				}
-				err := md.updateProcessGroup(ctx, coldMachines, statusLines, poolSize)
+				err := md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
 				if err != nil {
 					errChan <- err
 				}
@@ -323,7 +334,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 	return nil
 }
 
-func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTuples []machinePairing, statusLines map[string]statuslogger.StatusLine, poolSize int) error {
+func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTuples []machinePairing, machineLogger *MachineLogger, poolSize int) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_process_group")
 	defer span.End()
 
@@ -341,9 +352,9 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 
 			var sl statuslogger.StatusLine
 			if oldMachine != nil {
-				sl = statusLines[oldMachine.ID]
+				sl = machineLogger.getLoggerFromID(oldMachine.ID)
 			} else if newMachine != nil {
-				sl = statusLines[newMachine.ID]
+				sl = machineLogger.getLoggerFromID(newMachine.ID)
 			}
 
 			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
@@ -364,18 +375,15 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 	return nil
 }
 
-func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []machinePairing, poolSize int, statusLogger statuslogger.StatusLogger) error {
+func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []machinePairing, poolSize int, machToLogger *MachineLogger) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "acquire_leases")
 
 	leaseGroup := errgroup.Group{}
 	leaseGroup.SetLimit(poolSize)
 
-	for idx, machineTuple := range machineTuples {
+	for _, machineTuple := range machineTuples {
 		machineTuple := machineTuple
-		idx := idx
-
 		leaseGroup.Go(func() error {
-			sl := statusLogger.Line(idx)
 
 			var machine *fly.Machine
 			if machineTuple.oldMachine != nil {
@@ -385,6 +393,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			} else {
 				return nil
 			}
+			sl := machToLogger.getLoggerFromID(machine.ID)
 
 			if machine.LeaseNonce != "" {
 				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Already have lease for %s", machine.ID))
@@ -415,7 +424,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 	return nil
 }
 
-func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []machinePairing, statusLogger statuslogger.StatusLogger) error {
+func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []machinePairing, machToLogger *MachineLogger) error {
 	ctx = context.WithoutCancel(ctx)
 	ctx, span := tracing.GetTracer().Start(ctx, "release_leases")
 	defer span.End()
@@ -423,12 +432,10 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 	leaseGroup := errgroup.Group{}
 	leaseGroup.SetLimit(len(machineTuples))
 
-	for idx, machineTuple := range machineTuples {
+	for _, machineTuple := range machineTuples {
 		machineTuple := machineTuple
-		idx := idx
 
 		leaseGroup.Go(func() error {
-			sl := statusLogger.Line(idx)
 
 			var machine *fly.Machine
 			if machineTuple.oldMachine != nil {
@@ -438,6 +445,8 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 			} else {
 				return nil
 			}
+
+			sl := machToLogger.getLoggerFromID(machine.ID)
 
 			sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Clearing lease for %s", machine.ID))
 			if machine.LeaseNonce == "" {
