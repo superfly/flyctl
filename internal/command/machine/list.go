@@ -6,7 +6,6 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -100,14 +99,10 @@ func runMachineList(ctx context.Context) (err error) {
 				volName = machine.Config.Mounts[0].Volume
 			}
 
-			appPlatform := ""
 			machineProcessGroup := ""
 			size := ""
 
 			if machine.Config != nil {
-				if platformVersion, ok := machine.Config.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
-					appPlatform = platformVersion
-				}
 
 				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
@@ -157,7 +152,6 @@ func runMachineList(ctx context.Context) (err error) {
 				volName,
 				lo.Ternary(unreachable, "", machine.CreatedAt),
 				lo.Ternary(unreachable, "", machine.UpdatedAt),
-				appPlatform,
 				machineProcessGroup,
 				size,
 			})
@@ -175,7 +169,6 @@ func runMachineList(ctx context.Context) (err error) {
 			"Volume",
 			"Created",
 			"Last Updated",
-			"App Platform",
 			"Process Group",
 			"Size",
 		}
