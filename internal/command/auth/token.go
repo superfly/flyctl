@@ -16,11 +16,13 @@ import (
 
 func newToken() *cobra.Command {
 	const (
-		long = `Shows the authentication token that is currently in use.
-This can be used as an authentication token with API services,
-independent of flyctl.
-`
-		short = "Show the current auth token"
+		long = `Shows the authentication token that is currently in use by flyctl.
+The auth token used by flyctl may expire quickly and shouldn't be used in places
+where the token needs to keep working for a long time. For API authentication, you
+can use the "fly tokens create" command instead, to create narrowly-scoped tokens with
+a custom expiry.`
+
+		short = "Show the current auth token in use by flyctl."
 	)
 
 	cmd := command.New("token", short, long, runAuthToken,
