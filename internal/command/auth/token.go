@@ -19,7 +19,7 @@ func newToken() *cobra.Command {
 		long = `Shows the authentication token that is currently in use by flyctl.
 The auth token used by flyctl may expire quickly and shouldn't be used in places
 where the token needs to keep working for a long time. For API authentication, you
-can use `fly tokens create` instead, to create narrowly-scoped tokens with 
+can use the fly tokens create command instead, to create narrowly-scoped tokens with
 a custom expiry.`
 
 		short = "Show the current auth token in use by flyctl."
