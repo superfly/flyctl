@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	stoppedMachinesPoolSize = 30
+	STOPPED_MACHINES_POOL_SIZE = 30
 )
 
 type MachineLogger struct {
@@ -215,9 +215,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 	for _, machineTuples := range machPairByProcessGroup {
 		machineTuples := machineTuples
 		pgroup.Go(func() error {
-
-			errChan := make(chan error, 2)
-			wg := sync.WaitGroup{}
+			eg, ctx := errgroup.WithContext(ctx)
 
 			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
 				if e.oldMachine != nil && e.oldMachine.State == "started" {
@@ -239,42 +237,32 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				return false
 			})
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			eg.Go(func() (err error) {
+				poolSize := len(coldMachines)
+				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
+					poolSize = STOPPED_MACHINES_POOL_SIZE
+				}
+
+				if len(coldMachines) > 0 {
+					// for cold machines, we can update all of them at once.
+					// there's no need for protection against downtime since the machines are already stopped
+					return md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
+				}
+
+				return nil
+			})
+
+			eg.Go(func() (err error) {
 				// for warm machines, we update them in chunks of size, md.maxUnavailable.
 				// this is to prevent downtime/low-latency during deployments
 				poolSize := md.getPoolSize(len(warmMachines))
-				err := md.updateProcessGroup(ctx, warmMachines, machineLogger, poolSize)
-				if err != nil {
-					errChan <- err
+				if len(warmMachines) > 0 {
+					return md.updateProcessGroup(ctx, warmMachines, machineLogger, poolSize)
 				}
-			}()
+				return nil
+			})
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-
-				poolSize := len(coldMachines)
-				if poolSize >= stoppedMachinesPoolSize {
-					poolSize = stoppedMachinesPoolSize
-				}
-
-				var err error
-				if len(coldMachines) > 0 {
-					// for cold machines, we can even update all of them at once. there's no need for protection against downtime since the machines are already stopped
-					// but in order not to overload our apis, we update them in batches of >= 30
-					err = md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
-				}
-				if err != nil {
-					errChan <- err
-				}
-			}()
-
-			wg.Wait()
-			close(errChan)
-
-			err := <-errChan
+			err := eg.Wait()
 			if err != nil {
 				span.RecordError(err)
 				if strings.Contains(err.Error(), "lease currently held by") {
