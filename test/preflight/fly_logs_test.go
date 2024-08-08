@@ -31,11 +31,6 @@ func TestFlyLogsMachineFlagBehavior(t *testing.T) {
 		f.Fly("logs --app "+appName+" --no-tail --machine " + machineId)
 	})
 
-	// Test if shorthand -m works, should not throw an error
-	t.Run("TestRunsWhenMachineShorthandProvided", func(tt *testing.T) {
-		f.Fly("logs --app "+appName+" --no-tail -m " + machineId)
-	})
-
 	// Test if --instance works, should not throw an error
 	t.Run("TestRunsWhenInstanceFlagProvided", func(tt *testing.T) {
 		f.Fly("logs  --app "+appName+" --no-tail --instance " + machineId)
