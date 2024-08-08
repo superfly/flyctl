@@ -758,9 +758,45 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 
 	for group, entries := range entriesByGroup {
 		entries := entries
-		startIdx += len(entries)
+
+		warmMachines := lo.Filter(entries, func(e *machineUpdateEntry, i int) bool {
+			return e.leasableMachine.Machine().State == "started"
+		})
+		coldMachines := lo.Filter(entries, func(e *machineUpdateEntry, i int) bool {
+			return e.leasableMachine.Machine().State != "started"
+		})
+
 		groupsPool.Go(func(ctx context.Context) error {
-			return md.updateEntriesGroup(ctx, group, entries, sl, startIdx-len(entries))
+			eg, ctx := errgroup.WithContext(ctx)
+
+			eg.Go(func() (err error) {
+				poolSize := len(coldMachines)
+				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
+					poolSize = STOPPED_MACHINES_POOL_SIZE
+				}
+
+				if len(coldMachines) > 0 {
+					// for cold machines, we can update all of them at once.
+					// there's no need for protection against downtime since the machines are already stopped
+					startIdx += len(coldMachines)
+					return md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
+				}
+
+				return nil
+			})
+
+			eg.Go(func() (err error) {
+				// for warm machines, we update them in chunks of size, md.maxUnavailable.
+				// this is to prevent downtime/low-latency during deployments
+				startIdx += len(warmMachines)
+				poolSize := md.getPoolSize(len(warmMachines))
+				if len(warmMachines) > 0 {
+					return md.updateEntriesGroup(ctx, group, warmMachines, sl, startIdx-len(warmMachines), poolSize)
+				}
+				return nil
+			})
+
+			return eg.Wait()
 		})
 	}
 
@@ -768,28 +804,27 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 	if err != nil {
 		span.RecordError(err)
 	}
+
 	return err
 }
 
-func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group string, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int) error {
+func (md *machineDeployment) getPoolSize(totalMachines int) int {
+	switch mu := md.maxUnavailable; {
+	case mu >= 1:
+		return int(mu)
+	default:
+		return int(math.Ceil(float64(totalMachines) * mu))
+	}
+}
+
+func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group string, entries []*machineUpdateEntry, sl statuslogger.StatusLogger, startIdx int, poolSize int) error {
 	parentCtx, span := tracing.GetTracer().Start(parentCtx, "update_entries_in_group", trace.WithAttributes(
 		attribute.Int("start_id", startIdx),
 		attribute.String("group", group),
 		attribute.Int("max_unavailable", int(md.maxUnavailable)),
+		attribute.Int("pool_size", poolSize),
 	))
 	defer span.End()
-
-	var poolSize int
-	switch mu := md.maxUnavailable; {
-	case mu >= 1:
-		poolSize = int(mu)
-	case mu > 0:
-		poolSize = int(math.Ceil(float64(len(entries)) * mu))
-	default:
-		return fmt.Errorf("Invalid --max-unavailable value: %v", mu)
-	}
-
-	span.SetAttributes(attribute.Int("pool_size", poolSize))
 
 	updatePool := pool.New().
 		WithErrors().
@@ -801,6 +836,7 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 		e := e
 		eCtx := statuslogger.NewContext(parentCtx, sl.Line(startIdx+idx))
 		fmtID := e.leasableMachine.FormattedMachineId()
+		span.SetAttributes(attribute.String("state", e.leasableMachine.Machine().State))
 
 		statusRunning := func() {
 			statuslogger.LogfStatus(eCtx,
