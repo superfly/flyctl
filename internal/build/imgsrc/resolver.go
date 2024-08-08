@@ -191,7 +191,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
 			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
-			if err == nil {
+			if err == nil && buildResult != nil {
 				// we should only set the image's buildID if we push the build info to web
 				img.BuildID = buildResult.BuildId
 			}
@@ -269,7 +269,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, false /* success */, nil, note)
 			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
-			if err == nil {
+			if err == nil && buildResult != nil {
 				// we should only set the image's buildID if we push the build info to web
 				img.BuildID = buildResult.BuildId
 			}
