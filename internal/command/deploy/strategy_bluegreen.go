@@ -289,7 +289,7 @@ func (bg *blueGreen) changeDetected(a, b map[string]string) bool {
 	return false
 }
 
-func (bg *blueGreen) renderMachineHealthchecks(state map[string]*fly.HealthCheckStatus) func() {
+func (bg *blueGreen) renderMachineHealthchecks(state map[string]healthCheckStatusResult) func() {
 	firstRun := true
 
 	previousView := map[string]string{}
@@ -300,8 +300,11 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*fly.HealthCheck
 		bg.healthLock.RLock()
 		for id, value := range state {
 			status := "unchecked"
-			if value.Total != 0 {
-				status = fmt.Sprintf("%d/%d passing", value.Passing, value.Total)
+			if value.healthCheckStatus.Total != 0 {
+				status = fmt.Sprintf("%d/%d passing", value.healthCheckStatus.Passing, value.healthCheckStatus.Total)
+			}
+			if value.err != nil {
+				status = fmt.Sprintf("error: %v", value.err)
 			}
 
 			currentView[id] = status
@@ -324,18 +327,18 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*fly.HealthCheck
 	}
 }
 
-func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*fly.HealthCheckStatus) bool {
+func (bg *blueGreen) allMachinesHealthy(stateMap map[string]healthCheckStatusResult) bool {
 	passed := 0
 
 	bg.healthLock.RLock()
 	for _, v := range stateMap {
 		// we initialize all machine ids with an empty struct, so all fields are zero'd on init.
 		// without v.hcs.Total != 0, the first call to this function will pass since 0 == 0
-		if v.Total == 0 {
+		if v.healthCheckStatus.Total == 0 {
 			continue
 		}
 
-		if v.Passing == v.Total {
+		if v.healthCheckStatus.Passing == v.healthCheckStatus.Total {
 			passed += 1
 		}
 	}
@@ -344,18 +347,25 @@ func (bg *blueGreen) allMachinesHealthy(stateMap map[string]*fly.HealthCheckStat
 	return passed == len(stateMap)
 }
 
+type healthCheckStatusResult struct {
+	healthCheckStatus *fly.HealthCheckStatus
+	err               error
+}
+
 func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "green_machines_health_wait")
 	defer span.End()
 
 	wait := time.NewTicker(bg.timeout)
-	machineIDToHealthStatus := map[string]*fly.HealthCheckStatus{}
+	machineIDToHealthStatus := map[string]healthCheckStatusResult{}
 	errChan := make(chan error)
 	render := bg.renderMachineHealthchecks(machineIDToHealthStatus)
 
 	for _, gm := range bg.greenMachines {
 		if gm.launchInput.SkipLaunch {
-			machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &fly.HealthCheckStatus{Total: 1, Passing: 1}
+			machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = healthCheckStatusResult{
+				healthCheckStatus: &fly.HealthCheckStatus{Total: 1, Passing: 1},
+			}
 			continue
 		}
 
@@ -366,7 +376,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 			continue
 		}
 
-		machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = &fly.HealthCheckStatus{}
+		machineIDToHealthStatus[gm.leasableMachine.FormattedMachineId()] = healthCheckStatusResult{
+			healthCheckStatus: &fly.HealthCheckStatus{},
+		}
 	}
 
 	for _, gm := range bg.greenMachines {
@@ -394,16 +406,24 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				switch {
 				case waitCtx.Err() != nil:
+					machineIDToHealthStatus[m.FormattedMachineId()] = healthCheckStatusResult{
+						err: waitCtx.Err(),
+					}
 					errChan <- waitCtx.Err()
 					return
 				case err != nil:
+					machineIDToHealthStatus[m.FormattedMachineId()] = healthCheckStatusResult{
+						err: waitCtx.Err(),
+					}
 					errChan <- err
 					return
 				}
 
 				status := updateMachine.TopLevelChecks()
 				bg.healthLock.Lock()
-				machineIDToHealthStatus[m.FormattedMachineId()] = status
+				machineIDToHealthStatus[m.FormattedMachineId()] = healthCheckStatusResult{
+					healthCheckStatus: status,
+				}
 				bg.healthLock.Unlock()
 
 				if (status.Total == status.Passing) && (status.Total != 0) {
@@ -428,6 +448,7 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 		select {
 		case err := <-errChan:
+			span.RecordError(err)
 			return err
 		case <-wait.C:
 			return ErrWaitTimeout
