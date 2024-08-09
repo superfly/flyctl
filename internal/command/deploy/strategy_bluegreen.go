@@ -290,6 +290,8 @@ func (bg *blueGreen) changeDetected(a, b map[string]string) bool {
 }
 
 func (bg *blueGreen) renderMachineHealthchecks(state map[string]healthCheckStatusResult) func() {
+	_, span := tracing.GetTracer().Start(context.Background(), "render_machine_healthchecks")
+	defer span.End()
 	firstRun := true
 
 	previousView := map[string]string{}
@@ -328,6 +330,8 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]healthCheckStatu
 }
 
 func (bg *blueGreen) allMachinesHealthy(stateMap map[string]healthCheckStatusResult) bool {
+	_, span := tracing.GetTracer().Start(context.Background(), "all_machines_healthy")
+	defer span.End()
 	passed := 0
 
 	bg.healthLock.RLock()
@@ -394,11 +398,17 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		}
 
 		go func(m machine.LeasableMachine) {
+			ctx, span := tracing.GetTracer().Start(ctx, "green_machine_health_check", trace.WithAttributes(
+				attribute.String("machine_id", m.FormattedMachineId()),
+			))
+
 			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
 			defer cancel()
 
 			interval, gracePeriod := m.GetMinIntervalAndMinGracePeriod()
 
+			span.SetAttributes(attribute.Int("interval_ms", int(interval.Milliseconds())), attribute.Int("grace_period_ms", int(gracePeriod.Milliseconds())))
+			span.AddEvent("sleeping for grace period")
 			time.Sleep(gracePeriod)
 
 			for {
@@ -406,12 +416,14 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 				switch {
 				case waitCtx.Err() != nil:
+					span.RecordError(waitCtx.Err())
 					machineIDToHealthStatus[m.FormattedMachineId()] = healthCheckStatusResult{
 						err: waitCtx.Err(),
 					}
 					errChan <- waitCtx.Err()
 					return
 				case err != nil:
+					span.RecordError(err)
 					machineIDToHealthStatus[m.FormattedMachineId()] = healthCheckStatusResult{
 						err: waitCtx.Err(),
 					}
@@ -425,11 +437,14 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 					healthCheckStatus: status,
 				}
 				bg.healthLock.Unlock()
+				span.AddEvent(fmt.Sprintf("total health checks: %d", status.Total))
+				span.AddEvent(fmt.Sprintf("passing health checks: %d", status.Passing))
 
 				if (status.Total == status.Passing) && (status.Total != 0) {
 					return
 				}
 
+				span.AddEvent("sleeping for interval")
 				time.Sleep(interval)
 			}
 		}(gm.leasableMachine)
