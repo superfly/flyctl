@@ -268,5 +268,5 @@ require (
 replace (
 	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
-	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.22-0.20240802153530-1487eea07345
+	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.23
 )
