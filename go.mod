@@ -71,7 +71,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.9.0
-	github.com/superfly/fly-go v0.1.22-0.20240802153530-1487eea07345
+	github.com/superfly/fly-go v0.1.23
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.14-0.20240702184853-b8ac52a1fc77
@@ -268,5 +268,5 @@ require (
 replace (
 	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
-	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.22-0.20240802153530-1487eea07345
+	github.com/superfly/fly-go => github.com/superfly/fly-go v0.1.23
 )
