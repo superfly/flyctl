@@ -224,6 +224,10 @@ func (m *Client) GetAppRemoteBuilder(ctx context.Context, appName string) (*fly.
 	panic("TODO")
 }
 
+func (m *Client) GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetAppLogs(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error) {
 	panic("TODO")
 }
