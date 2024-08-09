@@ -401,19 +401,10 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 
 			time.Sleep(gracePeriod)
 
-			numRetries := 0
 			for {
 				updateMachine, err := bg.flaps.Get(waitCtx, m.Machine().ID)
 
 				switch {
-				// context.DeadlineExceeded usually happens when the platform fails to respond to a Get in time. We should retry these
-				case errors.Is(err, context.DeadlineExceeded) && numRetries < 3:
-					waitCtx = context.WithoutCancel(ctx)
-					waitCtx, cancel = context.WithTimeout(waitCtx, bg.timeout)
-					defer cancel()
-
-					numRetries += 1
-					continue
 				case waitCtx.Err() != nil:
 					machineIDToHealthStatus[m.FormattedMachineId()] = healthCheckStatusResult{
 						err: waitCtx.Err(),
