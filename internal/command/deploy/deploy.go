@@ -220,8 +220,13 @@ func New() *Command {
 			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
 		},
 		flag.String{
-			Name:        "manifest",
+			Name:        "from-manifest",
 			Description: "Path to a deploy manifest file to use for deployment.",
+		},
+		flag.Bool{
+			Name:        "delegate",
+			Description: "Delegate deployment to a remote deployer",
+			Hidden:      true,
 		},
 	)
 
@@ -275,17 +280,16 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
 
-	var manifestPath = flag.GetString(ctx, "manifest")
+	var manifestPath = flag.GetString(ctx, "from-manifest")
 
-	switch manifestPath {
-	case "-":
+	switch {
+	case manifestPath == "-":
 		manifest, err := manifestFromReader(io.In)
 		if err != nil {
 			return err
 		}
 		return deployFromManifest(ctx, manifest)
-	case "":
-	default:
+	case manifestPath != "":
 		manifest, err := manifestFromFile(manifestPath)
 		if err != nil {
 			return err
@@ -606,16 +610,16 @@ func deployToMachines(
 			return err
 		}
 		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
-	default:
+		return nil
 	}
 
-	// if flag.GetBool(ctx, "remote-deploy") {
-	// 	// create a manifest and deploy it to a remote deployer
-	// 	fmt.Fprintln(io.Out, "Generating deploy manifest...")
-	// 	manifest := NewManifest(app.Name, cfg, args)
+	if flag.GetBool(ctx, "delegate") {
+		// create a manifest and deploy it to a remote deployer
+		fmt.Fprintln(io.Out, "Generating deploy manifest...")
+		manifest := NewManifest(app.Name, cfg, args)
 
-	// 	return deployRemotely(ctx, manifest)
-	// }
+		return deployRemotely(ctx, manifest)
+	}
 
 	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
