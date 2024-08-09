@@ -76,6 +76,40 @@ type MachineDeploymentArgs struct {
 	DeployRetries         int
 }
 
+func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
+	return MachineDeploymentArgs{
+		AppCompact:            app,
+		DeploymentImage:       manifest.DeploymentImage,
+		Strategy:              manifest.Strategy,
+		EnvFromFlags:          manifest.EnvFromFlags,
+		PrimaryRegionFlag:     manifest.PrimaryRegionFlag,
+		SkipSmokeChecks:       manifest.SkipSmokeChecks,
+		SkipHealthChecks:      manifest.SkipHealthChecks,
+		SkipDNSChecks:         manifest.SkipDNSChecks,
+		SkipReleaseCommand:    manifest.SkipReleaseCommand,
+		MaxUnavailable:        manifest.MaxUnavailable,
+		RestartOnly:           manifest.RestartOnly,
+		WaitTimeout:           manifest.WaitTimeout,
+		StopSignal:            manifest.StopSignal,
+		LeaseTimeout:          manifest.LeaseTimeout,
+		ReleaseCmdTimeout:     manifest.ReleaseCmdTimeout,
+		Guest:                 manifest.Guest,
+		IncreasedAvailability: manifest.IncreasedAvailability,
+		UpdateOnly:            manifest.UpdateOnly,
+		Files:                 manifest.Files,
+		ExcludeRegions:        manifest.ExcludeRegions,
+		OnlyRegions:           manifest.OnlyRegions,
+		ExcludeMachines:       manifest.ExcludeMachines,
+		OnlyMachines:          manifest.OnlyMachines,
+		ProcessGroups:         manifest.ProcessGroups,
+		MaxConcurrent:         manifest.MaxConcurrent,
+		VolumeInitialSize:     manifest.VolumeInitialSize,
+		RestartPolicy:         manifest.RestartPolicy,
+		RestartMaxRetries:     manifest.RestartMaxRetries,
+		DeployRetries:         manifest.DeployRetries,
+	}
+}
+
 type machineDeployment struct {
 	apiClient             flyutil.Client
 	flapsClient           flapsutil.FlapsClient
@@ -117,6 +151,8 @@ type machineDeployment struct {
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
 
@@ -134,7 +170,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		fmt.Fprintf(io.ErrOut, extraInfo)
 		tracing.RecordError(span, err, "failed to validate process groups")
 		return nil, err
 	}
@@ -155,7 +191,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		}
 	}
 
-	if appConfig.Deploy != nil {
+	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to split release command")
@@ -196,7 +232,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
 
-	io := iostreams.FromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
@@ -244,6 +279,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		tracing.RecordError(span, err, "failed to set strategy")
 		return nil, err
 	}
+
 	if err := md.setMachinesForDeployment(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set machines for first deployemt")
 		return nil, err
