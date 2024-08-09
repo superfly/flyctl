@@ -75,7 +75,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
 				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-					build.SetBuilderMetaPart1(false, "", "")
+					build.SetBuilderMetaPart1(localBuilderType, "", "")
 					return c, nil
 				},
 				appName: appName,
@@ -306,7 +306,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
 
-	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
+	build.SetBuilderMetaPart1(remoteBuilderType, remoteBuilderAppName, machine.ID)
 
 	if msg := fmt.Sprintf("Waiting for remote builder %s...\n", remoteBuilderAppName); streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)

@@ -74,6 +74,7 @@ type MachineDeploymentArgs struct {
 	RestartPolicy         *fly.MachineRestartPolicy
 	RestartMaxRetries     int
 	DeployRetries         int
+	BuildID               string
 }
 
 type machineDeployment struct {
@@ -114,6 +115,7 @@ type machineDeployment struct {
 	maxConcurrent         int
 	volumeInitialSize     int
 	deployRetries         int
+	buildID               string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -239,6 +241,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		volumeInitialSize:     args.VolumeInitialSize,
 		processGroups:         args.ProcessGroups,
 		deployRetries:         args.DeployRetries,
+		buildID:               args.BuildID,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
@@ -543,6 +546,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig,
 		Image:           md.img,
+		BuildId:         md.buildID,
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")

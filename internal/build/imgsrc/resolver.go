@@ -122,10 +122,11 @@ func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type DeploymentImage struct {
-	ID     string
-	Tag    string
-	Size   int64
-	Labels map[string]string
+	ID      string
+	Tag     string
+	Size    int64
+	BuildID string
+	Labels  map[string]string
 }
 
 func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
@@ -189,7 +190,12 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
-			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+			if err == nil && buildResult != nil {
+				// we should only set the image's buildID if we push the build info to web
+				img.BuildID = buildResult.BuildId
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -262,7 +268,12 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, false /* success */, nil, note)
-			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+			if err == nil && buildResult != nil {
+				// we should only set the image's buildID if we push the build info to web
+				img.BuildID = buildResult.BuildId
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -316,10 +327,16 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 
 	client := flyutil.ClientFromContext(ctx)
 
-	builderType := "local"
-	if r.dockerFactory.remote {
-		builderType = "remote"
+	builderType := "remote"
+	switch {
+	case r.dockerFactory.mode.PrefersLocal():
+		builderType = "local"
+	case r.dockerFactory.mode.UseDepot():
+		builderType = "depot.dev"
+	case r.dockerFactory.mode.UseNixpacks():
+		builderType = "local"
 	}
+
 	input := fly.CreateBuildInput{
 		AppName:             r.dockerFactory.appName,
 		BuilderType:         builderType,
@@ -393,15 +410,20 @@ func newBuild(buildId string, createApiFailed bool) *build {
 	}
 }
 
-func (b *build) SetBuilderMetaPart1(remote bool, remoteAppName string, remoteMachineId string) {
+type builderType string
+
+const (
+	remoteBuilderType builderType = "remote"
+	localBuilderType  builderType = "local"
+	depotBuilderType  builderType = "depot.dev"
+)
+
+func (b *build) SetBuilderMetaPart1(builderType builderType, remoteAppName string, remoteMachineId string) {
 	if b == nil {
 		return
 	}
-	builderType := "remote"
-	if !remote {
-		builderType = "local"
-	}
-	b.BuilderMeta.BuilderType = builderType
+
+	b.BuilderMeta.BuilderType = string(builderType)
 	b.BuilderMeta.RemoteAppName = remoteAppName
 	b.BuilderMeta.RemoteMachineId = remoteMachineId
 }
