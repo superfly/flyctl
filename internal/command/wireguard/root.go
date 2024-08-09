@@ -49,6 +49,12 @@ func newWireguardCreate() *cobra.Command {
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(4)
+	flag.Add(cmd,
+		flag.String{
+			Name:        "network",
+			Description: "Custom network name",
+		},
+	)
 	return cmd
 }
 
