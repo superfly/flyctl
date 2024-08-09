@@ -2,19 +2,28 @@ package deploy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/azazeal/pause"
 	"github.com/cenkalti/backoff"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/logs"
+	"golang.org/x/sync/errgroup"
 )
 
 type Deployer struct {
@@ -106,6 +115,32 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 	}
 	if res.StdErr != "" {
 		fmt.Fprint(io.ErrOut, res.StdErr)
+	}
+
+	if flag.GetBool(ctx, "watch") {
+		opts := &logs.LogOptions{
+			AppName: deployer.app.Name,
+			VMID:    deployer.machine.ID,
+		}
+		var eg *errgroup.Group
+		eg, ctx = errgroup.WithContext(ctx)
+
+		var streams []<-chan logs.LogEntry
+		if opts.NoTail {
+			streams = []<-chan logs.LogEntry{
+				poll(ctx, eg, client, opts),
+			}
+		} else {
+			pollingCtx, cancelPolling := context.WithCancel(ctx)
+			streams = []<-chan logs.LogEntry{
+				poll(pollingCtx, eg, client, opts),
+				nats(ctx, eg, client, opts, cancelPolling),
+			}
+		}
+		eg.Go(func() error {
+			return printStreams(ctx, streams...)
+		})
+		return eg.Wait()
 	}
 
 	return nil
@@ -308,4 +343,97 @@ func makeDeployToken(ctx context.Context, appName, orgID string, options *gql.Li
 		return nil, fmt.Errorf("failed creating token: %w", err)
 	}
 	return resp, nil
+}
+
+func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
+	var eg *errgroup.Group
+	eg, ctx = errgroup.WithContext(ctx)
+
+	out := iostreams.FromContext(ctx).Out
+	json := config.FromContext(ctx).JSONOutput
+
+	for _, stream := range streams {
+		stream := stream
+
+		eg.Go(func() error {
+			return printStream(ctx, out, stream, json)
+		})
+	}
+	return eg.Wait()
+}
+
+func printStream(ctx context.Context, w io.Writer, stream <-chan logs.LogEntry, json bool) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case entry, ok := <-stream:
+			if !ok {
+				return nil
+			}
+
+			var err error
+			if json {
+				err = render.JSON(w, entry)
+			} else {
+				err = render.LogEntry(w, entry,
+					render.HideAllocID(),
+					render.RemoveNewlines(),
+					render.HideRegion(),
+				)
+			}
+
+			if err != nil {
+				return err
+			}
+		}
+	}
+}
+
+func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions, cancelPolling context.CancelFunc) <-chan logs.LogEntry {
+	c := make(chan logs.LogEntry)
+
+	eg.Go(func() error {
+		defer close(c)
+
+		stream, err := logs.NewNatsStream(ctx, client, opts)
+		if err != nil {
+			logger := logger.FromContext(ctx)
+
+			logger.Debugf("could not connect to wireguard tunnel: %v\n", err)
+			logger.Debug("falling back to log polling...")
+
+			return nil
+		}
+
+		// we wait for 2 seconds before canceling the polling context so that
+		// we get a few records
+		pause.For(ctx, 2*time.Second)
+		cancelPolling()
+
+		for entry := range stream.Stream(ctx, opts) {
+			c <- entry
+		}
+
+		return nil
+	})
+
+	return c
+}
+
+func poll(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions) <-chan logs.LogEntry {
+	c := make(chan logs.LogEntry)
+
+	eg.Go(func() (err error) {
+		defer close(c)
+
+		if err = logs.Poll(ctx, c, client, opts); errors.Is(err, context.Canceled) {
+			// if the parent context is cancelled then the errorgroup will return
+			// context.Canceled because nats and/or printStreams will return it.
+			err = nil
+		}
+		return
+	})
+
+	return c
 }

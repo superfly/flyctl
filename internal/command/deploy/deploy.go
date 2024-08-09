@@ -228,6 +228,12 @@ func New() *Command {
 			Description: "Delegate deployment to a remote deployer",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "watch",
+			Description: "Watch the delegated remote deployment instead of exiting immediately",
+			Default:     false,
+			Hidden:      true,
+		},
 	)
 
 	return cmd
