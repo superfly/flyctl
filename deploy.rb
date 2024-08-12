@@ -13,6 +13,7 @@ module Step
   ROOT = :__root__
   GIT_PULL = :git_pull
   PLAN = :plan
+  CUSTOMIZE = :customize
   BUILD = :build
   FLY_POSTGRES_CREATE = :fly_postgres_create
   DEPLOY = :deploy
@@ -23,6 +24,7 @@ module Artifact
   GIT_INFO = :git_info
   GIT_HEAD = :git_head
   MANIFEST = :manifest
+  SESSION = :session
   DIFF = :diff
   FLY_POSTGRES = :fly_postgres
   DOCKER_IMAGE = :docker_image
@@ -140,18 +142,6 @@ end
 
 event :start, { ts: ts() }
 
-APP_NAME = get_env("DEPLOY_APP_NAME")
-if !APP_NAME
-  event :error, { type: :validation, message: "missing app name" }
-  exit 1
-end
-
-ORG_SLUG = get_env("DEPLOY_ORG_SLUG")
-if !ORG_SLUG
-  event :error, { type: :validation, message: "missing organization slug" }
-  exit 1
-end
-
 GIT_REPO = get_env("GIT_REPO")
 
 GIT_REPO_URL = if GIT_REPO
@@ -170,28 +160,14 @@ GIT_REPO_URL = if GIT_REPO
   repo_url
 end
 
-PG_PROVIDER = get_env("DEPLOY_PG_PROVIDER")
-FLY_PG_PROVIDER = PG_PROVIDER == "fly_postgres"
-
-PG_NAME = get_env("DEPLOY_PG_NAME")
-PG_FLY_CONFIG = get_env("DEPLOY_PG_FLY_CONFIG")
-PG_REGION = get_env("DEPLOY_PG_REGION")
-
-if FLY_PG_PROVIDER
-  if !PG_FLY_CONFIG
-    event :error, { type: :validation, message: "Missing DEPLOY_PG_FLY_CONFIG" }
-    exit 1
-  end
-end
-
 DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
 
 steps = []
 
 steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository"}) if GIT_REPO
-steps.push({id: Step::PLAN, description: "Plan deployment"})
+steps.push({id: Step::PLAN, description: "Prepare deployment plan"})
+steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"})
 steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
-steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG_PROVIDER
 steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
 
 artifact Artifact::META, { steps: steps }
@@ -219,8 +195,8 @@ if GIT_REPO_URL
     end
 end
 
-manifest = in_step Step::PLAN do
-  cmd = "flyctl launch generate --force-name -a #{APP_NAME} --name #{APP_NAME} -o #{ORG_SLUG} --manifest-path /tmp/manifest.json"
+session = in_step Step::PLAN do
+  cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path /tmp/manifest.json"
   
   if (region = APP_REGION)
     cmd += " --region #{region}"
@@ -233,32 +209,34 @@ manifest = in_step Step::PLAN do
   cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
 
   exec_capture(cmd)
+  session = JSON.parse(File.read("/tmp/session.json"))
   manifest = JSON.parse(File.read("/tmp/manifest.json"))
 
-  vm_cpu_kind = ENV.fetch("DEPLOY_VM_CPU_KIND", manifest["plan"]["vm_cpu_kind"])
-  vm_cpus = ENV.fetch("DEPLOY_VM_CPUS", manifest["plan"]["vm_cpus"])
-  vm_memory = ENV.fetch("DEPLOY_VM_MEMORY", manifest["plan"]["vm_memory"])
-  vm_size = ENV.fetch("DEPLOY_VM_SIZE", manifest["plan"]["vm_size"])
-
-  # override this to be sure...
-  manifest["config"]["vm"] = [{
-    size: vm_size,
-    memory: vm_memory,
-    cpu_kind: vm_cpu_kind,
-    cpus: vm_cpus.to_i
-  }]
-
   artifact Artifact::MANIFEST, manifest
+  artifact Artifact::SESSION, session
 
   exec_capture("git add -A")
   diff = exec_capture("git diff --cached")
   artifact Artifact::DIFF, diff
+
+  session
+end
+
+manifest = in_step Step::CUSTOMIZE do
+  cmd = "flyctl launch sessions finalize --session-path /tmp/session.json --manifest-path /tmp/manifest.json"
+
+  exec_capture(cmd)
+  manifest = JSON.parse(File.read("/tmp/manifest.json"))
+
+  artifact Artifact::MANIFEST, manifest
 
   manifest
 end
 
 # Write the fly config file to a tmp directory
 File.write("/tmp/fly.json", manifest["config"].to_json)
+
+APP_NAME = manifest["config"]["app"]
 
 image_tag = SecureRandom.hex(16)
 
@@ -275,28 +253,10 @@ image_ref = in_step Step::BUILD do
   end
 end
 
-if FLY_PG_PROVIDER
-  in_step Step::FLY_POSTGRES_CREATE do
-    cmd = "flyctl pg create --flex --config-name #{PG_FLY_CONFIG} --org #{ORG_SLUG}"
-  
-
-    pg_name = PG_NAME
-    pg_name ||= "#{APP_NAME}-db-#{SecureRandom.hex(2)}"
-    
-    cmd += " --name #{pg_name}"
-
-    region = PG_REGION
-    region ||= APP_REGION
-
-    cmd += " --region #{region}" if region
-
-    artifact Artifact::FLY_POSTGRES, { name: pg_name, region: region, config: PG_FLY_CONFIG }
-
-    exec_capture(cmd)
-
-    exec_capture("flyctl pg attach #{pg_name} --app #{APP_NAME} -y")
-  end
-end
+# TODO: Setup Postgres if defined
+# TODO: Setup Upstash if defined
+# TODO: Setup Tigris if defined
+# TODO: Setup Sentry if defined
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do

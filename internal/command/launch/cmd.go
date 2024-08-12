@@ -137,6 +137,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd.AddCommand(newGenerate())
+	cmd.AddCommand(newSessions())
 
 	return
 }
