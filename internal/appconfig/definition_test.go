@@ -190,7 +190,7 @@ func TestToDefinition(t *testing.T) {
 			"internal_port":        int64(8080),
 			"force_https":          true,
 			"auto_start_machines":  false,
-			"auto_stop_machines":   false,
+			"auto_stop_machines":   "off",
 			"min_machines_running": int64(0),
 			"concurrency": map[string]any{
 				"type":       "donuts",
@@ -203,7 +203,8 @@ func TestToDefinition(t *testing.T) {
 				"default_self_signed": false,
 			},
 			"http_options": map[string]any{
-				"compress": true,
+				"compress":     true,
+				"idle_timeout": int64(600),
 				"response": map[string]any{
 					"headers": map[string]any{
 						"fly-request-id": false,
@@ -331,7 +332,7 @@ func TestToDefinition(t *testing.T) {
 				"protocol":             "tcp",
 				"processes":            []any{"app"},
 				"auto_start_machines":  false,
-				"auto_stop_machines":   false,
+				"auto_stop_machines":   "off",
 				"min_machines_running": int64(1),
 				"concurrency": map[string]any{
 					"type":       "requests",
@@ -340,10 +341,13 @@ func TestToDefinition(t *testing.T) {
 				},
 				"ports": []any{
 					map[string]any{
-						"port":        int64(80),
-						"start_port":  int64(100),
-						"end_port":    int64(200),
-						"handlers":    []any{"https"},
+						"port":       int64(80),
+						"start_port": int64(100),
+						"end_port":   int64(200),
+						"handlers":   []any{"https"},
+						"http_options": map[string]any{
+							"idle_timeout": int64(600),
+						},
 						"force_https": true,
 					},
 				},

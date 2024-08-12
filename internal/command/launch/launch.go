@@ -25,10 +25,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 
 	io := iostreams.FromContext(ctx)
 
-	// TODO(Allison): are we still supporting the launch-into usecase?
-	// I'm assuming *not* for now, because it's confusing UX and this
-	// is the perfect time to remove it.
-
 	if err := state.updateComputeFromDeprecatedGuestFields(ctx); err != nil {
 		return err
 	}
@@ -70,7 +66,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
 	if state.sourceInfo != nil && state.sourceInfo.GitHubActions.Deploy {
-		state.setupGitHubActions(ctx, app.Name)
+		state.setupGitHubActions(ctx, state.Plan.AppName)
 	}
 
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
@@ -78,9 +74,11 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
-	err = state.createDatabases(ctx)
-	if err != nil {
-		return err
+
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.createDatabases(ctx); err != nil {
+			return err
+		}
 	}
 	if err = state.satisfyScannerAfterDb(ctx); err != nil {
 		return err
@@ -95,8 +93,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	// Sentry
-	if err = state.launchSentry(ctx, app.Name); err != nil {
-		return err
+	if !flag.GetBool(ctx, "no-create") {
+		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
+			return err
+		}
 	}
 
 	// Finally write application configuration to fly.toml
@@ -165,7 +165,7 @@ func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appco
 			appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
-				AutoStopMachines:   fly.Pointer(true),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
 				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}

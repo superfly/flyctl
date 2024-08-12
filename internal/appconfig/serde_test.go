@@ -237,7 +237,8 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		}},
 		Services: []Service{
 			{
-				InternalPort: 8080,
+				InternalPort:     8080,
+				AutoStopMachines: fly.Pointer(fly.MachineAutostopOff),
 				Ports: []fly.MachinePort{
 					{
 						Port:     fly.Pointer(80),
@@ -416,7 +417,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			InternalPort:       8080,
 			ForceHTTPS:         true,
 			AutoStartMachines:  fly.Pointer(false),
-			AutoStopMachines:   fly.Pointer(false),
+			AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
 			MinMachinesRunning: fly.Pointer(0),
 			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "donuts",
@@ -429,7 +430,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				DefaultSelfSigned: fly.Pointer(false),
 			},
 			HTTPOptions: &fly.HTTPOptions{
-				Compress: fly.Pointer(true),
+				Compress:    fly.Pointer(true),
+				IdleTimeout: UintPointer(600),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
@@ -536,7 +538,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Protocol:           "tcp",
 				Processes:          []string{"app"},
 				AutoStartMachines:  fly.Pointer(false),
-				AutoStopMachines:   fly.Pointer(false),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
 				MinMachinesRunning: fly.Pointer(1),
 
 				Concurrency: &fly.MachineServiceConcurrency{
@@ -552,6 +554,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						EndPort:    fly.Pointer(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
+						HTTPOptions: &fly.HTTPOptions{
+							IdleTimeout: UintPointer(600),
+						},
 					},
 				},
 
@@ -682,4 +687,8 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\napp: foo\n")
 	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
+}
+
+func UintPointer(v uint32) *uint32 {
+	return &v
 }

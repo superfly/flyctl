@@ -41,6 +41,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
+	"github.com/superfly/flyctl/internal/command/mysql"
 	"github.com/superfly/flyctl/internal/command/open"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/command/ping"
@@ -49,6 +50,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/proxy"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/command/regions"
+	"github.com/superfly/flyctl/internal/command/registry"
 	"github.com/superfly/flyctl/internal/command/releases"
 	"github.com/superfly/flyctl/internal/command/resume"
 	"github.com/superfly/flyctl/internal/command/scale"
@@ -59,6 +61,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/status"
 	"github.com/superfly/flyctl/internal/command/storage"
 	"github.com/superfly/flyctl/internal/command/suspend"
+	"github.com/superfly/flyctl/internal/command/synthetics"
 	"github.com/superfly/flyctl/internal/command/tokens"
 	"github.com/superfly/flyctl/internal/command/version"
 	"github.com/superfly/flyctl/internal/command/volumes"
@@ -107,6 +110,7 @@ func New() *cobra.Command {
 		agent.New(),
 		group(image.New(), "configuring"),
 		group(incidents.New(), "upkeep"),
+		group(mysql.New(), "dbs_and_extensions"),
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
@@ -115,6 +119,7 @@ func New() *cobra.Command {
 		group(ssh.New(), "upkeep"),
 		group(ssh.NewSFTP(), "upkeep"),
 		group(redis.New(), "dbs_and_extensions"),
+		group(registry.New(), "upkeep"),
 		group(checks.New(), "upkeep"),
 		group(launch.New(), "deploy"),
 		group(info.New(), "upkeep"),
@@ -132,6 +137,7 @@ func New() *cobra.Command {
 		settings.New(),
 		group(storage.New(), "dbs_and_extensions"),
 		metrics.New(),
+		synthetics.New(),
 		curl.New(),       // TODO: deprecate
 		domains.New(),    // TODO: deprecate
 		open.New(),       // TODO: deprecate

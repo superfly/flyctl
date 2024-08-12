@@ -21,6 +21,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/sentry"
@@ -49,6 +50,7 @@ var CommonFlags = flag.Set{
 	flag.BuildSecret(),
 	flag.BuildTarget(),
 	flag.NoCache(),
+	flag.Depot(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
@@ -109,6 +111,10 @@ var CommonFlags = flag.Set{
 		Name:        "no-public-ips",
 		Description: "Do not allocate any new public IP addresses",
 	},
+	flag.Bool{
+		Name:        "flycast",
+		Description: "Allocate a private IPv6 addresses",
+	},
 	flag.StringArray{
 		Name:        "file-local",
 		Description: "Set of files in the form of /path/inside/machine=<local/path> pairs. Can be specified multiple times.",
@@ -165,6 +171,11 @@ var CommonFlags = flag.Set{
 		Name:        "signal",
 		Shorthand:   "s",
 		Description: "Signal to stop the machine with for bluegreen strategy (default: SIGINT)",
+	},
+	flag.String{
+		Name:        "deploy-retries",
+		Description: "Number of times to retry a deployment if it fails",
+		Default:     "auto",
 	},
 }
 
@@ -275,11 +286,11 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	span.SetAttributes(attribute.StringSlice("gpu.kinds", gpuKinds))
 	span.SetAttributes(attribute.StringSlice("cpu.kinds", cpuKinds))
 
-	err = DeployWithConfig(ctx, appConfig, flag.GetYes(ctx))
+	err = DeployWithConfig(ctx, appConfig, 0, flag.GetYes(ctx))
 	return err
 }
 
-func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes bool) (err error) {
+func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, userID int, forceYes bool) (err error) {
 	span := trace.SpanFromContext(ctx)
 
 	io := iostreams.FromContext(ctx)
@@ -290,9 +301,21 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 		return err
 	}
 
+	// Start the feature flag client, if we haven't already
+	if launchdarkly.ClientFromContext(ctx) == nil {
+		ffClient, err := launchdarkly.NewClient(ctx, launchdarkly.UserInfo{
+			OrganizationID: appCompact.Organization.InternalNumericID,
+			UserID:         userID,
+		})
+		if err != nil {
+			return fmt.Errorf("could not create feature flag client: %w", err)
+		}
+		ctx = launchdarkly.NewContextWithClient(ctx, ffClient)
+	}
+
 	for env := range appConfig.Env {
 		if containsCommonSecretSubstring(env) {
-			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/reference/secrets/\n", aurora.Yellow("WARN"), env)
+			warning := fmt.Sprintf("%s %s may be a potentially sensitive environment variable. Consider setting it as a secret, and removing it from the [env] section: https://fly.io/docs/apps/secrets/\n", aurora.Yellow("WARN"), env)
 			fmt.Fprintln(io.ErrOut, warning)
 		}
 	}
@@ -303,10 +326,14 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 
 	// Fetch an image ref or build from source to get the final image reference to deploy
 	img, err := determineImage(ctx, appConfig, usingWireguard, recreateBuilder)
-	if err != nil && usingWireguard && httpFailover {
-		span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
-		span.AddEvent("using http failover")
-		img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+	if err != nil {
+		noBuilder := strings.Contains(err.Error(), "Could not find App")
+		recreateBuilder = recreateBuilder || noBuilder
+		if noBuilder || (usingWireguard && httpFailover) {
+			span.SetAttributes(attribute.String("builder.failover_error", err.Error()))
+			span.AddEvent("using http failover")
+			img, err = determineImage(ctx, appConfig, false, recreateBuilder)
+		}
 	}
 
 	if err != nil {
@@ -321,9 +348,18 @@ func DeployWithConfig(ctx context.Context, appConfig *appconfig.Config, forceYes
 	if err := deployToMachines(ctx, appConfig, appCompact, img); err != nil {
 		return err
 	}
-
-	if appURL := appConfig.URL(); appURL != nil {
+	var ip = "public"
+	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
+		ip = "private"
+	} else if flag.GetBool(ctx, "no-public-ips") {
+		ip = "none"
+	}
+	if appURL := appConfig.URL(); appURL != nil && ip == "public" {
 		fmt.Fprintf(io.Out, "\nVisit your newly deployed app at %s\n", appURL)
+	} else if ip == "private" {
+		fmt.Fprintf(io.Out, "\nYour your newly deployed app is available in the organizations' private network under http://%s.flycast\n", appName)
+	} else if ip == "none" {
+		fmt.Fprintf(io.Out, "\nYour app is deployed but does not have a public or private IP address\n")
 	}
 
 	return err
@@ -464,6 +500,36 @@ func deployToMachines(
 
 	status.FlyctlVersion = buildinfo.Info().Version.String()
 
+	retriesFlag := flag.GetString(ctx, "deploy-retries")
+	deployRetries := 0
+
+	switch retriesFlag {
+	case "auto":
+		ldClient := launchdarkly.ClientFromContext(ctx)
+		retries := ldClient.GetFeatureFlagValue("deploy-retries", 0.0).(float64)
+		deployRetries = int(retries)
+
+	default:
+		var invalidRetriesErr error = fmt.Errorf("--deploy-retries must be set to a positive integer, 0, or 'auto'")
+		retries, err := strconv.Atoi(retriesFlag)
+		if err != nil {
+			return invalidRetriesErr
+		}
+		if retries < 0 {
+			return invalidRetriesErr
+		}
+
+		span.SetAttributes(attribute.Int("set_deploy_retries", retries))
+		deployRetries = retries
+	}
+
+	var ip = "public"
+	if flag.GetBool(ctx, "flycast") || flag.GetBool(ctx, "attach") {
+		ip = "private"
+	} else if flag.GetBool(ctx, "no-public-ips") {
+		ip = "none"
+	}
+
 	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
@@ -481,7 +547,8 @@ func deployToMachines(
 		MaxUnavailable:        maxUnavailable,
 		Guest:                 guest,
 		IncreasedAvailability: flag.GetBool(ctx, "ha"),
-		AllocPublicIP:         !flag.GetBool(ctx, "no-public-ips"),
+		AllocIP:               ip,
+		Org:                   app.Organization.Slug,
 		UpdateOnly:            flag.GetBool(ctx, "update-only"),
 		Files:                 files,
 		ExcludeRegions:        excludeRegions,
@@ -491,6 +558,7 @@ func deployToMachines(
 		MaxConcurrent:         maxConcurrent,
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
+		DeployRetries:         deployRetries,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)

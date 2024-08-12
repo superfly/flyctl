@@ -16,6 +16,7 @@ import (
 	"github.com/azazeal/pause"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/registry"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/go-connections/sockets"
@@ -107,7 +108,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useNixpacks bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNixpacks bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
@@ -115,10 +116,13 @@ func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useNixpacks bool
 	if allowRemote {
 		daemonType = daemonType | DockerDaemonTypeRemote
 	}
+	if useDepot {
+		daemonType = daemonType | DockerDaemonTypeDepot
+	}
 	if useNixpacks {
 		daemonType = daemonType | DockerDaemonTypeNixpacks
 	}
-	if prefersLocal {
+	if prefersLocal && !useDepot {
 		daemonType = daemonType | DockerDaemonTypePrefersLocal
 	}
 	return daemonType
@@ -132,6 +136,7 @@ const (
 	DockerDaemonTypeNone
 	DockerDaemonTypePrefersLocal
 	DockerDaemonTypeNixpacks
+	DockerDaemonTypeDepot
 )
 
 func (t DockerDaemonType) String() string {
@@ -148,6 +153,9 @@ func (t DockerDaemonType) String() string {
 	}
 	if t&DockerDaemonTypeNixpacks != 0 {
 		strs = append(strs, "nix-packs")
+	}
+	if t&DockerDaemonTypeDepot != 0 {
+		strs = append(strs, "depot")
 	}
 	if len(strs) == 0 {
 		return "none"
@@ -178,6 +186,10 @@ func (t DockerDaemonType) IsAvailable() bool {
 
 func (t DockerDaemonType) UseNixpacks() bool {
 	return (t & DockerDaemonTypeNixpacks) != 0
+}
+
+func (t DockerDaemonType) UseDepot() bool {
+	return (t & DockerDaemonTypeDepot) != 0
 }
 
 func (t DockerDaemonType) PrefersLocal() bool {
@@ -606,14 +618,14 @@ func clientPing(parent context.Context, client *dockerclient.Client) (types.Ping
 func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag string) error {
 	filters := filters.NewArgs(filters.Arg("reference", tag))
 
-	images, err := docker.ImageList(ctx, types.ImageListOptions{Filters: filters})
+	images, err := docker.ImageList(ctx, image.ListOptions{Filters: filters})
 	if err != nil {
 		return err
 	}
 
-	for _, image := range images {
-		for _, tag := range image.RepoTags {
-			_, err := docker.ImageRemove(ctx, tag, types.ImageRemoveOptions{PruneChildren: true})
+	for _, i := range images {
+		for _, tag := range i.RepoTags {
+			_, err := docker.ImageRemove(ctx, tag, image.RemoveOptions{PruneChildren: true})
 			if err != nil {
 				terminal.Debug("Error deleting image", err)
 			}

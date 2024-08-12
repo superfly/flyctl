@@ -66,7 +66,7 @@ func runGenerate(ctx context.Context) error {
 	ctx = context.WithValue(ctx, genContextKey{}, true)
 
 	recoverableErrors := recoverableErrorBuilder{canEnterUi: false}
-	launchManifest, planBuildCache, err := buildManifest(ctx, &recoverableErrors)
+	launchManifest, planBuildCache, err := buildManifest(ctx, nil, &recoverableErrors)
 	if err != nil {
 		return err
 	}

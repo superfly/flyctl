@@ -91,6 +91,11 @@ func New() *cobra.Command {
 			Hidden:      true,
 		},
 		flag.Bool{
+			Name:        "build-depot",
+			Description: "Build your image with depot.dev",
+			Hidden:      true,
+		},
+		flag.Bool{
 			Name:        "build-nixpacks",
 			Description: "Build your image with nixpacks",
 			Hidden:      true,
@@ -149,6 +154,10 @@ func New() *cobra.Command {
 		flag.StringArray{
 			Name:        "file-secret",
 			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 		},
 		flag.VMSizeFlags,
 	)

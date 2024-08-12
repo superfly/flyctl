@@ -207,7 +207,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if len(m) > 0 && name == "port" {
 				portFromDockerfile, err := strconv.Atoi(m[i])
 				if err == nil {
-					fmt.Printf("got port\n")
 					srcInfo.Port = portFromDockerfile
 					continue
 				}
@@ -230,6 +229,12 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if startScript, ok := scripts["start"].(string); ok && strings.Contains(startScript, "meteor") {
+		srcInfo.Family = "Meteor"
+		srcInfo.Env = map[string]string{
+			"PORT":     "3000",
+			"ROOT_URL": "APP_URL",
+		}
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {

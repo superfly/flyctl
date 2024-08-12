@@ -23,7 +23,7 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/."
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/launch/volume-storage/."
 		usage = "create <volume name>"
 	)
 
@@ -61,6 +61,12 @@ func newCreate() *cobra.Command {
 		flag.String{
 			Name:        "snapshot-id",
 			Description: "Create the volume from the specified snapshot",
+		},
+		flag.String{
+			Name:        "fs-type",
+			Description: "Filesystem of this volume. It must be either ext4 or raw. Default is ext4.",
+			Hidden:      true,
+			Default:     "ext4",
 		},
 		flag.Yes(),
 		flag.Int{
@@ -125,6 +131,15 @@ func runCreate(ctx context.Context) error {
 		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
+	var fsType *string
+	if flag.IsSpecified(ctx, "fs-type") {
+		s := flag.GetString(ctx, "fs-type")
+		if s != "ext4" && s != "raw" {
+			return fmt.Errorf(`filesystem %q must be either "ext4" or "raw"`, s)
+		}
+		fsType = &s
+	}
+
 	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return err
@@ -139,6 +154,7 @@ func runCreate(ctx context.Context) error {
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		FSType:              fsType,
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
@@ -182,7 +198,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/reference/volumes/"
+	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/volumes/overview/"
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {

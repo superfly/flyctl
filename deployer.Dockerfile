@@ -1,6 +1,8 @@
 FROM debian:bookworm
 
-RUN apt update && apt install -y --no-install-recommends ruby ruby-bundler git curl clang g++ libncurses5 libncurses-dev libncurses5-dev make unzip locales openssl libssl-dev
+RUN echo "deb http://deb.debian.org/debian testing main contrib non-free non-free-firmware" | tee /etc/apt/sources.list.d/testing.list
+
+RUN apt update && apt install -y --no-install-recommends ca-certificates git curl clang g++ make unzip locales openssl libssl-dev ruby ruby-dev ruby-bundler build-essential libxml2 libpq-dev libyaml-dev
 
 # Erlang + Elixir
 COPY --from=hexpm/elixir:1.17.2-erlang-27.0.1-debian-bookworm-20240722-slim /usr/local/bin/ /usr/local/bin

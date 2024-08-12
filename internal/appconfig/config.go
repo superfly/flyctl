@@ -161,6 +161,15 @@ type Experimental struct {
 	EnableConsul   bool     `toml:"enable_consul,omitempty" json:"enable_consul,omitempty"`
 	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
+	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+}
+
+type Attached struct {
+	Secrets AttachedSecrets `toml:"secrets,omitempty" json:"secrets,omitempty"`
+}
+
+type AttachedSecrets struct {
+	Export map[string]string `toml:"export,omitempty" json:"export,omitempty"`
 }
 
 type Compute struct {
@@ -183,24 +192,32 @@ func (c *Config) SetConfigFilePath(configFilePath string) {
 	c.configFilePath = configFilePath
 }
 
-func (c *Config) HasNonHttpAndHttpsStandardServices() bool {
+func (c *Config) DetermineIPType(ipType string) string {
+	// If the app is a flycast app, then it requires a private IP
+	if ipType == "private" {
+		return "private"
+	}
+
+	// If there is a service that is not http or https on standard points, then it requires a dedicated IP
 	for _, service := range c.Services {
 		switch service.Protocol {
 		case "udp":
-			return true
+			return "dedicated"
 		case "tcp":
 			for _, p := range service.Ports {
 				if p.HasNonHttpPorts() {
-					return true
+					return "dedicated"
 				} else if p.ContainsPort(80) && !reflect.DeepEqual(p.Handlers, []string{"http"}) {
-					return true
+					return "dedicated"
 				} else if p.ContainsPort(443) && !(reflect.DeepEqual(p.Handlers, []string{"http", "tls"}) || reflect.DeepEqual(p.Handlers, []string{"tls", "http"})) {
-					return true
+					return "dedicated"
 				}
 			}
 		}
 	}
-	return false
+
+	// Use shared IP if there are no services that require a dedicated IP
+	return "shared"
 }
 
 // IsUsingGPU returns true if any VMs have a gpu-kind set.

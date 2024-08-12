@@ -107,10 +107,24 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		redis = true
 	}
 
+	if redis == false {
+		files, err = filepath.Glob("app/views/*")
+		if err == nil && len(files) > 0 {
+			for _, file := range files {
+				redis = checksPass(file, dirContains("*.html.erb", "turbo_stream_from"))
+				if redis {
+					break
+				}
+			}
+		}
+	}
+
 	// enable redis if redis is used for caching
-	prodEnv, err := os.ReadFile("config/environments/production.rb")
-	if err == nil && strings.Contains(string(prodEnv), "redis") {
-		redis = true
+	if !redis {
+		prodEnv, err := os.ReadFile("config/environments/production.rb")
+		if err == nil && strings.Contains(string(prodEnv), "redis") {
+			redis = true
+		}
 	}
 
 	if redis {
@@ -165,21 +179,24 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 			},
 		}
 	} else {
-		// find absolute path to rake executable
-		rake, err := exec.LookPath("rake")
-		if err != nil {
-			if errors.Is(err, exec.ErrDot) {
-				rake, err = filepath.Abs(rake)
-			}
-
+		if _, err = os.Stat(binrails); errors.Is(err, os.ErrNotExist) {
+			// find absolute path to rake executable
+			binrails, err = exec.LookPath("rake")
 			if err != nil {
-				return nil, errors.Wrap(err, "failure finding rake executable")
+				if errors.Is(err, exec.ErrDot) {
+					binrails, err = filepath.Abs(binrails)
+				}
+
+				if err != nil {
+					return nil, errors.Wrap(err, "failure finding rake executable")
+				}
 			}
 		}
 
-		// support Rails 4 through 5.1 applications, or ones that started out
-		// there and never were fully upgraded.
-		out, err := exec.Command(rake, "secret").Output()
+		// support Rails 4 through 5.1 applications, ones that started out
+		// there and never were fully upgraded, and ones that intentionally
+		// avoid using Rails encrypted credentials.
+		out, err := exec.Command(binrails, "secret").Output()
 
 		if err == nil {
 			s.Secrets = []Secret{
