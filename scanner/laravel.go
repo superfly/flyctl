@@ -22,9 +22,10 @@ import (
 
 // setup Laravel with a sqlite database
 func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
+
 	// Laravel projects contain the `artisan` command
 	if !checksPass(sourceDir, fileExists("artisan")) {
-		return nil, nil
+		return nil, nil 
 	}
 
 	s := &SourceInfo{
@@ -87,6 +88,12 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	s.RedisDesired = redis
 	if db != 0 {
 		s.DatabaseDesired = db
+	}
+
+	// Enable Object Storage( Tigris ) when
+	// * league/flysystem-aws-s3* found in composer.json
+	if checksPass(sourceDir, dirContains("composer.json", "league/flysystem-aws-s3")){
+		s.ObjectStorageDesired = true
 	}
 
 	return s, nil
@@ -160,12 +167,18 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		}
 	}
 
+	// Add skip flag if dockerfile already exists
 	args := []string{vendorPath, "generate"}
 	if dockerfileExists {
 		args = append(args, "--skip")
 	}
+	
+	// Add object storage( Tigris )
+	if plan.ObjectStorage.Provider() != nil {
+		args = append(args, "--tigris")
+	}
 
-	// add additional flags from launch command
+	// Add additional flags from launch command
 	if len(flags) > 0 {
 		args = append(args, flags...)
 	}
