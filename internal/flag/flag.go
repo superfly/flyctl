@@ -14,6 +14,7 @@ import (
 type extraArgsContextKey struct{}
 
 func makeAlias[T any](template T, name string) T {
+
 	var ret T
 	value := reflect.ValueOf(&ret).Elem()
 
@@ -31,6 +32,15 @@ func makeAlias[T any](template T, name string) T {
 	if hiddenField.IsValid() {
 		hiddenField.SetBool(true)
 	}
+
+	useAliasShortHandField := reflect.ValueOf(template).FieldByName("UseAliasShortHand")
+	if useAliasShortHandField.IsValid() {
+		useAliasShortHand := useAliasShortHandField.Interface().(bool)
+		if useAliasShortHand == true {
+			value.FieldByName("Shorthand").SetString(string(name[0]))
+		}
+	}
+
 	return ret
 }
 
@@ -88,16 +98,17 @@ func (b Bool) addTo(cmd *cobra.Command) {
 
 // String wraps the set of string flags.
 type String struct {
-	Name         string
-	Shorthand    string
-	Description  string
-	Default      string
-	NoOptDefVal  string
-	ConfName     string
-	EnvName      string
-	Hidden       bool
-	Aliases      []string
-	CompletionFn func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
+	Name              string
+	Shorthand         string
+	Description       string
+	Default           string
+	NoOptDefVal       string
+	ConfName          string
+	EnvName           string
+	Hidden            bool
+	Aliases           []string
+	UseAliasShortHand bool
+	CompletionFn      func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
 }
 
 func (s String) addTo(cmd *cobra.Command) {

@@ -430,7 +430,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				DefaultSelfSigned: fly.Pointer(false),
 			},
 			HTTPOptions: &fly.HTTPOptions{
-				Compress: fly.Pointer(true),
+				Compress:    fly.Pointer(true),
+				IdleTimeout: UintPointer(600),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
@@ -553,6 +554,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						EndPort:    fly.Pointer(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
+						HTTPOptions: &fly.HTTPOptions{
+							IdleTimeout: UintPointer(600),
+						},
 					},
 				},
 
@@ -683,4 +687,8 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\napp: foo\n")
 	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
+}
+
+func UintPointer(v uint32) *uint32 {
+	return &v
 }
