@@ -93,7 +93,6 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 	// Enable Object Storage( Tigris ) when
 	// * league/flysystem-aws-s3* found in composer.json
 	if checksPass(sourceDir, dirContains("composer.json", "league/flysystem-aws-s3")){
-		fmt.Println( "found!")
 		s.ObjectStorageDesired = true
 	}
 
