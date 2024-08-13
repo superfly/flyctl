@@ -614,11 +614,15 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
+	byName := make(map[string]fly.Organization, len(orgs))
+	for _, o := range orgs {
+		byName[o.Name] = o
+	}
 
 	personal, foundPersonal := bySlug["personal"]
 
-	orgSlug := flag.GetOrg(ctx)
-	if orgSlug == "" {
+	orgRequested := flag.GetOrg(ctx)
+	if orgRequested == "" {
 		if !foundPersonal {
 			if len(orgs) == 0 {
 				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
@@ -631,13 +635,17 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 		return &personal, "fly launch defaults to the personal org", nil
 	}
 
-	org, foundSlug := bySlug[orgSlug]
+	org, foundSlug := bySlug[orgRequested]
 	if !foundSlug {
+		if org, foundName := byName[orgRequested]; foundName {
+			return &org, "specified on the command line", nil
+		}
+
 		if !foundPersonal {
 			return nil, "", errors.New("no personal organization found")
 		}
 
-		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
+		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgRequested)}
 	}
 
 	return &org, "specified on the command line", nil
