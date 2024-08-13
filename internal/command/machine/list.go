@@ -6,6 +6,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
@@ -114,7 +115,7 @@ func runMachineList(ctx context.Context) (err error) {
 			}
 
 			note := ""
-			unreachable := machine.HostStatus == "unreachable"
+			unreachable := machine.HostStatus != fly.HostStatusOk
 			if unreachable {
 				unreachableMachines = true
 				note = "*"

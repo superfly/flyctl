@@ -58,82 +58,67 @@ This command requires a machine to be in a stopped or suspended state unless the
 func runMachineDestroy(ctx context.Context) (err error) {
 	ctx, err = buildContextFromAppName(ctx, appconfig.NameFromContext(ctx))
 	image := strings.TrimSpace(flag.GetString(ctx, "image"))
-	ids := []string{}
 
-	if image != "" {
+	var machinesToBeDeleted []*fly.Machine
+
+	switch {
+	case image != "":
 		machines, err := flapsutil.ClientFromContext(ctx).ListActive(ctx)
 		if err != nil {
 			return err
 		}
 
-		machinesToBeDeleted := []*fly.Machine{}
 		for _, machine := range machines {
 			if machine.ImageRefWithVersion() == image {
 				machinesToBeDeleted = append(machinesToBeDeleted, machine)
-				ids = append(ids, machine.ID)
 			}
 		}
-
-		if len(machinesToBeDeleted) == 0 {
-			fmt.Fprint(iostreams.FromContext(ctx).Out, "No machine to destroy, exiting\n")
-			return nil
-		}
-
-		machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
-		defer release()
+	case len(flag.Args(ctx)) == 0:
+		machine, newCtx, err := selectOneMachine(ctx, "", "", false)
 		if err != nil {
 			return err
 		}
+		ctx = newCtx
+		machinesToBeDeleted = append(machinesToBeDeleted, machine)
 
-		confirmed, err := prompt.Confirm(ctx, fmt.Sprintf("%d Machines (%s) will be destroyed, continue?", len(machines), strings.Join(ids, ",")))
+	default:
+		machines, newCtx, err := selectManyMachines(ctx, flag.Args(ctx))
 		if err != nil {
 			return err
 		}
-		if !confirmed {
-			return nil
-		}
+		ctx = newCtx
+		machinesToBeDeleted = append(machinesToBeDeleted, machines...)
+	}
 
-		for _, machine := range machines {
-			err = singleDestroyRun(ctx, machine)
-			if err != nil {
-				return err
-			}
-		}
+	if len(machinesToBeDeleted) == 0 {
+		fmt.Fprint(iostreams.FromContext(ctx).Out, "No machine to destroy, exiting\n")
+		return nil
+	}
 
-	} else if len(flag.Args(ctx)) == 0 {
-		machine, ctx, err := selectOneMachine(ctx, "", "", false)
-		if err != nil {
-			return err
-		}
-		machine, release, err := mach.AcquireLease(ctx, machine)
-		defer release()
-		if err != nil {
-			return err
-		}
+	var ids []string
+	for _, m := range machinesToBeDeleted {
+		ids = append(ids, m.ID)
+	}
 
+	machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
+	defer release()
+	if err != nil {
+		return err
+	}
+
+	confirmed, err := prompt.Confirm(ctx, fmt.Sprintf("%d Machines (%s) will be destroyed, continue?", len(machines), strings.Join(ids, ",")))
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		return nil
+	}
+
+	for _, machine := range machines {
 		err = singleDestroyRun(ctx, machine)
 		if err != nil {
 			return err
 		}
-	} else {
-		machines, ctx, err := selectManyMachines(ctx, flag.Args(ctx))
-		if err != nil {
-			return err
-		}
-
-		machines, release, err := mach.AcquireLeases(ctx, machines)
-		defer release()
-		if err != nil {
-			return err
-		}
-
-		for _, machine := range machines {
-			err = singleDestroyRun(ctx, machine)
-			if err != nil {
-				return err
-			}
-		}
-
 	}
 
 	return nil
