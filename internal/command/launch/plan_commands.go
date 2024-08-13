@@ -10,7 +10,7 @@ import (
 )
 
 func NewPlan() *cobra.Command {
-	const desc = `Granular subcommands for creating and configuring apps`
+	const desc = `[experimental] Granular subcommands for creating and configuring apps`
 
 	cmd := command.New("plan", desc, desc, nil, command.RequireSession, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
@@ -29,7 +29,7 @@ func NewPlan() *cobra.Command {
 }
 
 func newPropose() *cobra.Command {
-	const desc = "propose a plan based on scanning the source code or Dockerfile"
+	const desc = "[experimental] propose a plan based on scanning the source code or Dockerfile"
 	cmd := command.New("propose", desc, desc, runPropose)
 
 	flag.Add(cmd,
@@ -55,7 +55,7 @@ func newPropose() *cobra.Command {
 }
 
 func newCreate() *cobra.Command {
-	const desc = "create application"
+	const desc = "[experimental] create application"
 	cmd := command.New("create", desc, desc, runCreate)
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -73,7 +73,7 @@ func newCreate() *cobra.Command {
 }
 
 func newPostgres() *cobra.Command {
-	const desc = "create postgres database"
+	const desc = "[experimental] create postgres database"
 	cmd := command.New("postgres", desc, desc, runPostgres)
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -91,7 +91,7 @@ func newPostgres() *cobra.Command {
 }
 
 func newRedis() *cobra.Command {
-	const desc = "create redis database"
+	const desc = "[experimental] create redis database"
 	cmd := command.New("redis", desc, desc, runRedis)
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -109,7 +109,7 @@ func newRedis() *cobra.Command {
 }
 
 func newTigris() *cobra.Command {
-	const desc = "create tigris database"
+	const desc = "[experimental] create tigris database"
 	cmd := command.New("tigris", desc, desc, runTigris)
 	cmd.Args = cobra.ExactArgs(1)
 
@@ -127,7 +127,7 @@ func newTigris() *cobra.Command {
 }
 
 func newGenerate() *cobra.Command {
-	const desc = "generate Dockerfile and other configuration files based on the plan"
+	const desc = "[experimental] generate Dockerfile and other configuration files based on the plan"
 	cmd := command.New("generate", desc, desc, runGenerate)
 	cmd.Args = cobra.ExactArgs(1)
 
