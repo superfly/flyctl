@@ -9,6 +9,7 @@ import (
 	"github.com/cavaliergopher/grab/v3"
 	"github.com/logrusorgru/aurora"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -62,7 +63,12 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		return srcInfo, appConfig.Build, nil
 	}
 
-	fmt.Fprintln(io.Out, "Scanning source code")
+	planStep := plan.GetPlanStep(ctx)
+
+	if planStep == "" || planStep == "generate" {
+		fmt.Fprintln(io.Out, "Scanning source code")
+	}
+
 	srcInfo, err = scanner.Scan(workingDir, scannerConfig)
 	if err != nil {
 		return nil, nil, err
@@ -78,7 +84,9 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 		appType = appType + " " + srcInfo.Version
 	}
 
-	fmt.Fprintf(io.Out, "Detected %s %s app\n", articleFor(srcInfo.Family), aurora.Green(appType))
+	if planStep == "" || planStep == "generate" {
+		fmt.Fprintf(io.Out, "Detected %s %s app\n", articleFor(srcInfo.Family), aurora.Green(appType))
+	}
 
 	if srcInfo.Builder != "" {
 		fmt.Fprintln(io.Out, "Using the following build configuration:")
