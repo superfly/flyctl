@@ -400,7 +400,9 @@ func (bg *blueGreen) WaitForGreenMachinesToBeHealthy(ctx context.Context) error 
 		go func(m machine.LeasableMachine) {
 			ctx, span := tracing.GetTracer().Start(ctx, "green_machine_health_check", trace.WithAttributes(
 				attribute.String("machine_id", m.FormattedMachineId()),
+				attribute.Int("bg_timeout_ms", int(bg.timeout.Milliseconds())),
 			))
+			defer span.End()
 
 			waitCtx, cancel := context.WithTimeout(ctx, bg.timeout)
 			defer cancel()
