@@ -100,6 +100,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 
 func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (*DeploymentImage, error) {
 	buildState.BuilderInitStart()
+	buildState.SetBuilderMetaPart1(depotBuilderType, "", "")
 
 	{
 		msg := "Waiting for depot builder...\n"

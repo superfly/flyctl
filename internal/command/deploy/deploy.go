@@ -559,6 +559,7 @@ func deployToMachines(
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
+		BuildID:               img.BuildID,
 	})
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
