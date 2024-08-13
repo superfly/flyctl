@@ -16,6 +16,10 @@ module Step
   CUSTOMIZE = :customize
   BUILD = :build
   FLY_POSTGRES_CREATE = :fly_postgres_create
+  SUPABASE_POSTGRES = :supabase_postgres
+  UPSTASH_REDIS = :upstash_redis
+  TIGRIS_OBJECT_STORAGE = :tigris_object_storage
+  SENTRY = :sentry
   DEPLOY = :deploy
 end
 
@@ -27,6 +31,10 @@ module Artifact
   SESSION = :session
   DIFF = :diff
   FLY_POSTGRES = :fly_postgres
+  SUPABASE_POSTGRES = :supabase_postgres
+  UPSTASH_REDIS = :upstash_redis
+  TIGRIS_OBJECT_STORAGE = :tigris_object_storage
+  SENTRY = :sentry
   DOCKER_IMAGE = :docker_image
 end
 
@@ -78,8 +86,8 @@ def error(msg)
     log("error", msg)
 end
 
-def exec_capture(cmd)
-    event :exec, { cmd: cmd }
+def exec_capture(cmd, display = nil)
+    event :exec, { cmd: display || cmd }
 
     out_mutex = Mutex.new
     output = ""
@@ -142,6 +150,12 @@ end
 
 event :start, { ts: ts() }
 
+ORG_SLUG = get_env("DEPLOY_ORG_SLUG")
+if !ORG_SLUG
+  event :error, { type: :validation, message: "missing organization slug" }
+  exit 1
+end
+
 GIT_REPO = get_env("GIT_REPO")
 
 GIT_REPO_URL = if GIT_REPO
@@ -168,9 +182,6 @@ steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository
 steps.push({id: Step::PLAN, description: "Prepare deployment plan"})
 steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"})
 steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
-steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
-
-artifact Artifact::META, { steps: steps }
 
 APP_REGION = get_env("DEPLOY_APP_REGION")
 
@@ -182,7 +193,11 @@ if GIT_REPO_URL
       
       exec_capture("git init")
 
-      exec_capture("git remote add origin #{GIT_REPO_URL.to_s}")
+      redacted_repo_url = GIT_REPO_URL.dup
+      redacted_repo_url.user = nil
+      redacted_repo_url.password = nil
+
+      exec_capture("git remote add origin #{GIT_REPO_URL.to_s}", "git remote add origin #{redacted_repo_url.to_s}")
 
       ref = exec_capture("git remote show origin | sed -n '/HEAD branch/s/.*: //p'").chomp if !ref
 
@@ -238,6 +253,22 @@ File.write("/tmp/fly.json", manifest["config"].to_json)
 
 APP_NAME = manifest["config"]["app"]
 
+FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
+SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
+UPSTASH = manifest.dig("plan", "redis", "upstash_redis")
+TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
+SENTRY = manifest.dig("plan", "sentry") == true
+
+steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
+steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
+steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
+steps.push({id: Step::TIGRIS_OBJECT_STORAGE, description: "Create Tigris object storage bucket"}) if TIGRIS
+steps.push({id: Step::SENTRY, description: "Create Sentry project"}) if SENTRY
+
+steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+
+artifact Artifact::META, { steps: steps }
+
 image_tag = SecureRandom.hex(16)
 
 image_ref = in_step Step::BUILD do
@@ -253,10 +284,98 @@ image_ref = in_step Step::BUILD do
   end
 end
 
-# TODO: Setup Postgres if defined
-# TODO: Setup Upstash if defined
-# TODO: Setup Tigris if defined
-# TODO: Setup Sentry if defined
+if FLY_PG
+  in_step Step::FLY_POSTGRES_CREATE do
+    pg_name = FLY_PG["app_name"]
+    region = APP_REGION
+
+    cmd = "flyctl pg create --flex --org #{ORG_SLUG} --name #{pg_name} --region #{region} --yes"
+
+    if (vm_size = FLY_PG["vm_size"])
+      cmd += " --vm-size #{vm_size}"
+    end
+
+    if (vm_memory = FLY_PG["vm_ram"])
+      cmd += " --vm-memory #{vm_memory}"
+    end
+
+    if (nodes = FLY_PG["nodes"])
+      cmd += " --initial-cluster-size #{nodes}"
+    end
+
+    if (disk_size_gb = FLY_PG["disk_size_gb"])
+      cmd += " --volume-size #{disk_size_gb}"
+    end
+
+    artifact Artifact::FLY_POSTGRES, { name: pg_name, region: region, config: FLY_PG }
+
+    exec_capture(cmd)
+
+    exec_capture("flyctl pg attach #{pg_name} --app #{APP_NAME} -y")
+  end
+elsif SUPABASE
+  in_step Step::SUPABASE_POSTGRES do
+    cmd = "flyctl ext supabase create --org #{ORG_SLUG} --name #{SUPABASE["db_name"]} --region #{SUPABASE["region"]} --app #{APP_NAME} --yes"
+
+    artifact Artifact::SUPABASE_POSTGRES, { config: SUPABASE }
+
+    exec_capture(cmd)
+  end
+end
+
+if UPSTASH
+  in_step Step::UPSTASH_REDIS do
+    db_name = "#{APP_NAME}-redis"
+
+    cmd = "flyctl redis create --name #{db_name} --org #{ORG_SLUG} --region #{APP_REGION} --yes"
+
+    if UPSTASH["eviction"] == true
+      cmd += " --enable-eviction"
+    elsif UPSTASH["eviction"] == false
+      cmd += " --disable-eviction"
+    end
+
+    if (regions = UPSTASH["regions"])
+      cmd += " --replica-regions #{regions.join(",")}"
+    end
+
+    artifact Artifact::UPSTASH_REDIS, { config: UPSTASH, region: APP_REGION, name: db_name }
+
+    exec_capture(cmd)
+  end
+end
+
+if TIGRIS
+  in_step Step::TIGRIS_OBJECT_STORAGE do
+    cmd = "flyctl ext tigris create --org #{ORG_SLUG} --app #{APP_NAME} --yes"
+
+    if (name = TIGRIS["name"]) && !name.empty?
+      cmd += " --name #{name}"
+    end
+
+    if (pub = TIGRIS["public"]) && pub == true
+      cmd += " --public"
+    end
+
+    if (accel = TIGRIS["accelerate"]) && accel == true
+      cmd += " --accelerate"
+    end
+
+    if (domain = TIGRIS["website_domain_name"]) && !domain.empty?
+      cmd += " --website-domain-name #{domain}"
+    end
+
+    artifact Artifact::TIGRIS_OBJECT_STORAGE, { config: TIGRIS }
+
+    exec_capture(cmd)
+  end
+end
+
+if SENTRY
+  in_step Step::SENTRY do
+    exec_capture("flyctl ext sentry create --app #{APP_NAME} --yes")
+  end
+end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do

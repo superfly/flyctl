@@ -53,6 +53,10 @@ func newCreate() *cobra.Command {
 			Description: "the size of the VM",
 		},
 		flag.Int{
+			Name:        "vm-memory",
+			Description: "the memory of the VM in MB",
+		},
+		flag.Int{
 			Name:        "initial-cluster-size",
 			Description: "Initial cluster size",
 		},
@@ -139,6 +143,7 @@ func run(ctx context.Context) (err error) {
 		InitialClusterSize: flag.GetInt(ctx, "initial-cluster-size"),
 		ImageRef:           flag.GetString(ctx, "image-ref"),
 		DiskGb:             flag.GetInt(ctx, "volume-size"),
+		MemoryMb:           flag.GetInt(ctx, "vm-memory"),
 	}
 
 	forkFrom := flag.GetString(ctx, "fork-from")
