@@ -332,5 +332,5 @@ func TestDeployManifest(t *testing.T) {
 
 	f.Fly("deploy --export-manifest manifest.json")
 
-	f.Fly("deploy --manifest manifest.json")
+	f.Fly("deploy --from-manifest manifest.json")
 }
