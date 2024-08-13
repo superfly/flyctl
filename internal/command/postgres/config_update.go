@@ -186,22 +186,24 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 func updateStolonConfig(ctx context.Context, app *fly.AppCompact, leaderIP string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 
-	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.StolonManager, leaderIP)
+	shouldApply, restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.StolonManager, leaderIP)
 	if err != nil {
 		return false, err
 	}
 
-	fmt.Fprintln(io.Out, "Performing update...")
-	cmd, err := flypg.NewCommand(ctx, app)
-	if err != nil {
-		return false, err
-	}
+	if shouldApply {
+		fmt.Fprintln(io.Out, "Performing update...")
+		cmd, err := flypg.NewCommand(ctx, app)
+		if err != nil {
+			return false, err
+		}
 
-	err = cmd.UpdateSettings(ctx, leaderIP, changes)
-	if err != nil {
-		return false, err
+		err = cmd.UpdateSettings(ctx, leaderIP, changes)
+		if err != nil {
+			return false, err
+		}
+		fmt.Fprintln(io.Out, "Update complete!")
 	}
-	fmt.Fprintln(io.Out, "Update complete!")
 
 	return restartRequired, nil
 }
@@ -212,44 +214,46 @@ func updateFlexConfig(ctx context.Context, app *fly.AppCompact, leaderIP string)
 		dialer = agent.DialerFromContext(ctx)
 	)
 
-	restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.ReplicationManager, leaderIP)
+	shouldApply, restartRequired, changes, err := resolveConfigChanges(ctx, app, flypg.ReplicationManager, leaderIP)
 	if err != nil {
 		return false, err
 	}
 
-	fmt.Fprintln(io.Out, "Performing update...")
-	leaderClient := flypg.NewFromInstance(leaderIP, dialer)
+	if shouldApply {
+		fmt.Fprintln(io.Out, "Performing update...")
+		leaderClient := flypg.NewFromInstance(leaderIP, dialer)
 
-	// Push configuration settings to consul.
-	if err := leaderClient.UpdateSettings(ctx, changes); err != nil {
-		return false, err
-	}
-
-	machines, err := mach.ListActive(ctx)
-	if err != nil {
-		return false, err
-	}
-
-	// Sync configuration settings for each node. This should be safe to apply out-of-order.
-	for _, machine := range machines {
-		if machine.Config.Env["IS_BARMAN"] != "" {
-			continue
+		// Push configuration settings to consul.
+		if err := leaderClient.UpdateSettings(ctx, changes); err != nil {
+			return false, err
 		}
 
-		client := flypg.NewFromInstance(machine.PrivateIP, dialer)
-
-		// Pull configuration settings down from Consul for each node and reload the config.
-		err := client.SyncSettings(ctx)
+		machines, err := mach.ListActive(ctx)
 		if err != nil {
-			return false, fmt.Errorf("failed to sync configuration on %s: %s", machine.ID, err)
+			return false, err
 		}
+
+		// Sync configuration settings for each node. This should be safe to apply out-of-order.
+		for _, machine := range machines {
+			if machine.Config.Env["IS_BARMAN"] != "" {
+				continue
+			}
+
+			client := flypg.NewFromInstance(machine.PrivateIP, dialer)
+
+			// Pull configuration settings down from Consul for each node and reload the config.
+			err := client.SyncSettings(ctx)
+			if err != nil {
+				return false, fmt.Errorf("failed to sync configuration on %s: %s", machine.ID, err)
+			}
+		}
+		fmt.Fprintln(io.Out, "Update complete!")
 	}
-	fmt.Fprintln(io.Out, "Update complete!")
 
 	return restartRequired, nil
 }
 
-func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) (bool, map[string]string, error) {
+func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager string, leaderIP string) (bool, bool, map[string]string, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
@@ -269,6 +273,7 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 		}
 	}
 
+	shouldApply := false
 	restartRequired := false
 	if !force {
 		// Query PG settings
@@ -276,19 +281,19 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 
 		settings, err := pgclient.ViewSettings(ctx, keys, manager)
 		if err != nil {
-			return false, nil, err
+			return false, false, nil, err
 		}
 
 		if len(changes) == 0 {
-			return false, nil, fmt.Errorf("no changes were specified")
+			return false, false, nil, fmt.Errorf("no changes were specified")
 		}
 
 		changelog, err := resolveChangeLog(ctx, changes, settings)
 		if err != nil {
-			return false, nil, err
+			return false, false, nil, err
 		}
 		if len(changelog) == 0 {
-			return false, nil, fmt.Errorf("no changes to apply")
+			return false, false, nil, fmt.Errorf("no changes to apply")
 		}
 
 		rows := make([][]string, 0, len(changelog))
@@ -311,20 +316,20 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 		if !autoConfirm {
 			const msg = "Are you sure you want to apply these changes?"
 
-			switch confirmed, err := prompt.Confirmf(ctx, msg); {
+			switch shouldApply, err = prompt.Confirmf(ctx, msg); {
 			case err == nil:
-				if !confirmed {
-					return false, nil, nil
+				if !shouldApply {
+					return false, false, nil, nil
 				}
 			case prompt.IsNonInteractive(err):
-				return false, nil, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+				return false, false, nil, prompt.NonInteractiveError("yes flag must be specified when not running interactively")
 			default:
-				return false, nil, err
+				return shouldApply, false, nil, err
 			}
 		}
 	}
 
-	return restartRequired, changes, nil
+	return shouldApply, restartRequired, changes, nil
 }
 
 func resolveChangeLog(ctx context.Context, changes map[string]string, settings *flypg.PGSettings) (diff.Changelog, error) {
