@@ -79,8 +79,8 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	return nil
 }
 
-func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standbyIP string) error {
-	payload := encodeCommand(standbyIP)
+func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standbyNodeName string) error {
+	payload := encodeCommand(standbyNodeName)
 	cmd := fmt.Sprintf("pg_unregister %s", payload)
 
 	resp, err := ssh.RunSSHCommand(ctx, pc.app, pc.dialer, leaderIP, cmd, ssh.DefaultSshUsername)

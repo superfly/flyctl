@@ -208,8 +208,12 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err != nil {
-		return err
+	hostname := fmt.Sprintf("%s.vm.%s.internal", machine.ID, app.Name)
+
+	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, hostname); err != nil {
+		if err2 := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err2 != nil {
+			return err
+		}
 	}
 
 	return nil

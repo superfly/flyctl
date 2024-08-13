@@ -22,6 +22,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
+	github.com/coder/websocket v1.8.12
 	github.com/depot/depot-go v0.3.0
 	github.com/docker/docker v26.1.4+incompatible
 	github.com/docker/go-connections v0.5.0
@@ -95,7 +96,6 @@ require (
 	google.golang.org/grpc v1.65.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
-	nhooyr.io/websocket v1.8.11
 )
 
 require (
