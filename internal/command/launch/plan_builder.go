@@ -366,7 +366,11 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		workingDir = absDir
 	}
 	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-	fmt.Fprintln(io.Out, "Creating app in", workingDir)
+
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" || planStep == "create" {
+		fmt.Fprintln(io.Out, "Creating app in", workingDir)
+	}
 
 	var srcInfo *scanner.SourceInfo
 
@@ -542,18 +546,24 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 	taken := appName == ""
 
-	if !taken && !flag.GetBool(ctx, "no-create") {
-		var err error
-		// If the user can see an app with the same name as what they're about to launch,
-		// they *probably* want to deploy to that app instead.
-		taken, err = nudgeTowardsDeploy(ctx, appName)
-		if err != nil {
-			return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+	planStep := plan.GetPlanStep(ctx)
+	if planStep != "" && planStep != "propose" && planStep != "create" {
+		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
+		taken = false
+	} else {
+		if !taken && !flag.GetBool(ctx, "no-create") {
+			var err error
+			// If the user can see an app with the same name as what they're about to launch,
+			// they *probably* want to deploy to that app instead.
+			taken, err = nudgeTowardsDeploy(ctx, appName)
+			if err != nil {
+				return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+			}
 		}
-	}
 
-	if !taken {
-		taken, _ = appNameTaken(ctx, appName)
+		if !taken {
+			taken, _ = appNameTaken(ctx, appName)
+		}
 	}
 
 	if taken {
