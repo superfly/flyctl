@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -125,6 +126,8 @@ func New() (cmd *cobra.Command) {
 			Description: "Do not create an app, only generate configuration files",
 		},
 	)
+
+	cmd.AddCommand(NewPlan())
 
 	return
 }
@@ -335,12 +338,15 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	fmt.Fprintf(
-		io.Out,
-		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-		familyToAppType(family),
-		summary,
-	)
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" {
+		fmt.Fprintf(
+			io.Out,
+			"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+			familyToAppType(family),
+			summary,
+		)
+	}
 
 	if errors := recoverableErrors.build(); errors != "" {
 
@@ -349,7 +355,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	editInUi := false
-	if !flag.GetBool(ctx, "yes") {
+	if !flag.GetBool(ctx, "yes") && planStep == "" {
 		if incompleteLaunchManifest {
 			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
 		} else {
