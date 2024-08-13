@@ -69,6 +69,51 @@ func (d *Deployer) Ready(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
+func (d *Deployer) Done(ctx context.Context) (<-chan struct{}, error) {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		operation := func() error {
+			updateMachine, err := d.flaps.Get(ctx, d.machine.ID)
+			if err != nil {
+				if ctx.Err() == context.Canceled {
+					return backoff.Permanent(err)
+				}
+				if ctx.Err() == context.DeadlineExceeded {
+					fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Timeout reached waiting for machine %s to exit: %v\n", d.machine.ID, err)
+					return backoff.Permanent(err)
+				}
+				fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error getting machine %s from API: %v\n", d.machine.ID, err)
+				return err
+			}
+
+			// Look for an exit event following a start event
+			exitEvent := updateMachine.GetLatestEventOfTypeAfterType("start", "exit")
+			if exitEvent != nil {
+				return nil // Exit event found, operation is complete
+			}
+
+			return fmt.Errorf("exit event not found yet")
+		}
+
+		// Use an exponential backoff strategy
+		b := backoff.NewExponentialBackOff()
+		b.InitialInterval = 500 * time.Millisecond
+		b.MaxInterval = 2 * time.Second
+		b.MaxElapsedTime = 2 * time.Minute
+
+		// Run the operation with backoff
+		err := backoff.Retry(operation, backoff.WithContext(b, ctx))
+		if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Exiting with error: %v\n", err)
+		}
+	}()
+
+	return done, nil
+}
+
 func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 	var (
 		client = flyutil.ClientFromContext(ctx)
@@ -137,10 +182,35 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 				nats(ctx, eg, client, opts, cancelPolling),
 			}
 		}
+
+		// Handle log streaming in another goroutine
 		eg.Go(func() error {
 			return printStreams(ctx, streams...)
 		})
-		return eg.Wait()
+
+		eg.Go(func() error {
+			done, err := deployer.Done(ctx)
+			if err != nil {
+				return err
+			}
+
+			// Wait for either the machine to exit or the context to be canceled
+			select {
+			case <-done:
+				// Machine has exited, proceed with cleanup
+				fmt.Fprintln(iostreams.FromContext(ctx).Out, "Machine has exited, stopping log streaming.")
+			case <-ctx.Done():
+				// Context was canceled (e.g., by Ctrl-C), proceed with cleanup
+				fmt.Fprintln(iostreams.FromContext(ctx).Out, "Context canceled, stopping log streaming.")
+			}
+			return nil
+		})
+
+		// Wait for all goroutines to finish
+		if waitErr := eg.Wait(); waitErr != nil && !errors.Is(waitErr, context.Canceled) {
+			return waitErr
+		}
+		return nil
 	}
 
 	return nil
@@ -303,9 +373,13 @@ func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClien
 	machineInput := fly.LaunchMachineInput{
 		Region: region,
 		Config: &fly.MachineConfig{
-			Env:         envVars,
-			Guest:       &guest,
-			Image:       image,
+			Env:   envVars,
+			Guest: &guest,
+			Image: image,
+			Restart: &fly.MachineRestart{
+				Policy:     "on-failure",
+				MaxRetries: 3,
+			},
 			AutoDestroy: true, // we want the machine to be destroyed after a successful deploy
 		},
 	}
