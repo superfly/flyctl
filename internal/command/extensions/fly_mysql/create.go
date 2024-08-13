@@ -27,6 +27,7 @@ func create() (cmd *cobra.Command) {
 		flag.Org(),
 		flag.Region(),
 		extensions_core.SharedFlags,
+		SharedFlags,
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -59,6 +60,10 @@ func runCreate(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	options := gql.AddOnOptions{}
+
+	params.Options = optionsFromFlags(ctx, options)
 
 	if extension.SetsSecrets {
 		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
