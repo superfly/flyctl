@@ -1141,7 +1141,7 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 				}
 			}
 		}
-		if foundSockets > 0 {
+		if len(tcpServices) == 0  {
 			break
 		} else {
 			retries -= 1
