@@ -150,12 +150,6 @@ end
 
 event :start, { ts: ts() }
 
-ORG_SLUG = get_env("DEPLOY_ORG_SLUG")
-if !ORG_SLUG
-  event :error, { type: :validation, message: "missing organization slug" }
-  exit 1
-end
-
 GIT_REPO = get_env("GIT_REPO")
 
 GIT_REPO_URL = if GIT_REPO
@@ -216,10 +210,6 @@ session = in_step Step::PLAN do
   if (region = APP_REGION)
     cmd += " --region #{region}"
   end
-  
-  if (internal_port = get_env("DEPLOY_APP_INTERNAL_PORT"))
-    cmd += " --internal-port #{internal_port}"
-  end
 
   cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
 
@@ -252,6 +242,7 @@ end
 File.write("/tmp/fly.json", manifest["config"].to_json)
 
 APP_NAME = manifest["config"]["app"]
+ORG_SLUG = manifest["plan"]["org"]
 
 FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
 SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
