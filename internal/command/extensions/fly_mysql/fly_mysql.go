@@ -35,10 +35,6 @@ var SharedFlags = flag.Set{
 		Name:        "memory",
 		Description: "Memory (in GB) assigned to each cluster member",
 	},
-	flag.Int{
-		Name:        "disk",
-		Description: "Disk size (in GB) assigned to each cluster member",
-	},
 }
 
 func optionsFromFlags(ctx context.Context, options map[string]interface{}) map[string]interface{} {
@@ -50,8 +46,10 @@ func optionsFromFlags(ctx context.Context, options map[string]interface{}) map[s
 	flags := []string{"size", "cpu", "memory", "disk"}
 
 	for _, f := range flags {
-		if val := flag.GetInt(ctx, f); val != 0 {
-			options[f] = val
+		if flag.IsSpecified(ctx, f) {
+			if val := flag.GetInt(ctx, f); val != 0 {
+				options[f] = val
+			}
 		}
 	}
 
