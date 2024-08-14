@@ -1163,27 +1163,33 @@ func (md *machineDeployment) warnAboutIncorrectListenAddress(ctx context.Context
 	}
 
 	var foundSockets int
-	for _, proc := range processes {
-		for _, ls := range proc.ListenSockets {
-			foundSockets += 1
-
-			host, portStr, err := net.SplitHostPort(ls.Address)
-			if err != nil {
-				continue
+	retries := 1
+	for retries >= 0 {
+		for _, proc := range processes {
+			for _, ls := range proc.ListenSockets {
+				foundSockets += 1
+				host, portStr, err := net.SplitHostPort(ls.Address)
+				if err != nil {
+					continue
+				}
+				port, err := strconv.Atoi(portStr)
+				if err != nil {
+					continue
+				}
+				ip := net.ParseIP(host)
+				// We don't know VM's internal ipv4 which is also a valid address to bind to.
+				// Let's assume that whoever binds to a non-loopback address knows what they are doing.
+				// If we expose this address to flyctl later, we can revisit this logic.
+				if !ip.IsLoopback() {
+					delete(tcpServices, port)
+				}
 			}
-			port, err := strconv.Atoi(portStr)
-			if err != nil {
-				continue
-			}
-
-			ip := net.ParseIP(host)
-
-			// We don't know VM's internal ipv4 which is also a valid address to bind to.
-			// Let's assume that whoever binds to a non-loopback address knows what they are doing.
-			// If we expose this address to flyctl later, we can revisit this logic.
-			if !ip.IsLoopback() {
-				delete(tcpServices, port)
-			}
+		}
+		if len(tcpServices) == 0  {
+			break
+		} else {
+			retries -= 1
+			time.Sleep(3 * time.Second)
 		}
 	}
 
