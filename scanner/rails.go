@@ -82,6 +82,19 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		AutoInstrumentErrors: true,
 	}
 
+	// add ruby version
+	versionOutput, err := exec.Command("ruby", "--version").Output()
+	if err == nil {
+		// Define the regex pattern to extract the version number
+		re := regexp.MustCompile(`ruby (\d+\.\d+\.\d+)`)
+
+		// Find the version number in the output
+		matches := re.FindStringSubmatch(string(versionOutput))
+		if len(matches) >= 2 {
+			s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: matches[1]}
+		}
+	}
+
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
 		// don't prompt for pg, redis if litestack is in the Gemfile
 		s.DatabaseDesired = DatabaseKindSqlite

@@ -109,6 +109,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || nodeVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersionString}
 		}
 	} else {
 		// ensure bun is in $PATH
@@ -140,6 +142,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || bunVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "bun", Version: bunVersionString}
 		}
 
 		// set family
