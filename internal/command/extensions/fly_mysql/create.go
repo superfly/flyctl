@@ -33,6 +33,10 @@ func create() (cmd *cobra.Command) {
 			Shorthand:   "n",
 			Description: "The name of your database",
 		},
+		flag.Int{
+			Name:        "disk",
+			Description: "Disk size (in GB) assigned to each cluster member",
+		},
 	)
 	return cmd
 }
@@ -55,15 +59,16 @@ func runCreate(ctx context.Context) (err error) {
 	}
 
 	params.Provider = "fly_mysql"
+
+	options := gql.AddOnOptions{}
+
+	params.Options = optionsFromFlags(ctx, options)
+
 	extension, err := extensions_core.ProvisionExtension(ctx, params)
 
 	if err != nil {
 		return err
 	}
-
-	options := gql.AddOnOptions{}
-
-	params.Options = optionsFromFlags(ctx, options)
 
 	if extension.SetsSecrets {
 		err = secrets.DeploySecrets(ctx, gql.ToAppCompact(*extension.App), false, false)
