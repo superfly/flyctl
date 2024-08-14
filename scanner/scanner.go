@@ -83,6 +83,7 @@ type SourceInfo struct {
 	MergeConfig                  *MergeConfigStruct
 	AutoInstrumentErrors         bool
 	FailureCallback              func(err error) error
+	Runtime                      plan.RuntimeStruct
 }
 
 type SourceFile struct {

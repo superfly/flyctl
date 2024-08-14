@@ -57,7 +57,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	// verify that the bundle will install before proceeding
+	// attempt to install bundle before proceeding
 	args := []string{"install"}
 
 	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
@@ -69,10 +69,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return nil, errors.Wrap(err, "Failed to install bundle, exiting")
-	}
-
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
@@ -80,6 +76,47 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
+	}
+
+	// add ruby version
+
+	var rubyVersion string
+
+	// add ruby version from .ruby-version file
+	versionFile, err := os.ReadFile(".ruby-version")
+	if err == nil {
+		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+		matches := re.FindStringSubmatch(string(versionFile))
+		if len(matches) >= 2 {
+			rubyVersion = matches[1]
+		}
+	}
+
+	if rubyVersion == "" {
+		// add ruby version from Gemfile
+		gemfile, err := os.ReadFile("Gemfile")
+		if err == nil {
+			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+			matches := re.FindStringSubmatch(string(gemfile))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion == "" {
+		versionOutput, err := exec.Command("ruby", "--version").Output()
+		if err == nil {
+			re := regexp.MustCompile(`ruby (\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionOutput))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion != "" {
+		s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: rubyVersion}
 	}
 
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {

@@ -247,6 +247,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
 		}
+		lp.Runtime = srcInfo.Runtime
 	}
 
 	return &LaunchManifest{
