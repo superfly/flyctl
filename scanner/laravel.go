@@ -25,7 +25,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	// Laravel projects contain the `artisan` command
 	if !checksPass(sourceDir, fileExists("artisan")) {
-		return nil, nil 
+		return nil, nil
 	}
 
 	s := &SourceInfo{
@@ -92,7 +92,7 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 
 	// Enable Object Storage( Tigris ) when
 	// * league/flysystem-aws-s3* found in composer.json
-	if checksPass(sourceDir, dirContains("composer.json", "league/flysystem-aws-s3")){
+	if checksPass(sourceDir, dirContains("composer.json", "league/flysystem-aws-s3")) {
 		s.ObjectStorageDesired = true
 	}
 
@@ -172,7 +172,7 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 	if dockerfileExists {
 		args = append(args, "--skip")
 	}
-	
+
 	/*// Add object storage( Tigris )
 	if plan.ObjectStorage.Provider() != nil {
 		args = append(args, "--tigris")
