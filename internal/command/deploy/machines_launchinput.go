@@ -67,9 +67,15 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (*fly.LaunchMachineInput, error) {
 	mID := origMachineRaw.ID
 	machineShouldBeReplaced := dedicatedHostIdMismatch(origMachineRaw, md.appConfig)
-	processGroup := origMachineRaw.Config.ProcessGroup()
 
-	mConfig, err := md.appConfig.ToMachineConfig(processGroup, origMachineRaw.Config)
+	oConfig := origMachineRaw.GetConfig()
+	if origMachineRaw.HostStatus != fly.HostStatusOk {
+		machineShouldBeReplaced = true
+	}
+
+	processGroup := oConfig.ProcessGroup()
+
+	mConfig, err := md.appConfig.ToMachineConfig(processGroup, oConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +89,8 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	//   * The only allowed in-place operation is to update its destination mount path
 	//   * The other option is to force a machine replacement to remove or attach a different volume
 	mMounts := mConfig.Mounts
-	oMounts := origMachineRaw.Config.Mounts
+	oMounts := oConfig.Mounts
+
 	if len(oMounts) != 0 {
 		var latestExtendThresholdPercent, latestAddSizeGb, latestSizeGbLimit int
 		if len(mMounts) > 0 {
@@ -144,13 +151,23 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		machineShouldBeReplaced = true
 	}
 
+	if origMachineRaw.HostStatus != fly.HostStatusOk && len(oMounts) > 0 && len(mMounts) > 0 && oMounts[0].Volume == mMounts[0].Volume {
+		// We are attempting to replace an unreachable machine but reusing the volume id that ties it to the dead host
+		// TODO: Link to recovery instructions to manually create a new volume, empty or from snapshot, an only then recreate the machine.
+		return nil, fmt.Errorf(
+			"machine '%s' requires manual intervention, it can't be automatically replaced because its volume '%s' is on an unreachable host",
+			mID,
+			oMounts[0].Volume,
+		)
+	}
+
 	// If this is a standby machine that now has a service, then clear
 	// the standbys list.
 	if len(mConfig.Services) > 0 && len(mConfig.Standbys) > 0 {
 		mConfig.Standbys = nil
 	}
 
-	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != origMachineRaw.Config.Guest.HostDedicationID {
+	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != oConfig.Guest.HostDedicationID {
 		if len(oMounts) > 0 && len(mMounts) > 0 {
 			// Attempting to rellocate a machine with a volume attached to a different host
 			return nil, fmt.Errorf("can't rellocate machine '%s' to dedication id '%s' because it has an attached volume."+
