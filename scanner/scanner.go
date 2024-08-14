@@ -57,6 +57,7 @@ type SourceInfo struct {
 	SwapSizeMB                   int
 	Buildpacks                   []string
 	Secrets                      []Secret
+	 
 	Files                        []SourceFile
 	Port                         int
 	Env                          map[string]string
@@ -75,6 +76,7 @@ type SourceInfo struct {
 	RedisDesired                 bool
 	GitHubActions                GitHubActionsStruct
 	ObjectStorageDesired         bool
+	OverrideExtensionSecretKeyNames map[string]map[string]string      
 	Concurrency                  map[string]int
 	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
 	HttpCheckPath                string

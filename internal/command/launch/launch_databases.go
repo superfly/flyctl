@@ -242,6 +242,7 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 				"domain_name": tigrisPlan.WebsiteDomainName,
 			},
 		},
+		OverrideExtensionSecretKeyNames: state.sourceInfo.OverrideExtensionSecretKeyNames,
 	}
 
 	_, err = extensions_core.ProvisionExtension(ctx, params)
