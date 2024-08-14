@@ -8,7 +8,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -69,6 +68,9 @@ func newSessions() *cobra.Command {
 			Description: "Use the configuration file if present without prompting",
 			Default:     false,
 		},
+		flag.String{
+			Name: "from-manifest",
+		},
 	)
 
 	// not that useful anywhere else yet
@@ -103,18 +105,36 @@ func newSessions() *cobra.Command {
 }
 
 func runSessionCreate(ctx context.Context) (err error) {
-	io := iostreams.FromContext(ctx)
+	var (
+		launchManifest *LaunchManifest
+		cache          *planBuildCache
+	)
 
-	recoverableErrors := recoverableErrorBuilder{canEnterUi: false}
-	launchManifest, planBuildCache, err := buildManifest(ctx, nil, &recoverableErrors)
+	launchManifest, err = getManifestArgument(ctx)
 	if err != nil {
 		return err
 	}
 
-	updateConfig(launchManifest.Plan, nil, launchManifest.Config)
-	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
-		launchManifest.Config.SetInternalPort(n)
+	if launchManifest != nil {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
 	}
+
+	// recoverableErrors := recoverableErrorBuilder{canEnterUi: false}
+	// launchManifest, planBuildCache, err := buildManifest(ctx, nil, &recoverableErrors)
+	// if err != nil {
+	// 	return err
+	// }
+
+	// updateConfig(launchManifest.Plan, nil, launchManifest.Config)
+	// if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+	// 	launchManifest.Config.SetInternalPort(n)
+	// }
 
 	manifestPath := flag.GetString(ctx, "manifest-path")
 
@@ -138,12 +158,8 @@ func runSessionCreate(ctx context.Context) (err error) {
 		configPath:     "fly.json",
 		LaunchManifest: *launchManifest,
 		env:            map[string]string{},
-		planBuildCache: *planBuildCache,
+		planBuildCache: *cache,
 		cache:          map[string]interface{}{},
-	}
-
-	if errors := recoverableErrors.build(); errors != "" {
-		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("Problems encountered that can fixed from user interaction:")), errors)
 	}
 
 	session, err := fly.StartCLISession(fmt.Sprintf("%s: %s", state2.Hostname(ctx), state.Plan.AppName), map[string]any{

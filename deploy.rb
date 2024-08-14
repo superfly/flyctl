@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 
 require 'json'
 require 'time'
@@ -14,6 +14,7 @@ module Step
   GIT_PULL = :git_pull
   PLAN = :plan
   CUSTOMIZE = :customize
+  INSTALL_DEPENDENCIES = :install_dependencies
   BUILD = :build
   FLY_POSTGRES_CREATE = :fly_postgres_create
   SUPABASE_POSTGRES = :supabase_postgres
@@ -175,7 +176,6 @@ steps = []
 steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository"}) if GIT_REPO
 steps.push({id: Step::PLAN, description: "Prepare deployment plan"})
 steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"})
-steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
 
 APP_REGION = get_env("DEPLOY_APP_REGION")
 
@@ -205,7 +205,11 @@ if GIT_REPO_URL
 end
 
 session = in_step Step::PLAN do
-  cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path /tmp/manifest.json"
+  manifest = JSON.parse(exec_capture("flyctl launch plan propose").chomp)
+
+  File.write("/tmp/manifest.json", manifest.to_json)
+
+  cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path /tmp/manifest.json --from-manifest /tmp/manifest.json"
   
   if (region = APP_REGION)
     cmd += " --region #{region}"
@@ -243,6 +247,7 @@ File.write("/tmp/fly.json", manifest["config"].to_json)
 
 APP_NAME = manifest["config"]["app"]
 ORG_SLUG = manifest["plan"]["org"]
+final_region = manifest["plan"]["region"] || APP_REGION
 
 FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
 SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
@@ -250,6 +255,15 @@ UPSTASH = manifest.dig("plan", "redis", "upstash_redis")
 TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
 SENTRY = manifest.dig("plan", "sentry") == true
 
+REQUIRES_DEPENDENCIES = %w[ruby bun node elixir]
+
+RUNTIME_LANGUAGE = manifest.dig("plan", "runtime", "language")
+RUNTIME_VERSION = manifest.dig("plan", "runtime", "version")
+
+DO_INSTALL_DEPS = REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
+
+steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies"}) if DO_INSTALL_DEPS
+steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
 steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
 steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
 steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
@@ -260,9 +274,29 @@ steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
 
 artifact Artifact::META, { steps: steps }
 
+if DO_INSTALL_DEPS
+  in_step Step::INSTALL_DEPENDENCIES do
+    case RUNTIME_LANGUAGE
+    when "ruby"
+      exec_capture("rvm install #{RUNTIME_VERSION}")
+    when "bun"
+      version = RUNTIME_VERSION || "latest"
+      exec_capture("asdf install bun #{version}")
+    when "node"
+      version = RUNTIME_VERSION || "latest"
+      exec_capture("asdf install nodejs #{version}")
+    when "node"
+      version = RUNTIME_VERSION || "1.16"
+      exec_capture("asdf install elixir #{version}")
+    end
+  end
+end
+
 image_tag = SecureRandom.hex(16)
 
 image_ref = in_step Step::BUILD do
+  exec_capture("flyctl launch plan generate -a #{APP_NAME} -o #{ORG_SLUG} --no-deploy /tmp/manifest.json")
+
   if (image_ref = manifest.dig("config","build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
     info("Skipping build, using image defined in fly config: #{image_ref}")
     image_ref
@@ -278,7 +312,7 @@ end
 if FLY_PG
   in_step Step::FLY_POSTGRES_CREATE do
     pg_name = FLY_PG["app_name"]
-    region = APP_REGION
+    region = final_region
 
     cmd = "flyctl pg create --flex --org #{ORG_SLUG} --name #{pg_name} --region #{region} --yes"
 
@@ -318,7 +352,7 @@ if UPSTASH
   in_step Step::UPSTASH_REDIS do
     db_name = "#{APP_NAME}-redis"
 
-    cmd = "flyctl redis create --name #{db_name} --org #{ORG_SLUG} --region #{APP_REGION} --yes"
+    cmd = "flyctl redis create --name #{db_name} --org #{ORG_SLUG} --region #{final_region} --yes"
 
     if UPSTASH["eviction"] == true
       cmd += " --enable-eviction"
@@ -330,7 +364,7 @@ if UPSTASH
       cmd += " --replica-regions #{regions.join(",")}"
     end
 
-    artifact Artifact::UPSTASH_REDIS, { config: UPSTASH, region: APP_REGION, name: db_name }
+    artifact Artifact::UPSTASH_REDIS, { config: UPSTASH, region: final_region, name: db_name }
 
     exec_capture(cmd)
   end
