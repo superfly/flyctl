@@ -68,11 +68,26 @@ func runMachineDestroy(ctx context.Context) (err error) {
 			return err
 		}
 
+		var ids []string
 		for _, machine := range machines {
 			if machine.ImageRefWithVersion() == image {
 				machinesToBeDeleted = append(machinesToBeDeleted, machine)
+				ids = append(ids, machine.ID)
 			}
 		}
+
+		confirmed, err := prompt.Confirm(ctx,
+			fmt.Sprintf("%d Machines (%s) will be destroyed, continue?",
+				len(machines),
+				strings.Join(ids, ","),
+			))
+		if err != nil {
+			return err
+		}
+		if !confirmed {
+			return nil
+		}
+
 	case len(flag.Args(ctx)) == 0:
 		machine, newCtx, err := selectOneMachine(ctx, "", "", false)
 		if err != nil {
@@ -95,23 +110,10 @@ func runMachineDestroy(ctx context.Context) (err error) {
 		return nil
 	}
 
-	var ids []string
-	for _, m := range machinesToBeDeleted {
-		ids = append(ids, m.ID)
-	}
-
 	machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
 	defer release()
 	if err != nil {
 		return err
-	}
-
-	confirmed, err := prompt.Confirm(ctx, fmt.Sprintf("%d Machines (%s) will be destroyed, continue?", len(machines), strings.Join(ids, ",")))
-	if err != nil {
-		return err
-	}
-	if !confirmed {
-		return nil
 	}
 
 	for _, machine := range machines {
