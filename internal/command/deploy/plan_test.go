@@ -85,7 +85,8 @@ func TestUpdateMachineConfig(t *testing.T) {
 	ctx = iostreams.NewContext(ctx, io)
 
 	oldMachine := &fly.Machine{
-		ID: "machine1",
+		ID:         "machine1",
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "image1",
 			Metadata: map[string]string{
@@ -130,14 +131,16 @@ func TestUpdateMachineConfig(t *testing.T) {
 		},
 		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			return &fly.Machine{
-				ID:     builder.ID,
-				Config: builder.Config,
+				ID:         builder.ID,
+				HostStatus: fly.HostStatusOk,
+				Config:     builder.Config,
 			}, nil
 		},
 		LaunchFunc: func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 			return &fly.Machine{
-				ID:     builder.ID,
-				Config: builder.Config,
+				ID:         builder.ID,
+				HostStatus: fly.HostStatusOk,
+				Config:     builder.Config,
 			}, nil
 		},
 
@@ -172,31 +175,35 @@ func TestUpdateMachines(t *testing.T) {
 
 	oldMachines := []*fly.Machine{
 		{
-			ID:    "machine1",
-			State: "started",
+			ID:         "machine1",
+			State:      "started",
+			HostStatus: fly.HostStatusOk,
 			Config: &fly.MachineConfig{
 				Image: "image1",
 			},
 		},
 		{
-			ID:    "machine2",
-			State: "started",
+			ID:         "machine2",
+			State:      "started",
+			HostStatus: fly.HostStatusOk,
 			Config: &fly.MachineConfig{
 				Image: "image1",
 			},
 		},
 		{
-			ID:    "machine3",
-			State: "started",
-			Config: &fly.MachineConfig{
+			ID:         "machine3",
+			State:      "started",
+			HostStatus: fly.HostStatusUnreachable,
+			IncompleteConfig: &fly.MachineConfig{
 				Image: "image1",
 			},
 		},
 	}
 	newMachines := lo.Map(oldMachines, func(m *fly.Machine, _ int) *fly.Machine {
 		return &fly.Machine{
-			ID:    m.ID,
-			State: "started",
+			ID:         m.ID,
+			State:      "started",
+			HostStatus: fly.HostStatusOk,
 			Config: &fly.MachineConfig{
 				Image: "image2",
 			},
@@ -213,7 +220,7 @@ func TestUpdateMachines(t *testing.T) {
 			acquiredLeases.Store(machineID, true)
 			return &fly.MachineLease{
 				Data: &fly.MachineLeaseData{
-					Nonce: "nonce",
+					Nonce: machineID + "nonce",
 				},
 			}, nil
 		},
@@ -222,17 +229,22 @@ func TestUpdateMachines(t *testing.T) {
 		},
 		UpdateFunc: func(ctx context.Context, builder fly.LaunchMachineInput, nonce string) (out *fly.Machine, err error) {
 			return &fly.Machine{
-				ID:     builder.ID,
-				Config: builder.Config,
-				State:  "started",
+				ID:         builder.ID,
+				Config:     builder.Config,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
 			}, nil
 		},
 		LaunchFunc: func(ctx context.Context, builder fly.LaunchMachineInput) (out *fly.Machine, err error) {
 			return &fly.Machine{
-				ID:     builder.ID,
-				Config: builder.Config,
-				State:  "started",
+				ID:         builder.ID,
+				Config:     builder.Config,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
 			}, nil
+		},
+		DestroyFunc: func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+			return nil
 		},
 		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			if state == "started" {
@@ -259,8 +271,9 @@ func TestUpdateMachines(t *testing.T) {
 		},
 		RefreshLeaseFunc: func(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
 			return &fly.MachineLease{
+				Status: "success",
 				Data: &fly.MachineLeaseData{
-					Nonce: "nonce",
+					Nonce: nonce,
 				},
 			}, nil
 		},
@@ -308,9 +321,10 @@ func TestUpdateMachines(t *testing.T) {
 		}
 
 		return &fly.Machine{
-			ID:     builder.ID,
-			Config: builder.Config,
-			State:  "started",
+			ID:         builder.ID,
+			Config:     builder.Config,
+			State:      "started",
+			HostStatus: fly.HostStatusOk,
 		}, nil
 	}
 	acquiredLeases = sync.Map{}
@@ -332,9 +346,10 @@ func TestUpdateMachines(t *testing.T) {
 			return nil, &unrecoverableError{err: assert.AnError}
 		} else {
 			return &fly.Machine{
-				ID:     builder.ID,
-				Config: builder.Config,
-				State:  "started",
+				ID:         builder.ID,
+				Config:     builder.Config,
+				State:      "started",
+				HostStatus: fly.HostStatusOk,
 			}, nil
 		}
 	}
@@ -380,6 +395,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 				ID:         builder.ID,
 				Config:     builder.Config,
 				State:      "started",
+				HostStatus: fly.HostStatusOk,
 				LeaseNonce: "nonce",
 			}, nil
 		},
@@ -389,20 +405,23 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 				ID:         builder.ID,
 				Config:     builder.Config,
 				State:      "started",
+				HostStatus: fly.HostStatusOk,
 				LeaseNonce: "nonce",
 			}, nil
 		},
 	}
 
 	oldMachine := &fly.Machine{
-		ID: "machine1",
+		ID:         "machine1",
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "image1",
 		},
 		LeaseNonce: "nonce",
 	}
 	newMachine := &fly.Machine{
-		ID: "machine1",
+		ID:         "machine1",
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "image2",
 		},

@@ -93,9 +93,12 @@ func runMachineStatus(ctx context.Context) (err error) {
 		checksSummary = fmt.Sprintf("%d/%d", checksPassing, checksTotal)
 	}
 
+	mConfig := machine.GetConfig()
+
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, "State: %s\n", machine.State)
+	fmt.Fprintf(io.Out, "HostStatus: %s\n", machine.HostStatus)
 	fmt.Fprintf(io.Out, "\n")
 
 	obj := [][]string{
@@ -108,28 +111,28 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.PrivateIP,
 			machine.Region,
 			machine.ProcessGroup(),
-			fmt.Sprint(machine.Config.Guest.CPUKind),
-			fmt.Sprint(machine.Config.Guest.CPUs),
-			fmt.Sprint(machine.Config.Guest.MemoryMB),
+			fmt.Sprint(mConfig.Guest.CPUKind),
+			fmt.Sprint(mConfig.Guest.CPUs),
+			fmt.Sprint(mConfig.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			optJsonStrings(machine.Config.Init.Entrypoint),
-			optJsonStrings(machine.Config.Init.Cmd),
+			optJsonStrings(mConfig.Init.Entrypoint),
+			optJsonStrings(mConfig.Init.Cmd),
 		},
 	}
 
 	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
 
-	if len(machine.Config.Mounts) > 0 {
+	if len(mConfig.Mounts) > 0 {
 		cols = append(cols, "Volume")
-		obj[0] = append(obj[0], machine.Config.Mounts[0].Volume)
+		obj[0] = append(obj[0], mConfig.Mounts[0].Volume)
 	}
 
 	if err = render.VerticalTable(io.Out, "VM", obj, cols...); err != nil {
 		return
 	}
 
-	if machine.Config.Metadata["fly-managed-postgres"] == "true" {
+	if mConfig.Metadata["fly-managed-postgres"] == "true" {
 		obj := [][]string{
 			{
 				roleOutput,
@@ -172,7 +175,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 
 	if flag.GetBool(ctx, "display-config") {
 		var prettyConfig []byte
-		prettyConfig, err = json.MarshalIndent(machine.Config, "", "  ")
+		prettyConfig, err = json.MarshalIndent(mConfig, "", "  ")
 
 		if err != nil {
 			return err

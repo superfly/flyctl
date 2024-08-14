@@ -449,7 +449,8 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			needsVol := map[string][]string{}
 
 			for _, m := range ms {
-				if mntDst == "" && len(m.Config.Mounts) != 0 {
+				mConfig := m.GetConfig()
+				if mntDst == "" && len(mConfig.Mounts) != 0 {
 					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
 					// We should show a warning and ask the user for confirmation and let it happen instead of failing here.
 					return fmt.Errorf(
@@ -459,13 +460,13 @@ func (md *machineDeployment) validateVolumeConfig() error {
 					)
 				}
 
-				if mntDst != "" && len(m.Config.Mounts) == 0 {
+				if mntDst != "" && len(mConfig.Mounts) == 0 {
 					// Attaching a volume to an existing machine is not possible, but we replace the machine
 					// by another running on the same zone than the volume.
 					needsVol[mntSrc] = append(needsVol[mntSrc], m.Region)
 				}
 
-				if mms := m.Config.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
+				if mms := mConfig.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
 					// TODO: Changed the attached volume to an existing machine is not possible, but it could replace the machine
 					// by another running on the same zone than the new volume.
 					return fmt.Errorf(
