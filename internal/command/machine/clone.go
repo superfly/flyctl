@@ -96,6 +96,11 @@ func runMachineClone(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
+
+	if source.HostStatus != fly.HostStatusOk {
+		return fmt.Errorf("the machine is on an unreachable host, try again later")
+	}
+
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var vol *fly.Volume

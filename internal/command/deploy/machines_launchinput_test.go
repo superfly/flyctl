@@ -55,9 +55,10 @@ func Test_launchInputFor_Basic(t *testing.T) {
 	md.releaseVersion = 4
 
 	origMachineRaw := &fly.Machine{
-		ID:     "ab1234567890",
-		Region: li.Region,
-		Config: helpers.Clone(li.Config),
+		ID:         "ab1234567890",
+		Region:     li.Region,
+		Config:     helpers.Clone(li.Config),
+		HostStatus: fly.HostStatusOk,
 	}
 	// also must preserve any user's added metadata except for known fly metadata keys
 	origMachineRaw.Config.Metadata["user-added-me"] = "keep it"
@@ -72,15 +73,67 @@ func Test_launchInputFor_Basic(t *testing.T) {
 
 	// Now updating the machines must include changes to appConfig
 	origMachineRaw = &fly.Machine{
-		ID:     li.ID,
-		Region: li.Region,
-		Config: helpers.Clone(li.Config),
+		ID:         li.ID,
+		Region:     li.Region,
+		Config:     helpers.Clone(li.Config),
+		HostStatus: fly.HostStatusOk,
 	}
 	want.Config.Image = "super/globe"
 	want.Config.Env["NOT_SET_ON_RESTART_ONLY"] = "true"
 	li, err = md.launchInputForUpdate(origMachineRaw)
 	require.NoError(t, err)
 	assert.Equal(t, want, li)
+}
+
+// Test machines on unreachable hosts
+func Test_launchInputForUpdate_HostStatusUnreachable(t *testing.T) {
+	md, err := stabMachineDeployment(&appconfig.Config{
+		AppName:       "my-cool-app",
+		PrimaryRegion: "scl",
+		Env: map[string]string{
+			"OTHER": "value",
+		},
+	})
+	assert.NoError(t, err)
+
+	li, err := md.launchInputForUpdate(&fly.Machine{
+		ID:     "ab1234567890",
+		Region: "ord",
+		Config: &fly.MachineConfig{
+			Metadata: map[string]string{"fly_process_group": "app"},
+		},
+		HostStatus: fly.HostStatusUnreachable,
+	})
+	require.NoError(t, err)
+	require.True(t, li.RequiresReplacement)
+	require.Equal(t, li.Region, "ord")
+
+	// Updating an unreachable machine with a volume attached must fail until we can move the volume to another host
+	md.appConfig.Mounts = []appconfig.Mount{{Source: "data", Destination: "/data"}}
+	li, err = md.launchInputForUpdate(&fly.Machine{
+		ID: "ab1234567890",
+		IncompleteConfig: &fly.MachineConfig{
+			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
+		},
+		HostStatus: fly.HostStatusUnreachable,
+	})
+	require.ErrorContains(t, err, "unreachable")
+
+	// Changing the volume name returns a new machine with a different volume attached
+	md.volumes = map[string][]fly.Volume{
+		"data": {
+			{ID: "vol_10001", Name: "data"},
+		},
+	}
+	li, err = md.launchInputForUpdate(&fly.Machine{
+		ID: "ab1234567890",
+		IncompleteConfig: &fly.MachineConfig{
+			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "replace-me-because-i-m-different-fly-toml"}},
+		},
+		HostStatus: fly.HostStatusUnreachable,
+	})
+	require.True(t, li.RequiresReplacement)
+	require.Equal(t, li.Config.Mounts, []fly.MachineMount{{Path: "/data", Volume: "vol_10001", Name: "data"}})
 }
 
 // Test Mounts
@@ -109,10 +162,12 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, "ab1234567890", li.ID)
+	assert.False(t, li.RequiresReplacement)
 	assert.Equal(t, fly.MachineMount{Volume: "vol_attached", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Update a machine with volume attached on a different path
@@ -121,10 +176,12 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/update-me", Name: "data"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, "ab1234567890", li.ID)
+	assert.False(t, li.RequiresReplacement)
 	assert.Equal(t, fly.MachineMount{Volume: "vol_attached", Path: "/data", Name: "data"}, li.Config.Mounts[0])
 
 	// Updating a machine with an existing unnamed mount must keep the original mount as much as possible
@@ -133,10 +190,12 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/keep-me"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
 	assert.Equal(t, "ab1234567890", li.ID)
+	assert.False(t, li.RequiresReplacement)
 	assert.Equal(t, fly.MachineMount{Volume: "vol_attached", Path: "/keep-me"}, li.Config.Mounts[0])
 
 	// Updating a machine whose volume name doesn't match fly.toml's mount section must replace the machine altogether
@@ -145,6 +204,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -159,11 +219,13 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "ab1234567890", li.ID)
 	assert.True(t, li.RequiresReplacement)
 	assert.Empty(t, li.Config.Mounts)
+
 }
 
 // test mounts with auto volume resize
@@ -213,6 +275,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -239,6 +302,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -264,6 +328,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -282,6 +347,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -310,6 +376,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "ab1234567890", li.ID)
@@ -343,6 +410,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 				CmdOverride: []string{"foo"},
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	}
 	li, err := md.launchInputForUpdate(origMachineRaw)
 	require.NoError(t, err)
@@ -382,6 +450,7 @@ func Test_launchInputForUpdate_clearStandbysWithServices(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Standbys: []string{"xy0987654321"},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 
@@ -450,6 +519,7 @@ func Test_launchInputForUpdate_Files(t *testing.T) {
 	require.NoError(t, err)
 
 	li, err := md.launchInputForUpdate(&fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Files: []*fly.File{
 				{
