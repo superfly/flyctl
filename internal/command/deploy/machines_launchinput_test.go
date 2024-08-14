@@ -55,9 +55,10 @@ func Test_launchInputFor_Basic(t *testing.T) {
 	md.releaseVersion = 4
 
 	origMachineRaw := &fly.Machine{
-		ID:     "ab1234567890",
-		Region: li.Region,
-		Config: helpers.Clone(li.Config),
+		ID:         "ab1234567890",
+		Region:     li.Region,
+		Config:     helpers.Clone(li.Config),
+		HostStatus: fly.HostStatusOk,
 	}
 	// also must preserve any user's added metadata except for known fly metadata keys
 	origMachineRaw.Config.Metadata["user-added-me"] = "keep it"
@@ -72,9 +73,10 @@ func Test_launchInputFor_Basic(t *testing.T) {
 
 	// Now updating the machines must include changes to appConfig
 	origMachineRaw = &fly.Machine{
-		ID:     li.ID,
-		Region: li.Region,
-		Config: helpers.Clone(li.Config),
+		ID:         li.ID,
+		Region:     li.Region,
+		Config:     helpers.Clone(li.Config),
+		HostStatus: fly.HostStatusOk,
 	}
 	want.Config.Image = "super/globe"
 	want.Config.Env["NOT_SET_ON_RESTART_ONLY"] = "true"
@@ -109,6 +111,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -121,6 +124,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/update-me", Name: "data"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -133,6 +137,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/keep-me"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -213,6 +218,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -239,6 +245,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -264,6 +271,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -282,6 +290,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/replace-me", Name: "replace-me"}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	require.NotEmpty(t, li.Config.Mounts)
@@ -310,6 +319,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 				SizeGbLimit:            200,
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "ab1234567890", li.ID)
@@ -343,6 +353,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 				CmdOverride: []string{"foo"},
 			}},
 		},
+		HostStatus: fly.HostStatusOk,
 	}
 	li, err := md.launchInputForUpdate(origMachineRaw)
 	require.NoError(t, err)
@@ -382,6 +393,7 @@ func Test_launchInputForUpdate_clearStandbysWithServices(t *testing.T) {
 		Config: &fly.MachineConfig{
 			Standbys: []string{"xy0987654321"},
 		},
+		HostStatus: fly.HostStatusOk,
 	})
 	require.NoError(t, err)
 
@@ -450,6 +462,7 @@ func Test_launchInputForUpdate_Files(t *testing.T) {
 	require.NoError(t, err)
 
 	li, err := md.launchInputForUpdate(&fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Files: []*fly.File{
 				{
