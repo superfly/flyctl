@@ -57,9 +57,12 @@ This command requires a machine to be in a stopped or suspended state unless the
 
 func runMachineDestroy(ctx context.Context) (err error) {
 	ctx, err = buildContextFromAppName(ctx, appconfig.NameFromContext(ctx))
-	image := strings.TrimSpace(flag.GetString(ctx, "image"))
+	if err != nil {
+		return err
+	}
 
 	var machinesToBeDeleted []*fly.Machine
+	image := strings.TrimSpace(flag.GetString(ctx, "image"))
 
 	switch {
 	case image != "":
