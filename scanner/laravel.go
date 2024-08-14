@@ -173,10 +173,10 @@ func LaravelCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan,
 		args = append(args, "--skip")
 	}
 	
-	// Add object storage( Tigris )
+	/*// Add object storage( Tigris )
 	if plan.ObjectStorage.Provider() != nil {
 		args = append(args, "--tigris")
-	}
+	}*/
 
 	// Add additional flags from launch command
 	if len(flags) > 0 {
