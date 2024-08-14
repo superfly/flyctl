@@ -121,15 +121,12 @@ func (lm *leasableMachine) Cordon(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) FormattedMachineId() string {
-	res := lm.Machine().ID
-	if lm.Machine().Config.Metadata == nil {
-		return res
+	m := lm.Machine()
+	processGroup := m.ProcessGroup()
+	if processGroup == "" || m.IsFlyAppsReleaseCommand() || m.IsFlyAppsConsole() {
+		return m.ID
 	}
-	procGroup := lm.Machine().ProcessGroup()
-	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() || lm.Machine().IsFlyAppsConsole() {
-		return res
-	}
-	return fmt.Sprintf("%s [%s]", res, procGroup)
+	return fmt.Sprintf("%s [%s]", m.ID, processGroup)
 }
 
 func (lm *leasableMachine) logStatusWaiting(ctx context.Context, desired string) {

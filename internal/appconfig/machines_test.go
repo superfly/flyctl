@@ -342,6 +342,7 @@ func TestToTestMachineConfigWKillInfoNoImageAndOrigMachineKillInfo(t *testing.T)
 	}
 
 	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "nginx",
 			StopConfig: &fly.StopConfig{
@@ -394,6 +395,7 @@ func TestToTestMachineConfigNoImageAndOrigMachineKillInfo(t *testing.T) {
 	}
 
 	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Image: "nginx",
 			StopConfig: &fly.StopConfig{
@@ -445,8 +447,9 @@ func TestToTestMachineConfigWTestMachine(t *testing.T) {
 
 	check := cfg.HTTPService.MachineChecks[0]
 	machine := &fly.Machine{
-		ImageRef:  fly.MachineImageRef{},
-		PrivateIP: "1.2.3.4",
+		HostStatus: fly.HostStatusOk,
+		ImageRef:   fly.MachineImageRef{},
+		PrivateIP:  "1.2.3.4",
 		Config: &fly.MachineConfig{
 			Env: map[string]string{
 				"BAR": "BAZ",
