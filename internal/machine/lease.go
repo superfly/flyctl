@@ -85,10 +85,6 @@ func releaseLease(ctx context.Context, machine *fly.Machine) {
 // AcquireLease works to acquire/attach a lease for the specified machine.
 // WARNING: Make sure you defer the lease release process.
 func AcquireLease(ctx context.Context, machine *fly.Machine) (*fly.Machine, releaseLeaseFunc, error) {
-	if machine.HostStatus == fly.HostStatusUnreachable {
-		return machine, func() {}, nil
-	}
-
 	// if we haven't gotten the lease after 2s, we print a message so users
 	// aren't left wondering.
 	abortStatusUpdate := make(chan struct{})

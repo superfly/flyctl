@@ -388,7 +388,7 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 			sl := machToLogger.getLoggerFromID(machine.ID)
 
 			if machine.HostStatus == fly.HostStatusUnreachable {
-				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Ignoring lease acquire on unreachable machine %s", machine.ID))
+				sl.LogStatus(statuslogger.StatusRunning, fmt.Sprintf("Skipped lease for unreachable machine %s", machine.ID))
 				return nil
 			}
 
