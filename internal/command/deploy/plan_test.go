@@ -193,8 +193,8 @@ func TestUpdateMachines(t *testing.T) {
 		{
 			ID:         "machine3",
 			State:      "started",
-			HostStatus: fly.HostStatusOk,
-			Config: &fly.MachineConfig{
+			HostStatus: fly.HostStatusUnreachable,
+			IncompleteConfig: &fly.MachineConfig{
 				Image: "image1",
 			},
 		},
@@ -220,7 +220,7 @@ func TestUpdateMachines(t *testing.T) {
 			acquiredLeases.Store(machineID, true)
 			return &fly.MachineLease{
 				Data: &fly.MachineLeaseData{
-					Nonce: "nonce",
+					Nonce: machineID + "nonce",
 				},
 			}, nil
 		},
@@ -242,6 +242,9 @@ func TestUpdateMachines(t *testing.T) {
 				State:      "started",
 				HostStatus: fly.HostStatusOk,
 			}, nil
+		},
+		DestroyFunc: func(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
+			return nil
 		},
 		WaitFunc: func(ctx context.Context, machine *fly.Machine, state string, timeout time.Duration) (err error) {
 			if state == "started" {
@@ -268,8 +271,9 @@ func TestUpdateMachines(t *testing.T) {
 		},
 		RefreshLeaseFunc: func(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
 			return &fly.MachineLease{
+				Status: "success",
 				Data: &fly.MachineLeaseData{
-					Nonce: "nonce",
+					Nonce: nonce,
 				},
 			}, nil
 		},
