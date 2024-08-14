@@ -132,6 +132,7 @@ func Test_launchInputForUpdate_HostStatusUnreachable(t *testing.T) {
 		},
 		HostStatus: fly.HostStatusUnreachable,
 	})
+	require.NoError(t, err)
 	require.True(t, li.RequiresReplacement)
 	require.Equal(t, li.Config.Mounts, []fly.MachineMount{{Path: "/data", Volume: "vol_10001", Name: "data"}})
 }
