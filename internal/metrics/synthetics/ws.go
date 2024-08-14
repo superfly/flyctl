@@ -8,12 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
 	metrics "github.com/superfly/flyctl/internal/metrics"
 	"golang.org/x/time/rate"
-	"nhooyr.io/websocket"
 )
 
 type SyntheticsWs struct {

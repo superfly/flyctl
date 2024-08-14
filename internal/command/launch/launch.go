@@ -44,29 +44,30 @@ func (state *launchState) Launch(ctx context.Context) error {
 		state.warnedNoCcHa = true
 	}
 
-	var app *fly.App
-	if flag.GetBool(ctx, "no-create-app") {
-		fmt.Fprintf(io.Out, "app config: %+v\n", state.appConfig)
+	planStep := plan.GetPlanStep(ctx)
 
-		app, err = state.getApp(ctx)
-		if err != nil {
-			return err
-		}
-	} else {
-		app, err = state.createApp(ctx)
+	if !flag.GetBool(ctx, "no-create") && (planStep == "" || planStep == "create") {
+		app, err := state.createApp(ctx)
 		if err != nil {
 			return err
 		}
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
-	}
+		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
+		fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
 
-	fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
-	fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
+		if planStep == "create" {
+			return nil
+		}
+	}
 
 	// TODO: ideally this would be passed as a part of the plan to the Launch UI
 	// and allow choices of what actions are desired to be make there.
 	if state.sourceInfo != nil && state.sourceInfo.GitHubActions.Deploy {
-		state.setupGitHubActions(ctx, state.Plan.AppName)
+		if planStep == "" || planStep == "generate" {
+			if err = state.setupGitHubActions(ctx, state.Plan.AppName); err != nil {
+				return err
+			}
+		}
 	}
 
 	if err = state.satisfyScannerBeforeDb(ctx); err != nil {
@@ -75,16 +76,23 @@ func (state *launchState) Launch(ctx context.Context) error {
 	// TODO: Return rich info about provisioned DBs, including things
 	//       like public URLs.
 
-	if !flag.GetBool(ctx, "no-create") {
+	if !flag.GetBool(ctx, "no-create") && planStep != "generate" {
 		if err = state.createDatabases(ctx); err != nil {
 			return err
 		}
 	}
-	if err = state.satisfyScannerAfterDb(ctx); err != nil {
-		return err
+
+	if planStep != "" && planStep != "deploy" && planStep != "generate" {
+		return nil
 	}
-	if err = state.createDockerIgnore(ctx); err != nil {
-		return err
+
+	if planStep == "" || planStep == "generate" {
+		if err = state.satisfyScannerAfterDb(ctx); err != nil {
+			return err
+		}
+		if err = state.createDockerIgnore(ctx); err != nil {
+			return err
+		}
 	}
 
 	// Override internal port if requested using --internal-port flag

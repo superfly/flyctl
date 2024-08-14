@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -19,7 +20,9 @@ import (
 
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
-	if state.Plan.Postgres.FlyPostgres != nil {
+	planStep := plan.GetPlanStep(ctx)
+
+	if state.Plan.Postgres.FlyPostgres != nil && (planStep == "" || planStep == "postgres") {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -27,7 +30,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.Plan.Postgres.SupabasePostgres != nil {
+	if state.Plan.Postgres.SupabasePostgres != nil && (planStep == "" || planStep == "postgres") {
 		err := state.createSupabasePostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -35,7 +38,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.Plan.Redis.UpstashRedis != nil {
+	if state.Plan.Redis.UpstashRedis != nil && (planStep == "" || planStep == "redis") {
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -43,7 +46,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.Plan.ObjectStorage.TigrisObjectStorage != nil {
+	if state.Plan.ObjectStorage.TigrisObjectStorage != nil && (planStep == "" || planStep == "tigris") {
 		err := state.createTigrisObjectStorage(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -52,7 +55,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 	}
 
 	// Run any initialization commands required for Postgres if it was installed
-	if state.Plan.Postgres.Provider() != nil && state.sourceInfo != nil {
+	if state.Plan.Postgres.Provider() != nil && state.sourceInfo != nil && (planStep == "" || planStep == "postgres") {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {

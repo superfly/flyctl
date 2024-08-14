@@ -314,7 +314,7 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 			switch confirmed, err := prompt.Confirmf(ctx, msg); {
 			case err == nil:
 				if !confirmed {
-					return false, nil, nil
+					return false, nil, fmt.Errorf("cancelled")
 				}
 			case prompt.IsNonInteractive(err):
 				return false, nil, prompt.NonInteractiveError("yes flag must be specified when not running interactively")

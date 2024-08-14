@@ -19,7 +19,6 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flag/flagnames"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
@@ -370,7 +369,11 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		workingDir = absDir
 	}
 	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-	fmt.Fprintln(io.Out, "Creating app in", workingDir)
+
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" || planStep == "create" {
+		fmt.Fprintln(io.Out, "Creating app in", workingDir)
+	}
 
 	var srcInfo *scanner.SourceInfo
 
@@ -557,18 +560,24 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 	taken := appName == ""
 
-	if !taken && !flag.GetBool(ctx, "no-create") {
-		var err error
-		// If the user can see an app with the same name as what they're about to launch,
-		// they *probably* want to deploy to that app instead.
-		taken, err = nudgeTowardsDeploy(ctx, appName)
-		if err != nil {
-			return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+	planStep := plan.GetPlanStep(ctx)
+	if planStep != "" && planStep != "propose" && planStep != "create" {
+		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
+		taken = false
+	} else {
+		if !taken && !flag.GetBool(ctx, "no-create") {
+			var err error
+			// If the user can see an app with the same name as what they're about to launch,
+			// they *probably* want to deploy to that app instead.
+			taken, err = nudgeTowardsDeploy(ctx, appName)
+			if err != nil {
+				return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+			}
 		}
-	}
 
-	if !taken {
-		taken, _ = appNameTaken(ctx, appName)
+		if !taken {
+			taken, _ = appNameTaken(ctx, appName)
+		}
 	}
 
 	if taken {
@@ -601,12 +610,6 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 
 // determineOrg returns the org specified on the command line, or the personal org if left unspecified
 func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
-	if isGenerate(ctx) {
-		if slug := flag.GetString(ctx, flagnames.Org); slug != "" {
-			return &fly.Organization{Slug: slug}, "specified as flag", nil
-		}
-	}
-
 	client := flyutil.ClientFromContext(ctx)
 
 	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
@@ -625,11 +628,15 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
+	byName := make(map[string]fly.Organization, len(orgs))
+	for _, o := range orgs {
+		byName[o.Name] = o
+	}
 
 	personal, foundPersonal := bySlug["personal"]
 
-	orgSlug := flag.GetOrg(ctx)
-	if orgSlug == "" {
+	orgRequested := flag.GetOrg(ctx)
+	if orgRequested == "" {
 		if !foundPersonal {
 			if len(orgs) == 0 {
 				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
@@ -642,13 +649,17 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 		return &personal, "fly launch defaults to the personal org", nil
 	}
 
-	org, foundSlug := bySlug[orgSlug]
+	org, foundSlug := bySlug[orgRequested]
 	if !foundSlug {
+		if org, foundName := byName[orgRequested]; foundName {
+			return &org, "specified on the command line", nil
+		}
+
 		if !foundPersonal {
 			return nil, "", errors.New("no personal organization found")
 		}
 
-		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
+		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgRequested)}
 	}
 
 	return &org, "specified on the command line", nil
