@@ -195,7 +195,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 
 	f.Fly(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/postgres",
-		secondAppName, f.PrimaryRegion(), firstAppName, postgresMachineSize,
+		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
 	)
 
 	result := f.Fly(
