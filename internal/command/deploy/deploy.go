@@ -218,10 +218,12 @@ func New() *Command {
 		flag.String{
 			Name:        "export-manifest",
 			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
+			Hidden:      true,
 		},
 		flag.String{
 			Name:        "from-manifest",
 			Description: "Path to a deploy manifest file to use for deployment.",
+			Hidden:      true,
 		},
 	)
 
