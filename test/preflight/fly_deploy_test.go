@@ -323,3 +323,27 @@ func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
 	f.Fly("deploy")
 }
+
+func TestDeployManifest(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx:latest --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	var manifestPath = filepath.Join(f.WorkDir(), "manifest.json")
+
+	f.Fly("deploy --export-manifest %s", manifestPath)
+
+	manifest := f.ReadFile("manifest.json")
+	require.Contains(t, manifest, `"AppName": "`+appName+`"`)
+	require.Contains(t, manifest, `"primary_region": "`+f.PrimaryRegion()+`"`)
+	require.Contains(t, manifest, `"internal_port": 80`)
+	require.Contains(t, manifest, `"increased_availability": false`)
+	require.Contains(t, manifest, `"strategy": "rolling"`)
+	require.Contains(t, manifest, `"deployment_image": "docker.io/library/nginx:latest"`)
+
+	deployRes := f.Fly("deploy --from-manifest %s", manifestPath)
+
+	output := deployRes.StdOutString()
+	require.Contains(t, output, "Resuming %s deploy from manifest", appName)
+}
