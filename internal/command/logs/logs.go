@@ -160,7 +160,6 @@ func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
 			return printStream(ctx, out, stream, json)
 		})
 	}
-
 	return eg.Wait()
 }
 
