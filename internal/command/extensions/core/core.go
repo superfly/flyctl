@@ -40,8 +40,8 @@ type ExtensionParams struct {
 	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
-	OverrideRegion string
-	OverrideName   *string
+	OverrideRegion                  string
+	OverrideName                    *string
 	OverrideExtensionSecretKeyNames map[string]map[string]string
 }
 
@@ -242,7 +242,7 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 
 	// Also take into consideration custom key names to replace extension's default secret key names
 	overrideSecretKeyNamesMap := params.OverrideExtensionSecretKeyNames[params.Provider]
-	setSecretsFromExtension(ctx, &targetApp, &extension, overrideSecretKeyNamesMap )
+	setSecretsFromExtension(ctx, &targetApp, &extension, overrideSecretKeyNamesMap)
 
 	return extension, nil
 }
@@ -477,11 +477,11 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 			AppId: app.Id,
 		}
 		for _, key := range keys {
-			if customKeyName, exists := overrideSecretKeyNamesMap[key]; exists{
+			if customKeyName, exists := overrideSecretKeyNamesMap[key]; exists {
 				// If a custom key name is identified for the extension's secret key, use that custom key
 				input.Secrets = append(input.Secrets, gql.SecretInput{Key: customKeyName, Value: secrets[key].(string)})
 				fmt.Fprintf(io.Out, "%s: %s\n", customKeyName, secrets[key].(string))
-			}else{
+			} else {
 				// Use the default secret key name
 				input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
 				fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
