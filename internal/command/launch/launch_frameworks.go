@@ -64,7 +64,7 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				err = cmd.Run()
 
 				if err != nil {
-					return fmt.Errorf("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
+					fmt.Println("failed setting FLY_API_TOKEN secret in GitHub repository settings: %w", err)
 				}
 			}
 		}
