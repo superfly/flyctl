@@ -338,9 +338,9 @@ func TestDeployManifest(t *testing.T) {
 	require.Contains(t, manifest, `"AppName": "`+appName+`"`)
 	require.Contains(t, manifest, `"primary_region": "`+f.PrimaryRegion()+`"`)
 	require.Contains(t, manifest, `"internal_port": 80`)
-	require.Contains(t, manifest, `"increased_availability": false`)
+	require.Contains(t, manifest, `"increased_availability": true`)
 	require.Contains(t, manifest, `"strategy": "rolling"`)
-	require.Contains(t, manifest, `"deployment_image": "docker.io/library/nginx:latest"`)
+	require.Contains(t, manifest, `"deployment_image": " nginx:latest"`)
 
 	deployRes := f.Fly("deploy --from-manifest %s", manifestPath)
 
