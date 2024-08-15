@@ -258,7 +258,7 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 
 			err := cmd.Process.Signal(syscall.SIGUSR2)
 			if err != nil {
-				fmt.Printf("failed to send SIGUSR2")
+				fmt.Printf("failed to send SIGUSR2: %s\n", err)
 				return
 			}
 		}
