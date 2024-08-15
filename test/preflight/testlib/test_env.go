@@ -243,7 +243,7 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	cmd.Env = env
 	cmd.Stdin = testIostreams.In
 	cmd.Stdout = testIostreams.Out
-	cmd.Stderr = os.Stderr
+	cmd.Stderr = testIostreams.ErrOut
 	err = cmd.Start()
 	if err != nil {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
