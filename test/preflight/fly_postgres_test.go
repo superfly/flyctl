@@ -224,13 +224,13 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), appName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
 
 	result := f.FlyAllowExitFailure(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
-		appName, f.PrimaryRegion(), appName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
+		appName, f.PrimaryRegion(), appName, postgresMachineSize,
 	)
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
