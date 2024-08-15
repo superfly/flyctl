@@ -323,3 +323,14 @@ func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
 	f.Fly("deploy")
 }
+
+func TestDeployManifest(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	f.Fly("deploy --export-manifest manifest.json")
+
+	f.Fly("deploy --from-manifest manifest.json")
+}
