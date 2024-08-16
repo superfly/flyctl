@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -247,6 +248,22 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	if err != nil {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
+
+	go func() {
+		t := time.NewTicker(5 * time.Second)
+		defer t.Stop()
+
+		for {
+			<-t.C
+
+			err := cmd.Process.Signal(syscall.SIGUSR2)
+			if err != nil {
+				fmt.Printf("failed to send SIGUSR2 to %d: %s\n", cmd.Process.Pid, err)
+				return
+			}
+		}
+	}()
+
 	err = cmd.Wait()
 	if err == nil {
 		res.exitCode = 0

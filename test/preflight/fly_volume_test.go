@@ -143,6 +143,7 @@ func TestFlyVolume_CreateFromDestroyedVolSnapshot(t *testing.T) {
 			if s.State == "created" {
 				return true
 			}
+			t.Logf("volume %s is %q state", s.ID, s.State)
 		}
 		return false
 	}, 1*time.Minute, 1*time.Second, "final volume %s never made it to created state", vol.ID)
