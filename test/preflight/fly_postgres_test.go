@@ -44,7 +44,10 @@ func TestPostgres_autostart(t *testing.T) {
 
 	appName := f.CreateRandomAppName()
 
-	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
+	)
 	machList := f.MachinesList(appName)
 	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
 	firstMachine := machList[0]
@@ -149,6 +152,21 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	f.Fly("config validate")
 }
 
+const postgresMachineSize = "shared-cpu-4x"
+
+func waitPostgres(f *testlib.FlyctlTestEnv, appName string) error {
+	return backoff.Retry(func() error {
+		ssh := f.FlyAllowExitFailure(`ssh console -a %s -u postgres -C "psql -p 5433 -h /run/postgresql -c 'SELECT 1'"`, appName)
+		if ssh.ExitCode() != 0 {
+			return fmt.Errorf("non-zero exit code running fly ssh console")
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(1*time.Millisecond),
+		backoff.WithMaxElapsedTime(10*time.Second),
+	), 3))
+}
+
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -162,12 +180,12 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	secondAppName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), firstAppName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), firstAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
-		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	sshErr := backoff.Retry(func() error {
 		sshWorks := f.FlyAllowExitFailure("ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT 1'\"", firstAppName)
@@ -192,8 +210,8 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	)
 
 	f.Fly(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/postgres",
-		secondAppName, f.PrimaryRegion(), firstAppName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/postgres",
+		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
 	)
 
 	result := f.Fly(
@@ -204,10 +222,10 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	require.Contains(f, output, firstAppName)
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml := f.MachinesList(secondAppName)
-		require.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+		assert.Len(c, ml, 1)
+	}, 30*time.Second, 5*time.Second, "import machine not destroyed")
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
@@ -222,13 +240,15 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), appName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
+	err := waitPostgres(f, appName)
+	require.NoErrorf(t, err, "failed to provision postgres %q", appName)
 
 	result := f.FlyAllowExitFailure(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
-		appName, f.PrimaryRegion(), appName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
+		appName, f.PrimaryRegion(), postgresMachineSize, appName,
 	)
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
