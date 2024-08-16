@@ -215,6 +215,16 @@ func New() *Command {
 			Description: "Do not run the release command during deployment.",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "export-manifest",
+			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "from-manifest",
+			Description: "Path to a deploy manifest file to use for deployment.",
+			Hidden:      true,
+		},
 	)
 
 	return cmd
@@ -266,6 +276,23 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
+
+	var manifestPath = flag.GetString(ctx, "from-manifest")
+
+	switch {
+	case manifestPath == "-":
+		manifest, err := manifestFromReader(io.In)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	case manifestPath != "":
+		manifest, err := manifestFromFile(manifestPath)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	}
 
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
@@ -399,6 +426,8 @@ func deployToMachines(
 	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
 	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
@@ -530,7 +559,7 @@ func deployToMachines(
 		ip = "none"
 	}
 
-	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+	args := MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
@@ -560,7 +589,29 @@ func deployToMachines(
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
 		BuildID:               img.BuildID,
-	})
+	}
+
+	var path = flag.GetString(ctx, "export-manifest")
+	switch {
+	case path == "-":
+		manifest := NewManifest(app.Name, cfg, args)
+
+		return manifest.Encode(io.Out)
+
+	case path != "":
+		if !strings.HasSuffix(path, ".json") {
+			path += ".json"
+		}
+		manifest := NewManifest(app.Name, cfg, args)
+
+		if err = manifest.WriteToFile(path); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
+		return nil
+	}
+
+	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err

@@ -60,6 +60,7 @@ type Client interface {
 	GetAppSecrets(ctx context.Context, appName string) ([]fly.Secret, error)
 	GetApps(ctx context.Context, role *string) ([]fly.App, error)
 	GetAppsForOrganization(ctx context.Context, orgID string) ([]fly.App, error)
+	GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error)
 	GetCurrentUser(ctx context.Context) (*fly.User, error)
 	GetDNSRecords(ctx context.Context, domainName string) ([]*fly.DNSRecord, error)
 	GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
