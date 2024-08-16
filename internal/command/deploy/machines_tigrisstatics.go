@@ -52,20 +52,16 @@ const (
 	// tokenizerUrl      = "https://tokenizer.fly.io"
 )
 
-// TODO(allison): Make this key NOT hard-coded
-const (
-	tokenizerKey = "6938518f3ea1ef2c8ed19459df943571dfb2d2bb330ed0b93ffa71c25b272c7d"
-)
-
 // TODO(allison): Delete the statics bucket when the app is deleted.
 
 const staticsKeepVersions = 3
 
 type tigrisStaticsData struct {
-	s3              *s3.Client
-	bucket          string
-	root            string
-	originalStatics []appconfig.Static
+	s3               *s3.Client
+	bucket           string
+	root             string
+	originalStatics  []appconfig.Static
+	tokenizerSealKey string
 }
 
 func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
@@ -79,7 +75,7 @@ func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
 	return false
 }
 
-func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) error {
+func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context, tokenizerSealKey string) error {
 
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()
@@ -133,7 +129,7 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 
 	secrets := ext.Data.Environment.(map[string]interface{})
 
-	tokenizedKey, err := md.staticsTokenizeTigrisSecrets(ctx, org, secrets)
+	tokenizedKey, err := md.staticsTokenizeTigrisSecrets(ctx, org, secrets, tokenizerSealKey)
 
 	// TODO(allison): Temporary, while working on the POC for Tokenizer
 	return os.WriteFile("tokenized_key", ([]byte)(tokenizedKey), 0644)
@@ -141,7 +137,12 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) err
 	return err
 }
 
-func (md *machineDeployment) staticsTokenizeTigrisSecrets(ctx context.Context, org *fly.Organization, secrets map[string]interface{}) (string, error) {
+func (md *machineDeployment) staticsTokenizeTigrisSecrets(
+	ctx context.Context,
+	org *fly.Organization,
+	secrets map[string]interface{},
+	tokenizerSealKey string,
+) (string, error) {
 
 	client := flyutil.ClientFromContext(ctx)
 
@@ -194,7 +195,7 @@ func (md *machineDeployment) staticsTokenizeTigrisSecrets(ctx context.Context, o
 		return "", err
 	}
 
-	pubBytes, err := hex.DecodeString(tokenizerKey)
+	pubBytes, err := hex.DecodeString(tokenizerSealKey)
 	if err != nil {
 		return "", err
 	}
@@ -230,10 +231,15 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 	if tokenizerUrl == "" {
 		return errors.New("please specify FLY_TOKENIZER_URL")
 	}
+	// TODO(allison): Pull this from somewhere sensible, such as an API on the Tokenizer directly?
+	tokenizerSealKey := os.Getenv("FLY_TOKENIZER_SEAL_KEY")
+	if tokenizerSealKey == "" {
+		return errors.New("please specify FLY_TOKENIZER_SEAL_KEY")
+	}
 
 	md.tigrisStatics.bucket = md.appConfig.AppName + "-statics"
 
-	if err := md.staticsEnsureBucketCreated(ctx); err != nil {
+	if err := md.staticsEnsureBucketCreated(ctx, tokenizerSealKey); err != nil {
 		return err
 	}
 
