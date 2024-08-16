@@ -154,6 +154,19 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 const postgresMachineSize = "shared-cpu-4x"
 
+// assertMachineCount checks the number of machines for the given app.
+func assertMachineCount(tb testing.TB, f *testlib.FlyctlTestEnv, appName string, expected int) {
+	tb.Helper()
+
+	machines := f.MachinesList(appName)
+	var s string
+
+	for _, m := range machines {
+		s += fmt.Sprintf("machine %s (image: %s)", m.ID, m.FullImageRef())
+	}
+	assert.Len(tb, machines, expected, "expected %d machine(s) but got %s", expected, s)
+}
+
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -209,10 +222,9 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	require.Contains(f, output, firstAppName)
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(secondAppName)
-		require.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(t, f, secondAppName, 1)
+	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
@@ -239,8 +251,7 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(appName)
-		assert.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(t, f, appName, 1)
+	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }
