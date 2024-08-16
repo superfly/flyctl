@@ -225,6 +225,17 @@ func New() *Command {
 			Description: "Path to a deploy manifest file to use for deployment.",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "delegate",
+			Description: "Delegate deployment to a remote deployer",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "watch",
+			Description: "Watch the delegated remote deployment instead of exiting immediately",
+			Default:     false,
+			Hidden:      true,
+		},
 	)
 
 	return cmd
@@ -609,6 +620,14 @@ func deployToMachines(
 		}
 		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
 		return nil
+	}
+
+	if flag.GetBool(ctx, "delegate") {
+		// create a manifest and deploy it to a remote deployer
+		fmt.Fprintln(io.Out, "Generating deploy manifest...")
+		manifest := NewManifest(app.Name, cfg, args)
+
+		return deployRemotely(ctx, manifest)
 	}
 
 	md, err := NewMachineDeployment(ctx, args)
