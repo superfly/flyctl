@@ -81,7 +81,7 @@ func runMachineDestroy(ctx context.Context) (err error) {
 
 		confirmed, err := prompt.Confirm(ctx,
 			fmt.Sprintf("%d Machines (%s) will be destroyed, continue?",
-				len(machines),
+				len(machinesToBeDeleted),
 				strings.Join(ids, ","),
 			))
 		if err != nil {
