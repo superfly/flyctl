@@ -230,7 +230,7 @@ func TestPostgres_ImportFailure(t *testing.T) {
 
 	result := f.FlyAllowExitFailure(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
-		appName, f.PrimaryRegion(), appName, postgresMachineSize,
+		appName, f.PrimaryRegion(), postgresMachineSize, appName,
 	)
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
