@@ -208,7 +208,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	// Wait for the importer machine to be destroyed.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		ml := f.MachinesList(secondAppName)
-		require.Equal(c, 1, len(ml))
+		assert.Len(c, ml, 1)
 	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
 }
 
