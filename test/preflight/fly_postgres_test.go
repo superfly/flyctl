@@ -154,6 +154,19 @@ func TestPostgres_haConfigSave(t *testing.T) {
 
 const postgresMachineSize = "shared-cpu-4x"
 
+func waitPostgres(f *testlib.FlyctlTestEnv, appName string) error {
+	return backoff.Retry(func() error {
+		ssh := f.FlyAllowExitFailure(`ssh console -a %s -u postgres -C "psql -p 5433 -h /run/postgresql -c 'SELECT 1'"`, appName)
+		if ssh.ExitCode() != 0 {
+			return fmt.Errorf("non-zero exit code running fly ssh console")
+		}
+		return nil
+	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
+		backoff.WithInitialInterval(1*time.Millisecond),
+		backoff.WithMaxElapsedTime(10*time.Second),
+	), 3))
+}
+
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -230,6 +243,8 @@ func TestPostgres_ImportFailure(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
 		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
+	err := waitPostgres(f, appName)
+	require.NoErrorf(t, err, "failed to provision postgres %q", appName)
 
 	result := f.FlyAllowExitFailure(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
