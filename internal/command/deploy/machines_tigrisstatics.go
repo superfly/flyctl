@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -48,10 +49,7 @@ const (
 	//     will forward requests upstream with HTTPS.
 	tigrisUrl = "http://" + tigrisHostname
 
-	tokenizerHostname = "ali-tokenizer.fly.dev"
-	tokenizerUrl      = "http://" + tokenizerHostname
-	// tokenizerHostname = "tokenizer.fly.io"
-	// tokenizerUrl      = "https://" + tokenizerHostname
+	// tokenizerUrl      = "https://tokenizer.fly.io"
 )
 
 // TODO(allison): Make this key NOT hard-coded
@@ -226,6 +224,12 @@ func (t *headerInjectTransport) RoundTrip(req *http.Request) (*http.Response, er
 
 // Create the tigris bucket if not created.
 func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
+
+	// TODO(allison): This is temporary debug code. Remove me.
+	tokenizerUrl := os.Getenv("FLY_TOKENIZER_URL")
+	if tokenizerUrl == "" {
+		return errors.New("please specify FLY_TOKENIZER_URL")
+	}
 
 	md.tigrisStatics.bucket = md.appConfig.AppName + "-statics"
 
