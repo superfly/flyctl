@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
@@ -167,6 +166,15 @@ func assertMachineCount(tb testing.TB, f *testlib.FlyctlTestEnv, appName string,
 	assert.Len(tb, machines, expected, "expected %d machine(s) but got %s", expected, s)
 }
 
+// assertPostgresIsUp checks that the given Postgres server is really up.
+// Even after "fly pg create", sometimes the server is not ready for accepting connections.
+func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string) {
+	tb.Helper()
+
+	ssh := f.FlyAllowExitFailure(`ssh console -a %s -u postgres -C "psql -p 5433 -h /run/postgresql -c 'SELECT 1'"`, appName)
+	assert.Equal(tb, 0, ssh.ExitCode(), "failed to connect to postgres at %s: %s", appName, ssh.StdErr())
+}
+
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -187,18 +195,9 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
 		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
-	sshErr := backoff.Retry(func() error {
-		sshWorks := f.FlyAllowExitFailure("ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT 1'\"", firstAppName)
-		if sshWorks.ExitCode() != 0 {
-			return fmt.Errorf("non-zero exit code running fly ssh console")
-		} else {
-			return nil
-		}
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(100*time.Millisecond),
-		backoff.WithMaxElapsedTime(3*time.Second),
-	), 3))
-	require.NoError(f, sshErr, "failed to connect to first app's postgres over ssh")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertPostgresIsUp(t, f, firstAppName)
+	}, 1*time.Minute, 10*time.Second)
 
 	f.Fly(
 		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'CREATE TABLE app_name (app_name TEXT)'\"",
@@ -242,6 +241,9 @@ func TestPostgres_ImportFailure(t *testing.T) {
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
 		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertPostgresIsUp(t, f, appName)
+	}, 1*time.Minute, 10*time.Second)
 
 	result := f.FlyAllowExitFailure(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
