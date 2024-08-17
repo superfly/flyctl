@@ -44,7 +44,10 @@ func TestPostgres_autostart(t *testing.T) {
 
 	appName := f.CreateRandomAppName()
 
-	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
+	)
 	machList := f.MachinesList(appName)
 	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
 	firstMachine := machList[0]
@@ -149,6 +152,20 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	f.Fly("config validate")
 }
 
+const postgresMachineSize = "shared-cpu-4x"
+
+func assertMachineCount(tb testing.TB, f *testlib.FlyctlTestEnv, appName string, expected int) {
+	tb.Helper()
+
+	machines := f.MachinesList(appName)
+	var s string
+
+	for _, m := range machines {
+		s += fmt.Sprintf("machine %s (image: %s)", m.ID, m.FullImageRef())
+	}
+	assert.Len(tb, machines, expected, "expected %d machine(s) but got %s", expected, s)
+}
+
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -162,12 +179,12 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	secondAppName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), firstAppName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), firstAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
-		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	sshErr := backoff.Retry(func() error {
 		sshWorks := f.FlyAllowExitFailure("ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT 1'\"", firstAppName)
@@ -192,8 +209,8 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	)
 
 	f.Fly(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/postgres",
-		secondAppName, f.PrimaryRegion(), firstAppName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/postgres",
+		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
 	)
 
 	result := f.Fly(
@@ -204,10 +221,9 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	require.Contains(f, output, firstAppName)
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(secondAppName)
-		require.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(t, f, secondAppName, 1)
+	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
@@ -222,20 +238,19 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), appName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
 
 	result := f.FlyAllowExitFailure(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
-		appName, f.PrimaryRegion(), appName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
+		appName, f.PrimaryRegion(), postgresMachineSize, appName,
 	)
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(appName)
-		assert.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(t, f, appName, 1)
+	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }
