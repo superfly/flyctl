@@ -19,7 +19,6 @@ require (
 	github.com/buildpacks/pack v0.35.1
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/cenkalti/backoff v2.2.1+incompatible
-	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/websocket v1.8.12
@@ -143,6 +142,7 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/buildpacks/imgutil v0.0.0-20240605145725-186f89b2d168 // indirect
 	github.com/buildpacks/lifecycle v0.19.6 // indirect
+	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
