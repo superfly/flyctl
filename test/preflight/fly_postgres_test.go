@@ -239,19 +239,19 @@ func TestPostgres_ImportFailure(t *testing.T) {
 
 	appName := f.CreateRandomAppName()
 
-	f.Fly(
+	result := f.Fly(
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
 		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
-	err := waitPostgres(f, appName)
-	require.NoErrorf(t, err, "failed to provision postgres %q", appName)
+	t.Logf("stdout: %s", result.StdOut().String())
+	t.Logf("stderr: %s", result.StdErr().String())
 
-	result := f.FlyAllowExitFailure(
+	result = f.FlyAllowExitFailure(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
 		appName, f.PrimaryRegion(), postgresMachineSize, appName,
 	)
 	require.NotEqual(f, 0, result.ExitCode())
-	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
+	require.Contains(f, result.StdOut().String(), `database "test" does not exist`)
 
 	// Wait for the importer machine to be destroyed.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
