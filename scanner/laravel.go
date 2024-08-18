@@ -95,10 +95,10 @@ func configureLaravel(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		s.ObjectStorageDesired = true
 		s.OverrideExtensionSecretKeyNames = make(map[string]map[string]string)
 		s.OverrideExtensionSecretKeyNames["tigris"] = make(map[string]string)
-		
-       	// Replace the following secret key names set from the tigris extension provisioning
-       	// With their custom secret key name vales
-        s.OverrideExtensionSecretKeyNames["tigris"]["AWS_REGION"] = "AWS_DEFAULT_REGION"
+
+		// Replace the following secret key names set from the tigris extension provisioning
+		// With their custom secret key name vales
+		s.OverrideExtensionSecretKeyNames["tigris"]["AWS_REGION"] = "AWS_DEFAULT_REGION"
 		s.OverrideExtensionSecretKeyNames["tigris"]["BUCKET_NAME"] = "AWS_BUCKET"
 		s.OverrideExtensionSecretKeyNames["tigris"]["AWS_ENDPOINT_URL_S3"] = "AWS_ENDPOINT"
 	}
