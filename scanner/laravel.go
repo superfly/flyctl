@@ -207,21 +207,42 @@ Now: run 'fly deploy' to deploy your %s app.
 }
 
 func extractPhpVersion() (string, error) {
-	/* Example Output:
-	PHP 8.1.8 (cli) (built: Jul  8 2022 10:58:31) (NTS)
-	Copyright (c) The PHP Group
-	Zend Engine v4.1.8, Copyright (c) Zend Technologies
-		with Zend OPcache v8.1.8, Copyright (c), by Zend Technologies
-	*/
-	cmd := exec.Command("php", "-v")
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", err
+	/* VIA composer.json file */
+	// Capture major/minor version (leaving out revision version)
+	re := regexp.MustCompile(`([0-9]+\.[0-9]+)`)
+	var match = re.FindStringSubmatch("")
+
+	data, err := os.ReadFile("composer.json")
+	if err == nil {
+		var composerJson map[string]interface{}
+		err = json.Unmarshal(data, &composerJson)
+		if err == nil {
+			// check for the package in the composer.json
+			require, ok := composerJson["require"].(map[string]interface{})
+			if ok && require["php"] != nil {
+				str := fmt.Sprint(require["php"] )
+				match = re.FindStringSubmatch(str)
+			}
+		}
 	}
 
-	// Capture major/minor version (leaving out revision version)
-	re := regexp.MustCompile(`PHP ([0-9]+\.[0-9]+)\.[0-9]`)
-	match := re.FindStringSubmatch(string(out))
+	if len(match)==0{
+		/* VIA php artisan version: 
+		PHP 8.1.8 (cli) (built: Jul  8 2022 10:58:31) (NTS)
+		Copyright (c) The PHP Group
+		Zend Engine v4.1.8, Copyright (c) Zend Technologies
+			with Zend OPcache v8.1.8, Copyright (c), by Zend Technologies
+		*/
+		cmd := exec.Command("php", "-v")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			return "", err
+		}
+
+		// Capture major/minor version (leaving out revision version)
+		re := regexp.MustCompile(`PHP ([0-9]+\.[0-9]+)\.[0-9]`)
+		match = re.FindStringSubmatch(string(out))
+	}
 
 	if len(match) > 1 {
 		// If the PHP version is below 7.4, we won't have a
