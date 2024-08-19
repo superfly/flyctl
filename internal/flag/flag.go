@@ -560,6 +560,14 @@ func Depot() Bool {
 	}
 }
 
+func DepotScope() String {
+	return String{
+		Name:        "depot-scope",
+		Description: "The scope of the Depot builder's cache to use (organization or app)",
+		Default:     "organization",
+	}
+}
+
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
