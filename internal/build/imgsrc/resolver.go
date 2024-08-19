@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
@@ -229,10 +230,23 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	strategies := []imageBuilder{}
 
+	var builderScope depotBuilderScope
+	builderScopeString := flag.GetString(ctx, "depot-scope")
+
+	switch builderScopeString {
+	case "organization":
+		builderScope = DepotBuilderScopeOrganization
+	case "app":
+		builderScope = DepotBuilderScopeApp
+	default:
+		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
+
+	}
+
 	if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
 	} else if r.dockerFactory.mode.UseDepot() {
-		strategies = append(strategies, &DepotBuilder{})
+		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
 		strategies = []imageBuilder{
 			&buildpacksBuilder{},
