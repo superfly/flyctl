@@ -230,9 +230,7 @@ func EnsureDeployer(ctx context.Context, org *fly.Organization, appName, region 
 		// continue to create a new deployer
 	}
 
-	var deployerName = "fly-deployer-" + haikunator.Haikunator().Build()
-
-	deployer, err = createDeployer(ctx, org, appName, region, deployerName)
+	deployer, err = createDeployer(ctx, org, appName, region)
 	if err != nil {
 		return nil, err
 	}
@@ -281,10 +279,15 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 	}, nil
 }
 
-func createDeployer(ctx context.Context, org *fly.Organization, appName, region, deployerName string) (*Deployer, error) {
+func createDeployer(ctx context.Context, org *fly.Organization, appName, region string) (*Deployer, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = flyutil.ClientFromContext(ctx)
+	)
+
+	var (
+		appRole      = "fly-deployer"
+		deployerName = appRole + haikunator.Haikunator().Build()
 	)
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -299,7 +302,7 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region,
 	deployerApp, err := client.CreateApp(ctx, fly.CreateAppInput{
 		OrganizationID:  org.ID,
 		Name:            deployerName,
-		AppRoleID:       "fly-deployer",
+		AppRoleID:       appRole,
 		Machines:        true,
 		PreferredRegion: fly.StringPointer(region),
 	})
@@ -316,14 +319,17 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region,
 		return nil, err
 	}
 
-	resp, err := makeDeployToken(ctx, appName, org.ID, &gql.LimitedAccessTokenOptions{
-		"app_id": appName,
-	})
+	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return nil, err
 	}
 
-	var token = resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
+	token, err := getDeployToken(ctx, appName, org.ID, &gql.LimitedAccessTokenOptions{
+		"app_id": app.ID,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	secrets := map[string]string{
 		"FLY_API_TOKEN": token,
@@ -397,7 +403,7 @@ func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClien
 	return machine, nil
 }
 
-func makeDeployToken(ctx context.Context, appName, orgID string, options *gql.LimitedAccessTokenOptions) (*gql.CreateLimitedAccessTokenResponse, error) {
+func getDeployToken(ctx context.Context, appName, orgID string, options *gql.LimitedAccessTokenOptions) (string, error) {
 	var (
 		profile = "deploy"
 		expiry  = time.Minute * 300
@@ -414,9 +420,9 @@ func makeDeployToken(ctx context.Context, appName, orgID string, options *gql.Li
 		expiry.String(),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating token: %w", err)
+		return "", fmt.Errorf("failed creating token: %w", err)
 	}
-	return resp, nil
+	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
 func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
