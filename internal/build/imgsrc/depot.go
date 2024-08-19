@@ -33,7 +33,27 @@ import (
 
 var _ imageBuilder = (*DepotBuilder)(nil)
 
-type DepotBuilder struct{}
+type depotBuilderScope int
+
+const (
+	DepotBuilderScopeOrganization depotBuilderScope = iota
+	DepotBuilderScopeApp
+)
+
+func (s depotBuilderScope) String() string {
+	switch s {
+	case DepotBuilderScopeOrganization:
+		return "organization"
+	case DepotBuilderScopeApp:
+		return "app"
+	default:
+		return "unknown"
+	}
+}
+
+type DepotBuilder struct {
+	Scope depotBuilderScope
+}
 
 func (d *DepotBuilder) Name() string { return "depot.dev" }
 
@@ -81,7 +101,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 
 	build.ImageBuildStart()
 
-	image, err := depotBuild(ctx, streams, opts, dockerfile, build)
+	image, err := depotBuild(ctx, streams, opts, dockerfile, build, d.Scope)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		build.ImageBuildFinish()
@@ -98,7 +118,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	return image, "", nil
 }
 
-func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (*DeploymentImage, error) {
+func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build, scope depotBuilderScope) (*DeploymentImage, error) {
 	buildState.BuilderInitStart()
 	buildState.SetBuilderMetaPart1(depotBuilderType, "", "")
 
@@ -111,7 +131,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		}
 	}
 
-	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams)
+	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams, scope)
 	if buildErr != nil {
 		streams.StopProgressIndicator()
 		return nil, buildErr
@@ -151,7 +171,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	return newDeploymentImage(res, opts.Tag)
 }
 
-func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams) (*depotmachine.Machine, *depotbuild.Build, error) {
+func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (*depotmachine.Machine, *depotbuild.Build, error) {
 	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
 	if region != "" {
@@ -161,8 +181,9 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	defer buildState.BuilderInitFinish()
 
 	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
-		AppName: &appName,
-		Region:  &region,
+		AppName:      &appName,
+		Region:       &region,
+		BuilderScope: fly.StringPointer(builderScope.String()),
 	})
 	if err != nil {
 		streams.StopProgressIndicator()
