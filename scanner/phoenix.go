@@ -33,6 +33,7 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 				},
 			},
 		},
+		Runtime: plan.RuntimeStruct{Language: "elixir"},
 	}
 
 	// Detect if --copy-config and --now flags are set. If so, limited set of

@@ -95,15 +95,17 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
-	// Override internal port if requested using --internal-port flag
-	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
-		state.appConfig.SetInternalPort(n)
-	}
-
 	// Sentry
 	if !flag.GetBool(ctx, "no-create") {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
+		}
+	}
+
+	if planStep != "generate" {
+		// Override internal port if requested using --internal-port flag
+		if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+			state.appConfig.SetInternalPort(n)
 		}
 	}
 

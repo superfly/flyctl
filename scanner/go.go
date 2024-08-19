@@ -2,9 +2,11 @@ package scanner
 
 import (
 	"fmt"
+	"os"
+
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/terminal"
 	"golang.org/x/mod/modfile"
-	"os"
 )
 
 func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -19,6 +21,7 @@ func configureGo(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+		Runtime: plan.RuntimeStruct{Language: "go"},
 	}
 
 	if !absFileExists("go.sum") {

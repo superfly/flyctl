@@ -1,5 +1,7 @@
 package scanner
 
+import "github.com/superfly/flyctl/internal/command/launch/plan"
+
 func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(sourceDir, fileExists("Cargo.toml", "Cargo.lock")) {
 		return nil, nil
@@ -39,6 +41,7 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		Port:         8080,
 		Env:          env,
 		SkipDatabase: true,
+		Runtime:      plan.RuntimeStruct{Language: "rust"},
 	}
 	return s, nil
 }

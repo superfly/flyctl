@@ -283,7 +283,9 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
-	if launchManifest != nil {
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
 		// we loaded a manifest...
 		cache = &planBuildCache{
 			appConfig:        launchManifest.Config,
@@ -310,7 +312,10 @@ func run(ctx context.Context) (err error) {
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
+			if errors.As(err, &recoverableErr) {
+				if !canEnterUi {
+					return err
+				}
 			} else {
 				return err
 			}
@@ -359,7 +364,6 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
 		fmt.Fprintf(
 			io.Out,
