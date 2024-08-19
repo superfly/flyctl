@@ -149,10 +149,14 @@ const (
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder", trace.WithAttributes(attribute.String("builder_app", lo.Ternary(app != nil, app.Name, ""))))
+	var builderAppName string
+	if app != nil {
+		builderAppName = app.Name
+	}
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder", trace.WithAttributes(attribute.String("builder_app", builderAppName)))
 	defer span.End()
 
-	if app == nil {
+	if app != nil {
 		tracing.RecordError(span, NoBuilderApp, "no builder app")
 		return nil, NoBuilderApp
 	}

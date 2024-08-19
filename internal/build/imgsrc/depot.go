@@ -51,8 +51,7 @@ func (s depotBuilderScope) String() string {
 	}
 }
 
-
-type DepotBuilder struct{
+type DepotBuilder struct {
 	Scope depotBuilderScope
 }
 
@@ -182,8 +181,8 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	defer buildState.BuilderInitFinish()
 
 	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
-		AppName: &appName,
-		Region:  &region,
+		AppName:      &appName,
+		Region:       &region,
 		BuilderScope: fly.StringPointer(builderScope.String()),
 	})
 	if err != nil {
