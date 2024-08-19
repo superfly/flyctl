@@ -220,14 +220,14 @@ func extractPhpVersion() (string, error) {
 			// check for the package in the composer.json
 			require, ok := composerJson["require"].(map[string]interface{})
 			if ok && require["php"] != nil {
-				str := fmt.Sprint(require["php"] )
+				str := fmt.Sprint(require["php"])
 				match = re.FindStringSubmatch(str)
 			}
 		}
 	}
 
-	if len(match)==0{
-		/* VIA php artisan version: 
+	if len(match) == 0 {
+		/* VIA php artisan version:
 		PHP 8.1.8 (cli) (built: Jul  8 2022 10:58:31) (NTS)
 		Copyright (c) The PHP Group
 		Zend Engine v4.1.8, Copyright (c) Zend Technologies
