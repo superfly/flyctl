@@ -70,47 +70,35 @@ func (d *Deployer) Ready(ctx context.Context) (bool, error) {
 }
 
 func (d *Deployer) Done(ctx context.Context) (<-chan struct{}, error) {
-	done := make(chan struct{})
+	var (
+		done = make(chan struct{})
+		io   = iostreams.FromContext(ctx)
+	)
 
 	go func() {
 		defer close(done)
 
-		operation := func() error {
-			updateMachine, err := d.flaps.Get(ctx, d.machine.ID)
-			if err != nil {
-				if ctx.Err() == context.Canceled {
-					return backoff.Permanent(err)
+		ticker := time.NewTicker(4 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				// Context was canceled or timed out
+				return
+			case <-ticker.C:
+				machine, err := d.flaps.Get(ctx, d.machine.ID)
+				if err != nil {
+					fmt.Fprintf(io.ErrOut, "Error getting machine %s from API: %v\n", d.machine.ID, err)
+					return
 				}
-				if ctx.Err() == context.DeadlineExceeded {
-					fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Timeout reached waiting for machine %s to exit: %v\n", d.machine.ID, err)
-					return backoff.Permanent(err)
+				if exitEvent := machine.GetLatestEventOfTypeAfterType("start", "exit"); exitEvent != nil {
+					fmt.Fprintf(io.Out, "Machine exited with status %s\n", exitEvent.Status)
+					return
 				}
-				fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error getting machine %s from API: %v\n", d.machine.ID, err)
-				return err
 			}
-
-			// Look for an exit event following a start event
-			exitEvent := updateMachine.GetLatestEventOfTypeAfterType("start", "exit")
-			if exitEvent != nil {
-				return nil // Exit event found, operation is complete
-			}
-
-			return fmt.Errorf("exit event not found yet")
-		}
-
-		// Use an exponential backoff strategy
-		b := backoff.NewExponentialBackOff()
-		b.InitialInterval = 500 * time.Millisecond
-		b.MaxInterval = 2 * time.Second
-		b.MaxElapsedTime = 2 * time.Minute
-
-		// Run the operation with backoff
-		err := backoff.Retry(operation, backoff.WithContext(b, ctx))
-		if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
-			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Exiting with error: %v\n", err)
 		}
 	}()
-
 	return done, nil
 }
 
@@ -167,6 +155,10 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 			AppName: deployer.app.Name,
 			VMID:    deployer.machine.ID,
 		}
+
+		ctx, cancel := context.WithCancel(ctx)
+		defer cancel()
+
 		var eg *errgroup.Group
 		eg, ctx = errgroup.WithContext(ctx)
 
@@ -197,11 +189,8 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 			// Wait for either the machine to exit or the context to be canceled
 			select {
 			case <-done:
-				// Machine has exited, proceed with cleanup
-				fmt.Fprintln(iostreams.FromContext(ctx).Out, "Machine has exited, stopping log streaming.")
+				cancel()
 			case <-ctx.Done():
-				// Context was canceled (e.g., by Ctrl-C), proceed with cleanup
-				fmt.Fprintln(iostreams.FromContext(ctx).Out, "Context canceled, stopping log streaming.")
 			}
 			return nil
 		})
@@ -246,7 +235,10 @@ func EnsureDeployer(ctx context.Context, org *fly.Organization, appName, region 
 
 // findExistingDeployer finds an existing deployer app in the org by getting all apps and filtering by the app role and the app name with "fly-deployer-*"
 func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, region string) (*Deployer, error) {
-	var client = flyutil.ClientFromContext(ctx)
+	var (
+		client = flyutil.ClientFromContext(ctx)
+		io     = iostreams.FromContext(ctx)
+	)
 
 	app, err := client.GetDeployerAppByOrg(ctx, org.ID)
 	if err != nil {
@@ -266,6 +258,19 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 	}
 	if len(machines) > 0 {
 		return nil, fmt.Errorf("a deployment is already in progress")
+	}
+
+	fmt.Fprintln(io.Out, "Refreshing deploy token")
+
+	token, err := getDeployToken(ctx, appName, org.ID, app.ID)
+	if err != nil {
+		return nil, err
+	}
+	secrets := map[string]string{
+		"FLY_API_TOKEN": token,
+	}
+	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
+		return nil, fmt.Errorf("failed setting deploy token: %w", err)
 	}
 
 	machine, err := createDeployerMachine(ctx, flapsClient, org.Slug, appName, region, org.PaidPlan)
@@ -324,17 +329,15 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region 
 		return nil, err
 	}
 
-	token, err := getDeployToken(ctx, appName, org.ID, &gql.LimitedAccessTokenOptions{
-		"app_id": app.ID,
-	})
+	fmt.Fprintln(io.Out, "Setting deploy token")
+
+	token, err := getDeployToken(ctx, appName, org.ID, app.ID)
 	if err != nil {
 		return nil, err
 	}
-
 	secrets := map[string]string{
 		"FLY_API_TOKEN": token,
 	}
-	fmt.Fprintln(io.Out, "Setting deploy token")
 
 	if _, err := client.SetSecrets(ctx, deployerApp.Name, secrets); err != nil {
 		return nil, err
@@ -403,12 +406,15 @@ func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClien
 	return machine, nil
 }
 
-func getDeployToken(ctx context.Context, appName, orgID string, options *gql.LimitedAccessTokenOptions) (string, error) {
+func getDeployToken(ctx context.Context, appName, orgID, appID string) (string, error) {
 	var (
 		profile = "deploy"
 		expiry  = time.Minute * 300
 		client  = flyutil.ClientFromContext(ctx)
 	)
+	options := &gql.LimitedAccessTokenOptions{
+		"app_id": appID,
+	}
 
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
