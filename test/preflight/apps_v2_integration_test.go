@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -50,9 +51,13 @@ func TestAppsV2Example(t *testing.T) {
 	require.Nil(t, firstMachine.Config.DisableMachineAutostart)
 	require.Equal(t, 1, len(firstMachine.Config.Services))
 	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
-	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
 	require.True(t, *firstMachine.Config.Services[0].Autostart)
-	require.Equal(t, fly.MachineAutostopOff, *firstMachine.Config.Services[0].Autostop)
+
+	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
+	assert.Equal(
+		t, fly.MachineAutostopStop, *firstMachine.Config.Services[0].Autostop,
+		"autostop must be enabled",
+	)
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
