@@ -128,8 +128,7 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 		return err
 	}
 
-	// the command should convert the encoded manifest back to json and pipe it to `fly deploy --manifest -`
-	cmd := fmt.Sprintf(`bash -c "echo %s | curl -s --unix-socket /var/run/fly/deployer.sock -X POST --data-binary @- http://localhost/deploy"`, manifestBase64)
+	cmd := `bash -c "curl -s --unix-socket /var/run/fly/deployer.sock -X POST http://localhost/deploy"`
 	fmt.Fprintln(io.Out, "Executing deploy command on remote deployer")
 
 	res, err := deployer.flaps.Exec(ctx, deployer.machine.ID, &fly.MachineExecRequest{
