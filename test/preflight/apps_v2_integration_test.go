@@ -22,10 +22,6 @@ import (
 )
 
 func TestAppsV2Example(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	appUrl := fmt.Sprintf("https://%s.fly.dev", appName)
