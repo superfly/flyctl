@@ -579,7 +579,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 	}
 
 	newAppState := *oldAppState
-	newAppState.Machines = lo.Map(updateEntries, func(e *machineUpdateEntry, _ int) *fly.Machine {
+	newAppState.Machines = machineSliceToMap(lo.Map(updateEntries, func(e *machineUpdateEntry, _ int) *fly.Machine {
 		newMach := e.leasableMachine.Machine()
 		if !e.launchInput.SkipLaunch {
 			newMach.State = "started"
@@ -590,7 +590,7 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		}
 		newMach.Config = e.launchInput.Config
 		return newMach
-	})
+	}))
 
 	switch md.strategy {
 	case "bluegreen":
@@ -611,15 +611,19 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 			skipLeaseAcquisition: false,
 		})
 	case "canary":
+		var canaryMachID string
+
+		for machID, _ := range oldAppState.Machines {
+			canaryMachID = machID
+			break
+		}
+
 		// create a new app state with just a single machine being updated, then the rest of the machines
 		canaryAppState := *oldAppState
-		canaryAppState.Machines = []*fly.Machine{oldAppState.Machines[0]}
+		canaryAppState.Machines = machineSliceToMap([]*fly.Machine{oldAppState.Machines[canaryMachID]})
 
 		newCanaryAppState := newAppState
-		canaryMach, _ := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
-			return m.ID == oldAppState.Machines[0].ID
-		})
-		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
+		newCanaryAppState.Machines = machineSliceToMap([]*fly.Machine{newAppState.Machines[canaryMachID]})
 
 		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
 			pushForward:          true,

@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/qmuntal/stateless"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/ctrlc"
@@ -51,8 +53,30 @@ func (m *MachineLogger) getLoggerFromID(id string) statuslogger.StatusLine {
 	return m.store[id]
 }
 
+type FSMState string
+
+const (
+	updateNotStarted FSMState = "updateNotStarted"
+
+	updatingMachines       FSMState = "updatingMachines"
+	failedUpdatingMachines FSMState = "failedUpdatingMachines"
+	updatedMachines        FSMState = "updatedMachines"
+
+	updateComplete FSMState = "updateComplete"
+	updateFailed   FSMState = "updateFailed"
+)
+
+type fsmTrigger string
+
+const (
+	triggerUpdateMachines       fsmTrigger = "triggerUpdateMachines"
+	triggerUpdateMachinesFailed fsmTrigger = "triggerUpdateMachinesFailed"
+	triggerUpdateFailed         fsmTrigger = "triggerUpdateFailed"
+	triggerUpdateComplete       fsmTrigger = "triggerUpdateComplete"
+)
+
 type AppState struct {
-	Machines []*fly.Machine
+	Machines map[string]*fly.Machine
 }
 
 type machinePairing struct {
@@ -70,11 +94,10 @@ func (md *machineDeployment) appState(ctx context.Context, existingAppState *App
 		return nil, err
 	}
 
+	// we need to copy any leases we might have acquired
 	if existingAppState != nil {
 		for _, machine := range machines {
-			if existingMachine, ok := lo.Find(existingAppState.Machines, func(m *fly.Machine) bool {
-				return m.ID == machine.ID
-			}); ok {
+			if existingMachine, ok := existingAppState.Machines[machine.ID]; ok {
 				machine.LeaseNonce = existingMachine.LeaseNonce
 			}
 		}
@@ -82,10 +105,16 @@ func (md *machineDeployment) appState(ctx context.Context, existingAppState *App
 
 	// TODO: could this be a list of machine id -> config?
 	appState := &AppState{
-		Machines: machines,
+		Machines: machineSliceToMap(machines),
 	}
 
 	return appState, nil
+}
+
+func machineSliceToMap(machs []*fly.Machine) map[string]*fly.Machine {
+	return lo.KeyBy(machs, func(mach *fly.Machine) string {
+		return mach.ID
+	})
 }
 
 type healthcheckResult struct {
@@ -164,166 +193,155 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		sl,
 	)
 
-	machineLogger.initFromMachinePairs(machineTuples)
-
-	machPairByProcessGroup := lo.GroupBy(machineTuples, func(machPair machinePairing) string {
-		if machPair.oldMachine != nil {
-			return machPair.oldMachine.ProcessGroup()
-		} else if machPair.newMachine != nil {
-			return machPair.newMachine.ProcessGroup()
-		} else {
-			return ""
-		}
-	})
-
 	poolSize := md.getPoolSize(len(machineTuples))
 
-	if !settings.skipLeaseAcquisition {
-		attempts := 0
+	machineLogger.initFromMachinePairs(machineTuples)
 
-		defer func() {
-			span.SetAttributes(attribute.Int("lease_attempts", attempts))
-		}()
+	appStateFSM := stateless.NewStateMachine(updateNotStarted)
+	appStateFSM.SetTriggerParameters(triggerUpdateMachines, reflect.TypeOf(machineTuples), reflect.TypeOf(poolSize))
 
-		for {
-			err := md.acquireLeases(ctx, machineTuples, poolSize, machineLogger)
-			if err == nil {
-				break
-			}
-			attempts += 1
+	appStateFSM.Configure(updateNotStarted).Permit(triggerUpdateMachines, updatedMachines)
+	appStateFSM.Configure(updatingMachines).OnEntry(func(ctx context.Context, args ...any) error {
+		machPairs := args[0].([]machinePairing)
+		poolSize := args[1].(int)
 
-			var unrecoverableErr *unrecoverableError
-			if attempts > md.deployRetries || errors.As(err, &unrecoverableErr) || errors.Is(err, context.Canceled) {
-				span.RecordError(err)
-				return fmt.Errorf("failed to acquire leases: %w", err)
-			}
-		}
-
-		defer func() {
-			err := md.releaseLeases(ctx, machineTuples, machineLogger)
-			if err != nil {
-				fmt.Fprintln(md.io.ErrOut, "Failed to release leases:", err)
-				span.RecordError(err)
-			}
-		}()
-	}
-
-	pgroup := errgroup.Group{}
-	pgroup.SetLimit(rollingStrategyMaxConcurrentGroups)
-
-	// We want to update by process group
-	for _, machineTuples := range machPairByProcessGroup {
-		machineTuples := machineTuples
-		pgroup.Go(func() error {
-			eg, ctx := errgroup.WithContext(ctx)
-
-			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
-				if e.oldMachine != nil && e.oldMachine.State == "started" {
-					return true
-				}
-				if e.newMachine != nil && e.newMachine.State == "started" {
-					return true
-				}
-				return false
-			})
-
-			coldMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
-				if e.oldMachine != nil && e.oldMachine.State != "started" {
-					return true
-				}
-				if e.newMachine != nil && e.newMachine.State != "started" {
-					return true
-				}
-				return false
-			})
-
-			eg.Go(func() (err error) {
-				poolSize := len(coldMachines)
-				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
-					poolSize = STOPPED_MACHINES_POOL_SIZE
-				}
-
-				if len(coldMachines) > 0 {
-					// for cold machines, we can update all of them at once.
-					// there's no need for protection against downtime since the machines are already stopped
-					return md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
-				}
-
-				return nil
-			})
-
-			eg.Go(func() (err error) {
-				// for warm machines, we update them in chunks of size, md.maxUnavailable.
-				// this is to prevent downtime/low-latency during deployments
-				poolSize := md.getPoolSize(len(warmMachines))
-				if len(warmMachines) > 0 {
-					return md.updateProcessGroup(ctx, warmMachines, machineLogger, poolSize)
-				}
-				return nil
-			})
-
-			err := eg.Wait()
-			if err != nil {
-				span.RecordError(err)
-				if strings.Contains(err.Error(), "lease currently held by") {
-					err = &unrecoverableError{err: err}
-				}
-				return err
-			}
-
-			return nil
-		})
-	}
+		return md.acquireLeases(ctx, machPairs, poolSize, machineLogger)
+	}).OnExit(func(ctx context.Context, args ...any) error {
+		machPairs := args[0].([]machinePairing)
+		return md.releaseLeases(ctx, machPairs, machineLogger)
+	})
 
 	attempts := 0
-	if updateErr := pgroup.Wait(); updateErr != nil {
-		var unrecoverableErr *unrecoverableError
-		if !settings.pushForward || errors.As(updateErr, &unrecoverableErr) || errors.Is(updateErr, context.Canceled) {
-			span.RecordError(updateErr)
-			return updateErr
+	updateErrors := []error{}
+	appStateFSM.Configure(failedUpdatingMachines).SubstateOf(updatingMachines).Permit(triggerUpdateFailed, updateFailed).Permit(triggerUpdateMachines, updatedMachines).OnEntry(func(_ context.Context, args ...any) error {
+		err := args[0].(error)
+		updateErrors = append(updateErrors, err)
+
+		switch {
+		case isUnrecoverableErr(err):
+			return err
+		case attempts > md.deployRetries:
+			return err
+		default:
+			fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, "Retrying...")
+			time.Sleep(1 * time.Second)
+			return nil
 		}
-
-		// if we fail to update the machines, we should push the state forward if possible
-		for {
-			defer func() {
-				span.SetAttributes(attribute.Int("update_attempts", attempts))
-			}()
-
-			if attempts > md.deployRetries {
-				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", updateErr)
-				span.RecordError(updateErr)
-				return updateErr
-			}
-
-			currentState, err := md.appState(ctx, oldAppState)
-			if err != nil {
-				span.RecordError(updateErr)
-				return fmt.Errorf("failed to get current app state: %w", err)
-			}
-			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
-				pushForward:          false,
-				skipHealthChecks:     settings.skipHealthChecks,
-				skipSmokeChecks:      settings.skipSmokeChecks,
-				skipLeaseAcquisition: true,
-			})
-			if err == nil {
-				break
-			} else if errors.Is(err, context.Canceled) {
-				span.RecordError(updateErr)
-				return err
+	}).OnExit(func(ctx context.Context, args ...any) (err error) {
+		attempts += 1
+		oldAppState, err = md.appState(ctx, oldAppState)
+		return err
+	})
+	appStateFSM.Configure(updatedMachines).SubstateOf(updatingMachines).Permit(triggerUpdateComplete, updateComplete).Permit(triggerUpdateMachinesFailed, failedUpdatingMachines).Permit(triggerUpdateFailed, updateFailed).OnEntryFrom(triggerUpdateMachines, func(_ context.Context, args ...any) error {
+		machinePairs := args[0].([]machinePairing)
+		machPairByProcessGroup := lo.GroupBy(machinePairs, func(machPair machinePairing) string {
+			if machPair.newMachine != nil {
+				return machPair.newMachine.ProcessGroup()
+			} else if machPair.oldMachine != nil {
+				return machPair.oldMachine.ProcessGroup()
 			} else {
-				if errors.As(err, &unrecoverableErr) {
-					span.RecordError(updateErr)
+				return ""
+			}
+		})
+
+		pgroup := errgroup.Group{}
+		pgroup.SetLimit(rollingStrategyMaxConcurrentGroups)
+
+		// We want to update by process group
+		for _, machineTuples := range machPairByProcessGroup {
+			machineTuples := machineTuples
+			pgroup.Go(func() error {
+				eg, ctx := errgroup.WithContext(ctx)
+
+				warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
+					if e.oldMachine != nil && e.oldMachine.State == "started" {
+						return true
+					}
+					if e.newMachine != nil && e.newMachine.State == "started" {
+						return true
+					}
+					return false
+				})
+
+				coldMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
+					if e.oldMachine != nil && e.oldMachine.State != "started" {
+						return true
+					}
+					if e.newMachine != nil && e.newMachine.State != "started" {
+						return true
+					}
+					return false
+				})
+
+				eg.Go(func() (err error) {
+					poolSize := len(coldMachines)
+					if poolSize >= STOPPED_MACHINES_POOL_SIZE {
+						poolSize = STOPPED_MACHINES_POOL_SIZE
+					}
+
+					if len(coldMachines) > 0 {
+						// for cold machines, we can update all of them at once.
+						// there's no need for protection against downtime since the machines are already stopped
+						return md.updateProcessGroup(ctx, coldMachines, machineLogger, poolSize)
+					}
+
+					return nil
+				})
+
+				eg.Go(func() (err error) {
+					// for warm machines, we update them in chunks of size, md.maxUnavailable.
+					// this is to prevent downtime/low-latency during deployments
+					poolSize := md.getPoolSize(len(warmMachines))
+					if len(warmMachines) > 0 {
+						return md.updateProcessGroup(ctx, warmMachines, machineLogger, poolSize)
+					}
+					return nil
+				})
+
+				err := eg.Wait()
+				if err != nil {
+					span.RecordError(err)
+					if strings.Contains(err.Error(), "lease currently held by") {
+						err = &unrecoverableError{err: err}
+					}
 					return err
 				}
-				fmt.Fprintln(md.io.ErrOut, "Failed to update machines:", err, "Retrying...")
+
+				return nil
+			})
+		}
+
+		return pgroup.Wait()
+	})
+
+	appStateFSM.Configure(updateFailed).OnEntry(func(ctx context.Context, args ...any) error {
+		err := args[0].(error)
+		span.SetAttributes(attribute.Int("update_attempts", attempts))
+		span.SetAttributes(attribute.StringSlice("update_errors", lo.Map(updateErrors, func(err error, _ int) string {
+			return err.Error()
+		})))
+
+		span.RecordError(err)
+		return err
+	})
+	appStateFSM.Configure(updateComplete).OnEntry(func(ctx context.Context, args ...any) error {
+		span.SetAttributes(attribute.Int("update_attempts", attempts))
+		span.SetAttributes(attribute.StringSlice("update_errors", lo.Map(updateErrors, func(err error, _ int) string {
+			return err.Error()
+		})))
+		return nil
+	})
+
+	for {
+		if updateErr := appStateFSM.FireCtx(ctx, triggerUpdateMachines, machineTuples, poolSize); updateErr != nil {
+			// if we return an error when triggering machines failed, it means we're done
+			if err := appStateFSM.FireCtx(ctx, triggerUpdateMachinesFailed, updateErr); err != nil {
+				return appStateFSM.FireCtx(ctx, triggerUpdateFailed)
 			}
-			attempts += 1
-			time.Sleep(1 * time.Second)
+		} else {
+			return appStateFSM.FireCtx(ctx, triggerUpdateComplete, machineTuples)
 		}
 	}
-
-	return nil
 }
 
 func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTuples []machinePairing, machineLogger *MachineLogger, poolSize int) error {
@@ -769,4 +787,16 @@ func (md *machineDeployment) createMachine(ctx context.Context, machConfig *fly.
 	}
 
 	return machine, nil
+}
+
+func isUnrecoverableErr(err error) bool {
+	var unrecoverableErr *unrecoverableError
+	switch {
+	case errors.As(err, &unrecoverableErr):
+		return true
+	case errors.Is(err, context.Canceled):
+		return true
+	default:
+		return false
+	}
 }

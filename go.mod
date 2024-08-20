@@ -64,6 +64,7 @@ require (
 	github.com/prometheus/blackbox_exporter v0.25.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/prometheus/client_model v0.6.1
+	github.com/qmuntal/stateless v1.7.0
 	github.com/r3labs/diff v1.1.0
 	github.com/samber/lo v1.47.0
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966

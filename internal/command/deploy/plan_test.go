@@ -73,7 +73,7 @@ func TestAppState(t *testing.T) {
 	appState, error := md.appState(ctx, nil)
 	assert.NoError(t, error)
 
-	assert.Equal(t, appState.Machines, machines)
+	assert.Equal(t, appState.Machines, machineSliceToMap(machines))
 
 }
 
@@ -293,10 +293,10 @@ func TestUpdateMachines(t *testing.T) {
 	}
 
 	oldAppState := &AppState{
-		Machines: oldMachines,
+		Machines: machineSliceToMap(oldMachines),
 	}
 	newAppState := &AppState{
-		Machines: newMachines,
+		Machines: machineSliceToMap(newMachines),
 	}
 	settings := updateMachineSettings{
 		pushForward:          true,
