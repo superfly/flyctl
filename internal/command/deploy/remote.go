@@ -23,6 +23,8 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
+	"github.com/superfly/macaroon/flyio"
+	"github.com/superfly/macaroon/tp"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -413,11 +415,34 @@ func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClien
 }
 
 func getDeployToken(ctx context.Context, appName, orgID, appID string) (string, error) {
-	var (
-		profile = "deploy"
-		expiry  = time.Minute * 300
-		client  = flyutil.ClientFromContext(ctx)
+	const (
+		tokenName = "remote deploy token"
+		profile   = "deploy"
+		expiry    = time.Minute * 300
 	)
+
+	client := flyutil.ClientFromContext(ctx)
+
+	tokens, err := client.GetAppLimitedAccessTokens(ctx, appName)
+	if err != nil {
+		return "", fmt.Errorf("failed getting existing tokens: %w", err)
+	}
+
+	for _, token := range tokens {
+		if token.Name != tokenName {
+			continue
+		}
+
+		disClient := flyio.DischargeClient(tp.WithBearerAuthentication(
+			flyio.LocationAuthentication,
+			config.FromContext(ctx).Tokens.UserTokenOnly().All(),
+		))
+
+		return disClient.FetchDischargeTokens(ctx, token.Token)
+	}
+
+	// no existing token found
+
 	options := &gql.LimitedAccessTokenOptions{
 		"app_id": appID,
 	}
@@ -425,7 +450,7 @@ func getDeployToken(ctx context.Context, appName, orgID, appID string) (string, 
 	resp, err := gql.CreateLimitedAccessToken(
 		ctx,
 		client.GenqClient(),
-		appName,
+		tokenName,
 		orgID,
 		profile,
 		options,
