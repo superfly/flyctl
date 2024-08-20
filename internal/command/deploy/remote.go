@@ -115,13 +115,13 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
 
-	deployer, err := EnsureDeployer(ctx, org, manifest.AppName, region)
+	// convert manifest to base64 so that we can pipe it to `fly deploy --manifest -`
+	manifestBase64, err := manifest.ToBase64()
 	if err != nil {
 		return err
 	}
 
-	// convert manifest to base64 so that we can pipe it to `fly deploy --manifest -`
-	manifestBase64, err := manifest.ToBase64()
+	deployer, err := EnsureDeployer(ctx, org, manifest.AppName, region, manifestBase64)
 	if err != nil {
 		return err
 	}
@@ -205,10 +205,10 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 	return nil
 }
 
-func EnsureDeployer(ctx context.Context, org *fly.Organization, appName, region string) (*Deployer, error) {
+func EnsureDeployer(ctx context.Context, org *fly.Organization, appName, region, manifest string) (*Deployer, error) {
 	var deployer *Deployer
 
-	deployer, err := findExistingDeployer(ctx, org, appName, region)
+	deployer, err := findExistingDeployer(ctx, org, appName, region, manifest)
 
 	switch {
 	case err == nil:
@@ -219,7 +219,7 @@ func EnsureDeployer(ctx context.Context, org *fly.Organization, appName, region 
 		// continue to create a new deployer
 	}
 
-	deployer, err = createDeployer(ctx, org, appName, region)
+	deployer, err = createDeployer(ctx, org, appName, region, manifest)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +234,7 @@ func EnsureDeployer(ctx context.Context, org *fly.Organization, appName, region 
 }
 
 // findExistingDeployer finds an existing deployer app in the org by getting all apps and filtering by the app role and the app name with "fly-deployer-*"
-func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, region string) (*Deployer, error) {
+func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, region, manifest string) (*Deployer, error) {
 	var (
 		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
@@ -273,7 +273,7 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 		return nil, fmt.Errorf("failed setting deploy token: %w", err)
 	}
 
-	machine, err := createDeployerMachine(ctx, flapsClient, org.Slug, appName, region, org.PaidPlan)
+	machine, err := createDeployerMachine(ctx, flapsClient, org.Slug, appName, region, manifest, org.PaidPlan)
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 	}, nil
 }
 
-func createDeployer(ctx context.Context, org *fly.Organization, appName, region string) (*Deployer, error) {
+func createDeployer(ctx context.Context, org *fly.Organization, appName, region, manifest string) (*Deployer, error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		client = flyutil.ClientFromContext(ctx)
@@ -292,7 +292,7 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region 
 
 	var (
 		appRole      = "fly-deployer"
-		deployerName = appRole + haikunator.Haikunator().Build()
+		deployerName = fmt.Sprintf("%s-%s", appRole, haikunator.Haikunator().Build())
 	)
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -343,7 +343,7 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region 
 		return nil, err
 	}
 
-	machine, err := createDeployerMachine(ctx, flapsClient, org.Slug, appName, region, org.PaidPlan)
+	machine, err := createDeployerMachine(ctx, flapsClient, org.Slug, appName, region, manifest, org.PaidPlan)
 	if err != nil {
 		return nil, err
 	}
@@ -354,7 +354,7 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region 
 	}, nil
 }
 
-func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClient, orgSlug, appName, region string, paidPlan bool) (*fly.Machine, error) {
+func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClient, orgSlug, appName, region, manifest string, paidPlan bool) (*fly.Machine, error) {
 	guest := fly.MachineGuest{
 		CPUKind:  "shared",
 		CPUs:     4,
@@ -385,6 +385,12 @@ func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClien
 			Env:   envVars,
 			Guest: &guest,
 			Image: image,
+			Files: []*fly.File{
+				{
+					GuestPath: "/app/manifest.json",
+					RawValue:  &manifest,
+				},
+			},
 			Restart: &fly.MachineRestart{
 				Policy:     "on-failure",
 				MaxRetries: 3,
