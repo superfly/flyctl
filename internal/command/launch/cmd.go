@@ -322,7 +322,18 @@ func run(ctx context.Context) (err error) {
 		}
 
 		if flag.GetBool(ctx, "manifest") {
-			jsonEncoder := json.NewEncoder(io.Out)
+			var jsonEncoder *json.Encoder
+			if manifestPath := flag.GetString(ctx, "manifest-path"); manifestPath != "" {
+				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+
+				jsonEncoder = json.NewEncoder(file)
+			} else {
+				jsonEncoder = json.NewEncoder(io.Out)
+			}
 			jsonEncoder.SetIndent("", "  ")
 			return jsonEncoder.Encode(launchManifest)
 		}

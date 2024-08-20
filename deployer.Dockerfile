@@ -34,7 +34,7 @@ RUN /bin/bash -lc 'rvm install $DEFAULT_RUBY_VERSION && rvm --default use $DEFAU
 
 # install mise
 RUN curl https://mise.run | MISE_VERSION=v2024.8.6 sh && \
-    echo -e "\n\nexport PATH=\"$HOME/.local/share/mise/shims:$PATH\"" >> ~/.profile
+    echo -e "\n\nexport PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH\"" >> ~/.profile
 
 ENV MISE_PYTHON_COMPILE=false
 

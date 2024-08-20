@@ -64,6 +64,12 @@ func newPropose() *cobra.Command {
 			Description: "Use the configuration file if present without prompting",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "manifest-path",
+			Description: "Path to write the manifest to",
+			Default:     "",
+			Hidden:      true,
+		},
 	)
 
 	return cmd

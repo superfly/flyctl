@@ -7,8 +7,6 @@ require 'uri'
 require 'securerandom'
 require 'fileutils'
 
-puts ENV["PATH"]
-
 LOG_PREFIX = ENV["LOG_PREFIX"]
 
 module Step
@@ -165,7 +163,7 @@ end
 event :start, { ts: ts() }
 
 DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
-DEPLOY_CUSTOMIZE = !get_env("DEPLOY_CUSTOMIZE").nil?
+DEPLOY_CUSTOMIZE = !get_env("NO_DEPLOY_CUSTOMIZE")
 
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
 if !DEPLOY_CUSTOMIZE && !DEPLOY_APP_NAME
@@ -229,8 +227,10 @@ if GIT_REPO_URL
     end
 end
 
+MANIFEST_PATH = "/tmp/manifest.json"
+
 manifest = in_step Step::PLAN do
-  cmd = "flyctl launch plan propose --force-name"
+  cmd = "flyctl launch plan propose --force-name --manifest-path #{MANIFEST_PATH}"
 
   if (slug = DEPLOY_ORG_SLUG)
     cmd += " --org #{slug}"
@@ -246,7 +246,9 @@ manifest = in_step Step::PLAN do
 
   # cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
 
-  raw_manifest = exec_capture("#{cmd}").chomp
+  exec_capture("#{cmd}").chomp
+
+  raw_manifest = File.read(MANIFEST_PATH)
 
   begin
     manifest = JSON.parse(raw_manifest)
@@ -254,8 +256,6 @@ manifest = in_step Step::PLAN do
     event :error, { type: :json, message: e, json: raw_manifest }
     exit 1
   end
-
-  File.write("/tmp/manifest.json", manifest.to_json)
 
   artifact Artifact::MANIFEST, manifest
 
@@ -301,7 +301,7 @@ deps_thread = Thread.new do
         exit 1
       end
 
-      version = RUNTIME_VERSION || version
+      version = RUNTIME_VERSION.empty? ? version : RUNTIME_VERSION
 
       if ASDF_SUPPORTED_FLYCTL_LANGUAGES.include?(RUNTIME_LANGUAGE)
         plugin = FLYCTL_TO_ASDF_PLUGIN_NAME.fetch(RUNTIME_LANGUAGE, RUNTIME_LANGUAGE)
@@ -325,6 +325,10 @@ deps_thread = Thread.new do
           exec_capture("curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php")
           # TODO: verify signature?
           exec_capture("php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer")
+        when "python"
+          major, minor = Gem::Version.new(version).segments
+          python_version = "#{major}.#{minor}"
+          exec_capture("mise use -g python@#{python_version}")
         else
           # we should never get here, but handle it in case!
           event :error, { type: :unsupported_version, message: "no handler for runtime: #{RUNTIME_LANGUAGE}, supported: #{DEFAULT_RUNTIME_VERSIONS.keys.join(", ")}" }
@@ -335,7 +339,7 @@ deps_thread = Thread.new do
   end
 
   in_step Step::GENERATE_BUILD_REQUIREMENTS do
-    exec_capture("flyctl launch plan generate /tmp/manifest.json")
+    exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
     exec_capture("git add -A")
     diff = exec_capture("git diff --cached")
     artifact Artifact::DIFF, diff
@@ -344,14 +348,14 @@ end
 
 if DEPLOY_CUSTOMIZE
   manifest = in_step Step::CUSTOMIZE do
-    cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path /tmp/manifest.json --from-manifest /tmp/manifest.json"
+    cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH} --from-manifest #{MANIFEST_PATH}"
 
     exec_capture(cmd)
     session = JSON.parse(File.read("/tmp/session.json"))
 
     artifact Artifact::SESSION, session
 
-    cmd = "flyctl launch sessions finalize --session-path /tmp/session.json --manifest-path /tmp/manifest.json"
+    cmd = "flyctl launch sessions finalize --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH}"
 
     exec_capture(cmd)
     manifest = JSON.parse(File.read("/tmp/manifest.json"))
