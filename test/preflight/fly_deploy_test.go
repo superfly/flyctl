@@ -49,6 +49,19 @@ func TestFlyDeployHA(t *testing.T) {
 	f.Fly("deploy")
 }
 
+func TestFlyDeployHAPlacement(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+	f.Fly("deploy")
+
+	assertHostDistribution(t, f, appName)
+}
+
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
