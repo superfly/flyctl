@@ -152,6 +152,8 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 }
 
 func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams) (*depotmachine.Machine, *depotbuild.Build, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
 	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
 	if region != "" {
@@ -169,15 +171,22 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		return nil, nil, err
 	}
 
+	fmt.Println("creating a build from an existing one")
 	build, err := depotbuild.FromExistingBuild(ctx, *buildInfo.EnsureDepotRemoteBuilder.BuildId, *buildInfo.EnsureDepotRemoteBuilder.BuildToken)
 	if err != nil {
+		fmt.Println("failed to create a build from an existing one")
+		streams.StopProgressIndicator()
 		return nil, nil, err
 	}
+	fmt.Println("created a build from an existing one")
 
 	// Set the buildErr to any error that represents the build failing.
+	fmt.Println("huh")
 	var buildErr error
 
+	fmt.Println("wut")
 	var buildkit *depotmachine.Machine
+	fmt.Println("get")
 	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
 	if buildErr != nil {
 		build.Finish(buildErr)
@@ -185,7 +194,7 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		return nil, nil, buildErr
 	}
 
-	return buildkit, &build, err
+	return buildkit, &build, nil
 }
 
 func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOptions, dockerfilePath string) (*client.SolveResponse, error) {
