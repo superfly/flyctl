@@ -234,7 +234,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	builderScopeString := flag.GetString(ctx, "depot-scope")
 
 	switch builderScopeString {
-	case "organization":
+	case "org", "":
 		builderScope = DepotBuilderScopeOrganization
 	case "app":
 		builderScope = DepotBuilderScopeApp
