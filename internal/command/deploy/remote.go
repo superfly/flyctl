@@ -241,12 +241,12 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 		io     = iostreams.FromContext(ctx)
 	)
 
-	app, err := client.GetDeployerAppByOrg(ctx, org.ID)
+	deployer, err := client.GetDeployerAppByOrg(ctx, org.ID)
 	if err != nil {
 		return nil, err
 	}
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		AppName: app.Name,
+		AppName: deployer.Name,
 		OrgSlug: org.Slug,
 	})
 	if err != nil {
@@ -263,14 +263,14 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 
 	fmt.Fprintln(io.Out, "Refreshing deploy token")
 
-	token, err := getDeployToken(ctx, appName, org.ID, app.ID)
+	token, err := getDeployToken(ctx, appName, org.ID)
 	if err != nil {
 		return nil, err
 	}
 	secrets := map[string]string{
 		"FLY_API_TOKEN": token,
 	}
-	if _, err := client.SetSecrets(ctx, app.Name, secrets); err != nil {
+	if _, err := client.SetSecrets(ctx, deployer.Name, secrets); err != nil {
 		return nil, fmt.Errorf("failed setting deploy token: %w", err)
 	}
 
@@ -279,7 +279,7 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 		return nil, err
 	}
 	return &Deployer{
-		app:     app,
+		app:     deployer,
 		machine: machine,
 		flaps:   flapsClient,
 	}, nil
@@ -325,14 +325,9 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region,
 		return nil, err
 	}
 
-	app, err := client.GetAppCompact(ctx, appName)
-	if err != nil {
-		return nil, err
-	}
-
 	fmt.Fprintln(io.Out, "Setting deploy token")
 
-	token, err := getDeployToken(ctx, appName, org.ID, app.ID)
+	token, err := getDeployToken(ctx, appName, org.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -341,7 +336,7 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region,
 	}
 
 	if _, err := client.SetSecrets(ctx, deployerApp.Name, secrets); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed setting deploy token: %w", err)
 	}
 
 	machine, err := createDeployerMachine(ctx, flapsClient, org.Slug, appName, region, manifest, org.PaidPlan)
@@ -413,7 +408,7 @@ func createDeployerMachine(ctx context.Context, flapsClient flapsutil.FlapsClien
 	return machine, nil
 }
 
-func getDeployToken(ctx context.Context, appName, orgID, appID string) (string, error) {
+func getDeployToken(ctx context.Context, appName, orgID string) (string, error) {
 	const (
 		tokenName = "remote deploy token"
 		profile   = "deploy"
@@ -422,7 +417,12 @@ func getDeployToken(ctx context.Context, appName, orgID, appID string) (string, 
 
 	client := flyutil.ClientFromContext(ctx)
 
-	tokens, err := client.GetAppLimitedAccessTokens(ctx, appName)
+	app, err := client.GetAppCompact(ctx, appName)
+	if err != nil {
+		return "", err
+	}
+
+	tokens, err := client.GetAppLimitedAccessTokens(ctx, app.Name)
 	if err != nil {
 		return "", fmt.Errorf("failed getting existing tokens: %w", err)
 	}
@@ -443,7 +443,7 @@ func getDeployToken(ctx context.Context, appName, orgID, appID string) (string, 
 	// no existing token found
 
 	options := &gql.LimitedAccessTokenOptions{
-		"app_id": appID,
+		"app_id": app.ID,
 	}
 
 	resp, err := gql.CreateLimitedAccessToken(
