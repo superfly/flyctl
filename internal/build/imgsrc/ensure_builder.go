@@ -14,6 +14,8 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/internal/tracing"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, recreateBuilder bool) (*fly.Machine, *fly.App, error) {
@@ -23,6 +25,7 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 	if !recreateBuilder {
 		builderApp := org.RemoteBuilderApp
 		if builderApp != nil {
+			span.SetAttributes(attribute.String("builder_app", builderApp.Name))
 			flaps, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 				AppName: builderApp.Name,
 				// TOOD(billy) make a utility function for App -> AppCompact
@@ -99,6 +102,7 @@ func EnsureBuilder(ctx context.Context, org *fly.Organization, region string, re
 	}
 
 	builderName := "fly-builder-" + haikunator.Haikunator().Build()
+	span.SetAttributes(attribute.String("builder_name", builderName))
 	// we want to lauch the machine to the builder
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
 		AppName: builderName,
@@ -145,7 +149,11 @@ const (
 )
 
 func validateBuilder(ctx context.Context, app *fly.App) (*fly.Machine, error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder")
+	var builderAppName string
+	if app != nil {
+		builderAppName = app.Name
+	}
+	ctx, span := tracing.GetTracer().Start(ctx, "validate_builder", trace.WithAttributes(attribute.String("builder_app", builderAppName)))
 	defer span.End()
 
 	if app == nil {
