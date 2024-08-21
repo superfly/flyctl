@@ -4,6 +4,8 @@
 package preflight
 
 import (
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +13,87 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
+
+func extractHostPart(addr string) (string, error) {
+	parts := strings.Split(addr, ":")
+	if len(parts) != 8 {
+		return "", fmt.Errorf("%q must have eight :-delimited parts", addr)
+	}
+	if parts[0] != "fdaa" {
+		return "", fmt.Errorf("%q must start from fdaa:", addr)
+	}
+	return parts[3] + ":" + parts[4], nil
+}
+
+func assertHostDistribution(t *testing.T, f *testlib.FlyctlTestEnv, appName string) {
+	hosts := map[string][]string{}
+
+	machines := f.MachinesList(appName)
+	for _, m := range machines {
+		host, err := extractHostPart(m.PrivateIP)
+		assert.NoError(t, err)
+
+		hosts[host] = append(hosts[host], m.ID)
+	}
+
+	// This may not be true if there are 100 machines,
+	// but we'd do our best to distribute machines.
+	assert.Equalf(
+		t, len(machines), len(hosts),
+		"%d machines are on %d hosts", len(machines), len(hosts),
+	)
+	for host, machines := range hosts {
+		t.Logf("host %s has %v", host, machines)
+	}
+}
+
+func TestFlyScaleTo3(t *testing.T) {
+	t.Run("Without Volume", func(t *testing.T) {
+		t.Parallel()
+
+		testFlyScaleToN(t, 3, false)
+	})
+	t.Run("With Volume", func(t *testing.T) {
+		t.Parallel()
+
+		testFlyScaleToN(t, 3, true)
+	})
+}
+
+func testFlyScaleToN(t *testing.T, n int, withVolume bool) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+
+	config := fmt.Sprintf(`
+app = "%s"
+primary_region = "%s"
+
+[build]
+image = "nginx"
+`,
+		appName, f.PrimaryRegion())
+
+	if withVolume {
+		config += `
+[mounts]
+source = "data"
+destination = "/data"
+`
+	}
+
+	f.WriteFlyToml(config)
+
+	f.Fly("deploy --ha=false")
+	assertMachineCount(t, f, appName, 1)
+
+	t.Logf("scale up %s to %d machines", appName, n)
+	f.Fly("scale count -y %d", n)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(c, f, appName, n)
+	}, 1*time.Minute, 1*time.Second)
+
+	assertHostDistribution(t, f, appName)
+}
 
 func TestFlyScaleCount(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
