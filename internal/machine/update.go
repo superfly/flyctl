@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"slices"
 	"time"
+	"github.com/superfly/flyctl/internal/prompt"
+	"os/exec"
+	"os"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -30,6 +33,8 @@ func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) 
 	if input != nil && input.Config != nil && input.Config.Guest != nil {
 		var invalidConfigErr InvalidConfigErr
 		invalidConfigErr.guest = input.Config.Guest
+		invalidConfigErr.ctx = ctx
+
 		// Check that there's a valid number of CPUs
 		validNumCpus, ok := cpusPerKind[input.Config.Guest.CPUKind]
 		if !ok {
@@ -125,6 +130,7 @@ const (
 type InvalidConfigErr struct {
 	Reason invalidConfigReason
 	guest  *fly.MachineGuest
+	ctx context.Context
 }
 
 func (e InvalidConfigErr) Description() string {
@@ -196,4 +202,100 @@ func (e InvalidConfigErr) DocURL() string {
 
 func (e InvalidConfigErr) Error() string {
 	return string(e.Reason)
+}
+
+
+func (e InvalidConfigErr) AttemptFix() (string,error) {
+	unsuccessfull := "Unsuccessful at fixing the error attempt!"
+	switch e.Reason {
+	case memoryTooHigh:
+		// Get correct CPU count
+		required_cpu_count,err := getRequiredCPUForMemoryTooHighError(e)
+		if err==nil{
+			combo := string(fmt.Sprintf("%s-cpu-%dx",e.guest.CPUKind,required_cpu_count))
+			// Notify of issue
+			//fmt.Println( "\nWarning! "+e.Description()+"! To scale your memory to "+string(fmt.Sprintf( "%d",e.guest.MemoryMB))+"MiB, 
+			//you must first increase your CPU cores to "+string(fmt.Sprintf( "%d",required_cpu_count)) +", which can be accomodated by a \""+combo+"\" VM size.\n")
+			
+
+			// Prompt
+			//If you would like to proceed with scaling your memory to %dMiB, your Machine's CPU count must be increased to %d CPUs.",e.Description(),e.guest.MemoryMB,required_cpu_count
+			prompt_str :=  fmt.Sprintf("Warning! %s! A memory of %dMiB requires %d CPU cores, "+
+			"which can be accomodated by a \"%s\" VM size.\n Would you like to scale your VM size to %s by running the command `fly scale vm %s`?"+
+			"\n Agreeing will update your VM to \"%s\" size first, then proceed with scaling the memory to the requested %dMiB", 
+			e.Description(), e.guest.MemoryMB, required_cpu_count, combo, combo, combo,combo, e.guest.MemoryMB)
+			//combo, combo, combo, e.guest.MemoryMB )
+			yesScaleCPUFirst, no := prompt.Confirm( e.ctx, prompt_str)	
+
+			// Scale CPU
+			fmt.Println(yesScaleCPUFirst)
+			fmt.Println(no)
+			if yesScaleCPUFirst{
+				fmt.Println("Running fly scale vm command...")
+				flyctl, err := exec.LookPath("fly")
+				if err== nil{
+					
+					// attempt to install bundle before proceeding
+					args := []string{"scale", "vm", fmt.Sprintf("%s-cpu-%dx",e.guest.CPUKind,required_cpu_count)}
+					fmt.Println(args)
+					cmd := exec.Command(flyctl, args...)
+					cmd.Stdin = os.Stdin
+					cmd.Stdout = os.Stdout
+					cmd.Stderr = os.Stderr
+					cmd.Run()
+
+					fmt.Println("success!")
+
+					return "success!",nil
+				}
+			}
+
+		}else{
+			fmt.Println("returning error...")
+			return err.Error(), err
+		}
+		
+	}
+	fmt.Println("returning last error..")
+	return unsuccessfull, fmt.Errorf( unsuccessfull )
+}
+
+//func getRequiredVmScaleCommandForMemoryTooHighError(){}
+func getRequiredCPUForMemoryTooHighError( e InvalidConfigErr ) (int, error){
+	var error_check = ""
+	var required_cpu_count = e.guest.CPUs
+	for error_check == ""{
+		// Increment cpu count to see if that would satisfy the requested memory 
+		required_cpu_count = required_cpu_count*2
+		//fmt.Println("Checking if %d cpu count works!",required_cpu_count)
+
+		// Validate new cpu count is valid 
+		validNumCpus, ok := cpusPerKind[e.guest.CPUKind]
+		if !ok {
+			fmt.Println("Not valid cpu kind!")
+			error_check = string(invalidCpuKind)
+		} else if !slices.Contains(validNumCpus, required_cpu_count) {
+			fmt.Println("Not valid cpu count for kind!")
+			error_check = string(invalidNumCPUs)
+		}else{
+
+			// Validate that the new cpu count's max memory can accommodate the requested memory
+			var maxMemory int
+
+			// Get the max memory the new cpu count can hold
+			if e.guest.CPUKind == "shared" {
+				maxMemory = required_cpu_count * fly.MAX_MEMORY_MB_PER_SHARED_CPU
+			} else if e.guest.CPUKind == "performance" {
+				maxMemory = required_cpu_count * fly.MAX_MEMORY_MB_PER_CPU
+			}
+
+			// See if its max memory can hold the requested memory
+			if e.guest.MemoryMB <= maxMemory{
+				return required_cpu_count, nil
+			}
+		}
+	}
+	// Sorry, can't get the cpu count
+	general_error := "Unable to retrieve the required CPU count to accommodate requested memory!"
+	return required_cpu_count, fmt.Errorf( general_error+"\n\n"+error_check )
 }
