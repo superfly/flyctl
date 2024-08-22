@@ -3,8 +3,6 @@ package scale
 import (
 	"context"
 	"fmt"
-	"os"
-
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -20,8 +18,6 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Size Name")
-	fmt.Println(sizeName)
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// Quickly validate sizeName before any network call
@@ -55,9 +51,6 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 	}
 
 	for _, machine := range machines {
-
-		fmt.Println(machine)
-		
 		if sizeName != "" {
 			machine.Config.Guest.SetSize(sizeName)
 		}
@@ -71,26 +64,12 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 			Config: machine.Config,
 		}
 		
-		input.Config.Guest.CPUs = 2
-		fmt.Println(input.Config.Guest.CPUs)
-		os.Exit(1)
-
-		//fmt.Println("testing retry...")
 		if err := mach.Update(ctx, machine, input); err != nil {
-			_, fix_err := err.(mach.InvalidConfigErr).AttemptFix() 
-			fmt.Println(fix_err)
+			fix_err := err.(mach.InvalidConfigErr).AttemptFix( ctx, machine, input ) 
 			if fix_err!=nil{
-				fmt.Println("unable to succeed!")
-			}else{
-				fmt.Println("retrying scale memory...")
-				// Retry the updatre now
-				if second_err := mach.Update(ctx, machine, input); second_err != nil {
-					return nil, second_err
-				}
+				return nil, err
 			}
-			return nil, err
 		}
-		
 	}
 
 	// Return fly.VMSize to remain compatible with v1 scale app signature
@@ -105,8 +84,6 @@ func v2ScaleVM(ctx context.Context, appName, group, sizeName string, memoryMB in
 
 func listMachinesWithGroup(ctx context.Context, group string) ([]*fly.Machine, error) {
 	machines, err := mach.ListActive(ctx)
-
-	fmt.Println( machines )
 	if err != nil {
 		return nil, err
 	}
