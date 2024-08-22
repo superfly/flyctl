@@ -551,8 +551,9 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
+	io := iostreams.FromContext(ctx)
+
 	if !flyutil.ClientFromContext(ctx).Authenticated() {
-		io := iostreams.FromContext(ctx)
 		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
 		if io.IsInteractive() &&
 			!env.IsCI() &&
@@ -598,7 +599,10 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+	if io.IsInteractive() {
+		// config.MonitorTokens would be timing out if a user don't access the URL.
+		config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+	}
 
 	return ctx, nil
 }
