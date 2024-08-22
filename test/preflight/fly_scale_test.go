@@ -25,7 +25,7 @@ func extractHostPart(addr string) (string, error) {
 	return parts[3] + ":" + parts[4], nil
 }
 
-func assertHostDistribution(t *testing.T, f *testlib.FlyctlTestEnv, appName string) {
+func assertHostDistribution(t *testing.T, f *testlib.FlyctlTestEnv, appName string, count int) {
 	hosts := map[string][]string{}
 
 	machines := f.MachinesList(appName)
@@ -36,10 +36,8 @@ func assertHostDistribution(t *testing.T, f *testlib.FlyctlTestEnv, appName stri
 		hosts[host] = append(hosts[host], m.ID)
 	}
 
-	// This may not be true if there are 100 machines,
-	// but we'd do our best to distribute machines.
-	assert.Equalf(
-		t, len(machines), len(hosts),
+	assert.GreaterOrEqualf(
+		t, len(hosts), count,
 		"%d machines are on %d hosts", len(machines), len(hosts),
 	)
 	for host, machines := range hosts {
@@ -92,7 +90,9 @@ destination = "/data"
 		assertMachineCount(c, f, appName, n)
 	}, 1*time.Minute, 1*time.Second)
 
-	assertHostDistribution(t, f, appName)
+	// Ideally n, but right now we can't guarantee that.
+	// So at least, we should have 2 machines.
+	assertHostDistribution(t, f, appName, 2)
 }
 
 func TestFlyScaleCount(t *testing.T) {

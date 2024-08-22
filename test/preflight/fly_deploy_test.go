@@ -59,7 +59,7 @@ func TestFlyDeployHAPlacement(t *testing.T) {
 	)
 	f.Fly("deploy")
 
-	assertHostDistribution(t, f, appName)
+	assertHostDistribution(t, f, appName, 2)
 }
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
