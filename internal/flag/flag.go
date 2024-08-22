@@ -563,8 +563,8 @@ func Depot() Bool {
 func DepotScope() String {
 	return String{
 		Name:        "depot-scope",
-		Description: "The scope of the Depot builder's cache to use (organization or app)",
-		Default:     "organization",
+		Description: "The scope of the Depot builder's cache to use (org or app)",
+		Default:     "org",
 	}
 }
 
