@@ -124,6 +124,7 @@ func (t *TestEnvConfig) Setenv(name string, value string) {
 }
 
 func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
+	t.Logf("%s: start", time.Now())
 	flyctlBin := cfg.flyctlBin
 	if flyctlBin == "" {
 		flyctlBin = currentRepoFlyctl()
@@ -131,6 +132,8 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 			flyctlBin = "fly"
 		}
 	}
+
+	t.Logf("%s: stop", time.Now())
 	tryToStopAgentsInOriginalHomeDir(flyctlBin)
 	// tryToStopAgentsFromPastPreflightTests(t, flyctlBin)
 	cfg.Setenv("FLY_ACCESS_TOKEN", cfg.accessToken)
@@ -156,10 +159,16 @@ func NewTestEnvFromConfig(t testing.TB, cfg TestEnvConfig) *FlyctlTestEnv {
 		env:                 cfg.envVariables,
 		VMSize:              os.Getenv("FLY_PREFLIGHT_TEST_VM_SIZE"),
 	}
+
+	t.Logf("%s: verify", time.Now())
 	testEnv.verifyTestOrgExists()
+
 	t.Cleanup(func() {
+		t.Logf("%s: cleanup", time.Now())
 		testEnv.FlyAllowExitFailure("agent stop")
+		t.Logf("%s: end", time.Now())
 	})
+	t.Logf("%s: return", time.Now())
 	return testEnv
 }
 
@@ -247,7 +256,9 @@ func (f *FlyctlTestEnv) FlyContextAndConfig(ctx context.Context, cfg FlyCmdConfi
 	if err != nil {
 		f.Fatalf("failed to start command: %s [error]: %s", res.cmdStr, err)
 	}
+	f.t.Logf("%s: wait start", time.Now())
 	err = cmd.Wait()
+	f.t.Logf("%s: wait end", time.Now())
 	if err == nil {
 		res.exitCode = 0
 	} else if exitErr, ok := err.(*exec.ExitError); ok {
@@ -282,13 +293,19 @@ func (f *FlyctlTestEnv) DebugPrintHistory() {
 }
 
 func (f *FlyctlTestEnv) verifyTestOrgExists() {
+	f.t.Logf("%s: orgs list", time.Now())
 	result := f.Fly("orgs list --json")
 	result.AssertSuccessfulExit()
 	var orgMap map[string]string
+
+	f.t.Logf("%s: stderr: %s", time.Now(), result.StdErrString())
+
+	f.t.Logf("%s: json", time.Now())
 	result.StdOutJSON(&orgMap)
 	if _, present := orgMap[f.orgSlug]; !present {
 		f.Fatalf("could not find org with name '%s' in `%s` output: %s", f.orgSlug, result.cmdStr, result.stdOut.String())
 	}
+	f.t.Logf("%s: loop end", time.Now())
 }
 
 func (f *FlyctlTestEnv) CreateRandomAppName() string {

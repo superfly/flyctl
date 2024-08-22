@@ -599,10 +599,11 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 		}
 	}
 
-	if io.IsInteractive() {
-		// config.MonitorTokens would be timing out if a user don't access the URL.
-		config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
-	}
+	//if io.IsInteractive() {
+	// config.MonitorTokens would be timing out if a user don't access the URL.
+	fmt.Fprintf(os.Stderr, "interactive: %v\n", io.IsInteractive())
+	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+	//}
 
 	return ctx, nil
 }
