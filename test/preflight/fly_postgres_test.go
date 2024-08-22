@@ -193,13 +193,10 @@ func testPostgresImportSuccess(t *testing.T) {
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
 
+	t.Logf("Create app_names table on %s", firstAppName)
 	f.Fly(
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
 		f.OrgSlug(), firstAppName, f.PrimaryRegion(), postgresMachineSize,
-	)
-	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
-		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assertPostgresIsUp(t, f, firstAppName)
@@ -214,6 +211,14 @@ func testPostgresImportSuccess(t *testing.T) {
 		firstAppName, firstAppName,
 	)
 
+	t.Logf("Import from %s to %s", firstAppName, secondAppName)
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
+	)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertPostgresIsUp(t, f, secondAppName)
+	}, 1*time.Minute, 10*time.Second)
 	f.Fly(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/postgres",
 		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
