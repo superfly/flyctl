@@ -176,7 +176,12 @@ func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string)
 	assert.Equal(tb, 0, ssh.ExitCode(), "failed to connect to postgres at %s: %s", appName, ssh.StdErr())
 }
 
-func TestPostgres_ImportSuccess(t *testing.T) {
+func TestPostgresImport(t *testing.T) {
+	t.Run("Import", WithParallel(testPostgresImportSuccess))
+	t.Run("Failure", WithParallel(testPostgresImportFailure))
+}
+
+func testPostgresImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -227,7 +232,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
-func TestPostgres_ImportFailure(t *testing.T) {
+func testPostgresImportFailure(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
