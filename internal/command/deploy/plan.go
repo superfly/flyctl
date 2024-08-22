@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -103,7 +102,6 @@ func (md *machineDeployment) appState(ctx context.Context, existingAppState *App
 		}
 	}
 
-	// TODO: could this be a list of machine id -> config?
 	appState := &AppState{
 		Machines: machineSliceToMap(machines),
 	}
@@ -198,17 +196,12 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 	machineLogger.initFromMachinePairs(machineTuples)
 
 	appStateFSM := stateless.NewStateMachine(updateNotStarted)
-	appStateFSM.SetTriggerParameters(triggerUpdateMachines, reflect.TypeOf(machineTuples), reflect.TypeOf(poolSize))
 
 	appStateFSM.Configure(updateNotStarted).Permit(triggerUpdateMachines, updatedMachines)
 	appStateFSM.Configure(updatingMachines).OnEntry(func(ctx context.Context, args ...any) error {
-		machPairs := args[0].([]machinePairing)
-		poolSize := args[1].(int)
-
-		return md.acquireLeases(ctx, machPairs, poolSize, machineLogger)
+		return md.acquireLeases(ctx, machineTuples, poolSize, machineLogger)
 	}).OnExit(func(ctx context.Context, args ...any) error {
-		machPairs := args[0].([]machinePairing)
-		return md.releaseLeases(ctx, machPairs, machineLogger)
+		return md.releaseLeases(ctx, machineTuples, machineLogger)
 	})
 
 	attempts := 0
@@ -333,7 +326,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 	})
 
 	for {
-		if updateErr := appStateFSM.FireCtx(ctx, triggerUpdateMachines, machineTuples, poolSize); updateErr != nil {
+		if updateErr := appStateFSM.FireCtx(ctx, triggerUpdateMachines); updateErr != nil {
 			// if we return an error when triggering machines failed, it means we're done
 			if err := appStateFSM.FireCtx(ctx, triggerUpdateMachinesFailed, updateErr); err != nil {
 				return appStateFSM.FireCtx(ctx, triggerUpdateFailed)
@@ -518,13 +511,44 @@ func compareConfigs(ctx context.Context, oldConfig, newConfig *fly.MachineConfig
 	return isEqual
 }
 
-func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine, io *iostreams.IOStreams, healthcheckResult *healthcheckResult) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks", trace.WithAttributes(
-		attribute.Bool("smoke_checks", healthcheckResult.smokeChecksPassed),
-		attribute.Bool("machine_checks", healthcheckResult.machineChecksPassed),
-		attribute.Bool("regular_checks", healthcheckResult.regularChecksPassed),
-	))
+type machineFsmState string
+
+const (
+	machineUpdateNotStarted           machineFsmState = "machineUpdateNotStarted"
+	machineCreated                    machineFsmState = "machineCreated"
+	machineReplaced                   machineFsmState = "machineReplaced"
+	machineDestroyed                  machineFsmState = "machineDestroyed"
+	machineConfigUpdateFailedBadFlaps machineFsmState = "machineConfigUpdateFailedBadFlaps "
+	machineConfigUpdated              machineFsmState = "machineUpdated"
+	machineGoodStatus                 machineFsmState = "machineGoodStatus"
+	machineGoodSmokeChecks            machineFsmState = "machineGoodSmokeChecks"
+	machineGoodMachineChecks          machineFsmState = "machineGoodSmokeChecks"
+	machineGoodHealthChecks           machineFsmState = "machineGoodHealthChecks"
+	machineUpdateComplete             machineFsmState = "machineUpdateComplete"
+)
+
+type machineFsmTrigger string
+
+const (
+	triggerMachineEnsureCreated     machineFsmState = "triggerMachineCreated"
+	triggerMachineConfigUpdated     machineFsmState = "triggerMachineConfigUpdated"
+	triggerMachineGoodStatus        machineFsmState = "triggerMachineGoodStatus"
+	triggerMachineGoodSmokeChecks   machineFsmState = "triggerMachineGoodSmokeChecks"
+	triggerMachineGoodMachineChecks machineFsmState = "triggerMachineGoodMachineChecks"
+	triggerMachineGoodHealthChecks  machineFsmState = "triggerMachineGoodHealthChecks"
+	triggerMachineUpdateComplete    machineFsmState = "triggerMachineUpdateComplete"
+)
+
+func (md *machineDeployment) updateMachineWChecks(ctx context.Context, oldMachine, newMachine *fly.Machine, sl statuslogger.StatusLine, io *iostreams.IOStreams) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "update_machine_w_checks")
 	defer span.End()
+
+	machineStateFSM := stateless.NewStateMachine(machineUpdateNotStarted)
+	machineStateFSM.Configure(machineUpdateNotStarted).Permit(triggerMachineEnsureCreated, machineCreated)
+	machineStateFSM.Configure(machineCreated).OnEntry(func(ctx context.Context, args ...any) error {
+
+		return nil
+	})
 
 	var machine *fly.Machine
 	var lease *fly.MachineLease
