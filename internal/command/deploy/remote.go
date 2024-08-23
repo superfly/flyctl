@@ -466,9 +466,6 @@ func getDeployToken(ctx context.Context, appName, orgID string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("failed creating token: %w", err)
 	}
-
-	logger.FromContext(ctx).Warnf("created token %s", resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader)
-
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
