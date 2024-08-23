@@ -23,8 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/logs"
-	"github.com/superfly/macaroon/flyio"
-	"github.com/superfly/macaroon/tp"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -73,8 +71,9 @@ func (d *Deployer) Ready(ctx context.Context) (bool, error) {
 
 func (d *Deployer) Done(ctx context.Context) (<-chan struct{}, error) {
 	var (
-		done = make(chan struct{})
-		io   = iostreams.FromContext(ctx)
+		done   = make(chan struct{})
+		io     = iostreams.FromContext(ctx)
+		logger = logger.FromContext(ctx)
 	)
 
 	go func() {
@@ -91,11 +90,13 @@ func (d *Deployer) Done(ctx context.Context) (<-chan struct{}, error) {
 			case <-ticker.C:
 				machine, err := d.flaps.Get(ctx, d.machine.ID)
 				if err != nil {
-					fmt.Fprintf(io.ErrOut, "Error getting machine %s from API: %v\n", d.machine.ID, err)
+					logger.Warnf("Error getting machine %s from API: %v\n", d.machine.ID, err)
 					return
 				}
-				if exitEvent := machine.GetLatestEventOfTypeAfterType("start", "exit"); exitEvent != nil {
+				// render.JSON(io.Out, machine)
+				if exitEvent := machine.GetLatestEventOfTypeAfterType("exit", "start"); exitEvent != nil {
 					fmt.Fprintf(io.Out, "Machine exited with status %s\n", exitEvent.Status)
+					logger.Debugf("Machine %s exited with status %s\n", d.machine.ID, exitEvent.Status)
 					return
 				}
 			}
@@ -190,6 +191,7 @@ func deployRemotely(ctx context.Context, manifest *DeployManifest) error {
 			// Wait for either the machine to exit or the context to be canceled
 			select {
 			case <-done:
+				fmt.Fprintln(io.Out, "Tada! 🎉")
 				cancel()
 			case <-ctx.Done():
 			}
@@ -265,7 +267,7 @@ func findExistingDeployer(ctx context.Context, org *fly.Organization, appName, r
 
 	token, err := getDeployToken(ctx, appName, org.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed getting deploy token: %w", err)
 	}
 	secrets := map[string]string{
 		"FLY_API_TOKEN": token,
@@ -329,7 +331,7 @@ func createDeployer(ctx context.Context, org *fly.Organization, appName, region,
 
 	token, err := getDeployToken(ctx, appName, org.ID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed getting deploy token: %w", err)
 	}
 	secrets := map[string]string{
 		"FLY_API_TOKEN": token,
@@ -422,23 +424,29 @@ func getDeployToken(ctx context.Context, appName, orgID string) (string, error) 
 		return "", err
 	}
 
-	tokens, err := client.GetAppLimitedAccessTokens(ctx, app.Name)
-	if err != nil {
-		return "", fmt.Errorf("failed getting existing tokens: %w", err)
-	}
+	// tokens, err := client.GetAppLimitedAccessTokens(ctx, app.Name)
+	// if err != nil {
+	// 	return "", fmt.Errorf("failed getting existing tokens: %w", err)
+	// }
 
-	for _, token := range tokens {
-		if token.Name != tokenName {
-			continue
-		}
+	// for _, token := range tokens {
+	// 	if token.Name != tokenName {
+	// 		continue
+	// 	}
 
-		disClient := flyio.DischargeClient(tp.WithBearerAuthentication(
-			flyio.LocationAuthentication,
-			config.FromContext(ctx).Tokens.UserTokenOnly().All(),
-		))
+	// 	disClient := flyio.DischargeClient(tp.WithBearerAuthentication(
+	// 		flyio.LocationAuthentication,
+	// 		config.FromContext(ctx).Tokens.UserTokenOnly().All(),
+	// 	))
 
-		return disClient.FetchDischargeTokens(ctx, token.Token)
-	}
+	// 	// logger.FromContext(ctx).Warnf("fetching discharge tokens for %s", token.Token)
+
+	// 	tk, err := disClient.FetchDischargeTokens(ctx, token.Token)
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("failed fetching discharge tokens: %w", err)
+	// 	}
+	// 	return tk, nil
+	// }
 
 	// no existing token found
 
@@ -458,6 +466,9 @@ func getDeployToken(ctx context.Context, appName, orgID string) (string, error) 
 	if err != nil {
 		return "", fmt.Errorf("failed creating token: %w", err)
 	}
+
+	logger.FromContext(ctx).Warnf("created token %s", resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader)
+
 	return resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader, nil
 }
 
