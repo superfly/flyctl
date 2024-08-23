@@ -333,10 +333,14 @@ func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, 
 
 		// We strive to provide a HA setup according to:
 		// - Create only 1 machine if the group has mounts
+		//   (except LSVD can create a standby machine with mounts)
 		// - Create 2 machines for groups with services
 		// - Create 1 always-on and 1 standby machine for groups without services
+		lsvd := lo.ContainsBy(lo.Keys(groupConfig.Env), func(key string) bool {
+			return strings.HasPrefix(key, "FLY_LSVD_")
+		})
 		switch {
-		case len(groupConfig.Mounts) > 0:
+		case len(groupConfig.Mounts) > 0 && !(lsvd && len(services) == 0):
 			continue
 		case len(services) > 0:
 			fmt.Fprintf(md.io.Out, "Creating a second machine to increase service availability\n")

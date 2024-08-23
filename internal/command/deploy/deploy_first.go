@@ -3,6 +3,7 @@ package deploy
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/samber/lo"
@@ -120,7 +121,15 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 			guest = mConfig.Guest
 		}
 
-		for _, m := range groupConfig.Mounts {
+		lsvd := lo.ContainsBy(lo.Keys(groupConfig.Env), func(key string) bool {
+			return strings.HasPrefix(key, "FLY_LSVD_")
+		})
+		mounts := groupConfig.Mounts
+		if lsvd && len(groupConfig.Services) == 0 {
+			// Add an extra mount when creating an LSVD standby machine
+			mounts = append(mounts, groupConfig.Mounts...)
+		}
+		for _, m := range mounts {
 			if v := existentVolumes[m.Source]; v > 0 {
 				existentVolumes[m.Source]--
 				continue
@@ -154,6 +163,9 @@ func (md *machineDeployment) provisionVolumesOnFirstDeploy(ctx context.Context) 
 				ComputeRequirements: guest,
 				ComputeImage:        md.img,
 				SnapshotRetention:   m.SnapshotRetention,
+			}
+			if lsvd {
+				input.RequireUniqueZone = fly.Pointer(true)
 			}
 
 			vol, err := md.flapsClient.CreateVolume(ctx, input)
