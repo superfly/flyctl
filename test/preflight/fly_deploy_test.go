@@ -335,7 +335,7 @@ func TestDeployManifest(t *testing.T) {
 	f.Fly("deploy --export-manifest %s", manifestPath)
 
 	manifest := f.ReadFile("manifest.json")
-	require.Contains(t, manifest, `"AppName": "`+appName+`"`)
+	require.Contains(t, manifest, `"app_name": "`+appName+`"`)
 	require.Contains(t, manifest, `"primary_region": "`+f.PrimaryRegion()+`"`)
 	require.Contains(t, manifest, `"internal_port": 80`)
 	require.Contains(t, manifest, `"increased_availability": true`)
