@@ -155,9 +155,7 @@ func TestPostgres_haConfigSave(t *testing.T) {
 const postgresMachineSize = "shared-cpu-4x"
 
 // assertMachineCount checks the number of machines for the given app.
-func assertMachineCount(tb testing.TB, f *testlib.FlyctlTestEnv, appName string, expected int) {
-	tb.Helper()
-
+func assertMachineCount(tb assert.TestingT, f *testlib.FlyctlTestEnv, appName string, expected int) {
 	machines := f.MachinesList(appName)
 
 	var xs []string
