@@ -808,6 +808,7 @@ func determineMachineConfig(
 	if flag.IsSpecified(ctx, "standby-for") {
 		standbys := flag.GetStringSlice(ctx, "standby-for")
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
 	}
 
 	machineFiles, err := command.FilesFromCommand(ctx)
