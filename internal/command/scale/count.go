@@ -69,7 +69,7 @@ func runScaleCount(ctx context.Context) error {
 		groupName = fly.MachineProcessGroupApp
 	}
 
-	groups, err := parseGroupCounts(args, groupName)
+	groups, err := parseGroupCounts(ctx, args, groupName)
 	if err != nil {
 		return err
 	}
@@ -92,30 +92,51 @@ func runScaleCount(ctx context.Context) error {
 	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 }
 
-func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, error) {
+func parseGroupCounts(ctx context.Context, args []string, defaultGroupName string) (map[string]int, error) {
 	groups := make(map[string]int)
+
+	var machineGroups map[string][]*fly.Machine
+
+	apply := func(group string, count string) error {
+		delta := 0
+		if strings.HasPrefix(count, "+") || strings.HasPrefix(count, "-") {
+			if machineGroups == nil {
+				flapsClient := flapsutil.ClientFromContext(ctx)
+				machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
+				if err != nil {
+					return err
+				}
+				machineGroups = lo.GroupBy(machines, func(m *fly.Machine) string {
+					return m.ProcessGroup()
+				})
+			}
+			delta = len(machineGroups[group])
+		}
+		countNum, err := strconv.Atoi(count)
+		if err != nil {
+			return err
+		}
+		groups[group] = countNum + delta
+		return nil
+	}
 
 	// single numeric arg: fly scale count 3
 	if len(args) == 1 {
-		count, err := strconv.Atoi(args[0])
-		if err == nil {
-			groups[defaultGroupName] = count
+		if err := apply(defaultGroupName, args[0]); err != nil {
+			return nil, err
 		}
 	}
 
-	// group labels: fly scale web=X worker=Y
+	// group labels: fly scale count web=X worker=Y
 	if len(groups) < 1 {
 		for _, arg := range args {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("'%s' is not a valid process=count option", arg)
 			}
-			count, err := strconv.Atoi(parts[1])
-			if err != nil {
+			if err := apply(parts[0], parts[1]); err != nil {
 				return nil, err
 			}
-
-			groups[parts[0]] = count
 		}
 	}
 
