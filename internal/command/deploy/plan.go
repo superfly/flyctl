@@ -300,6 +300,11 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 				span.RecordError(updateErr)
 				return fmt.Errorf("failed to get current app state: %w", err)
 			}
+			// we need to refresh information about the state of unattached volumes in the app
+			err = md.setVolumes(ctx)
+			if err != nil {
+				return err
+			}
 			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
 				skipHealthChecks:     settings.skipHealthChecks,
