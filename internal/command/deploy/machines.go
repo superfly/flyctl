@@ -75,39 +75,41 @@ type MachineDeploymentArgs struct {
 	RestartMaxRetries     int
 	DeployRetries         int
 	BuildID               string
+	FromManifestID        *string
 }
 
 func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
 	return MachineDeploymentArgs{
 		AppCompact:            app,
-		DeploymentImage:       manifest.DeploymentImage,
-		Strategy:              manifest.Strategy,
-		EnvFromFlags:          manifest.EnvFromFlags,
-		PrimaryRegionFlag:     manifest.PrimaryRegionFlag,
-		SkipSmokeChecks:       manifest.SkipSmokeChecks,
-		SkipHealthChecks:      manifest.SkipHealthChecks,
-		SkipDNSChecks:         manifest.SkipDNSChecks,
-		SkipReleaseCommand:    manifest.SkipReleaseCommand,
-		MaxUnavailable:        manifest.MaxUnavailable,
-		RestartOnly:           manifest.RestartOnly,
-		WaitTimeout:           manifest.WaitTimeout,
-		StopSignal:            manifest.StopSignal,
-		LeaseTimeout:          manifest.LeaseTimeout,
-		ReleaseCmdTimeout:     manifest.ReleaseCmdTimeout,
-		Guest:                 manifest.Guest,
-		IncreasedAvailability: manifest.IncreasedAvailability,
-		UpdateOnly:            manifest.UpdateOnly,
-		Files:                 manifest.Files,
-		ExcludeRegions:        manifest.ExcludeRegions,
-		OnlyRegions:           manifest.OnlyRegions,
-		ExcludeMachines:       manifest.ExcludeMachines,
-		OnlyMachines:          manifest.OnlyMachines,
-		ProcessGroups:         manifest.ProcessGroups,
-		MaxConcurrent:         manifest.MaxConcurrent,
-		VolumeInitialSize:     manifest.VolumeInitialSize,
-		RestartPolicy:         manifest.RestartPolicy,
-		RestartMaxRetries:     manifest.RestartMaxRetries,
-		DeployRetries:         manifest.DeployRetries,
+		DeploymentImage:       manifest.Args.DeploymentImage,
+		Strategy:              manifest.Args.Strategy,
+		EnvFromFlags:          manifest.Args.EnvFromFlags,
+		PrimaryRegionFlag:     manifest.Args.PrimaryRegionFlag,
+		SkipSmokeChecks:       manifest.Args.SkipSmokeChecks,
+		SkipHealthChecks:      manifest.Args.SkipHealthChecks,
+		SkipDNSChecks:         manifest.Args.SkipDNSChecks,
+		SkipReleaseCommand:    manifest.Args.SkipReleaseCommand,
+		MaxUnavailable:        manifest.Args.MaxUnavailable,
+		RestartOnly:           manifest.Args.RestartOnly,
+		WaitTimeout:           manifest.Args.WaitTimeout,
+		StopSignal:            manifest.Args.StopSignal,
+		LeaseTimeout:          manifest.Args.LeaseTimeout,
+		ReleaseCmdTimeout:     manifest.Args.ReleaseCmdTimeout,
+		Guest:                 manifest.Args.Guest,
+		IncreasedAvailability: manifest.Args.IncreasedAvailability,
+		UpdateOnly:            manifest.Args.UpdateOnly,
+		Files:                 manifest.Args.Files,
+		ExcludeRegions:        manifest.Args.ExcludeRegions,
+		OnlyRegions:           manifest.Args.OnlyRegions,
+		ExcludeMachines:       manifest.Args.ExcludeMachines,
+		OnlyMachines:          manifest.Args.OnlyMachines,
+		ProcessGroups:         manifest.Args.ProcessGroups,
+		MaxConcurrent:         manifest.Args.MaxConcurrent,
+		VolumeInitialSize:     manifest.Args.VolumeInitialSize,
+		RestartPolicy:         manifest.Args.RestartPolicy,
+		RestartMaxRetries:     manifest.Args.RestartMaxRetries,
+		DeployRetries:         manifest.Args.DeployRetries,
+		FromManifestID:        fly.StringPointer(manifest.ID),
 	}
 }
 
@@ -150,6 +152,7 @@ type machineDeployment struct {
 	volumeInitialSize     int
 	deployRetries         int
 	buildID               string
+	FromManifestID        *string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -277,6 +280,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		processGroups:         args.ProcessGroups,
 		deployRetries:         args.DeployRetries,
 		buildID:               args.BuildID,
+		FromManifestID:        args.FromManifestID,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")

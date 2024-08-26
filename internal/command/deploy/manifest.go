@@ -12,14 +12,21 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type DeployManifest struct {
-	AppName               string
-	Config                *appconfig.Config         `json:"config"`
+	ID         string            `json:"id,omitempty"`
+	FlyVersion string            `json:"fly_version,omitempty"`
+	AppName    string            `json:"app_name"`
+	Config     *appconfig.Config `json:"config"`
+	Args       *ManifestArgs     `json:"args,omitempty"`
+}
+
+type ManifestArgs struct {
 	DeploymentImage       string                    `json:"deployment_image,omitempty"`
 	Strategy              string                    `json:"strategy,omitempty"`
 	EnvFromFlags          []string                  `json:"env_from_flags,omitempty"`
@@ -53,36 +60,38 @@ type DeployManifest struct {
 
 func NewManifest(AppName string, config *appconfig.Config, args MachineDeploymentArgs) *DeployManifest {
 	return &DeployManifest{
-		AppName:               AppName,
-		Config:                config,
-		DeploymentImage:       args.DeploymentImage,
-		Strategy:              args.Strategy,
-		EnvFromFlags:          args.EnvFromFlags,
-		PrimaryRegionFlag:     args.PrimaryRegionFlag,
-		SkipSmokeChecks:       args.SkipSmokeChecks,
-		SkipHealthChecks:      args.SkipHealthChecks,
-		SkipDNSChecks:         args.SkipDNSChecks,
-		SkipReleaseCommand:    args.SkipReleaseCommand,
-		MaxUnavailable:        args.MaxUnavailable,
-		RestartOnly:           args.RestartOnly,
-		WaitTimeout:           args.WaitTimeout,
-		StopSignal:            args.StopSignal,
-		LeaseTimeout:          args.LeaseTimeout,
-		ReleaseCmdTimeout:     args.ReleaseCmdTimeout,
-		Guest:                 args.Guest,
-		IncreasedAvailability: args.IncreasedAvailability,
-		UpdateOnly:            args.UpdateOnly,
-		Files:                 args.Files,
-		ExcludeRegions:        args.ExcludeRegions,
-		OnlyRegions:           args.OnlyRegions,
-		ExcludeMachines:       args.ExcludeMachines,
-		OnlyMachines:          args.OnlyMachines,
-		ProcessGroups:         args.ProcessGroups,
-		MaxConcurrent:         args.MaxConcurrent,
-		VolumeInitialSize:     args.VolumeInitialSize,
-		RestartPolicy:         args.RestartPolicy,
-		RestartMaxRetries:     args.RestartMaxRetries,
-		DeployRetries:         args.DeployRetries,
+		AppName:    AppName,
+		Config:     config,
+		ID:         fmt.Sprintf("manifest_%d", time.Now().UnixNano()),
+		FlyVersion: buildinfo.Info().Version.String(),
+		Args: &ManifestArgs{DeploymentImage: args.DeploymentImage,
+			Strategy:              args.Strategy,
+			EnvFromFlags:          args.EnvFromFlags,
+			PrimaryRegionFlag:     args.PrimaryRegionFlag,
+			SkipSmokeChecks:       args.SkipSmokeChecks,
+			SkipHealthChecks:      args.SkipHealthChecks,
+			SkipDNSChecks:         args.SkipDNSChecks,
+			SkipReleaseCommand:    args.SkipReleaseCommand,
+			MaxUnavailable:        args.MaxUnavailable,
+			RestartOnly:           args.RestartOnly,
+			WaitTimeout:           args.WaitTimeout,
+			StopSignal:            args.StopSignal,
+			LeaseTimeout:          args.LeaseTimeout,
+			ReleaseCmdTimeout:     args.ReleaseCmdTimeout,
+			Guest:                 args.Guest,
+			IncreasedAvailability: args.IncreasedAvailability,
+			UpdateOnly:            args.UpdateOnly,
+			Files:                 args.Files,
+			ExcludeRegions:        args.ExcludeRegions,
+			OnlyRegions:           args.OnlyRegions,
+			ExcludeMachines:       args.ExcludeMachines,
+			OnlyMachines:          args.OnlyMachines,
+			ProcessGroups:         args.ProcessGroups,
+			MaxConcurrent:         args.MaxConcurrent,
+			VolumeInitialSize:     args.VolumeInitialSize,
+			RestartPolicy:         args.RestartPolicy,
+			RestartMaxRetries:     args.RestartMaxRetries,
+			DeployRetries:         args.DeployRetries},
 	}
 }
 
