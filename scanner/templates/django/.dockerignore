@@ -3,4 +3,4 @@ fly.toml
 *.sqlite3
 {{ if .venv -}}
 {{ .venvdir }}
-{{- end }}
+{{- end -}}
