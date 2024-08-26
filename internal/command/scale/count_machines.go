@@ -11,6 +11,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -67,6 +68,21 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
+	}
+
+	// Add env variable overrides to launch configs
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return fmt.Errorf("failed parsing environment: %w", err)
+		}
+		lo.ForEach(actions, func(plan *planItem, _ int) {
+			c := plan.LaunchMachineInput.Config
+			if c.Env == nil {
+				c.Env = make(map[string]string)
+			}
+			c.Env = lo.Assign(c.Env, parsedEnv)
+		})
 	}
 
 	if len(actions) == 0 {
