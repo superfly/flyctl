@@ -75,6 +75,7 @@ type MachineDeploymentArgs struct {
 	RestartMaxRetries     int
 	DeployRetries         int
 	BuildID               string
+	FromManifestID        *string
 }
 
 func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
@@ -108,6 +109,7 @@ func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDepl
 		RestartPolicy:         manifest.Args.RestartPolicy,
 		RestartMaxRetries:     manifest.Args.RestartMaxRetries,
 		DeployRetries:         manifest.Args.DeployRetries,
+		FromManifestID:        fly.StringPointer(manifest.ID),
 	}
 }
 
@@ -150,6 +152,7 @@ type machineDeployment struct {
 	volumeInitialSize     int
 	deployRetries         int
 	buildID               string
+	FromManifestID        *string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
@@ -277,6 +280,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		processGroups:         args.ProcessGroups,
 		deployRetries:         args.DeployRetries,
 		buildID:               args.BuildID,
+		FromManifestID:        args.FromManifestID,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
