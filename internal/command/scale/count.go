@@ -69,7 +69,7 @@ func runScaleCount(ctx context.Context) error {
 		groupName = fly.MachineProcessGroupApp
 	}
 
-	groups, err := parseGroupCounts(ctx, args, groupName)
+	groups, err := parseGroupCounts(args, groupName)
 	if err != nil {
 		return err
 	}
@@ -92,31 +92,26 @@ func runScaleCount(ctx context.Context) error {
 	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 }
 
-func parseGroupCounts(ctx context.Context, args []string, defaultGroupName string) (map[string]int, error) {
-	groups := make(map[string]int)
+type groupCount struct{ absolute, relative int }
+type groupCounts map[string]groupCount
 
-	var machineGroups map[string][]*fly.Machine
-
-	apply := func(group string, count string) error {
-		delta := 0
-		if strings.HasPrefix(count, "+") || strings.HasPrefix(count, "-") {
-			if machineGroups == nil {
-				flapsClient := flapsutil.ClientFromContext(ctx)
-				machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
-				if err != nil {
-					return err
-				}
-				machineGroups = lo.GroupBy(machines, func(m *fly.Machine) string {
-					return m.ProcessGroup()
-				})
-			}
-			delta = len(machineGroups[group])
-		}
-		countNum, err := strconv.Atoi(count)
+func parseGroupCounts(args []string, defaultGroupName string) (groupCounts, error) {
+	groups := make(groupCounts)
+	apply := func(group string, countStr string) error {
+		var count groupCount
+		countNum, err := strconv.Atoi(countStr)
 		if err != nil {
 			return err
 		}
-		groups[group] = countNum + delta
+		if strings.HasPrefix(countStr, "+") || strings.HasPrefix(countStr, "-") {
+			if countNum == 0 {
+				return fmt.Errorf("invalid relative scale count: %v", countStr)
+			}
+			count.relative = countNum
+		} else {
+			count.absolute = countNum
+		}
+		groups[group] = count
 		return nil
 	}
 
