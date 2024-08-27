@@ -568,6 +568,30 @@ func DepotScope() String {
 	}
 }
 
+func DepotBuilderSize() String {
+	return String{
+		Name:        "depot-builder-size",
+		Description: "The size of the Depot builder's cache",
+		Default:     "50GiB",
+	}
+}
+
+func DepotBuilderRegion() String {
+	return String{
+		Name:        "depot-builder-region",
+		Description: "The region of the Depot builder",
+		Default:     "50GiB",
+	}
+}
+
+func DepotBuilderUpdate() Bool {
+	return Bool{
+		Name:        "depot-builder-update",
+		Description: "Update the Depot builder settings, if it doesn't already exist",
+		Default:     false,
+	}
+}
+
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
