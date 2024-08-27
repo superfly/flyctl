@@ -49,6 +49,14 @@ func SetSendMetrics(path string, sendMetrics bool) error {
 	})
 }
 
+// SetSyntheticsToken sets the value of the synthetics token at the configuration file
+// found at path.
+func SetSyntheticsToken(path, token string) error {
+	return set(path, map[string]interface{}{
+		SyntheticsTokenFileKey: token,
+	})
+}
+
 // SetSyntheticsAgent sets the value of the synthetics agent flag at the configuration file
 // found at path.
 func SetSyntheticsAgent(path string, syntheticsAgent bool) error {
