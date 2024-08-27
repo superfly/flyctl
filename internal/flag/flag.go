@@ -552,10 +552,11 @@ func BuildTarget() String {
 	}
 }
 
-func Depot() Bool {
-	return Bool{
+func Depot() String {
+	return String{
 		Name:        "depot",
-		Default:     false,
+		Default:     "auto",
+		NoOptDefVal: "true",
 		Description: "Deploy using depot to build the image",
 	}
 }
