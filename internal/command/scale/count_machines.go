@@ -19,7 +19,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
+func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts groupCounts, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -51,6 +51,14 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 	}
 
+	resolvedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, _ string) int {
+		if c.relative != 0 {
+			return len(machines) + c.relative
+		} else {
+			return c.absolute
+		}
+	})
+
 	volumes, err := flapsClient.GetVolumes(ctx)
 	if err != nil {
 		return err
@@ -64,7 +72,7 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defaults := newDefaults(appConfig, latestCompleteRelease, machines, volumes,
 		flag.GetString(ctx, "from-snapshot"), flag.GetBool(ctx, "with-new-volumes"), defaultGuest)
 
-	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
+	actions, err := computeActions(machines, resolvedCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
 	}
