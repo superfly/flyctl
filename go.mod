@@ -78,7 +78,8 @@ require (
 	github.com/superfly/fly-go v0.1.28
 	github.com/superfly/graphql v0.2.4
 	github.com/superfly/lfsc-go v0.1.1
-	github.com/superfly/macaroon v0.2.14-0.20240702184853-b8ac52a1fc77
+	github.com/superfly/macaroon v0.2.14-0.20240819201738-61a02aa53648
+	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
 	github.com/vektah/gqlparser/v2 v2.5.16
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0
 	go.opentelemetry.io/otel v1.30.0
@@ -167,6 +168,7 @@ require (
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.0 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect
+	github.com/elazarl/goproxy v0.0.0-20230808193330-2592e75ae04a // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect

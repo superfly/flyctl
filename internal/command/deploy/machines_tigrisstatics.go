@@ -2,9 +2,6 @@ package deploy
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -36,7 +33,7 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/macaroon/flyio"
 	"github.com/superfly/macaroon/resset"
-	"golang.org/x/crypto/nacl/box"
+	"github.com/superfly/tokenizer"
 )
 
 // TODO(allison): Replace this with the real tokenizer URL.
@@ -158,72 +155,23 @@ func (md *machineDeployment) staticsTokenizeTigrisSecrets(
 	}
 	appId := uint64(app.InternalNumericID)
 
-	type sigv4Processor struct {
-		AccessKey string `json:"access_key"`
-		SecretKey string `json:"secret_key"`
-	}
-	type flyioMacaroonAuthConfig struct {
-		Access flyio.Access `json:"access"`
-	}
-	type tokenizeInput struct {
-		Sigv4Processor          sigv4Processor          `json:"sigv4_processor"`
-		FlyioMacaroonAuthConfig flyioMacaroonAuthConfig `json:"flyio_macaroon_auth"`
-		AllowedHosts            []string                `json:"allowed_hosts"`
-	}
-
 	// TODO(allison): How do we handle moving an app between orgs?
-	//                We're locking this token behind a hard dependency on the App ID and Org ID, but I don't believe
-	//                *either* of these stay static when moving from one org to another.
-	//
-	input := tokenizeInput{
-		Sigv4Processor: sigv4Processor{
+	//                We're locking this token behind a hard dependency on the App ID and Org ID, but the Org ID
+	//                will change when moving from one org to another.
+	secret := &tokenizer.Secret{
+		AuthConfig: &tokenizer.FlyioMacaroonAuthConfig{Access: flyio.Access{
+			Action: resset.ActionWrite,
+			OrgID:  &orgId,
+			AppID:  &appId,
+		}},
+		ProcessorConfig: &tokenizer.Sigv4ProcessorConfig{
 			AccessKey: secrets["AWS_ACCESS_KEY_ID"].(string),
 			SecretKey: secrets["AWS_SECRET_ACCESS_KEY"].(string),
 		},
-		FlyioMacaroonAuthConfig: flyioMacaroonAuthConfig{
-			Access: flyio.Access{
-				Action: resset.ActionWrite,
-				OrgID:  &orgId,
-				AppID:  &appId,
-			},
-		},
-		AllowedHosts: []string{fmt.Sprintf("%s.%s", md.tigrisStatics.bucket, tigrisHostname)},
+		RequestValidators: []tokenizer.RequestValidator{tokenizer.AllowHosts(fmt.Sprintf("%s.%s", md.tigrisStatics.bucket, tigrisHostname))},
 	}
 
-	fmt.Fprintf(iostreams.FromContext(ctx).Out, "Creating token valid for '%s'\n", input.AllowedHosts[0])
-
-	inputJson, err := json.Marshal(input)
-	if err != nil {
-		return "", err
-	}
-
-	pubBytes, err := hex.DecodeString(tokenizerSealKey)
-	if err != nil {
-		return "", err
-	}
-	if len(pubBytes) != 32 {
-		return "", fmt.Errorf("bad public key size: %d", len(pubBytes))
-	}
-
-	sct, err := box.SealAnonymous(nil, inputJson, (*[32]byte)(pubBytes), nil)
-	if err != nil {
-		return "", err
-	}
-
-	return base64.StdEncoding.EncodeToString(sct), nil
-}
-
-type headerInjectTransport struct {
-	transport http.RoundTripper
-	token     string
-	macaroon  string
-}
-
-func (t *headerInjectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Proxy-Tokenizer", t.token)
-	req.Header.Add("Proxy-Authorization", t.macaroon)
-
-	return t.transport.RoundTrip(req)
+	return secret.Seal(tokenizerSealKey)
 }
 
 // Create the tigris bucket if not created.
@@ -255,7 +203,7 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 	}
 
 	s3Config, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("dummy-access-key", "dummy-secret-key", "")),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("tokenizer-access-key", "tokenizer-secret-key", "")),
 		awsconfig.WithRegion("auto"),
 	)
 	if err != nil {
@@ -274,11 +222,10 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 	cfg := flyconfig.FromContext(ctx)
 	userAuthHeader := cfg.Tokens.GraphQLHeader()
 
-	s3HttpClient := &http.Client{Transport: &headerInjectTransport{
-		transport: s3HttpTransport,
-		token:     string(encryptedToken),
-		macaroon:  userAuthHeader,
-	}}
+	s3HttpClient, err := tokenizer.Client(tokenizerUrl, tokenizer.WithAuth(userAuthHeader), tokenizer.WithSecret(string(encryptedToken), map[string]string{}))
+	if err != nil {
+		return err
+	}
 
 	s3Config.HTTPClient = s3HttpClient
 
