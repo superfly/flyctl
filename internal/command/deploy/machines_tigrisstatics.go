@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"mime"
@@ -49,7 +48,8 @@ const (
 	//     will forward requests upstream with HTTPS.
 	tigrisUrl = "http://" + tigrisHostname
 
-	// tokenizerUrl      = "https://tokenizer.fly.io"
+	tokenizerUrl     = "https://tokenizer.fly.io"
+	tokenizerSealKey = "3afdb665d93f741adc98a6cfecb36f1e02403a095e8efa921fd2321857011f42"
 )
 
 // TODO(allison): Delete the statics bucket when the app is deleted.
@@ -187,8 +187,10 @@ func (md *machineDeployment) staticsTokenizeTigrisSecrets(
 				AppID:  &appId,
 			},
 		},
-		AllowedHosts: []string{tigrisHostname},
+		AllowedHosts: []string{fmt.Sprintf("%s.%s", md.tigrisStatics.bucket, tigrisHostname)},
 	}
+
+	fmt.Fprintf(iostreams.FromContext(ctx).Out, "Creating token valid for '%s'\n", input.AllowedHosts[0])
 
 	inputJson, err := json.Marshal(input)
 	if err != nil {
@@ -220,22 +222,12 @@ type headerInjectTransport struct {
 func (t *headerInjectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req.Header.Add("Proxy-Tokenizer", t.token)
 	req.Header.Add("Proxy-Authorization", t.macaroon)
+
 	return t.transport.RoundTrip(req)
 }
 
 // Create the tigris bucket if not created.
 func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
-
-	// TODO(allison): This is temporary debug code. Remove me.
-	tokenizerUrl := os.Getenv("FLY_TOKENIZER_URL")
-	if tokenizerUrl == "" {
-		return errors.New("please specify FLY_TOKENIZER_URL")
-	}
-	// TODO(allison): Pull this from somewhere sensible, such as an API on the Tokenizer directly?
-	tokenizerSealKey := os.Getenv("FLY_TOKENIZER_SEAL_KEY")
-	if tokenizerSealKey == "" {
-		return errors.New("please specify FLY_TOKENIZER_SEAL_KEY")
-	}
 
 	md.tigrisStatics.bucket = md.appConfig.AppName + "-statics"
 
