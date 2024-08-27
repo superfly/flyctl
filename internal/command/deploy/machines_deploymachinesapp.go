@@ -49,6 +49,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	onInterruptContext := context.WithoutCancel(ctx)
 
+	// TODO(allison): Ensure that if we *aren't* using tigris here, we remove the previously attached bucket from
+	//                the app's services (if one exists).
 	tigrisStatics := md.staticsUseTigris(ctx)
 	if tigrisStatics {
 		if err := md.staticsInitialize(ctx); err != nil {

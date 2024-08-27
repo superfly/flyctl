@@ -220,6 +220,8 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 	s3HttpTransport.Proxy = http.ProxyURL(parsedProxyUrl)
 
 	cfg := flyconfig.FromContext(ctx)
+	// TODO(allison): This works for development, but this isn't guaranteed to provide macaroons.
+	//                Ask ben how we can consistently get a macaroon for the current user.
 	userAuthHeader := cfg.Tokens.GraphQLHeader()
 
 	s3HttpClient, err := tokenizer.Client(tokenizerUrl, tokenizer.WithAuth(userAuthHeader), tokenizer.WithSecret(string(encryptedToken), map[string]string{}))
