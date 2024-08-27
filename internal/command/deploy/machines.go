@@ -148,6 +148,7 @@ type machineDeployment struct {
 	processGroups         map[string]bool
 	maxConcurrent         int
 	volumeInitialSize     int
+	tigrisStatics         tigrisStaticsData
 	deployRetries         int
 	buildID               string
 }

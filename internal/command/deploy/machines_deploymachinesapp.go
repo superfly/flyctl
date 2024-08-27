@@ -49,9 +49,22 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	onInterruptContext := context.WithoutCancel(ctx)
 
+	tigrisStatics := md.staticsUseTigris(ctx)
+	if tigrisStatics {
+		if err := md.staticsInitialize(ctx); err != nil {
+			return err
+		}
+	}
+
 	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
 		tracing.RecordError(span, err, "failed to update release")
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
+	}
+
+	if tigrisStatics && !md.restartOnly {
+		if err := md.staticsPush(ctx); err != nil {
+			return err
+		}
 	}
 
 	var err error
@@ -87,6 +100,14 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			err = fmt.Errorf("failed to set final release status: %w", updateErr)
 		} else {
 			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+		}
+	}
+
+	if tigrisStatics && !md.restartOnly {
+		if err == nil {
+			err = md.staticsFinalize(ctx)
+		} else {
+			md.staticsCleanupAfterFailure()
 		}
 	}
 
