@@ -49,6 +49,34 @@ func TestFlyDeployHA(t *testing.T) {
 	f.Fly("deploy")
 }
 
+// This test overlaps partially in functionality with TestFlyDeployHA, but runs
+// when the test environment uses just a single region
+func TestFlyDeploy_AddNewMount(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	if f.SecondaryRegion() != "" {
+		t.Skip()
+	}
+
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+
+	f.WriteFlyToml(`%s
+[mounts]
+	source = "data"
+	destination = "/data"
+	`, f.ReadFile("fly.toml"))
+
+	x := f.FlyAllowExitFailure("deploy")
+	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
+
+	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
+	f.Fly("deploy")
+}
+
 func TestFlyDeployHAPlacement(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()

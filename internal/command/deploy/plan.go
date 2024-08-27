@@ -217,7 +217,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		pgroup.Go(func() error {
 			eg, ctx := errgroup.WithContext(ctx)
 
-			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
+			isWarm := func(e machinePairing, i int) bool {
 				if e.oldMachine != nil && e.oldMachine.State == "started" {
 					return true
 				}
@@ -225,17 +225,9 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 					return true
 				}
 				return false
-			})
-
-			coldMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
-				if e.oldMachine != nil && e.oldMachine.State != "started" {
-					return true
-				}
-				if e.newMachine != nil && e.newMachine.State != "started" {
-					return true
-				}
-				return false
-			})
+			}
+			warmMachines := lo.Filter(machineTuples, isWarm)
+			coldMachines := lo.Reject(machineTuples, isWarm)
 
 			eg.Go(func() (err error) {
 				poolSize := len(coldMachines)
@@ -299,6 +291,11 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			if err != nil {
 				span.RecordError(updateErr)
 				return fmt.Errorf("failed to get current app state: %w", err)
+			}
+			// we need to refresh information about the state of unattached volumes in the app
+			err = md.setVolumes(ctx)
+			if err != nil {
+				return err
 			}
 			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
