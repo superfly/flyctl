@@ -78,9 +78,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		}
 		lo.ForEach(actions, func(plan *planItem, _ int) {
 			c := plan.LaunchMachineInput.Config
-			if c.Env == nil {
-				c.Env = make(map[string]string)
-			}
 			c.Env = lo.Assign(c.Env, parsedEnv)
 		})
 	}
