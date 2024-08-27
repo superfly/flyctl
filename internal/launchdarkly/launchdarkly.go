@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/samber/lo"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/tracing"
 	"go.opentelemetry.io/otel/attribute"
@@ -65,8 +67,12 @@ func NewClient(ctx context.Context, userInfo UserInfo) (*Client, error) {
 
 	ldClient := &Client{ldContext: launchDarklyContext, flagsMutex: sync.Mutex{}}
 
-	go ldClient.monitor(ctx)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	// we don't really care if this errors or not, but it's good to at least try
+	_ = ldClient.updateFeatureFlags(timeoutCtx)
 
+	go ldClient.monitor(ctx)
 	return ldClient, nil
 }
 
@@ -74,7 +80,7 @@ func (ldClient *Client) monitor(ctx context.Context) {
 	logger := logger.MaybeFromContext(ctx)
 
 	for {
-		err := ldClient.updateFeatureFlags()
+		err := ldClient.updateFeatureFlags(ctx)
 		if err != nil && logger != nil {
 			logger.Debug("Failed to update feature flags from LaunchDarkly: ", err)
 		}
@@ -109,23 +115,60 @@ type FeatureFlag struct {
 	Variation   int  `json:"variation"`
 }
 
-func (ldClient *Client) updateFeatureFlags() error {
+func (ldClient *Client) updateFeatureFlags(ctx context.Context) error {
+	_, span := tracing.GetTracer().Start(ctx, "update_feature_flags")
+	defer span.End()
+
 	ldContextJSON := ldClient.ldContext.JSONString()
 	ldContextB64 := base64.URLEncoding.EncodeToString([]byte(ldContextJSON))
 
-	response, err := http.Get(fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64))
+	url := fmt.Sprintf("https://clientsdk.launchdarkly.com/sdk/evalx/%s/contexts/%s", clientSideID, ldContextB64)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
+		span.RecordError(err)
+		return err
+	}
+
+	response, err := http.DefaultClient.Do(req)
+	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 	defer response.Body.Close()
 
 	var flags map[string]FeatureFlag
 	if err := json.NewDecoder(response.Body).Decode(&flags); err != nil {
+		span.RecordError(err)
 		return err
 	}
 
 	if flags == nil {
+		span.AddEvent("no flags returned")
 		return nil
+	}
+
+	flagAttributes := lo.MapToSlice(flags, func(flag string, flagInfo FeatureFlag) *attribute.KeyValue {
+		switch flagInfo.Value.(type) {
+		case bool:
+			attr := attribute.Bool(flag, flagInfo.Value.(bool))
+			return &attr
+		case string:
+			attr := attribute.String(flag, flagInfo.Value.(string))
+			return &attr
+		case float64:
+			attr := attribute.Float64(flag, flagInfo.Value.(float64))
+			return &attr
+		default:
+			span.AddEvent(fmt.Sprintf("unaccounted for flag type: %s", reflect.TypeOf(flagInfo.Value)))
+			return nil
+		}
+
+	})
+
+	for _, flagAttribute := range flagAttributes {
+		if flagAttribute != nil {
+			span.SetAttributes(*flagAttribute)
+		}
 	}
 
 	ldClient.flagsMutex.Lock()
