@@ -217,7 +217,7 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		pgroup.Go(func() error {
 			eg, ctx := errgroup.WithContext(ctx)
 
-			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
+			isWarm := func(e machinePairing, i int) bool {
 				if e.oldMachine != nil && e.oldMachine.State == "started" {
 					return true
 				}
@@ -225,17 +225,9 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 					return true
 				}
 				return false
-			})
-
-			coldMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
-				if e.oldMachine != nil && e.oldMachine.State != "started" {
-					return true
-				}
-				if e.newMachine != nil && e.newMachine.State != "started" {
-					return true
-				}
-				return false
-			})
+			}
+			warmMachines := lo.Filter(machineTuples, isWarm)
+			coldMachines := lo.Reject(machineTuples, isWarm)
 
 			eg.Go(func() (err error) {
 				poolSize := len(coldMachines)
