@@ -12,7 +12,6 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
-	metrics "github.com/superfly/flyctl/internal/metrics"
 	"golang.org/x/time/rate"
 )
 
@@ -42,7 +41,7 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 
 	log.Printf("(re-)connecting synthetics agent to %s", rurl)
 
-	authToken, err := metrics.GetMetricsToken(ctx)
+	authToken, err := GetSyntheticsToken(ctx)
 	if err != nil {
 		return err
 	}
@@ -55,8 +54,21 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 		HTTPHeader: headers,
 	}
 
-	wsConn, _, err := websocket.Dial(ctx, rurl, opts)
+	wsConn, resp, err := websocket.Dial(ctx, rurl, opts)
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
+			// Handle 401 Unauthorized
+			log.Printf("Unauthorized, resetting token.")
+			cfg := config.FromContext(ctx)
+			cfg.SyntheticsToken = ""
+			persistSyntheticsToken(ctx, "")
+		} else if resp != nil {
+			// Handle other HTTP errors
+			log.Printf("HTTP error: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+		} else {
+			// Handle non-HTTP errors
+			log.Printf("Dial failed: %v", err)
+		}
 		return fmt.Errorf("error connecting synthetics agent to fynthetics: %w", err)
 	}
 
