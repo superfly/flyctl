@@ -255,9 +255,9 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, re
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
-	expectedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, _ string) int {
+	expectedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, group string) int {
 		if c.relative != 0 {
-			return len(machines) + c.relative
+			return len(machineGroups[group]) + c.relative
 		} else {
 			return c.absolute
 		}
