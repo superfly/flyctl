@@ -94,7 +94,7 @@ def error(msg)
     log("error", msg)
 end
 
-def exec_capture(cmd, display = nil)
+def exec_capture(cmd, display: nil, log: true)
   cmd_display = display || cmd
   event :exec, { cmd: cmd_display }
 
@@ -112,7 +112,9 @@ def exec_capture(cmd, display = nil)
         Thread.new do
           Step.set_current(step) # in_step would be a problem here, we just need to that the thread with the parent thread's step!
           stream.each_line do |line|
-            nputs type: stream_name, payload: line.chomp
+            if log
+              nputs type: stream_name, payload: line.chomp
+            end
             out_mutex.synchronize { output += line }
           end
         end
@@ -208,20 +210,20 @@ if GIT_REPO_URL
       ref = get_env("GIT_REF")
       artifact Artifact::GIT_INFO, { repository: GIT_REPO, reference: ref }
       
-      exec_capture("git init")
+      exec_capture("git init", log: false)
 
       redacted_repo_url = GIT_REPO_URL.dup
       redacted_repo_url.user = nil
       redacted_repo_url.password = nil
 
-      exec_capture("git remote add origin #{GIT_REPO_URL.to_s}", "git remote add origin #{redacted_repo_url.to_s}")
+      exec_capture("git remote add origin #{GIT_REPO_URL.to_s}", display: "git remote add origin #{redacted_repo_url.to_s}")
 
-      ref = exec_capture("git remote show origin | sed -n '/HEAD branch/s/.*: //p'").chomp if !ref
+      ref = exec_capture("git remote show origin | sed -n '/HEAD branch/s/.*: //p'", log: false).chomp if !ref
 
       exec_capture("git -c protocol.version=2 fetch origin #{ref}")
       exec_capture("git reset --hard --recurse-submodules FETCH_HEAD")
 
-      head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'"))
+      head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'", log: false))
 
       artifact Artifact::GIT_HEAD, head
     end
@@ -230,23 +232,23 @@ end
 MANIFEST_PATH = "/tmp/manifest.json"
 
 manifest = in_step Step::PLAN do
-  cmd = "flyctl launch plan propose --force-name --manifest-path #{MANIFEST_PATH}"
+  cmd = "flyctl launch plan propose --manifest-path #{MANIFEST_PATH}"
 
   if (slug = DEPLOY_ORG_SLUG)
     cmd += " --org #{slug}"
   end
 
   if (name = DEPLOY_APP_NAME)
-    cmd += " --name #{name}"
+    cmd += " --force-name --name #{name}"
   end
 
   if (region = DEPLOY_APP_REGION)
     cmd += " --region #{region}"
   end
 
-  # cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
+  cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
 
-  exec_capture("#{cmd}").chomp
+  exec_capture(cmd).chomp
 
   raw_manifest = File.read(MANIFEST_PATH)
 
@@ -268,9 +270,9 @@ RUNTIME_LANGUAGE = manifest.dig("plan", "runtime", "language")
 RUNTIME_VERSION = manifest.dig("plan", "runtime", "version")
 
 DO_INSTALL_DEPS = REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
+DO_GEN_REQS = !RUNTIME_LANGUAGE.empty?
 
-steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies"}) if DO_INSTALL_DEPS
-steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"})
+steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies", async: true}) if DO_INSTALL_DEPS
 
 DEFAULT_ERLANG_VERSION = get_env("DEFAULT_ERLANG_VERSION", "26.2.5.2")
 
@@ -337,13 +339,6 @@ deps_thread = Thread.new do
       end
     end
   end
-
-  in_step Step::GENERATE_BUILD_REQUIREMENTS do
-    exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
-    exec_capture("git add -A")
-    diff = exec_capture("git diff --cached")
-    artifact Artifact::DIFF, diff
-  end
 end
 
 if DEPLOY_CUSTOMIZE
@@ -379,6 +374,7 @@ UPSTASH = manifest.dig("plan", "redis", "upstash_redis")
 TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
 SENTRY = manifest.dig("plan", "sentry") == true
 
+steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
 steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
 steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
 steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
@@ -393,6 +389,15 @@ artifact Artifact::META, { steps: steps }
 # Join the parallel task thread
 deps_thread.join
 
+if DO_GEN_REQS
+  in_step Step::GENERATE_BUILD_REQUIREMENTS do
+    exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
+    exec_capture("git add -A", log: false)
+    diff = exec_capture("git diff --cached", log: false)
+    artifact Artifact::DIFF, { output: diff }
+  end
+end
+
 image_tag = SecureRandom.hex(16)
 
 image_ref = in_step Step::BUILD do
@@ -402,8 +407,8 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --build-only --push --image-label #{image_tag}")
-    artifact Artifact::DOCKER_IMAGE, image_ref
+    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} -c /tmp/fly.json --image-label #{image_tag}")
+    artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
 end
