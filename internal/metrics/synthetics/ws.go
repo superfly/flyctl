@@ -16,18 +16,20 @@ import (
 )
 
 type SyntheticsWs struct {
-	atime  time.Time
-	lock   sync.RWMutex
-	reset  chan bool
-	wsConn *websocket.Conn
-	limit  *rate.Limiter
+	atime     time.Time
+	lock      sync.RWMutex
+	reset     chan bool
+	wsConn    *websocket.Conn
+	limit     *rate.Limiter
+	authToken string
 }
 
 func NewMetricsWs() (*SyntheticsWs, error) {
 	return &SyntheticsWs{
-		atime: time.Now(),
-		reset: make(chan bool),
-		limit: rate.NewLimiter(rate.Every(5*time.Second), 2),
+		atime:     time.Now(),
+		reset:     make(chan bool),
+		limit:     rate.NewLimiter(rate.Every(5*time.Second), 2),
+		authToken: "",
 	}, nil
 }
 
@@ -41,13 +43,16 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 
 	log.Printf("(re-)connecting synthetics agent to %s", rurl)
 
-	authToken, err := GetSyntheticsToken(ctx)
-	if err != nil {
-		return err
+	if ws.authToken == "" {
+		authToken, err := GetSyntheticsToken(ctx)
+		if err != nil {
+			return err
+		}
+		ws.authToken = authToken
 	}
 
 	headers := http.Header{}
-	headers.Set("Authorization", authToken)
+	headers.Set("Authorization", ws.authToken)
 	headers.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Info().Version))
 
 	opts := &websocket.DialOptions{
@@ -59,9 +64,7 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
 			// Handle 401 Unauthorized
 			log.Printf("Unauthorized, resetting token.")
-			cfg := config.FromContext(ctx)
-			cfg.SyntheticsToken = ""
-			persistSyntheticsToken(ctx, "")
+			ws.authToken = ""
 		} else if resp != nil {
 			// Handle other HTTP errors
 			log.Printf("HTTP error: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
