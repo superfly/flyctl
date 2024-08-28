@@ -2,18 +2,13 @@ package synthetics
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
-	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/state"
-	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
-	"github.com/superfly/macaroon/resset"
 )
 
 func generateSyntheticsToken(ctx context.Context) (token string, err error) {
@@ -49,25 +44,11 @@ func GetSyntheticsToken(ctx context.Context) (token string, err error) {
 		}
 	}()
 
-	cfg := config.FromContext(ctx)
-	if cfg.SyntheticsToken != "" {
-		terminal.Debugf("Config has synthetics token\n")
-		return cfg.SyntheticsToken, nil
+	token, err = generateSyntheticsToken(ctx)
+	if err != nil {
+		return "", err
 	}
-
-	if cfg.SyntheticsToken == "" && cfg.Tokens.GraphQL() != "" {
-		terminal.Debugf("Generating synthetics token\n")
-		token, err := generateSyntheticsToken(ctx)
-		if err != nil {
-			return "", err
-		}
-		if err = persistSyntheticsToken(ctx, token); err != nil {
-			return "", err
-		}
-		cfg.SyntheticsToken = token
-		return token, nil
-	}
-	return "", errors.New("failed to get synthetics token")
+	return token, nil
 }
 
 func getOrgReadOnlyToken(ctx context.Context, org fly.Organization) ([][]byte, error) {
@@ -75,8 +56,8 @@ func getOrgReadOnlyToken(ctx context.Context, org fly.Organization) ([][]byte, e
 		token     string
 		apiClient = flyutil.ClientFromContext(ctx)
 		expiry    = "168h" // 1w
-		profile   = "deploy_organization"
-		name      = "Read-only org token"
+		profile   = "flynthetics_read"
+		name      = "Flynthetics read-only token"
 		perm      []byte
 		diss      [][]byte
 	)
@@ -100,41 +81,7 @@ func getOrgReadOnlyToken(ctx context.Context, org fly.Organization) ([][]byte, e
 		return nil, err
 	}
 
-	mac, err := macaroon.Decode(perm)
-	if err != nil {
-		return nil, err
-	}
-
-	// attenuate to read-only
-	var orgID *uint64
-	for _, cav := range macaroon.GetCaveats[*flyio.Organization](&mac.UnsafeCaveats) {
-		if orgID != nil {
-			return nil, errors.New("multiple org caveats")
-		}
-		orgID = &cav.ID
-	}
-	if orgID == nil {
-		return nil, errors.New("no org caveats")
-	}
-	if err := mac.Add(&flyio.Organization{ID: *orgID, Mask: resset.ActionRead}); err != nil {
-		return nil, err
-	}
-
-	if perm, err = mac.Encode(); err != nil {
-		return nil, err
-	}
-
 	tokens := append([][]byte{perm}, diss...)
 
 	return tokens, nil
-}
-
-func persistSyntheticsToken(ctx context.Context, token string) error {
-	path := state.ConfigFile(ctx)
-
-	if err := config.SetSyntheticsToken(path, token); err != nil {
-		return fmt.Errorf("failed persisting %s in %s: %w",
-			config.SyntheticsTokenFileKey, path, err)
-	}
-	return nil
 }

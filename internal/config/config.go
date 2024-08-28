@@ -30,8 +30,6 @@ const (
 	SyntheticsAgentEnvKey      = "FLY_SYNTHETICS_AGENT"
 	SendMetricsFileKey         = "send_metrics"
 	SyntheticsAgentFileKey     = "synthetics_agent"
-	SyntheticsTokenEnvKey      = "FLY_SYNTHETICS_TOKEN"
-	SyntheticsTokenFileKey     = "synthetics_token"
 	AutoUpdateFileKey          = "auto_update"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
@@ -106,9 +104,6 @@ type Config struct {
 
 	// MetricsToken denotes the user's metrics token.
 	MetricsToken string
-
-	// SyntheticsToken denotes a RO Macaroon for reading on user's Org.
-	SyntheticsToken string
 }
 
 func Load(ctx context.Context, path string) (*Config, error) {
@@ -176,7 +171,6 @@ func (cfg *Config) applyFile(path string) (err error) {
 		SendMetrics     bool   `yaml:"send_metrics"`
 		AutoUpdate      bool   `yaml:"auto_update"`
 		SyntheticsAgent bool   `yaml:"synthetics_agent"`
-		SyntheticsToken string `yaml:"synthetics_token"`
 	}
 	w.SendMetrics = true
 	w.AutoUpdate = true
@@ -188,7 +182,6 @@ func (cfg *Config) applyFile(path string) (err error) {
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
 		cfg.SyntheticsAgent = w.SyntheticsAgent
-		cfg.SyntheticsToken = w.SyntheticsToken
 	}
 
 	return
