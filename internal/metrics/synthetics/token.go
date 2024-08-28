@@ -55,7 +55,7 @@ func getOrgReadOnlyToken(ctx context.Context, org fly.Organization) ([][]byte, e
 	var (
 		token     string
 		apiClient = flyutil.ClientFromContext(ctx)
-		expiry    = "168h" // 1w
+		expiry    = "1h"
 		profile   = "flynthetics_read"
 		name      = "Flynthetics read-only token"
 		perm      []byte
