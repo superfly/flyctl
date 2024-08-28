@@ -100,6 +100,9 @@ type Client interface {
 	UpdateRelease(ctx context.Context, input fly.UpdateReleaseInput) (*fly.UpdateReleaseResponse, error)
 	UnsetSecrets(ctx context.Context, appName string, keys []string) (*fly.Release, error)
 	ValidateWireGuardPeers(ctx context.Context, peerIPs []string) (invalid []string, err error)
+	LockApp(ctx context.Context, input fly.LockAppInput) (*fly.LockApp, error)
+	UnlockApp(ctx context.Context, input fly.UnlockAppInput) (*fly.App, error)
+	GetAppLock(ctx context.Context, name string) (*fly.App, error)
 }
 
 type contextKey string
