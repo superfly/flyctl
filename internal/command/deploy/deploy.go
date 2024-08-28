@@ -52,7 +52,7 @@ var CommonFlags = flag.Set{
 	flag.NoCache(),
 	flag.Depot(),
 	flag.DepotScope(),
-	flag.DepotBuilderSize(),
+	flag.DepotBuildCacheSize(),
 	flag.DepotBuilderRegion(),
 	flag.DepotBuilderUpdate(),
 	flag.Nixpacks(),

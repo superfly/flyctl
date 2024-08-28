@@ -568,9 +568,9 @@ func DepotScope() String {
 	}
 }
 
-func DepotBuilderSize() Int {
+func DepotBuildCacheSize() Int {
 	return Int{
-		Name:        "depot-builder-size",
+		Name:        "depot-build-cache-size",
 		Description: "The size of the Depot builder's cache in GB",
 		Default:     50,
 	}

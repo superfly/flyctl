@@ -242,14 +242,14 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
 	}
 
-	builderSize := flag.GetInt(ctx, "depot-builder-size")
+	buildCacheSize := flag.GetInt(ctx, "depot-build-cache-size")
 	region := flag.GetString(ctx, "depot-builder-region")
 	update := flag.GetBool(ctx, "depot-builder-update")
 
 	if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
 	} else if r.dockerFactory.mode.UseDepot() {
-		strategies = append(strategies, &DepotBuilder{Scope: builderScope, Size: builderSize, Region: region, Update: update})
+		strategies = append(strategies, &DepotBuilder{Scope: builderScope, Size: buildCacheSize, Region: region, Update: update})
 	} else {
 		strategies = []imageBuilder{
 			&buildpacksBuilder{},
