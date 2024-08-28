@@ -663,3 +663,11 @@ func ExtraArgsFromContext(ctx context.Context) []string {
 
 	return []string{}
 }
+
+func Env() StringArray {
+	return StringArray{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	}
+}
