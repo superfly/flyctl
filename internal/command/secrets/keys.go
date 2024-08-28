@@ -14,7 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
-var validSecretTypes = []fly.SecretType{
+var validSecretTypes = []string{
 	fly.SECRET_TYPE_KMS_HS256,
 	fly.SECRET_TYPE_KMS_HS384,
 	fly.SECRET_TYPE_KMS_HS512,
@@ -46,27 +46,26 @@ func newKeys() *cobra.Command {
 	return keys
 }
 
-func normTypeString(s string) string {
-	return strings.TrimPrefix(strings.ToLower(s), "secret_type_kms_")
+// secretTypeToString converts from a standard sType to flyctl's abbreviated string form.
+func secretTypeToString(sType string) string {
+	return strings.TrimPrefix(strings.ToLower(sType), "secret_type_kms_")
 }
 
-func secretTypeFromString(s string) (fly.SecretType, error) {
-	norm := normTypeString
+// secretTypeFromString converts from flyctl's abbreviated secret type string form
+// to the sType that flaps accepts.
+func secretTypeFromString(s string) (string, error) {
+	norm := secretTypeToString
 	for _, typ := range validSecretTypes {
-		if norm(s) == norm(typ.String()) {
+		if norm(s) == norm(typ) {
 			return typ, nil
 		}
 	}
 
 	validNames := []string{}
 	for _, typ := range validSecretTypes {
-		validNames = append(validNames, norm(typ.String()))
+		validNames = append(validNames, norm(typ))
 	}
-	return fly.SecretType(0), fmt.Errorf("invalid secret type. Must be one of %s", strings.Join(validNames, ", "))
-}
-
-func secretTypeToString(sec fly.SecretType) string {
-	return normTypeString(sec.String())
+	return "", fmt.Errorf("invalid secret type. Must be one of %s", strings.Join(validNames, ", "))
 }
 
 // getFlapsClient builds and returns a flaps client for the App from the context.
