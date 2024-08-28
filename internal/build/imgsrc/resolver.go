@@ -242,7 +242,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
 	}
 
-	builderSize := flag.GetString(ctx, "depot-builder-size")
+	builderSize := flag.GetInt(ctx, "depot-builder-size")
 	region := flag.GetString(ctx, "depot-builder-region")
 	update := flag.GetBool(ctx, "depot-builder-update")
 

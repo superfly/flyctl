@@ -181,6 +181,13 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 		region = regionEnv
 	}
 
+	if region == "" {
+		closestRegion, err := apiClient.GetNearestRegion(ctx)
+		if err == nil {
+			region = closestRegion.Code
+		}
+	}
+
 	if region != "" {
 		region = "fly-" + region
 	}
