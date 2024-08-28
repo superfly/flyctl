@@ -117,9 +117,7 @@ func parseGroupCounts(args []string, defaultGroupName string) (groupCounts, erro
 
 	// single numeric arg: fly scale count 3
 	if len(args) == 1 {
-		if err := apply(defaultGroupName, args[0]); err != nil {
-			return nil, err
-		}
+		_ = apply(defaultGroupName, args[0]) // fall-through on error
 	}
 
 	// group labels: fly scale count web=X worker=Y
