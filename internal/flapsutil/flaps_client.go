@@ -15,7 +15,7 @@ type FlapsClient interface {
 	AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
 	CreateApp(ctx context.Context, name string, org string) (err error)
-	CreateSecret(ctx context.Context, in fly.CreateSecretRequest) (err error)
+	CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
@@ -25,6 +25,7 @@ type FlapsClient interface {
 	Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error)
 	ExtendVolume(ctx context.Context, volumeId string, size_gb int) (*fly.Volume, bool, error)
 	FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error)
+	GenerateSecret(ctx context.Context, sLabel, sType string) (err error)
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)

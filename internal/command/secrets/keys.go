@@ -39,9 +39,12 @@ func newKeys() *cobra.Command {
 
 	keys.AddCommand(
 		newKeysList(),
+		newKeyGenerate(),
 		newKeySet(),
 		newKeyDelete(),
 	)
+
+	keys.Hidden = true // TODO: unhide when we're ready to go public.
 
 	return keys
 }

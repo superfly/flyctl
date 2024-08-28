@@ -16,13 +16,12 @@ func newKeySet() (cmd *cobra.Command) {
 	const (
 		long = `Set the application key secret. If the label is not fully qualified
 with a version, and a secret with the same label already exists, the label will be
-updated to include the next version number. If a base64 value is not provided, the
-key will be generated with a randomly generated value.`
+updated to include the next version number. The value must be a base64 encoded secret.`
 		short = `Set the application key secret`
-		usage = "set [flags] type label [base64value]"
+		usage = "set [flags] type label base64value"
 	)
 
-	cmd = command.New(usage, short, long, runKeySet, command.RequireSession, command.RequireAppName)
+	cmd = command.New(usage, short, long, runKeySetOrGenerate, command.RequireSession, command.RequireAppName)
 
 	flag.Add(cmd,
 		flag.App(),
@@ -40,12 +39,48 @@ key will be generated with a randomly generated value.`
 		},
 	)
 
-	cmd.Args = cobra.RangeArgs(2, 3)
+	cmd.Args = cobra.ExactArgs(3)
 
 	return cmd
 }
 
-func runKeySet(ctx context.Context) (err error) {
+func newKeyGenerate() (cmd *cobra.Command) {
+	const (
+		long = `Generate a random application key secret. If the label is not fully qualified
+with a version, and a secret with the same label already exists, the label will be
+updated to include the next version number.`
+		short = `Generate the application key secret`
+		usage = "generate [flags] type label"
+	)
+
+	cmd = command.New(usage, short, long, runKeySetOrGenerate, command.RequireSession, command.RequireAppName)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.Bool{
+			Name:        "noversion",
+			Shorthand:   "n",
+			Default:     false,
+			Description: "do not automatically version the key label",
+		},
+		flag.Bool{
+			Name:        "quiet",
+			Shorthand:   "q",
+			Description: "Don't print key label",
+		},
+	)
+
+	cmd.Aliases = []string{"gen"}
+	cmd.Args = cobra.ExactArgs(2)
+
+	return cmd
+}
+
+// runKeySetOrGenerate handles both `keys set typ label value` and
+// `keys generate typ label`. The sole difference is whether a `value`
+// arg is present or not.
+func runKeySetOrGenerate(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
 	args := flag.Args(ctx)
 	typStr := args[0]
@@ -57,7 +92,9 @@ func runKeySet(ctx context.Context) (err error) {
 		return err
 	}
 
+	gen := true
 	if len(args) > 2 {
+		gen = false
 		val, err = base64.StdEncoding.DecodeString(args[2])
 		if err != nil {
 			return fmt.Errorf("bad value encoding: %w", err)
@@ -110,11 +147,11 @@ func runKeySet(ctx context.Context) (err error) {
 		fmt.Fprintf(out, "Setting %s (%s)\n", label, typs)
 	}
 
-	err = flapsClient.CreateSecret(ctx, fly.CreateSecretRequest{
-		Label: label,
-		Type:  typ,
-		Value: val,
-	})
+	if gen {
+		err = flapsClient.GenerateSecret(ctx, label, typ)
+	} else {
+		err = flapsClient.CreateSecret(ctx, label, typ, fly.CreateSecretRequest{Value: val})
+	}
 	if err != nil {
 		return err
 	}
