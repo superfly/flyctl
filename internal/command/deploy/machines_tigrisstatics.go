@@ -54,11 +54,10 @@ const (
 const staticsKeepVersions = 3
 
 type tigrisStaticsData struct {
-	s3               *s3.Client
-	bucket           string
-	root             string
-	originalStatics  []appconfig.Static
-	tokenizerSealKey string
+	s3              *s3.Client
+	bucket          string
+	root            string
+	originalStatics []appconfig.Static
 }
 
 func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
@@ -72,7 +71,7 @@ func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
 	return false
 }
 
-func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context, tokenizerSealKey string) error {
+func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) (retErr error) {
 
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()
@@ -123,22 +122,32 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context, tok
 	if err != nil {
 		return err
 	}
+	defer func() {
+		if retErr != nil {
+			client := flyutil.ClientFromContext(ctx).GenqClient()
+			// Using context.Background() here in case the error is that the context is canceled.
+			_, err := gql.DeleteAddOn(context.Background(), client, md.tigrisStatics.bucket)
+			if err != nil {
+				fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Failed to delete extension: %v\n", err)
+			}
+		}
+	}()
 
 	secrets := ext.Data.Environment.(map[string]interface{})
 
-	tokenizedKey, err := md.staticsTokenizeTigrisSecrets(ctx, org, secrets, tokenizerSealKey)
+	tokenizedKey, err := md.staticsTokenizeTigrisSecrets(ctx, org, secrets)
+	if err != nil {
+		return err
+	}
 
 	// TODO(allison): Temporary, while working on the POC for Tokenizer
 	return os.WriteFile("tokenized_key", ([]byte)(tokenizedKey), 0644)
-
-	return err
 }
 
 func (md *machineDeployment) staticsTokenizeTigrisSecrets(
 	ctx context.Context,
 	org *fly.Organization,
 	secrets map[string]interface{},
-	tokenizerSealKey string,
 ) (string, error) {
 
 	client := flyutil.ClientFromContext(ctx)
@@ -179,7 +188,7 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 
 	md.tigrisStatics.bucket = md.appConfig.AppName + "-statics"
 
-	if err := md.staticsEnsureBucketCreated(ctx, tokenizerSealKey); err != nil {
+	if err := md.staticsEnsureBucketCreated(ctx); err != nil {
 		return err
 	}
 
