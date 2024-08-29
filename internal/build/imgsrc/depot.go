@@ -186,6 +186,14 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 
 	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
+
+	if region == "" {
+		closestRegion, err := apiClient.GetNearestRegion(ctx)
+		if err == nil {
+			region = closestRegion.Code
+		}
+	}
+
 	if region != "" {
 		region = "fly-" + region
 	}
