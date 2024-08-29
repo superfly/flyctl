@@ -85,7 +85,7 @@ jobs:
           ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e
+        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
