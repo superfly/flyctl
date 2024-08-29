@@ -27,8 +27,8 @@ updated to include the next version number. The value must be a base64 encoded s
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
-			Name: "force",
-			Shorthand: "f",
+			Name:        "force",
+			Shorthand:   "f",
 			Description: "Force overwriting existing values",
 		},
 		flag.Bool{
@@ -64,8 +64,8 @@ updated to include the next version number.`
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
-			Name: "force",
-			Shorthand: "f",
+			Name:        "force",
+			Shorthand:   "f",
 			Description: "Force overwriting existing values",
 		},
 		flag.Bool{
