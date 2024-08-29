@@ -59,11 +59,7 @@ var CommonFlags = flag.Set{
 	flag.RecreateBuilder(),
 	flag.Yes(),
 	flag.VMSizeFlags,
-	flag.StringArray{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
+	flag.Env(),
 	flag.String{
 		Name:        "wait-timeout",
 		Description: "Time duration to wait for individual machines to transition states and become healthy.",

@@ -552,10 +552,11 @@ func BuildTarget() String {
 	}
 }
 
-func Depot() Bool {
-	return Bool{
+func Depot() String {
+	return String{
 		Name:        "depot",
-		Default:     false,
+		Default:     "auto",
+		NoOptDefVal: "true",
 		Description: "Deploy using depot to build the image",
 	}
 }
@@ -661,4 +662,12 @@ func ExtraArgsFromContext(ctx context.Context) []string {
 	}
 
 	return []string{}
+}
+
+func Env() StringArray {
+	return StringArray{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	}
 }

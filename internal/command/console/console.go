@@ -66,11 +66,7 @@ func New() *cobra.Command {
 			Shorthand:   "i",
 			Description: "image to use (default: current release)",
 		},
-		flag.StringArray{
-			Name:        "env",
-			Shorthand:   "e",
-			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
+		flag.Env(),
 		flag.String{
 			Name:        "entrypoint",
 			Description: "ENTRYPOINT replacement",
