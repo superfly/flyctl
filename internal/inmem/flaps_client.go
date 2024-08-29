@@ -36,6 +36,10 @@ func (m *FlapsClient) CreateApp(ctx context.Context, name string, org string) (e
 	panic("TODO")
 }
 
+func (m *FlapsClient) CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error) {
+	panic("TODO")
+}
+
 func (m *FlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	panic("TODO")
 }
@@ -45,6 +49,10 @@ func (m *FlapsClient) CreateVolumeSnapshot(ctx context.Context, volumeId string)
 }
 
 func (m *FlapsClient) DeleteMetadata(ctx context.Context, machineID, key string) error {
+	panic("TODO")
+}
+
+func (m *FlapsClient) DeleteSecret(ctx context.Context, label string) (err error) {
 	panic("TODO")
 }
 
@@ -65,6 +73,10 @@ func (m *FlapsClient) ExtendVolume(ctx context.Context, volumeId string, size_gb
 }
 
 func (m *FlapsClient) FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error) {
+	panic("TODO")
+}
+
+func (m *FlapsClient) GenerateSecret(ctx context.Context, sLabel, sType string) (err error) {
 	panic("TODO")
 }
 
@@ -138,6 +150,10 @@ func (m *FlapsClient) ListFlyAppsMachines(ctx context.Context) (machines []*fly.
 		}
 	}
 	return machines, releaseCmdMachine, nil
+}
+
+func (m *FlapsClient) ListSecrets(ctx context.Context) (out []fly.ListSecret, err error) {
+	panic("TODO")
 }
 
 func (m *FlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
