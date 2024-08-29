@@ -79,8 +79,7 @@ func splitLabelVersion(label string) (Ver, string) {
 		return VerUnspec, label
 	}
 
-	l := string(m[1])
-	nstr := string(m[2])
+	l, nstr := m[1], m[2]
 	n, _ := strconv.ParseUint(nstr, 10, 32)
 	ver := Ver(n)
 	if !(VerZero <= ver && ver <= VerMax) {
