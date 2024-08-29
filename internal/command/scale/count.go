@@ -93,30 +93,44 @@ func runScaleCount(ctx context.Context) error {
 	return runMachinesScaleCount(ctx, appName, appConfig, groups, maxPerRegion)
 }
 
-func parseGroupCounts(args []string, defaultGroupName string) (map[string]int, error) {
-	groups := make(map[string]int)
+type groupCount struct{ absolute, relative int }
+type groupCounts map[string]groupCount
+
+func parseGroupCounts(args []string, defaultGroupName string) (groupCounts, error) {
+	groups := make(groupCounts)
+	apply := func(group string, countStr string) error {
+		var count groupCount
+		countNum, err := strconv.Atoi(countStr)
+		if err != nil {
+			return err
+		}
+		if strings.HasPrefix(countStr, "+") || strings.HasPrefix(countStr, "-") {
+			if countNum == 0 {
+				return fmt.Errorf("invalid relative scale count: %v", countStr)
+			}
+			count.relative = countNum
+		} else {
+			count.absolute = countNum
+		}
+		groups[group] = count
+		return nil
+	}
 
 	// single numeric arg: fly scale count 3
 	if len(args) == 1 {
-		count, err := strconv.Atoi(args[0])
-		if err == nil {
-			groups[defaultGroupName] = count
-		}
+		_ = apply(defaultGroupName, args[0]) // fall-through on error
 	}
 
-	// group labels: fly scale web=X worker=Y
+	// group labels: fly scale count web=X worker=Y
 	if len(groups) < 1 {
 		for _, arg := range args {
 			parts := strings.Split(arg, "=")
 			if len(parts) != 2 {
 				return nil, fmt.Errorf("'%s' is not a valid process=count option", arg)
 			}
-			count, err := strconv.Atoi(parts[1])
-			if err != nil {
+			if err := apply(parts[0], parts[1]); err != nil {
 				return nil, err
 			}
-
-			groups[parts[0]] = count
 		}
 	}
 
