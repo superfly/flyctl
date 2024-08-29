@@ -27,6 +27,11 @@ updated to include the next version number. The value must be a base64 encoded s
 		flag.App(),
 		flag.AppConfig(),
 		flag.Bool{
+			Name: "force",
+			Shorthand: "f",
+			Description: "Force overwriting existing values",
+		},
+		flag.Bool{
 			Name:        "noversion",
 			Shorthand:   "n",
 			Default:     false,
@@ -58,6 +63,11 @@ updated to include the next version number.`
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Bool{
+			Name: "force",
+			Shorthand: "f",
+			Description: "Force overwriting existing values",
+		},
 		flag.Bool{
 			Name:        "noversion",
 			Shorthand:   "n",
@@ -116,6 +126,12 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	ver, prefix := splitLabelVersion(label)
 	bestVer := VerUnspec
 	for _, secret := range secrets {
+		if label == secret.Label {
+			if !flag.GetBool(ctx, "force") {
+				return fmt.Errorf("refusing to overwrite existing key")
+			}
+		}
+
 		ver2, prefix2 := splitLabelVersion(secret.Label)
 		if prefix != prefix2 {
 			continue
