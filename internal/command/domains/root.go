@@ -75,7 +75,7 @@ func newDomainsAdd() *cobra.Command {
 		short = "Add a domain"
 		long  = `Add a domain to an organization`
 	)
-	cmd := command.New("disable", short, long, runDomainsCreate,
+	cmd := command.New("add", short, long, runDomainsCreate,
 		command.RequireSession,
 	)
 	cmd.Args = cobra.MaximumNArgs(2)
