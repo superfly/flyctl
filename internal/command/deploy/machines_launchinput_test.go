@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -9,10 +10,34 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/logger"
+	"github.com/superfly/flyctl/terminal"
 )
 
+func makeTerminalLoggerQuiet(tb testing.TB) {
+	var originalLogger = terminal.DefaultLogger
+	terminal.DefaultLogger = logger.New(os.Stdout, logger.Error, true)
+
+	tb.Cleanup(func() {
+		terminal.DefaultLogger = originalLogger
+	})
+}
+
+func TestLaunchInputForUpdate(t *testing.T) {
+	makeTerminalLoggerQuiet(t)
+
+	t.Run("Basic", testLaunchInputForBasic)
+	t.Run("HostStatusUnreachable", testLaunchInputForUpdateHostStatusUnreachable)
+	t.Run("Mounts", testLaunchInputForOnMounts)
+	t.Run("MountsAndAutoResize", testLaunchInputForOnMountsAndAutoResize)
+	t.Run("UpdateKeepUnmanagedFields", testLaunchInputForUpdateKeepUnmanagedFields)
+	t.Run("UpdateClearStandbysWithServices", testLaunchInputForUpdateClearStandbysWithServices)
+	t.Run("LaunchFiles", testLaunchInputForLaunchFiles)
+	t.Run("LaunchFiles", testLaunchInputForUpdateFiles)
+}
+
 // Test the basic flow of launching, restarting and updating a machine for default process group
-func Test_launchInputFor_Basic(t *testing.T) {
+func testLaunchInputForBasic(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName:       "my-cool-app",
 		PrimaryRegion: "scl",
@@ -86,7 +111,7 @@ func Test_launchInputFor_Basic(t *testing.T) {
 }
 
 // Test machines on unreachable hosts
-func Test_launchInputForUpdate_HostStatusUnreachable(t *testing.T) {
+func testLaunchInputForUpdateHostStatusUnreachable(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName:       "my-cool-app",
 		PrimaryRegion: "scl",
@@ -110,7 +135,7 @@ func Test_launchInputForUpdate_HostStatusUnreachable(t *testing.T) {
 
 	// Updating an unreachable machine with a volume attached must fail until we can move the volume to another host
 	md.appConfig.Mounts = []appconfig.Mount{{Source: "data", Destination: "/data"}}
-	li, err = md.launchInputForUpdate(&fly.Machine{
+	_, err = md.launchInputForUpdate(&fly.Machine{
 		ID: "ab1234567890",
 		IncompleteConfig: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{Volume: "vol_attached", Path: "/data", Name: "data"}},
@@ -138,7 +163,7 @@ func Test_launchInputForUpdate_HostStatusUnreachable(t *testing.T) {
 }
 
 // Test Mounts
-func Test_launchInputFor_onMounts(t *testing.T) {
+func testLaunchInputForOnMounts(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Mounts: []appconfig.Mount{{Source: "data", Destination: "/data"}},
 	})
@@ -230,7 +255,7 @@ func Test_launchInputFor_onMounts(t *testing.T) {
 }
 
 // test mounts with auto volume resize
-func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
+func testLaunchInputForOnMountsAndAutoResize(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		Mounts: []appconfig.Mount{{
 			Source:                  "data",
@@ -386,7 +411,7 @@ func Test_launchInputFor_onMountsAndAutoResize(t *testing.T) {
 }
 
 // Test restart or updating a machine propagates fields not under fly.toml control
-func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
+func testLaunchInputForUpdateKeepUnmanagedFields(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName:       "my-cool-app",
 		PrimaryRegion: "scl",
@@ -435,7 +460,7 @@ func Test_launchInputForUpdate_keepUnmanagedFields(t *testing.T) {
 
 // Check that standby machines with services have their standbys list
 // cleared.
-func Test_launchInputForUpdate_clearStandbysWithServices(t *testing.T) {
+func testLaunchInputForUpdateClearStandbysWithServices(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName:       "my-cool-app",
 		PrimaryRegion: "scl",
@@ -458,7 +483,7 @@ func Test_launchInputForUpdate_clearStandbysWithServices(t *testing.T) {
 	assert.Equal(t, 0, len(li.Config.Standbys))
 }
 
-func Test_launchInputForLaunch_Files(t *testing.T) {
+func testLaunchInputForLaunchFiles(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName:       "my-files-app",
 		PrimaryRegion: "atl",
@@ -502,7 +527,7 @@ func Test_launchInputForLaunch_Files(t *testing.T) {
 	assert.Equal(t, want, li)
 }
 
-func Test_launchInputForUpdate_Files(t *testing.T) {
+func testLaunchInputForUpdateFiles(t *testing.T) {
 	md, err := stabMachineDeployment(&appconfig.Config{
 		AppName:       "my-files-app",
 		PrimaryRegion: "atl",
