@@ -81,8 +81,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	io := iostreams.System()
-	ctx = iostreams.NewContext(ctx, io)
+	ctx = withQuietIOStreams(ctx)
 
 	oldMachine := &fly.Machine{
 		ID:         "machine1",
@@ -112,7 +111,7 @@ func TestUpdateMachineConfig(t *testing.T) {
 	}
 	md := &machineDeployment{
 		flapsClient: badFlapsClient,
-		io:          io,
+		io:          iostreams.FromContext(ctx),
 		app: &fly.AppCompact{
 			Name: "myapp",
 		},
@@ -166,12 +165,15 @@ func TestUpdateMachineConfig(t *testing.T) {
 	assert.Equal(t, machine.Config, newMachineConfig)
 }
 
+func withQuietIOStreams(ctx context.Context) context.Context {
+	ios, _, _, _ := iostreams.Test()
+	return iostreams.NewContext(ctx, ios)
+}
+
 func TestUpdateMachines(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
-	io := iostreams.System()
-	ctx = iostreams.NewContext(ctx, io)
+	ctx := withQuietIOStreams(context.Background())
 
 	oldMachines := []*fly.Machine{
 		{
@@ -282,7 +284,7 @@ func TestUpdateMachines(t *testing.T) {
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 	md := &machineDeployment{
 		flapsClient: flapsClient,
-		io:          io,
+		io:          iostreams.FromContext(ctx),
 		app: &fly.AppCompact{
 			Name: "myapp",
 		},
@@ -364,8 +366,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	io := iostreams.System()
-	ctx = iostreams.NewContext(ctx, io)
+	ctx = withQuietIOStreams(ctx)
 
 	destroyedMachine := false
 	updatedMachine := false
@@ -430,7 +431,7 @@ func TestUpdateOrCreateMachine(t *testing.T) {
 
 	md := &machineDeployment{
 		flapsClient: flapsClient,
-		io:          io,
+		io:          iostreams.FromContext(ctx),
 		app: &fly.AppCompact{
 			Name: "myapp",
 		},
