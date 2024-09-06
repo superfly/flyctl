@@ -71,7 +71,7 @@ fly auth login
 fly apps list
 ```
 
-2. View app status
+3. View app status
 
 ```bash
 fly status -a {app-name}
