@@ -1,7 +1,8 @@
 module github.com/superfly/flyctl
 
-go 1.22
-toolchain go1.22.5
+go 1.22.0
+
+toolchain go1.22.6
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
