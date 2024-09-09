@@ -31,6 +31,10 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 		return err
 	}
 
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
+		return m.Config != nil
+	})
+
 	var latestCompleteRelease fly.Release
 	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
 	case err != nil:
