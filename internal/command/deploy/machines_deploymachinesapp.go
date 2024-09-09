@@ -1268,16 +1268,16 @@ func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.Leasa
 		span.AddEvent("not authorized to retrieve logs")
 		fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
 	} else {
-		if logErr != nil {
-			err := fmt.Errorf("error getting logs for machine %s: %w", lm.Machine().ID, logErr)
-			span.RecordError(err)
-			return err
-		}
 		var log string
-		for _, l := range logs {
-			// Ideally we should use InstanceID here, but it's not available in the logs.
-			if l.Timestamp >= lm.Machine().UpdatedAt {
-				log += fmt.Sprintf("%s\n", l.Message)
+		if logErr != nil {
+			log = fmt.Sprintf("error getting logs for machine %s: %v", lm.Machine().ID, logErr)
+			span.AddEvent(log)
+		} else {
+			for _, l := range logs {
+				// Ideally we should use InstanceID here, but it's not available in the logs.
+				if l.Timestamp >= lm.Machine().UpdatedAt {
+					log += fmt.Sprintf("%s\n", l.Message)
+				}
 			}
 		}
 
