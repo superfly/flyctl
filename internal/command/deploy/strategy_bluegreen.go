@@ -304,7 +304,7 @@ func (bg *blueGreen) renderMachineHealthchecks(state map[string]*fly.HealthCheck
 				status = fmt.Sprintf("%d/%d passing", value.Passing, value.Total)
 			}
 
-			currentView[id] = status
+			currentView[id] = fmt.Sprintf("%15s", status)
 			rows = append(rows, fmt.Sprintf("  Machine %s - %s", bg.colorize.Bold(id), bg.colorize.Green(status)))
 		}
 		bg.healthLock.RUnlock()
