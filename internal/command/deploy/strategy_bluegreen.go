@@ -23,7 +23,6 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/ctrlc"
 	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
@@ -57,11 +56,15 @@ type RollbackLog struct {
 	disableRollback        bool
 }
 
+type blueGreenWebClient interface {
+	CanPerformBluegreenDeployment(ctx context.Context, appName string) (bool, error)
+}
+
 type blueGreen struct {
 	greenMachines       machineUpdateEntries
 	blueMachines        machineUpdateEntries
 	flaps               flapsutil.FlapsClient
-	apiClient           flyutil.Client
+	apiClient           blueGreenWebClient
 	io                  *iostreams.IOStreams
 	colorize            *iostreams.ColorScheme
 	clearLinesAbove     func(count int)
@@ -77,6 +80,9 @@ type blueGreen struct {
 	maxConcurrent       int
 
 	rollbackLog RollbackLog
+
+	waitBeforeStop   time.Duration
+	waitBeforeCordon time.Duration
 }
 
 func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry) *blueGreen {
@@ -100,13 +106,20 @@ func BlueGreenStrategy(md *machineDeployment, blueMachines []*machineUpdateEntry
 		rollbackLog:         RollbackLog{canDeleteGreenMachines: true, disableRollback: false},
 	}
 
+	bg.initialize()
+
+	return bg
+}
+
+func (bg *blueGreen) initialize() {
 	// Hook into Ctrl+C so that we can rollback the deployment when it's aborted.
 	ctrlc.ClearHandlers()
 	bg.ctrlcHook = ctrlc.Hook(sync.OnceFunc(func() {
 		close(bg.aborted)
 	}))
 
-	return bg
+	bg.waitBeforeStop = 10 * time.Second
+	bg.waitBeforeCordon = 10 * time.Second
 }
 
 func (bg *blueGreen) isAborted() bool {
@@ -757,7 +770,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	// Wait a bit to let fly-proxy see the new machines
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting before cordoning all blue machines\n")
-	if bg.sleepAbortable(10 * time.Second) {
+	if bg.sleepAbortable(bg.waitBeforeCordon) {
 		return ErrAborted
 	}
 
@@ -773,7 +786,7 @@ func (bg *blueGreen) Deploy(ctx context.Context) error {
 
 	// Wait a bit to let fly-proxy forget about the old machines
 	fmt.Fprintf(bg.io.ErrOut, "\nWaiting before stopping all blue machines\n")
-	if bg.sleepAbortable(10 * time.Second) {
+	if bg.sleepAbortable(bg.waitBeforeStop) {
 		return ErrAborted
 	}
 
