@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/system"
 	dockerclient "github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/jsonmessage"
@@ -546,7 +547,7 @@ func pushToFly(ctx context.Context, docker *dockerclient.Client, streams *iostre
 	metrics.Started(ctx, "image_push")
 	sendImgPushMetrics := metrics.StartTiming(ctx, "image_push/duration")
 
-	pushResp, err := docker.ImagePush(ctx, tag, types.ImagePushOptions{
+	pushResp, err := docker.ImagePush(ctx, tag, image.PushOptions{
 		RegistryAuth: flyRegistryAuth(config.Tokens(ctx).Docker()),
 	})
 	metrics.Status(ctx, "image_push", err == nil)
