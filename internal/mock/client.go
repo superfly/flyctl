@@ -17,6 +17,7 @@ type Client struct {
 	AddCertificateFunc                     func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
 	AllocateIPAddressFunc                  func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddressFunc            func(ctx context.Context, appName string) (net.IP, error)
+	AllocateEgressIPAddressFunc            func(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailableFunc                   func(ctx context.Context, appName string) (bool, error)
 	AttachPostgresClusterFunc              func(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
 	AuthenticatedFunc                      func() bool

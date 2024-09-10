@@ -48,6 +48,10 @@ func (m *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (n
 	panic("TODO")
 }
 
+func (m *Client) AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error) {
+	panic("TODO")
+}
+
 func (m *Client) AppNameAvailable(ctx context.Context, appName string) (bool, error) {
 	panic("TODO")
 }
