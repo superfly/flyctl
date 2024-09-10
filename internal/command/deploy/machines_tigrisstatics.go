@@ -27,8 +27,8 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	extensions "github.com/superfly/flyctl/internal/command/extensions/core"
 	flyconfig "github.com/superfly/flyctl/internal/config"
-	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/haikunator"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/macaroon/flyio"
@@ -47,6 +47,9 @@ const (
 
 	tokenizerUrl     = "https://tokenizer.fly.io"
 	tokenizerSealKey = "3afdb665d93f741adc98a6cfecb36f1e02403a095e8efa921fd2321857011f42"
+
+	staticsMetaKeyAppId      = "fly-statics-app-id"
+	staticsMetaTokenizedAuth = "fly-statics-tokenized-auth"
 )
 
 // TODO(allison): Delete the statics bucket when the app is deleted.
@@ -71,37 +74,33 @@ func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
 	return false
 }
 
-func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) (retErr error) {
+func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) (tokenizedAuth string, retErr error) {
 
 	client := flyutil.ClientFromContext(ctx)
 	gqlClient := client.GenqClient()
 
 	response, err := gql.ListAddOns(ctx, gqlClient, "tigris")
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	for _, extension := range response.AddOns.Nodes {
-		if extension.Name == md.tigrisStatics.bucket {
-			if extension.Organization.Slug == md.app.Organization.Slug {
-				return nil
-			} else {
-				// TODO(allison): This is pretty gross, and it takes a *while* for a deleted tigris bucket's name to become
-				//                available again. Maybe we need another solution, such as storing the bucket name in the app's metadata.
-				return flyerr.GenericErr{
-					Err:      fmt.Sprintf("tigris bucket '%s' already exists in another organization", md.tigrisStatics.bucket),
-					Descript: "",
-					Suggest:  fmt.Sprintf("try deleting this tigris bucket (`fly storage destroy %s`), waiting a few moments, then attempt to deploy again", md.tigrisStatics.bucket),
-					DocUrl:   "",
-				}
-			}
+		if extension.Metadata == nil {
+			continue
+		}
+		meta := extension.Metadata.(map[string]interface{})
+		if meta[staticsMetaKeyAppId] == md.app.ID {
+			md.tigrisStatics.bucket = extension.Name
+			return meta[staticsMetaTokenizedAuth].(string), nil
 		}
 	}
 
 	org, err := client.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
 	if err != nil {
-		return err
+		return "", err
 	}
+
+	bucketName := fmt.Sprintf("%s-statics", md.appConfig.AppName)
 
 	params := extensions.ExtensionParams{
 		Organization:         org,
@@ -109,7 +108,7 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) (re
 		Options:              gql.AddOnOptions{},
 		ErrorCaptureCallback: nil,
 		OverrideRegion:       md.appConfig.PrimaryRegion,
-		OverrideName:         &md.tigrisStatics.bucket,
+		OverrideName:         &bucketName,
 	}
 	params.Options["website"] = map[string]interface{}{
 		"domain_name": "",
@@ -120,13 +119,30 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) (re
 
 	ext, err := extensions.ProvisionExtension(ctx, params)
 	if err != nil {
-		return err
+		// If the extension name is taken, try again, haikunating the name.
+		// If that fails too, return the original error. Otherwise, continue successfully
+		if strings.Contains(err.Error(), "already exists for app") ||
+			strings.Contains(err.Error(), "unavailable for creation") {
+			bucketName = fmt.Sprintf("%s-%s", *params.OverrideName, haikunator.Haikunator().String())
+			params.OverrideName = &bucketName
+			newExt, newErr := extensions.ProvisionExtension(ctx, params)
+			if newErr == nil {
+				ext = newExt
+				err = nil
+			}
+		}
 	}
+	if err != nil {
+		return "", err
+	}
+
+	md.tigrisStatics.bucket = bucketName
+
 	defer func() {
 		if retErr != nil {
 			client := flyutil.ClientFromContext(ctx).GenqClient()
 			// Using context.Background() here in case the error is that the context is canceled.
-			_, err := gql.DeleteAddOn(context.Background(), client, md.tigrisStatics.bucket)
+			_, err := gql.DeleteAddOn(context.Background(), client, bucketName)
 			if err != nil {
 				fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Failed to delete extension: %v\n", err)
 			}
@@ -137,11 +153,21 @@ func (md *machineDeployment) staticsEnsureBucketCreated(ctx context.Context) (re
 
 	tokenizedKey, err := md.staticsTokenizeTigrisSecrets(ctx, org, secrets)
 	if err != nil {
-		return err
+		return "", err
 	}
 
-	// TODO(allison): Temporary, while working on the POC for Tokenizer
-	return os.WriteFile("tokenized_key", ([]byte)(tokenizedKey), 0644)
+	// TODO(allison): I'd really like ProvisionExtension to return the extension's ID, but for now we can just refetch it
+	extFull, err := gql.GetAddOn(ctx, client.GenqClient(), bucketName, string(gql.AddOnTypeTigris))
+
+	// Update the addon with the tokenized key and the name of the app
+	_, err = gql.UpdateAddOn(ctx, client.GenqClient(), extFull.AddOn.Id, extFull.AddOn.AddOnPlan.Id, []string{}, extFull.AddOn.Options, map[string]interface{}{
+		staticsMetaKeyAppId:      md.app.ID,
+		staticsMetaTokenizedAuth: tokenizedKey,
+	})
+	if err != nil {
+		return "", err
+	}
+	return tokenizedKey, nil
 }
 
 func (md *machineDeployment) staticsTokenizeTigrisSecrets(
@@ -186,9 +212,8 @@ func (md *machineDeployment) staticsTokenizeTigrisSecrets(
 // Create the tigris bucket if not created.
 func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 
-	md.tigrisStatics.bucket = md.appConfig.AppName + "-statics"
-
-	if err := md.staticsEnsureBucketCreated(ctx); err != nil {
+	tokenizedAuth, err := md.staticsEnsureBucketCreated(ctx)
+	if err != nil {
 		return err
 	}
 
@@ -204,12 +229,6 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 	md.appConfig.Statics = lo.Filter(md.appConfig.Statics, func(static appconfig.Static, _ int) bool {
 		return !staticIsCandidateForTigrisPush(static)
 	})
-
-	// TODO(allison): Temporary, while working on the POC for Tokenizer
-	encryptedToken, err := os.ReadFile("tokenized_key")
-	if err != nil {
-		return err
-	}
 
 	s3Config, err := awsconfig.LoadDefaultConfig(ctx,
 		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("tokenizer-access-key", "tokenizer-secret-key", "")),
@@ -233,7 +252,7 @@ func (md *machineDeployment) staticsInitialize(ctx context.Context) error {
 	//                Ask ben how we can consistently get a macaroon for the current user.
 	userAuthHeader := cfg.Tokens.GraphQLHeader()
 
-	s3HttpClient, err := tokenizer.Client(tokenizerUrl, tokenizer.WithAuth(userAuthHeader), tokenizer.WithSecret(string(encryptedToken), map[string]string{}))
+	s3HttpClient, err := tokenizer.Client(tokenizerUrl, tokenizer.WithAuth(userAuthHeader), tokenizer.WithSecret(tokenizedAuth, map[string]string{}))
 	if err != nil {
 		return err
 	}
@@ -518,9 +537,8 @@ func (md *machineDeployment) staticsPush(ctx context.Context) (err error) {
 			return err
 		}
 
-		// TODO(allison): Remove this hack. We should be creating virtual service definitions instead.
-		//                This is a temporary workaround to get something demoable.
-
+		// TODO(allison): This is a temporary workaround.
+		//                When they're available, we want to swap over to virtual services.
 		md.appConfig.Statics = append(md.appConfig.Statics, appconfig.Static{
 			GuestPath:     "/" + dest,
 			UrlPrefix:     static.UrlPrefix,
