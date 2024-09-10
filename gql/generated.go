@@ -2477,6 +2477,8 @@ type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
 	ReadRegions []string `json:"readRegions"`
 	// Add-on options
 	Options interface{} `json:"options"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 	// Organization that owns this service
 	Organization ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization `json:"organization"`
 }
@@ -2503,6 +2505,9 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string { 
 
 // GetOptions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} { return v.Options }
+
+// GetMetadata returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} { return v.Metadata }
 
 // GetOrganization returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization {
@@ -4078,6 +4083,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			primaryRegion
 			readRegions
 			options
+			metadata
 			organization {
 				id
 				slug

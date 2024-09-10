@@ -251,6 +251,7 @@ query ListAddOns($addOnType: AddOnType) {
 			primaryRegion
 			readRegions
 			options
+			metadata
 			organization {
 				id
 				slug
