@@ -2,6 +2,7 @@ package ips
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -61,6 +62,30 @@ func newAllocatev6() *cobra.Command {
 		flag.String{
 			Name:        "network",
 			Description: "Target network name for a Flycast private IPv6 address",
+		},
+	)
+
+	return cmd
+}
+
+func newAllocateEgress() *cobra.Command {
+	const (
+		long  = `Allocates static egress (outgoing) IPv4 and IPv6 addresses for a machine`
+		short = `Allocate egress IP addresses`
+	)
+
+	cmd := command.New("allocate-egress", short, long, runAllocateEgressIPAddress,
+		command.RequireSession,
+		command.RequireAppName,
+	)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+		flag.String{
+			Name:        "machine",
+			Shorthand:   "m",
+			Description: "Target machine ID for the egress IP addresses",
 		},
 	)
 
@@ -135,5 +160,42 @@ func runAllocateIPAddress(ctx context.Context, addrType string, org *fly.Organiz
 
 	ipAddresses := []fly.IPAddress{*ipAddress}
 	renderListTable(ctx, ipAddresses)
+	return nil
+}
+
+func runAllocateEgressIPAddress(ctx context.Context) (err error) {
+	client := flyutil.ClientFromContext(ctx)
+
+	if !flag.GetBool(ctx, "yes") {
+		msg := `Looks like you're allocating a static egress (outgoing) IP. This is an advanced feature, and is not needed by most apps.
+Are you sure this is what you want? In most cases, you should use the allocate-v4 or allocate-v6 commands instead.`
+
+		switch confirmed, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
+
+	appName := appconfig.NameFromContext(ctx)
+
+	machineId := flag.GetString(ctx, "machine")
+	if machineId == "" {
+		return fmt.Errorf("egress IPs must be associated with a machine")
+	}
+
+	ipv4, ipv6, err := client.AllocateEgressIPAddress(ctx, appName, machineId)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Allocated egress IPs for machine %s:\n", machineId)
+	fmt.Printf("IPv4: %s\n", ipv4.String())
+	fmt.Printf("IPv6: %s\n", ipv6.String())
 	return nil
 }
