@@ -174,7 +174,12 @@ func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string)
 	assert.Equal(tb, 0, ssh.ExitCode(), "failed to connect to postgres at %s: %s", appName, ssh.StdErr())
 }
 
-func TestPostgres_ImportSuccess(t *testing.T) {
+func TestPostgresImport(t *testing.T) {
+	t.Run("Success", WithParallel(testPostgresImportSuccess))
+	t.Run("Failure", WithParallel(testPostgresImportFailure))
+}
+
+func testPostgresImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate
@@ -186,13 +191,10 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	firstAppName := f.CreateRandomAppName()
 	secondAppName := f.CreateRandomAppName()
 
+	t.Logf("Create app_names table on %s", firstAppName)
 	f.Fly(
 		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
 		f.OrgSlug(), firstAppName, f.PrimaryRegion(), postgresMachineSize,
-	)
-	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
-		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assertPostgresIsUp(t, f, firstAppName)
@@ -207,6 +209,14 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 		firstAppName, firstAppName,
 	)
 
+	t.Logf("Import from %s to %s", firstAppName, secondAppName)
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
+	)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertPostgresIsUp(t, f, secondAppName)
+	}, 1*time.Minute, 10*time.Second)
 	f.Fly(
 		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/postgres",
 		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
@@ -225,7 +235,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
-func TestPostgres_ImportFailure(t *testing.T) {
+func testPostgresImportFailure(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this explicitly sets a size, no need to test on GPUs/alternate

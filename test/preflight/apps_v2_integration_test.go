@@ -415,7 +415,19 @@ func TestLaunchDetach(t *testing.T) {
 	require.Contains(f, res.StdOutString(), "success")
 }
 
-func TestDeployDetach(t *testing.T) {
+func WithParallel(f func(*testing.T)) func(*testing.T) {
+	return func(t *testing.T) {
+		t.Parallel()
+		f(t)
+	}
+}
+
+func TestDeploy(t *testing.T) {
+	t.Run("Detach", WithParallel(testDeployDetach))
+	t.Run("DetachBatching", WithParallel(testDeployDetachBatching))
+}
+
+func testDeployDetach(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -428,7 +440,7 @@ func TestDeployDetach(t *testing.T) {
 	require.Contains(f, res.StdOutString(), "started")
 }
 
-func TestDeployDetachBatching(t *testing.T) {
+func testDeployDetachBatching(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
