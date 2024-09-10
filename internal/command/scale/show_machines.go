@@ -34,6 +34,10 @@ func runMachinesScaleShow(ctx context.Context) error {
 		return err
 	}
 
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
+		return m.Config != nil
+	})
+
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
