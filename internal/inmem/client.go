@@ -292,6 +292,10 @@ func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAd
 	return nil, nil // TODO
 }
 
+func (c *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]net.IP, error) {
+	panic("TODO")
+}
+
 func (m *Client) GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error) {
 	panic("TODO")
 }
