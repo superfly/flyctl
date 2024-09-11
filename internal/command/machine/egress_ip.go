@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -10,6 +11,8 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func newEgressIp() *cobra.Command {
@@ -25,6 +28,7 @@ func newEgressIp() *cobra.Command {
 
 	cmd.AddCommand(
 		newAllocateEgressIp(),
+		newListEgressIps(),
 	)
 
 	return cmd
@@ -48,6 +52,27 @@ func newAllocateEgressIp() *cobra.Command {
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
+
+	return cmd
+}
+
+func newListEgressIps() *cobra.Command {
+	const (
+		long  = `List all allocated static egress IP addresses with their corresponding machine`
+		short = `List all allocated static egress IPs`
+	)
+
+	cmd := command.New("list", short, long, runListEgressIps,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	cmd.Args = cobra.NoArgs
 
 	return cmd
 }
@@ -84,5 +109,31 @@ Are you sure this is what you want?`
 	fmt.Printf("Allocated egress IPs for machine %s:\n", machineId)
 	fmt.Printf("IPv4: %s\n", ipv4.String())
 	fmt.Printf("IPv6: %s\n", ipv6.String())
+	return nil
+}
+
+func runListEgressIps(ctx context.Context) (err error) {
+	var (
+		client  = flyutil.ClientFromContext(ctx)
+		appName = appconfig.NameFromContext(ctx)
+	)
+
+	machineIPs, err := client.GetEgressIPAddresses(ctx, appName)
+	if err != nil {
+		return err
+	}
+
+	rows := make([][]string, 0, 1)
+
+	for machine, ips := range machineIPs {
+		ipStr := make([]string, len(ips))
+		for _, ip := range ips {
+			ipStr = append(ipStr, ip.String())
+		}
+		rows = append(rows, []string{machine, strings.Join(ipStr, ",")})
+	}
+
+	out := iostreams.FromContext(ctx).Out
+	render.Table(out, "", rows, "Machine", "Egress IPs")
 	return nil
 }
