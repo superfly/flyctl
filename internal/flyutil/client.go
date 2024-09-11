@@ -16,6 +16,7 @@ type Client interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
 	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error)
+	AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailable(ctx context.Context, appName string) (bool, error)
 	AttachPostgresCluster(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
 	Authenticated() bool
@@ -68,6 +69,7 @@ type Client interface {
 	GetDomain(ctx context.Context, name string) (*fly.Domain, error)
 	GetDomains(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error)
+	GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]net.IP, error)
 	GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error)
 	GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificates(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
