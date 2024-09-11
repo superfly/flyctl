@@ -22,6 +22,7 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/websocket v1.8.12
+	github.com/containerd/continuity v0.4.3
 	github.com/depot/depot-go v0.3.0
 	github.com/docker/docker v27.2.1+incompatible
 	github.com/docker/go-connections v0.5.0
@@ -148,7 +149,6 @@ require (
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.4 // indirect
 	github.com/containerd/containerd v1.7.16 // indirect
-	github.com/containerd/continuity v0.4.3 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.3 // indirect
