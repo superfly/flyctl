@@ -36,7 +36,6 @@ import (
 	"github.com/superfly/tokenizer"
 )
 
-// TODO(allison): Replace this with the real tokenizer URL.
 const (
 	tigrisHostname = "fly.storage.tigris.dev"
 	// This URL is intentionally HTTP. We're funneling through tokenizer over HTTPS because:
@@ -272,7 +271,6 @@ func staticIsCandidateForTigrisPush(static appconfig.Static) bool {
 		return false
 	}
 	if len(static.GuestPath) == 0 {
-		// TODO(allison): Log a warning that the statics path is empty
 		return false
 	}
 	// TODO(allison): Extract statics from the docker image?
