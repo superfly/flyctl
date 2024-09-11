@@ -60,8 +60,9 @@ ENV MIX_ENV=dev
 
 COPY bin/flyctl /usr/local/bin/flyctl
 COPY deploy.rb /deploy.rb
+COPY deploy /deploy
 
-WORKDIR /usr/src/app
+RUN mkdir -p /usr/src/app
 
 # need a login shell for rvm to work properly...
 ENTRYPOINT ["/bin/bash", "-lc"]

@@ -2,3 +2,4 @@
 
 !/bin/flyctl
 !deploy.rb
+!deploy

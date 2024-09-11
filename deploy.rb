@@ -1,171 +1,15 @@
 #!/usr/bin/env ruby
 
-require 'json'
-require 'time'
-require 'open3'
-require 'uri'
-require 'securerandom'
-require 'fileutils'
-
-LOG_PREFIX = ENV["LOG_PREFIX"]
-
-module Step
-  ROOT = :__root__
-  GIT_PULL = :git_pull
-  PLAN = :plan
-  CUSTOMIZE = :customize
-  INSTALL_DEPENDENCIES = :install_dependencies
-  GENERATE_BUILD_REQUIREMENTS = :generate_build_requirements
-  BUILD = :build
-  FLY_POSTGRES_CREATE = :fly_postgres_create
-  SUPABASE_POSTGRES = :supabase_postgres
-  UPSTASH_REDIS = :upstash_redis
-  TIGRIS_OBJECT_STORAGE = :tigris_object_storage
-  SENTRY = :sentry
-  DEPLOY = :deploy
-
-  def self.current
-    Thread.current[:step] ||= Step::ROOT
-  end
-
-  def self.set_current(step)
-    Thread.current[:step] = step
-  end
-end
-
-module Artifact
-  META = :meta
-  GIT_INFO = :git_info
-  GIT_HEAD = :git_head
-  MANIFEST = :manifest
-  SESSION = :session
-  DIFF = :diff
-  FLY_POSTGRES = :fly_postgres
-  SUPABASE_POSTGRES = :supabase_postgres
-  UPSTASH_REDIS = :upstash_redis
-  TIGRIS_OBJECT_STORAGE = :tigris_object_storage
-  SENTRY = :sentry
-  DOCKER_IMAGE = :docker_image
-end
-
-$counter = 0
-$counter_mutex = Mutex.new
-
-def id
-  $counter_mutex.synchronize do
-    $counter += 1
-    $counter
-  end
-end
-
-$start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-
-def elapsed
-  Process.clock_gettime(Process::CLOCK_MONOTONIC) - $start
-end
-
-def nputs(type:, payload: nil)
-  obj = { id: id(), step: Step.current(), type: type, time: elapsed(), payload: payload }.compact
-  puts "#{LOG_PREFIX}#{obj.to_json}"
-end
-
-# prefixed events
-def event(name, meta = nil)
-  nputs(type: "event:#{name}", payload: meta)
-end
-
-def artifact(name, body)
-  nputs(type: "artifact:#{name}", payload: body)
-end
-
-def log(level, msg)
-  nputs(type: "log:#{level}", payload: msg)
-end
-
-def info(msg)
-    log("info", msg)
-end
-
-def debug(msg)
-    log("debug", msg)
-end
-
-def error(msg)
-    log("error", msg)
-end
-
-def exec_capture(cmd, display: nil, log: true)
-  cmd_display = display || cmd
-  event :exec, { cmd: cmd_display }
-
-  out_mutex = Mutex.new
-  output = ""
-
-  status = Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
-      pid = wait_thr.pid
-
-      stdin.close_write
-
-      step = Step.current
-
-      threads = [[stdout, "stdout"], [stderr, "stderr"]].map do |stream, stream_name|
-        Thread.new do
-          Step.set_current(step) # in_step would be a problem here, we just need to that the thread with the parent thread's step!
-          stream.each_line do |line|
-            if log
-              nputs type: stream_name, payload: line.chomp
-            end
-            out_mutex.synchronize { output += line }
-          end
-        end
-      end
-
-      threads.each { |thr| thr.join }
-
-      wait_thr.value
-  end
-
-  if !status.success?
-      event :error, { type: :exec, message: "unsuccessful command '#{cmd_display}'", exit_code: status.exitstatus, pid: status.pid }
-      exit 1
-  end
-
-  output
-end
-
-def in_step(step, &block)
-  old_step = Step.current()
-  Step.set_current(step)
-  event :start
-  ret = begin
-    yield block
-  rescue StandardError => e
-    event :error, { type: :uncaught, message: e }
-    exit 1
-  end
-  event :end
-  Step.set_current(old_step)
-  ret
-end
-
-def ts
-  Time.now.utc.iso8601(6)
-end
-
-def get_env(name, default = nil)
-  value = ENV[name]&.strip
-  if value.nil? || value.empty?
-    return nil || default
-  end
-  value
-end
-
-# start of actual logic
+require './deploy/common'
 
 event :start, { ts: ts() }
 
+# Change to a directory where we'll pull on git
+Dir.chdir("/usr/src/app")
+
 DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
 DEPLOY_CUSTOMIZE = !get_env("NO_DEPLOY_CUSTOMIZE")
+DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
 
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
 if !DEPLOY_CUSTOMIZE && !DEPLOY_APP_NAME
@@ -201,9 +45,19 @@ end
 
 steps = []
 
+# Whatever happens, we try to git pull if a GIT_REPO is specified
 steps.push({id: Step::GIT_PULL, description: "Setup and pull from git repository"}) if GIT_REPO
-steps.push({id: Step::PLAN, description: "Prepare deployment plan"})
-steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"}) if DEPLOY_CUSTOMIZE
+
+if !DEPLOY_ONLY
+  # we're not just deploying, we're also `fly launch`-ing
+  steps.push({id: Step::PLAN, description: "Prepare deployment plan"})
+  steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"}) if DEPLOY_CUSTOMIZE
+else
+  # only deploying, so we need to send the artifacts right away
+  steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
+  steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+  artifact Artifact::META, { steps: steps }
+end
 
 if GIT_REPO_URL
     in_step Step::GIT_PULL do
@@ -229,179 +83,184 @@ if GIT_REPO_URL
     end
 end
 
-MANIFEST_PATH = "/tmp/manifest.json"
+if !DEPLOY_ONLY
+  MANIFEST_PATH = "/tmp/manifest.json"
 
-manifest = in_step Step::PLAN do
-  cmd = "flyctl launch plan propose --manifest-path #{MANIFEST_PATH}"
+  manifest = in_step Step::PLAN do
+    cmd = "flyctl launch plan propose --manifest-path #{MANIFEST_PATH}"
 
-  if (slug = DEPLOY_ORG_SLUG)
-    cmd += " --org #{slug}"
-  end
-
-  if (name = DEPLOY_APP_NAME)
-    cmd += " --force-name --name #{name}"
-  end
-
-  if (region = DEPLOY_APP_REGION)
-    cmd += " --region #{region}"
-  end
-
-  cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
-
-  exec_capture(cmd).chomp
-
-  raw_manifest = File.read(MANIFEST_PATH)
-
-  begin
-    manifest = JSON.parse(raw_manifest)
-  rescue StandardError => e
-    event :error, { type: :json, message: e, json: raw_manifest }
-    exit 1
-  end
-
-  artifact Artifact::MANIFEST, manifest
-
-  manifest
-end
-
-REQUIRES_DEPENDENCIES = %w[ruby bun node elixir python php]
-
-RUNTIME_LANGUAGE = manifest.dig("plan", "runtime", "language")
-RUNTIME_VERSION = manifest.dig("plan", "runtime", "version")
-
-DO_INSTALL_DEPS = REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
-DO_GEN_REQS = !RUNTIME_LANGUAGE.empty?
-
-steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies", async: true}) if DO_INSTALL_DEPS
-
-DEFAULT_ERLANG_VERSION = get_env("DEFAULT_ERLANG_VERSION", "26.2.5.2")
-
-DEFAULT_RUNTIME_VERSIONS = {
-  "ruby"   => get_env("DEFAULT_RUBY_VERSION", "3.1.6"),
-  "elixir" => get_env("DEFAULT_ELIXIR_VERSION", "1.16"),
-  "erlang" => DEFAULT_ERLANG_VERSION,
-  "node" => get_env("DEFAULT_NODE_VERSION", "20.16.0"),
-  "bun" => get_env("DEFAULT_BUN_VERSION", "1.1.24"),
-  "php" => get_env("DEFAULT_PHP_VERSION", "8.1"),
-  "python" => get_env("DEFAULT_PYTHON_VERSION", "3.12")
-}
-
-ASDF_SUPPORTED_FLYCTL_LANGUAGES = %w[ bun node elixir ]
-FLYCTL_TO_ASDF_PLUGIN_NAME = {
-  "node" => "nodejs"
-}
-
-INSTALLABLE_PHP_VERSIONS = %w[ 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 ]
-
-deps_thread = Thread.new do
-  if DO_INSTALL_DEPS
-    in_step Step::INSTALL_DEPENDENCIES do
-      # get the version
-      version = DEFAULT_RUNTIME_VERSIONS[RUNTIME_LANGUAGE]
-      if version.nil?
-        event :error, { type: :unsupported_version, message: "unhandled runtime: #{RUNTIME_LANGUAGE}, supported: #{DEFAULT_RUNTIME_VERSIONS.keys.join(", ")}" }
-        exit 1
-      end
-
-      version = RUNTIME_VERSION.empty? ? version : RUNTIME_VERSION
-
-      if ASDF_SUPPORTED_FLYCTL_LANGUAGES.include?(RUNTIME_LANGUAGE)
-        plugin = FLYCTL_TO_ASDF_PLUGIN_NAME.fetch(RUNTIME_LANGUAGE, RUNTIME_LANGUAGE)
-        if plugin == "elixir"
-          # required for elixir to work
-          exec_capture("asdf install erlang #{DEFAULT_ERLANG_VERSION}")  
-        end
-        exec_capture("asdf install #{plugin} #{version}")
-      else
-        case RUNTIME_LANGUAGE
-        when "ruby"
-          exec_capture("rvm install #{version}")
-        when "php"
-          major, minor = Gem::Version.new(version).segments
-          php_version = "#{major}.#{minor}"
-          if !INSTALLABLE_PHP_VERSIONS.include?(php_version)
-            event :error, { type: :unsupported_version, message: "unsupported PHP version #{version}, supported versions are: #{INSTALLABLE_PHP_VERSIONS.join(", ")}" }
-            exit 1
-          end
-          exec_capture("apt install --no-install-recommends -y php#{php_version} php#{php_version}-curl php#{php_version}-mbstring php#{php_version}-xml")
-          exec_capture("curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php")
-          # TODO: verify signature?
-          exec_capture("php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer")
-        when "python"
-          major, minor = Gem::Version.new(version).segments
-          python_version = "#{major}.#{minor}"
-          exec_capture("mise use -g python@#{python_version}")
-        else
-          # we should never get here, but handle it in case!
-          event :error, { type: :unsupported_version, message: "no handler for runtime: #{RUNTIME_LANGUAGE}, supported: #{DEFAULT_RUNTIME_VERSIONS.keys.join(", ")}" }
-          exit 1
-        end
-      end
+    if (slug = DEPLOY_ORG_SLUG)
+      cmd += " --org #{slug}"
     end
-  end
-end
 
-if DEPLOY_CUSTOMIZE
-  manifest = in_step Step::CUSTOMIZE do
-    cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH} --from-manifest #{MANIFEST_PATH}"
+    if (name = DEPLOY_APP_NAME)
+      cmd += " --force-name --name #{name}"
+    end
 
-    exec_capture(cmd)
-    session = JSON.parse(File.read("/tmp/session.json"))
+    if (region = DEPLOY_APP_REGION)
+      cmd += " --region #{region}"
+    end
 
-    artifact Artifact::SESSION, session
+    cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
 
-    cmd = "flyctl launch sessions finalize --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH}"
+    exec_capture(cmd).chomp
 
-    exec_capture(cmd)
-    manifest = JSON.parse(File.read("/tmp/manifest.json"))
+    raw_manifest = File.read(MANIFEST_PATH)
+
+    begin
+      manifest = JSON.parse(raw_manifest)
+    rescue StandardError => e
+      event :error, { type: :json, message: e, json: raw_manifest }
+      exit 1
+    end
 
     artifact Artifact::MANIFEST, manifest
 
     manifest
   end
-end
 
-# Write the fly config file to a tmp directory
-File.write("/tmp/fly.json", manifest["config"].to_json)
+  REQUIRES_DEPENDENCIES = %w[ruby bun node elixir python php]
 
-APP_NAME = manifest["config"]["app"]
-ORG_SLUG = manifest["plan"]["org"]
-APP_REGION = manifest["plan"]["region"]
+  RUNTIME_LANGUAGE = manifest.dig("plan", "runtime", "language")
+  RUNTIME_VERSION = manifest.dig("plan", "runtime", "version")
 
-FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
-SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
-UPSTASH = manifest.dig("plan", "redis", "upstash_redis")
-TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
-SENTRY = manifest.dig("plan", "sentry") == true
+  DO_INSTALL_DEPS = REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
+  DO_GEN_REQS = !RUNTIME_LANGUAGE.empty?
 
-steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
-steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
-steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
-steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
-steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
-steps.push({id: Step::TIGRIS_OBJECT_STORAGE, description: "Create Tigris object storage bucket"}) if TIGRIS
-steps.push({id: Step::SENTRY, description: "Create Sentry project"}) if SENTRY
+  steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies", async: true}) if DO_INSTALL_DEPS
 
-steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+  DEFAULT_ERLANG_VERSION = get_env("DEFAULT_ERLANG_VERSION", "26.2.5.2")
 
-artifact Artifact::META, { steps: steps }
+  DEFAULT_RUNTIME_VERSIONS = {
+    "ruby"   => get_env("DEFAULT_RUBY_VERSION", "3.1.6"),
+    "elixir" => get_env("DEFAULT_ELIXIR_VERSION", "1.16"),
+    "erlang" => DEFAULT_ERLANG_VERSION,
+    "node" => get_env("DEFAULT_NODE_VERSION", "20.16.0"),
+    "bun" => get_env("DEFAULT_BUN_VERSION", "1.1.24"),
+    "php" => get_env("DEFAULT_PHP_VERSION", "8.1"),
+    "python" => get_env("DEFAULT_PYTHON_VERSION", "3.12")
+  }
 
-# Join the parallel task thread
-deps_thread.join
+  ASDF_SUPPORTED_FLYCTL_LANGUAGES = %w[ bun node elixir ]
+  FLYCTL_TO_ASDF_PLUGIN_NAME = {
+    "node" => "nodejs"
+  }
 
-if DO_GEN_REQS
-  in_step Step::GENERATE_BUILD_REQUIREMENTS do
-    exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
-    exec_capture("git add -A", log: false)
-    diff = exec_capture("git diff --cached", log: false)
-    artifact Artifact::DIFF, { output: diff }
+  INSTALLABLE_PHP_VERSIONS = %w[ 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3 8.4 ]
+
+  deps_thread = Thread.new do
+    if DO_INSTALL_DEPS
+      in_step Step::INSTALL_DEPENDENCIES do
+        # get the version
+        version = DEFAULT_RUNTIME_VERSIONS[RUNTIME_LANGUAGE]
+        if version.nil?
+          event :error, { type: :unsupported_version, message: "unhandled runtime: #{RUNTIME_LANGUAGE}, supported: #{DEFAULT_RUNTIME_VERSIONS.keys.join(", ")}" }
+          exit 1
+        end
+
+        version = RUNTIME_VERSION.empty? ? version : RUNTIME_VERSION
+
+        if ASDF_SUPPORTED_FLYCTL_LANGUAGES.include?(RUNTIME_LANGUAGE)
+          plugin = FLYCTL_TO_ASDF_PLUGIN_NAME.fetch(RUNTIME_LANGUAGE, RUNTIME_LANGUAGE)
+          if plugin == "elixir"
+            # required for elixir to work
+            exec_capture("asdf install erlang #{DEFAULT_ERLANG_VERSION}")  
+          end
+          exec_capture("asdf install #{plugin} #{version}")
+        else
+          case RUNTIME_LANGUAGE
+          when "ruby"
+            exec_capture("rvm install #{version}")
+          when "php"
+            major, minor = Gem::Version.new(version).segments
+            php_version = "#{major}.#{minor}"
+            if !INSTALLABLE_PHP_VERSIONS.include?(php_version)
+              event :error, { type: :unsupported_version, message: "unsupported PHP version #{version}, supported versions are: #{INSTALLABLE_PHP_VERSIONS.join(", ")}" }
+              exit 1
+            end
+            exec_capture("apt install --no-install-recommends -y php#{php_version} php#{php_version}-curl php#{php_version}-mbstring php#{php_version}-xml")
+            exec_capture("curl -sS https://getcomposer.org/installer -o /tmp/composer-setup.php")
+            # TODO: verify signature?
+            exec_capture("php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer")
+          when "python"
+            major, minor = Gem::Version.new(version).segments
+            python_version = "#{major}.#{minor}"
+            exec_capture("mise use -g python@#{python_version}")
+          else
+            # we should never get here, but handle it in case!
+            event :error, { type: :unsupported_version, message: "no handler for runtime: #{RUNTIME_LANGUAGE}, supported: #{DEFAULT_RUNTIME_VERSIONS.keys.join(", ")}" }
+            exit 1
+          end
+        end
+      end
+    end
+  end
+
+  if DEPLOY_CUSTOMIZE
+    manifest = in_step Step::CUSTOMIZE do
+      cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH} --from-manifest #{MANIFEST_PATH}"
+
+      exec_capture(cmd)
+      session = JSON.parse(File.read("/tmp/session.json"))
+
+      artifact Artifact::SESSION, session
+
+      cmd = "flyctl launch sessions finalize --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH}"
+
+      exec_capture(cmd)
+      manifest = JSON.parse(File.read("/tmp/manifest.json"))
+
+      artifact Artifact::MANIFEST, manifest
+
+      manifest
+    end
+  end
+
+  # Write the fly config file to a tmp directory
+  File.write("/tmp/fly.json", manifest["config"].to_json)
+
+  ORG_SLUG = manifest["plan"]["org"]
+  APP_REGION = manifest["plan"]["region"]
+
+  FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
+  SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
+  UPSTASH = manifest.dig("plan", "redis", "upstash_redis")
+  TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
+  SENTRY = manifest.dig("plan", "sentry") == true
+
+  steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
+  steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
+  steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
+  steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
+  steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
+  steps.push({id: Step::TIGRIS_OBJECT_STORAGE, description: "Create Tigris object storage bucket"}) if TIGRIS
+  steps.push({id: Step::SENTRY, description: "Create Sentry project"}) if SENTRY
+
+  steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+
+  artifact Artifact::META, { steps: steps }
+
+  # Join the parallel task thread
+  deps_thread.join
+
+  if DO_GEN_REQS
+    in_step Step::GENERATE_BUILD_REQUIREMENTS do
+      exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
+      exec_capture("git add -A", log: false)
+      diff = exec_capture("git diff --cached", log: false)
+      artifact Artifact::DIFF, { output: diff }
+    end
   end
 end
 
-image_tag = SecureRandom.hex(16)
+# TODO: better error if missing config
+fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local", log: false))
+
+APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
 image_ref = in_step Step::BUILD do
-  if (image_ref = manifest.dig("config","build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
+  image_tag = SecureRandom.hex(16)
+  if (image_ref = fly_config.dig("build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
     info("Skipping build, using image defined in fly config: #{image_ref}")
     image_ref
   else
@@ -413,13 +272,13 @@ image_ref = in_step Step::BUILD do
   end
 end
 
-if get_env("SKIP_EXTENSIONS").nil?
+if DEPLOY_ONLY || get_env("SKIP_EXTENSIONS").nil?
   if FLY_PG
     in_step Step::FLY_POSTGRES_CREATE do
       pg_name = FLY_PG["app_name"]
       region = APP_REGION
 
-      cmd = "flyctl pg create --flex --org #{ORG_SLUG} --name #{pg_name} --region #{region} --yes"
+      cmd = "flyctl pg create --flex --org #{ORG_SLUG} --name #{pg_name} --region #{region}"
 
       if (vm_size = FLY_PG["vm_size"])
         cmd += " --vm-size #{vm_size}"
@@ -457,7 +316,7 @@ if get_env("SKIP_EXTENSIONS").nil?
     in_step Step::UPSTASH_REDIS do
       db_name = "#{APP_NAME}-redis"
 
-      cmd = "flyctl redis create --name #{db_name} --org #{ORG_SLUG} --region #{APP_REGION} --yes"
+      cmd = "flyctl redis create --name #{db_name} --org #{ORG_SLUG} --region #{APP_REGION}"
 
       if UPSTASH["eviction"] == true
         cmd += " --enable-eviction"
