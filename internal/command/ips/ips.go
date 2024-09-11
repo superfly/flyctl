@@ -18,7 +18,6 @@ func New() *cobra.Command {
 		newList(),
 		newAllocatev4(),
 		newAllocatev6(),
-		newAllocateEgress(),
 		newPrivate(),
 		newRelease(),
 	)
