@@ -17,6 +17,7 @@ type Client struct {
 	AddCertificateFunc                     func(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
 	AllocateIPAddressFunc                  func(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddressFunc            func(ctx context.Context, appName string) (net.IP, error)
+	AllocateEgressIPAddressFunc            func(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailableFunc                   func(ctx context.Context, appName string) (bool, error)
 	AttachPostgresClusterFunc              func(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
 	AuthenticatedFunc                      func() bool
@@ -69,6 +70,7 @@ type Client struct {
 	GetDomainFunc                          func(ctx context.Context, name string) (*fly.Domain, error)
 	GetDomainsFunc                         func(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddressesFunc                     func(ctx context.Context, appName string) ([]fly.IPAddress, error)
+	GetEgressIPAddressesFunc               func(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetLatestImageDetailsFunc              func(ctx context.Context, image string) (*fly.ImageVersion, error)
 	GetLatestImageTagFunc                  func(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificatesFunc              func(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
@@ -114,6 +116,10 @@ func (m *Client) AllocateIPAddress(ctx context.Context, appName string, addrType
 
 func (m *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error) {
 	return m.AllocateSharedIPAddressFunc(ctx, appName)
+}
+
+func (m *Client) AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error) {
+	return m.AllocateEgressIPAddressFunc(ctx, appName, machineId)
 }
 
 func (m *Client) AppNameAvailable(ctx context.Context, appName string) (bool, error) {
@@ -322,6 +328,10 @@ func (m *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*fl
 
 func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error) {
 	return m.GetIPAddressesFunc(ctx, appName)
+}
+
+func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+	return m.GetEgressIPAddressesFunc(ctx, appName)
 }
 
 func (m *Client) GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error) {
