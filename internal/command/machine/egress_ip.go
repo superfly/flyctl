@@ -126,7 +126,7 @@ func runListEgressIps(ctx context.Context) (err error) {
 	rows := make([][]string, 0, 1)
 
 	for machine, ips := range machineIPs {
-		ipStr := make([]string, len(ips))
+		ipStr := make([]string, 0)
 		for _, ip := range ips {
 			ipStr = append(ipStr, ip.String())
 		}
@@ -134,6 +134,6 @@ func runListEgressIps(ctx context.Context) (err error) {
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	render.Table(out, "", rows, "Machine", "Egress IPs")
+	render.Table(out, "", rows, "Machine ID", "Egress IPs")
 	return nil
 }
