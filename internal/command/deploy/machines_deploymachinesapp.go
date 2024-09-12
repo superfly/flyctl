@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -51,9 +52,19 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	// TODO(allison): Ensure that if we *aren't* using tigris here, we remove the previously attached bucket from
 	//                the app's services (if one exists).
-	tigrisStatics := md.staticsUseTigris(ctx)
-	if tigrisStatics {
-		if err := md.staticsInitialize(ctx); err != nil {
+	if md.staticsUseTigris(ctx) {
+
+		fullApp, err := md.apiClient.GetApp(ctx, md.app.Name)
+		if err != nil {
+			return err
+		}
+		fullOrg, err := md.apiClient.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
+		if err != nil {
+			return err
+		}
+
+		md.tigrisStatics = statics.Deployer(md.appConfig, fullApp, fullOrg, md.releaseVersion)
+		if err := md.tigrisStatics.Configure(ctx); err != nil {
 			return err
 		}
 	}
@@ -63,8 +74,8 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
 	}
 
-	if tigrisStatics && !md.restartOnly {
-		if err := md.staticsPush(ctx); err != nil {
+	if md.tigrisStatics != nil && !md.restartOnly {
+		if err := md.tigrisStatics.Push(ctx); err != nil {
 			return err
 		}
 	}
@@ -105,11 +116,11 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 		}
 	}
 
-	if tigrisStatics && !md.restartOnly {
+	if md.tigrisStatics != nil && !md.restartOnly {
 		if err == nil {
-			err = md.staticsFinalize(ctx)
+			err = md.tigrisStatics.Finalize(ctx)
 		} else {
-			md.staticsCleanupAfterFailure()
+			md.tigrisStatics.CleanupAfterFailure(ctx)
 		}
 	}
 
@@ -1393,4 +1404,15 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 	} else {
 		return nil
 	}
+}
+
+func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
+
+	for _, static := range md.appConfig.Statics {
+		if statics.StaticIsCandidateForTigrisPush(static) {
+			return true
+		}
+	}
+
+	return false
 }

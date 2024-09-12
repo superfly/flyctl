@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -148,7 +149,7 @@ type machineDeployment struct {
 	processGroups         map[string]bool
 	maxConcurrent         int
 	volumeInitialSize     int
-	tigrisStatics         tigrisStaticsData
+	tigrisStatics         *statics.DeployerState
 	deployRetries         int
 	buildID               string
 }
