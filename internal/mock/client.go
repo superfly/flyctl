@@ -70,7 +70,7 @@ type Client struct {
 	GetDomainFunc                          func(ctx context.Context, name string) (*fly.Domain, error)
 	GetDomainsFunc                         func(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddressesFunc                     func(ctx context.Context, appName string) ([]fly.IPAddress, error)
-	GetEgressIPAddressesFunc               func(ctx context.Context, appName string) (map[string][]net.IP, error)
+	GetEgressIPAddressesFunc               func(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetLatestImageDetailsFunc              func(ctx context.Context, image string) (*fly.ImageVersion, error)
 	GetLatestImageTagFunc                  func(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificatesFunc              func(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
@@ -330,7 +330,7 @@ func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAd
 	return m.GetIPAddressesFunc(ctx, appName)
 }
 
-func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]net.IP, error) {
+func (m *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
 	return m.GetEgressIPAddressesFunc(ctx, appName)
 }
 

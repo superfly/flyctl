@@ -3,7 +3,6 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -126,14 +125,12 @@ func runListEgressIps(ctx context.Context) (err error) {
 	rows := make([][]string, 0, 1)
 
 	for machine, ips := range machineIPs {
-		ipStr := make([]string, 0)
 		for _, ip := range ips {
-			ipStr = append(ipStr, ip.String())
+			rows = append(rows, []string{machine, ip.Region, fmt.Sprintf("v%d", ip.Version), ip.IP})
 		}
-		rows = append(rows, []string{machine, strings.Join(ipStr, ",")})
 	}
 
 	out := iostreams.FromContext(ctx).Out
-	render.Table(out, "", rows, "Machine ID", "Egress IPs")
+	render.Table(out, "", rows, "Machine ID", "Region", "Type", "Egress IP")
 	return nil
 }

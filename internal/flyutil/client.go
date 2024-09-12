@@ -69,7 +69,7 @@ type Client interface {
 	GetDomain(ctx context.Context, name string) (*fly.Domain, error)
 	GetDomains(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error)
-	GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]net.IP, error)
+	GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error)
 	GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificates(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
