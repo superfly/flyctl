@@ -93,11 +93,16 @@ updated to include the next version number.`
 func runKeySetOrGenerate(ctx context.Context) (err error) {
 	out := iostreams.FromContext(ctx).Out
 	args := flag.Args(ctx)
-	typStr := args[0]
+	semType := SemanticType(args[0])
 	label := args[1]
 	val := []byte{}
 
-	typ, err := secretTypeFromString(typStr)
+	ver, prefix, err := splitLabelKeyver(label)
+	if err != nil {
+		return err
+	}
+
+	typ, err := semanticTypeToSecretType(semType)
 	if err != nil {
 		return err
 	}
@@ -123,8 +128,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 
 	// Verify consistency with existing keys with the same prefix
 	// while finding the highest version with the same prefix.
-	ver, prefix := splitLabelVersion(label)
-	bestVer := VerUnspec
+	bestVer := KeyverUnspec
 	for _, secret := range secrets {
 		if label == secret.Label {
 			if !flag.GetBool(ctx, "force") {
@@ -132,17 +136,22 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 			}
 		}
 
-		ver2, prefix2 := splitLabelVersion(secret.Label)
+		ver2, prefix2, err := splitLabelKeyver(secret.Label)
+		if err != nil {
+			continue
+		}
 		if prefix != prefix2 {
 			continue
 		}
 
-		if secret.Type != typ {
+		// The semantic type must be the same as any existing keys with the same label prefix.
+		semType2, _ := secretTypeToSemanticType(secret.Type)
+		if semType2 != semType {
 			typs := secretTypeToString(secret.Type)
-			return fmt.Errorf("key %v (%v) has conflicting type %v", prefix, secret.Label, typs)
+			return fmt.Errorf("key %v (%v) has conflicting type %v (%v)", prefix, secret.Label, semType2, typs)
 		}
 
-		if CompareVer(ver2, bestVer) > 0 {
+		if CompareKeyver(ver2, bestVer) > 0 {
 			bestVer = ver2
 		}
 	}
@@ -150,7 +159,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	// If the label does not contain an explicit version,
 	// we will automatically apply a version to the label
 	// unless the user said not to.
-	if ver == VerUnspec && !flag.GetBool(ctx, "noversion") {
+	if ver == KeyverUnspec && !flag.GetBool(ctx, "noversion") {
 		ver, err := bestVer.Incr()
 		if err != nil {
 			return err
@@ -160,7 +169,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 
 	if !flag.GetBool(ctx, "quiet") {
 		typs := secretTypeToString(typ)
-		fmt.Fprintf(out, "Setting %s (%s)\n", label, typs)
+		fmt.Fprintf(out, "Setting %s %s (%s)\n", label, semType, typs)
 	}
 
 	if gen {

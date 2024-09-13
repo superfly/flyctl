@@ -14,16 +14,18 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 )
 
-var validSecretTypes = []string{
-	fly.SECRET_TYPE_KMS_HS256,
-	fly.SECRET_TYPE_KMS_HS384,
-	fly.SECRET_TYPE_KMS_HS512,
-	fly.SECRET_TYPE_KMS_XAES256GCM,
-	fly.SECRET_TYPE_KMS_NACL_AUTH,
-	fly.SECRET_TYPE_KMS_NACL_BOX,
-	fly.SECRET_TYPE_KMS_NACL_SECRETBOX,
-	fly.SECRET_TYPE_KMS_NACL_SIGN,
-}
+type SecretType = string
+
+const (
+	SECRET_TYPE_KMS_HS256 = fly.SECRET_TYPE_KMS_HS256
+	SECRET_TYPE_KMS_HS384 = fly.SECRET_TYPE_KMS_HS384
+	SECRET_TYPE_KMS_HS512 = fly.SECRET_TYPE_KMS_HS512
+	SECRET_TYPE_KMS_XAES256GCM = fly.SECRET_TYPE_KMS_XAES256GCM
+	SECRET_TYPE_KMS_NACL_AUTH = fly.SECRET_TYPE_KMS_NACL_AUTH
+	SECRET_TYPE_KMS_NACL_BOX = fly.SECRET_TYPE_KMS_NACL_BOX
+	SECRET_TYPE_KMS_NACL_SECRETBOX = fly.SECRET_TYPE_KMS_NACL_SECRETBOX
+	SECRET_TYPE_KMS_NACL_SIGN = fly.SECRET_TYPE_KMS_NACL_SIGN
+)
 
 func newKeys() *cobra.Command {
 	const (
@@ -32,7 +34,7 @@ func newKeys() *cobra.Command {
 		Names optionally include version information with a "vN" suffix.
 		`
 
-		short = "Manage application key secrets with the set and unset commands."
+		short = "Manage application key secrets with the gen, list, and delete commands."
 	)
 
 	keys := command.New("keys", short, long, nil)
@@ -40,7 +42,6 @@ func newKeys() *cobra.Command {
 	keys.AddCommand(
 		newKeysList(),
 		newKeyGenerate(),
-		newKeySet(),
 		newKeyDelete(),
 	)
 
@@ -58,14 +59,14 @@ func secretTypeToString(sType string) string {
 // to the sType that flaps accepts.
 func secretTypeFromString(s string) (string, error) {
 	norm := secretTypeToString
-	for _, typ := range validSecretTypes {
+	for _, typ := range supportedSecretTypes {
 		if norm(s) == norm(typ) {
 			return typ, nil
 		}
 	}
 
 	validNames := []string{}
-	for _, typ := range validSecretTypes {
+	for _, typ := range supportedSecretTypes {
 		validNames = append(validNames, norm(typ))
 	}
 	return "", fmt.Errorf("invalid secret type. Must be one of %s", strings.Join(validNames, ", "))

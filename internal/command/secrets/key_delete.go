@@ -48,6 +48,11 @@ with the key version.`
 
 func runKeyDelete(ctx context.Context) (err error) {
 	label := flag.Args(ctx)[0]
+	ver, prefix, err := splitLabelKeyver(label)
+	if err != nil {
+		return err
+	}
+
 	flapsClient, err := getFlapsClient(ctx)
 	if err != nil {
 		return err
@@ -61,9 +66,11 @@ func runKeyDelete(ctx context.Context) (err error) {
 	// Delete all matching secrets, prompting if necessary.
 	var rerr error
 	out := iostreams.FromContext(ctx).Out
-	ver, prefix := splitLabelVersion(label)
 	for _, secret := range secrets {
-		ver2, prefix2 := splitLabelVersion(secret.Label)
+		ver2, prefix2, err := splitLabelKeyver(secret.Label)
+		if err != nil {
+			continue
+		}
 		if prefix != prefix2 {
 			continue
 		}
@@ -75,7 +82,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 			if flag.GetBool(ctx, "noversion") {
 				continue
 			}
-			if ver != VerUnspec {
+			if ver != KeyverUnspec {
 				continue
 			}
 		}
@@ -91,7 +98,7 @@ func runKeyDelete(ctx context.Context) (err error) {
 			}
 		}
 
-		err := flapsClient.DeleteSecret(ctx, secret.Label)
+		err = flapsClient.DeleteSecret(ctx, secret.Label)
 		if err != nil {
 			var ferr *flaps.FlapsError
 			if errors.As(err, &ferr) && ferr.ResponseStatusCode == 404 {

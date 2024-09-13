@@ -2,6 +2,7 @@ package secrets
 
 import (
 	"context"
+	"fmt"
 	"slices"
 	"strings"
 
@@ -36,15 +37,21 @@ name and version.`
 }
 
 func compareSecrets(a, b fly.ListSecret) int {
-	aver, aprefix := splitLabelVersion(a.Label)
-	bver, bprefix := splitLabelVersion(b.Label)
+	aver, aprefix, err1 := splitLabelKeyver(a.Label)
+	if err1 != nil {
+		return -1
+	}
+	bver, bprefix, err2 := splitLabelKeyver(b.Label)
+	if err2 != nil {
+		return 1
+	}
 
 	diff := strings.Compare(aprefix, bprefix)
 	if diff != 0 {
 		return diff
 	}
 
-	diff = CompareVer(aver, bver)
+	diff = CompareKeyver(aver, bver)
 	return diff
 }
 
@@ -52,7 +59,8 @@ type jsonSecret struct {
 	Label   string `json:"label"`
 	Name    string `json:"name"`
 	Version string `json:"version"`
-	Type    string `json:"type"`
+	SemType string `json:"type"`
+	Type    string `json:"secret_type"`
 }
 
 func runKeysList(ctx context.Context) (err error) {
@@ -72,11 +80,20 @@ func runKeysList(ctx context.Context) (err error) {
 	var jsecrets []jsonSecret
 	slices.SortFunc(secrets, compareSecrets)
 	for _, secret := range secrets {
-		ver, prefix := splitLabelVersion(secret.Label)
+		semType, err := secretTypeToSemanticType(secret.Type)
+		if err != nil {
+			continue
+		}
+
+		ver, prefix, err := splitLabelKeyver(secret.Label)
+		if err != nil {
+			continue
+		}
 		jsecret := jsonSecret{
 			Label:   secret.Label,
 			Name:    prefix,
 			Version: ver.String(),
+			SemType: string(semType),
 			Type:    secretTypeToString(secret.Type),
 		}
 
@@ -85,7 +102,7 @@ func runKeysList(ctx context.Context) (err error) {
 			jsecret.Label,
 			jsecret.Name,
 			jsecret.Version,
-			jsecret.Type,
+			fmt.Sprintf("%s (%s)", jsecret.SemType, jsecret.Type),
 		})
 	}
 
