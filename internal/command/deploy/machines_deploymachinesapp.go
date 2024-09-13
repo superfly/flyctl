@@ -481,17 +481,19 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 		// but we only suggest changing region on machine start.
 
 		var timeoutErr machine.WaitTimeoutErr
-		if errors.As(err, &timeoutErr) && timeoutErr.DesiredState() == fly.MachineStateStarted {
-			// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
-			// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
-			descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
-			suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
-		} else {
-			// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
-			// You can't really suggest changing regions in cases where you're not starting machines, so this is the
-			// best advice we can give.
-			descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
-			suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
+		if errors.As(err, &timeoutErr) {
+			if timeoutErr.DesiredState() == fly.MachineStateStarted {
+				// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
+				// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
+				descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
+				suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
+			} else {
+				// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
+				// You can't really suggest changing regions in cases where you're not starting machines, so this is the
+				// best advice we can give.
+				descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
+				suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
+			}
 		}
 
 		err = flyerr.GenericErr{
@@ -653,11 +655,9 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
 			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
-			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 			return rollbackErr
 		}
 
-		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil

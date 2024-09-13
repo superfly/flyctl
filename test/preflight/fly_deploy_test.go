@@ -12,6 +12,7 @@ import (
 	"time"
 
 	//"github.com/samber/lo"
+	"github.com/containerd/continuity/fs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -169,14 +170,20 @@ func getRootPath() string {
 	return filepath.Dir(b)
 }
 
-func copyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
+func copyFixtureIntoWorkDir(workDir, name string) error {
 	src := fmt.Sprintf("%s/fixtures/%s", getRootPath(), name)
-	return testlib.CopyDir(src, workDir, exclusion)
+	return fs.CopyDir(workDir, src)
 }
 
-func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
+func TestDeployNodeApp(t *testing.T) {
+	t.Run("With Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilder))
+	t.Run("Without Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilderWithoutWireguard))
+	t.Run("With Depot", WithParallel(testDeployNodeAppWithDepotRemoteBuilder))
+}
+
+func testDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -203,7 +210,7 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
+func testDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this uses a fixture with a size, no need to run it on alternate
@@ -212,7 +219,7 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 		t.Skip()
 	}
 
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -237,9 +244,9 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func TestFlyDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
+func testDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -274,7 +281,7 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 		t.Skip()
 	}
 
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())

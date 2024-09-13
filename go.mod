@@ -1,8 +1,8 @@
 module github.com/superfly/flyctl
 
-go 1.22
+go 1.22.0
 
-toolchain go1.22.2
+toolchain go1.22.6
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -22,13 +22,14 @@ require (
 	github.com/chzyer/readline v1.5.1
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/websocket v1.8.12
+	github.com/containerd/continuity v0.4.3
 	github.com/depot/depot-go v0.3.0
-	github.com/docker/docker v26.1.4+incompatible
+	github.com/docker/docker v27.2.1+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
 	github.com/ejcx/sshcert v1.1.0
-	github.com/getsentry/sentry-go v0.28.1
+	github.com/getsentry/sentry-go v0.29.0
 	github.com/go-kit/log v0.2.1
 	github.com/go-logr/logr v1.4.2
 	github.com/gofrs/flock v0.12.1
@@ -46,7 +47,7 @@ require (
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mattn/go-colorable v0.1.13
 	github.com/mattn/go-isatty v0.0.20
-	github.com/mattn/go-zglob v0.0.4
+	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.62
 	github.com/moby/buildkit v0.13.2
@@ -61,7 +62,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/sftp v1.13.6
 	github.com/prometheus/blackbox_exporter v0.25.0
-	github.com/prometheus/client_golang v1.20.1
+	github.com/prometheus/client_golang v1.20.3
 	github.com/prometheus/client_model v0.6.1
 	github.com/r3labs/diff v1.1.0
 	github.com/samber/lo v1.47.0
@@ -76,23 +77,23 @@ require (
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.14-0.20240702184853-b8ac52a1fc77
 	github.com/vektah/gqlparser/v2 v2.5.16
-	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0
-	go.opentelemetry.io/otel v1.29.0
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.29.0
-	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.29.0
-	go.opentelemetry.io/otel/sdk v1.29.0
-	go.opentelemetry.io/otel/trace v1.29.0
-	golang.org/x/crypto v0.26.0
+	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.55.0
+	go.opentelemetry.io/otel v1.30.0
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.30.0
+	go.opentelemetry.io/otel/exporters/stdout/stdouttrace v1.30.0
+	go.opentelemetry.io/otel/sdk v1.30.0
+	go.opentelemetry.io/otel/trace v1.30.0
+	golang.org/x/crypto v0.27.0
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
-	golang.org/x/mod v0.20.0
-	golang.org/x/net v0.28.0
+	golang.org/x/mod v0.21.0
+	golang.org/x/net v0.29.0
 	golang.org/x/sync v0.8.0
-	golang.org/x/sys v0.24.0
-	golang.org/x/term v0.23.0
-	golang.org/x/text v0.17.0
+	golang.org/x/sys v0.25.0
+	golang.org/x/term v0.24.0
+	golang.org/x/text v0.18.0
 	golang.org/x/time v0.6.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/grpc v1.65.0
+	google.golang.org/grpc v1.66.2
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -148,7 +149,6 @@ require (
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.4 // indirect
 	github.com/containerd/containerd v1.7.16 // indirect
-	github.com/containerd/continuity v0.4.3 // indirect
 	github.com/containerd/log v0.1.0 // indirect
 	github.com/containerd/stargz-snapshotter/estargz v0.15.1 // indirect
 	github.com/containerd/ttrpc v1.2.3 // indirect
@@ -211,6 +211,7 @@ require (
 	github.com/moby/sys/sequential v0.5.0 // indirect
 	github.com/moby/sys/signal v0.7.0 // indirect
 	github.com/moby/sys/user v0.1.0 // indirect
+	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/moby/term v0.5.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
@@ -249,8 +250,8 @@ require (
 	github.com/xeipuuv/gojsonreference v0.0.0-20180127040603-bd5ef7bd5415 // indirect
 	github.com/xeipuuv/gojsonschema v1.2.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.49.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.29.0 // indirect
-	go.opentelemetry.io/otel/metric v1.29.0 // indirect
+	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.30.0 // indirect
+	go.opentelemetry.io/otel/metric v1.30.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/lint v0.0.0-20210508222113-6edffad5e616 // indirect
@@ -258,8 +259,8 @@ require (
 	golang.org/x/tools v0.24.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 	google.golang.org/genproto v0.0.0-20240227224415-6ceb2ff114de // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20240822170219-fc7c04adadcd // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20240822170219-fc7c04adadcd // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20240903143218-8af14fe29dc1 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240903143218-8af14fe29dc1 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
