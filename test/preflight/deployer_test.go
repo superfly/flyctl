@@ -59,7 +59,7 @@ func TestDeployerDockerfile(t *testing.T) {
 		},
 	}, &container.HostConfig{
 		RestartPolicy: container.RestartPolicy{
-			Name: "never",
+			Name: container.RestartPolicyDisabled,
 		},
 		Binds: []string{fmt.Sprintf("%s:/usr/src/app", f.WorkDir())},
 	}, &network.NetworkingConfig{
