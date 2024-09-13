@@ -272,7 +272,7 @@ image_ref = in_step Step::BUILD do
   end
 end
 
-if DEPLOY_ONLY || get_env("SKIP_EXTENSIONS").nil?
+if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
   if FLY_PG
     in_step Step::FLY_POSTGRES_CREATE do
       pg_name = FLY_PG["app_name"]
