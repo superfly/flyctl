@@ -245,7 +245,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
-	} else if r.dockerFactory.mode.UseDepot() {
+	} else if r.dockerFactory.mode.UseDepot() && len(opts.Buildpacks) == 0 {
 		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
 		strategies = []imageBuilder{
