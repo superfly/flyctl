@@ -37,11 +37,11 @@ name and version.`
 }
 
 func compareSecrets(a, b fly.ListSecret) int {
-	aver, aprefix, err1 := splitLabelKeyver(a.Label)
+	aver, aprefix, err1 := SplitLabelKeyver(a.Label)
 	if err1 != nil {
 		return -1
 	}
-	bver, bprefix, err2 := splitLabelKeyver(b.Label)
+	bver, bprefix, err2 := SplitLabelKeyver(b.Label)
 	if err2 != nil {
 		return 1
 	}
@@ -80,12 +80,12 @@ func runKeysList(ctx context.Context) (err error) {
 	var jsecrets []jsonSecret
 	slices.SortFunc(secrets, compareSecrets)
 	for _, secret := range secrets {
-		semType, err := secretTypeToSemanticType(secret.Type)
+		semType, err := SecretTypeToSemanticType(secret.Type)
 		if err != nil {
 			continue
 		}
 
-		ver, prefix, err := splitLabelKeyver(secret.Label)
+		ver, prefix, err := SplitLabelKeyver(secret.Label)
 		if err != nil {
 			continue
 		}

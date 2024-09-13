@@ -55,23 +55,6 @@ func secretTypeToString(sType string) string {
 	return strings.TrimPrefix(strings.ToLower(sType), "secret_type_kms_")
 }
 
-// secretTypeFromString converts from flyctl's abbreviated secret type string form
-// to the sType that flaps accepts.
-func secretTypeFromString(s string) (string, error) {
-	norm := secretTypeToString
-	for _, typ := range supportedSecretTypes {
-		if norm(s) == norm(typ) {
-			return typ, nil
-		}
-	}
-
-	validNames := []string{}
-	for _, typ := range supportedSecretTypes {
-		validNames = append(validNames, norm(typ))
-	}
-	return "", fmt.Errorf("invalid secret type. Must be one of %s", strings.Join(validNames, ", "))
-}
-
 // getFlapsClient builds and returns a flaps client for the App from the context.
 func getFlapsClient(ctx context.Context) (*flaps.Client, error) {
 	client := flyutil.ClientFromContext(ctx)

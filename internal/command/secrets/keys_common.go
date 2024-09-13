@@ -39,13 +39,13 @@ var supportedKeyTypes = []KeyTypeInfo{
 	// SECRET_TYPE_KMS_NACL_SIGN, SmeTypePublicSigning
 }
 
-// supportedSecretTypes is a list of the SecretTypes for supported key types.
-var supportedSecretTypes = getSupportedSecretTypes()
+// SupportedSecretTypes is a list of the SecretTypes for supported key types.
+var SupportedSecretTypes = GetSupportedSecretTypes()
 
-// supportedSecretTypes is a list of the SemanticTypes for supported key types.
-var supportedSemanticTypes = getSupportedSemanticTypes()
+// SupportedSecretTypes is a list of the SemanticTypes for supported key types.
+var SupportedSemanticTypes = GetSupportedSemanticTypes()
 
-func getSupportedSecretTypes() []SecretType {
+func GetSupportedSecretTypes() []SecretType {
 	var r []SecretType
 	seen := map[SecretType]bool{}
 	for _, info := range supportedKeyTypes {
@@ -58,7 +58,7 @@ func getSupportedSecretTypes() []SecretType {
 	return r
 }
 
-func getSupportedSemanticTypes() []SemanticType {
+func GetSupportedSemanticTypes() []SemanticType {
 	var r []SemanticType
 	seen := map[SemanticType]bool{}
 	for _, info := range supportedKeyTypes {
@@ -71,7 +71,7 @@ func getSupportedSemanticTypes() []SemanticType {
 	return r
 }
 
-func secretTypeToSemanticType(st SecretType) (SemanticType, error) {
+func SecretTypeToSemanticType(st SecretType) (SemanticType, error) {
 	for _, info := range supportedKeyTypes {
 		if info.secretType == st {
 			return info.semanticType, nil
@@ -81,7 +81,7 @@ func secretTypeToSemanticType(st SecretType) (SemanticType, error) {
 	return r, fmt.Errorf("unsupported secret type %s", st)
 }
 
-func semanticTypeToSecretType(st SemanticType) (SecretType, error) {
+func SemanticTypeToSecretType(st SemanticType) (SecretType, error) {
 	for _, info := range supportedKeyTypes {
 		if info.semanticType == st {
 			return info.secretType, nil
@@ -89,7 +89,7 @@ func semanticTypeToSecretType(st SemanticType) (SecretType, error) {
 	}
 
 	var r SecretType
-	return r, fmt.Errorf("unsupported semantic type %s. use one of %v", st, supportedSemanticTypes)
+	return r, fmt.Errorf("unsupported semantic type %s. use one of %v", st, SupportedSemanticTypes)
 }
 
 // Keyver is a key version.
@@ -136,7 +136,7 @@ func CompareKeyver(a, b Keyver) int {
 var labelPat = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
 
 // validKeyLabel determines if a key label is valid or not.
-func validKeyLabel(label string) error {
+func ValidKeyLabel(label string) error {
 	m := labelPat.FindStringSubmatch(label)
 	if m == nil {
 		return fmt.Errorf("invalid label")
@@ -148,8 +148,8 @@ var labelVersionPat = regexp.MustCompile("^(.*)v([0-9]{1,19})$")
 
 // splitLabelKeyver splits a label into an integer version and the remaining label.
 // It returns a version of KeyverUnspec if no label is present or if it would be out of range.
-func splitLabelKeyver(label string) (Keyver, string, error) {
-	if err := validKeyLabel(label); err != nil {
+func SplitLabelKeyver(label string) (Keyver, string, error) {
+	if err := ValidKeyLabel(label); err != nil {
 		return KeyverUnspec, "", err
 	}
 
@@ -168,8 +168,8 @@ func splitLabelKeyver(label string) (Keyver, string, error) {
 	return ver, l, nil
 }
 
-// joinLabelVersion adds a keyversion to a key label.
-func joinLabelVersion(ver Keyver, prefix string) string {
+// JoinLabelVersion adds a keyversion to a key label.
+func JoinLabelVersion(ver Keyver, prefix string) string {
 	if ver == KeyverUnspec {
 		return prefix
 	}

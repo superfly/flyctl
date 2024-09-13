@@ -12,43 +12,6 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newKeySet() (cmd *cobra.Command) {
-	const (
-		long = `Set the application key secret. If the label is not fully qualified
-with a version, and a secret with the same label already exists, the label will be
-updated to include the next version number. The value must be a base64 encoded secret.`
-		short = `Set the application key secret`
-		usage = "set [flags] type label base64value"
-	)
-
-	cmd = command.New(usage, short, long, runKeySetOrGenerate, command.RequireSession, command.RequireAppName)
-
-	flag.Add(cmd,
-		flag.App(),
-		flag.AppConfig(),
-		flag.Bool{
-			Name:        "force",
-			Shorthand:   "f",
-			Description: "Force overwriting existing values",
-		},
-		flag.Bool{
-			Name:        "noversion",
-			Shorthand:   "n",
-			Default:     false,
-			Description: "do not automatically version the key label",
-		},
-		flag.Bool{
-			Name:        "quiet",
-			Shorthand:   "q",
-			Description: "Don't print key label",
-		},
-	)
-
-	cmd.Args = cobra.ExactArgs(3)
-
-	return cmd
-}
-
 func newKeyGenerate() (cmd *cobra.Command) {
 	const (
 		long = `Generate a random application key secret. If the label is not fully qualified
@@ -97,12 +60,12 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 	label := args[1]
 	val := []byte{}
 
-	ver, prefix, err := splitLabelKeyver(label)
+	ver, prefix, err := SplitLabelKeyver(label)
 	if err != nil {
 		return err
 	}
 
-	typ, err := semanticTypeToSecretType(semType)
+	typ, err := SemanticTypeToSecretType(semType)
 	if err != nil {
 		return err
 	}
@@ -136,7 +99,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 			}
 		}
 
-		ver2, prefix2, err := splitLabelKeyver(secret.Label)
+		ver2, prefix2, err := SplitLabelKeyver(secret.Label)
 		if err != nil {
 			continue
 		}
@@ -145,7 +108,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		}
 
 		// The semantic type must be the same as any existing keys with the same label prefix.
-		semType2, _ := secretTypeToSemanticType(secret.Type)
+		semType2, _ := SecretTypeToSemanticType(secret.Type)
 		if semType2 != semType {
 			typs := secretTypeToString(secret.Type)
 			return fmt.Errorf("key %v (%v) has conflicting type %v (%v)", prefix, secret.Label, semType2, typs)
@@ -164,7 +127,7 @@ func runKeySetOrGenerate(ctx context.Context) (err error) {
 		if err != nil {
 			return err
 		}
-		label = joinLabelVersion(ver, prefix)
+		label = JoinLabelVersion(ver, prefix)
 	}
 
 	if !flag.GetBool(ctx, "quiet") {
