@@ -169,7 +169,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		&remoteImageResolver{flyApi: r.apiClient},
 	}
 
-	bld, err := r.createImageBuild(ctx, strategies, opts)
+	bld, err := r.createImageBuild(ctx, strategies)
 	if err != nil {
 		span.AddEvent(fmt.Sprintf("failed to create image build. err=%s", err.Error()))
 		terminal.Warnf("failed to create build in graphql: %v\n", err)
@@ -262,7 +262,7 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	span.SetAttributes(attribute.String("strategies", strings.Join(strategiesString, ",")))
 
-	bld, err := r.createBuild(ctx, strategies, opts)
+	bld, err := r.createBuild(ctx, strategies)
 	if err != nil {
 		terminal.Warnf("failed to create build in graphql: %v\n", err)
 	}
@@ -298,44 +298,24 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 	return nil, errors.New("app does not have a Dockerfile or buildpacks configured. See https://fly.io/docs/reference/configuration/#the-build-section")
 }
 
-func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResolver, opts RefOptions) (*build, error) {
+func (r *Resolver) createImageBuild(ctx context.Context, strategies []imageResolver) (*build, error) {
 	strategiesAvailable := make([]string, 0)
 	for _, r := range strategies {
 		strategiesAvailable = append(strategiesAvailable, r.Name())
 	}
-	imageOps := &fly.BuildImageOptsInput{
-		ImageLabel: opts.ImageLabel,
-		ImageRef:   opts.ImageRef,
-		Publish:    opts.Publish,
-		Tag:        opts.Tag,
-	}
-	return r.createBuildGql(ctx, strategiesAvailable, imageOps)
+	return r.createBuildGql(ctx, strategiesAvailable)
 }
 
-func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder, opts ImageOptions) (*build, error) {
+func (r *Resolver) createBuild(ctx context.Context, strategies []imageBuilder) (*build, error) {
 	strategiesAvailable := make([]string, 0)
 	for _, s := range strategies {
 		strategiesAvailable = append(strategiesAvailable, s.Name())
 	}
-	imageOpts := &fly.BuildImageOptsInput{
-		BuildArgs:       opts.BuildArgs,
-		BuildPacks:      opts.Buildpacks,
-		Builder:         opts.Builder,
-		BuiltIn:         opts.BuiltIn,
-		BuiltInSettings: opts.BuiltInSettings,
-		DockerfilePath:  opts.DockerfilePath,
-		ExtraBuildArgs:  opts.ExtraBuildArgs,
-		ImageLabel:      opts.ImageLabel,
-		ImageRef:        opts.ImageRef,
-		NoCache:         opts.NoCache,
-		Publish:         opts.Publish,
-		Tag:             opts.Tag,
-		Target:          opts.Target,
-	}
-	return r.createBuildGql(ctx, strategiesAvailable, imageOpts)
+
+	return r.createBuildGql(ctx, strategiesAvailable)
 }
 
-func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []string, imageOpts *fly.BuildImageOptsInput) (*build, error) {
+func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []string) (*build, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "web.create_build")
 	defer span.End()
 
@@ -354,7 +334,6 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 	input := fly.CreateBuildInput{
 		AppName:             r.dockerFactory.appName,
 		BuilderType:         builderType,
-		ImageOpts:           *imageOpts,
 		MachineId:           "",
 		StrategiesAvailable: strategiesAvailable,
 	}
