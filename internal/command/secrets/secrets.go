@@ -44,6 +44,7 @@ func New() *cobra.Command {
 		newUnset(),
 		newImport(),
 		newDeploy(),
+		newKeys(),
 	)
 
 	return secrets
