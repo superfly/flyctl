@@ -15,14 +15,17 @@ type FlapsClient interface {
 	AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error)
 	Cordon(ctx context.Context, machineID string, nonce string) (err error)
 	CreateApp(ctx context.Context, name string, org string) (err error)
+	CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error)
 	CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error)
 	CreateVolumeSnapshot(ctx context.Context, volumeId string) error
 	DeleteMetadata(ctx context.Context, machineID, key string) error
+	DeleteSecret(ctx context.Context, label string) (err error)
 	DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error)
 	Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error)
 	Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error)
 	ExtendVolume(ctx context.Context, volumeId string, size_gb int) (*fly.Volume, bool, error)
 	FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error)
+	GenerateSecret(ctx context.Context, sLabel, sType string) (err error)
 	Get(ctx context.Context, machineID string) (*fly.Machine, error)
 	GetAllVolumes(ctx context.Context) ([]fly.Volume, error)
 	GetMany(ctx context.Context, machineIDs []string) ([]*fly.Machine, error)
@@ -36,6 +39,7 @@ type FlapsClient interface {
 	List(ctx context.Context, state string) ([]*fly.Machine, error)
 	ListActive(ctx context.Context) ([]*fly.Machine, error)
 	ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error)
+	ListSecrets(ctx context.Context) (out []fly.ListSecret, err error)
 	NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error)
 	RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error)
 	ReleaseLease(ctx context.Context, machineID, nonce string) error

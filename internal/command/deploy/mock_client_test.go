@@ -35,6 +35,10 @@ func (m *mockFlapsClient) CreateApp(ctx context.Context, name string, org string
 	return fmt.Errorf("failed to create app %s", name)
 }
 
+func (m *mockFlapsClient) CreateSecret(ctx context.Context, sLabel, sType string, in fly.CreateSecretRequest) (err error) {
+	return fmt.Errorf("failed to create secret %s", sLabel)
+}
+
 func (m *mockFlapsClient) CreateVolume(ctx context.Context, req fly.CreateVolumeRequest) (*fly.Volume, error) {
 	return nil, fmt.Errorf("failed to create volume %s", req.Name)
 }
@@ -45,6 +49,10 @@ func (m *mockFlapsClient) CreateVolumeSnapshot(ctx context.Context, volumeId str
 
 func (m *mockFlapsClient) DeleteMetadata(ctx context.Context, machineID, key string) error {
 	return fmt.Errorf("failed to delete metadata %s", key)
+}
+
+func (m *mockFlapsClient) DeleteSecret(ctx context.Context, label string) (err error) {
+	return fmt.Errorf("failed to delete secret %s", label)
 }
 
 func (m *mockFlapsClient) DeleteVolume(ctx context.Context, volumeId string) (*fly.Volume, error) {
@@ -65,6 +73,10 @@ func (m *mockFlapsClient) ExtendVolume(ctx context.Context, volumeId string, siz
 
 func (m *mockFlapsClient) FindLease(ctx context.Context, machineID string) (*fly.MachineLease, error) {
 	return nil, fmt.Errorf("failed to find lease for %s", machineID)
+}
+
+func (m *mockFlapsClient) GenerateSecret(ctx context.Context, sLabel, sType string) (err error) {
+	return fmt.Errorf("failed to generate secret %s", sLabel)
 }
 
 func (m *mockFlapsClient) Get(ctx context.Context, machineID string) (*fly.Machine, error) {
@@ -120,6 +132,10 @@ func (m *mockFlapsClient) ListActive(ctx context.Context) ([]*fly.Machine, error
 
 func (m *mockFlapsClient) ListFlyAppsMachines(ctx context.Context) ([]*fly.Machine, *fly.Machine, error) {
 	return nil, nil, fmt.Errorf("failed to list fly apps machines")
+}
+
+func (m *mockFlapsClient) ListSecrets(ctx context.Context) (out []fly.ListSecret, err error) {
+	return nil, fmt.Errorf("failed to list secrets")
 }
 
 func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, in interface{}, headers map[string][]string) (*http.Request, error) {
