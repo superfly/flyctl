@@ -6,6 +6,7 @@ package preflight
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -57,6 +58,8 @@ func TestDeployerDockerfile(t *testing.T) {
 			fmt.Sprintf("DEPLOY_ORG_SLUG=%s", f.OrgSlug()),
 			"DEPLOY_ONLY=1",
 		},
+		AttachStdout: true,
+		AttachStderr: true,
 	}, &container.HostConfig{
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyDisabled,
@@ -101,6 +104,10 @@ func TestDeployerDockerfile(t *testing.T) {
 	for {
 		_, err = logs.Read(hdr)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				fmt.Println("EOF!")
+				break
+			}
 			panic(err)
 		}
 		var w io.Writer
