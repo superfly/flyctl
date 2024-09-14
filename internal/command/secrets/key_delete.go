@@ -15,7 +15,7 @@ import (
 
 func newKeyDelete() (cmd *cobra.Command) {
 	const (
-		long = `Delete the application key secret by label.`
+		long  = `Delete the application key secret by label.`
 		short = `Delete the application key secret`
 		usage = "delete [flags] label"
 	)
