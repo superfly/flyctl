@@ -45,8 +45,8 @@ jobs:
           mkdir -p bin
           cp dist/default_linux_amd64_v1/flyctl bin/flyctl
           chmod +x bin/flyctl
-          docker build -t flyio/deployer:${{ github.ref }} -f deployer.Dockerfile .
-          docker push flyio/deployer:${{ github.ref }}
+          docker build -t flyio/deployer:${{ github.sha }} -f deployer.Dockerfile .
+          docker push flyio/deployer:${{ github.sha }}
 
   preflight:
     needs: test_build
