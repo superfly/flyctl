@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -141,15 +140,15 @@ func TestDeployerDockerfile(t *testing.T) {
 		case l := <-logCh:
 			logDone = l == nil
 			if !logDone {
-				var w io.Writer
-				switch l.stream {
-				case 1:
-					w = os.Stdout
-				default:
-					w = os.Stderr
-				}
+				// var w io.Writer
+				// switch l.stream {
+				// case 1:
+				// 	w = os.Stdout
+				// default:
+				// 	w = os.Stderr
+				// }
 
-				fmt.Fprint(w, string(l.data))
+				fmt.Printf(string(l.data))
 			}
 		case w := <-waitCh:
 			exited = true
