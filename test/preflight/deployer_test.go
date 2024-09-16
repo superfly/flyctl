@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -51,7 +52,7 @@ func TestDeployerDockerfile(t *testing.T) {
 	fmt.Println("creating container...")
 	cont, err := dockerClient.ContainerCreate(ctx, &container.Config{
 		Hostname: "deployer",
-		Image:    "fly-deployer",
+		Image:    os.Getenv("FLY_DEPLOYER_IMAGE"),
 		Env: []string{
 			fmt.Sprintf("FLY_API_TOKEN=%s", f.AccessToken()),
 			fmt.Sprintf("DEPLOY_ORG_SLUG=%s", f.OrgSlug()),
@@ -161,6 +162,9 @@ func TestDeployerDockerfile(t *testing.T) {
 			exitError = we
 		}
 	}
+
+	require.Nil(t, exitError)
+	require.Zero(t, exitCode)
 
 }
 

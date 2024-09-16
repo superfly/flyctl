@@ -34,6 +34,19 @@ jobs:
           name: flyctl
           path: dist/default_linux_amd64_v1/flyctl
           overwrite: true
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: https://index.docker.io/v1/
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Deployer docker build
+        run: |
+          mkdir -p bin
+          cp dist/default_linux_amd64_v1/flyctl bin/flyctl
+          chmod +x bin/flyctl
+          docker build -t flyio/deployer:${{ github.ref }} -f deployer.Dockerfile .
+          docker push flyio/deployer:${{ github.ref }}
 
   preflight:
     needs: test_build

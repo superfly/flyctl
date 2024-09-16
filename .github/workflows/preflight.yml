@@ -41,9 +41,6 @@ jobs:
         run: |
           mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
-      - name: Build deployer image
-        run: |
-          docker build -t fly-deployer -f deployer.Dockerfile .
       - name: Run preflight tests
         id: preflight
         env:
@@ -54,6 +51,7 @@ jobs:
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
           FLY_PREFLIGHT_TEST_VM_SIZE: ${{ matrix.vm_size }}
+          FLY_DEPLOYER_IMAGE: "flyio/deployer:${{ github.ref }}"
         run: |
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
