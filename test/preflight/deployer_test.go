@@ -100,27 +100,71 @@ func TestDeployerDockerfile(t *testing.T) {
 		Force:         true,
 	})
 
-	hdr := make([]byte, 8)
+	waitCh, waitErrCh := dockerClient.ContainerWait(ctx, cont.ID, container.WaitConditionNotRunning)
+
+	logCh := make(chan *log)
+
+	go func() {
+
+		hdr := make([]byte, 8)
+		for {
+			_, err = logs.Read(hdr)
+			if err != nil {
+				if errors.Is(err, io.EOF) {
+					fmt.Println("EOF!")
+					logCh <- nil
+					break
+				}
+				panic(err)
+			}
+
+			count := binary.BigEndian.Uint32(hdr[4:])
+			dat := make([]byte, count)
+			_, err = logs.Read(dat)
+
+			logCh <- &log{stream: hdr[0], data: dat}
+		}
+
+	}()
+
+	logDone := false
+	exited := false
+	var exitCode int64
+	var exitError error
+
 	for {
-		_, err = logs.Read(hdr)
-		if err != nil {
-			if errors.Is(err, io.EOF) {
-				fmt.Println("EOF!")
+		select {
+		case l := <-logCh:
+			logDone = l == nil
+			if !logDone {
+				var w io.Writer
+				switch l.stream {
+				case 1:
+					w = os.Stdout
+				default:
+					w = os.Stderr
+				}
+
+				fmt.Fprint(w, string(l.data))
+			}
+		case w := <-waitCh:
+			exited = true
+			exitCode = w.StatusCode
+			exitError = errors.New(w.Error.Message)
+		case we := <-waitErrCh:
+			exited = true
+			exitError = we
+		default:
+			if exited && logDone {
+				fmt.Printf("container done, code: %d, error: %+v\n", exitCode, exitError)
 				break
 			}
-			panic(err)
 		}
-		var w io.Writer
-		switch hdr[0] {
-		case 1:
-			w = os.Stdout
-		default:
-			w = os.Stderr
-		}
-		count := binary.BigEndian.Uint32(hdr[4:])
-		dat := make([]byte, count)
-		_, err = logs.Read(dat)
-		fmt.Fprint(w, string(dat))
 	}
 
+}
+
+type log struct {
+	stream uint8
+	data   []byte
 }
