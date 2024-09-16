@@ -83,6 +83,9 @@ if GIT_REPO_URL
     end
 end
 
+# -c arg if any
+conf_arg = ""
+
 if !DEPLOY_ONLY
   MANIFEST_PATH = "/tmp/manifest.json"
 
@@ -218,6 +221,7 @@ if !DEPLOY_ONLY
 
   # Write the fly config file to a tmp directory
   File.write("/tmp/fly.json", manifest["config"].to_json)
+  conf_arg = "-c /tmp/fly.json"
 
   ORG_SLUG = manifest["plan"]["org"]
   APP_REGION = manifest["plan"]["region"]
@@ -255,7 +259,6 @@ end
 
 # TODO: better error if missing config
 fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local", log: false))
-
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
 image_ref = in_step Step::BUILD do
@@ -266,7 +269,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} -c /tmp/fly.json --image-label #{image_tag}")
+    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} #{conf_arg} --image-label #{image_tag}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
@@ -369,7 +372,7 @@ end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} -c /tmp/fly.json --image #{image_ref}")
+    exec_capture("flyctl deploy -a #{APP_NAME} #{conf_arg} --image #{image_ref}")
   end
 end
 

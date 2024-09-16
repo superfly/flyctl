@@ -40,7 +40,7 @@ jobs:
           registry: https://index.docker.io/v1/
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Deployer docker build
+      - name: Deployer docker build & push
         run: |
           mkdir -p bin
           cp dist/default_linux_amd64_v1/flyctl bin/flyctl

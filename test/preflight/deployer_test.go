@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 
@@ -16,15 +17,17 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
 	"github.com/superfly/flyctl/test/preflight/testlib"
 )
 
 func TestDeployerDockerfile(t *testing.T) {
-	dockerClient, err := client.NewClientWithOpts(client.FromEnv)
+	dockerClient, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
 		panic(err)
 	}
+	defer dockerClient.Close()
 
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -45,6 +48,10 @@ func TestDeployerDockerfile(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	flytoml, err := ioutil.ReadFile(flyTomlPath)
+	require.NoError(t, err)
+	fmt.Printf("FLY TOML:\n%s\n", string(flytoml))
+
 	// app required
 	f.Fly("apps create %s -o %s", appName, f.OrgSlug())
 
@@ -53,59 +60,43 @@ func TestDeployerDockerfile(t *testing.T) {
 	imageRef := os.Getenv("FLY_DEPLOYER_IMAGE")
 	require.NotEmpty(t, imageRef)
 
-	fmt.Println("pulling image...")
-	out, err := dockerClient.ImagePull(ctx, imageRef, image.PullOptions{Platform: "linux/amd64"})
-	if err != nil {
-		panic(err)
+	if os.Getenv("FLY_DEPLOYER_IMAGE_NO_PULL") == "" {
+		fmt.Println("pulling image...")
+		out, err := dockerClient.ImagePull(ctx, imageRef, image.PullOptions{Platform: "linux/amd64"})
+		if err != nil {
+			panic(err)
+		}
+
+		defer out.Close()
+
+		_, err = io.Copy(os.Stdout, out)
+		if err != nil {
+			// TODO: fatal?
+			fmt.Printf("error copying image pull io: %v\n", err)
+		}
 	}
 
-	defer out.Close()
-
-	_, err = io.Copy(os.Stdout, out)
-	if err != nil {
-		// TODO: fatal?
-		fmt.Printf("error copying image pull io: %v\n", err)
-	}
-
-	fmt.Println("creating container...")
+	fmt.Printf("creating container... binding /usr/src/app to %s\n", f.WorkDir())
 	cont, err := dockerClient.ContainerCreate(ctx, &container.Config{
-		Hostname: "deployer",
-		Image:    imageRef,
+		Image: imageRef,
 		Env: []string{
 			fmt.Sprintf("FLY_API_TOKEN=%s", f.AccessToken()),
 			fmt.Sprintf("DEPLOY_ORG_SLUG=%s", f.OrgSlug()),
 			"DEPLOY_ONLY=1",
+			"DEPLOY_NOW=1",
 		},
-		AttachStdout: true,
-		AttachStderr: true,
+		Tty: false,
 	}, &container.HostConfig{
 		RestartPolicy: container.RestartPolicy{
 			Name: container.RestartPolicyDisabled,
 		},
-		Binds: []string{fmt.Sprintf("%s:/usr/src/app", f.WorkDir())},
-	}, &network.NetworkingConfig{
-		EndpointsConfig: map[string]*network.EndpointSettings{},
-	}, nil, fmt.Sprintf("deployer-%s", appName))
+		Binds:       []string{fmt.Sprintf("%s:/usr/src/app", f.WorkDir())},
+		NetworkMode: network.NetworkHost,
+	}, nil, &v1.Platform{
+		Architecture: "amd64",
+		OS:           "linux",
+	}, fmt.Sprintf("deployer-%s", appName))
 
-	if err != nil {
-		panic(err)
-	}
-
-	logs, err := dockerClient.ContainerLogs(context.Background(), cont.ID, container.LogsOptions{
-		ShowStderr: true,
-		ShowStdout: true,
-		Timestamps: false,
-		Follow:     true,
-		Tail:       "40",
-	})
-	if err != nil {
-		panic(err)
-	}
-
-	defer logs.Close()
-
-	fmt.Println("starting container...")
-	err = dockerClient.ContainerStart(ctx, cont.ID, container.StartOptions{})
 	if err != nil {
 		panic(err)
 	}
@@ -118,18 +109,35 @@ func TestDeployerDockerfile(t *testing.T) {
 		Force:         true,
 	})
 
+	fmt.Println("starting container...")
+	err = dockerClient.ContainerStart(ctx, cont.ID, container.StartOptions{})
+	if err != nil {
+		panic(err)
+	}
+
+	logs, err := dockerClient.ContainerLogs(context.Background(), cont.ID, container.LogsOptions{
+		ShowStderr: true,
+		ShowStdout: true,
+		Follow:     true,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	defer logs.Close()
+
 	waitCh, waitErrCh := dockerClient.ContainerWait(ctx, cont.ID, container.WaitConditionNotRunning)
 
 	logCh := make(chan *log)
 
 	go func() {
-
 		hdr := make([]byte, 8)
 		for {
-			_, err = logs.Read(hdr)
+			_, err := logs.Read(hdr)
+			// fmt.Printf("read %d bytes of logs\n", n)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
-					fmt.Println("EOF!")
+					// fmt.Println("EOF!")
 					logCh <- nil
 					break
 				}
@@ -142,7 +150,6 @@ func TestDeployerDockerfile(t *testing.T) {
 
 			logCh <- &log{stream: hdr[0], data: dat}
 		}
-
 	}()
 
 	logDone := false
@@ -184,6 +191,10 @@ func TestDeployerDockerfile(t *testing.T) {
 	require.Nil(t, exitError)
 	require.Zero(t, exitCode)
 
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
 type log struct {
