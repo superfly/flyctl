@@ -150,7 +150,9 @@ func TestDeployerDockerfile(t *testing.T) {
 		case w := <-waitCh:
 			exited = true
 			exitCode = w.StatusCode
-			exitError = errors.New(w.Error.Message)
+			if w.Error != nil {
+				exitError = errors.New(w.Error.Message)
+			}
 		case we := <-waitErrCh:
 			exited = true
 			exitError = we
