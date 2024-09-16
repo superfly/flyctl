@@ -133,6 +133,10 @@ func TestDeployerDockerfile(t *testing.T) {
 	var exitError error
 
 	for {
+		if exited && logDone {
+			fmt.Printf("container done, code: %d, error: %+v\n", exitCode, exitError)
+			break
+		}
 		select {
 		case l := <-logCh:
 			logDone = l == nil
@@ -156,11 +160,6 @@ func TestDeployerDockerfile(t *testing.T) {
 		case we := <-waitErrCh:
 			exited = true
 			exitError = we
-		default:
-			if exited && logDone {
-				fmt.Printf("container done, code: %d, error: %+v\n", exitCode, exitError)
-				break
-			}
 		}
 	}
 
