@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/test/preflight/testlib"
+	"github.com/superfly/flyctl/test/testlib"
 )
 
 // TODO: list of things to test
@@ -298,7 +298,7 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())

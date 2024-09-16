@@ -1,16 +1,17 @@
 //go:build integration
 // +build integration
 
-package preflight
+package deployer
 
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
@@ -19,7 +20,7 @@ import (
 	"github.com/docker/docker/client"
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/test/preflight/testlib"
+	"github.com/superfly/flyctl/test/testlib"
 )
 
 func TestDeployerDockerfile(t *testing.T) {
@@ -31,7 +32,7 @@ func TestDeployerDockerfile(t *testing.T) {
 
 	f := testlib.NewTestEnvFromEnv(t)
 
-	err = copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err = testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -47,10 +48,6 @@ func TestDeployerDockerfile(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-
-	flytoml, err := ioutil.ReadFile(flyTomlPath)
-	require.NoError(t, err)
-	fmt.Printf("FLY TOML:\n%s\n", string(flytoml))
 
 	// app required
 	f.Fly("apps create %s -o %s", appName, f.OrgSlug())
@@ -131,9 +128,11 @@ func TestDeployerDockerfile(t *testing.T) {
 	logCh := make(chan *log)
 
 	go func() {
+		var err error
 		hdr := make([]byte, 8)
 		for {
-			_, err := logs.Read(hdr)
+			// var n int
+			_, err = logs.Read(hdr)
 			// fmt.Printf("read %d bytes of logs\n", n)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
@@ -152,52 +151,107 @@ func TestDeployerDockerfile(t *testing.T) {
 		}
 	}()
 
-	logDone := false
+	msgDone := false
 	exited := false
 	var exitCode int64
-	var exitError error
+
+	dep := DeployerOut{Artifacts: map[string]json.RawMessage{}}
 
 	for {
-		if exited && logDone {
-			fmt.Printf("container done, code: %d, error: %+v\n", exitCode, exitError)
+		if err != nil || (exited && msgDone) {
+			fmt.Printf("container done, code: %d, error: %+v\n", exitCode, err)
 			break
 		}
 		select {
 		case l := <-logCh:
-			logDone = l == nil
-			if !logDone {
-				// var w io.Writer
-				// switch l.stream {
-				// case 1:
-				// 	w = os.Stdout
-				// default:
-				// 	w = os.Stderr
-				// }
+			msgDone = l == nil
+			if !msgDone {
+				var msg Message
 
-				fmt.Printf(string(l.data))
+				fmt.Print(string(l.data))
+
+				if len(l.data) > 0 {
+					err = json.Unmarshal(l.data, &msg)
+					if err == nil {
+						if msg.Step != "" {
+							found := false
+							for _, s := range dep.Steps {
+								if s == msg.Step {
+									found = true
+									break
+								}
+							}
+							if !found {
+								dep.Steps = append(dep.Steps, msg.Step)
+							}
+						}
+
+						if artifactName := strings.TrimPrefix(msg.Type, "artifact:"); artifactName != msg.Type {
+							dep.Artifacts[artifactName] = msg.Payload
+						}
+
+						dep.Messages = append(dep.Messages, msg)
+					}
+				}
 			}
 		case w := <-waitCh:
 			exited = true
 			exitCode = w.StatusCode
 			if w.Error != nil {
-				exitError = errors.New(w.Error.Message)
+				err = errors.New(w.Error.Message)
 			}
 		case we := <-waitErrCh:
 			exited = true
-			exitError = we
+			err = we
 		}
 	}
 
-	require.Nil(t, exitError)
+	require.Nil(t, err)
 	require.Zero(t, exitCode)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
 
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+
+	var meta ArtifactMeta
+	err = json.Unmarshal(dep.Artifacts["meta"], &meta)
+	require.NoError(t, err)
+
+	stepNames := make([]string, len(meta.Steps)+1)
+	stepNames[0] = "__root__"
+	for i, step := range meta.Steps {
+		stepNames[i+1] = step.ID
+	}
+
+	require.Equal(t, dep.Steps, stepNames)
 }
 
 type log struct {
 	stream uint8
 	data   []byte
+}
+
+type Message struct {
+	ID   int     `json:"id"`
+	Step string  `json:"step"`
+	Type string  `json:"type"`
+	Time float64 `json:"time"`
+
+	Payload json.RawMessage `json:"payload"`
+}
+
+type DeployerOut struct {
+	Messages  []Message
+	Steps     []string
+	Artifacts map[string]json.RawMessage
+}
+
+type Step struct {
+	ID          string `json:"id"`
+	Description string `json:"description"`
+}
+
+type ArtifactMeta struct {
+	Steps []Step `json:"steps"`
 }

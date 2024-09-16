@@ -54,7 +54,7 @@ func otherRegionsFromEnv() []string {
 
 func currentRepoFlyctl() string {
 	_, filename, _, _ := runtime.Caller(0)
-	flyctlBin := path.Join(path.Dir(filename), "../../..", "bin", "flyctl")
+	flyctlBin := path.Join(path.Dir(filename), "../..", "bin", "flyctl")
 	return flyctlBin
 }
 
@@ -327,4 +327,14 @@ func OverwriteConfig(path string, data map[string]any) error {
 	}
 
 	return nil
+}
+
+func getRootPath() string {
+	_, b, _, _ := runtime.Caller(0)
+	return filepath.Dir(b)
+}
+
+func CopyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
+	src := fmt.Sprintf("%s/../fixtures/%s", getRootPath(), name)
+	return CopyDir(src, workDir, exclusion)
 }

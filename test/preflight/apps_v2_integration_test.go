@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/test/preflight/testlib"
+	"github.com/superfly/flyctl/test/testlib"
 )
 
 func TestAppsV2Example(t *testing.T) {

@@ -54,7 +54,7 @@ if !DEPLOY_ONLY
   steps.push({id: Step::CUSTOMIZE, description: "Customize deployment plan"}) if DEPLOY_CUSTOMIZE
 else
   # only deploying, so we need to send the artifacts right away
-  steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
+  steps.push({id: Step::BUILD, description: "Build image"})
   steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
   artifact Artifact::META, { steps: steps }
 end
