@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
 	"github.com/stretchr/testify/require"
@@ -49,10 +50,27 @@ func TestDeployerDockerfile(t *testing.T) {
 
 	ctx := context.TODO()
 
+	imageRef := os.Getenv("FLY_DEPLOYER_IMAGE")
+	require.NotEmpty(t, imageRef)
+
+	fmt.Println("pulling image...")
+	out, err := dockerClient.ImagePull(ctx, imageRef, image.PullOptions{Platform: "linux/amd64"})
+	if err != nil {
+		panic(err)
+	}
+
+	defer out.Close()
+
+	_, err = io.Copy(os.Stdout, out)
+	if err != nil {
+		// TODO: fatal?
+		fmt.Printf("error copying image pull io: %v\n", err)
+	}
+
 	fmt.Println("creating container...")
 	cont, err := dockerClient.ContainerCreate(ctx, &container.Config{
 		Hostname: "deployer",
-		Image:    os.Getenv("FLY_DEPLOYER_IMAGE"),
+		Image:    imageRef,
 		Env: []string{
 			fmt.Sprintf("FLY_API_TOKEN=%s", f.AccessToken()),
 			fmt.Sprintf("DEPLOY_ORG_SLUG=%s", f.OrgSlug()),
