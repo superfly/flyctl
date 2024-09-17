@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strconv"
 	"sync"
@@ -17,7 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/macaroon"
 	"github.com/superfly/macaroon/flyio"
-	"golang.org/x/exp/maps"
 )
 
 // UserURLCallback is a function that opens a URL in the user's browser. This is
@@ -272,7 +272,7 @@ func doFetchOrgTokens(ctx context.Context, t *tokens.Tokens, fetchOrgs orgFetche
 		defer wgLock.Unlock()
 		macToks = append(macToks, m)
 	}
-	for _, graphID := range maps.Values(graphIDByNumericID) {
+	for graphID := range maps.Values(graphIDByNumericID) {
 		graphID := graphID
 
 		wg.Add(1)
