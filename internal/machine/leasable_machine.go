@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -18,7 +20,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
 )
 
 type LeasableMachine interface {
@@ -316,7 +317,7 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, timeout))
 	defer cancel()
 
-	checkDefs := maps.Values(lm.Machine().Config.Checks)
+	checkDefs := slices.Colect(maps.Values(lm.Machine().Config.Checks))
 	for _, s := range lm.Machine().Config.Services {
 		checkDefs = append(checkDefs, s.Checks...)
 	}
