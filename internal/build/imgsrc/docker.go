@@ -636,17 +636,20 @@ func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag s
 }
 
 func registryAuth(token string) registry.AuthConfig {
+	targetRegistry := viper.GetString(flyctl.ConfigRegistryHost)
 	return registry.AuthConfig{
 		Username:      "x",
 		Password:      token,
-		ServerAddress: "registry.fly.io",
+		ServerAddress: targetRegistry,
 	}
 }
 
 func authConfigs(token string) map[string]registry.AuthConfig {
+	targetRegistry := viper.GetString(flyctl.ConfigRegistryHost)
+
 	authConfigs := map[string]registry.AuthConfig{}
 
-	authConfigs["registry.fly.io"] = registryAuth(token)
+	authConfigs[targetRegistry] = registryAuth(token)
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")
