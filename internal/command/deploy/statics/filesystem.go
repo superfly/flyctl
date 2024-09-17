@@ -143,33 +143,38 @@ func (deployer *DeployerState) deleteDirectory(ctx context.Context, dir string) 
 		dir += "/"
 	}
 
-	// List all files in the bucket with the given prefix.
-	listOutput, err := deployer.s3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: &deployer.bucket,
-		Prefix: fly.Pointer(dir),
-	})
-	if err != nil {
-		return err
-	}
-
-	objectIdentifiers := lo.Map(listOutput.Contents, func(obj types.Object, _ int) types.ObjectIdentifier {
-		return types.ObjectIdentifier{
-			Key: obj.Key,
-		}
+	paginator := s3.NewListObjectsV2Paginator(deployer.s3, &s3.ListObjectsV2Input{
+		Bucket:    &deployer.bucket,
+		Prefix:    fly.Pointer(dir),
+		Delimiter: fly.Pointer("/"),
 	})
 
-	// Delete files in batches of 1000
-	split := lo.Chunk(objectIdentifiers, 1000)
-	for _, batch := range split {
+	for paginator.HasMorePages() {
 
-		_, err = deployer.s3.DeleteObjects(ctx, &s3.DeleteObjectsInput{
-			Bucket: &deployer.bucket,
-			Delete: &types.Delete{
-				Objects: batch,
-			},
-		})
+		listOutput, err := paginator.NextPage(ctx)
 		if err != nil {
 			return err
+		}
+
+		objectIdentifiers := lo.Map(listOutput.Contents, func(obj types.Object, _ int) types.ObjectIdentifier {
+			return types.ObjectIdentifier{
+				Key: obj.Key,
+			}
+		})
+
+		// Delete files in batches of 1000
+		split := lo.Chunk(objectIdentifiers, 1000)
+		for _, batch := range split {
+
+			_, err = deployer.s3.DeleteObjects(ctx, &s3.DeleteObjectsInput{
+				Bucket: &deployer.bucket,
+				Delete: &types.Delete{
+					Objects: batch,
+				},
+			})
+			if err != nil {
+				return err
+			}
 		}
 	}
 

@@ -147,40 +147,48 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 	// List directories in the app's directory.
 	// Delete all versions except for the three latest versions.
 
-	// TODO(allison): Support pagination if the bucket contains >1k objects.
-	//                Right now, this is egregiously incorrect and brittle.
 	// List `fly-statics/<app_name>/` to get a list of all versions.
-	listOutput, err := deployer.s3.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+	paginator := s3.NewListObjectsV2Paginator(deployer.s3, &s3.ListObjectsV2Input{
 		Bucket:    &deployer.bucket,
 		Prefix:    fly.Pointer(fmt.Sprintf("fly-statics/%s/", appName)),
 		Delimiter: fly.Pointer("/"),
 	})
 
-	if err != nil {
-		return err
+	versionSet := map[int]struct{}{}
+	for paginator.HasMorePages() {
+
+		listOutput, err := paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+
+		// Extract the version numbers from the common prefixes.
+		// These should be strings of the format `fly-statics/<app_name>/<version>/`.
+		versions := lo.FilterMap(listOutput.CommonPrefixes, func(prefix types.CommonPrefix, _ int) (int, bool) {
+			// The number is the third part of the prefix.
+			parts := strings.Split(*prefix.Prefix, "/")
+			if len(parts) < 3 {
+				return 0, false
+			}
+			num, err := strconv.Atoi(parts[2])
+			if err != nil {
+				return 0, false
+			}
+			return num, true
+		})
+		for _, version := range versions {
+			versionSet[version] = struct{}{}
+		}
 	}
 
-	// Extract the version numbers from the common prefixes.
-	// These should be strings of the format `fly-statics/<app_name>/<version>/`.
-	versions := lo.FilterMap(listOutput.CommonPrefixes, func(prefix types.CommonPrefix, _ int) (int, bool) {
-		// The number is the third part of the prefix.
-		parts := strings.Split(*prefix.Prefix, "/")
-		if len(parts) < 3 {
-			return 0, false
-		}
-		num, err := strconv.Atoi(parts[2])
-		if err != nil {
-			return 0, false
-		}
-		return num, true
-	})
+	versions := lo.Keys(versionSet)
 
 	var ignore []int
 	for _, version := range versions {
 		if version > currentVer {
 			ignore = append(ignore, version)
 			terminal.Debugf("Deleting too-new static dir (likely for reused app name): %s\n", fmt.Sprintf("fly-statics/%s/%d/", appName, version))
-			err = deployer.deleteDirectory(ctx, fmt.Sprintf("fly-statics/%s/%d/", appName, version))
+			err := deployer.deleteDirectory(ctx, fmt.Sprintf("fly-statics/%s/%d/", appName, version))
 			if err != nil {
 				return err
 			}
@@ -201,7 +209,7 @@ func (deployer *DeployerState) deleteOldStatics(ctx context.Context, appName str
 		versions = versions[:len(versions)-staticsKeepVersions]
 		for _, version := range versions {
 			terminal.Debugf("Deleting old static dir: %s\n", fmt.Sprintf("fly-statics/%s/%d/", appName, version))
-			err = deployer.deleteDirectory(ctx, fmt.Sprintf("fly-statics/%s/%d/", appName, version))
+			err := deployer.deleteDirectory(ctx, fmt.Sprintf("fly-statics/%s/%d/", appName, version))
 			if err != nil {
 				return err
 			}
