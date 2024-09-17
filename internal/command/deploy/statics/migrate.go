@@ -35,11 +35,14 @@ func MoveBucket(
 		return err
 	}
 
-	prevBucketAuth := oldBucket.Metadata.(map[string]interface{})[staticsMetaTokenizedAuth].(string)
+	prevBucketMeta := oldBucket.Metadata.(map[string]interface{})
+	prevBucketAuth := prevBucketMeta[staticsMetaTokenizedAuth].(string)
 	oldBucketS3Client, err := s3ClientWithAuth(ctx, prevBucketAuth)
 	if err != nil {
 		return err
 	}
+
+	prevBucketName := prevBucketMeta[staticsMetaBucketName].(string)
 
 	deployer := Deployer(appConfig, app, targetOrg, app.CurrentRelease.Version)
 	err = deployer.Configure(ctx)
@@ -47,12 +50,12 @@ func MoveBucket(
 		return err
 	}
 
-	if deployer.bucket == oldBucket.Name {
-		fmt.Fprintf(io.ErrOut, "New statics bucket is the same as the old one!\nPlease delete the bucket '%s' manually and redeploy the application.\n", oldBucket.Name)
+	if deployer.bucket == prevBucketName {
+		fmt.Fprintf(io.ErrOut, "New statics bucket is the same as the old one!\nPlease delete the storage addon '%s' manually and redeploy the application.\n", oldBucket.Name)
 		return nil
 	}
 
-	err = transferFiles(ctx, oldBucketS3Client, oldBucket.Name, deployer.s3, deployer.bucket)
+	err = transferFiles(ctx, oldBucketS3Client, prevBucketName, deployer.s3, deployer.bucket)
 	if err != nil {
 		return err
 	}
@@ -69,6 +72,8 @@ func MoveBucket(
 			}
 		}
 	}
+
+	fmt.Fprintf(io.Out, "migrated statics from %s to %s\n", prevBucketName, deployer.bucket)
 
 	return nil
 }

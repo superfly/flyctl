@@ -55,14 +55,15 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		return "", err
 	}
 	if bucket != nil {
-		deployer.bucket = bucket.Name
-		return bucket.Metadata.(map[string]interface{})[staticsMetaTokenizedAuth].(string), nil
+		meta := bucket.Metadata.(map[string]interface{})
+		deployer.bucket = meta[staticsMetaBucketName].(string)
+		return meta[staticsMetaTokenizedAuth].(string), nil
 	}
 
 	// Using string comparison here because we might want to use BigInt app IDs in the future.
 	internalAppIdStr := strconv.FormatUint(uint64(deployer.app.InternalNumericID), 10)
 
-	bucketName := fmt.Sprintf("%s-statics", deployer.appConfig.AppName)
+	extName := fmt.Sprintf("%s-statics", deployer.appConfig.AppName)
 
 	params := extensions.ExtensionParams{
 		Organization:         deployer.org,
@@ -70,7 +71,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		Options:              gql.AddOnOptions{},
 		ErrorCaptureCallback: nil,
 		OverrideRegion:       deployer.appConfig.PrimaryRegion,
-		OverrideName:         &bucketName,
+		OverrideName:         &extName,
 	}
 	params.Options["website"] = map[string]interface{}{
 		"domain_name": "",
@@ -86,8 +87,8 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		// If that fails too, return the original error. Otherwise, continue successfully
 		if strings.Contains(err.Error(), "already exists for app") ||
 			strings.Contains(err.Error(), "unavailable for creation") {
-			bucketName = fmt.Sprintf("%s-%s", *params.OverrideName, haikunator.Haikunator().String())
-			params.OverrideName = &bucketName
+			extName = fmt.Sprintf("%s-%s", *params.OverrideName, haikunator.Haikunator().String())
+			params.OverrideName = &extName
 			newExt, newErr := extensions.ProvisionExtension(ctx, params)
 			if newErr == nil {
 				ext = newExt
@@ -99,13 +100,11 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 		return "", err
 	}
 
-	deployer.bucket = bucketName
-
 	defer func() {
 		if retErr != nil {
 			client := flyutil.ClientFromContext(ctx).GenqClient()
 			// Using context.Background() here in case the error is that the context is canceled.
-			_, err := gql.DeleteAddOn(context.Background(), client, bucketName)
+			_, err := gql.DeleteAddOn(context.Background(), client, extName)
 			if err != nil {
 				fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Failed to delete extension: %v\n", err)
 			}
@@ -114,18 +113,21 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 
 	secrets := ext.Data.Environment.(map[string]interface{})
 
+	deployer.bucket = secrets["BUCKET_NAME"].(string)
+
 	tokenizedKey, err := deployer.tokenizeTigrisSecrets(secrets)
 	if err != nil {
 		return "", err
 	}
 
 	// TODO(allison): I'd really like ProvisionExtension to return the extension's ID, but for now we can just refetch it
-	extFull, err := gql.GetAddOn(ctx, client.GenqClient(), bucketName, string(gql.AddOnTypeTigris))
+	extFull, err := gql.GetAddOn(ctx, client.GenqClient(), extName, string(gql.AddOnTypeTigris))
 
 	// Update the addon with the tokenized key and the name of the app
 	_, err = gql.UpdateAddOn(ctx, client.GenqClient(), extFull.AddOn.Id, extFull.AddOn.AddOnPlan.Id, []string{}, extFull.AddOn.Options, map[string]interface{}{
 		staticsMetaKeyAppId:      internalAppIdStr,
 		staticsMetaTokenizedAuth: tokenizedKey,
+		staticsMetaBucketName:    deployer.bucket,
 	})
 	if err != nil {
 		return "", err
