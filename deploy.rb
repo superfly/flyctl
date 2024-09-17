@@ -128,7 +128,6 @@ if !DEPLOY_ONLY
   RUNTIME_VERSION = manifest.dig("plan", "runtime", "version")
 
   DO_INSTALL_DEPS = REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
-  DO_GEN_REQS = !RUNTIME_LANGUAGE.empty?
 
   steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies", async: true}) if DO_INSTALL_DEPS
 
@@ -232,7 +231,7 @@ if !DEPLOY_ONLY
   TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
   SENTRY = manifest.dig("plan", "sentry") == true
 
-  steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
+  steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"})
   steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
   steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
   steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
@@ -247,13 +246,11 @@ if !DEPLOY_ONLY
   # Join the parallel task thread
   deps_thread.join
 
-  if DO_GEN_REQS
-    in_step Step::GENERATE_BUILD_REQUIREMENTS do
-      exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
-      exec_capture("git add -A", log: false)
-      diff = exec_capture("git diff --cached", log: false)
-      artifact Artifact::DIFF, { output: diff }
-    end
+  in_step Step::GENERATE_BUILD_REQUIREMENTS do
+    exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
+    exec_capture("git add -A", log: false)
+    diff = exec_capture("git diff --cached", log: false)
+    artifact Artifact::DIFF, { output: diff }
   end
 end
 
