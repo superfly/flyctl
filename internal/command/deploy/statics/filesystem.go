@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
@@ -54,13 +53,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 	}
 	close(workQueue)
 
-	workerErr := make(chan error, 1)
-	workerCtx, cancelWorkers := context.WithCancel(ctx)
-	wg := sync.WaitGroup{}
-	defer cancelWorkers()
-
-	worker := func() error {
-		defer wg.Done()
+	waitForWorkers := spawnWorkers(ctx, 5, func(ctx context.Context) error {
 		for file := range workQueue {
 
 			reader, err := os.Open(filepath.Join(localPath, file))
@@ -92,7 +85,7 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 			terminal.Debugf("Uploading to %s\n", path.Join(dest, file))
 
 			// Upload the file to the bucket.
-			_, err = deployer.s3.PutObject(workerCtx, &s3.PutObjectInput{
+			_, err = deployer.s3.PutObject(ctx, &s3.PutObjectInput{
 				Bucket:      &deployer.bucket,
 				Key:         fly.Pointer(path.Join(dest, file)),
 				Body:        reader,
@@ -108,28 +101,9 @@ func (deployer *DeployerState) uploadDirectory(ctx context.Context, dest, localP
 			}
 		}
 		return nil
-	}
+	})
 
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func() {
-			err := worker()
-			if err != nil {
-				workerErr <- err
-				cancelWorkers()
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	// Check if any of the workers failed.
-	select {
-	case err := <-workerErr:
-		return err
-	default:
-		return nil
-	}
+	return waitForWorkers()
 }
 
 // Delete all files with the given prefix `dir` from the bucket.
