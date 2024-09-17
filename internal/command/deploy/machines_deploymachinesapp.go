@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"net"
 	"slices"
@@ -31,7 +32,6 @@ import (
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
-	"golang.org/x/exp/maps"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -281,9 +281,8 @@ func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err erro
 func (md *machineDeployment) deployCreateMachinesForGroups(ctx context.Context, processGroupMachineDiff ProcessGroupsDiff) (err error) {
 	groupsWithAutostopEnabled := make(map[string]bool)
 	groupsWithAutosuspendEnabled := make(map[string]bool)
-	groups := maps.Keys(processGroupMachineDiff.groupsNeedingMachines)
+	groups := slices.Sorted(maps.Keys(processGroupMachineDiff.groupsNeedingMachines))
 	total := len(groups)
-	slices.Sort(groups)
 
 	sl := statuslogger.Create(ctx, total, true)
 	defer sl.Destroy(false)

@@ -3,10 +3,10 @@ package platform
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/spf13/cobra"
-	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/iostreams"
 
