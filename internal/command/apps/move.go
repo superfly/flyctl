@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flyutil"
 
@@ -57,7 +58,7 @@ func RunMove(ctx context.Context) error {
 		logger   = logger.FromContext(ctx)
 	)
 
-	app, err := client.GetAppCompact(ctx, appName)
+	app, err := client.GetApp(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("failed fetching app: %w", err)
 	}
@@ -94,14 +95,14 @@ Please confirm whether you wish to restart this app now.`
 	return runMoveAppOnMachines(ctx, app, org)
 }
 
-func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *fly.Organization) error {
+func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Organization) error {
 	var (
 		client           = flyutil.ClientFromContext(ctx)
 		io               = iostreams.FromContext(ctx)
 		skipHealthChecks = flag.GetBool(ctx, "skip-health-checks")
 	)
 
-	ctx, err := BuildContext(ctx, app)
+	ctx, err := BuildContext(ctx, app.Compact())
 	if err != nil {
 		return err
 	}
@@ -112,8 +113,25 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.AppCompact, targetOrg *f
 		return err
 	}
 
+	oldOrg, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
+	if err != nil {
+		return fmt.Errorf("failed to find app's original organization: %w", err)
+	}
+
+	oldStaticsBucket, err := statics.FindBucket(ctx, app, oldOrg)
+	if err != nil {
+		return fmt.Errorf("failed to find app's original statics bucket: %w", err)
+	}
+
 	if _, err := client.MoveApp(ctx, app.Name, targetOrg.ID); err != nil {
 		return fmt.Errorf("failed moving app: %w", err)
+	}
+
+	if oldStaticsBucket != nil {
+		err := statics.MoveBucket(ctx, oldStaticsBucket, app, targetOrg, machines)
+		if err != nil {
+			return fmt.Errorf("failed to move statics bucket: %w", err)
+		}
 	}
 
 	for _, machine := range machines {
