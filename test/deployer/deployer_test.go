@@ -32,7 +32,7 @@ func TestDeployerDockerfile(t *testing.T) {
 
 	f := testlib.NewTestEnvFromEnv(t)
 
-	err = testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err = testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())

@@ -12,23 +12,24 @@ import (
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/logger"
-	metrics "github.com/superfly/flyctl/internal/metrics"
 	"golang.org/x/time/rate"
 )
 
 type SyntheticsWs struct {
-	atime  time.Time
-	lock   sync.RWMutex
-	reset  chan bool
-	wsConn *websocket.Conn
-	limit  *rate.Limiter
+	atime     time.Time
+	lock      sync.RWMutex
+	reset     chan bool
+	wsConn    *websocket.Conn
+	limit     *rate.Limiter
+	authToken string
 }
 
 func NewMetricsWs() (*SyntheticsWs, error) {
 	return &SyntheticsWs{
-		atime: time.Now(),
-		reset: make(chan bool),
-		limit: rate.NewLimiter(rate.Every(5*time.Second), 2),
+		atime:     time.Now(),
+		reset:     make(chan bool),
+		limit:     rate.NewLimiter(rate.Every(5*time.Second), 2),
+		authToken: "",
 	}, nil
 }
 
@@ -42,21 +43,35 @@ func (ws *SyntheticsWs) Connect(ctx context.Context) error {
 
 	log.Printf("(re-)connecting synthetics agent to %s", rurl)
 
-	authToken, err := metrics.GetMetricsToken(ctx)
-	if err != nil {
-		return err
+	if ws.authToken == "" {
+		authToken, err := GetSyntheticsToken(ctx)
+		if err != nil {
+			return err
+		}
+		ws.authToken = authToken
 	}
 
 	headers := http.Header{}
-	headers.Set("Authorization", authToken)
+	headers.Set("Authorization", ws.authToken)
 	headers.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Info().Version))
 
 	opts := &websocket.DialOptions{
 		HTTPHeader: headers,
 	}
 
-	wsConn, _, err := websocket.Dial(ctx, rurl, opts)
+	wsConn, resp, err := websocket.Dial(ctx, rurl, opts)
 	if err != nil {
+		if resp != nil && resp.StatusCode == http.StatusUnauthorized {
+			// Handle 401 Unauthorized
+			log.Printf("Unauthorized, resetting token.")
+			ws.authToken = ""
+		} else if resp != nil {
+			// Handle other HTTP errors
+			log.Printf("HTTP error: %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
+		} else {
+			// Handle non-HTTP errors
+			log.Printf("Dial failed: %v", err)
+		}
 		return fmt.Errorf("error connecting synthetics agent to fynthetics: %w", err)
 	}
 

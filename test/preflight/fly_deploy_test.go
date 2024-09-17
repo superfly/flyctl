@@ -11,6 +11,7 @@ import (
 	"time"
 
 	//"github.com/samber/lo"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -46,6 +47,47 @@ func TestFlyDeployHA(t *testing.T) {
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.SecondaryRegion())
 	f.Fly("deploy")
+}
+
+// This test overlaps partially in functionality with TestFlyDeployHA, but runs
+// when the test environment uses just a single region
+func TestFlyDeploy_AddNewMount(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	if f.SecondaryRegion() != "" {
+		t.Skip()
+	}
+
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+
+	f.WriteFlyToml(`%s
+[mounts]
+	source = "data"
+	destination = "/data"
+	`, f.ReadFile("fly.toml"))
+
+	x := f.FlyAllowExitFailure("deploy")
+	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
+
+	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
+	f.Fly("deploy")
+}
+
+func TestFlyDeployHAPlacement(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+	f.Fly("deploy")
+
+	assertHostDistribution(t, f, appName, 2)
 }
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
@@ -122,9 +164,15 @@ func TestFlyDeploySlowMetrics(t *testing.T) {
 	f.Fly("deploy")
 }
 
-func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
+func TestDeployNodeApp(t *testing.T) {
+	t.Run("With Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilder))
+	t.Run("Without Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilderWithoutWireguard))
+	t.Run("With Depot", WithParallel(testDeployNodeAppWithDepotRemoteBuilder))
+}
+
+func testDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -151,7 +199,7 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
+func testDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this uses a fixture with a size, no need to run it on alternate
@@ -160,7 +208,7 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 		t.Skip()
 	}
 
-	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -185,9 +233,9 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func TestFlyDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
+func testDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -222,7 +270,7 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 		t.Skip()
 	}
 
-	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := testlib.CopyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())

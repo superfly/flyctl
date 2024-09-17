@@ -39,11 +39,7 @@ var sharedFlags = flag.Set{
 	For example: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
 	To remove a port mapping use '-' as handler. For example: --port 80/tcp:-`,
 	},
-	flag.StringArray{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
+	flag.Env(),
 	flag.String{
 		Name:        "entrypoint",
 		Description: "The command to override the Docker ENTRYPOINT.",
@@ -808,6 +804,7 @@ func determineMachineConfig(
 	if flag.IsSpecified(ctx, "standby-for") {
 		standbys := flag.GetStringSlice(ctx, "standby-for")
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
 	}
 
 	machineFiles, err := command.FilesFromCommand(ctx)

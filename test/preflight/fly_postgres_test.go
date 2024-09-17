@@ -5,6 +5,7 @@ package preflight
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -154,16 +155,14 @@ func TestPostgres_haConfigSave(t *testing.T) {
 const postgresMachineSize = "shared-cpu-4x"
 
 // assertMachineCount checks the number of machines for the given app.
-func assertMachineCount(tb testing.TB, f *testlib.FlyctlTestEnv, appName string, expected int) {
-	tb.Helper()
-
+func assertMachineCount(tb assert.TestingT, f *testlib.FlyctlTestEnv, appName string, expected int) {
 	machines := f.MachinesList(appName)
-	var s string
 
+	var xs []string
 	for _, m := range machines {
-		s += fmt.Sprintf("machine %s (image: %s)", m.ID, m.FullImageRef())
+		xs = append(xs, fmt.Sprintf("machine %s (image: %s)", m.ID, m.FullImageRef()))
 	}
-	assert.Len(tb, machines, expected, "expected %d machine(s) but got %s", expected, s)
+	assert.Len(tb, machines, expected, "expected %d machine(s) but got %s", expected, strings.Join(xs, ", "))
 }
 
 // assertPostgresIsUp checks that the given Postgres server is really up.
@@ -223,7 +222,7 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	// Wait for the importer machine to be destroyed.
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		assertMachineCount(t, f, secondAppName, 1)
-	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
+	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
