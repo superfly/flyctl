@@ -86,6 +86,10 @@ type DeployTestRun struct {
 	gitRepo string
 	gitRef  string
 
+	noCustomize    bool
+	skipExtensions bool
+	copyConfig     bool
+
 	deployOnly bool
 	deployNow  bool
 
@@ -121,9 +125,20 @@ func WithGitRef(ref string) func(*DeployTestRun) {
 	}
 }
 
+func WithoutCustomize(d *DeployTestRun) {
+	d.noCustomize = true
+}
+
+func WithouExtensions(d *DeployTestRun) {
+	d.skipExtensions = true
+}
+
+func WithCopyConfig(d *DeployTestRun) {
+	d.copyConfig = true
+}
+
 func DeployOnly(d *DeployTestRun) {
 	d.deployOnly = true
-
 }
 
 func DeployNow(d *DeployTestRun) {
@@ -150,6 +165,16 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	}
 	if d.gitRef != "" {
 		env = append(env, fmt.Sprintf("GIT_REF=%s", d.gitRef))
+	}
+
+	if d.noCustomize {
+		env = append(env, "NO_DEPLOY_CUSTOMIZE=1")
+	}
+	if d.skipExtensions {
+		env = append(env, "SKIP_EXTENSIONS=1")
+	}
+	if d.copyConfig {
+		env = append(env, "DEPLOY_COPY_CONFIG=1")
 	}
 
 	if d.deployOnly {

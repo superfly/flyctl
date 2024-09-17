@@ -25,6 +25,8 @@ end
 
 DEPLOY_APP_REGION = get_env("DEPLOY_APP_REGION")
 
+DEPLOY_COPY_CONFIG = get_env("DEPLOY_COPY_CONFIG")
+
 GIT_REPO = get_env("GIT_REPO")
 
 GIT_REPO_URL = if GIT_REPO
@@ -104,7 +106,7 @@ if !DEPLOY_ONLY
       cmd += " --region #{region}"
     end
 
-    cmd += " --copy-config" if get_env("DEPLOY_COPY_CONFIG")
+    cmd += " --copy-config" if DEPLOY_COPY_CONFIG
 
     exec_capture(cmd).chomp
 
@@ -225,14 +227,16 @@ if !DEPLOY_ONLY
   ORG_SLUG = manifest["plan"]["org"]
   APP_REGION = manifest["plan"]["region"]
 
+  DO_GEN_REQS = !DEPLOY_COPY_CONFIG
+
   FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
   SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
   UPSTASH = manifest.dig("plan", "redis", "upstash_redis")
   TIGRIS = manifest.dig("plan", "object_storage", "tigris_object_storage")
   SENTRY = manifest.dig("plan", "sentry") == true
 
-  steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"})
-  steps.push({id: Step::BUILD, description: "Build image"}) if GIT_REPO
+  steps.push({id: Step::GENERATE_BUILD_REQUIREMENTS, description: "Generate requirements for build"}) if DO_GEN_REQS
+  steps.push({id: Step::BUILD, description: "Build image"})
   steps.push({id: Step::FLY_POSTGRES_CREATE, description: "Create and attach PostgreSQL database"}) if FLY_PG
   steps.push({id: Step::SUPABASE_POSTGRES, description: "Create Supabase PostgreSQL database"}) if SUPABASE
   steps.push({id: Step::UPSTASH_REDIS, description: "Create Upstash Redis database"}) if UPSTASH
@@ -246,11 +250,15 @@ if !DEPLOY_ONLY
   # Join the parallel task thread
   deps_thread.join
 
-  in_step Step::GENERATE_BUILD_REQUIREMENTS do
-    exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
-    exec_capture("git add -A", log: false)
-    diff = exec_capture("git diff --cached", log: false)
-    artifact Artifact::DIFF, { output: diff }
+  if DO_GEN_REQS
+    in_step Step::GENERATE_BUILD_REQUIREMENTS do
+      exec_capture("flyctl launch plan generate #{MANIFEST_PATH}")
+      if GIT_REPO
+        exec_capture("git add -A", log: false)
+        diff = exec_capture("git diff --cached", log: false)
+        artifact Artifact::DIFF, { output: diff }
+      end
+    end
   end
 end
 
@@ -266,7 +274,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} #{conf_arg} --image-label #{image_tag}")
+    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
@@ -369,7 +377,7 @@ end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} #{conf_arg} --image #{image_ref}")
+    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref}")
   end
 end
 
