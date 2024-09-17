@@ -7,7 +7,6 @@ import (
 
 func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) func() error {
 	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
 
 	workerErr := make(chan error, 1)
 
@@ -18,13 +17,17 @@ func spawnWorkers(ctx context.Context, n int, f func(context.Context) error) fun
 			defer wg.Done()
 			if err := f(ctx); err != nil {
 				cancel()
-				workerErr <- err
+				select {
+				case workerErr <- err:
+				default:
+				}
 			}
 		}()
 	}
 
 	return func() error {
 
+		defer cancel()
 		wg.Wait()
 
 		// Check if any of the workers failed.
