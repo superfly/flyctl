@@ -37,6 +37,7 @@ const (
 
 	staticsMetaKeyAppId      = "fly-statics-app-id"
 	staticsMetaTokenizedAuth = "fly-statics-tokenized-auth"
+	staticsMetaBucketName    = "fly-statics-bucket-name"
 )
 
 // TODO(allison): Delete the statics bucket when the app is deleted.
