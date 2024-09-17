@@ -1,8 +1,10 @@
 package statics
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -80,8 +82,12 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 	// TODO(allison): Make sure we still need this when virtual services drop :)
 	params.Options["public"] = true
 
-	// TODO(allison): Make this quiet - it outputs credentials that we don't need to show.
-	ext, err := extensions.ProvisionExtension(ctx, params)
+	extCtx := iostreams.NewContext(ctx, &iostreams.IOStreams{
+		In:     io.NopCloser(&bytes.Buffer{}),
+		Out:    io.Discard,
+		ErrOut: io.Discard,
+	})
+	ext, err := extensions.ProvisionExtension(extCtx, params)
 	if err != nil {
 		// If the extension name is taken, try again, haikunating the name.
 		// If that fails too, return the original error. Otherwise, continue successfully
@@ -89,7 +95,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 			strings.Contains(err.Error(), "unavailable for creation") {
 			extName = fmt.Sprintf("%s-%s", *params.OverrideName, haikunator.Haikunator().String())
 			params.OverrideName = &extName
-			newExt, newErr := extensions.ProvisionExtension(ctx, params)
+			newExt, newErr := extensions.ProvisionExtension(extCtx, params)
 			if newErr == nil {
 				ext = newExt
 				err = nil
