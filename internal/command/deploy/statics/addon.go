@@ -148,9 +148,6 @@ func (deployer *DeployerState) tokenizeTigrisSecrets(secrets map[string]interfac
 		return "", fmt.Errorf("failed to decode org ID for %s: %w", deployer.org.Slug, err)
 	}
 
-	// TODO(allison): How do we handle moving an app between orgs?
-	//                We're locking this token behind a hard dependency on the App ID and Org ID, but the Org ID
-	//                will change when moving from one org to another.
 	secret := &tokenizer.Secret{
 		AuthConfig: &tokenizer.FlyioMacaroonAuthConfig{Access: flyio.Access{
 			Action: resset.ActionWrite,
