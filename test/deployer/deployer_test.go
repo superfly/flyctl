@@ -48,7 +48,7 @@ func TestDeployBasicNode(t *testing.T) {
 
 	require.Nil(t, err)
 
-	out, err := deploy.Wait()
+	_, err = deploy.Wait()
 	require.Nil(t, err)
 
 	require.Zero(t, deploy.ExitCode())
@@ -57,17 +57,11 @@ func TestDeployBasicNode(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", d.ID()))
-
-	meta, err := out.ArtifactMeta()
-	require.NoError(t, err)
-
-	stepNames := append([]string{"__root__"}, meta.StepNames()...)
-
-	require.Equal(t, out.Steps, stepNames)
 }
 
 func TestLaunchBasicNode(t *testing.T) {
 	ctx := context.TODO()
+
 	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
 	require.NoError(t, err)
 
@@ -101,7 +95,7 @@ func TestLaunchBasicNode(t *testing.T) {
 
 	require.Nil(t, err)
 
-	out, err := deploy.Wait()
+	_, err = deploy.Wait()
 	require.Nil(t, err)
 
 	require.Zero(t, deploy.ExitCode())
@@ -110,11 +104,37 @@ func TestLaunchBasicNode(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", d.ID()))
+}
 
-	meta, err := out.ArtifactMeta()
+func TestLaunchGoFromRepo(t *testing.T) {
+	ctx := context.TODO()
+
+	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
 	require.NoError(t, err)
 
-	stepNames := append([]string{"__root__"}, meta.StepNames()...)
+	defer d.Close()
 
-	require.Equal(t, out.Steps, stepNames)
+	appName := d.CreateRandomAppName()
+	require.NotEmpty(t, appName)
+
+	// app required
+	d.Fly("apps create %s -o %s", appName, d.OrgSlug())
+
+	deploy := d.NewRun(testlib.WithApp(appName), testlib.WithRegion("yyz"), testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, testlib.WithGitRepo("https://github.com/fly-apps/go-example"))
+
+	defer deploy.Close()
+
+	err = deploy.Start(ctx)
+
+	require.Nil(t, err)
+
+	_, err = deploy.Wait()
+	require.Nil(t, err)
+
+	require.Zero(t, deploy.ExitCode())
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), "I'm running in the yyz region")
 }

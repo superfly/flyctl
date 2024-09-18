@@ -67,7 +67,7 @@ func (d *DeployerTestEnv) Close() error {
 }
 
 func (d *DeployerTestEnv) NewRun(options ...func(*DeployTestRun)) *DeployTestRun {
-	run := &DeployTestRun{dockerClient: d.dockerClient, deployerImage: d.image, apiToken: d.FlyctlTestEnv.AccessToken(), orgSlug: d.FlyctlTestEnv.OrgSlug(), containerBinds: []string{}}
+	run := &DeployTestRun{t: d.t, dockerClient: d.dockerClient, deployerImage: d.image, apiToken: d.FlyctlTestEnv.AccessToken(), orgSlug: d.FlyctlTestEnv.OrgSlug(), containerBinds: []string{}}
 	for _, o := range options {
 		o(run)
 	}
@@ -75,6 +75,7 @@ func (d *DeployerTestEnv) NewRun(options ...func(*DeployTestRun)) *DeployTestRun
 }
 
 type DeployTestRun struct {
+	t             testing.TB
 	dockerClient  *client.Client
 	deployerImage string
 
@@ -85,6 +86,8 @@ type DeployTestRun struct {
 	appName string
 	gitRepo string
 	gitRef  string
+
+	region string
 
 	noCustomize    bool
 	skipExtensions bool
@@ -122,6 +125,12 @@ func WithGitRepo(repo string) func(*DeployTestRun) {
 func WithGitRef(ref string) func(*DeployTestRun) {
 	return func(d *DeployTestRun) {
 		d.gitRef = ref
+	}
+}
+
+func WithRegion(region string) func(*DeployTestRun) {
+	return func(d *DeployTestRun) {
+		d.region = region
 	}
 }
 
@@ -165,6 +174,10 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	}
 	if d.gitRef != "" {
 		env = append(env, fmt.Sprintf("GIT_REF=%s", d.gitRef))
+	}
+
+	if d.region != "" {
+		env = append(env, fmt.Sprintf("DEPLOY_APP_REGION=%s", d.region))
 	}
 
 	if d.noCustomize {
@@ -323,6 +336,10 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 				err = we
 			}
 		}
+
+		if d.err == nil && d.exitCode == 0 {
+			d.checkAssertions()
+		}
 	}()
 
 	return nil
@@ -353,6 +370,15 @@ func (d *DeployTestRun) Close() error {
 		RemoveLinks:   true,
 		Force:         true,
 	})
+}
+
+func (d *DeployTestRun) checkAssertions() {
+	meta, err := d.out.ArtifactMeta()
+	require.NoError(d.t, err)
+
+	stepNames := append([]string{"__root__"}, meta.StepNames()...)
+
+	require.Equal(d.t, d.out.Steps, stepNames)
 }
 
 type log struct {
