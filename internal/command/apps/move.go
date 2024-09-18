@@ -128,7 +128,7 @@ func runMoveAppOnMachines(ctx context.Context, app *fly.App, targetOrg *fly.Orga
 	}
 
 	if oldStaticsBucket != nil {
-		err := statics.MoveBucket(ctx, oldStaticsBucket, app, targetOrg, machines)
+		err := statics.MoveBucket(ctx, oldStaticsBucket, oldOrg, app, targetOrg, machines)
 		if err != nil {
 			return fmt.Errorf("failed to move statics bucket: %w", err)
 		}

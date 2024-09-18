@@ -19,7 +19,8 @@ import (
 // all the files from the old bucket to the new bucket - then deletes the old bucket.
 func MoveBucket(
 	ctx context.Context,
-	oldBucket *gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn,
+	prevBucket *gql.ListAddOnsAddOnsAddOnConnectionNodesAddOn,
+	prevOrg *fly.Organization,
 	app *fly.App,
 	targetOrg *fly.Organization,
 	machines []*fly.Machine,
@@ -35,9 +36,9 @@ func MoveBucket(
 		return err
 	}
 
-	prevBucketMeta := oldBucket.Metadata.(map[string]interface{})
+	prevBucketMeta := prevBucket.Metadata.(map[string]interface{})
 	prevBucketAuth := prevBucketMeta[staticsMetaTokenizedAuth].(string)
-	oldBucketS3Client, err := s3ClientWithAuth(ctx, prevBucketAuth)
+	oldBucketS3Client, err := s3ClientWithAuth(ctx, prevBucketAuth, prevOrg)
 	if err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func MoveBucket(
 	}
 
 	if deployer.bucket == prevBucketName {
-		fmt.Fprintf(io.ErrOut, "New statics bucket is the same as the old one!\nPlease delete the storage addon '%s' manually and redeploy the application.\n", oldBucket.Name)
+		fmt.Fprintf(io.ErrOut, "New statics bucket is the same as the old one!\nPlease delete the storage addon '%s' manually and redeploy the application.\n", prevBucket.Name)
 		return nil
 	}
 
@@ -60,7 +61,7 @@ func MoveBucket(
 		return err
 	}
 
-	_, err = gql.DeleteAddOn(ctx, client.GenqClient(), oldBucket.Name)
+	_, err = gql.DeleteAddOn(ctx, client.GenqClient(), prevBucket.Name)
 	if err != nil {
 		return err
 	}
