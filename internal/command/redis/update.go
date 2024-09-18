@@ -116,7 +116,7 @@ func runUpdate(ctx context.Context) (err error) {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options, addOn.Metadata)
 
 	if err != nil {
 		return
