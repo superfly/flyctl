@@ -14,6 +14,7 @@ import (
 
 func TestDeployBasicNode(t *testing.T) {
 	ctx := context.TODO()
+
 	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
 	require.NoError(t, err)
 

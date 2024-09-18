@@ -85,6 +85,8 @@ if GIT_REPO_URL
     end
 end
 
+HAS_FLY_CONFIG = Dir.entries(".").any? { |f| File.fnmatch('fly.{toml,json,yaml,yml}', f, File::FNM_EXTGLOB)}
+
 # -c arg if any
 conf_arg = ""
 
@@ -227,7 +229,7 @@ if !DEPLOY_ONLY
   ORG_SLUG = manifest["plan"]["org"]
   APP_REGION = manifest["plan"]["region"]
 
-  DO_GEN_REQS = !DEPLOY_COPY_CONFIG
+  DO_GEN_REQS = !DEPLOY_COPY_CONFIG || !HAS_FLY_CONFIG
 
   FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
   SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
@@ -274,7 +276,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag}")
+    exec_capture("flyctl deploy --build-only --depot=false --push -a #{APP_NAME} --image-label #{image_tag}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
