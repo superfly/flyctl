@@ -65,7 +65,7 @@ func (deployer *DeployerState) ensureBucketCreated(ctx context.Context) (tokeniz
 	// Using string comparison here because we might want to use BigInt app IDs in the future.
 	internalAppIdStr := strconv.FormatUint(uint64(deployer.app.InternalNumericID), 10)
 
-	extName := fmt.Sprintf("%s-statics", deployer.appConfig.AppName)
+	extName := fmt.Sprintf("%s-statics-%s", deployer.appConfig.AppName, haikunator.Haikunator().String())
 
 	params := extensions.ExtensionParams{
 		Organization:         deployer.org,
