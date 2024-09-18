@@ -13,128 +13,121 @@ import (
 )
 
 func TestDeployBasicNode(t *testing.T) {
-	ctx := context.TODO()
+	deploy := testDeployer(t, withFixtureApp("deploy-node"), createRandomApp, withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+		return map[string]any{
+			"app":    d.Extra["appName"],
+			"region": d.PrimaryRegion(),
+			"env": map[string]string{
+				"TEST_ID": d.ID(),
+			},
+		}
+	}), testlib.DeployOnly, testlib.DeployNow, withWorkDirAppSource)
 
-	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", deploy.Extra["appName"].(string)))
 	require.NoError(t, err)
 
-	defer d.Close()
-
-	err = testlib.CopyFixtureIntoWorkDir(d.WorkDir(), "deploy-node")
-	require.NoError(t, err)
-
-	flyTomlPath := fmt.Sprintf("%s/fly.toml", d.WorkDir())
-
-	appName := d.CreateRandomAppName()
-	require.NotEmpty(t, appName)
-
-	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
-		"app":    appName,
-		"region": d.PrimaryRegion(),
-		"env": map[string]string{
-			"TEST_ID": d.ID(),
-		},
-	})
-	require.NoError(t, err)
-
-	// app required
-	d.Fly("apps create %s -o %s", appName, d.OrgSlug())
-
-	deploy := d.NewRun(testlib.DeployOnly, testlib.DeployNow, testlib.WithAppSource(d.WorkDir()))
-
-	defer deploy.Close()
-
-	err = deploy.Start(ctx)
-
-	require.Nil(t, err)
-
-	_, err = deploy.Wait()
-	require.Nil(t, err)
-
-	require.Zero(t, deploy.ExitCode())
-
-	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
-	require.NoError(t, err)
-
-	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", d.ID()))
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
 func TestLaunchBasicNode(t *testing.T) {
-	ctx := context.TODO()
+	deploy := testDeployer(t, withFixtureApp("deploy-node"), withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+		return map[string]any{
+			"app":    "dummy-app-name",
+			"region": d.PrimaryRegion(),
+			"env": map[string]string{
+				"TEST_ID": d.ID(),
+			},
+		}
+	}), createRandomApp, testlib.WithCopyConfig, testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, withWorkDirAppSource)
 
-	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
-	require.NoError(t, err)
-
-	defer d.Close()
-
-	err = testlib.CopyFixtureIntoWorkDir(d.WorkDir(), "deploy-node")
-	require.NoError(t, err)
-
-	flyTomlPath := fmt.Sprintf("%s/fly.toml", d.WorkDir())
-
-	appName := d.CreateRandomAppName()
-	require.NotEmpty(t, appName)
-
-	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
-		"app":    "dummy-app-name",
-		"region": d.PrimaryRegion(),
-		"env": map[string]string{
-			"TEST_ID": d.ID(),
-		},
-	})
-	require.NoError(t, err)
-
-	// app required
-	d.Fly("apps create %s -o %s", appName, d.OrgSlug())
-
-	deploy := d.NewRun(testlib.WithApp(appName), testlib.WithCopyConfig, testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, testlib.WithAppSource(d.WorkDir()))
-
-	defer deploy.Close()
-
-	err = deploy.Start(ctx)
-
-	require.Nil(t, err)
-
-	_, err = deploy.Wait()
-	require.Nil(t, err)
-
-	require.Zero(t, deploy.ExitCode())
+	appName := deploy.Extra["appName"].(string)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
 
-	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", d.ID()))
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
 func TestLaunchGoFromRepo(t *testing.T) {
-	ctx := context.TODO()
+	deploy := testDeployer(t, createRandomApp, testlib.WithRegion("yyz"), testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, testlib.WithGitRepo("https://github.com/fly-apps/go-example"))
 
-	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
-	require.NoError(t, err)
-
-	defer d.Close()
-
-	appName := d.CreateRandomAppName()
-	require.NotEmpty(t, appName)
-
-	// app required
-	d.Fly("apps create %s -o %s", appName, d.OrgSlug())
-
-	deploy := d.NewRun(testlib.WithApp(appName), testlib.WithRegion("yyz"), testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, testlib.WithGitRepo("https://github.com/fly-apps/go-example"))
-
-	defer deploy.Close()
-
-	err = deploy.Start(ctx)
-
-	require.Nil(t, err)
-
-	_, err = deploy.Wait()
-	require.Nil(t, err)
-
-	require.Zero(t, deploy.ExitCode())
+	appName := deploy.Extra["appName"].(string)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
 
 	require.Contains(t, string(body), "I'm running in the yyz region")
+}
+
+func createRandomApp(d *testlib.DeployTestRun) {
+	appName := d.CreateRandomAppName()
+	require.NotEmpty(d, appName)
+
+	d.Fly("apps create %s -o %s", appName, d.OrgSlug())
+	d.Extra["appName"] = appName
+
+	testlib.WithApp(appName)(d)
+}
+
+func withFixtureApp(name string) func(*testlib.DeployTestRun) {
+	return func(d *testlib.DeployTestRun) {
+		err := testlib.CopyFixtureIntoWorkDir(d.WorkDir(), name)
+		require.NoError(d, err)
+	}
+}
+
+func withOverwrittenConfig(raw any) func(*testlib.DeployTestRun) {
+	return func(d *testlib.DeployTestRun) {
+		flyTomlPath := fmt.Sprintf("%s/fly.toml", d.WorkDir())
+		data := make(map[string]any)
+		switch cast := raw.(type) {
+		case map[string]any:
+			data = cast
+		case func(*testlib.DeployTestRun) map[string]any:
+			data = cast(d)
+		default:
+			fmt.Println(cast)
+			d.Fatal("failed to cast template data")
+		}
+		err := testlib.OverwriteConfig(flyTomlPath, data)
+		require.NoError(d, err)
+	}
+}
+
+func withWorkDirAppSource(d *testlib.DeployTestRun) {
+	testlib.WithAppSource(d.WorkDir())(d)
+}
+
+func testDeployer(t *testing.T, options ...func(*testlib.DeployTestRun)) *testlib.DeployTestRun {
+	ctx := context.TODO()
+
+	d, err := testlib.NewDeployerTestEnvFromEnv(ctx, t)
+	require.NoError(t, err)
+
+	defer d.Close()
+
+	deploy := d.NewRun(options...)
+	defer deploy.Close()
+
+	deploy.Extra["TEST_ID"] = d.ID()
+
+	err = deploy.Start(ctx)
+
+	require.Nil(t, err)
+
+	err = deploy.Wait()
+	require.Nil(t, err)
+
+	require.Zero(t, deploy.ExitCode())
+
+	out := deploy.Output()
+
+	meta, err := out.ArtifactMeta()
+	require.NoError(t, err)
+
+	stepNames := append([]string{"__root__"}, meta.StepNames()...)
+
+	require.Equal(t, out.Steps, stepNames)
+
+	return deploy
 }

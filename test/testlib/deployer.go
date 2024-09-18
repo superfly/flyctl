@@ -67,7 +67,7 @@ func (d *DeployerTestEnv) Close() error {
 }
 
 func (d *DeployerTestEnv) NewRun(options ...func(*DeployTestRun)) *DeployTestRun {
-	run := &DeployTestRun{t: d.t, dockerClient: d.dockerClient, deployerImage: d.image, apiToken: d.FlyctlTestEnv.AccessToken(), orgSlug: d.FlyctlTestEnv.OrgSlug(), containerBinds: []string{}}
+	run := &DeployTestRun{FlyctlTestEnv: d.FlyctlTestEnv, dockerClient: d.dockerClient, deployerImage: d.image, apiToken: d.FlyctlTestEnv.AccessToken(), orgSlug: d.FlyctlTestEnv.OrgSlug(), containerBinds: []string{}, Extra: make(map[string]interface{})}
 	for _, o := range options {
 		o(run)
 	}
@@ -75,7 +75,7 @@ func (d *DeployerTestEnv) NewRun(options ...func(*DeployTestRun)) *DeployTestRun
 }
 
 type DeployTestRun struct {
-	t             testing.TB
+	*FlyctlTestEnv
 	dockerClient  *client.Client
 	deployerImage string
 
@@ -108,6 +108,8 @@ type DeployTestRun struct {
 	done bool
 	out  *DeployerOut
 	err  error
+
+	Extra map[string]interface{}
 }
 
 func WithApp(app string) func(*DeployTestRun) {
@@ -336,32 +338,32 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 				err = we
 			}
 		}
-
-		if d.err == nil && d.exitCode == 0 {
-			d.checkAssertions()
-		}
 	}()
 
 	return nil
 }
 
-func (d *DeployTestRun) Wait() (*DeployerOut, error) {
+func (d *DeployTestRun) Wait() error {
 	if d.done {
 		if d.err != nil {
-			return nil, d.err
+			return d.err
 		}
-		return d.out, nil
+		return nil
 	}
 	select {
-	case out := <-d.waitCh:
-		return out, nil
+	case <-d.waitCh:
+		return nil
 	case err := <-d.waitErrCh:
-		return nil, err
+		return err
 	}
 }
 
 func (d *DeployTestRun) ExitCode() int64 {
 	return d.exitCode
+}
+
+func (d *DeployTestRun) Output() *DeployerOut {
+	return d.out
 }
 
 func (d *DeployTestRun) Close() error {
@@ -370,15 +372,6 @@ func (d *DeployTestRun) Close() error {
 		RemoveLinks:   true,
 		Force:         true,
 	})
-}
-
-func (d *DeployTestRun) checkAssertions() {
-	meta, err := d.out.ArtifactMeta()
-	require.NoError(d.t, err)
-
-	stepNames := append([]string{"__root__"}, meta.StepNames()...)
-
-	require.Equal(d.t, d.out.Steps, stepNames)
 }
 
 type log struct {
@@ -400,18 +393,6 @@ type Step struct {
 	Description string `json:"description"`
 }
 
-type ArtifactMeta struct {
-	Steps []Step `json:"steps"`
-}
-
-func (m *ArtifactMeta) StepNames() []string {
-	stepNames := make([]string, len(m.Steps))
-	for i, step := range m.Steps {
-		stepNames[i] = step.ID
-	}
-	return stepNames
-}
-
 type DeployerOut struct {
 	Messages  []Message
 	Steps     []string
@@ -426,3 +407,24 @@ func (out *DeployerOut) ArtifactMeta() (*ArtifactMeta, error) {
 	}
 	return &meta, nil
 }
+
+type ArtifactMeta struct {
+	Steps []Step `json:"steps"`
+}
+
+func (m *ArtifactMeta) StepNames() []string {
+	stepNames := make([]string, len(m.Steps))
+	for i, step := range m.Steps {
+		stepNames[i] = step.ID
+	}
+	return stepNames
+}
+
+// func (out *DeployerOut) ArtifactManifest() (*launch.LaunchManifest, error) {
+// 	var manifest launch.LaunchManifest
+// 	err := json.Unmarshal(out.Artifacts["manifest"], &manifest)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &manifest, nil
+// }
