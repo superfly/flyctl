@@ -3,25 +3,19 @@ package statics
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"net/url"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/samber/lo"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
-	flyconfig "github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
-	"github.com/superfly/tokenizer"
 )
 
 const (
@@ -87,40 +81,6 @@ func StaticIsCandidateForTigrisPush(static appconfig.Static) bool {
 	return true
 }
 
-func s3ClientWithAuth(ctx context.Context, auth string) (*s3.Client, error) {
-
-	s3Config, err := awsconfig.LoadDefaultConfig(ctx,
-		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider("tokenizer-access-key", "tokenizer-secret-key", "")),
-		awsconfig.WithRegion("auto"),
-	)
-	if err != nil {
-		return nil, err
-	}
-	s3Config.BaseEndpoint = fly.Pointer(tigrisUrl)
-
-	parsedProxyUrl, err := url.Parse(tokenizerUrl)
-	if err != nil {
-		// Should be impossible, this is not runtime-controlled and issues would be caught before release.
-		return nil, fmt.Errorf("could not parse tokenizer URL: %w", err)
-	}
-	s3HttpTransport := http.DefaultTransport.(*http.Transport).Clone()
-	s3HttpTransport.Proxy = http.ProxyURL(parsedProxyUrl)
-
-	cfg := flyconfig.FromContext(ctx)
-	// TODO(allison): This works for development, but this isn't guaranteed to provide macaroons.
-	//                Ask ben how we can consistently get a macaroon for the current user.
-	userAuthHeader := cfg.Tokens.GraphQLHeader()
-
-	s3HttpClient, err := tokenizer.Client(tokenizerUrl, tokenizer.WithAuth(userAuthHeader), tokenizer.WithSecret(auth, map[string]string{}))
-	if err != nil {
-		return nil, err
-	}
-
-	s3Config.HTTPClient = s3HttpClient
-
-	return s3.NewFromConfig(s3Config), nil
-}
-
 // Configure create the tigris bucket if not created, and sets up internal state on the deployer.
 func (deployer *DeployerState) Configure(ctx context.Context) error {
 
@@ -142,7 +102,7 @@ func (deployer *DeployerState) Configure(ctx context.Context) error {
 		return !StaticIsCandidateForTigrisPush(static)
 	})
 
-	deployer.s3, err = s3ClientWithAuth(ctx, tokenizedAuth)
+	deployer.s3, err = s3ClientWithAuth(ctx, tokenizedAuth, deployer.org)
 	if err != nil {
 		return err
 	}
