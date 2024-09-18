@@ -67,7 +67,7 @@ func MoveBucket(
 
 	for _, machine := range machines {
 		for _, st := range machine.Config.Statics {
-			if st.TigrisBucket == oldBucket.Name {
+			if st.TigrisBucket == prevBucketName {
 				st.TigrisBucket = deployer.bucket
 			}
 		}
