@@ -40,7 +40,7 @@ const (
 	staticsMetaBucketName    = "fly-statics-bucket-name"
 )
 
-// TODO(allison): Delete the statics bucket when the app is deleted.
+// TODO(allison): Make sure that UI delete/move app operations take this into account.
 
 const staticsKeepVersions = 3
 
