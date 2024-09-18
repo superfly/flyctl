@@ -20,10 +20,10 @@ import (
 
 const (
 	tigrisHostname = "fly.storage.tigris.dev"
-	// This URL is intentionally HTTP. We're funneling through tokenizer over HTTPS because:
-	//  1. This connection can not be HTTPS, because we're injecting authentication headers into the requests
-	//  2. This connection is still secure, because the connection *to* tokenizer is over HTTPS, and tokenizer
-	//     will forward requests upstream with HTTPS.
+	// This URL is intentionally HTTP.
+	// This connection can not be HTTPS, because we're injecting authentication headers into the requests
+	// via tokenizer. The connection is still secure, though, because the connection *to* tokenizer is over HTTPS,
+	// and tokenizer will forward requests upstream with HTTPS.
 	tigrisUrl = "http://" + tigrisHostname
 
 	tokenizerUrl     = "https://tokenizer.fly.io"
