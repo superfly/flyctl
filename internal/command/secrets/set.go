@@ -63,6 +63,14 @@ func runSet(ctx context.Context) (err error) {
 		return errors.New("requires at least one SECRET=VALUE pair")
 	}
 
+	fmt.Printf("You are about to set secrets at `%s`. Is this correct? (y/N): ", appName)
+	var response string
+	_, err = fmt.Scanln(&response)
+	if err != nil || (response != "y" && response != "Y") {
+		fmt.Println("Aborted setting secrets.")
+		return nil
+	}
+
 	return SetSecretsAndDeploy(ctx, app, secrets, flag.GetBool(ctx, "stage"), flag.GetBool(ctx, "detach"))
 }
 
