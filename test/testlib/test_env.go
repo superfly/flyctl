@@ -63,6 +63,10 @@ func (f *FlyctlTestEnv) OtherRegions() []string {
 	return f.otherRegions
 }
 
+func (f *FlyctlTestEnv) AccessToken() string {
+	return f.originalAccessToken
+}
+
 // Great name I know
 func NewTestEnvFromEnvWithEnv(t testing.TB, envVariables map[string]string) *FlyctlTestEnv {
 	tempDir := socketSafeTempDir(t)

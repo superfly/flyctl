@@ -14,6 +14,7 @@ import (
 	"github.com/logrusorgru/aurora"
 	"github.com/mattn/go-zglob"
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 // setup django with a postgres database
@@ -340,6 +341,8 @@ For detailed documentation, see https://fly.dev/docs/django/
 	}
 
 	s.Files = templatesExecute("templates/django", vars)
+
+	s.Runtime = plan.RuntimeStruct{Language: "python", Version: pythonVersion}
 
 	return s, nil
 }

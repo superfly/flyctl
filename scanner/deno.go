@@ -1,5 +1,7 @@
 package scanner
 
+import "github.com/superfly/flyctl/internal/command/launch/plan"
+
 func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	if !checksPass(
 		sourceDir,
@@ -21,6 +23,7 @@ func configureDeno(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 		Env: map[string]string{
 			"PORT": "8080",
 		},
+		Runtime: plan.RuntimeStruct{Language: "deno"},
 	}
 
 	return s, nil

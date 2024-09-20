@@ -4,10 +4,11 @@
 package preflight
 
 import (
-	"github.com/stretchr/testify/require"
-	"github.com/superfly/flyctl/test/preflight/testlib"
 	"os"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/test/testlib"
 )
 
 // TODO: list of things to test

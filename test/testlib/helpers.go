@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/containerd/continuity/fs"
 	"github.com/jpillora/backoff"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -53,7 +54,7 @@ func otherRegionsFromEnv() []string {
 
 func currentRepoFlyctl() string {
 	_, filename, _, _ := runtime.Caller(0)
-	flyctlBin := path.Join(path.Dir(filename), "../../..", "bin", "flyctl")
+	flyctlBin := path.Join(path.Dir(filename), "../..", "bin", "flyctl")
 	return flyctlBin
 }
 
@@ -257,4 +258,14 @@ func OverwriteConfig(path string, data map[string]any) error {
 	}
 
 	return nil
+}
+
+func getRootPath() string {
+	_, b, _, _ := runtime.Caller(0)
+	return filepath.Dir(b)
+}
+
+func CopyFixtureIntoWorkDir(workDir, name string) error {
+	src := fmt.Sprintf("%s/../fixtures/%s", getRootPath(), name)
+	return fs.CopyDir(workDir, src)
 }

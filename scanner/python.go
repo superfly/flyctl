@@ -11,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/pelletier/go-toml/v2"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/terminal"
 )
 
@@ -138,6 +139,9 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			return nil, nil
 		}
 	}
+
+	runtime := plan.RuntimeStruct{Language: "python"}
+
 	vars[string(cfg.depStyle)] = true
 	objectStorage := slices.Contains(cfg.deps, "boto3") || slices.Contains(cfg.deps, "boto")
 	if app == "" {
@@ -150,6 +154,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			Family:               "FastAPI",
 			Port:                 8000,
 			ObjectStorageDesired: objectStorage,
+			Runtime:              runtime,
 		}, nil
 	} else if app == Flask {
 		vars["flask"] = true
@@ -158,6 +163,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			Family:               "Flask",
 			Port:                 8080,
 			ObjectStorageDesired: objectStorage,
+			Runtime:              runtime,
 		}, nil
 	} else if app == Streamlit {
 		vars["streamlit"] = true
@@ -172,6 +178,7 @@ func intoSource(cfg PyCfg) (*SourceInfo, error) {
 			Family:               "Streamlit",
 			Port:                 8501,
 			ObjectStorageDesired: objectStorage,
+			Runtime:              runtime,
 		}, nil
 	} else {
 		return nil, nil

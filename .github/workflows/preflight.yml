@@ -37,6 +37,10 @@ jobs:
         with:
           name: flyctl
           path: master-build
+      - name: Move flyctl binary to correct directory
+        run: |
+          mv master-build/flyctl bin/flyctl
+          chmod +x bin/flyctl
       - name: Run preflight tests
         id: preflight
         env:
@@ -47,9 +51,8 @@ jobs:
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
           FLY_PREFLIGHT_TEST_VM_SIZE: ${{ matrix.vm_size }}
+          FLY_DEPLOYER_IMAGE: "flyio/deployer:${{ github.sha }}"
         run: |
-          mv master-build/flyctl bin/flyctl
-          chmod +x bin/flyctl
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
           ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
