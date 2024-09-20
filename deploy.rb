@@ -10,6 +10,8 @@ Dir.chdir("/usr/src/app")
 DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
 DEPLOY_CUSTOMIZE = !get_env("NO_DEPLOY_CUSTOMIZE")
 DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
+CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
+FLYIO_BRANCH_NAME = "flyio-new-files"
 
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
 if !DEPLOY_CUSTOMIZE && !DEPLOY_APP_NAME
@@ -59,6 +61,10 @@ else
   steps.push({id: Step::BUILD, description: "Build image"})
   steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
   artifact Artifact::META, { steps: steps }
+end
+
+if CREATE_AND_PUSH_BRANCH
+  steps.push({id: Step::CREATE_AND_PUSH_BRANCH, description: "Create Fly.io git branch with new files"})
 end
 
 if GIT_REPO_URL
@@ -374,6 +380,17 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
     in_step Step::SENTRY do
       exec_capture("flyctl ext sentry create --app #{APP_NAME} --yes")
     end
+  end
+end
+
+if CREATE_AND_PUSH_BRANCH
+  in_step Step::CREATE_AND_PUSH_BRANCH do
+    exec_capture("git checkout -b #{FLYIO_BRANCH_NAME}")
+    exec_capture("git config user.name \"Fly.io\"")
+    exec_capture("git config user.email \"noreply@fly.io\"")
+    exec_capture("git add .")
+    exec_capture("git commit -m \"New files from Fly.io Launch\"")
+    exec_capture("git push origin #{FLYIO_BRANCH_NAME}")
   end
 end
 
