@@ -383,6 +383,12 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
   end
 end
 
+if DEPLOY_NOW
+  in_step Step::DEPLOY do
+    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref}")
+  end
+end
+
 if CREATE_AND_PUSH_BRANCH
   in_step Step::CREATE_AND_PUSH_BRANCH do
     exec_capture("git checkout -b #{FLYIO_BRANCH_NAME}")
@@ -391,12 +397,6 @@ if CREATE_AND_PUSH_BRANCH
     exec_capture("git add .")
     exec_capture("git commit -m \"New files from Fly.io Launch\"")
     exec_capture("git push origin #{FLYIO_BRANCH_NAME}")
-  end
-end
-
-if DEPLOY_NOW
-  in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref}")
   end
 end
 
