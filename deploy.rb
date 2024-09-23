@@ -31,6 +31,8 @@ DEPLOY_COPY_CONFIG = get_env("DEPLOY_COPY_CONFIG")
 
 GIT_REPO = get_env("GIT_REPO")
 
+CAN_CREATE_AND_PUSH_BRANCH = CREATE_AND_PUSH_BRANCH && GIT_REPO
+
 GIT_REPO_URL = if GIT_REPO
   repo_url = begin
     URI(GIT_REPO)
@@ -63,7 +65,7 @@ else
   artifact Artifact::META, { steps: steps }
 end
 
-if CREATE_AND_PUSH_BRANCH
+if CAN_CREATE_AND_PUSH_BRANCH
   steps.push({id: Step::CREATE_AND_PUSH_BRANCH, description: "Create Fly.io git branch with new files"})
 end
 
@@ -389,7 +391,7 @@ if DEPLOY_NOW
   end
 end
 
-if CREATE_AND_PUSH_BRANCH
+if CAN_CREATE_AND_PUSH_BRANCH
   in_step Step::CREATE_AND_PUSH_BRANCH do
     exec_capture("git checkout -b #{FLYIO_BRANCH_NAME}")
     exec_capture("git config user.name \"Fly.io\"")
