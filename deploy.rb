@@ -398,7 +398,7 @@ if CAN_CREATE_AND_PUSH_BRANCH
     exec_capture("git config user.email \"noreply@fly.io\"")
     exec_capture("git add .")
     exec_capture("git commit -m \"New files from Fly.io Launch\"")
-    exec_capture("git push origin #{FLYIO_BRANCH_NAME}")
+    exec_capture("git push -f origin #{FLYIO_BRANCH_NAME}")
   end
 end
 
