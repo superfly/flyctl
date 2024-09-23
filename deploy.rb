@@ -65,10 +65,6 @@ else
   artifact Artifact::META, { steps: steps }
 end
 
-if CAN_CREATE_AND_PUSH_BRANCH
-  steps.push({id: Step::CREATE_AND_PUSH_BRANCH, description: "Create Fly.io git branch with new files"})
-end
-
 if GIT_REPO_URL
     in_step Step::GIT_PULL do
       ref = get_env("GIT_REF")
@@ -254,6 +250,10 @@ if !DEPLOY_ONLY
   steps.push({id: Step::SENTRY, description: "Create Sentry project"}) if SENTRY
 
   steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
+
+  if CAN_CREATE_AND_PUSH_BRANCH
+    steps.push({id: Step::CREATE_AND_PUSH_BRANCH, description: "Create Fly.io git branch with new files"})
+  end
 
   artifact Artifact::META, { steps: steps }
 
