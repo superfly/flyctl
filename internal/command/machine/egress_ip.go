@@ -40,7 +40,7 @@ func newAllocateEgressIp() *cobra.Command {
 		usage = "allocate <machine-id>"
 	)
 
-	cmd := command.New("allocate", short, long, runAllocateEgressIP,
+	cmd := command.New(usage, short, long, runAllocateEgressIP,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
@@ -59,9 +59,10 @@ func newListEgressIps() *cobra.Command {
 	const (
 		long  = `List all allocated static egress IP addresses with their corresponding machine`
 		short = `List all allocated static egress IPs`
+		usage = "list"
 	)
 
-	cmd := command.New("list", short, long, runListEgressIps,
+	cmd := command.New(usage, short, long, runListEgressIps,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
