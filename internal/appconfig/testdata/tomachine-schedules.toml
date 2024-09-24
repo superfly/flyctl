@@ -1,0 +1,11 @@
+app = "foo"
+primary_region = "ord"
+
+[processes]
+app = "run-app"
+backups = "backup-data"
+certs = "renew-certs"
+
+[schedules]
+backups = "hourly"
+certs = "weekly"

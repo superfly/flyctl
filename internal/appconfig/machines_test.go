@@ -62,7 +62,7 @@ func TestToMachineConfig(t *testing.T) {
 	// Update a machine config
 	got, err = cfg.ToMachineConfig("", &fly.MachineConfig{
 		Guest:       &fly.MachineGuest{CPUs: 3},
-		Schedule:    "24/7",
+		Schedule:    "",
 		AutoDestroy: true,
 		Restart:     &fly.MachineRestart{Policy: "always"},
 		DNS:         &fly.DNSConfig{SkipRegistration: true},
@@ -76,7 +76,7 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, want.Services, got.Services)
 	assert.Equal(t, want.Checks, got.Checks)
 	assert.Equal(t, &fly.MachineGuest{CPUs: 3}, got.Guest)
-	assert.Equal(t, "24/7", got.Schedule)
+	assert.Equal(t, "", got.Schedule)
 	assert.Equal(t, true, got.AutoDestroy)
 	assert.Equal(t, &fly.MachineRestart{Policy: "always"}, got.Restart)
 	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, got.DNS)
@@ -546,6 +546,54 @@ func TestToMachineConfig_multiProcessGroups(t *testing.T) {
 				Checks: map[string]fly.MachineCheck{
 					"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
 				},
+			},
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := cfg.ToMachineConfig(tc.groupName, nil)
+			require.NoError(t, err)
+			// We only care about fields that change for different process groups
+			assert.Equal(t, tc.groupName, got.Metadata["fly_process_group"])
+			assert.Equal(t, tc.want.Init, got.Init)
+			assert.Equal(t, tc.want.Services, got.Services)
+			assert.Equal(t, tc.want.Checks, got.Checks)
+		})
+	}
+}
+
+func TestToMachineConfig_schedules(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-schedules.toml")
+	require.NoError(t, err)
+
+	testcases := []struct {
+		name      string
+		groupName string
+		want      *fly.MachineConfig
+	}{
+		{
+			name:      "default empty process group",
+			groupName: "app",
+			want: &fly.MachineConfig{
+				Init:     fly.MachineInit{Cmd: []string{"run-app"}},
+				Schedule: "",
+			},
+		},
+		{
+			name:      "hourly scheduled process group",
+			groupName: "backups",
+			want: &fly.MachineConfig{
+				Init:     fly.MachineInit{Cmd: []string{"backup-data"}},
+				Schedule: "hourly",
+			},
+		},
+		{
+			name:      "weekly scheduled process group",
+			groupName: "certs",
+			want: &fly.MachineConfig{
+				Init:     fly.MachineInit{Cmd: []string{"renew-certs"}},
+				Schedule: "weekly",
 			},
 		},
 	}

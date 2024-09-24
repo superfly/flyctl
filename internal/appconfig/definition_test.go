@@ -307,6 +307,10 @@ func TestToDefinition(t *testing.T) {
 		"processes": map[string]any{
 			"web":  "run web",
 			"task": "task all day",
+			"cron": "run jobs",
+		},
+		"schedules": map[string]any{
+			"cron": "hourly",
 		},
 		"checks": map[string]any{
 			"status": map[string]any{
