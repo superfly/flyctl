@@ -5009,6 +5009,52 @@ type DummyWireGuardPeerPayload {
   pubkey: String!
 }
 
+type EgressIPAddress implements Node {
+  """
+  ID of the object.
+  """
+  id: ID!
+  ip: String!
+  region: String!
+  version: Int!
+}
+
+"""
+The connection type for EgressIPAddress.
+"""
+type EgressIPAddressConnection {
+  """
+  A list of edges.
+  """
+  edges: [EgressIPAddressEdge]
+
+  """
+  A list of nodes.
+  """
+  nodes: [EgressIPAddress]
+
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+"""
+An edge in a connection.
+"""
+type EgressIPAddressEdge {
+  """
+  A cursor for use in pagination.
+  """
+  cursor: String!
+
+  """
+  The item at the end of the edge.
+  """
+  node: EgressIPAddress
+}
+
 type EmptyAppRole implements AppRole {
   """
   The name of this role
@@ -6324,6 +6370,27 @@ type Machine implements Node {
   app: App!
   config: JSON!
   createdAt: ISO8601DateTime!
+  egressIpAddresses(
+    """
+    Returns the elements in the list that come after the specified cursor.
+    """
+    after: String
+
+    """
+    Returns the elements in the list that come before the specified cursor.
+    """
+    before: String
+
+    """
+    Returns the first _n_ elements from the list.
+    """
+    first: Int
+
+    """
+    Returns the last _n_ elements from the list.
+    """
+    last: Int
+  ): EgressIPAddressConnection!
   events(
     """
     Returns the elements in the list that come after the specified cursor.
