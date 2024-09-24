@@ -10728,6 +10728,11 @@ input UpdateAddOnInput {
   clientMutationId: String
 
   """
+  Metadata for the add-on
+  """
+  metadata: JSON
+
+  """
   The add-on name to update
   """
   name: String
