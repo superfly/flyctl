@@ -48,6 +48,10 @@ func (m *Client) AllocateSharedIPAddress(ctx context.Context, appName string) (n
 	panic("TODO")
 }
 
+func (m *Client) AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error) {
+	panic("TODO")
+}
+
 func (m *Client) AppNameAvailable(ctx context.Context, appName string) (bool, error) {
 	panic("TODO")
 }
@@ -286,6 +290,10 @@ func (m *Client) GetDomains(ctx context.Context, organizationSlug string) ([]*fl
 
 func (m *Client) GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error) {
 	return nil, nil // TODO
+}
+
+func (c *Client) GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error) {
+	panic("TODO")
 }
 
 func (m *Client) GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error) {
