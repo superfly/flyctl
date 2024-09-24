@@ -105,11 +105,6 @@ func runFork(ctx context.Context) error {
 		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
 	}
 
-	var requireUniqueZone *bool
-	if flag.IsSpecified(ctx, "require-unique-zone") {
-		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
-	}
-
 	region := flag.GetString(ctx, "region")
 
 	var attachedMachineImage string
@@ -131,7 +126,7 @@ func runFork(ctx context.Context) error {
 	input := fly.CreateVolumeRequest{
 		Name:                name,
 		MachinesOnly:        machinesOnly,
-		RequireUniqueZone:   requireUniqueZone,
+		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,

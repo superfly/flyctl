@@ -181,7 +181,8 @@ func TestDeployNodeApp(t *testing.T) {
 	t.Run("With Depot", WithParallel(testDeployNodeAppWithDepotRemoteBuilder))
 }
 
-func testDeployNodeAppWithRemoteBuilder(t *testing.T) {
+func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
@@ -200,8 +201,10 @@ func testDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Logf("deploy %s", appName)
 	f.Fly("deploy --remote-only --ha=false")
 
+	t.Logf("deploy %s again", appName)
 	f.Fly("deploy --remote-only --strategy immediate --ha=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
@@ -210,7 +213,8 @@ func testDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func testDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
+func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this uses a fixture with a size, no need to run it on alternate
@@ -236,6 +240,7 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Logf("deploy %s without WireGuard", appName)
 	f.Fly("deploy --remote-only --ha=false --wg=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
@@ -244,7 +249,8 @@ func testDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func testDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
+func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
@@ -263,8 +269,10 @@ func testDeployNodeAppWithDepotRemoteBuilder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Logf("deploy %s with Depot", appName)
 	f.Fly("deploy --depot --ha=false")
 
+	t.Logf("deploy %s again with Depot", appName)
 	f.Fly("deploy --depot --strategy immediate --ha=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))

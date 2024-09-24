@@ -65,7 +65,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
+		return err
 	}
 
 	if cfg.JSONOutput {
