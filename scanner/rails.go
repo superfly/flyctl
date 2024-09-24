@@ -241,7 +241,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 				{
 					Key:   "SECRET_KEY_BASE",
 					Help:  "Secret key used to verify the integrity of signed cookies",
-					Value: strings.TrimSpace(string(out)),
+					Value: out,
 				},
 			}
 		}
