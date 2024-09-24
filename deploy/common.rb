@@ -20,6 +20,7 @@ module Step
   UPSTASH_REDIS = :upstash_redis
   TIGRIS_OBJECT_STORAGE = :tigris_object_storage
   SENTRY = :sentry
+  CREATE_AND_PUSH_BRANCH = :create_and_push_branch
   DEPLOY = :deploy
 
   def self.current

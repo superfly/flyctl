@@ -10,6 +10,8 @@ Dir.chdir("/usr/src/app")
 DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
 DEPLOY_CUSTOMIZE = !get_env("NO_DEPLOY_CUSTOMIZE")
 DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
+CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
+FLYIO_BRANCH_NAME = "flyio-new-files"
 
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
 if !DEPLOY_CUSTOMIZE && !DEPLOY_APP_NAME
@@ -28,6 +30,8 @@ DEPLOY_APP_REGION = get_env("DEPLOY_APP_REGION")
 DEPLOY_COPY_CONFIG = get_env("DEPLOY_COPY_CONFIG")
 
 GIT_REPO = get_env("GIT_REPO")
+
+CAN_CREATE_AND_PUSH_BRANCH = CREATE_AND_PUSH_BRANCH && GIT_REPO
 
 GIT_REPO_URL = if GIT_REPO
   repo_url = begin
@@ -247,6 +251,10 @@ if !DEPLOY_ONLY
 
   steps.push({id: Step::DEPLOY, description: "Deploy application"}) if DEPLOY_NOW
 
+  if CAN_CREATE_AND_PUSH_BRANCH
+    steps.push({id: Step::CREATE_AND_PUSH_BRANCH, description: "Create Fly.io git branch with new files"})
+  end
+
   artifact Artifact::META, { steps: steps }
 
   # Join the parallel task thread
@@ -380,6 +388,17 @@ end
 if DEPLOY_NOW
   in_step Step::DEPLOY do
     exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref}")
+  end
+end
+
+if CAN_CREATE_AND_PUSH_BRANCH
+  in_step Step::CREATE_AND_PUSH_BRANCH do
+    exec_capture("git checkout -b #{FLYIO_BRANCH_NAME}")
+    exec_capture("git config user.name \"Fly.io\"")
+    exec_capture("git config user.email \"noreply@fly.io\"")
+    exec_capture("git add .")
+    exec_capture("git commit -m \"New files from Fly.io Launch\"")
+    exec_capture("git push -f origin #{FLYIO_BRANCH_NAME}")
   end
 end
 
