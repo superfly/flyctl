@@ -35,6 +35,7 @@ func TestVolume(t *testing.T) {
 	t.Run("Extend", WithParallel(testVolumeExtend))
 	t.Run("List", WithParallel(testVolumeLs))
 	t.Run("CreateFromDestroyedVolSnapshot", WithParallel(testVolumeCreateFromDestroyedVolSnapshot))
+	t.Run("Fork", WithParallel(testVolumeFork))
 }
 
 func testVolumeExtend(t *testing.T) {
@@ -120,6 +121,21 @@ func testVolumeLs(t *testing.T) {
 		assert.Contains(f, lsAllIds, kept.ID)
 		assert.Contains(f, lsAllIds, destroyed.ID)
 	}, 5*time.Minute, 10*time.Second)
+}
+
+func testVolumeFork(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppMachines()
+
+	var original *fly.Volume
+	j := f.Fly("vol create --json --app %s --region %s --yes foobar", appName, f.PrimaryRegion())
+	j.StdOutJSON(&original)
+
+	var fork *fly.Volume
+	j = f.Fly("vol fork --json --app %s --region %s %s", appName, f.PrimaryRegion(), original.ID)
+	j.StdOutJSON(&fork)
+
+	assert.NotEqual(t, original.Zone, fork.Zone, "forked volume should be in a different zone")
 }
 
 func testVolumeCreateFromDestroyedVolSnapshot(tt *testing.T) {

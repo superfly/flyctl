@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"gopkg.in/yaml.v2"
@@ -221,14 +222,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// support Rails 4 through 5.1 applications, ones that started out
 		// there and never were fully upgraded, and ones that intentionally
 		// avoid using Rails encrypted credentials.
-		out, err := exec.Command(binrails, "secret").Output()
+		out, err := helpers.RandHex(64)
 
 		if err == nil {
 			s.Secrets = []Secret{
 				{
 					Key:   "SECRET_KEY_BASE",
 					Help:  "Secret key used to verify the integrity of signed cookies",
-					Value: strings.TrimSpace(string(out)),
+					Value: out,
 				},
 			}
 		}
