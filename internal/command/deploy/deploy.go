@@ -31,7 +31,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var defaultMaxConcurrent = 16
+var defaultMaxConcurrent = 8
 
 var CommonFlags = flag.Set{
 	flag.Image(),
