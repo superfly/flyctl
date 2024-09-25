@@ -673,7 +673,7 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = retry.Retry(func() error {
+	err = retry.Retry(ctx, func() error {
 		return r.heartbeatFn(ctx, dockerClient, heartbeatReq)
 	}, 3)
 	if err != nil {

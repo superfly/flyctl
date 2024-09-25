@@ -25,6 +25,7 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"github.com/superfly/flyctl/retry"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -208,15 +209,27 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 
 	// Set the buildErr to any error that represents the build failing.
 	var buildErr error
+	var finalBuildErr error
 
 	span.AddEvent("Acquiring Depot machine")
 	var buildkit *depotmachine.Machine
-	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
-	if buildErr != nil {
-		build.Finish(buildErr)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+
+	finalBuildErr = retry.Retry(timeoutCtx, func() error {
+		buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+		if buildErr != nil {
+			span.RecordError(buildErr)
+			return buildErr
+		}
+
+		return nil
+	}, 2)
+
+	if finalBuildErr != nil {
 		streams.StopProgressIndicator()
-		span.RecordError(buildErr)
-		return nil, nil, buildErr
+		return nil, nil, finalBuildErr
 	}
 
 	return buildkit, &build, err
