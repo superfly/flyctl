@@ -74,6 +74,14 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 		attribute.StringSlice("imageoptions.buildpacks_volumes", io.BuildpacksVolumes),
 	}
 
+	if io.BuildArgs != nil {
+		attrs = append(attrs, attribute.Bool("imageoptions.has_build_args", true))
+	}
+
+	if io.BuildSecrets != nil {
+		attrs = append(attrs, attribute.Bool("imageoptions.has_build_secrets", true))
+	}
+
 	b, err := json.Marshal(io.BuiltInSettings)
 	if err == nil {
 		attrs = append(attrs, attribute.String("imageoptions.built_in_settings", string(b)))
