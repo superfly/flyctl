@@ -1218,6 +1218,8 @@ type GetAddOnAddOn struct {
 	ReadRegions []string `json:"readRegions"`
 	// Add-on options
 	Options interface{} `json:"options"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 	// Single sign-on link to the add-on dashboard
 	SsoLink string `json:"ssoLink"`
 	// Organization that owns this service
@@ -1251,6 +1253,9 @@ func (v *GetAddOnAddOn) GetReadRegions() []string { return v.ReadRegions }
 // GetOptions returns GetAddOnAddOn.Options, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetOptions() interface{} { return v.Options }
 
+// GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.Metadata }
+
 // GetSsoLink returns GetAddOnAddOn.SsoLink, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetSsoLink() string { return v.SsoLink }
 
@@ -1274,9 +1279,6 @@ func (v *GetAddOnAddOn) GetName() string { return v.AddOnData.Name }
 
 // GetErrorMessage returns GetAddOnAddOn.ErrorMessage, and is useful for accessing the field via an interface.
 func (v *GetAddOnAddOn) GetErrorMessage() string { return v.AddOnData.ErrorMessage }
-
-// GetMetadata returns GetAddOnAddOn.Metadata, and is useful for accessing the field via an interface.
-func (v *GetAddOnAddOn) GetMetadata() interface{} { return v.AddOnData.Metadata }
 
 func (v *GetAddOnAddOn) UnmarshalJSON(b []byte) error {
 
@@ -1318,6 +1320,8 @@ type __premarshalGetAddOnAddOn struct {
 
 	Options interface{} `json:"options"`
 
+	Metadata interface{} `json:"metadata"`
+
 	SsoLink string `json:"ssoLink"`
 
 	Organization GetAddOnAddOnOrganization `json:"organization"`
@@ -1333,8 +1337,6 @@ type __premarshalGetAddOnAddOn struct {
 	Name string `json:"name"`
 
 	ErrorMessage string `json:"errorMessage"`
-
-	Metadata interface{} `json:"metadata"`
 }
 
 func (v *GetAddOnAddOn) MarshalJSON() ([]byte, error) {
@@ -1355,6 +1357,7 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.PrimaryRegion = v.PrimaryRegion
 	retval.ReadRegions = v.ReadRegions
 	retval.Options = v.Options
+	retval.Metadata = v.Metadata
 	retval.SsoLink = v.SsoLink
 	retval.Organization = v.Organization
 	retval.AddOnProvider = v.AddOnProvider
@@ -1363,7 +1366,6 @@ func (v *GetAddOnAddOn) __premarshalJSON() (*__premarshalGetAddOnAddOn, error) {
 	retval.Id = v.AddOnData.Id
 	retval.Name = v.AddOnData.Name
 	retval.ErrorMessage = v.AddOnData.ErrorMessage
-	retval.Metadata = v.AddOnData.Metadata
 	return &retval, nil
 }
 
@@ -2490,6 +2492,8 @@ type ListAddOnsAddOnsAddOnConnectionNodesAddOn struct {
 	ReadRegions []string `json:"readRegions"`
 	// Add-on options
 	Options interface{} `json:"options"`
+	// Add-on metadata
+	Metadata interface{} `json:"metadata"`
 	// Organization that owns this service
 	Organization ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization `json:"organization"`
 }
@@ -2516,6 +2520,9 @@ func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetReadRegions() []string { 
 
 // GetOptions returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Options, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOptions() interface{} { return v.Options }
+
+// GetMetadata returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Metadata, and is useful for accessing the field via an interface.
+func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetMetadata() interface{} { return v.Metadata }
 
 // GetOrganization returns ListAddOnsAddOnsAddOnConnectionNodesAddOn.Organization, and is useful for accessing the field via an interface.
 func (v *ListAddOnsAddOnsAddOnConnectionNodesAddOn) GetOrganization() ListAddOnsAddOnsAddOnConnectionNodesAddOnOrganization {
@@ -3126,6 +3133,7 @@ type __UpdateAddOnInput struct {
 	PlanId      string      `json:"planId"`
 	ReadRegions []string    `json:"readRegions"`
 	Options     interface{} `json:"options"`
+	Metadata    interface{} `json:"metadata"`
 }
 
 // GetAddOnId returns __UpdateAddOnInput.AddOnId, and is useful for accessing the field via an interface.
@@ -3139,6 +3147,9 @@ func (v *__UpdateAddOnInput) GetReadRegions() []string { return v.ReadRegions }
 
 // GetOptions returns __UpdateAddOnInput.Options, and is useful for accessing the field via an interface.
 func (v *__UpdateAddOnInput) GetOptions() interface{} { return v.Options }
+
+// GetMetadata returns __UpdateAddOnInput.Metadata, and is useful for accessing the field via an interface.
+func (v *__UpdateAddOnInput) GetMetadata() interface{} { return v.Metadata }
 
 // The query executed by AgentGetInstances.
 const AgentGetInstances_Operation = `
@@ -3578,6 +3589,7 @@ query GetAddOn ($name: String, $provider: String) {
 		primaryRegion
 		readRegions
 		options
+		metadata
 		ssoLink
 		organization {
 			slug
@@ -4078,6 +4090,7 @@ query ListAddOns ($addOnType: AddOnType) {
 			primaryRegion
 			readRegions
 			options
+			metadata
 			organization {
 				id
 				slug
@@ -4264,8 +4277,8 @@ func SetSecrets(
 
 // The mutation executed by UpdateAddOn.
 const UpdateAddOn_Operation = `
-mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!) {
-	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions,options:$options}) {
+mutation UpdateAddOn ($addOnId: ID!, $planId: ID!, $readRegions: [String!]!, $options: JSON!, $metadata: JSON!) {
+	updateAddOn(input: {addOnId:$addOnId,planId:$planId,readRegions:$readRegions,options:$options,metadata:$metadata}) {
 		addOn {
 			id
 		}
@@ -4280,6 +4293,7 @@ func UpdateAddOn(
 	planId string,
 	readRegions []string,
 	options interface{},
+	metadata interface{},
 ) (data_ *UpdateAddOnResponse, err_ error) {
 	req_ := &graphql.Request{
 		OpName: "UpdateAddOn",
@@ -4289,6 +4303,7 @@ func UpdateAddOn(
 			PlanId:      planId,
 			ReadRegions: readRegions,
 			Options:     options,
+			Metadata:    metadata,
 		},
 	}
 
