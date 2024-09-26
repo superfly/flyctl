@@ -121,6 +121,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
+		configureBridgetown,
 		configureLucky,
 		configureRuby,
 		configureGo,
