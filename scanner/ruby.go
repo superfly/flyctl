@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -18,23 +20,8 @@ func configureRuby(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	}
 
 	rubyVersion, err := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby_version")
-
-	if err != nil || rubyVersion == "" {
-		rubyVersion = "3.1.2"
-
-		out, err := exec.Command("ruby", "-v").Output()
-		if err == nil {
-
-			version := strings.TrimSpace(string(out))
-			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
-			m := re.FindStringSubmatch(version)
-
-			for i, name := range re.SubexpNames() {
-				if len(m) > 0 && name == "version" {
-					rubyVersion = m[i]
-				}
-			}
-		}
+	if err != nil {
+		return nil, errors.Wrap(err, "failure extracting Ruby version")
 	}
 
 	vars := make(map[string]interface{})
@@ -98,6 +85,24 @@ func extractRubyVersion(lockfilePath string, gemfilePath string, rubyVersionPath
 			}
 
 			version = string(versionString)
+		}
+	}
+
+	if version == "" {
+		version = "3.3.5"
+
+		out, err := exec.Command("ruby", "-v").Output()
+		if err == nil {
+
+			versionString := strings.TrimSpace(string(out))
+			re := regexp.MustCompile(`ruby (?P<version>[\d.]+)`)
+			m := re.FindStringSubmatch(versionString)
+
+			for i, name := range re.SubexpNames() {
+				if len(m) > 0 && name == "version" {
+					version = m[i]
+				}
+			}
 		}
 	}
 
