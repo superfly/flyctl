@@ -257,6 +257,8 @@ func OverwriteConfig(path string, data map[string]any) error {
 
 	if region, ok := data["region"]; ok {
 		cfg["primary_region"] = region
+	} else if v, ok := cfg["primary_region"].(string); ok && strings.HasPrefix(v, "{{") {
+		delete(cfg, "primary_region")
 	}
 
 	// fmt.Printf("FINAL CONFIG: %v\n", cfg)
