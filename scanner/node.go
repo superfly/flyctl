@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/superfly/flyctl/helpers"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 )
 
 func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
@@ -176,6 +177,8 @@ Now: run 'fly deploy' to deploy your Node app.
 	}
 
 	s.Env = env
+
+	s.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersion}
 
 	return s, nil
 }

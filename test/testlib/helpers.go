@@ -232,6 +232,7 @@ func OverwriteConfig(path string, data map[string]any) error {
 	if err != nil {
 		return err
 	}
+	// fmt.Printf("CONFIG @ %s: %v\n", path, cfg)
 
 	cfgEnv, err := castEnv(cfg["env"])
 	if err != nil {
@@ -248,9 +249,17 @@ func OverwriteConfig(path string, data map[string]any) error {
 		cfgEnv[k] = v
 	}
 
-	cfg["app"] = data["app"]
+	if app, ok := data["app"]; ok {
+		cfg["app"] = app
+	}
+
 	cfg["env"] = cfgEnv
-	cfg["primary_region"] = data["region"]
+
+	if region, ok := data["region"]; ok {
+		cfg["primary_region"] = region
+	}
+
+	// fmt.Printf("FINAL CONFIG: %v\n", cfg)
 
 	err = writeToml(path, cfg)
 	if err != nil {

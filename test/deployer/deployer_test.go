@@ -36,7 +36,7 @@ func TestDeployBasicNode(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
-func TestLaunchBasicNode(t *testing.T) {
+func TestLaunchBasicNodeWithDockerfile(t *testing.T) {
 	deploy := testDeployer(t,
 		withFixtureApp("deploy-node"),
 		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
@@ -62,6 +62,30 @@ func TestLaunchBasicNode(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
+}
+
+func TestLaunchBasicNode(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-node-no-dockerfile"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, manifest.Plan.Runtime.Language, "node")
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Equal(t, string(body), "Hello, World!")
 }
 
 func TestLaunchGoFromRepo(t *testing.T) {
