@@ -233,8 +233,7 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case state == fly.MachineStateStopped,
-		state == fly.MachineStateSuspended:
+	case state == fly.MachineStateStopped, state == fly.MachineStateSuspended:
 		for _, s := range mConfig.Services {
 			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
 				return true
