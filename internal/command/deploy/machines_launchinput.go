@@ -62,7 +62,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
-		SkipLaunch: len(standbyFor) > 0,
+		SkipLaunch: skipLaunch(nil, mConfig),
 	}, nil
 }
 
@@ -223,12 +223,17 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
 func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+	state := "<not-set>"
+	if origMachineRaw != nil {
+		state = origMachineRaw.State
+	}
+
 	switch {
-	case origMachineRaw.State == fly.MachineStateStarted:
+	case state == fly.MachineStateStarted:
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case origMachineRaw.State == fly.MachineStateStopped || origMachineRaw.State == fly.MachineStateSuspended:
+	case state == fly.MachineStateStopped, state == fly.MachineStateSuspended:
 		for _, s := range mConfig.Services {
 			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
 				return true
