@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -195,6 +196,23 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 						s.ObjectStorageDesired = true
 					}
 				}
+			}
+		}
+	}
+
+	// extract port from Dockerfile (if present).  This is primarily for thruster.
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err == nil {
+		re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+		m := re.FindStringSubmatch(string(dockerfile))
+		if len(m) > 0 {
+			port, err := strconv.Atoi(m[1])
+			if err == nil {
+				if port < 1024 {
+					port += 8000
+				}
+
+				s.Port = port
 			}
 		}
 	}
