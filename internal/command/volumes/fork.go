@@ -42,11 +42,6 @@ func newFork() *cobra.Command {
 			Description: "The name of the new volume",
 		},
 		flag.Bool{
-			Name:        "machines-only",
-			Description: "volume will be visible to Machines platform only",
-			Hidden:      true,
-		},
-		flag.Bool{
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 			Default:     true,
@@ -98,11 +93,6 @@ func runFork(ctx context.Context) error {
 	name := vol.Name
 	if flag.IsSpecified(ctx, "name") {
 		name = flag.GetString(ctx, "name")
-	}
-
-	var machinesOnly *bool
-	if flag.IsSpecified(ctx, "machines-only") {
-		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
 	}
 
 	region := flag.GetString(ctx, "region")

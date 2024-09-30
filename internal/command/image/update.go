@@ -38,7 +38,7 @@ The update will perform a rolling restart against each Machine, which may result
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Skip waiting for health checks inbetween VM updates. (Machines only)",
+			Description: "Skip waiting for health checks inbetween VM updates.",
 			Default:     false,
 		},
 	)
