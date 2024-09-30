@@ -77,8 +77,15 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	}
 
 	if srcInfo == nil {
-		fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
-		if flag.GetBool(ctx, "no-blank") {
+		var colorFn func(arg interface{}) aurora.Value
+		noBlank := flag.GetBool(ctx, "no-blank")
+		if noBlank {
+			colorFn = aurora.Red
+		} else {
+			colorFn = aurora.Green
+		}
+		fmt.Fprintln(io.Out, colorFn("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
+		if noBlank {
 			entries, err := os.ReadDir("./")
 			if err == nil {
 				// TODO: probably remove this...
