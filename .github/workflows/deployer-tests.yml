@@ -1,27 +1,18 @@
-name: Preflight Tests
-
+name: Deployer build
 on:
-  workflow_dispatch:
-    inputs:
-      reason:
-        description: Brief reason for running this workflow manually
-        required: false
-        default: User initiated run
-        type: string
-  workflow_call:
+  push:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
+  
 jobs:
-  preflight-tests:
-    if: ${{ github.repository == 'superfly/flyctl' }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        vm_size: [""]
-        parallelism: [20]
-        index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+  test_build:
+    runs-on: ubuntu-latest-m
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
@@ -33,6 +24,14 @@ jobs:
         run: |
           curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: https://index.docker.io/v1/
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
       - uses: actions/download-artifact@v4
         with:
           name: flyctl
@@ -41,8 +40,17 @@ jobs:
         run: |
           mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
-      - name: Run preflight tests
-        id: preflight
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          context: .
+          file: deployer.Dockerfile
+          tags: flyio/deployer:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Run deployer tests
+        id: deployer-tests
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
@@ -51,11 +59,12 @@ jobs:
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
           FLY_PREFLIGHT_TEST_VM_SIZE: ${{ matrix.vm_size }}
-          FLY_PREFLIGHT_TEST_APP_PREFIX: "preflight"
+          FLY_DEPLOYER_IMAGE: "flyio/deployer:${{ github.sha }}"
+          FLY_PREFLIGHT_TEST_APP_PREFIX: "deployertest"
         run: |
           export PATH=$PWD/bin:$PATH
           echo -n failed= >> $GITHUB_OUTPUT
-          ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
+          ./scripts/deployer-tests.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
         uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0
@@ -63,6 +72,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
         with:
+          channel-id: 'C0790M2E0G2'
           payload: |
             {
               "blocks": [
@@ -70,18 +80,18 @@ jobs:
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": ":sob: preflight tests failed: ${{ steps.preflight.outputs.failed }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                    "text": ":sob: deployer tests failed: ${{ steps.deployer-tests.outputs.failed }} ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
                   }
                 }
               ]
             }
       - uses: superfly/flyctl-actions/setup-flyctl@master
         if: always()
-      - name: Clean up any un-deleted preflight apps
+      - name: Clean up any un-deleted deployer-tests apps
         if: always()
         env:
           FLY_API_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-          FLY_PREFLIGHT_TEST_APP_PREFIX: "preflight"
+          FLY_PREFLIGHT_TEST_APP_PREFIX: "deployertest"
         run: |
           ./scripts/delete_preflight_apps.sh "$FLY_PREFLIGHT_TEST_APP_PREFIX"
