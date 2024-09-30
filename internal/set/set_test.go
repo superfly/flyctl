@@ -1,10 +1,10 @@
 package set
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/exp/slices"
 )
 
 func TestSet(t *testing.T) {
