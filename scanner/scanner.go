@@ -143,8 +143,10 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 			return nil, err
 		}
 		optOutGithubActions := os.Getenv("OPT_OUT_GITHUB_ACTIONS")
-		if si != nil && optOutGithubActions == "" {
-			github_actions(sourceDir, &si.GitHubActions)
+		if si != nil {
+			if optOutGithubActions == "" {
+				github_actions(sourceDir, &si.GitHubActions)
+			}
 			return si, nil
 		}
 	}
