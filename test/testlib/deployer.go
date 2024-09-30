@@ -21,6 +21,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/flyctl/internal/command/launch"
 )
 
 type DeployerTestEnv struct {
@@ -420,11 +421,11 @@ func (m *ArtifactMeta) StepNames() []string {
 	return stepNames
 }
 
-// func (out *DeployerOut) ArtifactManifest() (*launch.LaunchManifest, error) {
-// 	var manifest launch.LaunchManifest
-// 	err := json.Unmarshal(out.Artifacts["manifest"], &manifest)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &manifest, nil
-// }
+func (out *DeployerOut) ArtifactManifest() (*launch.LaunchManifest, error) {
+	var manifest launch.LaunchManifest
+	err := json.Unmarshal(out.Artifacts["manifest"], &manifest)
+	if err != nil {
+		return nil, err
+	}
+	return &manifest, nil
+}

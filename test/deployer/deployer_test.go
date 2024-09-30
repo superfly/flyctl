@@ -13,15 +13,22 @@ import (
 )
 
 func TestDeployBasicNode(t *testing.T) {
-	deploy := testDeployer(t, withFixtureApp("deploy-node"), createRandomApp, withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
-		return map[string]any{
-			"app":    d.Extra["appName"],
-			"region": d.PrimaryRegion(),
-			"env": map[string]string{
-				"TEST_ID": d.ID(),
-			},
-		}
-	}), testlib.DeployOnly, testlib.DeployNow, withWorkDirAppSource)
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-node"),
+		createRandomApp,
+		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+			return map[string]any{
+				"app":    d.Extra["appName"],
+				"region": d.PrimaryRegion(),
+				"env": map[string]string{
+					"TEST_ID": d.ID(),
+				},
+			}
+		}),
+		testlib.DeployOnly,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", deploy.Extra["appName"].(string)))
 	require.NoError(t, err)
@@ -29,16 +36,25 @@ func TestDeployBasicNode(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
-func TestLaunchBasicNode(t *testing.T) {
-	deploy := testDeployer(t, withFixtureApp("deploy-node"), withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
-		return map[string]any{
-			"app":    "dummy-app-name",
-			"region": d.PrimaryRegion(),
-			"env": map[string]string{
-				"TEST_ID": d.ID(),
-			},
-		}
-	}), createRandomApp, testlib.WithCopyConfig, testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, withWorkDirAppSource)
+func TestLaunchBasicNodeWithDockerfile(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-node"),
+		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+			return map[string]any{
+				"app":    "dummy-app-name",
+				"region": d.PrimaryRegion(),
+				"env": map[string]string{
+					"TEST_ID": d.ID(),
+				},
+			}
+		}),
+		createRandomApp,
+		testlib.WithCopyConfig,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
 
 	appName := deploy.Extra["appName"].(string)
 
@@ -48,8 +64,39 @@ func TestLaunchBasicNode(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
+func TestLaunchBasicNode(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-node-no-dockerfile"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, manifest.Plan.Runtime.Language, "node")
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Equal(t, string(body), "Hello, World!")
+}
+
 func TestLaunchGoFromRepo(t *testing.T) {
-	deploy := testDeployer(t, createRandomApp, testlib.WithRegion("yyz"), testlib.WithoutCustomize, testlib.WithouExtensions, testlib.DeployNow, testlib.WithGitRepo("https://github.com/fly-apps/go-example"))
+	deploy := testDeployer(t,
+		createRandomApp,
+		testlib.WithRegion("yyz"),
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		testlib.WithGitRepo("https://github.com/fly-apps/go-example"),
+	)
 
 	appName := deploy.Extra["appName"].(string)
 

@@ -91,9 +91,6 @@ end
 
 HAS_FLY_CONFIG = Dir.entries(".").any? { |f| File.fnmatch('fly.{toml,json,yaml,yml}', f, File::FNM_EXTGLOB)}
 
-# -c arg if any
-conf_arg = ""
-
 if !DEPLOY_ONLY
   MANIFEST_PATH = "/tmp/manifest.json"
 
@@ -226,14 +223,12 @@ if !DEPLOY_ONLY
     end
   end
 
-  # Write the fly config file to a tmp directory
-  File.write("/tmp/fly.json", manifest["config"].to_json)
-  conf_arg = "-c /tmp/fly.json"
-
   ORG_SLUG = manifest["plan"]["org"]
   APP_REGION = manifest["plan"]["region"]
 
   DO_GEN_REQS = !DEPLOY_COPY_CONFIG || !HAS_FLY_CONFIG
+
+  debug("generate reqs? #{DO_GEN_REQS}")
 
   FLY_PG = manifest.dig("plan", "postgres", "fly_postgres")
   SUPABASE = manifest.dig("plan", "postgres", "supabase_postgres")
