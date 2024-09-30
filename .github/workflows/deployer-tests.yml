@@ -1,10 +1,6 @@
 name: Deployer build
 on:
   workflow_call:
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
   
 jobs:
   deployer-tests:
