@@ -93,6 +93,7 @@ type DeployTestRun struct {
 	noCustomize    bool
 	skipExtensions bool
 	copyConfig     bool
+	optOutGha      bool
 
 	deployOnly bool
 	deployNow  bool
@@ -151,6 +152,10 @@ func WithCopyConfig(d *DeployTestRun) {
 	d.copyConfig = true
 }
 
+func OptOutGithubActions(d *DeployTestRun) {
+	d.optOutGha = true
+}
+
 func DeployOnly(d *DeployTestRun) {
 	d.deployOnly = true
 }
@@ -197,6 +202,9 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	}
 	if d.copyConfig {
 		env = append(env, "DEPLOY_COPY_CONFIG=1")
+	}
+	if d.optOutGha {
+		env = append(env, "OPT_OUT_GITHUB_ACTIONS=1")
 	}
 
 	if d.deployOnly {

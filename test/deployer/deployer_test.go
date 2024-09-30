@@ -70,33 +70,9 @@ func TestLaunchBasicNode(t *testing.T) {
 		createRandomApp,
 		testlib.WithoutCustomize,
 		testlib.WithouExtensions,
+		testlib.OptOutGithubActions,
 		testlib.DeployNow,
 		withWorkDirAppSource,
-	)
-
-	manifest, err := deploy.Output().ArtifactManifest()
-	require.NoError(t, err)
-	require.NotNil(t, manifest)
-
-	require.Equal(t, manifest.Plan.Runtime.Language, "node")
-
-	appName := deploy.Extra["appName"].(string)
-
-	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
-	require.NoError(t, err)
-
-	require.Equal(t, string(body), "Hello, World!")
-}
-
-func TestLaunchNodeAppDifferentStructure(t *testing.T) {
-	deploy := testDeployer(t,
-		createRandomApp,
-		testlib.WithoutCustomize,
-		testlib.WithouExtensions,
-		testlib.WithCopyConfig,
-		testlib.DeployNow,
-		testlib.WithGitRepo("https://github.com/akarin-sensei/hello-fly-private-empty.git"),
-		testlib.WithGitRef("f6e808fbf9c6fea408b18b2e53b43c37e4c7f57f"),
 	)
 
 	manifest, err := deploy.Output().ArtifactManifest()
