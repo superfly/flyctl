@@ -2,7 +2,9 @@ package launch
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"regexp"
 	"strings"
 
@@ -76,6 +78,17 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 
 	if srcInfo == nil {
 		fmt.Fprintln(io.Out, aurora.Green("Could not find a Dockerfile, nor detect a runtime or framework from source code. Continuing with a blank app."))
+		if flag.GetBool(ctx, "no-blank") {
+			entries, err := os.ReadDir("./")
+			if err == nil {
+				// TODO: probably remove this...
+				fmt.Fprintln(io.Out, "are you in the right directory? current directory listing:")
+				for _, e := range entries {
+					fmt.Fprintln(io.Out, e.Name())
+				}
+			}
+			return nil, nil, errors.New("could not detect runtime or Dockerfile")
+		}
 		return srcInfo, nil, err
 	}
 

@@ -97,6 +97,8 @@ type DeployTestRun struct {
 	deployOnly bool
 	deployNow  bool
 
+	createAndPushBranch bool
+
 	containerBinds []string
 
 	containerID string
@@ -157,6 +159,10 @@ func DeployNow(d *DeployTestRun) {
 	d.deployNow = true
 }
 
+func CreateAndPushBranch(d *DeployTestRun) {
+	d.createAndPushBranch = true
+}
+
 func WithAppSource(src string) func(*DeployTestRun) {
 	return func(d *DeployTestRun) {
 		d.containerBinds = append(d.containerBinds, fmt.Sprintf("%s:/usr/src/app", src))
@@ -198,6 +204,10 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	}
 	if d.deployNow {
 		env = append(env, "DEPLOY_NOW=1")
+	}
+
+	if d.createAndPushBranch {
+		env = append(env, "DEPLOY_CREATE_AND_PUSH_BRANCH=1")
 	}
 
 	fmt.Printf("creating container... image=%s\n", d.deployerImage)

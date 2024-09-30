@@ -70,6 +70,11 @@ func newPropose() *cobra.Command {
 			Default:     "",
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "no-blank",
+			Description: "Don't allow a \"blank\" app (nothing could be detected)",
+			Default:     true,
+		},
 	)
 
 	return cmd
