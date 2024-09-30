@@ -51,6 +51,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           push: true
+          context: .
           file: deployer.Dockerfile
           tags: flyio/deployer:${{ github.sha }}
           cache-from: type=gha
