@@ -40,13 +40,19 @@ jobs:
           registry: https://index.docker.io/v1/
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Deployer docker build & push
+      - name: Prepare flyctl for deployer Docker build
         run: |
           mkdir -p bin
           cp dist/default_linux_amd64_v1/flyctl bin/flyctl
           chmod +x bin/flyctl
-          docker build -t flyio/deployer:${{ github.sha }} -f deployer.Dockerfile .
-          docker push flyio/deployer:${{ github.sha }}
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          file: deployer.Dockerfile
+          tags: flyio/deployer:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   preflight:
     needs: test_build
