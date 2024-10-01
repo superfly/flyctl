@@ -35,13 +35,13 @@ jobs:
           path: dist/default_linux_amd64_v1/flyctl
           overwrite: true
 
-  # preflight:
-  #   needs: test_build
-  #   uses: ./.github/workflows/preflight.yml
-  #   secrets: inherit
-  
-  deployer-tests:
+  preflight:
     needs: test_build
-    uses: ./.github/workflows/deployer-tests.yml
+    uses: ./.github/workflows/preflight.yml
     secrets: inherit
+  
+  # deployer-tests:
+  #   needs: test_build
+  #   uses: ./.github/workflows/deployer-tests.yml
+  #   secrets: inherit
 
