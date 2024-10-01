@@ -250,9 +250,12 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		lp.Runtime = srcInfo.Runtime
 	}
 
+	appConfig.AppName = lp.AppName
+
 	return &LaunchManifest{
 		Plan:       lp,
 		PlanSource: planSource,
+		Config:     appConfig,
 	}, buildCache, nil
 }
 
@@ -400,6 +403,7 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		LaunchManifest: LaunchManifest{
 			m.Plan,
 			m.PlanSource,
+			appConfig,
 		},
 		env: envVars,
 		planBuildCache: planBuildCache{
@@ -519,6 +523,16 @@ func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appCo
 
 	appName := flag.GetString(ctx, "name")
 	cause := "specified on the command line"
+
+	if flag.GetBool(ctx, "force-name") {
+		if appName == "" {
+			return "", "", flyerr.GenericErr{
+				Err:     "app name required when using --force-name",
+				Suggest: "Specify the app name with the --name flag",
+			}
+		}
+		return appName, cause, nil
+	}
 
 	if !flag.GetBool(ctx, "generate-name") {
 		// --generate-name wasn't specified, so we try to get a name from the config file or directory name.

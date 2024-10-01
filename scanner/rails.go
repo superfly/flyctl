@@ -59,18 +59,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	// attempt to install bundle before proceeding
-	args := []string{"install"}
-
-	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
-		args = append(args, "--quiet")
-	}
-
-	cmd := exec.Command(bundle, args...)
-	cmd.Stdin = nil
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
@@ -351,22 +339,22 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 			if pendingError != nil {
 				pendingError = errors.Wrap(pendingError, "Failed to add dockerfile-rails gem")
 			} else {
-				cmd = exec.Command(bundle, "install", "--quiet")
-				cmd.Stdin = nil
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-
-				pendingError = cmd.Run()
-				if pendingError != nil {
-					pendingError = errors.Wrap(pendingError, "Failed to install dockerfile-rails gem")
-				} else {
-					generatorInstalled = true
-				}
+				generatorInstalled = true
 			}
 		}
 	} else {
 		// proceed using the already installed gem
 		generatorInstalled = true
+	}
+
+	cmd := exec.Command(bundle, "install", "--quiet")
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return errors.Wrap(pendingError, "Failed to install bundle, exiting")
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform

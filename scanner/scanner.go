@@ -3,6 +3,7 @@ package scanner
 import (
 	"embed"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -142,8 +143,11 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		if err != nil {
 			return nil, err
 		}
+		optOutGithubActions := os.Getenv("OPT_OUT_GITHUB_ACTIONS")
 		if si != nil {
-			github_actions(sourceDir, &si.GitHubActions)
+			if optOutGithubActions == "" {
+				github_actions(sourceDir, &si.GitHubActions)
+			}
 			return si, nil
 		}
 	}

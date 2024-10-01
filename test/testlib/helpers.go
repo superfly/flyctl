@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/containerd/continuity/fs"
 	"github.com/jpillora/backoff"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/superfly/flyctl/iostreams"
@@ -53,7 +54,7 @@ func otherRegionsFromEnv() []string {
 
 func currentRepoFlyctl() string {
 	_, filename, _, _ := runtime.Caller(0)
-	flyctlBin := path.Join(path.Dir(filename), "../../..", "bin", "flyctl")
+	flyctlBin := path.Join(path.Dir(filename), "../..", "bin", "flyctl")
 	return flyctlBin
 }
 
@@ -231,6 +232,7 @@ func OverwriteConfig(path string, data map[string]any) error {
 	if err != nil {
 		return err
 	}
+	// fmt.Printf("CONFIG @ %s: %v\n", path, cfg)
 
 	cfgEnv, err := castEnv(cfg["env"])
 	if err != nil {
@@ -247,9 +249,19 @@ func OverwriteConfig(path string, data map[string]any) error {
 		cfgEnv[k] = v
 	}
 
-	cfg["app"] = data["app"]
+	if app, ok := data["app"]; ok {
+		cfg["app"] = app
+	}
+
 	cfg["env"] = cfgEnv
-	cfg["primary_region"] = data["region"]
+
+	if region, ok := data["region"]; ok {
+		cfg["primary_region"] = region
+	} else if v, ok := cfg["primary_region"].(string); ok && strings.HasPrefix(v, "{{") {
+		delete(cfg, "primary_region")
+	}
+
+	// fmt.Printf("FINAL CONFIG: %v\n", cfg)
 
 	err = writeToml(path, cfg)
 	if err != nil {
@@ -257,4 +269,14 @@ func OverwriteConfig(path string, data map[string]any) error {
 	}
 
 	return nil
+}
+
+func getRootPath() string {
+	_, b, _, _ := runtime.Caller(0)
+	return filepath.Dir(b)
+}
+
+func CopyFixtureIntoWorkDir(workDir, name string) error {
+	src := fmt.Sprintf("%s/../fixtures/%s", getRootPath(), name)
+	return fs.CopyDir(workDir, src)
 }

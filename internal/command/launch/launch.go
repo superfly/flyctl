@@ -29,7 +29,7 @@ func (state *launchState) Launch(ctx context.Context) error {
 		return err
 	}
 
-	state.updateConfig(ctx)
+	updateConfig(state.Plan, state.env, state.appConfig)
 
 	if err := state.validateExtensions(ctx); err != nil {
 		return err
@@ -51,7 +51,6 @@ func (state *launchState) Launch(ctx context.Context) error {
 		if err != nil {
 			return err
 		}
-
 		fmt.Fprintf(io.Out, "Created app '%s' in organization '%s'\n", app.Name, app.Organization.Slug)
 		fmt.Fprintf(io.Out, "Admin URL: https://fly.io/apps/%s\n", app.Name)
 		fmt.Fprintf(io.Out, "Hostname: %s.fly.dev\n", app.Name)
@@ -96,15 +95,17 @@ func (state *launchState) Launch(ctx context.Context) error {
 		}
 	}
 
-	// Override internal port if requested using --internal-port flag
-	if n := flag.GetInt(ctx, "internal-port"); n > 0 {
-		state.appConfig.SetInternalPort(n)
-	}
-
 	// Sentry
 	if !flag.GetBool(ctx, "no-create") {
 		if err = state.launchSentry(ctx, state.Plan.AppName); err != nil {
 			return err
+		}
+	}
+
+	if planStep != "generate" {
+		// Override internal port if requested using --internal-port flag
+		if n := flag.GetInt(ctx, "internal-port"); n > 0 {
+			state.appConfig.SetInternalPort(n)
 		}
 	}
 
@@ -163,15 +164,15 @@ func (state *launchState) updateComputeFromDeprecatedGuestFields(ctx context.Con
 }
 
 // updateConfig populates the appConfig with the plan's values
-func (state *launchState) updateConfig(ctx context.Context) {
-	state.appConfig.AppName = state.Plan.AppName
-	state.appConfig.PrimaryRegion = state.Plan.RegionCode
-	if state.env != nil {
-		state.appConfig.SetEnvVariables(state.env)
+func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appconfig.Config) {
+	appConfig.AppName = plan.AppName
+	appConfig.PrimaryRegion = plan.RegionCode
+	if env != nil {
+		appConfig.SetEnvVariables(env)
 	}
-	if state.Plan.HttpServicePort != 0 {
-		if state.appConfig.HTTPService == nil {
-			state.appConfig.HTTPService = &appconfig.HTTPService{
+	if plan.HttpServicePort != 0 {
+		if appConfig.HTTPService == nil {
+			appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
 				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
@@ -179,11 +180,11 @@ func (state *launchState) updateConfig(ctx context.Context) {
 				Processes:          []string{"app"},
 			}
 		}
-		state.appConfig.HTTPService.InternalPort = state.Plan.HttpServicePort
+		appConfig.HTTPService.InternalPort = plan.HttpServicePort
 	} else {
-		state.appConfig.HTTPService = nil
+		appConfig.HTTPService = nil
 	}
-	state.appConfig.Compute = state.Plan.Compute
+	appConfig.Compute = plan.Compute
 }
 
 // createApp creates the fly.io app for the plan
@@ -210,5 +211,14 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 		return nil, err
 	}
 
+	return app, nil
+}
+
+func (state *launchState) getApp(ctx context.Context) (*fly.App, error) {
+	apiClient := flyutil.ClientFromContext(ctx)
+	app, err := apiClient.GetApp(ctx, state.Plan.AppName)
+	if err != nil {
+		return nil, err
+	}
 	return app, nil
 }

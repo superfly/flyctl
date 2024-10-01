@@ -121,12 +121,23 @@ func New() (cmd *cobra.Command) {
 			Name:        "yaml",
 			Description: "Generate configuration in YAML format",
 		},
+		// don't try to generate a name
 		flag.Bool{
-			Name:        "no-create",
-			Description: "Do not create an app, only generate configuration files",
+			Name:        "force-name",
+			Description: "Force app name supplied by --name",
+			Default:     false,
+			Hidden:      true,
+		},
+		// like reuse-app, but non-legacy!
+		flag.Bool{
+			Name:        "no-create-app",
+			Description: "Do not create an app",
+			Default:     false,
+			Hidden:      true,
 		},
 	)
 
+	cmd.AddCommand(newSessions())
 	cmd.AddCommand(NewPlan())
 
 	return
@@ -272,6 +283,18 @@ func run(ctx context.Context) (err error) {
 		return err
 	}
 
+	planStep := plan.GetPlanStep(ctx)
+
+	if launchManifest != nil && planStep != "generate" {
+		// we loaded a manifest...
+		cache = &planBuildCache{
+			appConfig:        launchManifest.Config,
+			sourceInfo:       nil,
+			appNameValidated: true,
+			warnedNoCcHa:     true,
+		}
+	}
+
 	// "--from" arg handling
 	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
@@ -289,14 +312,28 @@ func run(ctx context.Context) (err error) {
 		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
-			if errors.As(err, &recoverableErr) && canEnterUi {
+			if errors.As(err, &recoverableErr) {
+				if !canEnterUi {
+					return err
+				}
 			} else {
 				return err
 			}
 		}
 
 		if flag.GetBool(ctx, "manifest") {
-			jsonEncoder := json.NewEncoder(io.Out)
+			var jsonEncoder *json.Encoder
+			if manifestPath := flag.GetString(ctx, "manifest-path"); manifestPath != "" {
+				file, err := os.OpenFile(manifestPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+				if err != nil {
+					return err
+				}
+				defer file.Close()
+
+				jsonEncoder = json.NewEncoder(file)
+			} else {
+				jsonEncoder = json.NewEncoder(io.Out)
+			}
 			jsonEncoder.SetIndent("", "  ")
 			return jsonEncoder.Encode(launchManifest)
 		}
@@ -338,7 +375,6 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	planStep := plan.GetPlanStep(ctx)
 	if planStep == "" {
 		fmt.Fprintf(
 			io.Out,

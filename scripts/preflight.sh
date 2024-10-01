@@ -46,7 +46,7 @@ set +e
 gotesplit \
     -total "$total" \
     -index "$index" \
-    github.com/superfly/flyctl/test/preflight/... \
+    github.com/superfly/flyctl/test/preflight/... github.com/superfly/flyctl/test/deployer/... \
     -- --tags=integration -v -timeout=10m $test_opts | tee "$test_log"
 test_status=$?
 

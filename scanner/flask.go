@@ -1,6 +1,10 @@
 package scanner
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/superfly/flyctl/internal/command/launch/plan"
+)
 
 func configureFlask(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	// require "Flask" to be in requirements.txt
@@ -32,6 +36,7 @@ func configureFlask(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		Port:       8080,
 		SkipDeploy: true,
 		DeployDocs: `We have generated a simple Dockerfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
+		Runtime:    plan.RuntimeStruct{Language: "python"},
 	}
 
 	return s, nil

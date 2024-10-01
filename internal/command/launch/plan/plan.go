@@ -14,7 +14,7 @@ type LaunchPlan struct {
 	HighAvailability bool   `json:"ha"`
 
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
-	CPUKind string `json:"vm_cpukind,omitempty"`
+	CPUKind string `json:"vm_cpu_kind,omitempty"`
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
 	CPUs int `json:"vm_cpus,omitempty"`
 	// Deprecated: The UI currently returns this instead of Compute, but new development should use Compute.
