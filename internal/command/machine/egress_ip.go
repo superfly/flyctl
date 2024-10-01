@@ -28,6 +28,7 @@ func newEgressIp() *cobra.Command {
 	cmd.AddCommand(
 		newAllocateEgressIp(),
 		newListEgressIps(),
+		newReleaseEgressIP(),
 	)
 
 	return cmd
@@ -73,6 +74,28 @@ func newListEgressIps() *cobra.Command {
 	)
 
 	cmd.Args = cobra.NoArgs
+
+	return cmd
+}
+
+func newReleaseEgressIP() *cobra.Command {
+	const (
+		long  = `Release an egress IP address for a machine`
+		short = `Release an egress IP address`
+		usage = "release <machine-id>"
+	)
+
+	cmd := command.New(usage, short, long, runReleaseEgressIP,
+		command.RequireSession,
+		command.LoadAppNameIfPresent,
+	)
+
+	flag.Add(cmd,
+		flag.App(),
+		flag.AppConfig(),
+	)
+
+	cmd.Args = cobra.ExactArgs(1)
 
 	return cmd
 }
@@ -133,5 +156,25 @@ func runListEgressIps(ctx context.Context) (err error) {
 
 	out := iostreams.FromContext(ctx).Out
 	render.Table(out, "", rows, "Machine ID", "Region", "Type", "Egress IP")
+	return nil
+}
+
+func runReleaseEgressIP(ctx context.Context) (err error) {
+	var (
+		args      = flag.Args(ctx)
+		client    = flyutil.ClientFromContext(ctx)
+		appName   = appconfig.NameFromContext(ctx)
+		machineId = args[0]
+	)
+
+	v4, v6, err := client.ReleaseEgressIPAddress(ctx, appName, machineId)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Egress IP released for the machine %s\n", machineId)
+	fmt.Printf("IPv4: %s\n", v4.String())
+	fmt.Printf("IPv6: %s\n", v6.String())
+
 	return nil
 }
