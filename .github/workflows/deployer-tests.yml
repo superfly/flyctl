@@ -3,29 +3,9 @@ on:
   workflow_call:
   
 jobs:
-  deployer-tests:
+  build-deployer:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        vm_size: [""]
-        parallelism: [10]
-        index: [0,1,2,3,4,5,6,7,8,9]
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: "go.mod"
-          check-latest: true
-      - name: Get go version
-        id: go-version
-        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
-      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
-        run: |
-          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
-          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
@@ -51,6 +31,30 @@ jobs:
           tags: flyio/deployer:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+  deployer-tests:
+    needs: build-deployer
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        vm_size: [""]
+        parallelism: [10]
+        index: [0,1,2,3,4,5,6,7,8,9]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Get go version
+        id: go-version
+        run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
+      - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
+        run: |
+          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
+          echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
       - name: Run deployer tests
         id: deployer-tests
         env:
