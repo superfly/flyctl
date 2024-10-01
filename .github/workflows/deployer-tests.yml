@@ -23,7 +23,7 @@ jobs:
           path: master-build
       - name: Move flyctl binary to correct directory
         run: |
-          ls -lah master-build
+          mkdir -p bin
           mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
       - name: Build and push
