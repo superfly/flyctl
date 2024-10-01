@@ -6,6 +6,9 @@ jobs:
   build-deployer:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
       - name: Login to GitHub Container Registry
@@ -20,6 +23,7 @@ jobs:
           path: master-build
       - name: Move flyctl binary to correct directory
         run: |
+          ls -lah master-build
           mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
       - name: Build and push
