@@ -279,7 +279,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --depot=false --push -a #{APP_NAME} --image-label #{image_tag}")
+    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
