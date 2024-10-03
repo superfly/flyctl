@@ -14,6 +14,7 @@ CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
 FLYIO_BRANCH_NAME = "flyio-new-files"
 
 DEPLOYER_FLY_CONFIG_PATH = get_env("DEPLOYER_FLY_CONFIG_PATH")
+DEPLOYER_SOURCE_CWD = get_env("DEPLOYER_SOURCE_CWD")
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
 if !DEPLOY_CUSTOMIZE && !DEPLOY_APP_NAME
   event :error, { type: :validation, message: "missing app name" }
@@ -87,6 +88,10 @@ if GIT_REPO_URL
       head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'", log: false))
 
       artifact Artifact::GIT_HEAD, head
+
+      if !DEPLOYER_SOURCE_CWD.nil?
+        Dir.chdir(DEPLOYER_SOURCE_CWD)
+      end
     end
 end
 
