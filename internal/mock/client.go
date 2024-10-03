@@ -93,6 +93,7 @@ type Client struct {
 	NewRequestFunc                         func(q string) *graphql.Request
 	PlatformRegionsFunc                    func(ctx context.Context) ([]fly.Region, *fly.Region, error)
 	ReleaseIPAddressFunc                   func(ctx context.Context, appName string, ip string) error
+	ReleaseEgressIPAddressFunc             func(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
 	RemoveWireGuardPeerFunc                func(ctx context.Context, org *fly.Organization, name string) error
 	ResolveImageForAppFunc                 func(ctx context.Context, appName, imageRef string) (*fly.Image, error)
 	RevokeLimitedAccessTokenFunc           func(ctx context.Context, id string) error
@@ -416,6 +417,10 @@ func (m *Client) NewRequest(q string) *graphql.Request {
 
 func (m *Client) PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error) {
 	return m.PlatformRegionsFunc(ctx)
+}
+
+func (m *Client) ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error) {
+	return m.ReleaseEgressIPAddressFunc(ctx, appName, machineID)
 }
 
 func (m *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string) error {

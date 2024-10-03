@@ -380,6 +380,10 @@ func (m *Client) PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region
 	panic("TODO")
 }
 
+func (m *Client) ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error) {
+	panic("TODO")
+}
+
 func (m *Client) ReleaseIPAddress(ctx context.Context, appName string, ip string) error {
 	panic("TODO")
 }
