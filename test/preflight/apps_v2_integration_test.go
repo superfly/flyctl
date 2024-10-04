@@ -485,7 +485,8 @@ func TestErrOutput(t *testing.T) {
 	}
 }
 
-func TestImageLabel(t *testing.T) {
+func TestImageLabel(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -499,7 +500,10 @@ ENV BUILT_BY_DOCKERFILE=true
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
+	t.Logf("Launch %s", appName)
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	t.Logf("Deploy %s", appName)
 	f.Fly("deploy --label Z=ZZZ -a %s", appName)
 	res := f.Fly("image show -a %s --json", appName)
 
