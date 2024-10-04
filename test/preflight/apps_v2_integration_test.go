@@ -490,7 +490,7 @@ func TestImageLabel(tt *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
-	dockerfileContent := `FROM nginx:1.23.3
+	dockerfileContent := `FROM nginx:1.27
 
 ENV BUILT_BY_DOCKERFILE=true
 `
