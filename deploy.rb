@@ -1,5 +1,8 @@
 #!/usr/bin/env ruby
 
+$stdout.sync = true
+$stderr.sync = true
+
 require './deploy/common'
 
 event :start, { ts: ts() }
@@ -301,7 +304,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --depot=false --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
+    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
