@@ -107,6 +107,12 @@ else
 end
 HAS_FLY_CONFIG = !FLY_CONFIG_PATH.nil?
 
+CONFIG_COMMAND_STRING = if HAS_FLY_CONFIG
+  "--config #{FLY_CONFIG_PATH}"
+else
+  ""
+end
+
 if !DEPLOY_ONLY
   MANIFEST_PATH = "/tmp/manifest.json"
 
@@ -284,7 +290,7 @@ if !DEPLOY_ONLY
 end
 
 # TODO: better error if missing config
-fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local --config #{FLY_CONFIG_PATH}", log: false))
+fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
 image_ref = in_step Step::BUILD do
@@ -295,7 +301,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --depot=false --push -a #{APP_NAME} --image-label #{image_tag} --config #{FLY_CONFIG_PATH}")
+    exec_capture("flyctl deploy --build-only --depot=false --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
@@ -398,7 +404,7 @@ end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} --config #{FLY_CONFIG_PATH}")
+    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} #{CONFIG_COMMAND_STRING}")
   end
 end
 
