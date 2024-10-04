@@ -501,11 +501,11 @@ ENV BUILT_BY_DOCKERFILE=true
 	}
 
 	t.Logf("Launch %s", appName)
-	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly("launch --depot=false --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
 
 	t.Logf("Deploy %s", appName)
 	timestamp := time.Now().Format("2006-01-02T15:04:05")
-	f.Fly("deploy -a %s --label timestamp=%s", appName, timestamp)
+	f.Fly("deploy --depot=false -a %s --label timestamp=%s", appName, timestamp)
 	res := f.Fly("image show -a %s --json", appName)
 
 	var images []map[string]string
