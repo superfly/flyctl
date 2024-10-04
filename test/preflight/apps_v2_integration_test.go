@@ -485,7 +485,8 @@ func TestErrOutput(t *testing.T) {
 	}
 }
 
-func TestImageLabel(t *testing.T) {
+func TestImageLabel(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -499,14 +500,19 @@ ENV BUILT_BY_DOCKERFILE=true
 		f.Fatalf("failed to write dockerfile at %s error: %v", dockerfilePath, err)
 	}
 
+	t.Logf("Launch %s", appName)
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
-	f.Fly("deploy --label Z=ZZZ -a %s", appName)
+
+	t.Logf("Deploy %s", appName)
+	timestamp := time.Now().Format("2006-01-02T15:04:05")
+	f.Fly("deploy -a %s --label timestamp=%s", appName, timestamp)
 	res := f.Fly("image show -a %s --json", appName)
 
-	var machineImages []map[string]string
-	res.StdOutJSON(&machineImages)
+	var images []map[string]string
+	res.StdOutJSON(&images)
+	t.Logf("images = %+v", images)
 
-	for _, image := range machineImages {
-		require.Contains(f, image["Labels"], `"Z":"ZZZ"`)
+	for _, image := range images {
+		require.Contains(f, image["Labels"], fmt.Sprintf(`"timestamp":"%s"`, timestamp))
 	}
 }
