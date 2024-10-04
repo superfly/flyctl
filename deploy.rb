@@ -92,12 +92,12 @@ if GIT_REPO_URL
       if !DEPLOYER_SOURCE_CWD.nil?
         Dir.chdir(DEPLOYER_SOURCE_CWD)
       end
-    end
-end
 
-if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
-  event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
-  exit 1
+      if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
+        event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
+        exit 1
+      end
+    end
 end
 
 FLY_CONFIG_PATH = if !DEPLOYER_FLY_CONFIG_PATH.nil?
