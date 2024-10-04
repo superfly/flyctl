@@ -131,7 +131,7 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 		return render.JSON(io.Out, users)
 	}
 
-	rows := make([][]string, len(users))
+	rows := make([][]string, 0, len(users))
 
 	for _, user := range users {
 		var databases string
