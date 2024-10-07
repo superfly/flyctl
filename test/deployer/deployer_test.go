@@ -36,6 +36,58 @@ func TestDeployBasicNode(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
+func TestDeployBasicNodeWithCustomConfigPath(t *testing.T) {
+	deploy := testDeployer(t,
+		withCustomFlyTomlPath("custom-fly-config.toml"),
+		withFixtureApp("deploy-node-custom-config-path"),
+		createRandomApp,
+		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+			return map[string]any{
+				"app":    d.Extra["appName"],
+				"region": d.PrimaryRegion(),
+				"env": map[string]string{
+					"TEST_ID":                  d.ID(),
+					"DEPLOYER_FLY_CONFIG_PATH": "custom-fly-config.toml",
+				},
+			}
+		}),
+		testlib.DeployOnly,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", deploy.Extra["appName"].(string)))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
+}
+
+func TestDeployBasicNodeMonorepo(t *testing.T) {
+	deploy := testDeployer(t,
+		withCustomCwd("inner-repo"),
+		withFixtureApp("deploy-node-monorepo"),
+		createRandomApp,
+		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+			return map[string]any{
+				"app":    d.Extra["appName"],
+				"region": d.PrimaryRegion(),
+				"env": map[string]string{
+					"TEST_ID":             d.ID(),
+					"DEPLOYER_SOURCE_CWD": "inner-repo",
+				},
+			}
+		}),
+		testlib.DeployOnly,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", deploy.Extra["appName"].(string)))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
+}
+
 func TestLaunchBasicNodeWithDockerfile(t *testing.T) {
 	deploy := testDeployer(t,
 		withFixtureApp("deploy-node"),
@@ -124,9 +176,25 @@ func withFixtureApp(name string) func(*testlib.DeployTestRun) {
 	}
 }
 
+func withCustomFlyTomlPath(name string) func(*testlib.DeployTestRun) {
+	return func(d *testlib.DeployTestRun) {
+		d.FlyTomlPath = name
+	}
+}
+
+func withCustomCwd(name string) func(*testlib.DeployTestRun) {
+	return func(d *testlib.DeployTestRun) {
+		d.Cwd = name
+	}
+}
+
 func withOverwrittenConfig(raw any) func(*testlib.DeployTestRun) {
 	return func(d *testlib.DeployTestRun) {
-		flyTomlPath := fmt.Sprintf("%s/fly.toml", d.WorkDir())
+		flyTomlPath := d.WorkDir()
+		if d.Cwd != "" {
+			flyTomlPath = fmt.Sprintf("%s/%s", flyTomlPath, d.Cwd)
+		}
+		flyTomlPath = fmt.Sprintf("%s/%s", flyTomlPath, d.FlyTomlPath)
 		data := make(map[string]any)
 		switch cast := raw.(type) {
 		case map[string]any:
