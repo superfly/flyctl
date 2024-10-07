@@ -16,6 +16,8 @@ DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
 CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
 FLYIO_BRANCH_NAME = "flyio-new-files"
 
+DEPLOYER_FLY_CONFIG_PATH = get_env("DEPLOYER_FLY_CONFIG_PATH")
+DEPLOYER_SOURCE_CWD = get_env("DEPLOYER_SOURCE_CWD")
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
 if !DEPLOY_CUSTOMIZE && !DEPLOY_APP_NAME
   event :error, { type: :validation, message: "missing app name" }
@@ -92,7 +94,29 @@ if GIT_REPO_URL
     end
 end
 
-HAS_FLY_CONFIG = Dir.entries(".").any? { |f| File.fnmatch('fly.{toml,json,yaml,yml}', f, File::FNM_EXTGLOB)}
+in_step Step::GIT_PULL do
+  if !DEPLOYER_SOURCE_CWD.nil?
+    Dir.chdir(DEPLOYER_SOURCE_CWD)
+  end
+
+  if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
+    event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
+    exit 1
+  end
+end
+
+FLY_CONFIG_PATH = if !DEPLOYER_FLY_CONFIG_PATH.nil?
+  DEPLOYER_FLY_CONFIG_PATH
+else
+  Dir.entries(".").find { |f| File.fnmatch('fly.{toml,json,yaml,yml}', f, File::FNM_EXTGLOB)}
+end
+HAS_FLY_CONFIG = !FLY_CONFIG_PATH.nil?
+
+CONFIG_COMMAND_STRING = if HAS_FLY_CONFIG
+  "--config #{FLY_CONFIG_PATH}"
+else
+  ""
+end
 
 if !DEPLOY_ONLY
   MANIFEST_PATH = "/tmp/manifest.json"
@@ -271,7 +295,7 @@ if !DEPLOY_ONLY
 end
 
 # TODO: better error if missing config
-fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local", log: false))
+fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyctl config show --local #{CONFIG_COMMAND_STRING}", log: false))
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
 image_ref = in_step Step::BUILD do
@@ -282,7 +306,7 @@ image_ref = in_step Step::BUILD do
   else
     image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
-    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag}")
+    exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
     image_ref
   end
@@ -385,7 +409,7 @@ end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref}")
+    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} #{CONFIG_COMMAND_STRING}")
   end
 end
 
