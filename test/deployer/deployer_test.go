@@ -46,8 +46,7 @@ func TestDeployBasicNodeWithCustomConfigPath(t *testing.T) {
 				"app":    d.Extra["appName"],
 				"region": d.PrimaryRegion(),
 				"env": map[string]string{
-					"TEST_ID":                  d.ID(),
-					"DEPLOYER_FLY_CONFIG_PATH": "custom-fly-config.toml",
+					"TEST_ID": d.ID(),
 				},
 			}
 		}),
@@ -72,8 +71,7 @@ func TestDeployBasicNodeMonorepo(t *testing.T) {
 				"app":    d.Extra["appName"],
 				"region": d.PrimaryRegion(),
 				"env": map[string]string{
-					"TEST_ID":             d.ID(),
-					"DEPLOYER_SOURCE_CWD": "inner-repo",
+					"TEST_ID": d.ID(),
 				},
 			}
 		}),

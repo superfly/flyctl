@@ -216,6 +216,12 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	if d.deployNow {
 		env = append(env, "DEPLOY_NOW=1")
 	}
+	if d.FlyTomlPath != "fly.toml" {
+		env = append(env, fmt.Sprintf("DEPLOYER_FLY_CONFIG_PATH=%s", d.FlyTomlPath))
+	}
+	if d.Cwd != "" {
+		env = append(env, fmt.Sprintf("DEPLOYER_SOURCE_CWD=%s", d.Cwd))
+	}
 
 	if d.createAndPushBranch {
 		env = append(env, "DEPLOY_CREATE_AND_PUSH_BRANCH=1")
