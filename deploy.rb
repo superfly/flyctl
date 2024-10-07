@@ -91,16 +91,18 @@ if GIT_REPO_URL
       head = JSON.parse(exec_capture("git log -1 --pretty=format:'{\"commit\": \"%H\", \"author\": \"%an\", \"author_email\": \"%ae\", \"date\": \"%ad\", \"message\": \"%f\"}'", log: false))
 
       artifact Artifact::GIT_HEAD, head
-
-      if !DEPLOYER_SOURCE_CWD.nil?
-        Dir.chdir(DEPLOYER_SOURCE_CWD)
-      end
-
-      if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
-        event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
-        exit 1
-      end
     end
+end
+
+in_step Step::GIT_PULL do
+  if !DEPLOYER_SOURCE_CWD.nil?
+    Dir.chdir(DEPLOYER_SOURCE_CWD)
+  end
+
+  if !DEPLOYER_FLY_CONFIG_PATH.nil? && !File.exists?(DEPLOYER_FLY_CONFIG_PATH)
+    event :error, { type: :validation, message: "Config file #{DEPLOYER_FLY_CONFIG_PATH} does not exist" }
+    exit 1
+  end
 end
 
 FLY_CONFIG_PATH = if !DEPLOYER_FLY_CONFIG_PATH.nil?
