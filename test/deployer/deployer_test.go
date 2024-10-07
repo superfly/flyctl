@@ -38,6 +38,7 @@ func TestDeployBasicNode(t *testing.T) {
 
 func TestDeployBasicNodeWithCustomConfigPath(t *testing.T) {
 	deploy := testDeployer(t,
+		withCustomFlyTomlPath("custom-fly-config.toml"),
 		withFixtureApp("deploy-node-custom-config-path"),
 		createRandomApp,
 		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
@@ -149,9 +150,15 @@ func withFixtureApp(name string) func(*testlib.DeployTestRun) {
 	}
 }
 
+func withCustomFlyTomlPath(name string) func(*testlib.DeployTestRun) {
+	return func(d *testlib.DeployTestRun) {
+		d.FlyTomlPath = name
+	}
+}
+
 func withOverwrittenConfig(raw any) func(*testlib.DeployTestRun) {
 	return func(d *testlib.DeployTestRun) {
-		flyTomlPath := fmt.Sprintf("%s/fly.toml", d.WorkDir())
+		flyTomlPath := fmt.Sprintf("%s/%s", d.WorkDir(), d.FlyTomlPath)
 		data := make(map[string]any)
 		switch cast := raw.(type) {
 		case map[string]any:
