@@ -68,7 +68,7 @@ func (d *DeployerTestEnv) Close() error {
 }
 
 func (d *DeployerTestEnv) NewRun(options ...func(*DeployTestRun)) *DeployTestRun {
-	run := &DeployTestRun{FlyctlTestEnv: d.FlyctlTestEnv, dockerClient: d.dockerClient, deployerImage: d.image, apiToken: d.FlyctlTestEnv.AccessToken(), orgSlug: d.FlyctlTestEnv.OrgSlug(), containerBinds: []string{}, Extra: make(map[string]interface{})}
+	run := &DeployTestRun{FlyctlTestEnv: d.FlyctlTestEnv, dockerClient: d.dockerClient, deployerImage: d.image, apiToken: d.FlyctlTestEnv.AccessToken(), orgSlug: d.FlyctlTestEnv.OrgSlug(), containerBinds: []string{}, Extra: make(map[string]interface{}), FlyTomlPath: "fly.toml"}
 	for _, o := range options {
 		o(run)
 	}
@@ -114,6 +114,8 @@ type DeployTestRun struct {
 	err  error
 
 	Extra map[string]interface{}
+
+	FlyTomlPath string
 }
 
 func WithApp(app string) func(*DeployTestRun) {
