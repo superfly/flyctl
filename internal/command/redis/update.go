@@ -94,6 +94,11 @@ func runUpdate(ctx context.Context) (err error) {
 		options = make(map[string]interface{})
 	}
 
+	metadata, _ := addOn.Metadata.(map[string]interface{})
+
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
 	if err != nil {
 		return
 	}
@@ -116,7 +121,7 @@ func runUpdate(ctx context.Context) (err error) {
 		readRegionCodes = append(readRegionCodes, region.Code)
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options, addOn.Metadata)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, result.AddOnPlans.Nodes[index].Id, readRegionCodes, options, metadata)
 
 	if err != nil {
 		return
