@@ -141,9 +141,9 @@ export ERL_AFLAGS="-proto_dist inet6_tcp"
 export ECTO_IPV6="true"
 export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
 export RELEASE_DISTRIBUTION="name"
-image_label="${FLY_IMAGE_REF##*:}"
+image_tag="${FLY_IMAGE_REF##*:}"
 # trim the non-unique part of the default Fly.io label for the node name
-export RELEASE_NODE="${FLY_APP_NAME}-${image_label#deployment-}@${FLY_PRIVATE_IP}"
+export RELEASE_NODE="${FLY_APP_NAME}-${image_tag#deployment-}@${FLY_PRIVATE_IP}"
 
 # Uncomment to send crash dumps to stderr
 # This can be useful for debugging, but may log sensitive information
