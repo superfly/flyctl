@@ -228,7 +228,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 			action = "fork"
 			volInput.SourceVolumeID = &config.ForkFrom
-			volInput.MachinesOnly = fly.Pointer(true)
 			volInput.Name = "pg_data"
 		} else {
 			action = "create"

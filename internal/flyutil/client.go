@@ -91,6 +91,7 @@ type Client interface {
 	MoveApp(ctx context.Context, appName string, orgID string) (*fly.App, error)
 	NewRequest(q string) *graphql.Request
 	PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error)
+	ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
 	ReleaseIPAddress(ctx context.Context, appName string, ip string) error
 	RemoveWireGuardPeer(ctx context.Context, org *fly.Organization, name string) error
 	ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error)
