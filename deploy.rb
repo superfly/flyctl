@@ -203,6 +203,7 @@ if !DEPLOY_ONLY
           case RUNTIME_LANGUAGE
           when "ruby"
             exec_capture("rvm install #{version}")
+            exec_capture("rvm use #{version} --default")
           when "php"
             major, minor = Gem::Version.new(version).segments
             php_version = "#{major}.#{minor}"

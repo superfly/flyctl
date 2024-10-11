@@ -70,40 +70,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	// add ruby version
 
-	var rubyVersion string
-
-	// add ruby version from .ruby-version file
-	versionFile, err := os.ReadFile(".ruby-version")
-	if err == nil {
-		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
-		matches := re.FindStringSubmatch(string(versionFile))
-		if len(matches) >= 2 {
-			rubyVersion = matches[1]
-		}
-	}
-
-	if rubyVersion == "" {
-		// add ruby version from Gemfile
-		gemfile, err := os.ReadFile("Gemfile")
-		if err == nil {
-			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
-			matches := re.FindStringSubmatch(string(gemfile))
-			if len(matches) >= 2 {
-				rubyVersion = matches[1]
-			}
-		}
-	}
-
-	if rubyVersion == "" {
-		versionOutput, err := exec.Command("ruby", "--version").Output()
-		if err == nil {
-			re := regexp.MustCompile(`ruby (\d+\.\d+\.\d+)`)
-			matches := re.FindStringSubmatch(string(versionOutput))
-			if len(matches) >= 2 {
-				rubyVersion = matches[1]
-			}
-		}
-	}
+	rubyVersion, _ := extractRubyVersion("Gemfile.lock", "Gemfile", ".ruby-version")
 
 	if rubyVersion != "" {
 		s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: rubyVersion}
@@ -130,11 +97,11 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	// enable redis if there are any action cable / anycable channels
 	redis := false
 	files, err := filepath.Glob("app/channels/*.rb")
-	if err == nil && len(files) > 0 {
-		redis = true
+	if err == nil {
+		redis = len(files) > 0
 	}
 
-	if redis == false {
+	if !redis {
 		files, err = filepath.Glob("app/views/*")
 		if err == nil && len(files) > 0 {
 			for _, file := range files {

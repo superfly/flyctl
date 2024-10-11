@@ -100,7 +100,7 @@ def exec_capture(cmd, display: nil, log: true)
   out_mutex = Mutex.new
   output = ""
 
-  status = Open3.popen3(cmd) do |stdin, stdout, stderr, wait_thr|
+  status = Open3.popen3("/bin/bash", "-lc", cmd) do |stdin, stdout, stderr, wait_thr|
       pid = wait_thr.pid
 
       stdin.close_write

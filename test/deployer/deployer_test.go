@@ -157,6 +157,28 @@ func TestLaunchGoFromRepo(t *testing.T) {
 	require.Contains(t, string(body), "I'm running in the yyz region")
 }
 
+func TestLaunchRails8(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-rails-8"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, manifest.Plan.Runtime.Language, "ruby")
+
+	appName := deploy.Extra["appName"].(string)
+
+	_, err = testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/up", appName))
+	require.NoError(t, err)
+}
+
 func createRandomApp(d *testlib.DeployTestRun) {
 	appName := d.CreateRandomAppName()
 	require.NotEmpty(d, appName)
