@@ -44,13 +44,13 @@ RUN gpg --keyserver keyserver.ubuntu.com --recv-keys 409B6B1796C275462A170311380
 
 # install mise
 RUN curl https://mise.run | MISE_VERSION=v2024.8.6 sh && \
-    echo -e "\n\nexport PATH=\"$PATH:$HOME/.local/bin:$HOME/.local/share/mise/shims\"" >> ~/.profile
+    echo -e "\n\nexport PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH\"" >> ~/.bash_profile
 
 ENV MISE_PYTHON_COMPILE=false
 
 # install asdf, its plugins and dependencies
 RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.14.0 && \
-    echo -e "\n\n## Configure ASDF \n. $HOME/.asdf/asdf.sh" >> ~/.profile && \
+    echo -e "\n\n## Configure ASDF \n. $HOME/.asdf/asdf.sh" >> ~/.bash_profile && \
     source $HOME/.asdf/asdf.sh && \
     # nodejs
     curl -L https://github.com/nodenv/node-build/archive/refs/tags/v$NODE_BUILD_VERSION.tar.gz -o node-build.tar.gz && \
