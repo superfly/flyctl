@@ -29,10 +29,11 @@ ENV DEFAULT_RUBY_VERSION=3.1.6 \
 
 ARG NODE_BUILD_VERSION=5.3.8
 
-# install a ruby to run the initial script
-# RUN echo 'source "/etc/profile.d/rvm.sh"' >> ~/.bashrc && \
-#     usermod -a -G rvm root && \
-#     rvm install $DEFAULT_RUBY_VERSION && rvm --default use $DEFAULT_RUBY_VERSION && gem update --system && gem install bundler
+# install mise
+RUN curl https://mise.run | MISE_VERSION=v2024.8.6 sh && \
+    echo -e "\n\nexport PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH\"" >> ~/.bash_profile
+
+ENV MISE_PYTHON_COMPILE=false
 
 RUN gpg --keyserver keyserver.ubuntu.com --recv-keys 409B6B1796C275462A1703113804BB82D39DC0E3 7D2BAF1CF37B13E2069D6956105BD0E739499BDB && \
     curl -sSL https://get.rvm.io | bash -s stable && \
@@ -41,12 +42,6 @@ RUN gpg --keyserver keyserver.ubuntu.com --recv-keys 409B6B1796C275462A170311380
     rvm install $DEFAULT_RUBY_VERSION && rvm --default use $DEFAULT_RUBY_VERSION && gem update --system && gem install bundler && \
     echo -e "\nsource /etc/profile.d/rvm.sh" >> ~/.bash_profile && \
     echo -e "\nrvm use default &> /dev/null" >> ~/.bash_profile
-
-# install mise
-RUN curl https://mise.run | MISE_VERSION=v2024.8.6 sh && \
-    echo -e "\n\nexport PATH=\"$HOME/.local/bin:$HOME/.local/share/mise/shims:$PATH\"" >> ~/.bash_profile
-
-ENV MISE_PYTHON_COMPILE=false
 
 # install asdf, its plugins and dependencies
 RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.14.0 && \
