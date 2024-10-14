@@ -345,6 +345,11 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		return nil, nil
 	}
 
+	pythonVersion, _, err := extractPythonVersion()
+	if err != nil {
+		return nil, err
+	}
+
 	s := &SourceInfo{
 		Files:   templates("templates/python"),
 		Builder: "paketobuildpacks/builder:base",
@@ -355,6 +360,7 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		},
 		SkipDeploy: true,
 		DeployDocs: `We have generated a simple Procfile for you. Modify it to fit your needs and run "fly deploy" to deploy your application.`,
+		Runtime:    plan.RuntimeStruct{Language: "python", Version: pythonVersion},
 	}
 
 	return s, nil

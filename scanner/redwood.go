@@ -30,5 +30,10 @@ func configureRedwood(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		s.Notice = "\nThis deployment will run an SQLite on a single dedicated volume. The app can't scale beyond a single instance. Look into 'fly postgres' for a more robust production database that supports scaling up. \n"
 	}
 
+	// detect node.js version properly...
+	if nodeS, err := configureNode(sourceDir, config); err == nil && nodeS != nil {
+		s.Runtime = nodeS.Runtime
+	}
+
 	return s, nil
 }

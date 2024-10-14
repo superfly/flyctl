@@ -43,5 +43,7 @@ func configureRust(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		SkipDatabase: true,
 		Runtime:      plan.RuntimeStruct{Language: "rust"},
 	}
+
+	// TODO: check Cargo.toml's `package.rust-version` and rust-toolchain.toml's `toolchain.channel`
 	return s, nil
 }
