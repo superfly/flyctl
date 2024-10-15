@@ -423,4 +423,13 @@ if CAN_CREATE_AND_PUSH_BRANCH
   end
 end
 
+if !get_env("DEPLOYER_CLEANUP_BEFORE_EXIT").nil?
+  if GIT_REPO
+    `git clean -f -x -d`
+  else
+    Dir.chdir("..")
+    `rm -rf app/*`
+  end
+end
+
 event :end, { ts: ts() }

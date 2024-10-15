@@ -100,6 +100,8 @@ type DeployTestRun struct {
 
 	createAndPushBranch bool
 
+	cleanupBeforeExit bool
+
 	containerBinds []string
 
 	containerID string
@@ -171,6 +173,10 @@ func CreateAndPushBranch(d *DeployTestRun) {
 	d.createAndPushBranch = true
 }
 
+func CleanupBeforeExit(d *DeployTestRun) {
+	d.cleanupBeforeExit = true
+}
+
 func WithAppSource(src string) func(*DeployTestRun) {
 	return func(d *DeployTestRun) {
 		d.containerBinds = append(d.containerBinds, fmt.Sprintf("%s:/usr/src/app", src))
@@ -225,6 +231,10 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 
 	if d.createAndPushBranch {
 		env = append(env, "DEPLOY_CREATE_AND_PUSH_BRANCH=1")
+	}
+
+	if d.cleanupBeforeExit {
+		env = append(env, "DEPLOYER_CLEANUP_BEFORE_EXIT=1")
 	}
 
 	fmt.Printf("creating container... image=%s\n", d.deployerImage)

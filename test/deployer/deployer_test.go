@@ -6,6 +6,7 @@ package deployer
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -165,6 +166,7 @@ func TestLaunchRails8(t *testing.T) {
 		testlib.WithouExtensions,
 		testlib.DeployNow,
 		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
 	)
 
 	manifest, err := deploy.Output().ArtifactManifest()
@@ -177,6 +179,18 @@ func TestLaunchRails8(t *testing.T) {
 
 	_, err = testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/up", appName))
 	require.NoError(t, err)
+
+	if entries, err := os.ReadDir(fmt.Sprintf("%s/tmp", deploy.WorkDir())); err == nil {
+		for _, entry := range entries {
+			var mode = entry.Type()
+			info, _ := entry.Info()
+			if info != nil {
+				mode = info.Mode()
+			}
+			fmt.Printf("entry: %s (%s)\n", entry.Name(), mode)
+		}
+	}
+
 }
 
 func createRandomApp(d *testlib.DeployTestRun) {
