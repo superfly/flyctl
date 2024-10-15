@@ -65,7 +65,7 @@ jobs:
         run: echo "name=version::$(go env GOVERSION)" >> $GITHUB_OUTPUT
       - name: Install gotesplit, set FLY_PREFLIGHT_TEST_APP_PREFIX
         run: |
-          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sh -s
+          curl -sfL https://raw.githubusercontent.com/Songmu/gotesplit/v0.2.1/install.sh | sudo -E sh -s
           echo "FLY_PREFLIGHT_TEST_APP_PREFIX=pf-gha-$(openssl rand -hex 4)" >> "$GITHUB_ENV"
       - uses: actions/download-artifact@v4
         with:
