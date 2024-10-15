@@ -226,20 +226,22 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	if srcInfo != nil {
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
-		switch srcInfo.DatabaseDesired {
-		case scanner.DatabaseKindPostgres:
-			lp.Postgres = plan.DefaultPostgres(lp)
-			planSource.postgresSource = scannerSource
-		case scanner.DatabaseKindMySQL:
-			// TODO
-		case scanner.DatabaseKindSqlite:
-			// TODO
+		if !flag.GetBool(ctx, "no-db") {
+			switch srcInfo.DatabaseDesired {
+			case scanner.DatabaseKindPostgres:
+				lp.Postgres = plan.DefaultPostgres(lp)
+				planSource.postgresSource = scannerSource
+			case scanner.DatabaseKindMySQL:
+				// TODO
+			case scanner.DatabaseKindSqlite:
+				// TODO
+			}
 		}
-		if srcInfo.RedisDesired {
+		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
 		}
-		if srcInfo.ObjectStorageDesired {
+		if !flag.GetBool(ctx, "no-object-storage") && srcInfo.ObjectStorageDesired {
 			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
 			planSource.tigrisSource = scannerSource
 		}
