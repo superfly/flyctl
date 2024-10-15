@@ -52,6 +52,7 @@ RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.14.0 &
     tar -xzf node-build.tar.gz && \
     env PREFIX=/usr/local ./node-build-$NODE_BUILD_VERSION/install.sh && \
     asdf plugin add nodejs https://github.com/asdf-vm/asdf-nodejs.git && \
+    asdf install nodejs $DEFAULT_NODE_VERSION && asdf global nodejs $DEFAULT_NODE_VERSION && \
     # elixir
     asdf plugin-add erlang https://github.com/michallepicki/asdf-erlang-prebuilt-ubuntu-20.04.git && \
     echo -e "local.hex\nlocal.rebar" > $HOME/.default-mix-commands && \
