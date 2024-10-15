@@ -1263,7 +1263,7 @@ type smokeChecksError struct {
 }
 
 func (s smokeChecksError) Error() string {
-	return fmt.Sprintf("smoke checks for %s failed: %w", s.machineID, s.err)
+	return fmt.Sprintf("smoke checks for %s failed: %s", s.machineID, s.err)
 }
 
 func (s smokeChecksError) Unwrap() error {
