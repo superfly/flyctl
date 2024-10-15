@@ -260,6 +260,12 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	d.waitErrCh = make(chan error, 1)
 
 	go func() {
+		defer d.dockerClient.ContainerRemove(context.TODO(), cont.ID, container.RemoveOptions{
+			RemoveVolumes: true,
+			RemoveLinks:   true,
+			Force:         true,
+		})
+
 		defer d.Close()
 
 		logs, err := d.dockerClient.ContainerLogs(context.Background(), cont.ID, container.LogsOptions{
@@ -395,11 +401,7 @@ func (d *DeployTestRun) Output() *DeployerOut {
 }
 
 func (d *DeployTestRun) Close() error {
-	return d.dockerClient.ContainerRemove(context.TODO(), d.containerID, container.RemoveOptions{
-		RemoveVolumes: true,
-		RemoveLinks:   true,
-		Force:         true,
-	})
+	return nil
 }
 
 type log struct {
