@@ -20,7 +20,7 @@ RUN git config --global advice.detachedHead false && \
     git config --global init.defaultBranch main
 
 ENV DEFAULT_RUBY_VERSION=3.1.6 \
-    DEFAULT_NODE_VERSION=18.16.0 \
+    DEFAULT_NODE_VERSION=20.18.0 \
     DEFAULT_ERLANG_VERSION=26.2.5.2 \
     DEFAULT_ELIXIR_VERSION=1.16 \
     DEFAULT_BUN_VERSION=1.1.24 \
