@@ -114,6 +114,21 @@ func New() (cmd *cobra.Command) {
 			Hidden:      true,
 		},
 		flag.Bool{
+			Name:        "no-db",
+			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-redis",
+			Description: "Skip automatically provisioning a Redis instance",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-object-storage",
+			Description: "Skip automatically provisioning an object storage bucket",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
