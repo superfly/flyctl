@@ -112,6 +112,7 @@ type GitHubActionsStruct struct {
 
 func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	scanners := []sourceScanner{
+		configureDockerfile,
 		configureDjango,
 		configureLaravel,
 		configurePhoenix,
@@ -121,7 +122,6 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		/* frameworks scanners are placed before generic scanners,
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
-		configureDockerfile,
 		configureBridgetown,
 		configureLucky,
 		configureRuby,
