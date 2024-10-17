@@ -13,9 +13,9 @@ require (
 	github.com/PuerkitoBio/rehttp v1.4.0
 	github.com/alecthomas/chroma v0.10.0
 	github.com/avast/retry-go/v4 v4.6.0
-	github.com/aws/aws-sdk-go-v2/config v1.27.43
+	github.com/aws/aws-sdk-go-v2/config v1.28.0
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.41
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.65.3
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.66.0
 	github.com/azazeal/pause v1.3.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.23.1
