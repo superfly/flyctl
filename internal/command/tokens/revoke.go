@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
@@ -41,7 +42,7 @@ func runRevoke(ctx context.Context) (err error) {
 	for _, id := range args {
 		err := apiClient.RevokeLimitedAccessToken(ctx, id)
 		if err != nil {
-			fmt.Printf("Failed to revoke token %s: %s\n", id, err)
+			fmt.Fprintf(os.Stderr, "failed to revoke token %s: %s\n", id, err)
 			continue
 		}
 		fmt.Printf("Revoked %s\n", id)
