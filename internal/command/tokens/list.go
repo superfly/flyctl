@@ -38,6 +38,8 @@ func newList() *cobra.Command {
 		flag.Org(),
 	)
 
+	cmd.Aliases = []string{"ls"}
+
 	return cmd
 }
 
