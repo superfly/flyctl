@@ -15,7 +15,7 @@ func newRevoke() *cobra.Command {
 	const (
 		short = "Revoke tokens"
 		long  = "Revoke one or more tokens."
-		usage = "revoke [flags] TOKEN TOKEN ..."
+		usage = "revoke [flags] ID ID ..."
 	)
 
 	cmd := command.New(usage, short, long, runRevoke,
@@ -32,11 +32,7 @@ func runRevoke(ctx context.Context) (err error) {
 
 	args := flag.Args(ctx)
 	if len(args) == 0 {
-		if flag.GetString(ctx, "access-token") != "" {
-			return fmt.Errorf("no tokens provided; you passed a token via --access-token, did you mean to pass it as a positional argument?")
-		} else {
-			return fmt.Errorf("no tokens provided")
-		}
+		return fmt.Errorf("no token IDs; please provide IDs as positional arguments")
 	}
 
 	for _, id := range args {
