@@ -227,8 +227,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/depot/depot-go v0.3.0 h1:OEGwIZS5nqfy4YHZVDduGxTX/IG+0VgHTx+kjxZ/SYU=
-github.com/depot/depot-go v0.3.0/go.mod h1:9xKcGBd3HlDFcFkRbbdOWF/+2bBG0aFtpZAI+5rvfDc=
+github.com/depot/depot-go v0.5.0 h1:OBx/B0DGviHVG+TDmhdpaQA1anTGlQviwBrhR9TKTmQ=
+github.com/depot/depot-go v0.5.0/go.mod h1:9xKcGBd3HlDFcFkRbbdOWF/+2bBG0aFtpZAI+5rvfDc=
 github.com/dgryski/trifles v0.0.0-20230903005119-f50d829f2e54 h1:SG7nF6SRlWhcT7cNTs5R6Hk4V2lcmLz2NsG2VnInyNo=
 github.com/dgryski/trifles v0.0.0-20230903005119-f50d829f2e54/go.mod h1:if7Fbed8SFyPtHLHbg49SI7NAdJiC5WIA09pe59rfAA=
 github.com/dimchansky/utfbom v1.1.1 h1:vV6w1AhK4VMnhBno/TPVCoK9U/LP0PkLCS9tbxHdi/U=
