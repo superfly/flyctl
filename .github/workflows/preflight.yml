@@ -3,10 +3,10 @@ name: Preflight Tests
 on:
   workflow_dispatch:
     inputs:
-      reason:
-        description: Brief reason for running this workflow manually
+      region:
+        description: Region
         required: false
-        default: User initiated run
+        default: ord
         type: string
   workflow_call:
 
@@ -17,7 +17,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        vm_size: [""]
         parallelism: [20]
         index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
     steps:
@@ -42,11 +41,9 @@ jobs:
         env:
           FLY_PREFLIGHT_TEST_ACCESS_TOKEN: ${{ secrets.FLYCTL_PREFLIGHT_CI_FLY_API_TOKEN }}
           FLY_PREFLIGHT_TEST_FLY_ORG: flyctl-ci-preflight
-          # This VM size is only available in ORD.
-          FLY_PREFLIGHT_TEST_FLY_REGIONS: ord
+          FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
-          FLY_PREFLIGHT_TEST_VM_SIZE: ${{ matrix.vm_size }}
         run: |
           mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
