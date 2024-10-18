@@ -3,6 +3,7 @@ package tokens
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -91,7 +92,7 @@ func runList(ctx context.Context) (err error) {
 
 		fmt.Fprintln(out, "Tokens for app \""+appName+"\":")
 		for _, token := range tokens {
-			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String(), revokedAtToString(token.RevokedAt)})
 		}
 
 	case "org":
@@ -102,12 +103,19 @@ func runList(ctx context.Context) (err error) {
 
 		fmt.Fprintln(out, "Tokens for organization \""+org.Slug+"\":")
 		for _, token := range org.LimitedAccessTokens.Nodes {
-			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String()})
+			rows = append(rows, []string{token.Id, token.Name, token.User.Email, token.ExpiresAt.String(), revokedAtToString(token.RevokedAt)})
 		}
 	}
 
-	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At")
+	_ = render.Table(out, "", rows, "ID", "Name", "Created By", "Expires At", "Revoked At")
 	return nil
+}
+
+func revokedAtToString(time *time.Time) string {
+	if time != nil {
+		return time.String()
+	}
+	return ""
 }
 
 func determineScope(scopeStr string, appFlagStr string, orgFlagStr string, configFlagStr string) (scope string, err error) {
