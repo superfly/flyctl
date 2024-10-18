@@ -56,7 +56,7 @@ func RunSSHCommand(ctx context.Context, app *fly.AppCompact, dialer agent.Dialer
 	}
 
 	if len(errBuf.Bytes()) > 0 {
-		return nil, fmt.Errorf(errBuf.String())
+		return nil, errors.New(errBuf.String())
 	}
 
 	return outBuf.Bytes(), nil
