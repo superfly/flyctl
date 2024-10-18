@@ -32,7 +32,7 @@ func ConfirmConfigChanges(ctx context.Context, machine *fly.Machine, targetConfi
 	}
 
 	if customPrompt != "" {
-		fmt.Fprintf(io.Out, customPrompt)
+		fmt.Fprint(io.Out, customPrompt)
 	} else {
 		fmt.Fprintf(io.Out, "Configuration changes to be applied to machine: %s (%s)\n", colorize.Bold(machine.ID), colorize.Bold(machine.Name))
 	}

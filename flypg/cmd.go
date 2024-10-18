@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	fly "github.com/superfly/fly-go"
@@ -73,7 +74,7 @@ func (pc *Command) UpdateSettings(ctx context.Context, leaderIp string, config m
 	}
 
 	if !result.Success {
-		return fmt.Errorf(result.Message)
+		return errors.New(result.Message)
 	}
 
 	return nil
@@ -94,7 +95,7 @@ func (pc *Command) UnregisterMember(ctx context.Context, leaderIP string, standb
 	}
 
 	if !result.Success {
-		return fmt.Errorf(result.Message)
+		return errors.New(result.Message)
 	}
 
 	return nil
