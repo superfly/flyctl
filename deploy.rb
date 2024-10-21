@@ -157,7 +157,8 @@ if !DEPLOY_ONLY
   RUNTIME_LANGUAGE = manifest.dig("plan", "runtime", "language")
   RUNTIME_VERSION = manifest.dig("plan", "runtime", "version")
 
-  DO_INSTALL_DEPS = REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
+  DEPS_REQUIRED = !manifest.dig("plan", "runtime", "no_install_required")
+  DO_INSTALL_DEPS = DEPS_REQUIRED && REQUIRES_DEPENDENCIES.include?(RUNTIME_LANGUAGE)
 
   steps.push({id: Step::INSTALL_DEPENDENCIES, description: "Install required dependencies", async: true}) if DO_INSTALL_DEPS
 
