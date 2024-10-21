@@ -5,6 +5,8 @@ $stderr.sync = true
 
 require './deploy/common'
 
+begin
+
 event :start, { ts: ts() }
 
 # Change to a directory where we'll pull on git
@@ -434,3 +436,8 @@ if !get_env("DEPLOYER_CLEANUP_BEFORE_EXIT").nil?
 end
 
 event :end, { ts: ts() }
+
+ensure
+  $stdout.flush
+  $stderr.flush
+end
