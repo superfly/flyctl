@@ -440,4 +440,6 @@ event :end, { ts: ts() }
 ensure
   $stdout.flush
   $stderr.flush
+
+  sleep 1.0
 end
