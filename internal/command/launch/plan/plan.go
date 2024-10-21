@@ -42,8 +42,9 @@ type LaunchPlan struct {
 }
 
 type RuntimeStruct struct {
-	Language string `json:"language"`
-	Version  string `json:"version"`
+	Language          string `json:"language"`
+	Version           string `json:"version"`
+	NoInstallRequired bool   `json:"no_install_required"`
 }
 
 // Guest returns the guest described by the *raw* guest fields in a Plan.

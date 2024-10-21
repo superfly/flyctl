@@ -6,7 +6,6 @@ package deployer
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -158,6 +157,52 @@ func TestLaunchGoFromRepo(t *testing.T) {
 	require.Contains(t, string(body), "I'm running in the yyz region")
 }
 
+func TestLaunchRails70(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-rails-7.0"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, "ruby", manifest.Plan.Runtime.Language)
+
+	appName := deploy.Extra["appName"].(string)
+
+	_, err = testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/up", appName))
+	require.NoError(t, err)
+}
+
+func TestLaunchRails72(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-rails-7.2"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, "ruby", manifest.Plan.Runtime.Language)
+
+	appName := deploy.Extra["appName"].(string)
+
+	_, err = testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/up", appName))
+	require.NoError(t, err)
+}
+
 func TestLaunchRails8(t *testing.T) {
 	deploy := testDeployer(t,
 		withFixtureApp("deploy-rails-8"),
@@ -173,24 +218,13 @@ func TestLaunchRails8(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, manifest)
 
-	require.Equal(t, manifest.Plan.Runtime.Language, "ruby")
+	require.Equal(t, "ruby", manifest.Plan.Runtime.Language)
+	require.Equal(t, "Rails", manifest.Plan.ScannerFamily)
 
 	appName := deploy.Extra["appName"].(string)
 
 	_, err = testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/up", appName))
 	require.NoError(t, err)
-
-	if entries, err := os.ReadDir(fmt.Sprintf("%s/tmp", deploy.WorkDir())); err == nil {
-		for _, entry := range entries {
-			var mode = entry.Type()
-			info, _ := entry.Info()
-			if info != nil {
-				mode = info.Mode()
-			}
-			fmt.Printf("entry: %s (%s)\n", entry.Name(), mode)
-		}
-	}
-
 }
 
 func createRandomApp(d *testlib.DeployTestRun) {
