@@ -79,7 +79,8 @@ func configureNode(sourceDir string, config *ScannerConfig) (*SourceInfo, error)
 	package_files := []string{"package.json"}
 
 	_, err = os.Stat("yarn.lock")
-	vars["yarn"] = !os.IsNotExist(err)
+	// install yarn if there's a yarn.lock and if nodejs version is under 18
+	vars["yarn"] = !os.IsNotExist(err) && nodeVersion < "18"
 
 	if os.IsNotExist(err) {
 		vars["packager"] = "npm"

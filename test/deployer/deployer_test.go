@@ -36,6 +36,22 @@ func TestDeployBasicNode(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", deploy.Extra["TEST_ID"].(string)))
 }
 
+func TestLaunchBasicNodeYarn(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-node-yarn"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", deploy.Extra["appName"].(string)))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), "Hello World")
+}
+
 func TestDeployBasicNodeWithCustomConfigPath(t *testing.T) {
 	deploy := testDeployer(t,
 		withCustomFlyTomlPath("custom-fly-config.toml"),
