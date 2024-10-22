@@ -117,7 +117,7 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 	fmt.Fprintln(md.io.ErrOut, "Starting machine")
 
 	if err = releaseCmdMachine.Start(ctx); err != nil {
-		fmt.Fprintf(md.io.ErrOut, "error updating release_command machine: %v\n", err)
+		fmt.Fprintf(md.io.ErrOut, "error starting release_command machine: %v\n", err)
 		return
 	}
 
