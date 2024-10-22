@@ -26,6 +26,7 @@ jobs:
           DEFAULT_BUMP: "patch"
 
   sync_docs:
+    if: false
     needs: release
     runs-on: ubuntu-latest
     steps:
