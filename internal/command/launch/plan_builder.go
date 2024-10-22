@@ -104,8 +104,6 @@ func (r *recoverableErrorBuilder) build() string {
 }
 
 func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recoverableErrors *recoverableErrorBuilder) (*LaunchManifest, *planBuildCache, error) {
-	io := iostreams.FromContext(ctx)
-
 	appConfig, copiedConfig, err := determineBaseAppConfig(ctx)
 	if err != nil {
 		return nil, nil, err
@@ -132,12 +130,6 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		// Check imported fly.toml is a valid V2 config before creating the app
 		if err := appConfig.SetMachinesPlatform(); err != nil {
 			return nil, nil, fmt.Errorf("can not use configuration for Fly Launch, check fly.toml: %w", err)
-		}
-		if flag.GetBool(ctx, "manifest") {
-			fmt.Fprintln(io.ErrOut,
-				"Warning: --manifest does not serialize an entire app configuration.\n"+
-					"Creating a manifest from an existing fly.toml may be a lossy process!",
-			)
 		}
 		if service := appConfig.HTTPService; service != nil {
 			httpServicePort = service.InternalPort
@@ -423,7 +415,7 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 	existingConfig := appconfig.ConfigFromContext(ctx)
 	if existingConfig != nil {
 
-		if existingConfig.AppName != "" {
+		if existingConfig.AppName != "" && !flag.IsSpecified(ctx, "copy-config") {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found for app", existingConfig.AppName)
 		} else {
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
