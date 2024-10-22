@@ -432,8 +432,8 @@ github.com/kylelemons/godebug v1.1.0 h1:RPNrshWIDI6G2gRW9EHilWtl7Z6Sb1BR0xunSBf0
 github.com/kylelemons/godebug v1.1.0/go.mod h1:9/0rRGxNHcop5bhtWyNeEfOS8JIWk580+fNqagV/RAw=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0 h1:qJF/WI09EUJ7kSpmP5d1Rhc81NQdYUhP17McKfUq17E=
 github.com/launchdarkly/go-jsonstream/v3 v3.0.0/go.mod h1:/1Gyml6fnD309JOvunOSfyysWbZ/ZzcA120gF/cQtC4=
-github.com/launchdarkly/go-sdk-common/v3 v3.1.0 h1:KNCP5rfkOt/25oxGLAVgaU1BgrZnzH9Y/3Z6I8bMwDg=
-github.com/launchdarkly/go-sdk-common/v3 v3.1.0/go.mod h1:mXFmDGEh4ydK3QilRhrAyKuf9v44VZQWnINyhqbbOd0=
+github.com/launchdarkly/go-sdk-common/v3 v3.2.0 h1:LzwlrXRBPC7NjdbnDxio8YGHMvDrNb4i6lbjpLgwsyk=
+github.com/launchdarkly/go-sdk-common/v3 v3.2.0/go.mod h1:mXFmDGEh4ydK3QilRhrAyKuf9v44VZQWnINyhqbbOd0=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.1 h1:Z4lUVrh7+hIvL47KVjEBE/owbqqjKUEYTp4aBX/5OZM=
 github.com/launchdarkly/go-test-helpers/v3 v3.0.1/go.mod h1:u2ZvJlc/DDJTFrshWW50tWMZHLVYXofuSHUfTU/eIwM=
 github.com/logrusorgru/aurora v2.0.3+incompatible h1:tOpm7WcpBTn4fjmVfgpQq0EfczGlG91VSDkswnjF5A8=
