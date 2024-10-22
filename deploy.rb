@@ -411,7 +411,7 @@ end
 
 if DEPLOY_NOW
   in_step Step::DEPLOY do
-    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} #{CONFIG_COMMAND_STRING}")
+    exec_capture("flyctl deploy -a #{APP_NAME} --image #{image_ref} --depot-scope=app #{CONFIG_COMMAND_STRING}")
   end
 end
 
