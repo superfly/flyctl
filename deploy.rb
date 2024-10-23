@@ -120,6 +120,7 @@ end
 
 if DEPLOY_ONLY
   event :error, {type: :validation, message: "missing fly.toml" } if !HAS_FLY_CONFIG
+  exit 1
 else
   MANIFEST_PATH = "/tmp/manifest.json"
 
