@@ -76,7 +76,7 @@ if GIT_REPO_URL
     in_step Step::GIT_PULL do
       ref = get_env("GIT_REF")
       artifact Artifact::GIT_INFO, { repository: GIT_REPO, reference: ref }
-      
+
       exec_capture("git init", log: false)
 
       redacted_repo_url = GIT_REPO_URL.dup
@@ -118,7 +118,9 @@ else
   ""
 end
 
-if !DEPLOY_ONLY
+if DEPLOY_ONLY
+  event :error, {type: :validation, message: "missing fly.toml" } if !HAS_FLY_CONFIG
+else
   MANIFEST_PATH = "/tmp/manifest.json"
 
   manifest = in_step Step::PLAN do
@@ -199,7 +201,7 @@ if !DEPLOY_ONLY
           plugin = FLYCTL_TO_ASDF_PLUGIN_NAME.fetch(RUNTIME_LANGUAGE, RUNTIME_LANGUAGE)
           if plugin == "elixir"
             # required for elixir to work
-            exec_capture("asdf install erlang #{DEFAULT_ERLANG_VERSION}")  
+            exec_capture("asdf install erlang #{DEFAULT_ERLANG_VERSION}")
           end
           exec_capture("asdf install #{plugin} #{version}")
         else
