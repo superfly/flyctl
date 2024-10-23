@@ -26,6 +26,10 @@ func main() {
 	cmd := cli.NewRootCommand()
 	cmd.DisableAutoGenTag = true
 
+	// Override root command to always be `fly`,
+	// Otherwise it could be `main`, `flyctl` or whatever name is set to the executable
+	cmd.Use = "fly"
+
 	filePrepender := func(filename string) string {
 		return ""
 	}
