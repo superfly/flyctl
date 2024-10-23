@@ -27,8 +27,7 @@ jobs:
           DEFAULT_BUMP: "patch"
 
   sync_docs:
-    #if: github.ref == 'refs/heads/master'
-    if: false
+    if: github.ref == 'refs/heads/master'
     needs: release
     runs-on: ubuntu-latest
     steps:
