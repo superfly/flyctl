@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout master branch
@@ -26,7 +27,7 @@ jobs:
           DEFAULT_BUMP: "patch"
 
   sync_docs:
-    if: false
+    if: github.ref == 'refs/heads/master'
     needs: release
     runs-on: ubuntu-latest
     steps:
