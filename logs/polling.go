@@ -16,8 +16,8 @@ type pollingStream struct {
 	apiClient flyutil.Client
 }
 
-func NewPollingStream(client flyutil.Client, opts *LogOptions) (LogStream, error) {
-	return &pollingStream{apiClient: client}, nil
+func NewPollingStream(client flyutil.Client) LogStream {
+	return &pollingStream{apiClient: client}
 }
 
 func (s *pollingStream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
