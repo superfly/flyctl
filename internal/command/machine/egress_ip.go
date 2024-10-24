@@ -49,6 +49,7 @@ func newAllocateEgressIp() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -93,6 +94,7 @@ func newReleaseEgressIP() *cobra.Command {
 	flag.Add(cmd,
 		flag.App(),
 		flag.AppConfig(),
+		flag.Yes(),
 	)
 
 	cmd.Args = cobra.ExactArgs(1)
@@ -108,7 +110,7 @@ func runAllocateEgressIP(ctx context.Context) (err error) {
 		machineId = args[0]
 	)
 
-	if !flag.GetBool(ctx, "yes") {
+	if !flag.GetYes(ctx) {
 		msg := `Looks like you're allocating a static egress (outgoing) IP. This is an advanced feature, and is not needed by most apps.
 Are you sure this is what you want?`
 
@@ -166,6 +168,21 @@ func runReleaseEgressIP(ctx context.Context) (err error) {
 		appName   = appconfig.NameFromContext(ctx)
 		machineId = args[0]
 	)
+
+	if !flag.GetYes(ctx) {
+		msg := `Are you sure?`
+
+		switch confirmed, err := prompt.Confirm(ctx, msg); {
+		case err == nil:
+			if !confirmed {
+				return nil
+			}
+		case prompt.IsNonInteractive(err):
+			return prompt.NonInteractiveError("yes flag must be specified when not running interactively")
+		default:
+			return err
+		}
+	}
 
 	v4, v6, err := client.ReleaseEgressIPAddress(ctx, appName, machineId)
 	if err != nil {
