@@ -60,7 +60,8 @@ RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.14.0 &
     asdf install erlang $DEFAULT_ERLANG_VERSION && asdf global erlang $DEFAULT_ERLANG_VERSION && \
     asdf install elixir $DEFAULT_ELIXIR_VERSION && asdf global elixir $DEFAULT_ELIXIR_VERSION && \
     # bun
-    asdf plugin add bun https://github.com/cometkim/asdf-bun.git
+    asdf plugin add bun https://github.com/cometkim/asdf-bun.git && \
+    asdf install bun $DEFAULT_BUN_VERSION && asdf global bun $DEFAULT_BUN_VERSION
 
 ENV MIX_ENV=dev
 

@@ -144,7 +144,7 @@ func runLs(ctx context.Context) error {
 			return err
 		}
 
-		fmt.Printf(walker.Path() + "\n")
+		fmt.Println(walker.Path())
 	}
 
 	return nil
