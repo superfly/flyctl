@@ -136,7 +136,7 @@ func machinesRestart(ctx context.Context, appName string, input *fly.RestartMach
 		if err := pgclient.Failover(ctx); err != nil {
 			msg := fmt.Sprintf("failed to perform failover: %s", err.Error())
 			if !force {
-				return fmt.Errorf(msg)
+				return fmt.Errorf("failed to perform failover: %w", err)
 			}
 
 			fmt.Fprintln(io.Out, colorize.Red(msg))
