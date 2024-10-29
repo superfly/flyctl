@@ -155,6 +155,31 @@ func TestLaunchBasicNode(t *testing.T) {
 	require.Equal(t, string(body), "Hello, World!")
 }
 
+func TestLaunchBasicBun(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("bun-basic"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.OptOutGithubActions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, manifest.Plan.Runtime.Language, "bun")
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Equal(t, string(body), "Hello, Bun!")
+}
+
 func TestLaunchGoFromRepo(t *testing.T) {
 	deploy := testDeployer(t,
 		createRandomApp,

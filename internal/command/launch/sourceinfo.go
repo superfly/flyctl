@@ -115,7 +115,7 @@ func determineSourceInfo(ctx context.Context, appConfig *appconfig.Config, copyC
 	if srcInfo.Builder != "" {
 		fmt.Fprintln(io.Out, "Using the following build configuration:")
 		fmt.Fprintln(io.Out, "\tBuilder:", srcInfo.Builder)
-		if srcInfo.Buildpacks != nil && len(srcInfo.Buildpacks) > 0 {
+		if len(srcInfo.Buildpacks) > 0 {
 			fmt.Fprintln(io.Out, "\tBuildpacks:", strings.Join(srcInfo.Buildpacks, " "))
 		}
 

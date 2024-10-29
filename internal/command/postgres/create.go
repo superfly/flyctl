@@ -161,7 +161,7 @@ func run(ctx context.Context) (err error) {
 
 		// Initial cluster size may not be greater than 1 with fork-from
 		if pgConfig.InitialClusterSize > 1 {
-			fmt.Fprintf(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
+			fmt.Fprint(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
 			pgConfig.InitialClusterSize = 1
 		}
 
