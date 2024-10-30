@@ -2,8 +2,12 @@ package scanner
 
 import (
 	"bufio"
+	"encoding/json"
+	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"unicode"
@@ -52,6 +56,17 @@ type PyProjectToml struct {
 
 type Pipfile struct {
 	Packages map[string]interface{}
+	Requires PipfileRequires `json:"requires" toml:"requires"`
+}
+
+type PipfileRequires struct {
+	PythonVersion string `json:"python_version" toml:"python_version"`
+}
+
+type PipfileLock struct {
+	Meta struct {
+		Requires PipfileRequires `json:"requires" toml:"requires"`
+	} `json:"_meta"`
 }
 
 type PyCfg struct {
@@ -279,10 +294,12 @@ func configPipfile(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 		dep := parsePyDep(dep)
 		depList = append(depList, dep)
 	}
+
 	pyVersion, _, err := extractPythonVersion()
 	if err != nil {
 		return nil, err
 	}
+
 	appName := filepath.Base(sourceDir)
 	cfg := PyCfg{pyVersion, appName, depList, Pipenv}
 	return intoSource(cfg)
@@ -364,4 +381,45 @@ func configurePython(sourceDir string, _ *ScannerConfig) (*SourceInfo, error) {
 	}
 
 	return s, nil
+}
+
+func extractPythonVersion() (string, bool, error) {
+	var pipfileLock PipfileLock
+	contents, err := os.ReadFile("Pipfile.lock")
+	if err == nil {
+		if err := json.Unmarshal(contents, &pipfileLock); err == nil {
+			if pyVersion := pipfileLock.Meta.Requires.PythonVersion; pyVersion != "" {
+				return pyVersion, true, nil
+			}
+		}
+	}
+
+	/* Example Output:
+	   Python 3.11.2
+	   Python 3.12.0b4
+	*/
+	pythonVersionOutput := "Python 3.12.0" // Fallback to 3.12
+
+	cmd := exec.Command("python3", "--version")
+	out, err := cmd.CombinedOutput()
+	if err == nil {
+		pythonVersionOutput = string(out)
+	} else {
+		cmd := exec.Command("python", "--version")
+		out, err := cmd.CombinedOutput()
+		if err == nil {
+			pythonVersionOutput = string(out)
+		}
+	}
+
+	re := regexp.MustCompile(`Python ([0-9]+\.[0-9]+\.[0-9]+(?:[a-zA-Z]+[0-9]+)?)`)
+	match := re.FindStringSubmatch(pythonVersionOutput)
+
+	if len(match) > 1 {
+		version := match[1]
+		nonNumericRegex := regexp.MustCompile(`[^0-9.]`)
+		pinned := nonNumericRegex.MatchString(version)
+		return version, pinned, nil
+	}
+	return "", false, fmt.Errorf("Could not find Python version")
 }

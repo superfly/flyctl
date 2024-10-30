@@ -268,6 +268,32 @@ func TestLaunchRails8(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestLaunchDjangoBasic(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("django-basic"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, "python", manifest.Plan.Runtime.Language)
+	require.Equal(t, "3.11", manifest.Plan.Runtime.Version)
+	require.Equal(t, "Django", manifest.Plan.ScannerFamily)
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/polls/", appName))
+	require.NoError(t, err)
+	require.Contains(t, string(body), "Hello, world. You're at the polls index.")
+}
+
 func createRandomApp(d *testlib.DeployTestRun) {
 	appName := d.CreateRandomAppName()
 	require.NotEmpty(d, appName)
