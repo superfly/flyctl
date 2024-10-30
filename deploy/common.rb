@@ -132,12 +132,16 @@ def exec_capture(cmd, display: nil, log: true)
   output
 end
 
-def in_step(step, &block)
+def in_step(step, skip: false, &block)
   old_step = Step.current()
   Step.set_current(step)
   event :start
   ret = begin
-    yield block
+    if skip
+      event :skip
+    else
+      yield block
+    end
   rescue StandardError => e
     event :error, { type: :uncaught, message: e }
     exit 1

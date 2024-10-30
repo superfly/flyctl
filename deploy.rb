@@ -319,9 +319,9 @@ image_ref = in_step Step::BUILD do
   end
 end
 
-if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
+if !DEPLOY_ONLY
   if FLY_PG
-    in_step Step::FLY_POSTGRES_CREATE do
+    in_step Step::FLY_POSTGRES_CREATE, skip: !get_env("SKIP_EXTENSIONS").nil? do
       pg_name = FLY_PG["app_name"]
       region = APP_REGION
 
@@ -350,7 +350,7 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
       exec_capture("flyctl pg attach #{pg_name} --app #{APP_NAME} -y")
     end
   elsif SUPABASE
-    in_step Step::SUPABASE_POSTGRES do
+    in_step Step::SUPABASE_POSTGRES, skip: !get_env("SKIP_EXTENSIONS").nil? do
       cmd = "flyctl ext supabase create --org #{ORG_SLUG} --name #{SUPABASE["db_name"]} --region #{SUPABASE["region"]} --app #{APP_NAME} --yes"
 
       artifact Artifact::SUPABASE_POSTGRES, { config: SUPABASE }
@@ -360,7 +360,7 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
   end
 
   if UPSTASH
-    in_step Step::UPSTASH_REDIS do
+    in_step Step::UPSTASH_REDIS, skip: !get_env("SKIP_EXTENSIONS").nil? do
       db_name = "#{APP_NAME}-redis"
 
       cmd = "flyctl redis create --name #{db_name} --org #{ORG_SLUG} --region #{APP_REGION}"
@@ -384,7 +384,7 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
   end
 
   if TIGRIS
-    in_step Step::TIGRIS_OBJECT_STORAGE do
+    in_step Step::TIGRIS_OBJECT_STORAGE, skip: !get_env("SKIP_EXTENSIONS").nil? do
       cmd = "flyctl ext tigris create --org #{ORG_SLUG} --app #{APP_NAME} --yes"
 
       if (name = TIGRIS["name"]) && !name.empty?
@@ -410,7 +410,7 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
   end
 
   if SENTRY
-    in_step Step::SENTRY do
+    in_step Step::SENTRY, skip: !get_env("SKIP_EXTENSIONS").nil? do
       exec_capture("flyctl ext sentry create --app #{APP_NAME} --yes")
     end
   end
