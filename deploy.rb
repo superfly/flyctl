@@ -371,8 +371,10 @@ if !DEPLOY_ONLY && get_env("SKIP_EXTENSIONS").nil?
         cmd += " --disable-eviction"
       end
 
-      if (regions = UPSTASH["regions"])
+      if (regions = UPSTASH["regions"]) && !regions.empty?
         cmd += " --replica-regions #{regions.join(",")}"
+      else
+        cmd += " --no-replicas"
       end
 
       artifact Artifact::UPSTASH_REDIS, { config: UPSTASH, region: APP_REGION, name: db_name }
