@@ -242,6 +242,11 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 func Org(ctx context.Context) (*fly.Organization, error) {
 	client := flyutil.ClientFromContext(ctx)
 
+	slug := config.FromContext(ctx).Organization
+	if slug != "" {
+		return client.GetOrganizationBySlug(ctx, slug)
+	}
+
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
 		return nil, err
@@ -249,7 +254,6 @@ func Org(ctx context.Context) (*fly.Organization, error) {
 	sort.OrganizationsByTypeAndName(orgs)
 
 	io := iostreams.FromContext(ctx)
-	slug := config.FromContext(ctx).Organization
 
 	switch {
 	case slug == "" && len(orgs) == 1 && orgs[0].Type == "PERSONAL":
