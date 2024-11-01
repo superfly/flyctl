@@ -57,6 +57,7 @@ type Config struct {
 	Checks           map[string]*ToplevelCheck `toml:"checks,omitempty" json:"checks,omitempty"`
 	Files            []File                    `toml:"files,omitempty" json:"files,omitempty"`
 	HostDedicationID string                    `toml:"host_dedication_id,omitempty" json:"host_dedication_id,omitempty"`
+	MachineConfigs   []*MachineConfig          `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
 
 	MachineChecks []*ServiceMachineCheck `toml:"machine_checks,omitempty" json:"machine_checks,omitempty"`
 
@@ -162,6 +163,12 @@ type Experimental struct {
 	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+}
+
+type MachineConfig struct {
+	FromFile  string             `toml:"from_file,omitempty" json:"from_file,omitempty"`
+	Config    *fly.MachineConfig `toml:"config,omitempty" json:"config,omitempty"`
+	Processes []string           `toml:"processes,omitempty" json:"processes,omitempty"`
 }
 
 type Attached struct {

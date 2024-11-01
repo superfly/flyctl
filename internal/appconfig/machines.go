@@ -1,7 +1,10 @@
 package appconfig
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -233,6 +236,26 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 	mConfig := &fly.MachineConfig{}
 	if src != nil {
 		mConfig = helpers.Clone(src)
+	}
+
+	if len(c.MachineConfigs) > 0 {
+		mc0 := c.MachineConfigs[0]
+		switch {
+		case mc0.Config != nil:
+			mConfig = helpers.Clone(mc0.Config)
+		case mc0.FromFile != "":
+			file, err := os.Open(mc0.FromFile)
+			if err != nil {
+				return nil, err
+			}
+			buf, err := io.ReadAll(file)
+			if err != nil {
+				return nil, err
+			}
+			if err := json.Unmarshal(buf, mConfig); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// Metrics
