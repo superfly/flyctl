@@ -162,11 +162,20 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		dst.Metrics[i].Processes = []string{groupName}
 	}
 
+	// [[restart]]
 	dst.Restart = lo.Filter(dst.Restart, func(x Restart, _ int) bool {
 		return matchesGroups(x.Processes)
 	})
 	for i := range dst.Restart {
 		dst.Restart[i].Processes = []string{groupName}
+	}
+
+	// [[machine_config]]
+	dst.MachineConfigs = lo.Filter(dst.MachineConfigs, func(x *MachineConfig, _ int) bool {
+		return matchesGroups(x.Processes)
+	})
+	for i := range dst.MachineConfigs {
+		dst.MachineConfigs[i].Processes = []string{groupName}
 	}
 
 	// [[vm]]
