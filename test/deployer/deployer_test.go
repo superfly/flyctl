@@ -319,6 +319,30 @@ func TestLaunchGoNoGoSum(t *testing.T) {
 	require.Contains(t, string(body), "Hello from Go!")
 }
 
+func TestLaunchDenoNoConfig(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deno-no-config"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, "deno", manifest.Plan.Runtime.Language)
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/", appName))
+	require.NoError(t, err)
+	require.Contains(t, string(body), "Hello, World!")
+}
+
 func createRandomApp(d *testlib.DeployTestRun) {
 	appName := d.CreateRandomAppName()
 	require.NotEmpty(d, appName)
