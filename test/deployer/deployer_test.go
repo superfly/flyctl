@@ -294,6 +294,31 @@ func TestLaunchDjangoBasic(t *testing.T) {
 	require.Contains(t, string(body), "Hello, world. You're at the polls index.")
 }
 
+func TestLaunchGoNoGoSum(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("go-no-go-sum"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, "go", manifest.Plan.Runtime.Language)
+	require.Equal(t, "1.22.6", manifest.Plan.Runtime.Version)
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/", appName))
+	require.NoError(t, err)
+	require.Contains(t, string(body), "Hello from Go!")
+}
+
 func createRandomApp(d *testlib.DeployTestRun) {
 	appName := d.CreateRandomAppName()
 	require.NotEmpty(d, appName)
