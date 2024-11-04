@@ -162,6 +162,7 @@ type Experimental struct {
 	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
 }
 
 type Attached struct {
