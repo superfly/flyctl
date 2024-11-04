@@ -53,6 +53,7 @@ func TestToMachineConfig(t *testing.T) {
 		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
 		},
+		DNS: &fly.DNSConfig{Nameservers: []string{"1.2.3.4"}},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -79,7 +80,7 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, "24/7", got.Schedule)
 	assert.Equal(t, true, got.AutoDestroy)
 	assert.Equal(t, &fly.MachineRestart{Policy: "always"}, got.Restart)
-	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, got.DNS)
+	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true, Nameservers: []string{"1.2.3.4"}}, got.DNS)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
 }
@@ -460,7 +461,7 @@ func TestToTestMachineConfigWTestMachine(t *testing.T) {
 	}
 	got, err := cfg.ToTestMachineConfig(check, machine)
 	assert.NoError(t, err)
-	assert.Equal(t, got, want)
+	assert.Equal(t, want, got)
 }
 
 func TestToConsoleMachineConfig(t *testing.T) {

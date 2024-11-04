@@ -170,14 +170,6 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		dst.Restart[i].Processes = []string{groupName}
 	}
 
-	// [[machine_config]]
-	dst.MachineConfigs = lo.Filter(dst.MachineConfigs, func(x *MachineConfig, _ int) bool {
-		return matchesGroups(x.Processes)
-	})
-	for i := range dst.MachineConfigs {
-		dst.MachineConfigs[i].Processes = []string{groupName}
-	}
-
 	// [[vm]]
 	compute := dst.ComputeForGroup(groupName)
 

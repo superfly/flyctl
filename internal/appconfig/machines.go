@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -149,7 +150,9 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	}
 
 	if c.Experimental != nil {
-		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+		if v := c.Experimental.Entrypoint; v != nil {
+			mConfig.Init.Entrypoint = v
+		}
 	}
 
 	mConfig.Env["FLY_TEST_COMMAND"] = "1"
@@ -238,23 +241,27 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig = helpers.Clone(src)
 	}
 
-	if len(c.MachineConfigs) > 0 {
-		mc0 := c.MachineConfigs[0]
+	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
+		emc := c.Experimental.MachineConfig
+		var buf []byte
 		switch {
-		case mc0.Config != nil:
-			mConfig = helpers.Clone(mc0.Config)
-		case mc0.FromFile != "":
-			file, err := os.Open(mc0.FromFile)
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
 			if err != nil {
 				return nil, err
 			}
-			buf, err := io.ReadAll(file)
+			buf, err = io.ReadAll(fo)
 			if err != nil {
 				return nil, err
 			}
-			if err := json.Unmarshal(buf, mConfig); err != nil {
-				return nil, err
-			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		if err := json.Unmarshal(buf, mConfig); err != nil {
+			return nil, err
 		}
 	}
 
