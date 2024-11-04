@@ -18,7 +18,8 @@ event :start, { ts: ts() }
 Dir.chdir("/usr/src/app")
 
 DEPLOY_NOW = !get_env("DEPLOY_NOW").nil?
-DEPLOY_CUSTOMIZE = !get_env("NO_DEPLOY_CUSTOMIZE")
+DEPLOY_CUSTOMIZE_PATH = get_env("DEPLOY_CUSTOMIZE_PATH")
+DEPLOY_CUSTOMIZE = !get_env("NO_DEPLOY_CUSTOMIZE") || !DEPLOY_CUSTOMIZE_PATH.nil?
 DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
 CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
 FLYIO_BRANCH_NAME = "flyio-new-files"
@@ -239,14 +240,20 @@ if !DEPLOY_ONLY
 
   if DEPLOY_CUSTOMIZE
     manifest = in_step Step::CUSTOMIZE do
-      cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH} --from-manifest #{MANIFEST_PATH}"
+      if DEPLOY_CUSTOMIZE_PATH.nil?
+        cmd = "flyctl launch sessions create --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH} --from-manifest #{MANIFEST_PATH}"
 
-      exec_capture(cmd)
-      session = JSON.parse(File.read("/tmp/session.json"))
+        exec_capture(cmd)
+        session = JSON.parse(File.read("/tmp/session.json"))
 
-      artifact Artifact::SESSION, session
+        artifact Artifact::SESSION, session
+      end
 
       cmd = "flyctl launch sessions finalize --session-path /tmp/session.json --manifest-path #{MANIFEST_PATH}"
+
+      if !DEPLOY_CUSTOMIZE_PATH.nil?
+        cmd += " --from-file #{DEPLOY_CUSTOMIZE_PATH}"
+      end
 
       exec_capture(cmd)
       manifest = JSON.parse(File.read("/tmp/manifest.json"))
