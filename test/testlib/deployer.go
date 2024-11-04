@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/launch"
 )
 
@@ -94,6 +96,7 @@ type DeployTestRun struct {
 	skipExtensions bool
 	copyConfig     bool
 	optOutGha      bool
+	customizePath  string
 
 	deployOnly bool
 	deployNow  bool
@@ -124,6 +127,22 @@ type DeployTestRun struct {
 func WithApp(app string) func(*DeployTestRun) {
 	return func(d *DeployTestRun) {
 		d.appName = app
+	}
+}
+
+func WithPreCustomize(customize *fly.CLISession) func(*DeployTestRun) {
+	b, err := json.Marshal(customize)
+	if err != nil {
+		panic(err)
+	}
+	return func(d *DeployTestRun) {
+		p := filepath.Join(d.WorkDir(), "customize.json")
+		if err := os.WriteFile(p, b, 0666); err != nil {
+			panic(err)
+		}
+		dst := "/opt/customize.json"
+		d.containerBinds = append(d.containerBinds, fmt.Sprintf("%s:%s", p, dst))
+		d.customizePath = dst
 	}
 }
 
@@ -235,6 +254,10 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 
 	if d.cleanupBeforeExit {
 		env = append(env, "DEPLOYER_CLEANUP_BEFORE_EXIT=1")
+	}
+
+	if d.customizePath != "" {
+		env = append(env, fmt.Sprintf("DEPLOY_CUSTOMIZE_PATH=%s", d.customizePath))
 	}
 
 	fmt.Printf("creating container... image=%s\n", d.deployerImage)

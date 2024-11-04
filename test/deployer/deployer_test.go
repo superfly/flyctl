@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/testlib"
 )
 
@@ -191,6 +192,39 @@ func TestLaunchGoFromRepo(t *testing.T) {
 	)
 
 	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), "I'm running in the yyz region")
+}
+
+func TestLaunchPreCustomized(t *testing.T) {
+	customize := fly.CLISession{
+		ID:          "",
+		URL:         "",
+		AccessToken: "",
+		Metadata: map[string]interface{}{
+			"vm_memory": 2048,
+		},
+	}
+
+	deploy := testDeployer(t,
+		createRandomApp,
+		testlib.WithRegion("yyz"),
+		testlib.WithPreCustomize(&customize),
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		testlib.WithGitRepo("https://github.com/fly-apps/go-example"),
+	)
+
+	appName := deploy.Extra["appName"].(string)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, manifest.Plan.Guest().MemoryMB, 2048)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
