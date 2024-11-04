@@ -94,6 +94,11 @@ func newSessions() *cobra.Command {
 			Description: "Path to write the manifest info to",
 			Default:     "manifest.json",
 		},
+		flag.String{
+			Name:        "from-file",
+			Description: "Path to a CLI session JSON file",
+			Default:     "",
+		},
 	)
 
 	// not that useful anywhere else yet
@@ -192,14 +197,39 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	logger := logger.FromContext(ctx)
 
-	sessionBytes, err := os.ReadFile(flag.GetString(ctx, "session-path"))
-	if err != nil {
-		return err
-	}
+	var finalSession fly.CLISession
 
-	var session fly.CLISession
-	if err := json.Unmarshal(sessionBytes, &session); err != nil {
-		return err
+	if customizePath := flag.GetString(ctx, "from-file"); customizePath != "" {
+		sessionBytes, err := os.ReadFile(customizePath)
+		if err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(sessionBytes, &finalSession); err != nil {
+			return err
+		}
+	} else {
+		sessionBytes, err := os.ReadFile(flag.GetString(ctx, "session-path"))
+		if err != nil {
+			return err
+		}
+
+		var session fly.CLISession
+		if err := json.Unmarshal(sessionBytes, &session); err != nil {
+			return err
+		}
+
+		// FIXME: better timeout here
+		ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+		defer cancel()
+
+		finalSession, err = waitForCLISession(ctx, logger, io.ErrOut, session.ID)
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			return errors.New("session expired, please try again")
+		case err != nil:
+			return err
+		}
 	}
 
 	manifestBytes, err := os.ReadFile(flag.GetString(ctx, "manifest-path"))
@@ -217,18 +247,6 @@ func runSessionFinalize(ctx context.Context) (err error) {
 		sourceInfo:       nil,
 		appNameValidated: true,
 		warnedNoCcHa:     true,
-	}
-
-	// FIXME: better timeout here
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
-	defer cancel()
-
-	finalSession, err := waitForCLISession(ctx, logger, io.ErrOut, session.ID)
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return errors.New("session expired, please try again")
-	case err != nil:
-		return err
 	}
 
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
