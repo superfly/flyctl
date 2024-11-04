@@ -261,7 +261,7 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		}
 
 		if err := json.Unmarshal(buf, mConfig); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
 		}
 	}
 
