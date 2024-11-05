@@ -372,6 +372,30 @@ func TestLaunchDenoNoConfig(t *testing.T) {
 	require.Contains(t, string(body), "Hello, World!")
 }
 
+func TestLaunchStatic(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("static"),
+		createRandomApp,
+		testlib.WithoutCustomize,
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+		testlib.CleanupBeforeExit,
+	)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, "Static", manifest.Plan.ScannerFamily)
+
+	appName := deploy.Extra["appName"].(string)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev/", appName))
+	require.NoError(t, err)
+	require.Contains(t, string(body), "<body>Hello World</body>")
+}
+
 func createRandomApp(d *testlib.DeployTestRun) {
 	appName := d.CreateRandomAppName()
 	require.NotEmpty(d, appName)
