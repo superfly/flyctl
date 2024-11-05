@@ -198,6 +198,35 @@ func TestLaunchGoFromRepo(t *testing.T) {
 	require.Contains(t, string(body), "I'm running in the yyz region")
 }
 
+func TestLaunchPreCustomized(t *testing.T) {
+	customize := map[string]interface{}{
+		"vm_memory": 2048,
+	}
+
+	deploy := testDeployer(t,
+		createRandomApp,
+		testlib.WithRegion("yyz"),
+		testlib.WithPreCustomize(&customize),
+		testlib.WithouExtensions,
+		testlib.DeployNow,
+		testlib.WithGitRepo("https://github.com/fly-apps/go-example"),
+	)
+
+	appName := deploy.Extra["appName"].(string)
+
+	manifest, err := deploy.Output().ArtifactManifest()
+	require.NoError(t, err)
+	require.NotNil(t, manifest)
+
+	require.Equal(t, manifest.Plan.Guest().MemoryMB, 2048)
+	require.Equal(t, manifest.Config.Compute[0].MemoryMB, 2048)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), "I'm running in the yyz region")
+}
+
 func TestLaunchRails70(t *testing.T) {
 	deploy := testDeployer(t,
 		withFixtureApp("deploy-rails-7.0"),
