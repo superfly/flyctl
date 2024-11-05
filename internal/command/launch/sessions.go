@@ -94,6 +94,11 @@ func newSessions() *cobra.Command {
 			Description: "Path to write the manifest info to",
 			Default:     "manifest.json",
 		},
+		flag.String{
+			Name:        "from-file",
+			Description: "Path to a CLI session JSON file",
+			Default:     "",
+		},
 	)
 
 	// not that useful anywhere else yet
@@ -192,14 +197,41 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	logger := logger.FromContext(ctx)
 
-	sessionBytes, err := os.ReadFile(flag.GetString(ctx, "session-path"))
-	if err != nil {
-		return err
-	}
+	var finalMeta map[string]interface{}
 
-	var session fly.CLISession
-	if err := json.Unmarshal(sessionBytes, &session); err != nil {
-		return err
+	if customizePath := flag.GetString(ctx, "from-file"); customizePath != "" {
+		sessionBytes, err := os.ReadFile(customizePath)
+		if err != nil {
+			return err
+		}
+
+		if err := json.Unmarshal(sessionBytes, &finalMeta); err != nil {
+			return err
+		}
+	} else {
+		sessionBytes, err := os.ReadFile(flag.GetString(ctx, "session-path"))
+		if err != nil {
+			return err
+		}
+
+		var session fly.CLISession
+		if err := json.Unmarshal(sessionBytes, &session); err != nil {
+			return err
+		}
+
+		// FIXME: better timeout here
+		ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+		defer cancel()
+
+		finalSession, err := waitForCLISession(ctx, logger, io.ErrOut, session.ID)
+		switch {
+		case errors.Is(err, context.DeadlineExceeded):
+			return errors.New("session expired, please try again")
+		case err != nil:
+			return err
+		}
+
+		finalMeta = finalSession.Metadata
 	}
 
 	manifestBytes, err := os.ReadFile(flag.GetString(ctx, "manifest-path"))
@@ -219,27 +251,8 @@ func runSessionFinalize(ctx context.Context) (err error) {
 		warnedNoCcHa:     true,
 	}
 
-	// FIXME: better timeout here
-	ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
-	defer cancel()
-
-	finalSession, err := waitForCLISession(ctx, logger, io.ErrOut, session.ID)
-	switch {
-	case errors.Is(err, context.DeadlineExceeded):
-		return errors.New("session expired, please try again")
-	case err != nil:
-		return err
-	}
-
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
-	if err := patchNumbers(finalSession.Metadata, "vm_cpus", "vm_memory"); err != nil {
-		return err
-	}
-
-	// Wasteful, but gets the job done without uprooting the session types.
-	// Just round-trip the map[string]interface{} back into json, so we can re-deserialize it into a complete type.
-	metaJson, err := json.Marshal(finalSession.Metadata)
-	if err != nil {
+	if err := patchNumbers(finalMeta, "vm_cpus", "vm_memory"); err != nil {
 		return err
 	}
 
@@ -254,6 +267,13 @@ func runSessionFinalize(ctx context.Context) (err error) {
 
 	oldPlan := helpers.Clone(state.Plan)
 
+	// Wasteful, but gets the job done without uprooting the session types.
+	// Just round-trip the map[string]interface{} back into json, so we can re-deserialize it into a complete type.
+	metaJson, err := json.Marshal(finalMeta)
+	if err != nil {
+		return err
+	}
+
 	err = json.Unmarshal(metaJson, &state.Plan)
 	if err != nil {
 		return err
@@ -262,7 +282,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	// Patch in some fields that we keep in the plan that aren't persisted by the UI.
 	// Technically, we should probably just be persisting this, but there's
 	// no clear value to the UI having these fields currently.
-	if _, ok := finalSession.Metadata["ha"]; !ok {
+	if _, ok := finalMeta["ha"]; !ok {
 		state.Plan.HighAvailability = oldPlan.HighAvailability
 	}
 	// This should never be changed by the UI!!

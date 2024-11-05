@@ -185,6 +185,24 @@ func updateConfig(plan *plan.LaunchPlan, env map[string]string, appConfig *appco
 		appConfig.HTTPService = nil
 	}
 	appConfig.Compute = plan.Compute
+
+	if plan.CPUKind != "" {
+		for _, c := range appConfig.Compute {
+			c.CPUKind = plan.CPUKind
+		}
+	}
+
+	if plan.CPUs != 0 {
+		for _, c := range appConfig.Compute {
+			c.CPUs = plan.CPUs
+		}
+	}
+
+	if plan.MemoryMB != 0 {
+		for _, c := range appConfig.Compute {
+			c.MemoryMB = plan.MemoryMB
+		}
+	}
 }
 
 // createApp creates the fly.io app for the plan
