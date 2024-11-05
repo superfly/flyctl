@@ -2,8 +2,11 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -90,6 +93,10 @@ var sharedFlags = flag.Set{
 		Name:        "no-build-cache",
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
+	},
+	flag.String{
+		Name:        "machine-config",
+		Description: "Read machine config from json file or string",
 	},
 	flag.StringArray{
 		Name:        "kernel-arg",
@@ -635,6 +642,29 @@ func determineMachineConfig(
 	input *determineMachineConfigInput,
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
+
+	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, err
+			}
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		if err := json.Unmarshal(buf, machineConf); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
+	}
 
 	var err error
 	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
