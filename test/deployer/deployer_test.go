@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/test/testlib"
 )
 
@@ -200,13 +199,8 @@ func TestLaunchGoFromRepo(t *testing.T) {
 }
 
 func TestLaunchPreCustomized(t *testing.T) {
-	customize := fly.CLISession{
-		ID:          "",
-		URL:         "",
-		AccessToken: "",
-		Metadata: map[string]interface{}{
-			"vm_memory": 2048,
-		},
+	customize := map[string]interface{}{
+		"vm_memory": 2048,
 	}
 
 	deploy := testDeployer(t,
@@ -225,6 +219,7 @@ func TestLaunchPreCustomized(t *testing.T) {
 	require.NotNil(t, manifest)
 
 	require.Equal(t, manifest.Plan.Guest().MemoryMB, 2048)
+	require.Equal(t, manifest.Config.Compute[0].MemoryMB, 2048)
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)

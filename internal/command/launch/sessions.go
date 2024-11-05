@@ -197,7 +197,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
 	logger := logger.FromContext(ctx)
 
-	var finalSession fly.CLISession
+	var finalMeta map[string]interface{}
 
 	if customizePath := flag.GetString(ctx, "from-file"); customizePath != "" {
 		sessionBytes, err := os.ReadFile(customizePath)
@@ -205,7 +205,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 			return err
 		}
 
-		if err := json.Unmarshal(sessionBytes, &finalSession); err != nil {
+		if err := json.Unmarshal(sessionBytes, &finalMeta); err != nil {
 			return err
 		}
 	} else {
@@ -223,13 +223,15 @@ func runSessionFinalize(ctx context.Context) (err error) {
 		ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
 		defer cancel()
 
-		finalSession, err = waitForCLISession(ctx, logger, io.ErrOut, session.ID)
+		finalSession, err := waitForCLISession(ctx, logger, io.ErrOut, session.ID)
 		switch {
 		case errors.Is(err, context.DeadlineExceeded):
 			return errors.New("session expired, please try again")
 		case err != nil:
 			return err
 		}
+
+		finalMeta = finalSession.Metadata
 	}
 
 	manifestBytes, err := os.ReadFile(flag.GetString(ctx, "manifest-path"))
@@ -250,14 +252,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	}
 
 	// Hack because somewhere from between UI and here, the numbers get converted to strings
-	if err := patchNumbers(finalSession.Metadata, "vm_cpus", "vm_memory"); err != nil {
-		return err
-	}
-
-	// Wasteful, but gets the job done without uprooting the session types.
-	// Just round-trip the map[string]interface{} back into json, so we can re-deserialize it into a complete type.
-	metaJson, err := json.Marshal(finalSession.Metadata)
-	if err != nil {
+	if err := patchNumbers(finalMeta, "vm_cpus", "vm_memory"); err != nil {
 		return err
 	}
 
@@ -272,6 +267,13 @@ func runSessionFinalize(ctx context.Context) (err error) {
 
 	oldPlan := helpers.Clone(state.Plan)
 
+	// Wasteful, but gets the job done without uprooting the session types.
+	// Just round-trip the map[string]interface{} back into json, so we can re-deserialize it into a complete type.
+	metaJson, err := json.Marshal(finalMeta)
+	if err != nil {
+		return err
+	}
+
 	err = json.Unmarshal(metaJson, &state.Plan)
 	if err != nil {
 		return err
@@ -280,7 +282,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	// Patch in some fields that we keep in the plan that aren't persisted by the UI.
 	// Technically, we should probably just be persisting this, but there's
 	// no clear value to the UI having these fields currently.
-	if _, ok := finalSession.Metadata["ha"]; !ok {
+	if _, ok := finalMeta["ha"]; !ok {
 		state.Plan.HighAvailability = oldPlan.HighAvailability
 	}
 	// This should never be changed by the UI!!

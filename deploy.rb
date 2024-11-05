@@ -253,6 +253,7 @@ if !DEPLOY_ONLY
 
       if !DEPLOY_CUSTOMIZE_PATH.nil?
         cmd += " --from-file #{DEPLOY_CUSTOMIZE_PATH}"
+        artifact Artifact::SESSION, JSON.parse(File.read(DEPLOY_CUSTOMIZE_PATH))
       end
 
       exec_capture(cmd)

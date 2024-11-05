@@ -22,7 +22,6 @@ import (
 	v1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/stretchr/testify/require"
-	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/launch"
 )
 
@@ -130,7 +129,7 @@ func WithApp(app string) func(*DeployTestRun) {
 	}
 }
 
-func WithPreCustomize(customize *fly.CLISession) func(*DeployTestRun) {
+func WithPreCustomize(customize interface{}) func(*DeployTestRun) {
 	b, err := json.Marshal(customize)
 	if err != nil {
 		panic(err)
