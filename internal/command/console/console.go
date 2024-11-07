@@ -418,7 +418,7 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appco
 		minMemory = guest.CPUs * fly.MIN_MEMORY_MB_PER_CPU
 		maxMemory = guest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
 	default:
-		return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", guest.CPUKind)
+		return nil, fmt.Errorf("invalid CPU kind '%s'; valid values are 'shared' and 'performace'", guest.CPUKind)
 	}
 
 	adjusted := lo.Clamp(guest.MemoryMB, minMemory, maxMemory)
