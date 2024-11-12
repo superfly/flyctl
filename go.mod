@@ -1,8 +1,8 @@
 module github.com/superfly/flyctl
 
-go 1.22.0
+go 1.22.7
 
-toolchain go1.22.6
+toolchain go1.22.9
 
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
@@ -97,7 +97,7 @@ require (
 	golang.org/x/text v0.20.0
 	golang.org/x/time v0.8.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
-	google.golang.org/grpc v1.67.1
+	google.golang.org/grpc v1.68.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 )
