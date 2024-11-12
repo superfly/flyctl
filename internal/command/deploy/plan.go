@@ -60,6 +60,7 @@ type machinePairing struct {
 	newMachine *fly.Machine
 }
 
+// appState returns the app's state from Flaps.
 func (md *machineDeployment) appState(ctx context.Context, existingAppState *AppState) (*AppState, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "app_state")
 	defer span.End()
