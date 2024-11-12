@@ -21,6 +21,9 @@ type mockFlapsClient struct {
 	breakWait        bool
 	breakUncordon    bool
 	breakSetMetadata bool
+	breakList        bool
+
+	machines []*fly.Machine
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
@@ -123,7 +126,10 @@ func (m *mockFlapsClient) Launch(ctx context.Context, builder fly.LaunchMachineI
 }
 
 func (m *mockFlapsClient) List(ctx context.Context, state string) ([]*fly.Machine, error) {
-	return nil, fmt.Errorf("failed to list machines")
+	if m.breakList {
+		return nil, fmt.Errorf("failed to list machines")
+	}
+	return m.machines, nil
 }
 
 func (m *mockFlapsClient) ListActive(ctx context.Context) ([]*fly.Machine, error) {

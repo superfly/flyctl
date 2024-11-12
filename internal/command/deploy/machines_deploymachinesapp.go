@@ -591,6 +591,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return err
 }
 
+// updateExistingMachinesWRecovery updates existing machines.
 // The code duplication is on purpose here. The plan is to completely move over to updateExistingMachinesWRecovery
 func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_existing_machines_w_recovery", trace.WithAttributes(
@@ -652,9 +653,12 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		canaryAppState.Machines = []*fly.Machine{oldAppState.Machines[0]}
 
 		newCanaryAppState := newAppState
-		canaryMach, _ := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
+		canaryMach, exists := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
 			return m.ID == oldAppState.Machines[0].ID
 		})
+		if !exists {
+			return fmt.Errorf("failed to find machine %s under app %s", oldAppState.Machines[0].ID, md.app.Name)
+		}
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
 		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
