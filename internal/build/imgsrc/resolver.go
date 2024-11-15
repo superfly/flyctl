@@ -54,6 +54,7 @@ type ImageOptions struct {
 	BuildpacksDockerHost string
 	BuildpacksVolumes    []string
 	UseOverlaybd         bool
+	UseZstd              bool
 }
 
 func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
@@ -72,6 +73,7 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 		attribute.String("imageoptions.buildpacks_docker_host", io.BuildpacksDockerHost),
 		attribute.StringSlice("imageoptions.buildpacks", io.Buildpacks),
 		attribute.StringSlice("imageoptions.buildpacks_volumes", io.BuildpacksVolumes),
+		attribute.Bool("imageoptions.use_zstd", io.UseZstd),
 	}
 
 	if io.BuildArgs != nil {
