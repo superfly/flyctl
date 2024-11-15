@@ -180,6 +180,10 @@ var runOrCreateFlags = flag.Set{
 		Description: "Enable LSVD for this machine",
 		Hidden:      true,
 	},
+	flag.Bool{
+		Name:        "use-zstd",
+		Description: "Enable zstd compression for the image",
+	},
 }
 
 func soManyErrors(args ...interface{}) error {
