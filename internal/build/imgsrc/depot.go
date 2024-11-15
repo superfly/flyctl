@@ -256,6 +256,10 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		exportEntry.Attrs["push"] = "true"
 	}
 
+	if opts.UseZstd {
+		exportEntry.Attrs["compression"] = "zstd"
+	}
+
 	ch := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
 	eg.Go(func() error {
