@@ -163,6 +163,7 @@ type Experimental struct {
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
 	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
+	UseZstd        bool     `toml:"use_zstd,omitempty" json:"use_zstd,omitempty"`
 }
 
 type Attached struct {
