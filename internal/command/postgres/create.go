@@ -152,7 +152,7 @@ func run(ctx context.Context) (err error) {
 
 		// Initial cluster size may not be greater than 1 with fork-from
 		if pgConfig.InitialClusterSize > 1 {
-			fmt.Fprintf(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
+			fmt.Fprint(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
 			pgConfig.InitialClusterSize = 1
 		}
 
@@ -515,6 +515,13 @@ func MachineVMSizes() []fly.VMSize {
 			CPUCores: 1,
 			MemoryMB: 256,
 			MemoryGB: 0.25,
+		},
+		{
+			Name:     "shared-cpu-1x",
+			CPUClass: "shared",
+			CPUCores: 1,
+			MemoryMB: 1024,
+			MemoryGB: 1,
 		},
 		{
 			Name:     "shared-cpu-2x",

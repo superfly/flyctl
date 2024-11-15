@@ -75,7 +75,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 			return &dockerClientFactory{
 				mode: DockerDaemonTypeLocal,
 				buildFn: func(ctx context.Context, build *build) (*dockerclient.Client, error) {
-					build.SetBuilderMetaPart1(false, "", "")
+					build.SetBuilderMetaPart1(localBuilderType, "", "")
 					return c, nil
 				},
 				appName: appName,
@@ -108,7 +108,7 @@ func newDockerClientFactory(daemonType DockerDaemonType, apiClient flyutil.Clien
 	}
 }
 
-func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useNixpacks bool) DockerDaemonType {
+func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useDepot, useNixpacks bool) DockerDaemonType {
 	daemonType := DockerDaemonTypeNone
 	if allowLocal {
 		daemonType = daemonType | DockerDaemonTypeLocal
@@ -116,10 +116,13 @@ func NewDockerDaemonType(allowLocal, allowRemote, prefersLocal, useNixpacks bool
 	if allowRemote {
 		daemonType = daemonType | DockerDaemonTypeRemote
 	}
+	if useDepot {
+		daemonType = daemonType | DockerDaemonTypeDepot
+	}
 	if useNixpacks {
 		daemonType = daemonType | DockerDaemonTypeNixpacks
 	}
-	if prefersLocal {
+	if prefersLocal && !useDepot {
 		daemonType = daemonType | DockerDaemonTypePrefersLocal
 	}
 	return daemonType
@@ -133,6 +136,7 @@ const (
 	DockerDaemonTypeNone
 	DockerDaemonTypePrefersLocal
 	DockerDaemonTypeNixpacks
+	DockerDaemonTypeDepot
 )
 
 func (t DockerDaemonType) String() string {
@@ -149,6 +153,9 @@ func (t DockerDaemonType) String() string {
 	}
 	if t&DockerDaemonTypeNixpacks != 0 {
 		strs = append(strs, "nix-packs")
+	}
+	if t&DockerDaemonTypeDepot != 0 {
+		strs = append(strs, "depot")
 	}
 	if len(strs) == 0 {
 		return "none"
@@ -179,6 +186,10 @@ func (t DockerDaemonType) IsAvailable() bool {
 
 func (t DockerDaemonType) UseNixpacks() bool {
 	return (t & DockerDaemonTypeNixpacks) != 0
+}
+
+func (t DockerDaemonType) UseDepot() bool {
+	return (t & DockerDaemonTypeDepot) != 0
 }
 
 func (t DockerDaemonType) PrefersLocal() bool {
@@ -295,7 +306,7 @@ func newRemoteDockerClient(ctx context.Context, apiClient flyutil.Client, appNam
 	remoteBuilderAppName := app.Name
 	remoteBuilderOrg := app.Organization.Slug
 
-	build.SetBuilderMetaPart1(true, remoteBuilderAppName, machine.ID)
+	build.SetBuilderMetaPart1(remoteBuilderType, remoteBuilderAppName, machine.ID)
 
 	if msg := fmt.Sprintf("Waiting for remote builder %s...\n", remoteBuilderAppName); streams.IsInteractive() {
 		streams.StartProgressIndicatorMsg(msg)
@@ -625,17 +636,20 @@ func clearDeploymentTags(ctx context.Context, docker *dockerclient.Client, tag s
 }
 
 func registryAuth(token string) registry.AuthConfig {
+	targetRegistry := viper.GetString(flyctl.ConfigRegistryHost)
 	return registry.AuthConfig{
 		Username:      "x",
 		Password:      token,
-		ServerAddress: "registry.fly.io",
+		ServerAddress: targetRegistry,
 	}
 }
 
 func authConfigs(token string) map[string]registry.AuthConfig {
+	targetRegistry := viper.GetString(flyctl.ConfigRegistryHost)
+
 	authConfigs := map[string]registry.AuthConfig{}
 
-	authConfigs["registry.fly.io"] = registryAuth(token)
+	authConfigs[targetRegistry] = registryAuth(token)
 
 	dockerhubUsername := os.Getenv("DOCKER_HUB_USERNAME")
 	dockerhubPassword := os.Getenv("DOCKER_HUB_PASSWORD")

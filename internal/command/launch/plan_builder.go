@@ -158,7 +158,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		return nil, nil, err
 	}
 
-	appName, appNameExplanation, err := determineAppName(ctx, appConfig, configPath)
+	appName, appNameExplanation, err := determineAppName(ctx, parentConfig, appConfig, configPath)
 	if err != nil {
 		if err := recoverableErrors.tryRecover(err); err != nil {
 			return nil, nil, err
@@ -226,20 +226,22 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	if srcInfo != nil {
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
-		switch srcInfo.DatabaseDesired {
-		case scanner.DatabaseKindPostgres:
-			lp.Postgres = plan.DefaultPostgres(lp)
-			planSource.postgresSource = scannerSource
-		case scanner.DatabaseKindMySQL:
-			// TODO
-		case scanner.DatabaseKindSqlite:
-			// TODO
+		if !flag.GetBool(ctx, "no-db") {
+			switch srcInfo.DatabaseDesired {
+			case scanner.DatabaseKindPostgres:
+				lp.Postgres = plan.DefaultPostgres(lp)
+				planSource.postgresSource = scannerSource
+			case scanner.DatabaseKindMySQL:
+				// TODO
+			case scanner.DatabaseKindSqlite:
+				// TODO
+			}
 		}
-		if srcInfo.RedisDesired {
+		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
 		}
-		if srcInfo.ObjectStorageDesired {
+		if !flag.GetBool(ctx, "no-object-storage") && srcInfo.ObjectStorageDesired {
 			lp.ObjectStorage = plan.DefaultObjectStorage(lp)
 			planSource.tigrisSource = scannerSource
 		}
@@ -247,6 +249,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 			lp.HttpServicePort = srcInfo.Port
 			lp.HttpServicePortSetByScanner = true
 		}
+		lp.Runtime = srcInfo.Runtime
 	}
 
 	return &LaunchManifest{
@@ -366,7 +369,11 @@ func stateFromManifest(ctx context.Context, m LaunchManifest, optionalCache *pla
 		workingDir = absDir
 	}
 	configPath := filepath.Join(workingDir, appconfig.DefaultConfigFileName)
-	fmt.Fprintln(io.Out, "Creating app in", workingDir)
+
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" || planStep == "create" {
+		fmt.Fprintln(io.Out, "Creating app in", workingDir)
+	}
 
 	var srcInfo *scanner.SourceInfo
 
@@ -420,11 +427,11 @@ func determineBaseAppConfig(ctx context.Context) (*appconfig.Config, bool, error
 			fmt.Fprintln(io.Out, "An existing fly.toml file was found")
 		}
 
-		// if both --from and --into are specified, we should return the config as the base config
-		fromInto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && (flag.GetString(ctx, "into") != "")
-		copyConfig := flag.GetBool(ctx, "copy-config") || fromInto
+		// if --attach is specified, we should return the config as the base config
+		attach := flag.GetBool(ctx, "attach")
+		copyConfig := flag.GetBool(ctx, "copy-config") || attach
 
-		if !flag.IsSpecified(ctx, "copy-config") && !fromInto {
+		if !flag.IsSpecified(ctx, "copy-config") && !attach && !flag.GetYes(ctx) {
 			var err error
 			copyConfig, err = prompt.Confirm(ctx, "Would you like to copy its configuration to the new app?")
 			switch {
@@ -481,7 +488,7 @@ func validateAppName(appName string) error {
 }
 
 // determineAppName determines the app name from the config file or directory name
-func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPath string) (string, string, error) {
+func determineAppName(ctx context.Context, parentConfig *appconfig.Config, appConfig *appconfig.Config, configPath string) (string, string, error) {
 	delimiter := "-"
 	findUniqueAppName := func(prefix string) (string, bool) {
 		// Remove any existing haikus so we don't keep adding to the end.
@@ -525,22 +532,41 @@ func determineAppName(ctx context.Context, appConfig *appconfig.Config, configPa
 			appName = sanitizeAppName(filepath.Base(filepath.Dir(configPath)))
 			cause = "derived from your directory name"
 		}
+
+		if parentConfig != nil && parentConfig.AppName != "" {
+			appName = parentConfig.AppName + "-" + appName
+			if cause == "from your fly.toml" {
+				cause = "from parent name and fly.toml"
+			} else if cause == "derived from your directory name" {
+				if flag.GetString(ctx, "into") != "" {
+					cause = "from parent name and --into"
+				} else if flag.GetString(ctx, "from") != "" {
+					cause = "from parent name and --from"
+				}
+			}
+		}
 	}
 
 	taken := appName == ""
 
-	if !taken && !flag.GetBool(ctx, "no-create") {
-		var err error
-		// If the user can see an app with the same name as what they're about to launch,
-		// they *probably* want to deploy to that app instead.
-		taken, err = nudgeTowardsDeploy(ctx, appName)
-		if err != nil {
-			return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+	planStep := plan.GetPlanStep(ctx)
+	if planStep != "" && planStep != "propose" && planStep != "create" {
+		// We're not proposing a plan or creating an app, so we don't need to validate the app name.
+		taken = false
+	} else {
+		if !taken && !flag.GetBool(ctx, "no-create") {
+			var err error
+			// If the user can see an app with the same name as what they're about to launch,
+			// they *probably* want to deploy to that app instead.
+			taken, err = nudgeTowardsDeploy(ctx, appName)
+			if err != nil {
+				return "", recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("failed to validate app name: %w", err)}
+			}
 		}
-	}
 
-	if !taken {
-		taken, _ = appNameTaken(ctx, appName)
+		if !taken {
+			taken, _ = appNameTaken(ctx, appName)
+		}
 	}
 
 	if taken {
@@ -575,8 +601,7 @@ func appNameTaken(ctx context.Context, name string) (bool, error) {
 func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organization, string, error) {
 	client := flyutil.ClientFromContext(ctx)
 
-	frominto := (flag.GetString(ctx, "from") != "" || flag.GetString(ctx, "image") != "") && flag.GetString(ctx, "into") != ""
-	if frominto && config != nil && config.AppName != "" {
+	if flag.GetBool(ctx, "attach") && config != nil && config.AppName != "" {
 		org, err := client.GetOrganizationByApp(ctx, config.AppName)
 		if err == nil {
 			return org, fmt.Sprintf("from %s app", config.AppName), nil
@@ -592,11 +617,15 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 	for _, o := range orgs {
 		bySlug[o.Slug] = o
 	}
+	byName := make(map[string]fly.Organization, len(orgs))
+	for _, o := range orgs {
+		byName[o.Name] = o
+	}
 
 	personal, foundPersonal := bySlug["personal"]
 
-	orgSlug := flag.GetOrg(ctx)
-	if orgSlug == "" {
+	orgRequested := flag.GetOrg(ctx)
+	if orgRequested == "" {
 		if !foundPersonal {
 			if len(orgs) == 0 {
 				return nil, "", errors.New("no organizations found. Please create one from your fly dashboard first.")
@@ -609,13 +638,17 @@ func determineOrg(ctx context.Context, config *appconfig.Config) (*fly.Organizat
 		return &personal, "fly launch defaults to the personal org", nil
 	}
 
-	org, foundSlug := bySlug[orgSlug]
+	org, foundSlug := bySlug[orgRequested]
 	if !foundSlug {
+		if org, foundName := byName[orgRequested]; foundName {
+			return &org, "specified on the command line", nil
+		}
+
 		if !foundPersonal {
 			return nil, "", errors.New("no personal organization found")
 		}
 
-		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgSlug)}
+		return &personal, recoverableSpecifyInUi, recoverableInUiError{fmt.Errorf("organization '%s' not found", orgRequested)}
 	}
 
 	return &org, "specified on the command line", nil

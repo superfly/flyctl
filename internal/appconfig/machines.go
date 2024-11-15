@@ -1,7 +1,11 @@
 package appconfig
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
+	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -146,7 +150,9 @@ func (c *Config) ToTestMachineConfig(svc *ServiceMachineCheck, origMachine *fly.
 	}
 
 	if c.Experimental != nil {
-		mConfig.Init.Entrypoint = c.Experimental.Entrypoint
+		if v := c.Experimental.Entrypoint; v != nil {
+			mConfig.Init.Entrypoint = v
+		}
 	}
 
 	mConfig.Env["FLY_TEST_COMMAND"] = "1"
@@ -233,6 +239,30 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 	mConfig := &fly.MachineConfig{}
 	if src != nil {
 		mConfig = helpers.Clone(src)
+	}
+
+	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
+		emc := c.Experimental.MachineConfig
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, err
+			}
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		if err := json.Unmarshal(buf, mConfig); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
 	}
 
 	// Metrics

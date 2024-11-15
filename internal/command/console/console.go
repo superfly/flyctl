@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"slices"
 
 	"github.com/google/shlex"
 	"github.com/samber/lo"
@@ -66,11 +65,7 @@ func New() *cobra.Command {
 			Shorthand:   "i",
 			Description: "image to use (default: current release)",
 		},
-		flag.StringArray{
-			Name:        "env",
-			Shorthand:   "e",
-			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
+		flag.Env(),
 		flag.String{
 			Name:        "entrypoint",
 			Description: "ENTRYPOINT replacement",
@@ -88,6 +83,11 @@ func New() *cobra.Command {
 		flag.Bool{
 			Name:        "build-local-only",
 			Description: "Only perform builds locally using the local docker daemon",
+			Hidden:      true,
+		},
+		flag.Bool{
+			Name:        "build-depot",
+			Description: "Build your image with depot.dev",
 			Hidden:      true,
 		},
 		flag.Bool{
@@ -149,6 +149,10 @@ func New() *cobra.Command {
 		flag.StringArray{
 			Name:        "file-secret",
 			Description: "Set of secrets to write to the Machine, in the form of /path/inside/machine=SECRET pairs, where SECRET is the name of the secret. The content of the secret must be base64 encoded. Can be specified multiple times.",
+		},
+		flag.StringSlice{
+			Name:        "volume",
+			Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
 		},
 		flag.VMSizeFlags,
 	)
@@ -396,18 +400,8 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*fly.MachineGuest, error) {
 	var guest *fly.MachineGuest
 
-	haveConsoleVMSection := 0 <= slices.IndexFunc(
-		appConfig.Compute,
-		func(c *appconfig.Compute) bool {
-			return slices.Index(c.Processes, "console") >= 0
-		},
-	)
-	if haveConsoleVMSection {
-		groupConfig, err := appConfig.ToMachineConfig("console", nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check Machine configuration for the 'console' group: %w", err)
-		}
-		guest = groupConfig.Guest
+	if compute := appConfig.ComputeForGroup("console"); compute != nil {
+		guest = compute.MachineGuest
 	}
 
 	guest, err := flag.GetMachineGuest(ctx, guest)
@@ -424,7 +418,7 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appco
 		minMemory = guest.CPUs * fly.MIN_MEMORY_MB_PER_CPU
 		maxMemory = guest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
 	default:
-		return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", guest.CPUKind)
+		return nil, fmt.Errorf("invalid CPU kind '%s'; valid values are 'shared' and 'performance'", guest.CPUKind)
 	}
 
 	adjusted := lo.Clamp(guest.MemoryMB, minMemory, maxMemory)

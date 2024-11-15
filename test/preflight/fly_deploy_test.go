@@ -12,6 +12,7 @@ import (
 	"time"
 
 	//"github.com/samber/lo"
+	"github.com/containerd/continuity/fs"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -47,6 +48,47 @@ func TestFlyDeployHA(t *testing.T) {
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
 	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.SecondaryRegion())
 	f.Fly("deploy")
+}
+
+// This test overlaps partially in functionality with TestFlyDeployHA, but runs
+// when the test environment uses just a single region
+func TestFlyDeploy_AddNewMount(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	if f.SecondaryRegion() != "" {
+		t.Skip()
+	}
+
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+
+	f.WriteFlyToml(`%s
+[mounts]
+	source = "data"
+	destination = "/data"
+	`, f.ReadFile("fly.toml"))
+
+	x := f.FlyAllowExitFailure("deploy")
+	require.Contains(f, x.StdErrString(), `needs volumes with name 'data' to fulfill mounts defined in fly.toml`)
+
+	f.Fly("volume create -a %s -r %s -s 1 data -y", appName, f.PrimaryRegion())
+	f.Fly("deploy")
+}
+
+func TestFlyDeployHAPlacement(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+	appName := f.CreateRandomAppName()
+
+	f.Fly(
+		"launch --now --org %s --name %s --region %s --image nginx --internal-port 80",
+		f.OrgSlug(), appName, f.PrimaryRegion(),
+	)
+	f.Fly("deploy")
+
+	assertHostDistribution(t, f, appName, 2)
 }
 
 func TestFlyDeploy_DeployToken_Simple(t *testing.T) {
@@ -128,14 +170,21 @@ func getRootPath() string {
 	return filepath.Dir(b)
 }
 
-func copyFixtureIntoWorkDir(workDir, name string, exclusion []string) error {
+func copyFixtureIntoWorkDir(workDir, name string) error {
 	src := fmt.Sprintf("%s/fixtures/%s", getRootPath(), name)
-	return testlib.CopyDir(src, workDir, exclusion)
+	return fs.CopyDir(workDir, src)
 }
 
-func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
+func TestDeployNodeApp(t *testing.T) {
+	t.Run("With Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilder))
+	t.Run("Without Wireguard", WithParallel(testDeployNodeAppWithRemoteBuilderWithoutWireguard))
+	t.Run("With Depot", WithParallel(testDeployNodeAppWithDepotRemoteBuilder))
+}
+
+func testDeployNodeAppWithRemoteBuilder(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -152,8 +201,10 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Logf("deploy %s", appName)
 	f.Fly("deploy --remote-only --ha=false")
 
+	t.Logf("deploy %s again", appName)
 	f.Fly("deploy --remote-only --strategy immediate --ha=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
@@ -162,7 +213,8 @@ func TestFlyDeployNodeAppWithRemoteBuilder(t *testing.T) {
 	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
 }
 
-func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
+func testDeployNodeAppWithRemoteBuilderWithoutWireguard(tt *testing.T) {
+	t := testLogger{tt}
 	f := testlib.NewTestEnvFromEnv(t)
 
 	// Since this uses a fixture with a size, no need to run it on alternate
@@ -171,7 +223,7 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 		t.Skip()
 	}
 
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -188,7 +240,40 @@ func TestFlyDeployNodeAppWithRemoteBuilderWithoutWireguard(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	t.Logf("deploy %s without WireGuard", appName)
 	f.Fly("deploy --remote-only --ha=false --wg=false")
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), fmt.Sprintf("Hello, World! %s", f.ID()))
+}
+
+func testDeployNodeAppWithDepotRemoteBuilder(tt *testing.T) {
+	t := testLogger{tt}
+	f := testlib.NewTestEnvFromEnv(t)
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
+	require.NoError(t, err)
+
+	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
+
+	appName := f.CreateRandomAppMachines()
+	require.NotEmpty(t, appName)
+
+	err = testlib.OverwriteConfig(flyTomlPath, map[string]any{
+		"app":    appName,
+		"region": f.PrimaryRegion(),
+		"env": map[string]string{
+			"TEST_ID": f.ID(),
+		},
+	})
+	require.NoError(t, err)
+
+	t.Logf("deploy %s with Depot", appName)
+	f.Fly("deploy --depot --ha=false")
+
+	t.Logf("deploy %s again with Depot", appName)
+	f.Fly("deploy --depot --strategy immediate --ha=false")
 
 	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", appName))
 	require.NoError(t, err)
@@ -204,7 +289,7 @@ func TestFlyDeployBasicNodeWithWGEnabled(t *testing.T) {
 		t.Skip()
 	}
 
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())
@@ -293,4 +378,28 @@ func TestFlyDeploy_CreateBuilderWDeployToken(t *testing.T) {
 	f.Fly("launch --org %s --name %s --region %s --image nginx --internal-port 80 --ha=false --strategy canary", f.OrgSlug(), appName, f.PrimaryRegion())
 	f.OverrideAuthAccessToken(f.Fly("tokens deploy").StdOutString())
 	f.Fly("deploy")
+}
+
+func TestDeployManifest(t *testing.T) {
+	f := testlib.NewTestEnvFromEnv(t)
+
+	appName := f.CreateRandomAppName()
+	f.Fly("launch --org %s --name %s --region %s --image nginx:latest --internal-port 80 --ha=false --strategy rolling", f.OrgSlug(), appName, f.PrimaryRegion())
+
+	var manifestPath = filepath.Join(f.WorkDir(), "manifest.json")
+
+	f.Fly("deploy --export-manifest %s", manifestPath)
+
+	manifest := f.ReadFile("manifest.json")
+	require.Contains(t, manifest, `"AppName": "`+appName+`"`)
+	require.Contains(t, manifest, `"primary_region": "`+f.PrimaryRegion()+`"`)
+	require.Contains(t, manifest, `"internal_port": 80`)
+	require.Contains(t, manifest, `"increased_availability": true`)
+	// require.Contains(t, manifest, `"strategy": "rolling"`) FIX: fly launch doesn't set strategy
+	require.Contains(t, manifest, `"image": "nginx:latest"`)
+
+	deployRes := f.Fly("deploy --from-manifest %s", manifestPath)
+
+	output := deployRes.StdOutString()
+	require.Contains(t, output, fmt.Sprintf("Resuming %s deploy from manifest", appName))
 }

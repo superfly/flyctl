@@ -36,7 +36,7 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"))
 	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx), false)
 
 	// build if relative or absolute path
@@ -72,6 +72,15 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 			return nil, errors.Wrap(err, "invalid build-arg")
 		}
 		opts.BuildArgs = extraArgs
+
+		if cfg != nil && cfg.Experimental != nil {
+			opts.UseZstd = cfg.Experimental.UseZstd
+		}
+
+		// use-zstd passed through flags takes precedence over the one set in config
+		if flag.IsSpecified(ctx, "use-zstd") {
+			opts.UseZstd = flag.GetBool(ctx, "use-zstd")
+		}
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {

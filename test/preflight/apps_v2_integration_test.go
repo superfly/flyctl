@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -21,10 +22,6 @@ import (
 )
 
 func TestAppsV2Example(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	appUrl := fmt.Sprintf("https://%s.fly.dev", appName)
@@ -50,9 +47,13 @@ func TestAppsV2Example(t *testing.T) {
 	require.Nil(t, firstMachine.Config.DisableMachineAutostart)
 	require.Equal(t, 1, len(firstMachine.Config.Services))
 	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
-	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
 	require.True(t, *firstMachine.Config.Services[0].Autostart)
-	require.Equal(t, fly.MachineAutostopOff, *firstMachine.Config.Services[0].Autostop)
+
+	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
+	assert.Equal(
+		t, fly.MachineAutostopStop, *firstMachine.Config.Services[0].Autostop,
+		"autostop must be enabled",
+	)
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
@@ -415,6 +416,11 @@ func TestLaunchDetach(t *testing.T) {
 }
 
 func TestDeployDetach(t *testing.T) {
+	t.Run("Simple", WithParallel(testDeployDetach))
+	t.Run("Batching", WithParallel(testDeployDetachBatching))
+}
+
+func testDeployDetach(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -427,7 +433,7 @@ func TestDeployDetach(t *testing.T) {
 	require.Contains(f, res.StdOutString(), "started")
 }
 
-func TestDeployDetachBatching(t *testing.T) {
+func testDeployDetachBatching(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 

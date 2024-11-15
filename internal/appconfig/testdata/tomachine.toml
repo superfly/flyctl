@@ -46,3 +46,6 @@ guest_path = "/guest/path"
 url_prefix = "/url/prefix"
 tigris_bucket = "example-bucket"
 index_document = "index.html"
+
+[experimental]
+machine_config = '{"dns": {"nameservers": ["1.2.3.4"]}}'

@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/hashicorp/go-version"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
+	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	mach "github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/iostreams"
 )
 
 func New() *cobra.Command {
@@ -113,6 +116,22 @@ func hasRequiredVersionOnMachines(appName string, machines []*fly.Machine, clust
 	return nil
 }
 
+func hasRequiredFlexVersionOnMachines(appName string, machines []*fly.Machine, flexVersion string) error {
+	if len(machines) == 0 {
+		return fmt.Errorf("no machines provided")
+	}
+
+	if !IsFlex(machines[0]) {
+		return fmt.Errorf("not a Flex cluster")
+	}
+
+	err := hasRequiredVersionOnMachines(appName, machines, "", flexVersion, "")
+	if err != nil && strings.Contains(err.Error(), "Malformed version") {
+		return fmt.Errorf("This image is not compatible with this feature.")
+	}
+	return err
+}
+
 func IsFlex(machine *fly.Machine) bool {
 	switch {
 	case machine == nil || len(machine.ImageRef.Labels) == 0:
@@ -169,6 +188,10 @@ func pickLeader(ctx context.Context, machines []*fly.Machine) (*fly.Machine, err
 	return nil, fmt.Errorf("no active leader found")
 }
 
+func hasRequiredMemoryForBackup(machine fly.Machine) bool {
+	return machine.Config.Guest.MemoryMB >= 512
+}
+
 func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Machine) error {
 	machines, err := mach.ListActive(ctx)
 	if err != nil {
@@ -185,9 +208,54 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err != nil {
-		return err
+	hostname := fmt.Sprintf("%s.vm.%s.internal", machine.ID, app.Name)
+
+	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, hostname); err != nil {
+		if err2 := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err2 != nil {
+			return err
+		}
 	}
 
 	return nil
+}
+
+// Runs a command on the specified machine ID in the named app.
+func ExecOnMachine(ctx context.Context, client *flaps.Client, machineId, command string) error {
+	var (
+		io = iostreams.FromContext(ctx)
+	)
+
+	in := &fly.MachineExecRequest{
+		Cmd: command,
+	}
+
+	out, err := client.Exec(ctx, machineId, in)
+	if err != nil {
+		return err
+	}
+
+	if out.StdOut != "" {
+		fmt.Fprint(io.Out, out.StdOut)
+	}
+
+	if out.StdErr != "" {
+		fmt.Fprint(io.ErrOut, out.StdErr)
+	}
+
+	return nil
+}
+
+// Runs a command on the leader of the named cluster.
+func ExecOnLeader(ctx context.Context, client *flaps.Client, command string) error {
+	machines, err := client.ListActive(ctx)
+	if err != nil {
+		return err
+	}
+
+	leader, err := pickLeader(ctx, machines)
+	if err != nil {
+		return err
+	}
+
+	return ExecOnMachine(ctx, client, leader.ID, command)
 }

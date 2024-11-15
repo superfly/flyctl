@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
@@ -54,8 +55,21 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	span.SetAttributes(attribute.Bool("builder.using_wireguard", useWG))
 
+	ldClient := launchdarkly.ClientFromContext(ctx)
+	depotBool := ldClient.GetFeatureFlagValue("use-depot-for-builds", true).(bool)
+
+	switch flag.GetString(ctx, "depot") {
+	case "", "true":
+		depotBool = true
+	case "false":
+		depotBool = false
+	case "auto":
+	default:
+		return nil, fmt.Errorf("invalid falue for the 'depot' flag. must be 'true', 'false', or ''")
+	}
+
 	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"))
 
 	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
@@ -120,6 +134,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	if appConfig.Experimental != nil {
 		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+
+		opts.UseZstd = appConfig.Experimental.UseZstd
 	}
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.

@@ -79,6 +79,12 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 		client   = flyutil.ClientFromContext(ctx)
 	)
 
+	machineConf := l.getPostgresConfig(config)
+	// Can't use `hasRequiredMemoryForBackup` because of circular import.
+	if config.BackupsEnabled && machineConf.Guest.MemoryMB < 512 {
+		return fmt.Errorf("Backups require at least 512MB of memory. Please use a larger VM size or disable backups.")
+	}
+
 	// Ensure machines can be started when scaling to zero is enabled
 	if config.ScaleToZero {
 		config.Autostart = true
@@ -140,8 +146,7 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 	for i := 0; i < config.InitialClusterSize; i++ {
 		var (
-			machineConf *fly.MachineConfig
-			snapshot    *string
+			snapshot *string
 		)
 
 		machineConf = l.getPostgresConfig(config)
@@ -223,7 +228,6 @@ func (l *Launcher) LaunchMachinesPostgres(ctx context.Context, config *CreateClu
 
 			action = "fork"
 			volInput.SourceVolumeID = &config.ForkFrom
-			volInput.MachinesOnly = fly.Pointer(true)
 			volInput.Name = "pg_data"
 		} else {
 			action = "create"

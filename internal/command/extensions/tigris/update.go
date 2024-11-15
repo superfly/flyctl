@@ -66,8 +66,15 @@ func runUpdate(ctx context.Context) (err error) {
 	addOn := response.AddOn
 
 	options, _ := addOn.Options.(map[string]interface{})
+
 	if options == nil {
 		options = make(map[string]interface{})
+	}
+
+	metadata, _ := addOn.Options.(map[string]interface{})
+
+	if metadata == nil {
+		metadata = make(map[string]interface{})
 	}
 
 	accessKey := flag.GetString(ctx, "shadow-access-key")
@@ -138,7 +145,7 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options, metadata)
 	if err != nil {
 		return
 	}

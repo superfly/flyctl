@@ -5,10 +5,10 @@ package preflight
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
@@ -44,7 +44,10 @@ func TestPostgres_autostart(t *testing.T) {
 
 	appName := f.CreateRandomAppName()
 
-	f.Fly("pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1", f.OrgSlug(), appName, f.PrimaryRegion())
+	f.Fly(
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
+	)
 	machList := f.MachinesList(appName)
 	require.Equal(t, 1, len(machList), "expected exactly 1 machine after launch")
 	firstMachine := machList[0]
@@ -149,6 +152,28 @@ func TestPostgres_haConfigSave(t *testing.T) {
 	f.Fly("config validate")
 }
 
+const postgresMachineSize = "shared-cpu-4x"
+
+// assertMachineCount checks the number of machines for the given app.
+func assertMachineCount(tb assert.TestingT, f *testlib.FlyctlTestEnv, appName string, expected int) {
+	machines := f.MachinesList(appName)
+
+	var xs []string
+	for _, m := range machines {
+		xs = append(xs, fmt.Sprintf("machine %s (image: %s)", m.ID, m.FullImageRef()))
+	}
+	assert.Len(tb, machines, expected, "expected %d machine(s) but got %s", expected, strings.Join(xs, ", "))
+}
+
+// assertPostgresIsUp checks that the given Postgres server is really up.
+// Even after "fly pg create", sometimes the server is not ready for accepting connections.
+func assertPostgresIsUp(tb testing.TB, f *testlib.FlyctlTestEnv, appName string) {
+	tb.Helper()
+
+	ssh := f.FlyAllowExitFailure(`ssh console -a %s -u postgres -C "psql -p 5433 -h /run/postgresql -c 'SELECT 1'"`, appName)
+	assert.Equal(tb, 0, ssh.ExitCode(), "failed to connect to postgres at %s: %s", appName, ssh.StdErr())
+}
+
 func TestPostgres_ImportSuccess(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 
@@ -162,25 +187,16 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	secondAppName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), firstAppName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), firstAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1",
-		f.OrgSlug(), secondAppName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1",
+		f.OrgSlug(), secondAppName, f.PrimaryRegion(), postgresMachineSize,
 	)
-	sshErr := backoff.Retry(func() error {
-		sshWorks := f.FlyAllowExitFailure("ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'SELECT 1'\"", firstAppName)
-		if sshWorks.ExitCode() != 0 {
-			return fmt.Errorf("non-zero exit code running fly ssh console")
-		} else {
-			return nil
-		}
-	}, backoff.WithMaxRetries(backoff.NewExponentialBackOff(
-		backoff.WithInitialInterval(100*time.Millisecond),
-		backoff.WithMaxElapsedTime(3*time.Second),
-	), 3))
-	require.NoError(f, sshErr, "failed to connect to first app's postgres over ssh")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertPostgresIsUp(t, f, firstAppName)
+	}, 1*time.Minute, 10*time.Second)
 
 	f.Fly(
 		"ssh console -a %s -u postgres -C \"psql -p 5433 -h /run/postgresql -c 'CREATE TABLE app_name (app_name TEXT)'\"",
@@ -192,8 +208,8 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	)
 
 	f.Fly(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/postgres",
-		secondAppName, f.PrimaryRegion(), firstAppName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/postgres",
+		secondAppName, f.PrimaryRegion(), postgresMachineSize, firstAppName,
 	)
 
 	result := f.Fly(
@@ -204,10 +220,9 @@ func TestPostgres_ImportSuccess(t *testing.T) {
 	require.Contains(f, output, firstAppName)
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(secondAppName)
-		require.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(t, f, secondAppName, 1)
+	}, 2*time.Minute, 10*time.Second, "import machine not destroyed")
 }
 
 func TestPostgres_ImportFailure(t *testing.T) {
@@ -222,20 +237,22 @@ func TestPostgres_ImportFailure(t *testing.T) {
 	appName := f.CreateRandomAppName()
 
 	f.Fly(
-		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size shared-cpu-1x --volume-size 1 --password x",
-		f.OrgSlug(), appName, f.PrimaryRegion(),
+		"pg create --org %s --name %s --region %s --initial-cluster-size 1 --vm-size %s --volume-size 1 --password x",
+		f.OrgSlug(), appName, f.PrimaryRegion(), postgresMachineSize,
 	)
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertPostgresIsUp(t, f, appName)
+	}, 1*time.Minute, 10*time.Second)
 
 	result := f.FlyAllowExitFailure(
-		"pg import -a %s --region %s --vm-size shared-cpu-1x postgres://postgres:x@%s.internal/test",
-		appName, f.PrimaryRegion(), appName,
+		"pg import -a %s --region %s --vm-size %s postgres://postgres:x@%s.internal/test",
+		appName, f.PrimaryRegion(), postgresMachineSize, appName,
 	)
 	require.NotEqual(f, 0, result.ExitCode())
 	require.Contains(f, result.StdOut().String(), "database \"test\" does not exist")
 
 	// Wait for the importer machine to be destroyed.
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		ml := f.MachinesList(appName)
-		assert.Equal(c, 1, len(ml))
-	}, 10*time.Second, 1*time.Second, "import machine not destroyed")
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		assertMachineCount(t, f, appName, 1)
+	}, 1*time.Minute, 10*time.Second, "import machine not destroyed")
 }

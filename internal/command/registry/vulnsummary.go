@@ -130,8 +130,8 @@ func runVulnSummary(ctx context.Context) error {
 		}
 	}
 	fmt.Fprintf(ios.Out, "\n")
-	fmt.Fprintf(ios.Out, "To scan an image run: flyctl scan vulns -a <app> -i <imgpath>\n")
-	fmt.Fprintf(ios.Out, "To download an SBOM run: flyctl scan sbom -a <app> -i <imgpath>\n")
+	fmt.Fprintf(ios.Out, "To scan an image run: fly registry vulns -a <app> -i <imgpath>\n")
+	fmt.Fprintf(ios.Out, "To download an SBOM run: fly registry sbom -a <app> -i <imgpath>\n")
 	fmt.Fprintf(ios.Out, "\n")
 
 	// Report checkmark table with columns of apps and rows of vulns.

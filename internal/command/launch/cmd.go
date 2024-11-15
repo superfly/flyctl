@@ -8,16 +8,21 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/logrusorgru/aurora"
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -83,6 +88,10 @@ func New() (cmd *cobra.Command) {
 			Description: "Destination directory for github repo specified with --from",
 		},
 		flag.Bool{
+			Name:        "attach",
+			Description: "Attach this new application to the current application",
+		},
+		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
 			Hidden:      true,
@@ -105,6 +114,21 @@ func New() (cmd *cobra.Command) {
 			Hidden:      true,
 		},
 		flag.Bool{
+			Name:        "no-db",
+			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-redis",
+			Description: "Skip automatically provisioning a Redis instance",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-object-storage",
+			Description: "Skip automatically provisioning an object storage bucket",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
@@ -117,6 +141,8 @@ func New() (cmd *cobra.Command) {
 			Description: "Do not create an app, only generate configuration files",
 		},
 	)
+
+	cmd.AddCommand(NewPlan())
 
 	return
 }
@@ -156,6 +182,11 @@ func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config,
 	}
 
 	into := flag.GetString(ctx, "into")
+
+	if into == "" && flag.GetBool(ctx, "attach") {
+		into = filepath.Join(".", "fly", "apps", filepath.Base(from))
+	}
+
 	if into == "" {
 		into = "."
 	} else {
@@ -257,6 +288,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// "--from" arg handling
+	parentCtx := ctx
 	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
 		return err
@@ -321,12 +353,15 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	fmt.Fprintf(
-		io.Out,
-		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-		familyToAppType(family),
-		summary,
-	)
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" {
+		fmt.Fprintf(
+			io.Out,
+			"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+			familyToAppType(family),
+			summary,
+		)
+	}
 
 	if errors := recoverableErrors.build(); errors != "" {
 
@@ -335,7 +370,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	editInUi := false
-	if !flag.GetBool(ctx, "yes") {
+	if !flag.GetBool(ctx, "yes") && planStep == "" {
 		if incompleteLaunchManifest {
 			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
 		} else {
@@ -360,6 +395,32 @@ func run(ctx context.Context) (err error) {
 	err = state.Launch(ctx)
 	if err != nil {
 		return err
+	}
+
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+		ctx, err = command.LoadAppConfigIfPresent(ctx)
+		if err != nil {
+			return err
+		}
+
+		config := appconfig.ConfigFromContext(ctx)
+
+		exports := config.Experimental.Attached.Secrets.Export
+
+		if len(exports) > 0 {
+			flycast := config.AppName + ".flycast"
+			for name, secret := range exports {
+				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
+			}
+
+			apiClient := flyutil.ClientFromContext(parentCtx)
+			_, err := apiClient.SetSecrets(parentCtx, parentConfig.AppName, exports)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", parentConfig.AppName, strings.Join(lo.Keys(exports), ", "))
+		}
 	}
 
 	return nil

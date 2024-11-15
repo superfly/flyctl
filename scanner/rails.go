@@ -8,9 +8,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"gopkg.in/yaml.v2"
@@ -57,7 +59,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	// verify that the bundle will install before proceeding
+	// attempt to install bundle before proceeding
 	args := []string{"install"}
 
 	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
@@ -69,10 +71,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return nil, errors.Wrap(err, "Failed to install bundle, exiting")
-	}
-
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
@@ -80,6 +78,47 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
+	}
+
+	// add ruby version
+
+	var rubyVersion string
+
+	// add ruby version from .ruby-version file
+	versionFile, err := os.ReadFile(".ruby-version")
+	if err == nil {
+		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+		matches := re.FindStringSubmatch(string(versionFile))
+		if len(matches) >= 2 {
+			rubyVersion = matches[1]
+		}
+	}
+
+	if rubyVersion == "" {
+		// add ruby version from Gemfile
+		gemfile, err := os.ReadFile("Gemfile")
+		if err == nil {
+			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+			matches := re.FindStringSubmatch(string(gemfile))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion == "" {
+		versionOutput, err := exec.Command("ruby", "--version").Output()
+		if err == nil {
+			re := regexp.MustCompile(`ruby (\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionOutput))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion != "" {
+		s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: rubyVersion}
 	}
 
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
@@ -161,6 +200,23 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
+	// extract port from Dockerfile (if present).  This is primarily for thruster.
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err == nil {
+		re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+		m := re.FindStringSubmatch(string(dockerfile))
+		if len(m) > 0 {
+			port, err := strconv.Atoi(m[1])
+			if err == nil {
+				if port < 1024 {
+					port += 8000
+				}
+
+				s.Port = port
+			}
+		}
+	}
+
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
@@ -196,14 +252,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// support Rails 4 through 5.1 applications, ones that started out
 		// there and never were fully upgraded, and ones that intentionally
 		// avoid using Rails encrypted credentials.
-		out, err := exec.Command(binrails, "secret").Output()
+		out, err := helpers.RandHex(64)
 
 		if err == nil {
 			s.Secrets = []Secret{
 				{
 					Key:   "SECRET_KEY_BASE",
 					Help:  "Secret key used to verify the integrity of signed cookies",
-					Value: strings.TrimSpace(string(out)),
+					Value: out,
 				},
 			}
 		}

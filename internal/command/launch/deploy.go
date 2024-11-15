@@ -74,7 +74,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 
 	err, extraInfo := state.appConfig.Validate(ctx)
 	if extraInfo != "" {
-		fmt.Fprintf(io.ErrOut, extraInfo)
+		fmt.Fprint(io.ErrOut, extraInfo)
 	}
 	if err != nil {
 		return fmt.Errorf("invalid configuration file: %w", err)

@@ -2,8 +2,11 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -39,11 +42,7 @@ var sharedFlags = flag.Set{
 	For example: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
 	To remove a port mapping use '-' as handler. For example: --port 80/tcp:-`,
 	},
-	flag.StringArray{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
+	flag.Env(),
 	flag.String{
 		Name:        "entrypoint",
 		Description: "The command to override the Docker ENTRYPOINT.",
@@ -62,6 +61,10 @@ var sharedFlags = flag.Set{
 		Name:        "build-local-only",
 		Description: "Only perform builds locally using the local docker daemon",
 		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "build-depot",
+		Description: "Build your image with depot.dev",
 	},
 	flag.Bool{
 		Name:        "build-nixpacks",
@@ -90,6 +93,10 @@ var sharedFlags = flag.Set{
 		Name:        "no-build-cache",
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
+	},
+	flag.String{
+		Name:        "machine-config",
+		Description: "Read machine config from json file or string",
 	},
 	flag.StringArray{
 		Name:        "kernel-arg",
@@ -172,6 +179,10 @@ var runOrCreateFlags = flag.Set{
 		Name:        "lsvd",
 		Description: "Enable LSVD for this machine",
 		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "use-zstd",
+		Description: "Enable zstd compression for the image",
 	},
 }
 
@@ -636,6 +647,29 @@ func determineMachineConfig(
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
+	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, err
+			}
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		if err := json.Unmarshal(buf, machineConf); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
+	}
+
 	var err error
 	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
 	if err != nil {
@@ -804,6 +838,7 @@ func determineMachineConfig(
 	if flag.IsSpecified(ctx, "standby-for") {
 		standbys := flag.GetStringSlice(ctx, "standby-for")
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
 	}
 
 	machineFiles, err := command.FilesFromCommand(ctx)

@@ -115,6 +115,9 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("no machines are available on this app %s", appName)
 	}
 	leader, _ := machinesNodeRoles(ctx, machines)
+	if leader == nil {
+		return fmt.Errorf("no active leader found")
+	}
 	machineID := leader.ID
 
 	// Resolve region

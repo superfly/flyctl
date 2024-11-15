@@ -16,6 +16,7 @@ type Client interface {
 	AddCertificate(ctx context.Context, appName, hostname string) (*fly.AppCertificate, *fly.HostnameCheck, error)
 	AllocateIPAddress(ctx context.Context, appName string, addrType string, region string, org *fly.Organization, network string) (*fly.IPAddress, error)
 	AllocateSharedIPAddress(ctx context.Context, appName string) (net.IP, error)
+	AllocateEgressIPAddress(ctx context.Context, appName string, machineId string) (net.IP, net.IP, error)
 	AppNameAvailable(ctx context.Context, appName string) (bool, error)
 	AttachPostgresCluster(ctx context.Context, input fly.AttachPostgresClusterInput) (*fly.AttachPostgresClusterPayload, error)
 	Authenticated() bool
@@ -41,6 +42,7 @@ type Client interface {
 	DetachPostgresCluster(ctx context.Context, input fly.DetachPostgresClusterInput) error
 	EnablePostgresConsul(ctx context.Context, appName string) (*fly.PostgresEnableConsulPayload, error)
 	EnsureRemoteBuilder(ctx context.Context, orgID, appName, region string) (*fly.GqlMachine, *fly.App, error)
+	EnsureDepotRemoteBuilder(ctx context.Context, input *fly.EnsureDepotRemoteBuilderInput) (*fly.EnsureDepotRemoteBuilderResponse, error)
 	ExportDNSRecords(ctx context.Context, domainId string) (string, error)
 	FinishBuild(ctx context.Context, input fly.FinishBuildInput) (*fly.FinishBuildResponse, error)
 	GetApp(ctx context.Context, appName string) (*fly.App, error)
@@ -59,6 +61,7 @@ type Client interface {
 	GetAppSecrets(ctx context.Context, appName string) ([]fly.Secret, error)
 	GetApps(ctx context.Context, role *string) ([]fly.App, error)
 	GetAppsForOrganization(ctx context.Context, orgID string) ([]fly.App, error)
+	GetDeployerAppByOrg(ctx context.Context, orgID string) (*fly.App, error)
 	GetCurrentUser(ctx context.Context) (*fly.User, error)
 	GetDNSRecords(ctx context.Context, domainName string) ([]*fly.DNSRecord, error)
 	GetDelegatedWireGuardTokens(ctx context.Context, slug string) ([]*fly.DelegatedWireGuardTokenHandle, error)
@@ -66,6 +69,7 @@ type Client interface {
 	GetDomain(ctx context.Context, name string) (*fly.Domain, error)
 	GetDomains(ctx context.Context, organizationSlug string) ([]*fly.Domain, error)
 	GetIPAddresses(ctx context.Context, appName string) ([]fly.IPAddress, error)
+	GetEgressIPAddresses(ctx context.Context, appName string) (map[string][]fly.EgressIPAddress, error)
 	GetLatestImageDetails(ctx context.Context, image string) (*fly.ImageVersion, error)
 	GetLatestImageTag(ctx context.Context, repository string, snapshotId *string) (string, error)
 	GetLoggedCertificates(ctx context.Context, slug string) ([]fly.LoggedCertificate, error)
@@ -87,6 +91,7 @@ type Client interface {
 	MoveApp(ctx context.Context, appName string, orgID string) (*fly.App, error)
 	NewRequest(q string) *graphql.Request
 	PlatformRegions(ctx context.Context) ([]fly.Region, *fly.Region, error)
+	ReleaseEgressIPAddress(ctx context.Context, appName string, machineID string) (net.IP, net.IP, error)
 	ReleaseIPAddress(ctx context.Context, appName string, ip string) error
 	RemoveWireGuardPeer(ctx context.Context, org *fly.Organization, name string) error
 	ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error)

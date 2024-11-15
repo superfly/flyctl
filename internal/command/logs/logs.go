@@ -50,9 +50,10 @@ Use --no-tail to only fetch the logs in the buffer.
 		flag.Region(),
 		flag.JSONOutput(),
 		flag.String{
-			Name:        "instance",
-			Shorthand:   "i",
-			Description: "Filter by instance ID",
+			Name:              "machine",
+			Description:       "Filter by machine ID",
+			Aliases:           []string{"instance"},
+			UseAliasShortHand: true,
 		},
 		flag.Bool{
 			Name:        "no-tail",
@@ -69,7 +70,7 @@ func run(ctx context.Context) error {
 	opts := &logs.LogOptions{
 		AppName:    appconfig.NameFromContext(ctx),
 		RegionCode: config.FromContext(ctx).Region,
-		VMID:       flag.GetString(ctx, "instance"),
+		VMID:       flag.GetString(ctx, "machine"),
 		NoTail:     flag.GetBool(ctx, "no-tail"),
 	}
 
@@ -159,7 +160,6 @@ func printStreams(ctx context.Context, streams ...<-chan logs.LogEntry) error {
 			return printStream(ctx, out, stream, json)
 		})
 	}
-
 	return eg.Wait()
 }
 

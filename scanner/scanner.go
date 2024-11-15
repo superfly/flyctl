@@ -45,44 +45,47 @@ const (
 )
 
 type SourceInfo struct {
-	Family                       string
-	Version                      string
-	DockerfilePath               string
-	BuildArgs                    map[string]string
-	Builder                      string
-	ReleaseCmd                   string
-	DockerCommand                string
-	DockerEntrypoint             string
-	KillSignal                   string
-	SwapSizeMB                   int
-	Buildpacks                   []string
-	Secrets                      []Secret
-	Files                        []SourceFile
-	Port                         int
-	Env                          map[string]string
-	Statics                      []Static
-	Processes                    map[string]string
-	DeployDocs                   string
-	Notice                       string
-	SkipDeploy                   bool
-	SkipDatabase                 bool
-	Volumes                      []Volume
-	DockerfileAppendix           []string
-	InitCommands                 []InitCommand
-	PostgresInitCommands         []InitCommand
-	PostgresInitCommandCondition bool
-	DatabaseDesired              DatabaseKind
-	RedisDesired                 bool
-	GitHubActions                GitHubActionsStruct
-	ObjectStorageDesired         bool
-	Concurrency                  map[string]int
-	Callback                     func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
-	HttpCheckPath                string
-	HttpCheckHeaders             map[string]string
-	ConsoleCommand               string
-	MergeConfig                  *MergeConfigStruct
-	AutoInstrumentErrors         bool
-	FailureCallback              func(err error) error
+	Family           string
+	Version          string
+	DockerfilePath   string
+	BuildArgs        map[string]string
+	Builder          string
+	ReleaseCmd       string
+	DockerCommand    string
+	DockerEntrypoint string
+	KillSignal       string
+	SwapSizeMB       int
+	Buildpacks       []string
+	Secrets          []Secret
+
+	Files                           []SourceFile
+	Port                            int
+	Env                             map[string]string
+	Statics                         []Static
+	Processes                       map[string]string
+	DeployDocs                      string
+	Notice                          string
+	SkipDeploy                      bool
+	SkipDatabase                    bool
+	Volumes                         []Volume
+	DockerfileAppendix              []string
+	InitCommands                    []InitCommand
+	PostgresInitCommands            []InitCommand
+	PostgresInitCommandCondition    bool
+	DatabaseDesired                 DatabaseKind
+	RedisDesired                    bool
+	GitHubActions                   GitHubActionsStruct
+	ObjectStorageDesired            bool
+	OverrideExtensionSecretKeyNames map[string]map[string]string
+	Concurrency                     map[string]int
+	Callback                        func(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error
+	HttpCheckPath                   string
+	HttpCheckHeaders                map[string]string
+	ConsoleCommand                  string
+	MergeConfig                     *MergeConfigStruct
+	AutoInstrumentErrors            bool
+	FailureCallback                 func(err error) error
+	Runtime                         plan.RuntimeStruct
 }
 
 type SourceFile struct {
@@ -118,6 +121,7 @@ func Scan(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 		   since they might mix languages or have a Dockerfile that
 			 doesn't work with Fly */
 		configureDockerfile,
+		configureBridgetown,
 		configureLucky,
 		configureRuby,
 		configureGo,

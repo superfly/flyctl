@@ -109,6 +109,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || nodeVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersionString}
 		}
 	} else {
 		// ensure bun is in $PATH
@@ -140,6 +142,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || bunVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "bun", Version: bunVersionString}
 		}
 
 		// set family
@@ -241,7 +245,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Next.js"
 	} else if deps["nust"] != nil {
 		srcInfo.Family = "Nust"
-	} else if devdeps["nuxt"] != nil {
+	} else if devdeps["nuxt"] != nil || deps["nuxt"] != nil {
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
@@ -294,7 +298,13 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			_, err = os.Stat("pnpm-lock.yaml")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+
+				_, err = os.Stat("pnpm-workspace.yaml")
+				if errors.Is(err, fs.ErrNotExist) {
+					args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+				} else {
+					args = []string{"pnpm", "add", "-w", "-D", "@flydotio/dockerfile@latest"}
+				}
 			}
 
 			_, err = os.Stat("bun.lockb")

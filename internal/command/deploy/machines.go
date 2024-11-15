@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/cmdutil"
+	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
@@ -74,6 +75,41 @@ type MachineDeploymentArgs struct {
 	RestartPolicy         *fly.MachineRestartPolicy
 	RestartMaxRetries     int
 	DeployRetries         int
+	BuildID               string
+}
+
+func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDeploymentArgs {
+	return MachineDeploymentArgs{
+		AppCompact:            app,
+		DeploymentImage:       manifest.DeploymentImage,
+		Strategy:              manifest.Strategy,
+		EnvFromFlags:          manifest.EnvFromFlags,
+		PrimaryRegionFlag:     manifest.PrimaryRegionFlag,
+		SkipSmokeChecks:       manifest.SkipSmokeChecks,
+		SkipHealthChecks:      manifest.SkipHealthChecks,
+		SkipDNSChecks:         manifest.SkipDNSChecks,
+		SkipReleaseCommand:    manifest.SkipReleaseCommand,
+		MaxUnavailable:        manifest.MaxUnavailable,
+		RestartOnly:           manifest.RestartOnly,
+		WaitTimeout:           manifest.WaitTimeout,
+		StopSignal:            manifest.StopSignal,
+		LeaseTimeout:          manifest.LeaseTimeout,
+		ReleaseCmdTimeout:     manifest.ReleaseCmdTimeout,
+		Guest:                 manifest.Guest,
+		IncreasedAvailability: manifest.IncreasedAvailability,
+		UpdateOnly:            manifest.UpdateOnly,
+		Files:                 manifest.Files,
+		ExcludeRegions:        manifest.ExcludeRegions,
+		OnlyRegions:           manifest.OnlyRegions,
+		ExcludeMachines:       manifest.ExcludeMachines,
+		OnlyMachines:          manifest.OnlyMachines,
+		ProcessGroups:         manifest.ProcessGroups,
+		MaxConcurrent:         manifest.MaxConcurrent,
+		VolumeInitialSize:     manifest.VolumeInitialSize,
+		RestartPolicy:         manifest.RestartPolicy,
+		RestartMaxRetries:     manifest.RestartMaxRetries,
+		DeployRetries:         manifest.DeployRetries,
+	}
 }
 
 type machineDeployment struct {
@@ -113,10 +149,14 @@ type machineDeployment struct {
 	processGroups         map[string]bool
 	maxConcurrent         int
 	volumeInitialSize     int
+	tigrisStatics         *statics.DeployerState
 	deployRetries         int
+	buildID               string
 }
 
 func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ MachineDeployment, err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "new_machines_deployment")
 	defer span.End()
 
@@ -134,7 +174,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 
 	// TODO: Blend extraInfo into ValidationError and remove this hack
 	if err, extraInfo := appConfig.ValidateGroups(ctx, lo.Keys(args.ProcessGroups)); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, extraInfo)
+		fmt.Fprint(io.ErrOut, extraInfo)
 		tracing.RecordError(span, err, "failed to validate process groups")
 		return nil, err
 	}
@@ -155,7 +195,7 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		}
 	}
 
-	if appConfig.Deploy != nil {
+	if appConfig.Deploy != nil && appConfig.Deploy.ReleaseCommand != "" {
 		_, err = shlex.Split(appConfig.Deploy.ReleaseCommand)
 		if err != nil {
 			tracing.RecordError(span, err, "failed to split release command")
@@ -196,7 +236,6 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}
 
-	io := iostreams.FromContext(ctx)
 	apiClient := flyutil.ClientFromContext(ctx)
 
 	maxUnavailable := DefaultMaxUnavailable
@@ -239,11 +278,13 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		volumeInitialSize:     args.VolumeInitialSize,
 		processGroups:         args.ProcessGroups,
 		deployRetries:         args.DeployRetries,
+		buildID:               args.BuildID,
 	}
 	if err := md.setStrategy(); err != nil {
 		tracing.RecordError(span, err, "failed to set strategy")
 		return nil, err
 	}
+
 	if err := md.setMachinesForDeployment(ctx); err != nil {
 		tracing.RecordError(span, err, "failed to set machines for first deployemt")
 		return nil, err
@@ -446,7 +487,8 @@ func (md *machineDeployment) validateVolumeConfig() error {
 			needsVol := map[string][]string{}
 
 			for _, m := range ms {
-				if mntDst == "" && len(m.Config.Mounts) != 0 {
+				mConfig := m.GetConfig()
+				if mntDst == "" && len(mConfig.Mounts) != 0 {
 					// TODO: Detaching a volume from a machine is possible, but it usually means a missconfiguration.
 					// We should show a warning and ask the user for confirmation and let it happen instead of failing here.
 					return fmt.Errorf(
@@ -456,13 +498,13 @@ func (md *machineDeployment) validateVolumeConfig() error {
 					)
 				}
 
-				if mntDst != "" && len(m.Config.Mounts) == 0 {
+				if mntDst != "" && len(mConfig.Mounts) == 0 {
 					// Attaching a volume to an existing machine is not possible, but we replace the machine
 					// by another running on the same zone than the volume.
 					needsVol[mntSrc] = append(needsVol[mntSrc], m.Region)
 				}
 
-				if mms := m.Config.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
+				if mms := mConfig.Mounts; len(mms) > 0 && mntSrc != "" && mms[0].Name != "" && mntSrc != mms[0].Name {
 					// TODO: Changed the attached volume to an existing machine is not possible, but it could replace the machine
 					// by another running on the same zone than the new volume.
 					return fmt.Errorf(
@@ -543,6 +585,7 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 		Strategy:        fly.DeploymentStrategy(strings.ToUpper(md.strategy)),
 		Definition:      md.appConfig,
 		Image:           md.img,
+		BuildId:         md.buildID,
 	})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to create machine release")
@@ -553,17 +596,21 @@ func (md *machineDeployment) createReleaseInBackend(ctx context.Context) error {
 	return nil
 }
 
-func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string) error {
+func (md *machineDeployment) updateReleaseInBackend(ctx context.Context, status string, metadata *fly.ReleaseMetadata) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_release_in_backend", trace.WithAttributes(
 		attribute.String("release_id", md.releaseId),
 		attribute.String("status", status),
 	))
 	defer span.End()
 
-	_, err := md.apiClient.UpdateRelease(ctx, fly.UpdateReleaseInput{
+	input := fly.UpdateReleaseInput{
 		ReleaseId: md.releaseId,
 		Status:    status,
-	})
+		Metadata:  metadata,
+	}
+
+	_, err := md.apiClient.UpdateRelease(ctx, input)
+
 	if err != nil {
 		tracing.RecordError(span, err, "failed to update machine release")
 		return err
