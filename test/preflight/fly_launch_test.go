@@ -29,6 +29,11 @@ import (
 // - Primary region found in imported fly.toml must be reused if set and no --region is passed
 func TestFlyLaunchV2(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	// No need to run this on alternate sizes as it only tests the generated config.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("launch --no-deploy --org %s --name %s --region %s --image nginx", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -45,7 +50,7 @@ func TestFlyLaunchV2(t *testing.T) {
 		"http_service": map[string]any{
 			"force_https":          true,
 			"internal_port":        int64(8080),
-			"auto_stop_machines":   true,
+			"auto_stop_machines":   "stop",
 			"auto_start_machines":  true,
 			"min_machines_running": int64(0),
 			"processes":            []any{"app"},
@@ -57,6 +62,11 @@ func TestFlyLaunchV2(t *testing.T) {
 // Run fly launch from a template Fly App directory (fly.toml without app name)
 func TestFlyLaunchWithTOML(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+	// Should be safe to skip for additional sizes since it doesn't test deployment.
+	if f.VMSize != "" {
+		t.Skip()
+	}
+
 	appName := f.CreateRandomAppName()
 
 	f.WriteFlyToml(`
@@ -165,8 +175,11 @@ func TestFlyLaunchWithVolumes(t *testing.T) {
 // test --vm-size sets the machine guest on first deploy
 func TestFlyLaunchWithSize(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	appName := f.CreateRandomAppName()
+	if f.VMSize != "" {
+		t.Skip()
+	}
 
+	appName := f.CreateRandomAppName()
 	f.Fly(
 		"launch --ha=false --now -o %s --name %s --region %s --ha=false --image nginx --vm-size shared-cpu-4x",
 		f.OrgSlug(), appName, f.PrimaryRegion(),
@@ -199,7 +212,7 @@ func TestFlyLaunchHA(t *testing.T) {
 [http_service]
 	internal_port = 80
 	auto_start_machines = true
-	auto_stop_machines = true
+	auto_stop_machines = "stop"
 	processes = ["app"]
 `)
 
@@ -285,7 +298,7 @@ RUN --mount=type=secret,id=secret1 cat /run/secrets/secret1 > /tmp/secrets.txt
 
 func TestFlyLaunchBasicNodeApp(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
-	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node", []string{})
+	err := copyFixtureIntoWorkDir(f.WorkDir(), "deploy-node")
 	require.NoError(t, err)
 
 	flyTomlPath := fmt.Sprintf("%s/fly.toml", f.WorkDir())

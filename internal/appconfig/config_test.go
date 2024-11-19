@@ -153,7 +153,7 @@ func TestCloneAppconfig(t *testing.T) {
 		"expected deep copy, but cloned object was modified by change to original config")
 }
 
-func TestHasNonHttpAndHttpsStandardServices(t *testing.T) {
+func TestDetermineIPType(t *testing.T) {
 	port80 := 80
 	port443 := 443
 
@@ -161,37 +161,39 @@ func TestHasNonHttpAndHttpsStandardServices(t *testing.T) {
 	cfg1.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port80, Handlers: []string{"http"}},
 	}}}
-	assert.False(t, cfg1.HasNonHttpAndHttpsStandardServices())
+	assert.Equal(t, "shared", cfg1.DetermineIPType("public"))
+	assert.Equal(t, "private", cfg1.DetermineIPType("private"))
 
 	cfg2 := NewConfig()
 	cfg2.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "http"}},
 	}}}
-	assert.False(t, cfg2.HasNonHttpAndHttpsStandardServices())
+	assert.Equal(t, "shared", cfg2.DetermineIPType("public"))
 
 	cfg3 := NewConfig()
 	cfg3.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"http", "tls"}},
 	}}}
-	assert.False(t, cfg3.HasNonHttpAndHttpsStandardServices())
+	assert.Equal(t, "shared", cfg3.DetermineIPType("public"))
 
 	cfg4 := NewConfig()
 	cfg4.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "weird"}},
 	}}}
-	assert.True(t, cfg4.HasNonHttpAndHttpsStandardServices())
+	assert.Equal(t, "dedicated", cfg4.DetermineIPType("public"))
+	assert.Equal(t, "private", cfg4.DetermineIPType("private"))
 
 	cfg5 := NewConfig()
 	cfg5.Services = []Service{{Protocol: "tcp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls"}},
 	}}}
-	assert.True(t, cfg5.HasNonHttpAndHttpsStandardServices())
+	assert.Equal(t, "dedicated", cfg5.DetermineIPType("public"))
 
 	cfg6 := NewConfig()
 	cfg6.Services = []Service{{Protocol: "udp", Ports: []fly.MachinePort{
 		{Port: &port443, Handlers: []string{"tls", "http"}},
 	}}}
-	assert.True(t, cfg6.HasNonHttpAndHttpsStandardServices())
+	assert.Equal(t, "dedicated", cfg6.DetermineIPType("public"))
 }
 
 func TestURL(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -63,9 +64,42 @@ func runMachineStatus(ctx context.Context) (err error) {
 		return err
 	}
 
+	checksRows := [][]string{}
+	checksTotal := 0
+	checksPassing := 0
+	roleOutput := ""
+	for _, c := range machine.Checks {
+		checksTotal += 1
+
+		if c.Status == "passing" {
+			checksPassing += 1
+		}
+
+		if c.Name == "role" && c.Status == "passing" {
+			roleOutput = c.Output
+		}
+
+		fields := []string{
+			c.Name,
+			string(c.Status),
+			format.RelativeTime(*c.UpdatedAt),
+			c.Output,
+		}
+		checksRows = append(checksRows, fields)
+	}
+
+	checksSummary := ""
+	if checksTotal > 0 {
+		checksSummary = fmt.Sprintf("%d/%d", checksPassing, checksTotal)
+	}
+
+	mConfig := machine.GetConfig()
+
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
-	fmt.Fprintf(io.Out, "State: %s\n\n", machine.State)
+	fmt.Fprintf(io.Out, "State: %s\n", machine.State)
+	fmt.Fprintf(io.Out, "HostStatus: %s\n", machine.HostStatus)
+	fmt.Fprintf(io.Out, "\n")
 
 	obj := [][]string{
 		{
@@ -77,25 +111,39 @@ func runMachineStatus(ctx context.Context) (err error) {
 			machine.PrivateIP,
 			machine.Region,
 			machine.ProcessGroup(),
-			fmt.Sprint(machine.Config.Guest.CPUKind),
-			fmt.Sprint(machine.Config.Guest.CPUs),
-			fmt.Sprint(machine.Config.Guest.MemoryMB),
+			fmt.Sprint(mConfig.Guest.CPUKind),
+			fmt.Sprint(mConfig.Guest.CPUs),
+			fmt.Sprint(mConfig.Guest.MemoryMB),
 			machine.CreatedAt,
 			machine.UpdatedAt,
-			optJsonStrings(machine.Config.Init.Entrypoint),
-			optJsonStrings(machine.Config.Init.Cmd),
+			optJsonStrings(mConfig.Init.Entrypoint),
+			optJsonStrings(mConfig.Init.Cmd),
 		},
 	}
 
 	var cols []string = []string{"ID", "Instance ID", "State", "Image", "Name", "Private IP", "Region", "Process Group", "CPU Kind", "vCPUs", "Memory", "Created", "Updated", "Entrypoint", "Command"}
 
-	if len(machine.Config.Mounts) > 0 {
+	if len(mConfig.Mounts) > 0 {
 		cols = append(cols, "Volume")
-		obj[0] = append(obj[0], machine.Config.Mounts[0].Volume)
+		obj[0] = append(obj[0], mConfig.Mounts[0].Volume)
 	}
 
 	if err = render.VerticalTable(io.Out, "VM", obj, cols...); err != nil {
 		return
+	}
+
+	if mConfig.Metadata["fly-managed-postgres"] == "true" {
+		obj := [][]string{
+			{
+				roleOutput,
+			},
+		}
+		_ = render.VerticalTable(io.Out, "PG", obj, "Role")
+	}
+
+	checksTableTitle := fmt.Sprintf("Checks [%s]", checksSummary)
+	if len(checksRows) > 0 {
+		_ = render.Table(io.Out, checksTableTitle, checksRows, "Name", "Status", "Last Updated", "Output")
 	}
 
 	eventLogs := [][]string{}
@@ -115,13 +163,19 @@ func runMachineStatus(ctx context.Context) (err error) {
 				exitEvent.ExitCode, exitEvent.OOMKilled, exitEvent.RequestedStop))
 		}
 
+		// This is terrible but will inform the users good enough while I build something
+		// elegant like the ExitEvent above
+		if event.Type == "launch" && event.Status == "created" && event.Source == "flyd" {
+			fields = append(fields, "migrated=true")
+		}
+
 		eventLogs = append(eventLogs, fields)
 	}
 	_ = render.Table(io.Out, "Event Logs", eventLogs, "State", "Event", "Source", "Timestamp", "Info")
 
 	if flag.GetBool(ctx, "display-config") {
 		var prettyConfig []byte
-		prettyConfig, err = json.MarshalIndent(machine.Config, "", "  ")
+		prettyConfig, err = json.MarshalIndent(mConfig, "", "  ")
 
 		if err != nil {
 			return err

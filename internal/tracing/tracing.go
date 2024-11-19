@@ -21,6 +21,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -74,12 +75,9 @@ func SpanContextFromHeaders(res *http.Response) trace.SpanContext {
 	})
 }
 
-func CMDSpan(ctx context.Context, appName, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
+func CMDSpan(ctx context.Context, spanName string, opts ...trace.SpanStartOption) (context.Context, trace.Span) {
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindClient),
-		trace.WithAttributes(
-			attribute.String("app.name", appName),
-		),
 	}
 
 	startOpts = append(startOpts, opts...)
@@ -136,6 +134,7 @@ func InitTraceProvider(ctx context.Context, appName string) (*sdktrace.TracerPro
 		attribute.String("build.info.os", buildinfo.OS()),
 		attribute.String("build.info.arch", buildinfo.Arch()),
 		attribute.String("build.info.commit", buildinfo.Commit()),
+		attribute.Bool("is_ci", env.IsCI()),
 	}
 
 	if appName != "" {

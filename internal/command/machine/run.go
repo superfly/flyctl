@@ -2,8 +2,12 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -20,6 +24,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/watch"
@@ -37,11 +42,7 @@ var sharedFlags = flag.Set{
 	For example: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
 	To remove a port mapping use '-' as handler. For example: --port 80/tcp:-`,
 	},
-	flag.StringArray{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
+	flag.Env(),
 	flag.String{
 		Name:        "entrypoint",
 		Description: "The command to override the Docker ENTRYPOINT.",
@@ -60,6 +61,10 @@ var sharedFlags = flag.Set{
 		Name:        "build-local-only",
 		Description: "Only perform builds locally using the local docker daemon",
 		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "build-depot",
+		Description: "Build your image with depot.dev",
 	},
 	flag.Bool{
 		Name:        "build-nixpacks",
@@ -89,6 +94,10 @@ var sharedFlags = flag.Set{
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
 	},
+	flag.String{
+		Name:        "machine-config",
+		Description: "Read machine config from json file or string",
+	},
 	flag.StringArray{
 		Name:        "kernel-arg",
 		Description: "A list of kernel arguments to provide to the init. Can be specified multiple times.",
@@ -111,10 +120,11 @@ var sharedFlags = flag.Set{
 		Description: "Automatically start a stopped Machine when a network request is received",
 		Default:     true,
 	},
-	flag.Bool{
+	flag.String{
 		Name:        "autostop",
-		Description: "Automatically stop a Machine when there are no network requests for it",
-		Default:     true,
+		Description: "Automatically stop a Machine when there are no network requests for it. Options include 'off', 'stop', and 'suspend'.",
+		Default:     "off",
+		NoOptDefVal: "stop",
 	},
 	flag.String{
 		Name: "restart",
@@ -169,6 +179,10 @@ var runOrCreateFlags = flag.Set{
 		Name:        "lsvd",
 		Description: "Enable LSVD for this machine",
 		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "use-zstd",
+		Description: "Enable zstd compression for the image",
 	},
 }
 
@@ -286,7 +300,7 @@ func runMachineCreate(ctx context.Context) error {
 func runMachineRun(ctx context.Context) error {
 	var (
 		appName  = appconfig.NameFromContext(ctx)
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 		err      error
@@ -371,7 +385,7 @@ func runMachineRun(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("could not make API client: %w", err)
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
@@ -494,7 +508,7 @@ func runMachineRun(ctx context.Context) error {
 	return nil
 }
 
-func getOrCreateEphemeralShellApp(ctx context.Context, client *fly.Client) (*fly.AppCompact, error) {
+func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*fly.AppCompact, error) {
 	// no prompt if --org, buried in the context code
 	org, err := prompt.Org(ctx)
 	if err != nil {
@@ -543,7 +557,7 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client *fly.Client) (*fly
 	return app, nil
 }
 
-func createApp(ctx context.Context, message, name string, client *fly.Client) (*fly.AppCompact, error) {
+func createApp(ctx context.Context, message, name string, client flyutil.Client) (*fly.AppCompact, error) {
 	confirm, err := prompt.Confirm(ctx, message)
 	if err != nil {
 		return nil, err
@@ -632,6 +646,29 @@ func determineMachineConfig(
 	input *determineMachineConfigInput,
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
+
+	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, err
+			}
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		if err := json.Unmarshal(buf, machineConf); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
+	}
 
 	var err error
 	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
@@ -773,7 +810,23 @@ func determineMachineConfig(
 		}
 
 		if flag.IsSpecified(ctx, "autostop") {
-			s.Autostop = fly.Pointer(flag.GetBool(ctx, "autostop"))
+			// We'll try to parse it as a boolean first for backward
+			// compatibility. (strconv.ParseBool is what the pflag
+			// library uses for booleans under the hood.)
+			asString := flag.GetString(ctx, "autostop")
+			if asBool, err := strconv.ParseBool(asString); err == nil {
+				if asBool {
+					s.Autostop = fly.Pointer(fly.MachineAutostopStop)
+				} else {
+					s.Autostop = fly.Pointer(fly.MachineAutostopOff)
+				}
+			} else {
+				var value fly.MachineAutostop
+				if err := value.UnmarshalText([]byte(asString)); err != nil {
+					return nil, err
+				}
+				s.Autostop = fly.Pointer(value)
+			}
 		}
 
 		if flag.IsSpecified(ctx, "autostart") {
@@ -785,6 +838,7 @@ func determineMachineConfig(
 	if flag.IsSpecified(ctx, "standby-for") {
 		standbys := flag.GetStringSlice(ctx, "standby-for")
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
 	}
 
 	machineFiles, err := command.FilesFromCommand(ctx)

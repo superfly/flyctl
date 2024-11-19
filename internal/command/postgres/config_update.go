@@ -15,6 +15,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -89,7 +90,7 @@ func newConfigUpdate() (cmd *cobra.Command) {
 
 func runConfigUpdate(ctx context.Context) error {
 	var (
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -126,7 +127,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 		return fmt.Errorf("machines could not be retrieved")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -174,7 +175,7 @@ func runMachineConfigUpdate(ctx context.Context, app *fly.AppCompact) error {
 
 		// Ensure leases are released before we issue restart.
 		releaseLeaseFunc()
-		if err := machinesRestart(ctx, &fly.RestartMachineInput{}); err != nil {
+		if err := machinesRestart(ctx, app.Name, &fly.RestartMachineInput{}); err != nil {
 			return err
 		}
 	}
@@ -313,7 +314,7 @@ func resolveConfigChanges(ctx context.Context, app *fly.AppCompact, manager stri
 			switch confirmed, err := prompt.Confirmf(ctx, msg); {
 			case err == nil:
 				if !confirmed {
-					return false, nil, nil
+					return false, nil, fmt.Errorf("cancelled")
 				}
 			case prompt.IsNonInteractive(err):
 				return false, nil, prompt.NonInteractiveError("yes flag must be specified when not running interactively")

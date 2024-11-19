@@ -11,9 +11,13 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/ctrlc"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/statuslogger"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/terminal"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 )
 
@@ -32,6 +36,7 @@ type LeasableMachine interface {
 	WaitForState(context.Context, string, time.Duration, bool) error
 	WaitForSmokeChecksToPass(context.Context) error
 	WaitForHealthchecksToPass(context.Context, time.Duration) error
+	WaitForEventType(context.Context, string, time.Duration, bool) (*fly.MachineEvent, error)
 	WaitForEventTypeAfterType(context.Context, string, string, time.Duration, bool) (*fly.MachineEvent, error)
 	FormattedMachineId() string
 	GetMinIntervalAndMinGracePeriod() (time.Duration, time.Duration)
@@ -40,22 +45,25 @@ type LeasableMachine interface {
 }
 
 type leasableMachine struct {
-	flapsClient            *flaps.Client
+	flapsClient            flapsutil.FlapsClient
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
 	machine                *fly.Machine
 	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
+	showLogs               bool
 }
 
-func NewLeasableMachine(flapsClient *flaps.Client, io *iostreams.IOStreams, machine *fly.Machine) LeasableMachine {
+// TODO: make sure the other functions handle showLogs correctly
+func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
 		colorize:    io.ColorScheme(),
 		machine:     machine,
 		leaseNonce:  machine.LeaseNonce,
+		showLogs:    showLogs,
 	}
 }
 
@@ -113,15 +121,12 @@ func (lm *leasableMachine) Cordon(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) FormattedMachineId() string {
-	res := lm.Machine().ID
-	if lm.Machine().Config.Metadata == nil {
-		return res
+	m := lm.Machine()
+	processGroup := m.ProcessGroup()
+	if processGroup == "" || m.IsFlyAppsReleaseCommand() || m.IsFlyAppsConsole() {
+		return m.ID
 	}
-	procGroup := lm.Machine().ProcessGroup()
-	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() || lm.Machine().IsFlyAppsConsole() {
-		return res
-	}
-	return fmt.Sprintf("%s [%s]", res, procGroup)
+	return fmt.Sprintf("%s [%s]", m.ID, processGroup)
 }
 
 func (lm *leasableMachine) logStatusWaiting(ctx context.Context, desired string) {
@@ -154,7 +159,9 @@ func (lm *leasableMachine) Start(ctx context.Context) error {
 	if lm.HasLease() {
 		return fmt.Errorf("error cannot start machine %s because it has a lease", lm.machine.ID)
 	}
-	lm.logStatusWaiting(ctx, fly.MachineStateStarted)
+	if lm.showLogs {
+		lm.logStatusWaiting(ctx, fly.MachineStateStarted)
+	}
 	_, err := lm.flapsClient.Start(ctx, lm.machine.ID, "")
 	if err != nil {
 		return err
@@ -192,7 +199,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 		Factor: 2,
 		Jitter: true,
 	}
-	lm.logStatusWaiting(ctx, desiredState)
+	if lm.showLogs {
+		lm.logStatusWaiting(ctx, desiredState)
+	}
 	for {
 		err := lm.flapsClient.Wait(waitCtx, lm.Machine(), desiredState, timeout)
 		notFoundResponse := false
@@ -220,7 +229,9 @@ func (lm *leasableMachine) WaitForState(ctx context.Context, desiredState string
 			}
 			continue
 		}
-		lm.logStatusFinished(ctx, desiredState)
+		if lm.showLogs {
+			lm.logStatusFinished(ctx, desiredState)
+		}
 		return nil
 	}
 }
@@ -246,6 +257,9 @@ func (lm *leasableMachine) isConstantlyRestarting(machine *fly.Machine) bool {
 }
 
 func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_smoke_checks")
+	defer span.End()
+
 	waitCtx, cancel := ctrlc.HookCancelableContext(context.WithTimeout(ctx, 10*time.Second))
 	defer cancel()
 
@@ -256,7 +270,9 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		Jitter: true,
 	}
 
-	statuslogger.Logf(ctx, "Checking that %s is up and running", lm.colorize.Bold(lm.FormattedMachineId()))
+	if lm.showLogs {
+		statuslogger.Logf(ctx, "Checking that %s is up and running", lm.colorize.Bold(lm.FormattedMachineId()))
+	}
 
 	for {
 		machine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
@@ -273,12 +289,15 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
 			return nil
 		case err != nil:
+			span.RecordError(err)
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		}
 
 		switch {
 		case lm.isConstantlyRestarting(machine):
-			return fmt.Errorf("the app appears to be crashing")
+			err := fmt.Errorf("the app appears to be crashing")
+			span.RecordError(err)
+			return err
 		default:
 			select {
 			case <-time.After(b.Duration()):
@@ -289,6 +308,8 @@ func (lm *leasableMachine) WaitForSmokeChecksToPass(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeout time.Duration) error {
+	ctx, span := tracing.GetTracer().Start(ctx, "wait_for_healthchecks", trace.WithAttributes(attribute.Int("num_checks", len(lm.Machine().Checks)), attribute.Int64("timeout_ms", timeout.Milliseconds())))
+	defer span.End()
 	if len(lm.Machine().Checks) == 0 {
 		return nil
 	}
@@ -316,13 +337,16 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
 		switch {
 		case errors.Is(waitCtx.Err(), context.Canceled):
+			span.RecordError(err)
 			return err
 		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			span.RecordError(err)
 			return fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
 		case err != nil:
+			span.RecordError(err)
 			return fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
 		case !updateMachine.AllHealthChecks().AllPassing():
-			if !printedFirst || lm.io.IsInteractive() {
+			if lm.showLogs && (!printedFirst || lm.io.IsInteractive()) {
 				lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
 				printedFirst = true
 			}
@@ -332,8 +356,46 @@ func (lm *leasableMachine) WaitForHealthchecksToPass(ctx context.Context, timeou
 			}
 			continue
 		}
-		lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
+		if lm.showLogs {
+			lm.logHealthCheckStatus(ctx, updateMachine.AllHealthChecks())
+		}
 		return nil
+	}
+}
+
+func (lm *leasableMachine) WaitForEventType(ctx context.Context, eventType string, timeout time.Duration, allowInfinite bool) (*fly.MachineEvent, error) {
+	waitCtx, cancel, _ := resolveTimeoutContext(ctx, timeout, allowInfinite)
+	waitCtx, cancel = ctrlc.HookCancelableContext(waitCtx, cancel)
+	defer cancel()
+	b := &backoff.Backoff{
+		Min:    500 * time.Millisecond,
+		Max:    2 * time.Second,
+		Factor: 2,
+		Jitter: true,
+	}
+	if lm.showLogs {
+		statuslogger.Logf(ctx, "Waiting for %s to get %s event", lm.colorize.Bold(lm.FormattedMachineId()), lm.colorize.Yellow(eventType))
+	}
+	for {
+		updateMachine, err := lm.flapsClient.Get(waitCtx, lm.Machine().ID)
+		switch {
+		case errors.Is(waitCtx.Err(), context.Canceled):
+			return nil, err
+		case errors.Is(waitCtx.Err(), context.DeadlineExceeded):
+			return nil, fmt.Errorf("timeout reached waiting for health checks to pass for machine %s: %w", lm.Machine().ID, err)
+		case err != nil:
+			return nil, fmt.Errorf("error getting machine %s from api: %w", lm.Machine().ID, err)
+		}
+
+		exitEvent := updateMachine.GetLatestEventOfType(eventType)
+		if exitEvent != nil {
+			return exitEvent, nil
+		} else {
+			select {
+			case <-time.After(b.Duration()):
+			case <-waitCtx.Done():
+			}
+		}
 	}
 }
 

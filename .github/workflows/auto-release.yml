@@ -1,0 +1,56 @@
+name: Automatically release a new version of flyctl
+
+on:
+  schedule:
+    - cron: "0 19 * * MON-THU" # Runs at 3 PM Eastern Daylight Time Monday Through Thursday (8 PM UTC)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout master branch
+        uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: "0"
+
+      - name: Bump version
+        uses: superfly/github-tag-action@v1.67.0-fork
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DEFAULT_BUMP: "patch"
+
+  sync_docs:
+    if: github.ref == 'refs/heads/master'
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout flyctl
+        uses: actions/checkout@v4
+      - uses: jnwng/github-app-installation-token-action@778da2ab509f3ef5e4b902bc15daf25ef3e34939
+        id: installationToken
+        with:
+          appId: 339363
+          installationId: 37947271
+          privateKey: ${{ secrets.DOCS_SYNCER_GITHUB_APP_PRIVATE_KEY }}
+      - name: Checkout docs
+        uses: actions/checkout@v4
+        with:
+          repository: superfly/docs
+          token: ${{ steps.installationToken.outputs.token }}
+          path: docs
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Publish CLI docs
+        id: publish-cli-docs
+        env:
+          GITHUB_TOKEN: ${{ steps.installationToken.outputs.token }}
+        run: scripts/publish_docs.sh ${{ github.ref_name }}

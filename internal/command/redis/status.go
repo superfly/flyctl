@@ -5,10 +5,10 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -36,10 +36,10 @@ func runStatus(ctx context.Context) (err error) {
 	var (
 		io     = iostreams.FromContext(ctx)
 		name   = flag.FirstArg(ctx)
-		client = fly.ClientFromContext(ctx).GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	response, err := gql.GetAddOn(ctx, client, name)
+	response, err := gql.GetAddOn(ctx, client, name, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return err
 	}
@@ -53,6 +53,10 @@ func runStatus(ctx context.Context) (err error) {
 	}
 
 	options, _ := addOn.Options.(map[string]interface{})
+
+	if options == nil {
+		options = make(map[string]interface{})
+	}
 
 	evictionStatus := "Disabled"
 

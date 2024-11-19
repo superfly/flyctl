@@ -29,12 +29,21 @@ type LaunchPlan struct {
 	HttpServicePort             int  `json:"http_service_port,omitempty"`
 	HttpServicePortSetByScanner bool `json:"http_service_port_set_by_scanner,omitempty"`
 
-	Postgres PostgresPlan `json:"postgres"`
-	Redis    RedisPlan    `json:"redis"`
-	Sentry   bool         `json:"sentry"`
+	Postgres      PostgresPlan      `json:"postgres"`
+	Redis         RedisPlan         `json:"redis"`
+	GitHubActions GitHubActionsPlan `json:"github_actions"`
+	Sentry        bool              `json:"sentry"`
+	ObjectStorage ObjectStoragePlan `json:"object_storage"`
 
 	ScannerFamily string          `json:"scanner_family"`
 	FlyctlVersion version.Version `json:"flyctl_version"`
+
+	Runtime RuntimeStruct `json:"runtime"`
+}
+
+type RuntimeStruct struct {
+	Language string `json:"language"`
+	Version  string `json:"version"`
 }
 
 // Guest returns the guest described by the *raw* guest fields in a Plan.

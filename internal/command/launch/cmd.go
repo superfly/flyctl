@@ -8,17 +8,27 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/state"
+	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func New() (cmd *cobra.Command) {
@@ -37,8 +47,10 @@ func New() (cmd *cobra.Command) {
 		// See a proposed 'flag grouping' feature in Viper that could help with DX: https://github.com/spf13/cobra/pull/1778
 		deploy.CommonFlags,
 
+		flag.Region(),
 		flag.Org(),
 		flag.NoDeploy(),
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "generate-name",
 			Description: "Always generate a name for the app, without prompting",
@@ -71,6 +83,14 @@ func New() (cmd *cobra.Command) {
 			Name:        "from",
 			Description: "A github repo URL to use as a template for the new app",
 		},
+		flag.String{
+			Name:        "into",
+			Description: "Destination directory for github repo specified with --from",
+		},
+		flag.Bool{
+			Name:        "attach",
+			Description: "Attach this new application to the current application",
+		},
 		flag.Bool{
 			Name:        "manifest",
 			Description: "Output the generated manifest to stdout",
@@ -93,7 +113,36 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 			Hidden:      true,
 		},
+		flag.Bool{
+			Name:        "no-db",
+			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-redis",
+			Description: "Skip automatically provisioning a Redis instance",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-object-storage",
+			Description: "Skip automatically provisioning an object storage bucket",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "json",
+			Description: "Generate configuration in JSON format",
+		},
+		flag.Bool{
+			Name:        "yaml",
+			Description: "Generate configuration in YAML format",
+		},
+		flag.Bool{
+			Name:        "no-create",
+			Description: "Do not create an app, only generate configuration files",
+		},
 	)
+
+	cmd.AddCommand(NewPlan())
 
 	return
 }
@@ -126,36 +175,80 @@ func getManifestArgument(ctx context.Context) (*LaunchManifest, error) {
 	return &manifest, nil
 }
 
-func setupFromTemplate(ctx context.Context) (context.Context, error) {
+func setupFromTemplate(ctx context.Context) (context.Context, *appconfig.Config, error) {
 	from := flag.GetString(ctx, "from")
 	if from == "" {
-		return ctx, nil
+		return ctx, nil, nil
 	}
 
-	entries, err := os.ReadDir(".")
+	into := flag.GetString(ctx, "into")
+
+	if into == "" && flag.GetBool(ctx, "attach") {
+		into = filepath.Join(".", "fly", "apps", filepath.Base(from))
+	}
+
+	if into == "" {
+		into = "."
+	} else {
+		err := os.MkdirAll(into, 0755) // skipcq: GSC-G301
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
+	var parentConfig *appconfig.Config
+
+	entries, err := os.ReadDir(into)
 	if err != nil {
-		return ctx, fmt.Errorf("failed to read directory: %w", err)
+		return ctx, nil, fmt.Errorf("failed to read directory: %w", err)
 	}
 	if len(entries) > 0 {
-		return ctx, errors.New("directory not empty, refusing to clone from git")
+		return ctx, nil, errors.New("directory not empty, refusing to clone from git")
 	}
 
 	fmt.Printf("Launching from git repo %s\n", from)
 
-	cmd := exec.Command("git", "clone", from, ".")
+	cmd := exec.Command("git", "clone", "--recurse-submodules", from, into)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
-		return ctx, err
+		return ctx, nil, err
 	}
 
+	if into != "." {
+		err := os.Chdir(into)
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed to change directory: %w", err)
+		}
+
+		wd, err := os.Getwd()
+		if err != nil {
+			return ctx, nil, fmt.Errorf("failed determining working directory: %w", err)
+		}
+
+		ctx = state.WithWorkingDirectory(ctx, wd)
+		parentConfig = appconfig.ConfigFromContext(ctx)
+	}
+
+	ctx = appconfig.WithConfig(ctx, nil)
 	ctx, err = command.LoadAppConfigIfPresent(ctx)
-	return ctx, err
+	return ctx, parentConfig, err
 }
 
 func run(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
+
+	tp, err := tracing.InitTraceProviderWithoutApp(ctx)
+	if err != nil {
+		fmt.Fprintf(io.ErrOut, "failed to initialize tracing library: =%v", err)
+		return err
+	}
+
+	defer tp.Shutdown(ctx)
+
+	ctx, span := tracing.CMDSpan(ctx, "cmd.launch")
+	defer span.End()
 
 	startTime := time.Now()
 	var status metrics.LaunchStatusPayload
@@ -163,18 +256,22 @@ func run(ctx context.Context) (err error) {
 
 	var state *launchState = nil
 
-	defer func() {
-		if err != nil {
-			status.Error = err.Error()
+	if !flag.GetBool(ctx, "no-create") {
+		defer func() {
+			if err != nil {
+				tracing.RecordError(span, err, "launch failed")
+				status.Error = err.Error()
 
-			if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
-				err = state.sourceInfo.FailureCallback(err)
+				if state != nil && state.sourceInfo != nil && state.sourceInfo.FailureCallback != nil {
+					err = state.sourceInfo.FailureCallback(err)
+				}
 			}
-		}
 
-		status.Duration = time.Since(startTime)
-		metrics.LaunchStatus(ctx, "launch", status)
-	}()
+			status.TraceID = span.SpanContext().TraceID().String()
+			status.Duration = time.Since(startTime)
+			metrics.LaunchStatus(ctx, status)
+		}()
+	}
 
 	if err := warnLegacyBehavior(ctx); err != nil {
 		return err
@@ -191,23 +288,23 @@ func run(ctx context.Context) (err error) {
 	}
 
 	// "--from" arg handling
-	ctx, err = setupFromTemplate(ctx)
+	parentCtx := ctx
+	ctx, parentConfig, err := setupFromTemplate(ctx)
 	if err != nil {
 		return err
 	}
 
 	incompleteLaunchManifest := false
-	canEnterUi := !flag.GetBool(ctx, "manifest")
+	canEnterUi := !flag.GetBool(ctx, "manifest") && io.IsInteractive() && !env.IsCI()
+
+	recoverableErrors := recoverableErrorBuilder{canEnterUi: canEnterUi}
 
 	if launchManifest == nil {
 
-		launchManifest, cache, err = buildManifest(ctx, canEnterUi)
+		launchManifest, cache, err = buildManifest(ctx, parentConfig, &recoverableErrors)
 		if err != nil {
 			var recoverableErr recoverableInUiError
 			if errors.As(err, &recoverableErr) && canEnterUi {
-				fmt.Fprintln(io.ErrOut, "The following problems must be fixed in the Launch UI:")
-				fmt.Fprintln(io.ErrOut, recoverableErr.Error())
-				incompleteLaunchManifest = true
 			} else {
 				return err
 			}
@@ -219,6 +316,8 @@ func run(ctx context.Context) (err error) {
 			return jsonEncoder.Encode(launchManifest)
 		}
 	}
+
+	span.SetAttributes(attribute.String("app.name", launchManifest.Plan.AppName))
 
 	status.AppName = launchManifest.Plan.AppName
 	status.OrgSlug = launchManifest.Plan.OrgSlug
@@ -239,7 +338,7 @@ func run(ctx context.Context) (err error) {
 	status.ScannerFamily = launchManifest.Plan.ScannerFamily
 	status.FlyctlVersion = launchManifest.Plan.FlyctlVersion.String()
 
-	state, err = stateFromManifest(ctx, *launchManifest, cache)
+	state, err = stateFromManifest(ctx, *launchManifest, cache, &recoverableErrors)
 	if err != nil {
 		return err
 	}
@@ -254,21 +353,30 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	fmt.Fprintf(
-		io.Out,
-		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-		familyToAppType(family),
-		summary,
-	)
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" {
+		fmt.Fprintf(
+			io.Out,
+			"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+			familyToAppType(family),
+			summary,
+		)
+	}
+
+	if errors := recoverableErrors.build(); errors != "" {
+
+		fmt.Fprintf(io.ErrOut, "\n%s\n%s\n", aurora.Reverse(aurora.Red("The following problems must be fixed in the Launch UI:")), errors)
+		incompleteLaunchManifest = true
+	}
 
 	editInUi := false
-	if !flag.GetBool(ctx, "yes") {
-		message := lo.Ternary(
-			incompleteLaunchManifest,
-			"Would you like to continue in the web UI?",
-			"Do you want to tweak these settings before proceeding?",
-		)
-		editInUi, err = prompt.Confirm(ctx, message)
+	if !flag.GetBool(ctx, "yes") && planStep == "" {
+		if incompleteLaunchManifest {
+			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
+		} else {
+			editInUi, err = prompt.Confirm(ctx, "Do you want to tweak these settings before proceeding?")
+		}
+
 		if err != nil && !errors.Is(err, prompt.ErrNonInteractive) {
 			return err
 		}
@@ -287,6 +395,32 @@ func run(ctx context.Context) (err error) {
 	err = state.Launch(ctx)
 	if err != nil {
 		return err
+	}
+
+	if flag.GetBool(ctx, "attach") && parentConfig != nil && !flag.GetBool(ctx, "no-create") {
+		ctx, err = command.LoadAppConfigIfPresent(ctx)
+		if err != nil {
+			return err
+		}
+
+		config := appconfig.ConfigFromContext(ctx)
+
+		exports := config.Experimental.Attached.Secrets.Export
+
+		if len(exports) > 0 {
+			flycast := config.AppName + ".flycast"
+			for name, secret := range exports {
+				exports[name] = strings.ReplaceAll(secret, "${FLYCAST_URL}", flycast)
+			}
+
+			apiClient := flyutil.ClientFromContext(parentCtx)
+			_, err := apiClient.SetSecrets(parentCtx, parentConfig.AppName, exports)
+			if err != nil {
+				return err
+			}
+
+			fmt.Fprintf(io.Out, "Set secrets on %s: %s\n", parentConfig.AppName, strings.Join(lo.Keys(exports), ", "))
+		}
 	}
 
 	return nil

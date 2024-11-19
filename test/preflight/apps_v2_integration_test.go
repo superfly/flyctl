@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -21,10 +22,6 @@ import (
 )
 
 func TestAppsV2Example(t *testing.T) {
-	if testing.Short() {
-		t.Skip()
-	}
-
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 	appUrl := fmt.Sprintf("https://%s.fly.dev", appName)
@@ -50,9 +47,13 @@ func TestAppsV2Example(t *testing.T) {
 	require.Nil(t, firstMachine.Config.DisableMachineAutostart)
 	require.Equal(t, 1, len(firstMachine.Config.Services))
 	require.NotNil(t, firstMachine.Config.Services[0].Autostart)
-	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
 	require.True(t, *firstMachine.Config.Services[0].Autostart)
-	require.True(t, *firstMachine.Config.Services[0].Autostop)
+
+	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
+	assert.Equal(
+		t, fly.MachineAutostopStop, *firstMachine.Config.Services[0].Autostop,
+		"autostop must be enabled",
+	)
 
 	secondReg := f.PrimaryRegion()
 	if len(f.OtherRegions()) > 0 {
@@ -415,6 +416,11 @@ func TestLaunchDetach(t *testing.T) {
 }
 
 func TestDeployDetach(t *testing.T) {
+	t.Run("Simple", WithParallel(testDeployDetach))
+	t.Run("Batching", WithParallel(testDeployDetachBatching))
+}
+
+func testDeployDetach(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -427,7 +433,7 @@ func TestDeployDetach(t *testing.T) {
 	require.Contains(f, res.StdOutString(), "started")
 }
 
-func TestDeployDetachBatching(t *testing.T) {
+func testDeployDetachBatching(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppName()
 
@@ -443,6 +449,7 @@ func TestDeployDetachBatching(t *testing.T) {
 
 func TestErrOutput(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
+
 	appName := f.CreateRandomAppName()
 
 	f.Fly("launch --org %s --name %s --region %s --now --internal-port 80 --image nginx --auto-confirm", f.OrgSlug(), appName, f.PrimaryRegion())
@@ -455,16 +462,27 @@ func TestErrOutput(t *testing.T) {
 	res = f.FlyAllowExitFailure("machine update --vm-memory 10 %s --yes", firstMachine.ID)
 	require.Contains(f, res.StdErrString(), "invalid memory size")
 
-	f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+	// This should fail on GPU machines because they're performance VMs.
+	if f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	} else {
+		f.Fly("machine update --vm-cpus 4 %s --vm-memory 2048 --yes", firstMachine.ID)
+	}
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	// Not applicable for GPU machines since this size is too small.
+	if !f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-memory 256 %s --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too low")
+	}
 
-	res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "memory size for config is too high")
+	if !f.IsGpuMachine() {
+		res = f.FlyAllowExitFailure("machine update --vm-memory 16384 %s --yes", firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "memory size for config is too high")
 
-	res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
-	require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+		res = f.FlyAllowExitFailure("machine update -a %s %s -y --wait-timeout 1 --vm-size performance-1x", appName, firstMachine.ID)
+		require.Contains(f, res.StdErrString(), "timeout reached waiting for machine's state to change")
+	}
 }
 
 func TestImageLabel(t *testing.T) {

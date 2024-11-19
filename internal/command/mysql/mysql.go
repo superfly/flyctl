@@ -2,9 +2,9 @@ package mysql
 
 import (
 	"github.com/spf13/cobra"
-	"github.com/superfly/flyctl/internal/command/extensions/planetscale"
+	"github.com/superfly/flyctl/internal/command/extensions/fly_mysql"
 )
 
 func New() (cmd *cobra.Command) {
-	return planetscale.New()
+	return fly_mysql.New()
 }

@@ -32,13 +32,7 @@ func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
 	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
 	nodesStr := fmt.Sprintf("(Fly Postgres) %d Node%s", p.Nodes, nodePlural)
 
-	guestStr := p.VmSize
-	if p.VmRam > 0 {
-		guest := fly.MachinePresets[p.VmSize]
-		if guest.MemoryMB != p.VmRam {
-			guestStr = fmt.Sprintf("%s (%dGB RAM)", guest, p.VmRam/1024)
-		}
-	}
+	guestStr := fly.MachinePresets[p.VmSize].String()
 
 	diskSizeStr := fmt.Sprintf("%dGB disk", p.DiskSizeGB)
 
@@ -73,4 +67,12 @@ func describeUpstashRedisPlan(ctx context.Context, p *plan.UpstashRedisPlan, org
 
 	evictionStatus := lo.Ternary(p.Eviction, "enabled", "disabled")
 	return fmt.Sprintf("%s Plan: %s Max Data Size, eviction %s", plan.DisplayName, plan.MaxDataSize, evictionStatus), nil
+}
+
+func describeObjectStoragePlan(p plan.ObjectStoragePlan) (string, error) {
+	if p.TigrisObjectStorage == nil {
+		return descriptionNone, nil
+	}
+
+	return "private bucket", nil
 }

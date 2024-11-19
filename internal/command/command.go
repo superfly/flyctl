@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/skratchdot/open-golang/open"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 
@@ -26,6 +28,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/incidents"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/state"
@@ -62,11 +65,13 @@ var commonPreparers = []preparers.Preparer{
 	startQueryingForNewRelease,
 	promptAndAutoUpdate,
 	startMetrics,
+	notifyStatuspageIncidents,
 }
 
 var authPreparers = []preparers.Preparer{
 	preparers.InitClient,
 	killOldAgent,
+	notifyHostIssues,
 }
 
 func sendOsMetric(ctx context.Context, state string) {
@@ -330,6 +335,7 @@ func startQueryingForNewRelease(ctx context.Context) (context.Context, error) {
 // would return true for "fly version upgrade" and "fly machine status"
 func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 	cmd := FromContext(ctx)
+
 	for _, ignoredCmd := range cmds {
 		match := true
 		currentCmd := cmd
@@ -355,11 +361,14 @@ func shouldIgnore(ctx context.Context, cmds [][]string) bool {
 func promptAndAutoUpdate(ctx context.Context) (context.Context, error) {
 	cfg := config.FromContext(ctx)
 	if shouldIgnore(ctx, [][]string{
+		{"version"},
 		{"version", "upgrade"},
 		{"settings", "autoupdate"},
 	}) {
 		return ctx, nil
 	}
+
+	logger.FromContext(ctx).Debug("checking for updates...")
 
 	if !update.Check() {
 		return ctx, nil
@@ -500,6 +509,41 @@ func startMetrics(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+func notifyStatuspageIncidents(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	incidents.QueryStatuspageIncidents(ctx)
+
+	return ctx, nil
+}
+
+func notifyHostIssues(ctx context.Context) (context.Context, error) {
+	if shouldIgnore(ctx, [][]string{
+		{"incidents", "hosts", "list"},
+	}) {
+		return ctx, nil
+	}
+
+	if !incidents.Check() {
+		return ctx, nil
+	}
+
+	appCtx, err := LoadAppNameIfPresent(ctx)
+	if err == nil {
+		incidents.QueryHostIssues(appCtx)
+	}
+
+	return ctx, nil
+}
+
 func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 	metrics.Enabled = false
 	return ctx, nil
@@ -507,7 +551,7 @@ func ExcludeFromMetrics(ctx context.Context) (context.Context, error) {
 
 // RequireSession is a Preparer which makes sure a session exists.
 func RequireSession(ctx context.Context) (context.Context, error) {
-	if !fly.ClientFromContext(ctx).Authenticated() {
+	if !flyutil.ClientFromContext(ctx).Authenticated() {
 		io := iostreams.FromContext(ctx)
 		// Ensure we have a session, and that the user hasn't set any flags that would lead them to expect consistent output or a lack of prompts
 		if io.IsInteractive() &&
@@ -536,11 +580,16 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 			}
 
 			// Reload the config
+			logger.FromContext(ctx).Debug("reloading config after login")
 			if ctx, err = prepare(ctx, preparers.LoadConfig); err != nil {
 				return nil, err
 			}
 
+			// first reset the client
+			ctx = flyutil.NewContextWithClient(ctx, nil)
+
 			// Re-run the auth preparers to update the client with the new token
+			logger.FromContext(ctx).Debug("re-running auth preparers after login")
 			if ctx, err = prepare(ctx, authPreparers...); err != nil {
 				return nil, err
 			}
@@ -555,11 +604,14 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 }
 
 func tryOpenUserURL(ctx context.Context, url string) error {
+	io := iostreams.FromContext(ctx)
+
+	if !io.IsInteractive() || env.IsCI() {
+		return errors.New("failed opening browser")
+	}
+
 	if err := open.Run(url); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
-			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			url,
-		)
+		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
 	}
 
 	return nil
@@ -608,7 +660,11 @@ func appConfigFilePaths(ctx context.Context) (paths []string) {
 	}
 
 	wd := state.WorkingDirectory(ctx)
-	paths = append(paths, filepath.Join(wd, appconfig.DefaultConfigFileName))
+	paths = append(paths,
+		filepath.Join(wd, appconfig.DefaultConfigFileName),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".json", 1)),
+		filepath.Join(wd, strings.Replace(appconfig.DefaultConfigFileName, ".toml", ".yaml", 1)),
+	)
 
 	return
 }

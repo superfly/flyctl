@@ -26,14 +26,18 @@ func main() {
 	cmd := cli.NewRootCommand()
 	cmd.DisableAutoGenTag = true
 
+	// Override root command to always be `fly`,
+	// Otherwise it could be `main`, `flyctl` or whatever name is set to the executable
+	cmd.Use = "fly"
+
 	filePrepender := func(filename string) string {
 		return ""
 	}
 
 	linkHandler := func(name string) string {
 		base := strings.TrimSuffix(name, path.Ext(name))
-		base = strings.Replace(base, "flyctl_", "", 1)
-		if base == "flyctl" {
+		base = strings.Replace(base, "fly_", "", 1)
+		if base == "fly" {
 			base = "help"
 		}
 		base = strings.ReplaceAll(base, "_", "-") + "/"

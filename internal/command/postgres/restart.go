@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -38,7 +39,7 @@ func newRestart() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Runs rolling restart process without waiting for health checks. ( Machines only )",
+			Description: "Runs rolling restart process without waiting for health checks.",
 			Default:     false,
 		},
 	)
@@ -49,7 +50,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)
@@ -69,10 +70,10 @@ func runRestart(ctx context.Context) error {
 	input := fly.RestartMachineInput{
 		SkipHealthChecks: flag.GetBool(ctx, "skip-health-checks"),
 	}
-	return machinesRestart(ctx, &input)
+	return machinesRestart(ctx, appName, &input)
 }
 
-func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err error) {
+func machinesRestart(ctx context.Context, appName string, input *fly.RestartMachineInput) (err error) {
 	var (
 		MinPostgresHaVersion         = "0.0.20"
 		MinPostgresFlexVersion       = "0.0.3"
@@ -91,7 +92,7 @@ func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err e
 		return err
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(appName, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -135,7 +136,7 @@ func machinesRestart(ctx context.Context, input *fly.RestartMachineInput) (err e
 		if err := pgclient.Failover(ctx); err != nil {
 			msg := fmt.Sprintf("failed to perform failover: %s", err.Error())
 			if !force {
-				return fmt.Errorf(msg)
+				return fmt.Errorf("failed to perform failover: %w", err)
 			}
 
 			fmt.Fprintln(io.Out, colorize.Red(msg))

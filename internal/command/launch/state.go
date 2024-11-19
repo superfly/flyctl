@@ -13,6 +13,7 @@ import (
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -25,6 +26,7 @@ type launchPlanSource struct {
 	computeSource  string
 	postgresSource string
 	redisSource    string
+	tigrisSource   string
 	sentrySource   string
 }
 
@@ -55,14 +57,14 @@ func cacheGrab[T any](cache map[string]interface{}, key string, cb func() (T, er
 }
 
 func (state *launchState) Org(ctx context.Context) (*fly.Organization, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	return cacheGrab(state.cache, "org,"+state.Plan.OrgSlug, func() (*fly.Organization, error) {
 		return apiClient.GetOrganizationBySlug(ctx, state.Plan.OrgSlug)
 	})
 }
 
 func (state *launchState) Region(ctx context.Context) (fly.Region, error) {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	regions, err := cacheGrab(state.cache, "regions", func() ([]fly.Region, error) {
 		regions, _, err := apiClient.PlatformRegions(ctx)
 		if err != nil {
@@ -121,6 +123,11 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		return "", err
 	}
 
+	tigrisStr, err := describeObjectStoragePlan(state.Plan.ObjectStorage)
+	if err != nil {
+		return "", err
+	}
+
 	rows := [][]string{
 		{"Organization", org.Name, state.PlanSource.orgSource},
 		{"Name", state.Plan.AppName, state.PlanSource.appNameSource},
@@ -128,7 +135,11 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 		{"App Machines", guestStr, state.PlanSource.computeSource},
 		{"Postgres", postgresStr, state.PlanSource.postgresSource},
 		{"Redis", redisStr, state.PlanSource.redisSource},
-		{"Sentry", strconv.FormatBool(state.Plan.Sentry), state.PlanSource.sentrySource},
+		{"Tigris", tigrisStr, state.PlanSource.tigrisSource},
+	}
+
+	if state.PlanSource.sentrySource != "not requested" {
+		rows = append(rows, []string{"Sentry", strconv.FormatBool(state.Plan.Sentry), state.PlanSource.sentrySource})
 	}
 
 	for _, row := range rows {
@@ -165,7 +176,6 @@ func (state *launchState) PlanSummary(ctx context.Context) (string, error) {
 }
 
 func (state *launchState) validateExtensions(ctx context.Context) error {
-
 	// This is written a little awkwardly with the expectation
 	// that we'll probably need more validation in the future.
 	// When that happens we can just errors.Join(a(), b(), c()...)
@@ -179,14 +189,13 @@ func (state *launchState) validateExtensions(ctx context.Context) error {
 	}
 
 	validateSupabase := func() error {
-
 		supabase := state.Plan.Postgres.SupabasePostgres
 		if supabase == nil {
 			return nil
 		}
 
 		// We're using Supabase. Ensure that we're within plan limits.
-		client := fly.ClientFromContext(ctx).GenqClient
+		client := flyutil.ClientFromContext(ctx).GenqClient()
 
 		response, err := gql.ListAddOns(ctx, client, "supabase")
 		if err != nil {

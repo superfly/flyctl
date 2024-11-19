@@ -2,6 +2,7 @@ package appconfig
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -188,9 +189,10 @@ func TestLoadTOMLAppConfigFormatQuirks(t *testing.T) {
 			Memory: "512",
 		}},
 		Mounts: []Mount{{
-			Source:      "data",
-			Destination: "/data",
-			InitialSize: "200",
+			Source:            "data",
+			Destination:       "/data",
+			InitialSize:       "200",
+			SnapshotRetention: fly.Pointer(10),
 		}},
 	}, cfg)
 }
@@ -235,7 +237,8 @@ func TestLoadTOMLAppConfigOldFormat(t *testing.T) {
 		}},
 		Services: []Service{
 			{
-				InternalPort: 8080,
+				InternalPort:     8080,
+				AutoStopMachines: fly.Pointer(fly.MachineAutostopOff),
 				Ports: []fly.MachinePort{
 					{
 						Port:     fly.Pointer(80),
@@ -414,7 +417,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			InternalPort:       8080,
 			ForceHTTPS:         true,
 			AutoStartMachines:  fly.Pointer(false),
-			AutoStopMachines:   fly.Pointer(false),
+			AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
 			MinMachinesRunning: fly.Pointer(0),
 			Concurrency: &fly.MachineServiceConcurrency{
 				Type:      "donuts",
@@ -427,7 +430,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				DefaultSelfSigned: fly.Pointer(false),
 			},
 			HTTPOptions: &fly.HTTPOptions{
-				Compress: fly.Pointer(true),
+				Compress:    fly.Pointer(true),
+				IdleTimeout: UintPointer(600),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
@@ -451,12 +455,33 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 					},
 				},
 			},
+			MachineChecks: []*ServiceMachineCheck{
+				{
+					Command:     []string{"curl", "https://fly.io"},
+					Entrypoint:  []string{"/bin/sh"},
+					Image:       "curlimages/curl",
+					KillSignal:  fly.StringPointer("SIGKILL"),
+					KillTimeout: fly.MustParseDuration("5s"),
+				},
+			},
+		},
+
+		MachineChecks: []*ServiceMachineCheck{
+			{
+				Command:     []string{"curl", "https://fly.io"},
+				Entrypoint:  []string{"/bin/sh"},
+				Image:       "curlimages/curl",
+				KillSignal:  fly.StringPointer("SIGKILL"),
+				KillTimeout: fly.MustParseDuration("5s"),
+			},
 		},
 
 		Statics: []Static{
 			{
-				GuestPath: "/path/to/statics",
-				UrlPrefix: "/static-assets",
+				GuestPath:     "/path/to/statics",
+				UrlPrefix:     "/static-assets",
+				TigrisBucket:  "example-bucket",
+				IndexDocument: "index.html",
 			},
 		},
 
@@ -477,9 +502,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		},
 
 		Mounts: []Mount{{
-			Source:      "data",
-			Destination: "/data",
-			InitialSize: "30gb",
+			Source:            "data",
+			Destination:       "/data",
+			InitialSize:       "30gb",
+			SnapshotRetention: fly.Pointer(17),
 		}},
 
 		Processes: map[string]string{
@@ -512,7 +538,7 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				Protocol:           "tcp",
 				Processes:          []string{"app"},
 				AutoStartMachines:  fly.Pointer(false),
-				AutoStopMachines:   fly.Pointer(false),
+				AutoStopMachines:   fly.Pointer(fly.MachineAutostopOff),
 				MinMachinesRunning: fly.Pointer(1),
 
 				Concurrency: &fly.MachineServiceConcurrency{
@@ -528,6 +554,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						EndPort:    fly.Pointer(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
+						HTTPOptions: &fly.HTTPOptions{
+							IdleTimeout: UintPointer(600),
+						},
 					},
 				},
 
@@ -560,6 +589,15 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						HTTPPath:   fly.Pointer("/check2"),
 					},
 				},
+				MachineChecks: []*ServiceMachineCheck{
+					{
+						Command:     []string{"curl", "https://fly.io"},
+						Entrypoint:  []string{"/bin/sh"},
+						Image:       "curlimages/curl",
+						KillSignal:  fly.StringPointer("SIGKILL"),
+						KillTimeout: fly.MustParseDuration("5s"),
+					},
+				},
 			},
 		},
 	}, cfg)
@@ -581,4 +619,76 @@ func TestIsSameTOMLAppConfigReferenceFormat(t *testing.T) {
 	cfg.configFilePath = ""
 	actual.configFilePath = ""
 	require.Equal(t, cfg, actual)
+}
+
+func TestIsSameJSONAppConfigReferenceFormat(t *testing.T) {
+	const TOMLpath = "./testdata/full-reference.toml"
+	TOMLcfg, err := LoadConfig(TOMLpath)
+	require.NoError(t, err)
+
+	JSONpath := filepath.Join(t.TempDir(), "full-reference.json")
+	err = TOMLcfg.WriteToFile(JSONpath)
+	require.NoError(t, err)
+
+	JSONcfg, err := LoadConfig(JSONpath)
+	require.NoError(t, err)
+
+	TOMLcfg.configFilePath = ""
+	JSONcfg.configFilePath = ""
+	require.Equal(t, TOMLcfg, JSONcfg)
+}
+
+func TestIsSameYAMLAppConfigReferenceFormat(t *testing.T) {
+	const TOMLpath = "./testdata/full-reference.toml"
+	TOMLcfg, err := LoadConfig(TOMLpath)
+	require.NoError(t, err)
+
+	YAMLpath := filepath.Join(t.TempDir(), "full-reference.yaml")
+	err = TOMLcfg.WriteToFile(YAMLpath)
+	require.NoError(t, err)
+
+	YAMLcfg, err := LoadConfig(YAMLpath)
+	require.NoError(t, err)
+
+	TOMLcfg.configFilePath = ""
+	YAMLcfg.configFilePath = ""
+	require.Equal(t, TOMLcfg, YAMLcfg)
+}
+
+func TestJSONPrettyPrint(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+
+	JSONpath := filepath.Join(t.TempDir(), "full-reference.json")
+	err = cfg.WriteToFile(JSONpath)
+	require.NoError(t, err)
+
+	buf, err := os.ReadFile(JSONpath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(buf), "{\n  \"app\": \"foo\",\n")
+	assert.Contains(t, string(buf), ",\n\n  \"experimental\": {\n    \"cmd\": [\n")
+	assert.Contains(t, string(buf), ",\n\n      \"processes\": [\n        \"web\"\n      ]\n    }\n  ]\n}\n")
+}
+
+func TestYAMLPrettyPrint(t *testing.T) {
+	const path = "./testdata/full-reference.toml"
+	cfg, err := LoadConfig(path)
+	require.NoError(t, err)
+
+	YAMLpath := filepath.Join(t.TempDir(), "full-reference.yaml")
+	err = cfg.WriteToFile(YAMLpath)
+	require.NoError(t, err)
+
+	buf, err := os.ReadFile(YAMLpath)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(buf), "\napp: foo\n")
+	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
+	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
+}
+
+func UintPointer(v uint32) *uint32 {
+	return &v
 }

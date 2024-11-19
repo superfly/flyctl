@@ -7,12 +7,13 @@ import (
 	"path/filepath"
 
 	"github.com/dustin/go-humanize"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/state"
@@ -48,14 +49,29 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 
 // determineImage picks the deployment strategy, builds the image and returns a
 // DeploymentImage struct
-func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgsrc.DeploymentImage, err error) {
+func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, recreateBuilder bool) (img *imgsrc.DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "determine_image")
 	defer span.End()
 
-	tb := render.NewTextBlock(ctx, "Building image")
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), flag.GetBool(ctx, "nixpacks"))
+	span.SetAttributes(attribute.Bool("builder.using_wireguard", useWG))
 
-	client := fly.ClientFromContext(ctx)
+	ldClient := launchdarkly.ClientFromContext(ctx)
+	depotBool := ldClient.GetFeatureFlagValue("use-depot-for-builds", true).(bool)
+
+	switch flag.GetString(ctx, "depot") {
+	case "", "true":
+		depotBool = true
+	case "false":
+		depotBool = false
+	case "auto":
+	default:
+		return nil, fmt.Errorf("invalid falue for the 'depot' flag. must be 'true', 'false', or ''")
+	}
+
+	tb := render.NewTextBlock(ctx, "Building image")
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetRemoteOnly(ctx), !flag.GetLocalOnly(ctx), env.IsCI(), depotBool, flag.GetBool(ctx, "nixpacks"))
+
+	client := flyutil.ClientFromContext(ctx)
 	io := iostreams.FromContext(ctx)
 
 	span.SetAttributes(attribute.String("daemon_type", daemonType.String()))
@@ -65,7 +81,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 		terminal.Warnf("%s\n", err.Error())
 	}
 
-	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, flag.GetWireguard(ctx))
+	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, useWG, recreateBuilder)
 
 	var imageRef string
 	if imageRef, err = fetchImageRef(ctx, appConfig); err != nil {
@@ -118,6 +134,8 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	if appConfig.Experimental != nil {
 		opts.UseOverlaybd = appConfig.Experimental.LazyLoadImages
+
+		opts.UseZstd = appConfig.Experimental.UseZstd
 	}
 
 	// flyctl supports key=value form while Docker supports id=key,src=/path/to/secret form.
@@ -178,6 +196,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 	heartbeat, err := resolver.StartHeartbeat(ctx)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
+		tracing.RecordError(span, err, "failed to start heartbeat")
 		return nil, err
 	}
 	defer heartbeat.Stop()
@@ -187,6 +206,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config) (img *imgs
 
 	if img, err = resolver.BuildImage(ctx, io, opts); err == nil && img == nil {
 		err = errors.New("no image specified")
+		tracing.RecordError(span, err, "no image specified")
 	}
 	metrics.Status(ctx, "remote_build_image", err == nil)
 	if err == nil {

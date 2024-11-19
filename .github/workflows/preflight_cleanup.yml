@@ -2,7 +2,7 @@ name: Preflight Tests Cleanup
 
 on:
   schedule:
-    - cron: '*/30 * * * *'
+    - cron: "*/30 * * * *"
   workflow_dispatch:
     inputs:
       reason:
@@ -33,7 +33,7 @@ jobs:
           go run ./scripts/clean-up-preflight-apps
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@70cd7be8e40a46e8b0eced40b0de447bdb42f68e
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
           SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

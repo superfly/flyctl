@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/metrics/synthetics"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/wg"
@@ -55,6 +56,8 @@ func Run(ctx context.Context, opt Options) (err error) {
 
 	monitorCtx, cancelMonitor := context.WithCancel(ctx)
 	config.MonitorTokens(monitorCtx, toks, nil)
+
+	synthetics.StartSyntheticsMonitoringAgent(ctx)
 
 	err = (&server{
 		Options:               opt,
@@ -224,20 +227,20 @@ func (s *server) checkForConfigChange() (err error) {
 	return
 }
 
-func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, recycle bool, network string, client *fly.Client) (tunnel *wg.Tunnel, err error) {
+func (s *server) buildTunnel(ctx context.Context, org *fly.Organization, reestablish bool, network string, client flyutil.Client) (tunnel *wg.Tunnel, err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	tk := tunnelKey{orgSlug: org.Slug, networkName: network}
 
 	// not checking the region is intentional, it's static during the lifetime of the agent
-	if tunnel = s.tunnels[tk]; tunnel != nil && !recycle {
+	if tunnel = s.tunnels[tk]; tunnel != nil && !reestablish {
 		// tunnel already exists
 		return
 	}
 
 	var state *wg.WireGuardState
-	if state, err = wireguard.StateForOrg(ctx, client, org, os.Getenv("FLY_AGENT_WG_REGION"), "", recycle, network); err != nil {
+	if state, err = wireguard.StateForOrg(ctx, client, org, os.Getenv("FLY_AGENT_WG_REGION"), "", reestablish, network); err != nil {
 		return
 	}
 
@@ -326,7 +329,11 @@ func (s *server) probeTunnel(ctx context.Context, slug, network string) (err err
 	var results []net.IP
 	switch results, err = tunnel.LookupAAAA(ctx, "_api.internal"); {
 	case err != nil:
-		err = fmt.Errorf("failed probing %q: %w", slug, err)
+		// anytime you change the error message here, you need to update https://github.com/superfly/flyctl/blob/df7529f6da985a662853ffc7003f57ee3c9d8e42/internal/build/imgsrc/docker.go#L370
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("timed out (%w)", err)
+		}
+		err = fmt.Errorf("Error contacting Fly.io API when probing %q: %w", slug, err)
 	case len(results) == 0:
 		s.printf("%q probed.", slug)
 	default:
@@ -392,7 +399,7 @@ func (s *server) clean(ctx context.Context) {
 
 // GetClient returns an API client that uses the server's tokens. Sessions may
 // have their own tokens, so should use session.getClient instead.
-func (s *server) GetClient(ctx context.Context) *fly.Client {
+func (s *server) GetClient(ctx context.Context) flyutil.Client {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

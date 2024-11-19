@@ -14,13 +14,14 @@ type Service struct {
 	InternalPort int    `json:"internal_port,omitempty" toml:"internal_port"`
 	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML. The encoder
 	// already omits nil since it can't be represented, and omitempty makes it omit false as well.
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStopMachines   *fly.MachineAutostop           `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Ports              []fly.MachinePort              `json:"ports,omitempty" toml:"ports"`
 	Concurrency        *fly.MachineServiceConcurrency `json:"concurrency,omitempty" toml:"concurrency"`
 	TCPChecks          []*ServiceTCPCheck             `json:"tcp_checks,omitempty" toml:"tcp_checks,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"http_checks,omitempty" toml:"http_checks,omitempty"`
+	MachineChecks      []*ServiceMachineCheck         `json:"machine_checks,omitempty" toml:"machine_checks,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
 }
 
@@ -44,11 +45,19 @@ type ServiceHTTPCheck struct {
 	HTTPHeaders       map[string]string `json:"headers,omitempty" toml:"headers,omitempty"`
 }
 
+type ServiceMachineCheck struct {
+	Command     []string      `json:"command,omitempty" toml:"command,omitempty"`
+	Image       string        `json:"image,omitempty" toml:"image,omitempty"`
+	Entrypoint  []string      `json:"entrypoint,omitempty" toml:"entrypoint,omitempty"`
+	KillSignal  *string       `json:"kill_signal,omitempty" toml:"kill_signal,omitempty"`
+	KillTimeout *fly.Duration `json:"kill_timeout,omitempty" toml:"kill_timeout,omitempty"`
+}
+
 type HTTPService struct {
 	InternalPort int  `json:"internal_port,omitempty" toml:"internal_port,omitempty" validate:"required,numeric"`
 	ForceHTTPS   bool `toml:"force_https,omitempty" json:"force_https,omitempty"`
 	// AutoStopMachines and AutoStartMachines should not have omitempty for TOML; see the note in Service.
-	AutoStopMachines   *bool                          `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
+	AutoStopMachines   *fly.MachineAutostop           `json:"auto_stop_machines,omitempty" toml:"auto_stop_machines"`
 	AutoStartMachines  *bool                          `json:"auto_start_machines,omitempty" toml:"auto_start_machines"`
 	MinMachinesRunning *int                           `json:"min_machines_running,omitempty" toml:"min_machines_running,omitempty"`
 	Processes          []string                       `json:"processes,omitempty" toml:"processes,omitempty"`
@@ -56,15 +65,17 @@ type HTTPService struct {
 	TLSOptions         *fly.TLSOptions                `json:"tls_options,omitempty" toml:"tls_options,omitempty"`
 	HTTPOptions        *fly.HTTPOptions               `json:"http_options,omitempty" toml:"http_options,omitempty"`
 	HTTPChecks         []*ServiceHTTPCheck            `json:"checks,omitempty" toml:"checks,omitempty"`
+	MachineChecks      []*ServiceMachineCheck         `json:"machine_checks,omitempty" toml:"machine_checks,omitempty"`
 }
 
 func (s *HTTPService) ToService() *Service {
 	return &Service{
-		Protocol:     "tcp",
-		InternalPort: s.InternalPort,
-		Concurrency:  s.Concurrency,
-		Processes:    s.Processes,
-		HTTPChecks:   s.HTTPChecks,
+		Protocol:      "tcp",
+		InternalPort:  s.InternalPort,
+		Concurrency:   s.Concurrency,
+		Processes:     s.Processes,
+		HTTPChecks:    s.HTTPChecks,
+		MachineChecks: s.MachineChecks,
 		Ports: []fly.MachinePort{{
 			Port:        fly.IntPointer(80),
 			Handlers:    []string{"http"},

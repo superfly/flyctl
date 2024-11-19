@@ -27,6 +27,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	}
 
 	// TODO(Allison): Do we want to make the executive decision to just *always* deploy?
+	// Feedback(Sam): scanners need the abiiity to abort the deploy if they detect a problem
 
 	deployNow := true
 	// deployNow := false
@@ -40,6 +41,10 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 	if flag.GetBool(ctx, "now") {
 		deployNow = true
 		// promptForDeploy = false
+	}
+
+	if flag.GetBool(ctx, "no-create") {
+		deployNow = false
 	}
 
 	/*
@@ -69,7 +74,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 
 	err, extraInfo := state.appConfig.Validate(ctx)
 	if extraInfo != "" {
-		fmt.Fprintf(io.ErrOut, extraInfo)
+		fmt.Fprint(io.ErrOut, extraInfo)
 	}
 	if err != nil {
 		return fmt.Errorf("invalid configuration file: %w", err)
@@ -83,7 +88,7 @@ func (state *launchState) firstDeploy(ctx context.Context) error {
 				return err
 			}
 		}
-		return deploy.DeployWithConfig(ctx, state.appConfig, flag.GetBool(ctx, "now"))
+		return deploy.DeployWithConfig(ctx, state.appConfig, 0, flag.GetBool(ctx, "now"))
 	}
 
 	// Alternative deploy documentation if our standard deploy method is not correct

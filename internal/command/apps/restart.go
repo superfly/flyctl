@@ -13,14 +13,15 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/machine"
 )
 
 func newRestart() *cobra.Command {
 	const (
-		long  = `The APPS RESTART command will perform a rolling restart against all running VMs`
-		short = "Restart an application"
-		usage = "restart [APPNAME]"
+		long  = `Restart an application. Perform a rolling restart against all running Machines.`
+		short = "Restart an application."
+		usage = "restart <app name>"
 	)
 
 	cmd := command.New(usage, short, long, runRestart,
@@ -51,7 +52,7 @@ func newRestart() *cobra.Command {
 func runRestart(ctx context.Context) error {
 	var (
 		appName = flag.FirstArg(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	if appName == "" {
@@ -104,6 +105,12 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 	}
 
 	for _, m := range machines {
+		// Restart only if started
+		// If you change this condition ensure standby machines aren't started when not running
+		if m.State != fly.MachineStateStarted {
+			continue
+		}
+
 		if err := machine.Restart(ctx, m, input, m.LeaseNonce); err != nil {
 			return err
 		}

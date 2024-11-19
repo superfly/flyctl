@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -62,7 +63,7 @@ func newListUsers() *cobra.Command {
 
 func runListUsers(ctx context.Context) error {
 	var (
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -95,7 +96,7 @@ func runMachineListUsers(ctx context.Context, app *fly.AppCompact) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -130,7 +131,7 @@ func renderUsers(ctx context.Context, leaderIP string) error {
 		return render.JSON(io.Out, users)
 	}
 
-	rows := make([][]string, len(users))
+	rows := make([][]string, 0, len(users))
 
 	for _, user := range users {
 		var databases string

@@ -59,7 +59,7 @@ host_dedication_id = "06031957"
   internal_port = 8080
   force_https = true
   auto_start_machines = false
-  auto_stop_machines = false
+  auto_stop_machines = "off"
   min_machines_running = 0
 
   [[http_service.checks]]
@@ -74,6 +74,13 @@ host_dedication_id = "06031957"
     [http_service.checks.headers]
       My-Custom-Header = "whatever"
 
+  [[http_service.machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"
+
   [http_service.concurrency]
     type = "donuts"
     hard_limit = 10
@@ -87,6 +94,7 @@ host_dedication_id = "06031957"
   # https://community.fly.io/t/new-feature-basic-http-response-header-modification/3594
   [http_service.http_options]
     compress = true
+    idle_timeout = 600
 
   [http_service.http_options.response.headers]
     fly-request-id = false
@@ -96,6 +104,8 @@ host_dedication_id = "06031957"
 [[statics]]
   guest_path = "/path/to/statics"
   url_prefix = "/static-assets"
+  tigris_bucket = "example-bucket"
+  index_document = "index.html"
 
 [[files]]
   guest_path = "/path/to/hello.txt"
@@ -114,6 +124,7 @@ host_dedication_id = "06031957"
   source = "data"
   initial_size = "30gb"
   destination = "/data"
+  snapshot_retention = 17
 
 [[vm]]
   size = "shared-cpu-1x"
@@ -152,12 +163,19 @@ host_dedication_id = "06031957"
     Content-Type = "application/json"
     Authorization = "super-duper-secret"
 
+[[machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"
+
 [[services]]
   internal_port = 8081
   protocol = "tcp"
   processes = ["app"]
   auto_start_machines = false
-  auto_stop_machines = false
+  auto_stop_machines = "off"
   min_machines_running = 1
 
   [services.concurrency]
@@ -171,6 +189,9 @@ host_dedication_id = "06031957"
     end_port = 200
     handlers = ["https"]
     force_https = true
+
+    [services.ports.http_options]
+      idle_timeout = 600
 
   [[services.tcp_checks]]
     interval = "21s"
@@ -195,3 +216,10 @@ host_dedication_id = "06031957"
     timeout = "10s"
     method = "POST"
     path = "/check2"
+
+  [[services.machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
+   kill_timeout = "5s"
+   kill_signal = "SIGKILL"

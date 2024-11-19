@@ -1,9 +1,12 @@
 package scanner
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -40,7 +43,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 				UrlPrefix: "/static/",
 			},
 		},
-		SkipDeploy:     true,
+		SkipDeploy:     false,
 		ConsoleCommand: "/code/manage.py shell",
 	}
 
@@ -48,7 +51,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 
 	// keep `pythonLatestSupported` up to date: https://devguide.python.org/versions/#supported-versions
 	// Keep the default `pythonVersion` as "3.12"
-	pythonLatestSupported := "3.8.0"
+	pythonLatestSupported := "3.9.0"
 	pythonVersion := "3.12"
 
 	pythonFullVersion, pinned, err := extractPythonVersion()
@@ -64,7 +67,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 			supportedVersion, supportedErr := semver.ParseTolerant(pythonLatestSupported)
 
 			if userErr == nil && supportedErr == nil {
-				// if Python version is below 3.8.0, use Python 3.12 (default)
+				// if Python version is below 3.9.0, use Python 3.12 (default)
 				// it is required to have Major, Minor and Patch (e.g. 3.12.0) to be able to use GT
 				// but only Major and Minor (e.g. 3.12) is used in the Dockerfile
 				if userVersion.GTE(supportedVersion) {
@@ -73,7 +76,7 @@ func configureDjango(sourceDir string, config *ScannerConfig) (*SourceInfo, erro
 						pythonVersion = fmt.Sprintf("%d.%d", v.Major, v.Minor)
 					}
 					s.Notice += fmt.Sprintf(`
-%s Python %s was detected. 'python:%s-slim-bullseye' image will be set in the Dockerfile.
+%s Python %s was detected. 'python:%s-slim' image will be set in the Dockerfile.
 `, aurora.Faint("[INFO]"), pythonFullVersion, pythonVersion)
 				} else {
 					s.Notice += fmt.Sprintf(`
@@ -99,8 +102,6 @@ Make sure to update the Dockerfile to use an image that is compatible with the P
 		vars["pipenv"] = true
 	} else if checksPass(sourceDir, fileExists("pyproject.toml")) {
 		vars["poetry"] = true
-	} else if checksPass(sourceDir, fileExists("requirements.txt")) {
-		vars["venv"] = true
 	}
 
 	wsgiFiles, err := zglob.Glob(`./**/wsgi.py`)
@@ -124,6 +125,7 @@ Make sure to update the Dockerfile to use an image that is compatible with the P
 			vars["wsgiFound"] = true
 			if wsgiFilesLen > 1 {
 				// warning: multiple wsgi.py files found
+				s.SkipDeploy = true
 				s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
 Multiple wsgi.py files were found in your Django application:
 [%s]
@@ -144,6 +146,24 @@ This module is used on Dockerfile to start the Gunicorn server process.
 		checksPass(sourceDir, dirContains("Pipfile", "daphne")) ||
 		checksPass(sourceDir, dirContains("pyproject.toml", "daphne")) {
 		vars["hasDaphne"] = true
+	}
+
+	if checksPass(sourceDir, dirContains("requirements.txt", "uvicorn")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "uvicorn")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "uvicorn")) {
+		vars["hasUvicorn"] = true
+	}
+
+	if checksPass(sourceDir, dirContains("requirements.txt", "redis")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "redis")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "redis")) {
+		s.RedisDesired = true
+	}
+
+	if checksPass(sourceDir, dirContains("requirements.txt", "boto")) ||
+		checksPass(sourceDir, dirContains("Pipfile", "boto")) ||
+		checksPass(sourceDir, dirContains("pyproject.toml", "boto")) {
+		s.ObjectStorageDesired = true
 	}
 
 	asgiFiles, err := zglob.Glob(`./**/asgi.py`)
@@ -169,6 +189,7 @@ This module is used on Dockerfile to start the Gunicorn server process.
 			vars["asgiFound"] = true
 			if asgiFilesLen > 1 {
 				// Warning: multiple asgi.py files found.
+				s.SkipDeploy = true
 				s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
 Multiple asgi.py files were found in your Django application:
 [%s]
@@ -205,6 +226,7 @@ This module is used on Dockerfile to start the Daphne server process.
 		// check if multiple settings.py files were found; warn the user it's not recommended and what to do instead
 		if settingsFilesLen > 1 {
 			// warning: multiple settings.py files found
+			s.SkipDeploy = true
 			s.DeployDocs = s.DeployDocs + fmt.Sprintf(`
 Multiple 'settings.py' files were found in your Django application:
 [%s]
@@ -250,8 +272,10 @@ Optionally, you can use django.core.management.utils.get_random_secret_key() to 
 		checksPass(sourceDir, dirContains("pyproject.toml", "psycopg")) {
 		vars["hasPostgres"] = true
 		s.ReleaseCmd = "python manage.py migrate --noinput"
+		s.DatabaseDesired = DatabaseKindPostgres
 
 		if !checksPass(sourceDir, dirContains("requirements.txt", "django-environ", "dj-database-url")) {
+			s.SkipDeploy = true
 			s.DeployDocs = s.DeployDocs + `
 Your Django app is almost ready to deploy!
 
@@ -261,11 +285,58 @@ For detailed documentation, see https://fly.dev/docs/django/
 		`
 		} else {
 			s.DeployDocs = s.DeployDocs + `
-Your Django app is ready to deploy!
-
 For detailed documentation, see https://fly.dev/docs/django/
 		`
 		}
+	}
+
+	// compute command to run the server
+	var cmd []string
+
+	if vars["asgiFound"] == true && vars["hasUvicorn"] == true {
+		cmd = []string{"gunicorn", "--bind", ":8000", "--workers", "2", "--worker-class", "uvicorn.workers.UvicornWorker", vars["asgiName"].(string) + ".asgi"}
+	} else if vars["asgiFound"] == true && vars["hasDaphne"] == true {
+		cmd = []string{"daphne", "-b", "0.0.0.0", "-p", "8000", vars["asgiName"].(string) + ".asgi"}
+	} else if vars["wsgiFound"] == true {
+		cmd = []string{"gunicorn", "--bind", ":8000", "--workers", "2", vars["wsgiName"].(string) + ".wsgi"}
+	} else {
+		cmd = []string{"python", "manage.py", "runserver"}
+	}
+
+	// Serialize the array to JSON
+	jsonData, err := json.Marshal(cmd)
+	if err != nil {
+		return nil, err
+	}
+
+	vars["cmd"] = string(jsonData)
+
+	// check if project has a celery dependency
+	if len(settingsFiles) == 1 {
+		if checksPass(sourceDir, dirContains("requirements.txt", "celery")) ||
+			checksPass(sourceDir, dirContains("Pipfile", "celery")) ||
+			checksPass(sourceDir, dirContains("pyproject.toml", "celery")) {
+
+			segments := strings.Split(settingsFiles[0], string(os.PathSeparator))
+			s.Processes = map[string]string{
+				"app":    strings.Join(cmd, " "),
+				"celery": "celery -A " + segments[0] + " worker --loglevel=INFO",
+			}
+		}
+	}
+
+	// Perform a glob search for */bin/activate
+	path := filepath.Join("*", "bin", "activate")
+	matches, err := filepath.Glob(path)
+	if err != nil {
+		return nil, err
+	}
+
+	// If we find a virtual environment, set the venv flag and the venvdir variable
+	if len(matches) == 1 {
+		vars["venv"] = true
+		segments := strings.Split(matches[0], string(os.PathSeparator))
+		vars["venvdir"] = segments[0]
 	}
 
 	s.Files = templatesExecute("templates/django", vars)

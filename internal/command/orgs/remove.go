@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newRemove() *cobra.Command {
@@ -31,7 +32,7 @@ invitation to join (if not, see orgs revoke).
 }
 
 func runRemove(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	selectedOrg, err := OrgFromEnvVarOrFirstArgOrSelect(ctx, fly.AdminOnly)
 	if err != nil {
 		return nil
@@ -64,7 +65,8 @@ func runRemove(ctx context.Context) error {
 	}
 
 	io := iostreams.FromContext(ctx)
-	fmt.Fprintf(io.Out, "successfuly removed user %s from %s\n", email, org.Name)
+	fmt.Fprintf(io.Out, "successfully removed user %s from %s\n", email, org.Name)
+	fmt.Fprintf(io.Out, "Offboarding Checklist: https://fly.io/dashboard/%s/offboarding", org.Slug)
 
 	return nil
 }

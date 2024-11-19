@@ -4,11 +4,11 @@ import (
 	"context"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func update() (cmd *cobra.Command) {
@@ -29,10 +29,10 @@ func update() (cmd *cobra.Command) {
 }
 
 func runUpdate(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx).GenqClient
+	client := flyutil.ClientFromContext(ctx).GenqClient()
 
 	id := flag.FirstArg(ctx)
-	response, err := gql.GetAddOn(ctx, client, id)
+	response, err := gql.GetAddOn(ctx, client, id, string(gql.AddOnTypeUpstashKafka))
 	if err != nil {
 		return
 	}
@@ -43,7 +43,7 @@ func runUpdate(ctx context.Context) (err error) {
 		options = make(map[string]interface{})
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options, addOn.Metadata)
 	if err != nil {
 		return
 	}

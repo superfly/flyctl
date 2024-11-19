@@ -12,16 +12,14 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 // New initializes and returns a new apps Command.
 func New() *cobra.Command {
 	const (
-		long = `The APPS commands focus on managing your Fly applications.
-Start with the CREATE command to register your application.
-The LIST command will list all currently registered applications.
-`
-		short = "Manage apps"
+		long  = "Manage your Fly applications."
+		short = "Manage apps."
 	)
 
 	// TODO: list should also accept the --org param
@@ -48,7 +46,7 @@ The LIST command will list all currently registered applications.
 
 // BuildContext is a helper that builds out commonly required context requirements
 func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
@@ -69,7 +67,7 @@ func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, er
 		return nil, err
 	}
 
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	return ctx, nil
 }

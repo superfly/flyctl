@@ -17,7 +17,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
-	f.Fly("machine run -a %s nginx --port 80:81 --autostop", appName)
+	f.Fly("machine run -a %s nginx --port 80:81 --autostop --region %s", appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 
@@ -25,7 +25,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 	want := []fly.MachineService{{
 		Protocol:     "tcp",
 		InternalPort: 81,
-		Autostop:     fly.Pointer(true),
+		Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		Ports: []fly.MachinePort{{
 			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
@@ -40,7 +40,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Protocol:     "tcp",
 		InternalPort: 81,
 		Autostart:    fly.Pointer(true),
-		Autostop:     fly.Pointer(true),
+		Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		Ports: []fly.MachinePort{{
 			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
@@ -55,7 +55,7 @@ func TestFlyMachineRun_autoStartStop(t *testing.T) {
 		Protocol:     "tcp",
 		InternalPort: 81,
 		Autostart:    fly.Pointer(false),
-		Autostop:     fly.Pointer(false),
+		Autostop:     fly.Pointer(fly.MachineAutostopOff),
 		Ports: []fly.MachinePort{{
 			Port:       fly.Pointer(80),
 			ForceHTTPS: false,
@@ -87,14 +87,14 @@ func TestFlyMachineRun_standbyFor(t *testing.T) {
 		return nil
 	}
 
-	f.Fly("machine run -a %s nginx", appName)
+	f.Fly("machine run -a %s nginx --region %s", appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 	og := ml[0]
 	require.Empty(f, og.Config.Standbys)
 
 	// Run a another machine and set it as standby of first
-	f.Fly("machine run -a %s nginx --standby-for=%s", appName, og.ID)
+	f.Fly("machine run -a %s nginx --standby-for=%s --region %s", appName, og.ID, f.PrimaryRegion())
 	ml = f.MachinesList(appName)
 	require.Equal(f, 2, len(ml))
 	// Mahcine must be stopped and be standby for first machine ID
@@ -132,7 +132,7 @@ func TestFlyMachineRun_port(t *testing.T) {
 	f := testlib.NewTestEnvFromEnv(t)
 	appName := f.CreateRandomAppMachines()
 
-	f.Fly("machine run -a %s nginx --port 443:80/tcp:http:tls", appName)
+	f.Fly("machine run -a %s nginx --port 443:80/tcp:http:tls --region %s", appName, f.PrimaryRegion())
 	ml := f.MachinesList(appName)
 	require.Equal(f, 1, len(ml))
 

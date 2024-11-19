@@ -16,7 +16,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/iostreams"
 	"golang.org/x/exp/slices"
 
@@ -25,18 +24,20 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 )
 
 func DetermineImage(ctx context.Context, appName string, imageOrPath string) (img *imgsrc.DeploymentImage, err error) {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 		cfg    = appconfig.ConfigFromContext(ctx)
 	)
 
-	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-nixpacks"))
-	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx))
+	daemonType := imgsrc.NewDockerDaemonType(!flag.GetBool(ctx, "build-remote-only"), !flag.GetBool(ctx, "build-local-only"), env.IsCI(), flag.GetBool(ctx, "build-depot"), flag.GetBool(ctx, "build-nixpacks"))
+	resolver := imgsrc.NewResolver(daemonType, client, appName, io, flag.GetWireguard(ctx), false)
 
 	// build if relative or absolute path
 	if strings.HasPrefix(imageOrPath, ".") || strings.HasPrefix(imageOrPath, "/") {
@@ -71,6 +72,15 @@ func DetermineImage(ctx context.Context, appName string, imageOrPath string) (im
 			return nil, errors.Wrap(err, "invalid build-arg")
 		}
 		opts.BuildArgs = extraArgs
+
+		if cfg != nil && cfg.Experimental != nil {
+			opts.UseZstd = cfg.Experimental.UseZstd
+		}
+
+		// use-zstd passed through flags takes precedence over the one set in config
+		if flag.IsSpecified(ctx, "use-zstd") {
+			opts.UseZstd = flag.GetBool(ctx, "use-zstd")
+		}
 
 		img, err = resolver.BuildImage(ctx, io, opts)
 		if err != nil {
@@ -369,8 +379,8 @@ func DetermineMounts(ctx context.Context, mounts []fly.MachineMount, region stri
 }
 
 func getUnattachedVolumes(ctx context.Context, regionCode string) (map[string][]fly.Volume, error) {
-	apiclient := fly.ClientFromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
+	apiclient := flyutil.ClientFromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	if regionCode == "" {
 		region, err := apiclient.GetNearestRegion(ctx)

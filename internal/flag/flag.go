@@ -14,6 +14,7 @@ import (
 type extraArgsContextKey struct{}
 
 func makeAlias[T any](template T, name string) T {
+
 	var ret T
 	value := reflect.ValueOf(&ret).Elem()
 
@@ -31,6 +32,15 @@ func makeAlias[T any](template T, name string) T {
 	if hiddenField.IsValid() {
 		hiddenField.SetBool(true)
 	}
+
+	useAliasShortHandField := reflect.ValueOf(template).FieldByName("UseAliasShortHand")
+	if useAliasShortHandField.IsValid() {
+		useAliasShortHand := useAliasShortHandField.Interface().(bool)
+		if useAliasShortHand == true {
+			value.FieldByName("Shorthand").SetString(string(name[0]))
+		}
+	}
+
 	return ret
 }
 
@@ -88,15 +98,17 @@ func (b Bool) addTo(cmd *cobra.Command) {
 
 // String wraps the set of string flags.
 type String struct {
-	Name         string
-	Shorthand    string
-	Description  string
-	Default      string
-	ConfName     string
-	EnvName      string
-	Hidden       bool
-	Aliases      []string
-	CompletionFn func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
+	Name              string
+	Shorthand         string
+	Description       string
+	Default           string
+	NoOptDefVal       string
+	ConfName          string
+	EnvName           string
+	Hidden            bool
+	Aliases           []string
+	UseAliasShortHand bool
+	CompletionFn      func(ctx context.Context, cmd *cobra.Command, args []string, partial string) ([]string, error)
 }
 
 func (s String) addTo(cmd *cobra.Command) {
@@ -110,6 +122,9 @@ func (s String) addTo(cmd *cobra.Command) {
 
 	f := flags.Lookup(s.Name)
 	f.Hidden = s.Hidden
+	if s.NoOptDefVal != "" {
+		f.NoOptDefVal = s.NoOptDefVal
+	}
 
 	// Aliases
 	for _, name := range s.Aliases {
@@ -416,6 +431,21 @@ func GetWireguard(ctx context.Context) bool {
 	return GetBool(ctx, wireguard)
 }
 
+const httpsFailover = "https-failover"
+
+func HttpsFailover() Bool {
+	return Bool{
+		Name:        httpsFailover,
+		Description: "Determines whether to failover to plain internet(https) communication with remote builders if wireguard fails",
+		Aliases:     []string{"http-failover"},
+		Default:     true,
+	}
+}
+
+func GetHTTPSFailover(ctx context.Context) bool {
+	return GetBool(ctx, httpsFailover)
+}
+
 const localOnlyName = "local-only"
 
 // RemoteOnly returns a boolean flag for deploying remotely
@@ -522,6 +552,23 @@ func BuildTarget() String {
 	}
 }
 
+func Depot() String {
+	return String{
+		Name:        "depot",
+		Default:     "auto",
+		NoOptDefVal: "true",
+		Description: "Deploy using depot to build the image",
+	}
+}
+
+func DepotScope() String {
+	return String{
+		Name:        "depot-scope",
+		Description: "The scope of the Depot builder's cache to use (org or app)",
+		Default:     "org",
+	}
+}
+
 func Nixpacks() Bool {
 	return Bool{
 		Name:        "nixpacks",
@@ -533,7 +580,7 @@ func Nixpacks() Bool {
 func Strategy() String {
 	return String{
 		Name:        "strategy",
-		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. Default is canary, or rolling when max-per-region is set.",
+		Description: "The strategy for replacing running instances. Options are canary, rolling, bluegreen, or immediate. The default strategy is rolling.",
 	}
 }
 
@@ -573,6 +620,18 @@ This option may set DOCKER_HOST environment variable for the build container if 
 	}
 }
 
+func RecreateBuilder() Bool {
+	return Bool{
+		Name:        "recreate-builder",
+		Description: "Recreate the builder app, if it exists",
+		Default:     false,
+	}
+}
+
+func GetRecreateBuilder(ctx context.Context) bool {
+	return GetBool(ctx, "recreate-builder")
+}
+
 // BuildpacksVolume the host volume that will be mounted to the buildpacks build container
 const BuildpacksVolume = "buildpacks-volume"
 
@@ -603,4 +662,12 @@ func ExtraArgsFromContext(ctx context.Context) []string {
 	}
 
 	return []string{}
+}
+
+func Env() StringArray {
+	return StringArray{
+		Name:        "env",
+		Shorthand:   "e",
+		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
+	}
 }

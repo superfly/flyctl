@@ -18,33 +18,36 @@ const (
 	// FileName denotes the name of the config file.
 	FileName = "config.yml"
 
-	envKeyPrefix               = "FLY_"
-	apiBaseURLEnvKey           = envKeyPrefix + "API_BASE_URL"
-	flapsBaseURLEnvKey         = envKeyPrefix + "FLAPS_BASE_URL"
-	metricsBaseURLEnvKey       = envKeyPrefix + "METRICS_BASE_URL"
-	AccessTokenEnvKey          = envKeyPrefix + "ACCESS_TOKEN"
+	apiBaseURLEnvKey           = "FLY_API_BASE_URL"
+	flapsBaseURLEnvKey         = "FLY_FLAPS_BASE_URL"
+	metricsBaseURLEnvKey       = "FLY_METRICS_BASE_URL"
+	syntheticsBaseURLEnvKey    = "FLY_SYNTHETICS_BASE_URL"
+	AccessTokenEnvKey          = "FLY_ACCESS_TOKEN"
 	AccessTokenFileKey         = "access_token"
-	MetricsTokenEnvKey         = envKeyPrefix + "METRICS_TOKEN"
+	MetricsTokenEnvKey         = "FLY_METRICS_TOKEN"
 	MetricsTokenFileKey        = "metrics_token"
-	SendMetricsEnvKey          = envKeyPrefix + "SEND_METRICS"
+	SendMetricsEnvKey          = "FLY_SEND_METRICS"
+	SyntheticsAgentEnvKey      = "FLY_SYNTHETICS_AGENT"
 	SendMetricsFileKey         = "send_metrics"
+	SyntheticsAgentFileKey     = "synthetics_agent"
 	AutoUpdateFileKey          = "auto_update"
 	WireGuardStateFileKey      = "wire_guard_state"
 	WireGuardWebsocketsFileKey = "wire_guard_websockets"
-	APITokenEnvKey             = envKeyPrefix + "API_TOKEN"
-	orgEnvKey                  = envKeyPrefix + "ORG"
-	registryHostEnvKey         = envKeyPrefix + "REGISTRY_HOST"
-	organizationEnvKey         = envKeyPrefix + "ORGANIZATION"
-	regionEnvKey               = envKeyPrefix + "REGION"
-	verboseOutputEnvKey        = envKeyPrefix + "VERBOSE"
-	jsonOutputEnvKey           = envKeyPrefix + "JSON"
-	logGQLEnvKey               = envKeyPrefix + "LOG_GQL_ERRORS"
-	localOnlyEnvKey            = envKeyPrefix + "LOCAL_ONLY"
+	APITokenEnvKey             = "FLY_API_TOKEN"
+	orgEnvKey                  = "FLY_ORG"
+	registryHostEnvKey         = "FLY_REGISTRY_HOST"
+	organizationEnvKey         = "FLY_ORGANIZATION"
+	regionEnvKey               = "FLY_REGION"
+	verboseOutputEnvKey        = "FLY_VERBOSE"
+	jsonOutputEnvKey           = "FLY_JSON"
+	logGQLEnvKey               = "FLY_LOG_GQL_ERRORS"
+	localOnlyEnvKey            = "FLY_LOCAL_ONLY"
 
-	defaultAPIBaseURL     = "https://api.fly.io"
-	defaultFlapsBaseURL   = "https://api.machines.dev"
-	defaultRegistryHost   = "registry.fly.io"
-	defaultMetricsBaseURL = "https://flyctl-metrics.fly.dev"
+	defaultAPIBaseURL        = "https://api.fly.io"
+	defaultFlapsBaseURL      = "https://api.machines.dev"
+	defaultRegistryHost      = "registry.fly.io"
+	defaultMetricsBaseURL    = "https://flyctl-metrics.fly.dev"
+	defaultSyntheticsBaseURL = "https://flynthetics.fly.dev"
 )
 
 // Config wraps the functionality of the configuration file.
@@ -62,6 +65,9 @@ type Config struct {
 	// MetricsBaseURL denotes the base URL of the metrics API.
 	MetricsBaseURL string
 
+	// SyntheticsBaseURL denotes the base URL of the synthetics API.
+	SyntheticsBaseURL string
+
 	// RegistryHost denotes the docker registry host.
 	RegistryHost string
 
@@ -76,6 +82,9 @@ type Config struct {
 
 	// SendMetrics denotes whether the user wants to send metrics.
 	SendMetrics bool
+
+	// SyntheticsAgent denotes whether the user wants to run the synthetics monitoring agent.
+	SyntheticsAgent bool
 
 	// AutoUpdate denotes whether the user wants to automatically update flyctl.
 	AutoUpdate bool
@@ -99,11 +108,12 @@ type Config struct {
 
 func Load(ctx context.Context, path string) (*Config, error) {
 	cfg := &Config{
-		APIBaseURL:     defaultAPIBaseURL,
-		FlapsBaseURL:   defaultFlapsBaseURL,
-		RegistryHost:   defaultRegistryHost,
-		MetricsBaseURL: defaultMetricsBaseURL,
-		Tokens:         new(tokens.Tokens),
+		APIBaseURL:        defaultAPIBaseURL,
+		FlapsBaseURL:      defaultFlapsBaseURL,
+		RegistryHost:      defaultRegistryHost,
+		MetricsBaseURL:    defaultMetricsBaseURL,
+		SyntheticsBaseURL: defaultSyntheticsBaseURL,
+		Tokens:            new(tokens.Tokens),
 	}
 
 	// Apply config from the config file, if it exists
@@ -144,7 +154,9 @@ func (cfg *Config) applyEnv() {
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
+	cfg.SyntheticsBaseURL = env.FirstOrDefault(cfg.SyntheticsBaseURL, syntheticsBaseURLEnvKey)
 	cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey) || cfg.SendMetrics
+	cfg.SyntheticsAgent = env.IsTruthy(SyntheticsAgentEnvKey) || cfg.SyntheticsAgent
 }
 
 // applyFile sets the properties of cfg which may be set via configuration file
@@ -154,19 +166,22 @@ func (cfg *Config) applyFile(path string) (err error) {
 	defer cfg.mu.Unlock()
 
 	var w struct {
-		AccessToken  string `yaml:"access_token"`
-		MetricsToken string `yaml:"metrics_token"`
-		SendMetrics  bool   `yaml:"send_metrics"`
-		AutoUpdate   bool   `yaml:"auto_update"`
+		AccessToken     string `yaml:"access_token"`
+		MetricsToken    string `yaml:"metrics_token"`
+		SendMetrics     bool   `yaml:"send_metrics"`
+		AutoUpdate      bool   `yaml:"auto_update"`
+		SyntheticsAgent bool   `yaml:"synthetics_agent"`
 	}
 	w.SendMetrics = true
 	w.AutoUpdate = true
+	w.SyntheticsAgent = true
 
 	if err = unmarshal(path, &w); err == nil {
 		cfg.Tokens = tokens.ParseFromFile(w.AccessToken, path)
 		cfg.MetricsToken = w.MetricsToken
 		cfg.SendMetrics = w.SendMetrics
 		cfg.AutoUpdate = w.AutoUpdate
+		cfg.SyntheticsAgent = w.SyntheticsAgent
 	}
 
 	return
@@ -200,6 +215,10 @@ func (cfg *Config) applyFlags(fs *pflag.FlagSet) {
 
 func (cfg *Config) MetricsBaseURLIsProduction() bool {
 	return cfg.MetricsBaseURL == defaultMetricsBaseURL
+}
+
+func (cfg *Config) SyntheticsBaseURLIsProduction() bool {
+	return cfg.SyntheticsBaseURL == defaultSyntheticsBaseURL
 }
 
 func applyStringFlags(fs *pflag.FlagSet, flags map[string]*string) {

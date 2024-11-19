@@ -7,3 +7,4 @@ memory = 512
 source = "data"
 destination = "/data"
 initial_size = 200
+snapshot_retention = 10

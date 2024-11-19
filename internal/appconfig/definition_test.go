@@ -190,7 +190,7 @@ func TestToDefinition(t *testing.T) {
 			"internal_port":        int64(8080),
 			"force_https":          true,
 			"auto_start_machines":  false,
-			"auto_stop_machines":   false,
+			"auto_stop_machines":   "off",
 			"min_machines_running": int64(0),
 			"concurrency": map[string]any{
 				"type":       "donuts",
@@ -203,7 +203,8 @@ func TestToDefinition(t *testing.T) {
 				"default_self_signed": false,
 			},
 			"http_options": map[string]any{
-				"compress": true,
+				"compress":     true,
+				"idle_timeout": int64(600),
 				"response": map[string]any{
 					"headers": map[string]any{
 						"fly-request-id": false,
@@ -227,8 +228,25 @@ func TestToDefinition(t *testing.T) {
 					},
 				},
 			},
+			"machine_checks": []any{
+				map[string]any{
+					"command":      []any{"curl", "https://fly.io"},
+					"image":        "curlimages/curl",
+					"entrypoint":   []any{"/bin/sh"},
+					"kill_signal":  "SIGKILL",
+					"kill_timeout": "5s",
+				},
+			},
 		},
-
+		"machine_checks": []any{
+			map[string]any{
+				"command":      []any{"curl", "https://fly.io"},
+				"image":        "curlimages/curl",
+				"entrypoint":   []any{"/bin/sh"},
+				"kill_signal":  "SIGKILL",
+				"kill_timeout": "5s",
+			},
+		},
 		"experimental": map[string]any{
 			"cmd":           []any{"cmd"},
 			"entrypoint":    []any{"entrypoint"},
@@ -248,19 +266,23 @@ func TestToDefinition(t *testing.T) {
 		},
 		"metrics": []any{
 			map[string]any{
-				"port": int64(9999),
-				"path": "/metrics",
+				"port":  int64(9999),
+				"path":  "/metrics",
+				"https": false,
 			},
 			map[string]any{
 				"port":      int64(9998),
 				"path":      "/metrics",
 				"processes": []any{"web"},
+				"https":     false,
 			},
 		},
 		"statics": []any{
 			map[string]any{
-				"guest_path": "/path/to/statics",
-				"url_prefix": "/static-assets",
+				"guest_path":     "/path/to/statics",
+				"url_prefix":     "/static-assets",
+				"tigris_bucket":  "example-bucket",
+				"index_document": "index.html",
 			},
 		},
 		"files": []any{
@@ -279,9 +301,10 @@ func TestToDefinition(t *testing.T) {
 			},
 		},
 		"mounts": []any{map[string]any{
-			"source":       "data",
-			"destination":  "/data",
-			"initial_size": "30gb",
+			"source":             "data",
+			"destination":        "/data",
+			"initial_size":       "30gb",
+			"snapshot_retention": int64(17),
 		}},
 		"processes": map[string]any{
 			"web":  "run web",
@@ -311,7 +334,7 @@ func TestToDefinition(t *testing.T) {
 				"protocol":             "tcp",
 				"processes":            []any{"app"},
 				"auto_start_machines":  false,
-				"auto_stop_machines":   false,
+				"auto_stop_machines":   "off",
 				"min_machines_running": int64(1),
 				"concurrency": map[string]any{
 					"type":       "requests",
@@ -320,10 +343,13 @@ func TestToDefinition(t *testing.T) {
 				},
 				"ports": []any{
 					map[string]any{
-						"port":        int64(80),
-						"start_port":  int64(100),
-						"end_port":    int64(200),
-						"handlers":    []any{"https"},
+						"port":       int64(80),
+						"start_port": int64(100),
+						"end_port":   int64(200),
+						"handlers":   []any{"https"},
+						"http_options": map[string]any{
+							"idle_timeout": int64(600),
+						},
 						"force_https": true,
 					},
 				},
@@ -353,6 +379,15 @@ func TestToDefinition(t *testing.T) {
 						"timeout":  "10s",
 						"method":   "POST",
 						"path":     "/check2",
+					},
+				},
+				"machine_checks": []any{
+					map[string]any{
+						"command":      []any{"curl", "https://fly.io"},
+						"image":        "curlimages/curl",
+						"entrypoint":   []any{"/bin/sh"},
+						"kill_signal":  "SIGKILL",
+						"kill_timeout": "5s",
 					},
 				},
 			},

@@ -31,7 +31,7 @@ func TestToMachineConfig(t *testing.T) {
 			"fly_flyctl_version":   buildinfo.Version().String(),
 		},
 		Metrics: &fly.MachineMetrics{Port: 9999, Path: "/metrics"},
-		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix", TigrisBucket: "example-bucket", IndexDocument: "index.html"}},
 		Mounts:  []fly.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]fly.MachineCheck{
 			"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
@@ -53,6 +53,7 @@ func TestToMachineConfig(t *testing.T) {
 		Restart: &fly.MachineRestart{
 			Policy: fly.MachineRestartPolicyAlways,
 		},
+		DNS: &fly.DNSConfig{Nameservers: []string{"1.2.3.4"}},
 	}
 
 	got, err := cfg.ToMachineConfig("", nil)
@@ -79,7 +80,7 @@ func TestToMachineConfig(t *testing.T) {
 	assert.Equal(t, "24/7", got.Schedule)
 	assert.Equal(t, true, got.AutoDestroy)
 	assert.Equal(t, &fly.MachineRestart{Policy: "always"}, got.Restart)
-	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true}, got.DNS)
+	assert.Equal(t, &fly.DNSConfig{SkipRegistration: true, Nameservers: []string{"1.2.3.4"}}, got.DNS)
 	assert.Equal(t, "propagated", got.Metadata["retain"])
 	assert.Empty(t, got.Init.Cmd)
 }
@@ -122,7 +123,7 @@ func TestToMachineConfig_nullifyManagedFields(t *testing.T) {
 			},
 		},
 		Metrics: &fly.MachineMetrics{Port: 9999, Path: "/metrics"},
-		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix"}},
+		Statics: []*fly.Static{{GuestPath: "/guest/path", UrlPrefix: "/url/prefix", TigrisBucket: "example-bucket", IndexDocument: "index.html"}},
 		Mounts:  []fly.MachineMount{{Name: "data", Path: "/data"}},
 		Checks: map[string]fly.MachineCheck{
 			"listening": {Port: fly.Pointer(8080), Type: fly.Pointer("tcp")},
@@ -171,6 +172,294 @@ func TestToReleaseMachineConfig(t *testing.T) {
 	}
 
 	got, err := cfg.ToReleaseMachineConfig()
+	assert.NoError(t, err)
+	assert.Equal(t, want, got)
+}
+
+func TestToTestMachineConfig(t *testing.T) {
+	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
+	require.NoError(t, err)
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "curlimages/curl",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Timeout: nil,
+			Signal:  nil,
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	got, err := cfg.ToTestMachineConfig(check, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
+func TestToTestMachineConfigWKillInfo(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
+	require.NoError(t, err)
+
+	cfg.KillSignal = fly.StringPointer("SIGABRT")
+	cfg.KillTimeout = fly.MustParseDuration("60s")
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "curlimages/curl",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Signal:  nil,
+			Timeout: nil,
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	got, err := cfg.ToTestMachineConfig(check, nil)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
+func TestToTestMachineConfigWKillInfoAndOrigMachineKillInfo(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
+	require.NoError(t, err)
+
+	cfg.HTTPService.MachineChecks[0].KillSignal = fly.StringPointer("SIGTERM")
+	cfg.HTTPService.MachineChecks[0].KillTimeout = fly.MustParseDuration("10s")
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "curlimages/curl",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Signal:  fly.StringPointer("SIGTERM"),
+			Timeout: fly.MustParseDuration("10s"),
+		},
+	}
+
+	origMachine := &fly.Machine{
+		Config: &fly.MachineConfig{
+			StopConfig: &fly.StopConfig{
+				Signal:  fly.StringPointer("SIGTERM"),
+				Timeout: fly.MustParseDuration("10s"),
+			},
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	got, err := cfg.ToTestMachineConfig(check, origMachine)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
+func TestToTestMachineConfigWKillInfoNoImageAndOrigMachineKillInfo(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
+	require.NoError(t, err)
+
+	cfg.HTTPService.MachineChecks[0].Image = ""
+	cfg.HTTPService.MachineChecks[0].KillSignal = fly.StringPointer("SIGABRT")
+	cfg.HTTPService.MachineChecks[0].KillTimeout = fly.MustParseDuration("30s")
+	cfg.KillSignal = fly.StringPointer("SIGTERM")
+	cfg.KillTimeout = fly.MustParseDuration("60s")
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "nginx",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Signal:  fly.StringPointer("SIGABRT"),
+			Timeout: fly.MustParseDuration("30s"),
+		},
+	}
+
+	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
+		Config: &fly.MachineConfig{
+			Image: "nginx",
+			StopConfig: &fly.StopConfig{
+				Signal:  fly.StringPointer("SIGTERM"),
+				Timeout: fly.MustParseDuration("60s"),
+			},
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	got, err := cfg.ToTestMachineConfig(check, origMachine)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
+func TestToTestMachineConfigNoImageAndOrigMachineKillInfo(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadConfig("./testdata/tomachine-machinechecks.toml")
+	require.NoError(t, err)
+
+	cfg.HTTPService.MachineChecks[0].Image = ""
+	cfg.KillSignal = fly.StringPointer("SIGTERM")
+	cfg.KillTimeout = fly.MustParseDuration("60s")
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "nginx",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Signal:  fly.StringPointer("SIGTERM"),
+			Timeout: fly.MustParseDuration("60s"),
+		},
+	}
+
+	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
+		Config: &fly.MachineConfig{
+			Image: "nginx",
+			StopConfig: &fly.StopConfig{
+				Signal:  fly.StringPointer("SIGTERM"),
+				Timeout: fly.MustParseDuration("60s"),
+			},
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	got, err := cfg.ToTestMachineConfig(check, origMachine)
+	assert.NoError(t, err)
+	assert.Equal(t, got, want)
+}
+
+func TestToTestMachineConfigWTestMachine(t *testing.T) {
+	t.Parallel()
+	cfg, err := LoadConfig("./testdata/tomachine.toml")
+	require.NoError(t, err)
+
+	want := &fly.MachineConfig{
+		Init: fly.MachineInit{
+			Cmd:        []string{"curl", "https://fly.io"},
+			SwapSizeMB: fly.Pointer(512),
+			Entrypoint: []string{"/bin/sh"},
+		},
+		Image: "curlimages/curl",
+		Env: map[string]string{
+			"PRIMARY_REGION":      "mia",
+			"FLY_TEST_COMMAND":    "1",
+			"FLY_PROCESS_GROUP":   "fly_app_test_machine_command",
+			"FLY_TEST_MACHINE_IP": "1.2.3.4",
+			"FOO":                 "BAR",
+			"BAR":                 "BAZ",
+		},
+		Metadata: map[string]string{
+			"fly_platform_version": "v2",
+			"fly_process_group":    "fly_app_test_machine_command",
+			"fly_flyctl_version":   buildinfo.Version().String(),
+		},
+		AutoDestroy: true,
+		Restart:     &fly.MachineRestart{Policy: fly.MachineRestartPolicyNo},
+		DNS:         &fly.DNSConfig{SkipRegistration: true},
+		StopConfig: &fly.StopConfig{
+			Timeout: nil,
+			Signal:  nil,
+		},
+	}
+
+	check := cfg.HTTPService.MachineChecks[0]
+	machine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
+		ImageRef:   fly.MachineImageRef{},
+		PrivateIP:  "1.2.3.4",
+		Config: &fly.MachineConfig{
+			Env: map[string]string{
+				"BAR": "BAZ",
+			},
+			Init:  fly.MachineInit{Cmd: []string{"echo", "hello"}},
+			Image: "nginx",
+		},
+	}
+	got, err := cfg.ToTestMachineConfig(check, machine)
 	assert.NoError(t, err)
 	assert.Equal(t, want, got)
 }
@@ -348,7 +637,7 @@ func TestToMachineConfig_services(t *testing.T) {
 			Protocol:     "tcp",
 			InternalPort: 8080,
 			Autostart:    fly.Pointer(true),
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 			Ports: []fly.MachinePort{
 				{Port: fly.Pointer(80), Handlers: []string{"http"}, ForceHTTPS: true},
 				{Port: fly.Pointer(443), Handlers: []string{"http", "tls"}, ForceHTTPS: false},
@@ -358,13 +647,13 @@ func TestToMachineConfig_services(t *testing.T) {
 			Protocol:     "tcp",
 			InternalPort: 1000,
 			Autostart:    fly.Pointer(true),
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		},
 		{
 			Protocol:     "tcp",
 			InternalPort: 1001,
 			Autostart:    fly.Pointer(false),
-			Autostop:     fly.Pointer(false),
+			Autostop:     fly.Pointer(fly.MachineAutostopOff),
 		},
 		{
 			Protocol:     "tcp",
@@ -374,7 +663,7 @@ func TestToMachineConfig_services(t *testing.T) {
 		{
 			Protocol:     "tcp",
 			InternalPort: 1003,
-			Autostop:     fly.Pointer(true),
+			Autostop:     fly.Pointer(fly.MachineAutostopStop),
 		},
 		{
 			Protocol:     "tcp",

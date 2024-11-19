@@ -6,13 +6,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/command"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 )
 
@@ -21,7 +21,7 @@ func destroy() (cmd *cobra.Command) {
 		long = `Permanently destroy a Tigris object storage bucket`
 
 		short = long
-		usage = "destroy [name]"
+		usage = "destroy [storage-bucket-name]"
 	)
 
 	cmd = command.New(usage, short, long, runDestroy, command.RequireSession, command.LoadAppNameIfPresent)
@@ -64,7 +64,7 @@ func runDestroy(ctx context.Context) (err error) {
 
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = fly.ClientFromContext(ctx).GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
 	_, err = gql.DeleteAddOn(ctx, client, extension.Name)

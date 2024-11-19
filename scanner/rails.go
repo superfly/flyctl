@@ -5,17 +5,22 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flyerr"
+	"gopkg.in/yaml.v2"
 )
 
 var healthcheck_channel = make(chan string)
 var bundle, ruby string
+var binrails = filepath.Join(".", "bin", "rails")
 
 func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error) {
 	// `bundle init` will create a file with a commented out rails gem,
@@ -54,7 +59,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	// verify that the bundle will install before proceeding
+	// attempt to install bundle before proceeding
 	args := []string{"install"}
 
 	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
@@ -66,10 +71,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
-	if err := cmd.Run(); err != nil {
-		return nil, errors.Wrap(err, "Failed to install bundle, exiting")
-	}
-
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
@@ -77,6 +78,47 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		Port:                 3000,
 		ConsoleCommand:       "/rails/bin/rails console",
 		AutoInstrumentErrors: true,
+	}
+
+	// add ruby version
+
+	var rubyVersion string
+
+	// add ruby version from .ruby-version file
+	versionFile, err := os.ReadFile(".ruby-version")
+	if err == nil {
+		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+		matches := re.FindStringSubmatch(string(versionFile))
+		if len(matches) >= 2 {
+			rubyVersion = matches[1]
+		}
+	}
+
+	if rubyVersion == "" {
+		// add ruby version from Gemfile
+		gemfile, err := os.ReadFile("Gemfile")
+		if err == nil {
+			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+			matches := re.FindStringSubmatch(string(gemfile))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion == "" {
+		versionOutput, err := exec.Command("ruby", "--version").Output()
+		if err == nil {
+			re := regexp.MustCompile(`ruby (\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionOutput))
+			if len(matches) >= 2 {
+				rubyVersion = matches[1]
+			}
+		}
+	}
+
+	if rubyVersion != "" {
+		s.Runtime = plan.RuntimeStruct{Language: "ruby", Version: rubyVersion}
 	}
 
 	if checksPass(sourceDir, dirContains("Gemfile", "litestack")) {
@@ -104,15 +146,75 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		redis = true
 	}
 
+	if redis == false {
+		files, err = filepath.Glob("app/views/*")
+		if err == nil && len(files) > 0 {
+			for _, file := range files {
+				redis = checksPass(file, dirContains("*.html.erb", "turbo_stream_from"))
+				if redis {
+					break
+				}
+			}
+		}
+	}
+
 	// enable redis if redis is used for caching
-	prodEnv, err := os.ReadFile("config/environments/production.rb")
-	if err == nil && strings.Contains(string(prodEnv), "redis") {
-		redis = true
+	if !redis {
+		prodEnv, err := os.ReadFile("config/environments/production.rb")
+		if err == nil && strings.Contains(string(prodEnv), "redis") {
+			redis = true
+		}
 	}
 
 	if redis {
 		s.RedisDesired = true
 		s.SkipDatabase = false
+	}
+
+	// enable object storage (Tigris) if any of the following are true...
+	//  * aws-sdk-s3 is in the Gemfile or Gemfile.lock
+	//  * active_storage_attachments is any file in the db/migrate directory
+	//  * config/storage.yml is present and uses S3
+	if checksPass(sourceDir, dirContains("Gemfile", "aws-sdk-s3")) || checksPass(sourceDir, dirContains("Gemfile.lock", "aws-sdk-s3")) {
+		s.ObjectStorageDesired = true
+	} else if checksPass(sourceDir+"/db/migrate", dirContains("*.rb", ":active_storage_attachments")) {
+		s.ObjectStorageDesired = true
+	} else if checksPass(sourceDir+"/config", fileExists("storage.yml")) {
+		cfgMap := map[string]any{}
+		buf, err := os.ReadFile(path.Join(sourceDir, "config", "storage.yml"))
+
+		if err == nil {
+			err = yaml.Unmarshal(buf, &cfgMap)
+		}
+
+		if err == nil {
+			for _, v := range cfgMap {
+				submap, ok := v.(map[interface{}]interface{})
+				if ok {
+					service, ok := submap["service"].(string)
+					if ok && service == "S3" {
+						s.ObjectStorageDesired = true
+					}
+				}
+			}
+		}
+	}
+
+	// extract port from Dockerfile (if present).  This is primarily for thruster.
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err == nil {
+		re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+		m := re.FindStringSubmatch(string(dockerfile))
+		if len(m) > 0 {
+			port, err := strconv.Atoi(m[1])
+			if err == nil {
+				if port < 1024 {
+					port += 8000
+				}
+
+				s.Port = port
+			}
+		}
 	}
 
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
@@ -133,41 +235,54 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 			},
 		}
 	} else {
-		// find absolute path to rake executable
-		rake, err := exec.LookPath("rake")
-		if err != nil {
-			if errors.Is(err, exec.ErrDot) {
-				rake, err = filepath.Abs(rake)
-			}
-
+		if _, err = os.Stat(binrails); errors.Is(err, os.ErrNotExist) {
+			// find absolute path to rake executable
+			binrails, err = exec.LookPath("rake")
 			if err != nil {
-				return nil, errors.Wrap(err, "failure finding rake executable")
+				if errors.Is(err, exec.ErrDot) {
+					binrails, err = filepath.Abs(binrails)
+				}
+
+				if err != nil {
+					return nil, errors.Wrap(err, "failure finding rake executable")
+				}
 			}
 		}
 
-		// support Rails 4 through 5.1 applications, or ones that started out
-		// there and never were fully upgraded.
-		out, err := exec.Command(rake, "secret").Output()
+		// support Rails 4 through 5.1 applications, ones that started out
+		// there and never were fully upgraded, and ones that intentionally
+		// avoid using Rails encrypted credentials.
+		out, err := helpers.RandHex(64)
 
 		if err == nil {
 			s.Secrets = []Secret{
 				{
 					Key:   "SECRET_KEY_BASE",
 					Help:  "Secret key used to verify the integrity of signed cookies",
-					Value: strings.TrimSpace(string(out)),
+					Value: out,
 				},
 			}
 		}
 	}
 
-	s.DeployDocs = `
+	initializersPath := filepath.Join(sourceDir, "config", "initializers")
+	if checksPass(initializersPath, dirContains("*.rb", "ENV", "credentials")) {
+		s.SkipDeploy = true
+		s.DeployDocs = `
 Your Rails app is prepared for deployment.
 
-Before proceeding, please review the posted Rails FAQ:
-https://fly.io/docs/rails/getting-started/dockerfiles/.
+` + config.Colorize.Red(
+			`WARNING: One or more of your config initializer files appears to access
+environment variables or Rails credentials.  These values generally are not
+available during the Docker build process, so you may need to update your
+initializers to bypass portions of your setup during the build process.`) + `
+
+More information on what needs to be done can be found at:
+https://fly.io/docs/rails/getting-started/existing/#access-to-environment-variables-at-build-time.
 
 Once ready: run 'fly deploy' to deploy your Rails app.
 `
+	}
 
 	// fetch healthcheck route in a separate thread
 	go func() {
@@ -177,7 +292,7 @@ Once ready: run 'fly deploy' to deploy your Rails app.
 			return
 		}
 
-		out, err := exec.Command(ruby, "./bin/rails", "runner",
+		out, err := exec.Command(ruby, binrails, "runner",
 			"puts Rails.application.routes.url_helpers.rails_health_check_path").Output()
 
 		if err == nil {
@@ -284,7 +399,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// base generate command
-	args := []string{"./bin/rails", "generate", "dockerfile",
+	args := []string{binrails, "generate", "dockerfile",
 		"--label=fly_launch_runtime:rails"}
 
 	// skip prompt to replace files if Dockerfile already exists
@@ -298,13 +413,18 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	}
 
 	// add postgres
-	if postgres := plan.Postgres.Provider(); postgres != nil {
+	if plan.Postgres.Provider() != nil {
 		args = append(args, "--postgresql", "--no-prepare")
 	}
 
 	// add redis
-	if redis := plan.Redis.Provider(); redis != nil {
+	if plan.Redis.Provider() != nil {
 		args = append(args, "--redis")
+	}
+
+	// add object storage
+	if plan.ObjectStorage.Provider() != nil {
+		args = append(args, "--tigris")
 	}
 
 	// add additional flags from launch command
@@ -321,6 +441,24 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 		cmd.Stderr = os.Stderr
 
 		pendingError = cmd.Run()
+
+		if exitError, ok := pendingError.(*exec.ExitError); ok {
+			if exitError.ExitCode() == 42 {
+				// generator exited with code 42, which means existing
+				// Dockerfile contains errors which will prevent deployment.
+				pendingError = nil
+				srcInfo.SkipDeploy = true
+				srcInfo.DeployDocs = `
+Correct the errors in your Dockerfile and run 'fly deploy' to
+deploy your Rails app.
+
+The following comand can be used to update your Dockerfile:
+
+    ` + binrails + ` generate dockerfile
+`
+				fmt.Println()
+			}
+		}
 	}
 
 	// read dockerfile

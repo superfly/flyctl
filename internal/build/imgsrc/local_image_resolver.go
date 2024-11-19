@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	dockerparser "github.com/novln/docker-parser"
 	"github.com/pkg/errors"
@@ -117,7 +117,7 @@ func (*localImageResolver) Run(ctx context.Context, dockerFactory *dockerClientF
 
 var imageIDPattern = regexp.MustCompile("[a-f0-9]")
 
-func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*types.ImageSummary, error) {
+func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName string) (*image.Summary, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "find_image_with_docker")
 	defer span.End()
 
@@ -131,7 +131,7 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 
 	isID := imageIDPattern.MatchString(imageName)
 
-	images, err := d.ImageList(ctx, types.ImageListOptions{})
+	images, err := d.ImageList(ctx, image.ListOptions{})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list images")
 		return nil, err

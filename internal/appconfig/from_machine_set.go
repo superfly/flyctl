@@ -103,9 +103,10 @@ func fromAppAndOneMachine(ctx context.Context, appName string, m machine.Leasabl
 	}
 	for _, s := range m.Machine().Config.Statics {
 		statics = append(statics, Static{
-			GuestPath:    s.GuestPath,
-			UrlPrefix:    s.UrlPrefix,
-			TigrisBucket: s.TigrisBucket,
+			GuestPath:     s.GuestPath,
+			UrlPrefix:     s.UrlPrefix,
+			TigrisBucket:  s.TigrisBucket,
+			IndexDocument: s.IndexDocument,
 		})
 	}
 	if len(m.Machine().Config.Mounts) > 0 {
@@ -208,12 +209,12 @@ func processGroupsFromMachineSet(ctx context.Context, ms machine.MachineSet) (*p
 		for _, cmd := range report.others {
 			otherCmds += fmt.Sprintf("    %s\n", cmd)
 		}
-		warningMsg += warning("processes", fmt.Sprintf(`Found these additional commands on some machines. Consider adding process groups to your fly.toml and run machines with those process groups.
+		warningMsg += warning("processes", `Found these additional commands on some machines. Consider adding process groups to your fly.toml and run machines with those process groups.
 For more info please see: https://fly.io/docs/reference/configuration/#the-processes-section
 Machine IDs that were not saved to fly.toml: %s
 Commands they are running:
 %s
-`, strings.Join(otherMachineIds, ", "), otherCmds))
+`, strings.Join(otherMachineIds, ", "), otherCmds)
 		warningMsg += "\n"
 	}
 

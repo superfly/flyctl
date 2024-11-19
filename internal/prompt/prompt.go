@@ -18,6 +18,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/sort"
 	"github.com/superfly/flyctl/iostreams"
@@ -164,6 +165,22 @@ func Confirm(ctx context.Context, message string) (confirm bool, err error) {
 	return
 }
 
+func ConfirmYes(ctx context.Context, message string) (confirm bool, err error) {
+	var opt survey.AskOpt
+	if opt, err = newSurveyIO(ctx); err != nil {
+		return
+	}
+
+	prompt := &survey.Confirm{
+		Message: message,
+		Default: true,
+	}
+
+	err = survey.AskOne(prompt, &confirm, opt)
+
+	return
+}
+
 func ConfirmOverwrite(ctx context.Context, filename string) (confirm bool, err error) {
 	prompt := &survey.Confirm{
 		Message: fmt.Sprintf(`Overwrite "%s"?`, filename),
@@ -223,7 +240,7 @@ var errOrgSlugRequired = NonInteractiveError("org slug must be specified when no
 // Org returns the Organization the user has passed in via flag or prompts the
 // user for one.
 func Org(ctx context.Context) (*fly.Organization, error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	orgs, err := client.GetOrganizations(ctx)
 	if err != nil {
@@ -299,7 +316,7 @@ var (
 func PlatformRegions(ctx context.Context) *future.Future[RegionInfo] {
 	regionsOnce.Do(func() {
 		regionsFuture = future.Spawn(func() (RegionInfo, error) {
-			client := fly.ClientFromContext(ctx)
+			client := flyutil.ClientFromContext(ctx)
 			regions, defaultRegion, err := client.PlatformRegions(ctx)
 			regionInfo := RegionInfo{
 				Regions:       regions,

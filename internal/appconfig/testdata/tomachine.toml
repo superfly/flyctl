@@ -21,6 +21,11 @@ swap_size_mb = 512
   internal_port = 8080
   force_https = true
 
+  [[http_service.machine_checks]]
+   command = ["curl", "https://fly.io"]
+   image = "curlimages/curl"
+   entrypoint = ["/bin/sh"]
+
 [checks.listening]
   port = 8080
   type = "tcp"
@@ -39,3 +44,8 @@ swap_size_mb = 512
 [[statics]]
 guest_path = "/guest/path"
 url_prefix = "/url/prefix"
+tigris_bucket = "example-bucket"
+index_document = "index.html"
+
+[experimental]
+machine_config = '{"dns": {"nameservers": ["1.2.3.4"]}}'

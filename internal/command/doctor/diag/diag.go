@@ -16,12 +16,12 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/build/imgsrc"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -96,18 +96,18 @@ add the --force flag to send us best-effort diagnostics.`)
 
 		if err = ft.fn(ctx, zip); err != nil {
 			if ft.expect {
-				fmt.Printf(color.Red(fmt.Sprintf("FAILED: %s\n", err)))
+				fmt.Print(color.Red(fmt.Sprintf("FAILED: %s\n", err)))
 			} else {
-				fmt.Printf("skipping\n")
+				fmt.Print("skipping\n")
 			}
 		} else {
-			fmt.Printf(color.Green("ok\n"))
+			fmt.Print(color.Green("ok\n"))
 		}
 	}
 
 	zip.Close()
 
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	url, err := client.CreateDoctorUrl(context.Background())
 	if err != nil {

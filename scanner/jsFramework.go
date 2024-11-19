@@ -109,6 +109,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || nodeVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "node", Version: nodeVersionString}
 		}
 	} else {
 		// ensure bun is in $PATH
@@ -140,6 +142,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if err != nil || bunVersion.LT(minVersion) {
 				return nil, nil
 			}
+
+			srcInfo.Runtime = plan.RuntimeStruct{Language: "bun", Version: bunVersionString}
 		}
 
 		// set family
@@ -174,6 +178,11 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.RedisDesired = true
 	}
 
+	// infer object storage (Tigris) from dependencies
+	if deps["@aws-sdk/client-s3"] != nil {
+		srcInfo.ObjectStorageDesired = true
+	}
+
 	// if prisma is used, provider is definative
 	if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "provider")) {
 		if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "postgresql")) {
@@ -202,7 +211,6 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			if len(m) > 0 && name == "port" {
 				portFromDockerfile, err := strconv.Atoi(m[i])
 				if err == nil {
-					fmt.Printf("got port\n")
 					srcInfo.Port = portFromDockerfile
 					continue
 				}
@@ -225,13 +233,19 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 	} else if deps["gatsby"] != nil {
 		srcInfo.Family = "Gatsby"
 		srcInfo.Port = 8080
+	} else if startScript, ok := scripts["start"].(string); ok && strings.Contains(startScript, "meteor") {
+		srcInfo.Family = "Meteor"
+		srcInfo.Env = map[string]string{
+			"PORT":     "3000",
+			"ROOT_URL": "APP_URL",
+		}
 	} else if deps["@nestjs/core"] != nil {
 		srcInfo.Family = "NestJS"
 	} else if deps["next"] != nil {
 		srcInfo.Family = "Next.js"
 	} else if deps["nust"] != nil {
 		srcInfo.Family = "Nust"
-	} else if devdeps["nuxt"] != nil {
+	} else if devdeps["nuxt"] != nil || deps["nuxt"] != nil {
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
@@ -284,7 +298,13 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			_, err = os.Stat("pnpm-lock.yaml")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+
+				_, err = os.Stat("pnpm-workspace.yaml")
+				if errors.Is(err, fs.ErrNotExist) {
+					args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+				} else {
+					args = []string{"pnpm", "add", "-w", "-D", "@flydotio/dockerfile@latest"}
+				}
 			}
 
 			_, err = os.Stat("bun.lockb")

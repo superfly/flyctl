@@ -27,12 +27,16 @@ func runMachinesScaleShow(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	machines, _, err := flapsClient.ListFlyAppsMachines(ctx)
 	if err != nil {
 		return err
 	}
+
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
+		return m.Config != nil
+	})
 
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()

@@ -10,11 +10,11 @@ import (
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
@@ -22,9 +22,8 @@ import (
 
 func newClone() *cobra.Command {
 	const (
-		short = "Clone a Fly Machine."
-		long  = short + ` The new Machine will be a copy of the specified Machine.
-If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine.`
+		short = "Clone a Fly Machine"
+		long  = "Clone a Fly Machine. The new Machine will be a copy of the specified Machine. If the original Machine has a volume, then a new empty volume will be created and attached to the new Machine."
 
 		usage = "clone [machine_id]"
 	)
@@ -73,8 +72,8 @@ If the original Machine has a volume, then a new empty volume will be created an
 		},
 		flag.Bool{
 			Name:        "volume-requires-unique-zone",
-			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default false.",
-			Default:     false,
+			Description: "Require volume to be placed in separate hardware zone from existing volumes. Default true.",
+			Default:     true,
 		},
 		flag.Detach(),
 		flag.VMSizeFlags,
@@ -97,7 +96,12 @@ func runMachineClone(ctx context.Context) (err error) {
 	if err != nil {
 		return err
 	}
-	flapsClient := flaps.FromContext(ctx)
+
+	if source.HostStatus != fly.HostStatusOk {
+		return fmt.Errorf("the machine is on an unreachable host, try again later")
+	}
+
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	var vol *fly.Volume
 	if volumeInfo := flag.GetString(ctx, "attach-volume"); volumeInfo != "" {
@@ -246,6 +250,9 @@ func runMachineClone(ctx context.Context) (err error) {
 			}
 		}
 		targetConfig.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		targetConfig.Env = lo.Assign(targetConfig.Env,
+			map[string]string{"FLY_STANDBY_FOR": strings.Join(standbys, ",")},
+		)
 	}
 
 	input := fly.LaunchMachineInput{

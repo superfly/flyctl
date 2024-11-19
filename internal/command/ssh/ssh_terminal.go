@@ -56,7 +56,7 @@ func RunSSHCommand(ctx context.Context, app *fly.AppCompact, dialer agent.Dialer
 	}
 
 	if len(errBuf.Bytes()) > 0 {
-		return nil, fmt.Errorf(errBuf.String())
+		return nil, errors.New(errBuf.String())
 	}
 
 	return outBuf.Bytes(), nil
@@ -70,7 +70,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		appNames = append(appNames, p.App)
 	}
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, appNames)
+	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, appNames, p.Username)
 	if err != nil {
 		return fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newUnset() (cmd *cobra.Command) {
@@ -29,7 +30,7 @@ func newUnset() (cmd *cobra.Command) {
 }
 
 func runUnset(ctx context.Context) (err error) {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
@@ -40,7 +41,7 @@ func runUnset(ctx context.Context) (err error) {
 }
 
 func UnsetSecretsAndDeploy(ctx context.Context, app *fly.AppCompact, secrets []string, stage bool, detach bool) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	if _, err := client.UnsetSecrets(ctx, app.Name, secrets); err != nil {
 		return err
 	}

@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -11,7 +12,6 @@ import (
 	"github.com/mattn/go-colorable"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/watch"
 	"github.com/superfly/flyctl/iostreams"
@@ -62,7 +64,7 @@ func runFailover(ctx context.Context) (err error) {
 		MinPostgresStandaloneVersion = "0.0.7"
 
 		io      = iostreams.FromContext(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 	)
 
@@ -86,7 +88,7 @@ func runFailover(ctx context.Context) (err error) {
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -114,7 +116,7 @@ func runFailover(ctx context.Context) (err error) {
 		}
 	}
 
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	dialer := agent.DialerFromContext(ctx)
 
@@ -132,7 +134,6 @@ func runFailover(ctx context.Context) (err error) {
 			if err != nil {
 				return err
 			} else if machineRole(leader) == "leader" {
-
 				return fmt.Errorf("%s hasn't lost its leader role", leader.ID)
 			}
 			return nil
@@ -214,7 +215,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 		Signal: "SIGINT",
 	}
 
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 	err = flapsClient.Stop(ctx, machineStopInput, oldLeader.LeaseNonce)
 	if err != nil {
 		return fmt.Errorf("could not stop pg leader %s: %w", oldLeader.ID, err)
@@ -293,7 +294,7 @@ func flexFailover(ctx context.Context, machines []*fly.Machine, app *fly.AppComp
 
 func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err error) {
 	io := iostreams.FromContext(ctx)
-	flapsClient := flaps.FromContext(ctx)
+	flapsClient := flapsutil.ClientFromContext(ctx)
 
 	leader, err := pickLeader(ctx, machines)
 	if err != nil {
@@ -399,7 +400,7 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 
 	err += "\nplease fix one or more of the above issues, and try again\n"
 
-	return nil, fmt.Errorf(err)
+	return nil, errors.New(err)
 }
 
 // Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks

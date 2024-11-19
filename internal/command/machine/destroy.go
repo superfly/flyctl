@@ -7,10 +7,11 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -20,7 +21,7 @@ func newDestroy() *cobra.Command {
 	const (
 		short = "Destroy Fly machines"
 		long  = `Destroy one or more Fly machines.
-This command requires a machine to be in a stopped state unless the force flag is used.
+This command requires a machine to be in a stopped or suspended state unless the force flag is used.
 `
 		usage = "destroy [flags] ID ID ..."
 	)
@@ -56,16 +57,21 @@ This command requires a machine to be in a stopped state unless the force flag i
 
 func runMachineDestroy(ctx context.Context) (err error) {
 	ctx, err = buildContextFromAppName(ctx, appconfig.NameFromContext(ctx))
-	image := strings.TrimSpace(flag.GetString(ctx, "image"))
-	ids := []string{}
+	if err != nil {
+		return err
+	}
 
-	if image != "" {
-		machines, err := flaps.FromContext(ctx).ListActive(ctx)
+	var machinesToBeDeleted []*fly.Machine
+	image := strings.TrimSpace(flag.GetString(ctx, "image"))
+
+	switch {
+	case image != "":
+		machines, err := flapsutil.ClientFromContext(ctx).ListActive(ctx)
 		if err != nil {
 			return err
 		}
 
-		machinesToBeDeleted := []*fly.Machine{}
+		var ids []string
 		for _, machine := range machines {
 			if machine.ImageRefWithVersion() == image {
 				machinesToBeDeleted = append(machinesToBeDeleted, machine)
@@ -73,18 +79,11 @@ func runMachineDestroy(ctx context.Context) (err error) {
 			}
 		}
 
-		if len(machinesToBeDeleted) == 0 {
-			fmt.Fprint(iostreams.FromContext(ctx).Out, "No machine to destroy, exiting\n")
-			return nil
-		}
-
-		machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
-		if err != nil {
-			return err
-		}
-		defer release()
-
-		confirmed, err := prompt.Confirm(ctx, fmt.Sprintf("%d Machines (%s) will be destroyed, continue?", len(machines), strings.Join(ids, ",")))
+		confirmed, err := prompt.Confirm(ctx,
+			fmt.Sprintf("%d Machines (%s) will be destroyed, continue?",
+				len(machinesToBeDeleted),
+				strings.Join(ids, ","),
+			))
 		if err != nil {
 			return err
 		}
@@ -92,47 +91,39 @@ func runMachineDestroy(ctx context.Context) (err error) {
 			return nil
 		}
 
-		for _, machine := range machines {
-			err = singleDestroyRun(ctx, machine)
-			if err != nil {
-				return err
-			}
-		}
-
-	} else if len(flag.Args(ctx)) == 0 {
-		machine, ctx, err := selectOneMachine(ctx, "", "", false)
+	case len(flag.Args(ctx)) == 0:
+		machine, newCtx, err := selectOneMachine(ctx, "", "", false)
 		if err != nil {
 			return err
 		}
-		machine, release, err := mach.AcquireLease(ctx, machine)
+		ctx = newCtx
+		machinesToBeDeleted = append(machinesToBeDeleted, machine)
+
+	default:
+		machines, newCtx, err := selectManyMachines(ctx, flag.Args(ctx))
 		if err != nil {
 			return err
 		}
-		defer release()
+		ctx = newCtx
+		machinesToBeDeleted = append(machinesToBeDeleted, machines...)
+	}
 
+	if len(machinesToBeDeleted) == 0 {
+		fmt.Fprint(iostreams.FromContext(ctx).Out, "No machine to destroy, exiting\n")
+		return nil
+	}
+
+	machines, release, err := mach.AcquireLeases(ctx, machinesToBeDeleted)
+	defer release()
+	if err != nil {
+		return err
+	}
+
+	for _, machine := range machines {
 		err = singleDestroyRun(ctx, machine)
 		if err != nil {
 			return err
 		}
-	} else {
-		machines, ctx, err := selectManyMachines(ctx, flag.Args(ctx))
-		if err != nil {
-			return err
-		}
-
-		machines, release, err := mach.AcquireLeases(ctx, machines)
-		if err != nil {
-			return err
-		}
-		defer release()
-
-		for _, machine := range machines {
-			err = singleDestroyRun(ctx, machine)
-			if err != nil {
-				return err
-			}
-		}
-
 	}
 
 	return nil
@@ -147,7 +138,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 	appName := appconfig.NameFromContext(ctx)
 
 	// This is used for the deletion hook below.
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	app, err := client.GetAppCompact(ctx, appName)
 	if err != nil {
 		return fmt.Errorf("could not get app '%s': %w", appName, err)
@@ -166,7 +157,7 @@ func singleDestroyRun(ctx context.Context, machine *fly.Machine) error {
 func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, force bool) error {
 	var (
 		out         = iostreams.FromContext(ctx).Out
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 
 		input = fly.RemoveMachineInput{
 			ID:   machine.ID,
@@ -175,7 +166,7 @@ func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, for
 	)
 
 	switch machine.State {
-	case "stopped":
+	case "stopped", "suspended":
 		break
 	case "destroyed":
 		return fmt.Errorf("machine %s has already been destroyed", machine.ID)
@@ -185,7 +176,7 @@ func Destroy(ctx context.Context, app *fly.AppCompact, machine *fly.Machine, for
 		}
 	default:
 		if !force {
-			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped, either stop first or use --force flag", machine.ID, machine.State)
+			return fmt.Errorf("machine %s is in a %s state and cannot be destroyed since it is not stopped or suspended, either stop first or use --force flag", machine.ID, machine.State)
 		}
 	}
 	fmt.Fprintf(out, "machine %s was found and is currently in %s state, attempting to destroy...\n", machine.ID, machine.State)

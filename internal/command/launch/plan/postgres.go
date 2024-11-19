@@ -32,9 +32,9 @@ func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 			//        so it constructs the name on-the-spot each time it needs it)
 			AppName:    plan.AppName + "-db",
 			VmSize:     "shared-cpu-1x",
-			VmRam:      1024,
+			VmRam:      256,
 			Nodes:      1,
-			DiskSizeGB: 10,
+			DiskSizeGB: 1,
 		},
 	}
 }

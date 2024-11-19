@@ -15,6 +15,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/flyctl"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
 	"github.com/superfly/flyctl/wg"
@@ -23,7 +24,7 @@ import (
 
 var cleanDNSPattern = regexp.MustCompile(`[^a-zA-Z0-9\\-]`)
 
-func generatePeerName(ctx context.Context, apiClient *fly.Client) (string, error) {
+func generatePeerName(ctx context.Context, apiClient flyutil.Client) (string, error) {
 	user, err := apiClient.GetCurrentUser(ctx)
 	if err != nil {
 		return "", err
@@ -40,18 +41,18 @@ func generatePeerName(ctx context.Context, apiClient *fly.Client) (string, error
 	return name, nil
 }
 
-func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organization, regionCode string, name string, recycle bool, network string) (*wg.WireGuardState, error) {
+func StateForOrg(ctx context.Context, apiClient flyutil.Client, org *fly.Organization, regionCode string, name string, reestablish bool, network string) (*wg.WireGuardState, error) {
 	state, err := getWireGuardStateForOrg(org.Slug, network)
 	if err != nil {
 		return nil, err
 	}
-	if state != nil && !recycle && state.Region == regionCode {
+	if state != nil && !reestablish && (regionCode == "" || state.Region == regionCode) {
 		return state, nil
 	}
 
 	terminal.Debugf("Can't find matching WireGuard configuration; creating new one\n")
 
-	stateb, err := Create(apiClient, org, regionCode, name, network)
+	stateb, err := Create(apiClient, org, regionCode, name, network, "interactive")
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +64,7 @@ func StateForOrg(ctx context.Context, apiClient *fly.Client, org *fly.Organizati
 	return stateb, nil
 }
 
-func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name, network string) (*wg.WireGuardState, error) {
+func Create(apiClient flyutil.Client, org *fly.Organization, regionCode, name, network string, namePrefix string) (*wg.WireGuardState, error) {
 	ctx := context.TODO()
 	var (
 		err error
@@ -76,7 +77,7 @@ func Create(apiClient *fly.Client, org *fly.Organization, regionCode, name, netw
 			return nil, err
 		}
 
-		name = fmt.Sprintf("interactive-%s", n)
+		name = fmt.Sprintf("%s-%s", namePrefix, n)
 	}
 
 	if regionCode == "" {
@@ -180,7 +181,7 @@ func setWireGuardStateForOrg(ctx context.Context, orgSlug, network string, s *wg
 	return setWireGuardState(ctx, states)
 }
 
-func PruneInvalidPeers(ctx context.Context, apiClient *fly.Client) error {
+func PruneInvalidPeers(ctx context.Context, apiClient flyutil.Client) error {
 	state, err := GetWireGuardState()
 	if err != nil {
 		return nil

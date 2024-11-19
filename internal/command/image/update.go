@@ -6,11 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 )
 
 func newUpdate() *cobra.Command {
@@ -38,7 +38,7 @@ The update will perform a rolling restart against each Machine, which may result
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Skip waiting for health checks inbetween VM updates. (Machines only)",
+			Description: "Skip waiting for health checks inbetween VM updates.",
 			Default:     false,
 		},
 	)
@@ -49,7 +49,7 @@ The update will perform a rolling restart against each Machine, which may result
 func runUpdate(ctx context.Context) error {
 	var (
 		appName = appconfig.NameFromContext(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	app, err := client.GetAppCompact(ctx, appName)

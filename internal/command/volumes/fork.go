@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -22,7 +23,7 @@ func newFork() *cobra.Command {
 
 		long = short + ` Volume forking creates an independent copy of a storage volume for backup, testing, and experimentation without altering the original data.`
 
-		usage = "fork [id]"
+		usage = "fork <volume id>"
 	)
 
 	cmd := command.New(usage, short, long, runFork,
@@ -41,13 +42,9 @@ func newFork() *cobra.Command {
 			Description: "The name of the new volume",
 		},
 		flag.Bool{
-			Name:        "machines-only",
-			Description: "volume will be visible to Machines platform only",
-			Hidden:      true,
-		},
-		flag.Bool{
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Default:     true,
 		},
 		flag.String{
 			Name:        "region",
@@ -66,7 +63,7 @@ func runFork(ctx context.Context) error {
 		cfg     = config.FromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 		volID   = flag.FirstArg(ctx)
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 	)
 
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
@@ -98,16 +95,6 @@ func runFork(ctx context.Context) error {
 		name = flag.GetString(ctx, "name")
 	}
 
-	var machinesOnly *bool
-	if flag.IsSpecified(ctx, "machines-only") {
-		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
-	}
-
-	var requireUniqueZone *bool
-	if flag.IsSpecified(ctx, "require-unique-zone") {
-		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
-	}
-
 	region := flag.GetString(ctx, "region")
 
 	var attachedMachineImage string
@@ -128,8 +115,7 @@ func runFork(ctx context.Context) error {
 
 	input := fly.CreateVolumeRequest{
 		Name:                name,
-		MachinesOnly:        machinesOnly,
-		RequireUniqueZone:   requireUniqueZone,
+		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,

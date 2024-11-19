@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/dig"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"golang.org/x/net/icmp"
 	"golang.org/x/net/ipv6"
 )
@@ -75,7 +75,7 @@ The target argument can be either a ".internal" DNS name in our network
 }
 
 func run(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 
 	var (
 		err  error

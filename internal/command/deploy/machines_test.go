@@ -21,7 +21,7 @@ func stabMachineDeployment(appConfig *appconfig.Config) (*machineDeployment, err
 		},
 		img:        "super/balloon",
 		appConfig:  appConfig,
-		machineSet: machine.NewMachineSet(nil, nil, nil),
+		machineSet: machine.NewMachineSet(nil, nil, nil, true),
 	}
 	return md, nil
 }
@@ -178,10 +178,12 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: fly.MachinePresets["shared-cpu-2x"],
 		},
+		SkipLaunch: true,
 	}, got)
 
 	// Update existing release command machine
 	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Env: map[string]string{
 				"PRIMARY_REGION": "different-region",
@@ -226,6 +228,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: fly.MachinePresets["shared-cpu-2x"],
 		},
+		SkipLaunch: true,
 	}, got)
 }
 
@@ -268,6 +271,7 @@ func Test_resolveUpdatedMachineConfig_Mounts(t *testing.T) {
 	}, li)
 
 	origMachine := &fly.Machine{
+		HostStatus: fly.HostStatusOk,
 		Config: &fly.MachineConfig{
 			Mounts: []fly.MachineMount{{
 				Volume: "vol_alreadyattached",
@@ -316,7 +320,8 @@ func Test_resolveUpdatedMachineConfig_restartOnly(t *testing.T) {
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &fly.Machine{
-		ID: "OrigID",
+		HostStatus: fly.HostStatusOk,
+		ID:         "OrigID",
 		Config: &fly.MachineConfig{
 			Image: "instead-use/the-redmoon",
 		},
@@ -355,7 +360,8 @@ func Test_resolveUpdatedMachineConfig_restartOnlyProcessGroup(t *testing.T) {
 	md.img = "SHOULD-NOT-USE-THIS-TAG"
 
 	origMachine := &fly.Machine{
-		ID: "OrigID",
+		HostStatus: fly.HostStatusOk,
+		ID:         "OrigID",
 		Config: &fly.MachineConfig{
 			Image: "instead-use/the-redmoon",
 			Metadata: map[string]string{

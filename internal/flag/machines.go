@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s"}
+	validGPUKinds  = []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"}
 	gpuKindAliases = map[string]string{
 		"a100-40gb": "a100-pcie-40gb",
 		"a100-80gb": "a100-sxm4-80gb",
@@ -71,10 +71,14 @@ func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.Machine
 		if !slices.Contains(validGPUKinds, m) {
 			return nil, fmt.Errorf("--vm-gpu-kind must be set to one of: %v", strings.Join(validGPUKinds, ", "))
 		}
-		guest.GPUKind = m
-
-		if guest.GPUs == 0 {
-			guest.GPUs = 1
+		if m == "none" {
+			guest.GPUs = 0
+			guest.GPUKind = ""
+		} else {
+			guest.GPUKind = m
+			if guest.GPUs == 0 {
+				guest.GPUs = 1
+			}
 		}
 	}
 

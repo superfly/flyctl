@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
@@ -64,7 +65,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
+		return err
 	}
 
 	if cfg.JSONOutput {
@@ -91,20 +92,18 @@ func runMachineList(ctx context.Context) (err error) {
 		}
 		_ = render.Table(io.Out, "", rows)
 	} else {
+		unreachableMachines := false
+
 		for _, machine := range machines {
 			var volName string
 			if machine.Config != nil && len(machine.Config.Mounts) > 0 {
 				volName = machine.Config.Mounts[0].Volume
 			}
 
-			appPlatform := ""
 			machineProcessGroup := ""
 			size := ""
 
 			if machine.Config != nil {
-				if platformVersion, ok := machine.Config.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
-					appPlatform = platformVersion
-				}
 
 				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
@@ -115,24 +114,70 @@ func runMachineList(ctx context.Context) (err error) {
 				}
 			}
 
+			note := ""
+			unreachable := machine.HostStatus != fly.HostStatusOk
+			if unreachable {
+				unreachableMachines = true
+				note = "*"
+			}
+
+			checksTotal := 0
+			checksPassing := 0
+			role := ""
+			for _, c := range machine.Checks {
+				checksTotal += 1
+
+				if c.Status == "passing" {
+					checksPassing += 1
+				}
+
+				if c.Name == "role" {
+					role = c.Output
+				}
+			}
+
+			checksSummary := ""
+			if checksTotal > 0 {
+				checksSummary = fmt.Sprintf("%d/%d", checksPassing, checksTotal)
+			}
+
 			rows = append(rows, []string{
-				machine.ID,
+				machine.ID + note,
 				machine.Name,
 				machine.State,
+				lo.Ternary(unreachable, "", checksSummary),
 				machine.Region,
-				machine.ImageRefWithVersion(),
-				machine.PrivateIP,
+				role,
+				lo.Ternary(unreachable, "", machine.ImageRefWithVersion()),
+				lo.Ternary(unreachable, "", machine.PrivateIP),
 				volName,
-				machine.CreatedAt,
-				machine.UpdatedAt,
-				appPlatform,
+				lo.Ternary(unreachable, "", machine.CreatedAt),
+				lo.Ternary(unreachable, "", machine.UpdatedAt),
 				machineProcessGroup,
 				size,
 			})
-
 		}
 
-		_ = render.Table(io.Out, appName, rows, "ID", "Name", "State", "Region", "Image", "IP Address", "Volume", "Created", "Last Updated", "App Platform", "Process Group", "Size")
+		headers := []string{
+			"ID",
+			"Name",
+			"State",
+			"Checks",
+			"Region",
+			"Role",
+			"Image",
+			"IP Address",
+			"Volume",
+			"Created",
+			"Last Updated",
+			"Process Group",
+			"Size",
+		}
+
+		_ = render.Table(io.Out, appName, rows, headers...)
+		if unreachableMachines {
+			fmt.Fprintln(io.Out, "* These Machines' hosts could not be reached.")
+		}
 	}
 	return nil
 }

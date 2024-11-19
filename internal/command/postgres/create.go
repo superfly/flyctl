@@ -8,11 +8,12 @@ import (
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -33,6 +34,10 @@ func newCreate() *cobra.Command {
 		flag.Region(),
 		flag.Org(),
 		flag.Detach(),
+		flag.Bool{
+			Name:        "enable-backups",
+			Description: "Create a new tigris bucket and enable WAL-based backups",
+		},
 		flag.String{
 			Name:        "name",
 			Shorthand:   "n",
@@ -97,7 +102,7 @@ func newCreate() *cobra.Command {
 func run(ctx context.Context) (err error) {
 	var (
 		appName  = flag.GetString(ctx, "name")
-		client   = fly.ClientFromContext(ctx)
+		client   = flyutil.ClientFromContext(ctx)
 		io       = iostreams.FromContext(ctx)
 		colorize = io.ColorScheme()
 	)
@@ -147,7 +152,7 @@ func run(ctx context.Context) (err error) {
 
 		// Initial cluster size may not be greater than 1 with fork-from
 		if pgConfig.InitialClusterSize > 1 {
-			fmt.Fprintf(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
+			fmt.Fprint(io.Out, colorize.Yellow("Warning: --initial-cluster-size is ignored when specifying --fork-from\n"))
 			pgConfig.InitialClusterSize = 1
 		}
 
@@ -191,7 +196,7 @@ func run(ctx context.Context) (err error) {
 			params.ForkFrom = volID
 		}
 
-		flapsClient := flaps.FromContext(ctx)
+		flapsClient := flapsutil.ClientFromContext(ctx)
 
 		// Resolve the volume
 		vol, err := flapsClient.GetVolume(ctx, params.ForkFrom)
@@ -265,26 +270,30 @@ func run(ctx context.Context) (err error) {
 // CreateCluster creates a Postgres cluster with an optional name. The name will be prompted for if not supplied.
 func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Region, params *ClusterParams) (err error) {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)
 
 	input := &flypg.CreateClusterInput{
-		AppName:      params.Name,
-		Organization: org,
-		ImageRef:     params.PostgresConfiguration.ImageRef,
-		Region:       region.Code,
-		Manager:      params.Manager,
-		Autostart:    params.Autostart,
-		ForkFrom:     params.ForkFrom,
+		AppName:        params.Name,
+		Organization:   org,
+		ImageRef:       params.PostgresConfiguration.ImageRef,
+		Region:         region.Code,
+		Manager:        params.Manager,
+		Autostart:      params.Autostart,
+		ForkFrom:       params.ForkFrom,
+		BackupsEnabled: flag.GetBool(ctx, "enable-backups"),
+		// Eventually we populate this with a full S3 endpoint, but use the
+		// restore app target for now.
+		BarmanRemoteRestoreConfig: flag.GetString(ctx, "restore-target-app"),
 	}
 
 	customConfig := params.DiskGb != 0 || params.VMSize != "" || params.InitialClusterSize != 0 || params.ScaleToZero != nil
 
 	var config *PostgresConfiguration
 
-	if !customConfig {
-		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/#postgresql-clusters")
+	if !customConfig && input.BarmanRemoteRestoreConfig == "" {
+		fmt.Fprintf(io.Out, "For pricing information visit: https://fly.io/docs/about/pricing/")
 
 		msg := "Select configuration:"
 		configurations := postgresConfigurations(input.Manager)
@@ -358,7 +367,7 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		}
 		input.VolumeSize = fly.IntPointer(params.DiskGb)
 		input.Autostart = params.Autostart
-	} else {
+	} else if input.BarmanRemoteRestoreConfig == "" {
 		// Resolve configuration from pre-defined configuration.
 		vmSize, err := resolveVMSize(ctx, config.VMSize)
 		if err != nil {
@@ -506,6 +515,13 @@ func MachineVMSizes() []fly.VMSize {
 			CPUCores: 1,
 			MemoryMB: 256,
 			MemoryGB: 0.25,
+		},
+		{
+			Name:     "shared-cpu-1x",
+			CPUClass: "shared",
+			CPUCores: 1,
+			MemoryMB: 1024,
+			MemoryGB: 1,
 		},
 		{
 			Name:     "shared-cpu-2x",

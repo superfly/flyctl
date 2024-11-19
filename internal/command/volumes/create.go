@@ -13,6 +13,7 @@ import (
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/future"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
@@ -22,8 +23,8 @@ import (
 func newCreate() *cobra.Command {
 	const (
 		short = "Create a new volume for an app."
-		long  = "Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/apps/volume-storage/"
-		usage = "create <volumename>"
+		long  = "Create a new volume for an app. Volumes are persistent storage for Fly Machines. Learn how to add a volume to your app: https://fly.io/docs/launch/volume-storage/."
+		usage = "create <volume name>"
 	)
 
 	cmd := command.New(usage, short, long, runCreate,
@@ -45,7 +46,7 @@ func newCreate() *cobra.Command {
 		flag.Int{
 			Name:        "snapshot-retention",
 			Default:     5,
-			Description: "Snapshot retention in days (min 5)",
+			Description: "Snapshot retention in days",
 		},
 		flag.Bool{
 			Name:        "no-encryption",
@@ -54,12 +55,18 @@ func newCreate() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "require-unique-zone",
-			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
+			Description: "Place the volume in a separate hardware zone from existing volumes to help ensure availability",
 			Default:     true,
 		},
 		flag.String{
 			Name:        "snapshot-id",
 			Description: "Create the volume from the specified snapshot",
+		},
+		flag.String{
+			Name:        "fs-type",
+			Description: "Filesystem of this volume. It must be either ext4 or raw. Default is ext4.",
+			Hidden:      true,
+			Default:     "ext4",
 		},
 		flag.Yes(),
 		flag.Int{
@@ -78,7 +85,7 @@ func newCreate() *cobra.Command {
 func runCreate(ctx context.Context) error {
 	var (
 		cfg    = config.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 
 		volumeName = flag.FirstArg(ctx)
 		appName    = appconfig.NameFromContext(ctx)
@@ -91,7 +98,7 @@ func runCreate(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	// pre-fetch platform regions from API in background
 	prompt.PlatformRegions(ctx)
@@ -124,6 +131,15 @@ func runCreate(ctx context.Context) error {
 		snapshotID = fly.StringPointer(flag.GetString(ctx, "snapshot-id"))
 	}
 
+	var fsType *string
+	if flag.IsSpecified(ctx, "fs-type") {
+		s := flag.GetString(ctx, "fs-type")
+		if s != "ext4" && s != "raw" {
+			return fmt.Errorf(`filesystem %q must be either "ext4" or "raw"`, s)
+		}
+		fsType = &s
+	}
+
 	computeRequirements, err := flag.GetMachineGuest(ctx, nil)
 	if err != nil {
 		return err
@@ -138,6 +154,7 @@ func runCreate(ctx context.Context) error {
 		SnapshotID:          snapshotID,
 		ComputeRequirements: computeRequirements,
 		SnapshotRetention:   fly.Pointer(flag.GetInt(ctx, "snapshot-retention")),
+		FSType:              fsType,
 	}
 	out := iostreams.FromContext(ctx).Out
 	for i := 0; i < count; i++ {
@@ -181,7 +198,7 @@ func confirmVolumeCreate(ctx context.Context, appName string) (bool, error) {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
 
-	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/reference/volumes/"
+	const msg = "Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application to avoid downtime. Learn more at https://fly.io/docs/volumes/overview/"
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 
 	switch confirmed, err := prompt.Confirm(ctx, "Do you still want to use the volumes feature?"); {

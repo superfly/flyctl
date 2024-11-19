@@ -5,8 +5,19 @@ on:
     tags:
       - v**
 
+  workflow_run:
+    workflows: ["Automatically release a new version of flyctl"]
+    types:
+      - completed
+
+  workflow_dispatch:
+
   # need this until this file is on the default branch so tag creates are picked up
   workflow_call:
+
+permissions:
+  contents: write
+  packages: write
 
 # concurrency:
 #   group: ${{ github.workflow }}-${{ github.ref }}
@@ -71,6 +82,17 @@ jobs:
         with:
           path: dist/${{ matrix.GOOS }}
           key: ${{ matrix.GOOS }}-${{ needs.meta.outputs.sha_short }}
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.FLYIOBUILDS_DOCKERHUB_USERNAME }}
+          password: ${{ secrets.FLYIOBUILDS_DOCKERHUB_TOKEN }}
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Run GoReleaser
         if: steps.cache.outputs.cache-hit != 'true' # do not run if cache hit
         uses: goreleaser/goreleaser-action@v5
@@ -80,6 +102,7 @@ jobs:
           args: release --clean -f .goreleaser.2.yml --fail-fast --split
         env:
           GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GGOOS: ${{ matrix.GOOS }}
 
   release:
@@ -118,22 +141,14 @@ jobs:
             dist/**/*.tar.gz
           retention-days: 1
           overwrite: true
-      - name: Upload to flypkgs
-        env:
-          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
-        run: go run ./tools/distribute upload ./dist
-
-  # preflight here once old and new workflows are merged
-
-  publish:
-    needs: [meta, release]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - name: Github release
+        if: steps.cache.outputs.cache-hit != 'true' && github.ref == 'refs/heads/master'
+        uses: goreleaser/goreleaser-action@v5
         with:
-          go-version-file: "go.mod"
-      - name: Upload to flypkgs
+          distribution: goreleaser-pro
+          version: latest
+          args: continue --merge
         env:
-          FLYPKGS_API_TOKEN: ${{ secrets.FLYPKGS_API_TOKEN }}
-        run: go run ./tools/distribute publish ${{ needs.meta.outputs.version }}
+          GORELEASER_KEY: ${{ secrets.GORELEASER_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GGOOS: ${{ matrix.GOOS }}

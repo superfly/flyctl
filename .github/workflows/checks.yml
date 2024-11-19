@@ -19,10 +19,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Install Go since pre-commit below runs "go mod tidy".
       - uses: actions/setup-go@v5
         with:
           go-version-file: "go.mod"
           check-latest: true
+      # pre-commit runs "pip install" which doesn't work under Debian's apt-instaled Python.
+      # https://packaging.python.org/en/latest/specifications/externally-managed-environments/#externally-managed-environments
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
       - uses: pre-commit/action@v3.0.1
         with:
           extra_args: --all-files --hook-stage=manual
@@ -38,8 +44,7 @@ jobs:
         with:
           go-version-file: "go.mod"
           # check-latest: true
-      - uses: golangci/golangci-lint-action@v4
+      - uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.54
+          version: v1.61.0
           working-directory: .
-          skip-pkg-cache: true

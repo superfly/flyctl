@@ -6,10 +6,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -32,10 +32,10 @@ func newPlans() (cmd *cobra.Command) {
 func runPlans(ctx context.Context) (err error) {
 	var (
 		out    = iostreams.FromContext(ctx).Out
-		client = fly.ClientFromContext(ctx).GenqClient
+		client = flyutil.ClientFromContext(ctx).GenqClient()
 	)
 
-	result, err := gql.ListAddOnPlans(ctx, client)
+	result, err := gql.ListAddOnPlans(ctx, client, gql.AddOnTypeUpstashRedis)
 
 	var rows [][]string
 

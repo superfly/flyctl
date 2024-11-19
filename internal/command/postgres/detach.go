@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -41,7 +42,7 @@ func newDetach() *cobra.Command {
 
 func runDetach(ctx context.Context) error {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
@@ -76,7 +77,7 @@ func runMachineDetach(ctx context.Context, app *fly.AppCompact, pgApp *fly.AppCo
 		return fmt.Errorf("machines could not be retrieved %w", err)
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(app.Name, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -95,7 +96,7 @@ func runMachineDetach(ctx context.Context, app *fly.AppCompact, pgApp *fly.AppCo
 // TODO - This process needs to be re-written to suppport non-interactive terminals.
 func detachAppFromPostgres(ctx context.Context, leaderIP string, app *fly.AppCompact, pgApp *fly.AppCompact) error {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 	)

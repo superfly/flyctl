@@ -17,6 +17,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/ssh"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 )
@@ -76,7 +77,7 @@ func newImport() *cobra.Command {
 
 func runImport(ctx context.Context) error {
 	var (
-		client  = fly.ClientFromContext(ctx)
+		client  = flyutil.ClientFromContext(ctx)
 		appName = appconfig.NameFromContext(ctx)
 
 		sourceURI = flag.FirstArg(ctx)
@@ -114,6 +115,9 @@ func runImport(ctx context.Context) error {
 		return fmt.Errorf("no machines are available on this app %s", appName)
 	}
 	leader, _ := machinesNodeRoles(ctx, machines)
+	if leader == nil {
+		return fmt.Errorf("no active leader found")
+	}
 	machineID := leader.ID
 
 	// Resolve region

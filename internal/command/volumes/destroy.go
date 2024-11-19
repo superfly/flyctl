@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 )
@@ -22,7 +23,7 @@ func newDestroy() *cobra.Command {
 		long = short + " When you destroy a volume, you permanently delete all its data."
 	)
 
-	cmd := command.New("destroy [flags] ID ID ...", short, long, runDestroy,
+	cmd := command.New("destroy <volume id> ... [flags]", short, long, runDestroy,
 		command.RequireSession,
 		command.LoadAppNameIfPresent,
 	)
@@ -41,7 +42,7 @@ func newDestroy() *cobra.Command {
 func runDestroy(ctx context.Context) error {
 	var (
 		io     = iostreams.FromContext(ctx)
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		volIDs = flag.Args(ctx)
 	)
 
@@ -64,7 +65,7 @@ func runDestroy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ctx = flaps.NewContext(ctx, flapsClient)
+	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
 
 	if len(volIDs) == 0 {
 		app, err := client.GetAppBasic(ctx, appName)
@@ -98,7 +99,7 @@ func runDestroy(ctx context.Context) error {
 
 func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 	var (
-		flapsClient = flaps.FromContext(ctx)
+		flapsClient = flapsutil.ClientFromContext(ctx)
 		io          = iostreams.FromContext(ctx)
 		colorize    = io.ColorScheme()
 
@@ -123,7 +124,7 @@ func confirmVolumeDelete(ctx context.Context, volID string) (bool, error) {
 
 	msg := "Deleting a volume is not reversible."
 	if matches <= 2 {
-		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/reference/volumes/", matches-1)
+		msg = fmt.Sprintf("Warning! Every volume is pinned to a specific physical host. You should create two or more volumes per application. Deleting this volume will leave you with %d volume(s) for this application, and it is not reversible.  Learn more at https://fly.io/docs/volumes/overview/", matches-1)
 	}
 	fmt.Fprintln(io.ErrOut, colorize.Red(msg))
 

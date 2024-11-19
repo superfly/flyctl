@@ -14,6 +14,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/apps"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	mach "github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
@@ -73,7 +74,7 @@ func runAttach(ctx context.Context) error {
 	var (
 		pgAppName = flag.FirstArg(ctx)
 		appName   = appconfig.NameFromContext(ctx)
-		client    = fly.ClientFromContext(ctx)
+		client    = flyutil.ClientFromContext(ctx)
 	)
 
 	pgApp, err := client.GetAppCompact(ctx, pgAppName)
@@ -125,7 +126,7 @@ func runAttach(ctx context.Context) error {
 // AttachCluster is mean't to be called from an external package.
 func AttachCluster(ctx context.Context, params AttachParams) error {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 
 		pgAppName = params.PgAppName
 		appName   = params.AppName
@@ -183,7 +184,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 		return fmt.Errorf("no active machines found")
 	}
 
-	if err := hasRequiredVersionOnMachines(machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
+	if err := hasRequiredVersionOnMachines(params.AppName, machines, MinPostgresHaVersion, MinPostgresFlexVersion, MinPostgresStandaloneVersion); err != nil {
 		return err
 	}
 
@@ -197,7 +198,7 @@ func machineAttachCluster(ctx context.Context, params AttachParams, flycast *str
 
 func runAttachCluster(ctx context.Context, leaderIP string, params AttachParams, flycast *string) error {
 	var (
-		client = fly.ClientFromContext(ctx)
+		client = flyutil.ClientFromContext(ctx)
 		dialer = agent.DialerFromContext(ctx)
 		io     = iostreams.FromContext(ctx)
 

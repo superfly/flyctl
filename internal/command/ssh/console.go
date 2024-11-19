@@ -19,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/iostreams"
@@ -132,7 +133,7 @@ func captureError(ctx context.Context, err error, app *fly.AppCompact) {
 }
 
 func runConsole(ctx context.Context) error {
-	client := fly.ClientFromContext(ctx)
+	client := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 
 	if !quiet(ctx) {

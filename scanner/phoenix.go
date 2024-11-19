@@ -108,9 +108,26 @@ a Postgres database.
 `
 	}
 
-	// Add migration task if we find ecto
-	if checksPass(sourceDir, dirContains("mix.exs", "ecto")) {
+	if checksPass(sourceDir, dirContains("mix.exs", "postgrex")) {
+		s.DatabaseDesired = DatabaseKindPostgres
 		s.ReleaseCmd = "/app/bin/migrate"
+	} else if checksPass(sourceDir, dirContains("mix.exs", "ecto_sqlite3")) {
+		s.DatabaseDesired = DatabaseKindSqlite
+		s.Env["DATABASE_PATH"] = "/mnt/name/name.db"
+		s.Volumes = []Volume{
+			{
+				Source:      "name",
+				Destination: "/mnt/name",
+			},
+		}
+	}
+
+	if checksPass(sourceDir, dirContains("mix.exs", "redis")) {
+		s.RedisDesired = true
+	}
+
+	if checksPass(sourceDir, dirContains("mix.exs", "ex_aws_s3")) {
+		s.ObjectStorageDesired = true
 	}
 
 	return s, nil
@@ -125,6 +142,11 @@ export ECTO_IPV6="true"
 export DNS_CLUSTER_QUERY="${FLY_APP_NAME}.internal"
 export RELEASE_DISTRIBUTION="name"
 export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
+
+# Uncomment to send crash dumps to stderr
+# This can be useful for debugging, but may log sensitive information
+# export ERL_CRASH_DUMP=/dev/stderr
+# export ERL_CRASH_DUMP_BYTES=4096
 `
 	_, err := os.Stat(envEExPath)
 	if os.IsNotExist(err) {

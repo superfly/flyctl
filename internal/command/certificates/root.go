@@ -12,6 +12,7 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -137,7 +138,7 @@ Displays results in the same format as the SHOW command.`
 
 func runCertificatesList(ctx context.Context) error {
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 
 	certs, err := apiClient.GetAppCertificates(ctx, appName)
 	if err != nil {
@@ -148,7 +149,7 @@ func runCertificatesList(ctx context.Context) error {
 }
 
 func runCertificatesShow(ctx context.Context) error {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -167,7 +168,7 @@ func runCertificatesShow(ctx context.Context) error {
 }
 
 func runCertificatesCheck(ctx context.Context) error {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -186,7 +187,7 @@ func runCertificatesCheck(ctx context.Context) error {
 }
 
 func runCertificatesAdd(ctx context.Context) error {
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -201,7 +202,7 @@ func runCertificatesAdd(ctx context.Context) error {
 func runCertificatesRemove(ctx context.Context) error {
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	appName := appconfig.NameFromContext(ctx)
 	hostname := flag.FirstArg(ctx)
 
@@ -239,7 +240,7 @@ func reportNextStepCert(ctx context.Context, hostname string, cert *fly.AppCerti
 
 	colorize := io.ColorScheme()
 	appName := appconfig.NameFromContext(ctx)
-	apiClient := fly.ClientFromContext(ctx)
+	apiClient := flyutil.ClientFromContext(ctx)
 	alternateHostname := getAlternateHostname(hostname)
 
 	// These are the IPs we have for the app
@@ -419,7 +420,7 @@ func printCloudflareInstructions(ctx context.Context, hostname string, cert *fly
 
 	fmt.Fprintln(io.Out)
 	fmt.Fprintln(io.Out, "If you've already set this up, your certificate should be issued soon.")
-	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/app-guides/custom-domains-with-fly/")
+	fmt.Fprintln(io.Out, "For much more information, check our docs at: https://fly.io/docs/networking/custom-domain/")
 
 	return nil
 }
