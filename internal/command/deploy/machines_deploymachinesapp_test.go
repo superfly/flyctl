@@ -3,10 +3,14 @@ package deploy
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/machine"
+	"github.com/superfly/flyctl/internal/mock"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -33,4 +37,38 @@ func TestUpdateExistingMachinesWRecovery(t *testing.T) {
 		},
 	})
 	assert.Error(t, err, "failed to find machine test-machine-id")
+}
+
+func TestDeployMachinesApp(t *testing.T) {
+	ios, _, _, _ := iostreams.Test()
+	client := &mockFlapsClient{}
+	webClient := &mock.Client{
+		GetAppLogsFunc: func(ctx context.Context, appName, token, region, instanceID string) (entries []fly.LogEntry, nextToken string, err error) {
+			return nil, "", nil
+		},
+	}
+	client.machines = []*fly.Machine{
+		{ID: "m1", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m2", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m3", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m4", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+	}
+	md := &machineDeployment{
+		app:             &fly.AppCompact{},
+		io:              ios,
+		colorize:        ios.ColorScheme(),
+		flapsClient:     client,
+		apiClient:       webClient,
+		strategy:        "canary",
+		appConfig:       &appconfig.Config{},
+		machineSet:      machine.NewMachineSet(client, ios, client.machines, false),
+		skipSmokeChecks: true,
+		waitTimeout:     1 * time.Second,
+	}
+
+	ctx := context.Background()
+	ctx = iostreams.NewContext(ctx, ios)
+	ctx = flapsutil.NewContextWithClient(ctx, client)
+	err := md.deployMachinesApp(ctx)
+	assert.NoError(t, err)
 }

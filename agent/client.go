@@ -34,7 +34,7 @@ import (
 )
 
 // Establish starts the daemon, if necessary, and returns a client to it.
-func Establish(ctx context.Context, apiClient flyutil.Client) (*Client, error) {
+func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, error) {
 	if err := wireguard.PruneInvalidPeers(ctx, apiClient); err != nil {
 		return nil, err
 	}

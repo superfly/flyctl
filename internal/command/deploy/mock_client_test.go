@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	fly "github.com/superfly/fly-go"
@@ -22,12 +23,33 @@ type mockFlapsClient struct {
 	breakUncordon    bool
 	breakSetMetadata bool
 	breakList        bool
+	breakDestroy     bool
+	breakLease       bool
 
-	machines []*fly.Machine
+	// mu to protect the members below.
+	mu            sync.Mutex
+	machines      []*fly.Machine
+	leases        map[string]struct{}
+	nextMachineID int
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
-	return nil, fmt.Errorf("failed to acquire lease for %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.breakLease {
+		return nil, fmt.Errorf("failed to acquire lease for %s", machineID)
+	}
+
+	if m.leases == nil {
+		m.leases = make(map[string]struct{})
+	}
+	m.leases[machineID] = struct{}{}
+
+	return &fly.MachineLease{
+		Status: "success",
+		Data:   &fly.MachineLeaseData{Nonce: "nonce"},
+	}, nil
 }
 
 func (m *mockFlapsClient) Cordon(ctx context.Context, machineID string, nonce string) (err error) {
@@ -63,7 +85,10 @@ func (m *mockFlapsClient) DeleteVolume(ctx context.Context, volumeId string) (*f
 }
 
 func (m *mockFlapsClient) Destroy(ctx context.Context, input fly.RemoveMachineInput, nonce string) (err error) {
-	return fmt.Errorf("failed to destroy %s", input.ID)
+	if m.breakDestroy {
+		return fmt.Errorf("failed to destroy %s", input.ID)
+	}
+	return nil
 }
 
 func (m *mockFlapsClient) Exec(ctx context.Context, machineID string, in *fly.MachineExecRequest) (*fly.MachineExecResponse, error) {
@@ -119,10 +144,14 @@ func (m *mockFlapsClient) Kill(ctx context.Context, machineID string) (err error
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.breakLaunch {
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
-	return &fly.Machine{}, nil
+	m.nextMachineID += 1
+	return &fly.Machine{ID: fmt.Sprintf("%x", m.nextMachineID)}, nil
 }
 
 func (m *mockFlapsClient) List(ctx context.Context, state string) ([]*fly.Machine, error) {
@@ -149,11 +178,31 @@ func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, i
 }
 
 func (m *mockFlapsClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
-	return nil, fmt.Errorf("failed to refresh lease for %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	_, exists := m.leases[machineID]
+	if !exists {
+		return nil, fmt.Errorf("lease for %s hasn't acquired", machineID)
+	}
+
+	return &fly.MachineLease{
+		Status: "success",
+		Data:   &fly.MachineLeaseData{Nonce: "nonce"},
+	}, nil
 }
 
 func (m *mockFlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {
-	return fmt.Errorf("failed to release lease for %s", machineID)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	_, exists := m.leases[machineID]
+	if !exists {
+		return fmt.Errorf("failed to release lease for %s", machineID)
+	}
+	delete(m.leases, machineID)
+
+	return nil
 }
 
 func (m *mockFlapsClient) Restart(ctx context.Context, in fly.RestartMachineInput, nonce string) (err error) {
