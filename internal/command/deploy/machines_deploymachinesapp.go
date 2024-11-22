@@ -1106,6 +1106,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	return lm, nil
 }
 
+// resolveProcessGroupChanges returns a diff between machines
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
