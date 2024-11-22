@@ -17,7 +17,7 @@ import (
 func TestUpdateExistingMachinesWRecovery(t *testing.T) {
 	ios, _, _, _ := iostreams.Test()
 	client := &mockFlapsClient{}
-	client.machines = []*fly.Machine{{ID: "test-machine-id"}}
+	client.machines = []*fly.Machine{{ID: "test-machine-id", LeaseNonce: "foobar"}}
 	md := &machineDeployment{
 		app:         &fly.AppCompact{},
 		io:          ios,
@@ -48,10 +48,10 @@ func TestDeployMachinesApp(t *testing.T) {
 		},
 	}
 	client.machines = []*fly.Machine{
-		{ID: "m1", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
-		{ID: "m2", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
-		{ID: "m3", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
-		{ID: "m4", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m1", LeaseNonce: "m1-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m2", LeaseNonce: "m2-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m3", LeaseNonce: "m3-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
+		{ID: "m4", LeaseNonce: "m4-lease", Config: &fly.MachineConfig{Metadata: map[string]string{fly.MachineConfigMetadataKeyFlyProcessGroup: "app"}}},
 	}
 	md := &machineDeployment{
 		app:             &fly.AppCompact{},
