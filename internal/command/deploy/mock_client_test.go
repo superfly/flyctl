@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	fly "github.com/superfly/fly-go"
@@ -16,10 +17,6 @@ func (f *mockWebClient) CanPerformBluegreenDeployment(ctx context.Context, appNa
 	return true, nil
 }
 
-var (
-	globalMachineID = 0
-)
-
 type mockFlapsClient struct {
 	breakLaunch      bool
 	breakWait        bool
@@ -29,11 +26,17 @@ type mockFlapsClient struct {
 	breakDestroy     bool
 	breakLease       bool
 
-	machines []*fly.Machine
-	leases   map[string]struct{}
+	// mu to protect the members below.
+	mu            sync.Mutex
+	machines      []*fly.Machine
+	leases        map[string]struct{}
+	nextMachineID int
 }
 
 func (m *mockFlapsClient) AcquireLease(ctx context.Context, machineID string, ttl *int) (*fly.MachineLease, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.breakLease {
 		return nil, fmt.Errorf("failed to acquire lease for %s", machineID)
 	}
@@ -141,11 +144,14 @@ func (m *mockFlapsClient) Kill(ctx context.Context, machineID string) (err error
 }
 
 func (m *mockFlapsClient) Launch(ctx context.Context, builder fly.LaunchMachineInput) (*fly.Machine, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	if m.breakLaunch {
 		return nil, fmt.Errorf("failed to launch %s", builder.ID)
 	}
-	globalMachineID += 1
-	return &fly.Machine{ID: fmt.Sprintf("%x", globalMachineID)}, nil
+	m.nextMachineID += 1
+	return &fly.Machine{ID: fmt.Sprintf("%x", m.nextMachineID)}, nil
 }
 
 func (m *mockFlapsClient) List(ctx context.Context, state string) ([]*fly.Machine, error) {
@@ -172,9 +178,12 @@ func (m *mockFlapsClient) NewRequest(ctx context.Context, method, path string, i
 }
 
 func (m *mockFlapsClient) RefreshLease(ctx context.Context, machineID string, ttl *int, nonce string) (*fly.MachineLease, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, exists := m.leases[machineID]
 	if !exists {
-		return nil, fmt.Errorf("failed to refresh lease for %s", machineID)
+		return nil, fmt.Errorf("lease for %s hasn't acquired", machineID)
 	}
 
 	return &fly.MachineLease{
@@ -184,6 +193,9 @@ func (m *mockFlapsClient) RefreshLease(ctx context.Context, machineID string, tt
 }
 
 func (m *mockFlapsClient) ReleaseLease(ctx context.Context, machineID, nonce string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	_, exists := m.leases[machineID]
 	if !exists {
 		return fmt.Errorf("failed to release lease for %s", machineID)
