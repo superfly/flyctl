@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"maps"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
@@ -402,6 +404,15 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appco
 
 	if compute := appConfig.ComputeForGroup("console"); compute != nil {
 		guest = compute.MachineGuest
+
+		if compute.Memory != "" {
+			mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+			if err != nil {
+				return nil, fmt.Errorf("invalid memory size: %w", err)
+			}
+
+			guest.MemoryMB = mb
+		}
 	}
 
 	guest, err := flag.GetMachineGuest(ctx, guest)
