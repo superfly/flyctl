@@ -3,15 +3,18 @@ package statuslogger
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/superfly/flyctl/iostreams"
 )
 
 type noninteractiveLogger struct {
-	io         *iostreams.IOStreams
-	lines      []*noninteractiveLine
+	mu sync.Mutex
+	io *iostreams.IOStreams
+
 	logNumbers bool
 	showStatus bool
+	lines      []*noninteractiveLine
 }
 
 func (nl *noninteractiveLogger) Line(i int) StatusLine {
@@ -36,6 +39,9 @@ func (line *noninteractiveLine) Log(s string) {
 		buf += formatIndex(line.lineNum, len(line.logger.lines)) + " "
 	}
 	buf += s
+
+	line.logger.mu.Lock()
+	defer line.logger.mu.Unlock()
 	fmt.Fprintln(line.logger.io.Out, buf)
 }
 

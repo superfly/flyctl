@@ -369,6 +369,9 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 	ctx, span := tracing.GetTracer().Start(ctx, "acquire_leases")
 
 	leaseGroup := errgroup.Group{}
+	if poolSize <= 0 {
+		panic("pool size must be > 0")
+	}
 	leaseGroup.SetLimit(poolSize)
 
 	for _, machineTuple := range machineTuples {
