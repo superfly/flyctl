@@ -809,32 +809,32 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		groupsPool.Go(func(ctx context.Context) error {
 			eg, ctx := errgroup.WithContext(ctx)
 
-			eg.Go(func() (err error) {
-				poolSize := len(coldMachines)
-				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
-					poolSize = STOPPED_MACHINES_POOL_SIZE
-				}
+			coldIdx := startIdx
+			if len(coldMachines) > 0 {
+				eg.Go(func() (err error) {
+					poolSize := len(coldMachines)
+					if poolSize >= STOPPED_MACHINES_POOL_SIZE {
+						poolSize = STOPPED_MACHINES_POOL_SIZE
+					}
 
-				if len(coldMachines) > 0 {
 					// for cold machines, we can update all of them at once.
 					// there's no need for protection against downtime since the machines are already stopped
-					startIdx += len(coldMachines)
-					return md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
-				}
+					return md.updateEntriesGroup(ctx, group, coldMachines, sl, coldIdx, poolSize)
+				})
+			}
+			startIdx += len(coldMachines)
 
-				return nil
-			})
-
-			eg.Go(func() (err error) {
-				// for warm machines, we update them in chunks of size, md.maxUnavailable.
-				// this is to prevent downtime/low-latency during deployments
-				startIdx += len(warmMachines)
-				poolSize := md.getPoolSize(len(warmMachines))
-				if len(warmMachines) > 0 {
-					return md.updateEntriesGroup(ctx, group, warmMachines, sl, startIdx-len(warmMachines), poolSize)
-				}
-				return nil
-			})
+			warmIdx := startIdx
+			if len(warmMachines) > 0 {
+				eg.Go(func() (err error) {
+					// for warm machines, we update them in chunks of size, md.maxUnavailable.
+					// this is to prevent downtime/low-latency during deployments
+					startIdx += len(warmMachines)
+					poolSize := md.getPoolSize(len(warmMachines))
+					return md.updateEntriesGroup(ctx, group, warmMachines, sl, warmIdx, poolSize)
+				})
+			}
+			startIdx += len(warmMachines)
 
 			return eg.Wait()
 		})
