@@ -175,21 +175,27 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	state.appConfig.Compute = state.Plan.Compute
 
 	if state.Plan.HttpServicePort != 0 {
-		// default to autostop: suspend
-		autostop := fly.MachineAutostopSuspend
+		autostop := fly.MachineAutostopStop
+		autostopFlag := flag.GetString(ctx, "auto-stop")
 
-		// if any compute has a GPU or more than 2GB of memory, set autostop to stop
-		for _, compute := range state.appConfig.Compute {
-			if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
-				autostop = fly.MachineAutostopStop
-				break
-			}
+		if autostopFlag == "off" {
+			autostop = fly.MachineAutostopOff
+		} else if autostopFlag == "suspend" {
+			autostop = fly.MachineAutostopSuspend
 
-			if compute.Memory != "" {
-				mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
-				if err != nil || mb >= 2048 {
+			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
+			for _, compute := range state.appConfig.Compute {
+				if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
 					autostop = fly.MachineAutostopStop
 					break
+				}
+
+				if compute.Memory != "" {
+					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+					if err != nil || mb >= 2048 {
+						autostop = fly.MachineAutostopStop
+						break
+					}
 				}
 			}
 		}

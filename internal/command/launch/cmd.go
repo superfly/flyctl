@@ -140,6 +140,11 @@ func New() (cmd *cobra.Command) {
 			Name:        "no-create",
 			Description: "Do not create an app, only generate configuration files",
 		},
+		flag.String{
+			Name:        "auto-stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
+			Default:     "suspend",
+		},
 	)
 
 	cmd.AddCommand(NewPlan())
