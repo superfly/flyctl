@@ -34,6 +34,8 @@ host_dedication_id = "06031957"
 
 [deploy]
   release_command = "release command"
+  release_command_timeout = "3m"
+  release_command_vm.size = "performance-2x"
   strategy = "rolling-eyes"
   max_unavailable = 0.2
 
