@@ -261,7 +261,10 @@ func TestToDefinition(t *testing.T) {
 			"max_unavailable":         0.2,
 			"release_command":         "release command",
 			"release_command_timeout": "3m0s",
-			"release_command_vm":      map[string]any{"size": "performance-2x"},
+			"release_command_vm": map[string]any{
+				"size":   "performance-2x",
+				"memory": "8g",
+			},
 		},
 		"env": map[string]any{
 			"FOO": "BAR",

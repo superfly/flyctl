@@ -36,6 +36,7 @@ host_dedication_id = "06031957"
   release_command = "release command"
   release_command_timeout = "3m"
   release_command_vm.size = "performance-2x"
+  release_command_vm.memory = "8g"
   strategy = "rolling-eyes"
   max_unavailable = 0.2
 

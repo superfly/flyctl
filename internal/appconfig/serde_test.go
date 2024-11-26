@@ -392,7 +392,10 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 			MaxUnavailable:        fly.Pointer(0.2),
 			ReleaseCommand:        "release command",
 			ReleaseCommandTimeout: fly.MustParseDuration("3m"),
-			ReleaseCommandCompute: &Compute{Size: "performance-2x"},
+			ReleaseCommandCompute: &Compute{
+				Size:   "performance-2x",
+				Memory: "8g",
+			},
 		},
 
 		Env: map[string]string{
