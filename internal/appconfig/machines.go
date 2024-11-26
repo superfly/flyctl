@@ -63,6 +63,15 @@ func (c *Config) ToReleaseMachineConfig() (*fly.MachineConfig, error) {
 	mConfig.Files = nil
 	fly.MergeFiles(mConfig, c.MergedFiles)
 
+	// Guest
+	if v := c.Deploy.ReleaseCommandCompute; v != nil {
+		guest, err := c.computeToGuest(v)
+		if err != nil {
+			return nil, err
+		}
+		mConfig.Guest = guest
+	}
+
 	return mConfig, nil
 }
 
@@ -406,8 +415,10 @@ func (c *Config) toMachineGuest() (*fly.MachineGuest, error) {
 	}
 
 	// At most one compute after group flattening
-	compute := c.Compute[0]
+	return c.computeToGuest(c.Compute[0])
+}
 
+func (c *Config) computeToGuest(compute *Compute) (*fly.MachineGuest, error) {
 	size := fly.DefaultVMSize
 	switch {
 	case compute.Size != "":

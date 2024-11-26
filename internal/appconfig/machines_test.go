@@ -168,6 +168,11 @@ func TestToReleaseMachineConfig(t *testing.T) {
 			Timeout: fly.MustParseDuration("10s"),
 			Signal:  fly.Pointer("SIGTERM"),
 		},
+		Guest: &fly.MachineGuest{
+			CPUKind:  "performance",
+			CPUs:     2,
+			MemoryMB: 4096,
+		},
 	}
 
 	got, err := cfg.ToReleaseMachineConfig()
