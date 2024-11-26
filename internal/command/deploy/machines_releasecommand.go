@@ -270,8 +270,10 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	// We can ignore the error because ToReleaseMachineConfig fails only
 	// if it can't split the command and we test that at initialization
 	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
-	mConfig.Guest = md.inferReleaseCommandGuest()
 	mConfig.Image = md.img
+	if mConfig.Guest == nil {
+		mConfig.Guest = md.inferReleaseCommandGuest()
+	}
 	md.setMachineReleaseData(mConfig)
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {

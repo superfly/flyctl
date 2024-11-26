@@ -87,11 +87,12 @@ type Metrics struct {
 }
 
 type Deploy struct {
-	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
 	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 	WaitTimeout           *fly.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
+	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
+	ReleaseCommandCompute *Compute      `toml:"release_command_vm,omitempty" json:"release_command_vm,omitempty"`
 }
 
 type File struct {
