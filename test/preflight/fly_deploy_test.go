@@ -5,6 +5,8 @@ package preflight
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -402,4 +404,36 @@ func TestDeployManifest(t *testing.T) {
 
 	output := deployRes.StdOutString()
 	require.Contains(t, output, fmt.Sprintf("Resuming %s deploy from manifest", appName))
+}
+
+func testDeploy(t *testing.T, appDir string) {
+	f := testlib.NewTestEnvFromEnv(t)
+	app := f.CreateRandomAppMachines()
+	url := fmt.Sprintf("https://%s.fly.dev", app)
+
+	result := f.Fly("deploy --app %s %s", app, appDir)
+	t.Log(result.StdOutString())
+
+	var resp *http.Response
+	require.Eventually(t, func() bool {
+		var err error
+		resp, err = http.Get(url)
+		return err == nil && resp.StatusCode == http.StatusOK
+	}, 20*time.Second, 1*time.Second, "GET %s never returned 200 OK response 20 seconds", url)
+
+	defer resp.Body.Close()
+	buf, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	assert.Equal(t, "Hello World!", string(buf))
+}
+
+func TestDeploy(t *testing.T) {
+	t.Run("Buildpack", func(t *testing.T) {
+		t.Parallel()
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "example-buildpack"))
+	})
+	t.Run("Dockerfile", func(t *testing.T) {
+		t.Parallel()
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "example"))
+	})
 }
