@@ -280,10 +280,6 @@ require (
 )
 
 replace (
-	// Upgrade this transitive dependency to unblock https://github.com/superfly/flyctl/pull/4081.
-	// We can remove the line once buildpacks/pack brings the version.
-	github.com/buildpacks/lifecycle => github.com/buildpacks/lifecycle v0.20.4
-
 	github.com/loadsmart/calver-go => github.com/ndarilek/calver-go v0.0.0-20230710153822-893bbd83a936
 	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
 )
