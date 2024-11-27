@@ -57,7 +57,7 @@ require (
 	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.15.2
-	github.com/nats-io/nats.go v1.34.1
+	github.com/nats-io/nats.go v1.37.1-0.20241121095519-e963b776f24f
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.0
 	github.com/olekukonko/tablewriter v0.0.5
@@ -224,7 +224,7 @@ require (
 	github.com/moby/term v0.5.0 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f // indirect
-	github.com/nats-io/nkeys v0.4.7 // indirect
+	github.com/nats-io/nkeys v0.4.8 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.0 // indirect
@@ -277,8 +277,4 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259 // indirect
-)
-
-replace (
-	github.com/nats-io/nats.go => github.com/btoews/nats.go v0.0.0-20240401180931-476bea7f4158
 )
