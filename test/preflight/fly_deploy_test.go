@@ -430,10 +430,10 @@ func testDeploy(t *testing.T, appDir string) {
 func TestDeploy(t *testing.T) {
 	t.Run("Buildpack", func(t *testing.T) {
 		t.Parallel()
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "example-buildpack"))
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example-buildpack"))
 	})
 	t.Run("Dockerfile", func(t *testing.T) {
 		t.Parallel()
-		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "example"))
+		testDeploy(t, filepath.Join(testlib.RepositoryRoot(), "test", "preflight", "fixtures", "example"))
 	})
 }
