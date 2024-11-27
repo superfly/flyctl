@@ -4,7 +4,7 @@ app = "flyctl-example-buildpack"
 
 
 [build]
-  builder = "heroku/buildpacks:20"
+  builder = "heroku/builder:24"
 
 [deploy]
   release_command = "sh release.sh"
