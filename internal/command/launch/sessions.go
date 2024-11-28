@@ -291,6 +291,7 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
 
 	fmt.Printf("final state is %+v\n", state)
+	fmt.Printf("final state plan is %+v\n", state.Plan)
 
 	updateConfig(state.Plan, nil, state.Config)
 
