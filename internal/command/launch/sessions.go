@@ -234,6 +234,8 @@ func runSessionFinalize(ctx context.Context) (err error) {
 		finalMeta = finalSession.Metadata
 	}
 
+	fmt.Printf("final meta is %+v\n", finalMeta)
+
 	manifestBytes, err := os.ReadFile(flag.GetString(ctx, "manifest-path"))
 	if err != nil {
 		return err
@@ -287,6 +289,9 @@ func runSessionFinalize(ctx context.Context) (err error) {
 	}
 	// This should never be changed by the UI!!
 	state.Plan.ScannerFamily = oldPlan.ScannerFamily
+
+	fmt.Printf("final state is %+v\n", state)
+	fmt.Printf("final state plan is %+v\n", state.Plan)
 
 	updateConfig(state.Plan, nil, state.Config)
 
