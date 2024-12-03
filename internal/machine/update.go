@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"time"
+	"github.com/superfly/flyctl/internal/prompt"
+	
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -30,6 +32,7 @@ func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) 
 	if input != nil && input.Config != nil && input.Config.Guest != nil {
 		var invalidConfigErr InvalidConfigErr
 		invalidConfigErr.guest = input.Config.Guest
+
 		// Check that there's a valid number of CPUs
 		validNumCpus, ok := cpusPerKind[input.Config.Guest.CPUKind]
 		if !ok {
@@ -197,3 +200,75 @@ func (e InvalidConfigErr) DocURL() string {
 func (e InvalidConfigErr) Error() string {
 	return string(e.Reason)
 }
+
+
+
+
+func (e InvalidConfigErr) AttemptFix( ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput ) (error) {
+	unsuccessfull := "Unsuccessful at fixing the error attempt!"
+	switch e.Reason {
+	case memoryTooHigh:
+
+		// Get correct CPU count
+		required_cpu_count, err := getRequiredCPUForMemoryIncrease(e)
+		if err==nil{
+			combo := string(fmt.Sprintf("%s-cpu-%dx",e.guest.CPUKind,required_cpu_count))
+
+			// Prompt
+			fmt.Println("")
+			prompt_str :=  fmt.Sprintf("WARNING! \"Machine %s\": %s!\n > A memory of %dMiB requires %d CPU cores, "+
+			"which can be accomodated by a \"%s\" VM size.\n > Would you like to scale your \"Machine %s\"'s VM size to \" %s\"?"+
+			"\n ? Agreeing will update your \"Machine %s\"'s VM size to \"%s\" size, and proceed with scaling its memory to the requested %dMiB", 
+			m.ID,
+			e.Description(), 
+			e.guest.MemoryMB, 
+			required_cpu_count, 
+			combo, 
+			m.ID, 
+			combo, 
+			m.ID, 
+			combo, 
+			e.guest.MemoryMB)
+
+			yesScaleCPUFirst, _ := prompt.Confirm(ctx, prompt_str)	
+			if yesScaleCPUFirst{
+				// Update CPU count!
+				input.Config.Guest.CPUs = required_cpu_count
+				err:=Update( ctx, m, input)
+				if err!=nil{
+					return err
+				}else{
+					// Return fly.VMSize to remain compatible with v1 scale app signature
+					return nil
+				}
+			}
+		}else{
+			return err
+		}
+		
+	}
+	return fmt.Errorf( unsuccessfull )
+}
+
+func getRequiredCPUForMemoryIncrease( e InvalidConfigErr ) (int, error) {
+	fmt.Println( fly.MAX_MEMORY_MB_PER_SHARED_CPU )
+	
+	var required_cpu_count int
+	// Get cpu count whose max_memory can accommodate the requested memory increase
+	if e.guest.CPUKind == "shared" {
+		required_cpu_count = e.guest.MemoryMB / fly.MAX_MEMORY_MB_PER_SHARED_CPU
+	}else if e.guest.CPUKind == "performance"{ // performance
+		required_cpu_count = e.guest.MemoryMB / fly.MAX_MEMORY_MB_PER_CPU
+	}
+
+	// Check if cpu count is valid for the cpu kind 
+	validNumCpus, ok := cpusPerKind[e.guest.CPUKind]
+	if !ok {
+		return 0, fmt.Errorf( string( invalidCpuKind ) )
+	} else if !slices.Contains(validNumCpus, required_cpu_count) {
+		return 0,  fmt.Errorf( string( invalidNumCPUs ) )
+	}
+
+	return required_cpu_count, nil
+}
+	
