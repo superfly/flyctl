@@ -60,8 +60,10 @@ type leasableMachine struct {
 	leaseNonce string
 }
 
-// TODO: make sure the other functions handle showLogs correctly
+// NewLeasableMachine creates a wrapper for the given machine.
+// A lease must be held before calling this function.
 func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
+	// TODO: make sure the other functions handle showLogs correctly
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
@@ -516,6 +518,7 @@ func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, durati
 	}
 }
 
+// ReleaseLease releases the lease on this machine.
 func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 	lm.mu.Lock()
 	defer lm.mu.Unlock()
@@ -536,13 +539,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
-	contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-	if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
-		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
-		return err
-	}
-	return nil
+	return lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
 }
 
 func (lm *leasableMachine) resetLease() {

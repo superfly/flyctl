@@ -175,7 +175,7 @@ func (bg *blueGreen) CreateGreenMachines(ctx context.Context) error {
 			}
 
 			greenMachine := machine.NewLeasableMachine(bg.flaps, bg.io, newMachineRaw, true)
-			defer greenMachine.ReleaseLease(ctx)
+			defer releaseLease(ctx, greenMachine)
 
 			lock.Lock()
 			defer lock.Unlock()
