@@ -410,7 +410,9 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appco
 			if err != nil {
 				return nil, fmt.Errorf("invalid memory size: %w", err)
 			}
-
+			if guest == nil {
+				guest = &fly.MachineGuest{}
+			}
 			guest.MemoryMB = mb
 		}
 	}
