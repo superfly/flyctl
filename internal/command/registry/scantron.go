@@ -62,6 +62,10 @@ func scantronVulnscanReq(ctx context.Context, imgPath, token string) (*http.Resp
 	return scantronReq(ctx, imgPath, token, "application/json")
 }
 
+func scantronFilesReq(ctx context.Context, imgPath, token string) (*http.Response, error) {
+	return scantronReq(ctx, imgPath+"?files=1", token, "application/json")
+}
+
 type Scan struct {
 	SchemaVersion int
 	CreatedAt     string

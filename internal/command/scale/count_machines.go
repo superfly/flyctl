@@ -20,6 +20,8 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const maxConcurrentActions = 5
+
 func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts groupCounts, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
@@ -129,16 +131,6 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	defer releaseFunc() // It's important to call the release func even in case of errors
 	if err != nil {
 		return err
-	}
-
-	// Deleting machines is safe to parallelize,
-	// but creating machines is not because of how the platform propagetes data.
-	maxConcurrentActions := 5
-	_, scaleUp := lo.Find(actions, func(a *planItem) bool {
-		return a.Delta > 0
-	})
-	if scaleUp {
-		maxConcurrentActions = 1
 	}
 
 	updatePool := pool.New().

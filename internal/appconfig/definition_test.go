@@ -257,9 +257,14 @@ func TestToDefinition(t *testing.T) {
 		},
 
 		"deploy": map[string]any{
-			"release_command": "release command",
-			"strategy":        "rolling-eyes",
-			"max_unavailable": 0.2,
+			"strategy":                "rolling-eyes",
+			"max_unavailable":         0.2,
+			"release_command":         "release command",
+			"release_command_timeout": "3m0s",
+			"release_command_vm": map[string]any{
+				"size":   "performance-2x",
+				"memory": "8g",
+			},
 		},
 		"env": map[string]any{
 			"FOO": "BAR",
