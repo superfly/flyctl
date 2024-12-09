@@ -18,7 +18,8 @@ jobs:
       fail-fast: false
       matrix:
         parallelism: [20]
-        index: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19]
+        index:
+          [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -48,8 +49,6 @@ jobs:
           FLY_PREFLIGHT_TEST_FLY_REGIONS: ${{ inputs.region }}
           FLY_PREFLIGHT_TEST_NO_PRINT_HISTORY_ON_FAIL: "true"
           FLY_FORCE_TRACE: "true"
-          FLY_PREFLIGHT_TEST_VM_SIZE: ${{ matrix.vm_size }}
-          FLY_PREFLIGHT_TEST_APP_PREFIX: "preflight"
         run: |
           (test -e master-build/flyctl) && mv master-build/flyctl bin/flyctl
           chmod +x bin/flyctl
@@ -58,11 +57,10 @@ jobs:
           ./scripts/preflight.sh -r "${{ github.ref }}" -t "${{ matrix.parallelism }}" -i "${{ matrix.index }}" -o $GITHUB_OUTPUT
       - name: Post failure to slack
         if: ${{ github.ref == 'refs/heads/master' && failure() }}
-        uses: slackapi/slack-github-action@37ebaef184d7626c5f204ab8d3baff4262dd30f0
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
-          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+        uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d
         with:
+          webhook: ${{ secrets.PREFLIGHT_SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
           payload: |
             {
               "blocks": [

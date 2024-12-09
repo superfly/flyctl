@@ -52,6 +52,11 @@ func otherRegionsFromEnv() []string {
 	}
 }
 
+func RepositoryRoot() string {
+	_, filename, _, _ := runtime.Caller(0)
+	return filepath.Join(path.Dir(filename), "../../..")
+}
+
 func currentRepoFlyctl() string {
 	_, filename, _, _ := runtime.Caller(0)
 	flyctlBin := path.Join(path.Dir(filename), "../..", "bin", "flyctl")

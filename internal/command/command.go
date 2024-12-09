@@ -604,11 +604,14 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 }
 
 func tryOpenUserURL(ctx context.Context, url string) error {
+	io := iostreams.FromContext(ctx)
+
+	if !io.IsInteractive() || env.IsCI() {
+		return errors.New("failed opening browser")
+	}
+
 	if err := open.Run(url); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
-			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			url,
-		)
+		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
 	}
 
 	return nil
