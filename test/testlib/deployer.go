@@ -205,7 +205,6 @@ func (d *DeployTestRun) Start(ctx context.Context) error {
 	env := []string{
 		fmt.Sprintf("FLY_API_TOKEN=%s", d.apiToken),
 		fmt.Sprintf("DEPLOY_ORG_SLUG=%s", d.orgSlug),
-		fmt.Sprintf("DEPLOY_TRIGGER=%s", "launch"),
 	}
 
 	if d.appName != "" {
