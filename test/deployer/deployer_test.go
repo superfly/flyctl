@@ -396,6 +396,30 @@ func TestLaunchStatic(t *testing.T) {
 	require.Contains(t, string(body), "<body>Hello World</body>")
 }
 
+func TestDeployPhoenixSqlite(t *testing.T) {
+	deploy := testDeployer(t,
+		withFixtureApp("deploy-phoenix-sqlite"),
+		createRandomApp,
+		withOverwrittenConfig(func(d *testlib.DeployTestRun) map[string]any {
+			return map[string]any{
+				"app":    d.Extra["appName"],
+				"region": d.PrimaryRegion(),
+				"env": map[string]string{
+					"TEST_ID": d.ID(),
+				},
+			}
+		}),
+		testlib.DeployOnly,
+		testlib.DeployNow,
+		withWorkDirAppSource,
+	)
+
+	body, err := testlib.RunHealthCheck(fmt.Sprintf("https://%s.fly.dev", deploy.Extra["appName"].(string)))
+	require.NoError(t, err)
+
+	require.Contains(t, string(body), "Phoenix")
+}
+
 func TestDeployPhoenixSqliteWithCustomToolVersions(t *testing.T) {
 	deploy := testDeployer(t,
 		withFixtureApp("deploy-phoenix-sqlite-custom-tool-versions"),
