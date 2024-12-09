@@ -60,6 +60,7 @@ type machinePairing struct {
 	newMachine *fly.Machine
 }
 
+// appState returns the app's state from Flaps.
 func (md *machineDeployment) appState(ctx context.Context, existingAppState *AppState) (*AppState, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "app_state")
 	defer span.End()
@@ -368,6 +369,9 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 	ctx, span := tracing.GetTracer().Start(ctx, "acquire_leases")
 
 	leaseGroup := errgroup.Group{}
+	if poolSize <= 0 {
+		panic("pool size must be > 0")
+	}
 	leaseGroup.SetLimit(poolSize)
 
 	for _, machineTuple := range machineTuples {

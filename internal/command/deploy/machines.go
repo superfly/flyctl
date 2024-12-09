@@ -113,13 +113,16 @@ func argsFromManifest(manifest *DeployManifest, app *fly.AppCompact) MachineDepl
 }
 
 type machineDeployment struct {
-	apiClient             flyutil.Client
-	flapsClient           flapsutil.FlapsClient
-	io                    *iostreams.IOStreams
-	colorize              *iostreams.ColorScheme
-	app                   *fly.AppCompact
-	appConfig             *appconfig.Config
-	img                   string
+	// apiClient is a client to use web.
+	apiClient webClient
+	// flapsClient is a client to use flaps.
+	flapsClient flapsutil.FlapsClient
+	io          *iostreams.IOStreams
+	colorize    *iostreams.ColorScheme
+	app         *fly.AppCompact
+	appConfig   *appconfig.Config
+	img         string
+	// machineSet is this application's machines.
 	machineSet            machine.MachineSet
 	releaseCommandMachine machine.MachineSet
 	volumes               map[string][]fly.Volume

@@ -13,15 +13,15 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func newSbom() *cobra.Command {
+func newFiles() *cobra.Command {
 	const (
-		usage = "sbom"
-		short = "Generate an SBOM for a registry image [experimental]"
-		long  = "Genearte an SBOM for a registry image.\n" +
+		usage = "files"
+		short = "Generate a file listing for a registry image [experimental]"
+		long  = "Genearte a file listing for a registry iamge.\n" +
 			"The image is selected by name, or the image of the app's first machine\n" +
 			"is used unless interactive machine selection or machine ID is specified."
 	)
-	cmd := command.New(usage, short, long, runSbom,
+	cmd := command.New(usage, short, long, runFiles,
 		command.RequireSession,
 		command.RequireAppName,
 	)
@@ -50,7 +50,7 @@ func newSbom() *cobra.Command {
 	return cmd
 }
 
-func runSbom(ctx context.Context) error {
+func runFiles(ctx context.Context) error {
 	imgPath, orgId, err := argsGetImgPath(ctx)
 	if err != nil {
 		return err
@@ -61,19 +61,19 @@ func runSbom(ctx context.Context) error {
 		return err
 	}
 
-	res, err := scantronSbomReq(ctx, imgPath, token)
+	res, err := scantronFilesReq(ctx, imgPath, token)
 	if err != nil {
 		return err
 	}
 	defer res.Body.Close() // skipcq: GO-S2307
 
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed fetching SBOM (status code %d)", res.StatusCode)
+		return fmt.Errorf("failed fetching file listing (status code %d)", res.StatusCode)
 	}
 
 	ios := iostreams.FromContext(ctx)
 	if _, err := io.Copy(ios.Out, res.Body); err != nil {
-		return fmt.Errorf("failed to read SBOM: %w", err)
+		return fmt.Errorf("failed to read file listing: %w", err)
 	}
 	return nil
 }

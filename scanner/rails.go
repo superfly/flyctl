@@ -74,11 +74,11 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	// enable redis if there are any action cable / anycable channels
 	redis := false
 	files, err := filepath.Glob("app/channels/*.rb")
-	if err == nil {
-		redis = len(files) > 0
+	if err == nil && len(files) > 0 {
+		redis = !checksPass(sourceDir, dirContains("Gemfile", "solid_cable"))
 	}
 
-	if !redis {
+	if !redis && !checksPass(sourceDir, dirContains("Gemfile", "solid_cable")) {
 		files, err = filepath.Glob("app/views/*")
 		if err == nil && len(files) > 0 {
 			for _, file := range files {
@@ -91,7 +91,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	// enable redis if redis is used for caching
-	if !redis {
+	if !redis && !checksPass(sourceDir, dirContains("Gemfile", "solid_queue")) {
 		prodEnv, err := os.ReadFile("config/environments/production.rb")
 		if err == nil && strings.Contains(string(prodEnv), "redis") {
 			redis = true
