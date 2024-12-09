@@ -73,6 +73,34 @@ func configurePhoenix(sourceDir string, config *ScannerConfig) (*SourceInfo, err
 		},
 	}
 
+	// This adds support on launch UI for repos with different .tool-versions
+	deployTrigger := os.Getenv("DEPLOY_TRIGGER")
+	if deployTrigger == "launch" && helpers.FileExists(filepath.Join(sourceDir, ".tool-versions")) {
+		cmd := exec.Command("asdf", "install")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err := cmd.Run()
+		if err != nil {
+			return nil, errors.Wrap(err, "We identified .tool-versions but after running `asdf install` we ran into some errors. Please check that your `asdf install` builds successfully and try again.")
+		}
+
+		cmd = exec.Command("mix", "local.hex", "--force")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if err != nil {
+			return nil, errors.Wrap(err, "After installing your elixir version with asdf we found an error while running `mix local.hex --force`. Please confirm that running this command works locally and try again.")
+		}
+
+		cmd = exec.Command("mix", "local.rebar", "--force")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		err = cmd.Run()
+		if err != nil {
+			return nil, errors.Wrap(err, "After installing your elixir version with asdf we found an error while running `mix local.rebar --force`. Please confirm that running this command works locally and try again.")
+		}
+	}
+
 	// We found Phoenix, so check if the project compiles.
 	cmd := exec.Command("mix", "do", "deps.get,", "compile")
 	cmd.Stdout = os.Stdout
