@@ -84,22 +84,22 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	var rubyVersion string
 
-	// add ruby version from .ruby-version file
-	versionFile, err := os.ReadFile(".ruby-version")
+	// add ruby version from Gemfile
+	gemfile, err := os.ReadFile("Gemfile")
 	if err == nil {
-		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
-		matches := re.FindStringSubmatch(string(versionFile))
+		re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+		matches := re.FindStringSubmatch(string(gemfile))
 		if len(matches) >= 2 {
 			rubyVersion = matches[1]
 		}
 	}
 
 	if rubyVersion == "" {
-		// add ruby version from Gemfile
-		gemfile, err := os.ReadFile("Gemfile")
+		// add ruby version from .ruby-version file
+		versionFile, err := os.ReadFile(".ruby-version")
 		if err == nil {
-			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
-			matches := re.FindStringSubmatch(string(gemfile))
+			re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionFile))
 			if len(matches) >= 2 {
 				rubyVersion = matches[1]
 			}
