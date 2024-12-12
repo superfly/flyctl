@@ -299,8 +299,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 		var appVolumes []appconfig.Mount
 		for _, v := range srcInfo.Volumes {
 			appVolumes = append(appVolumes, appconfig.Mount{
-				Source:      v.Source,
-				Destination: v.Destination,
+				Source:                  v.Source,
+				Destination:             v.Destination,
+				AutoExtendSizeThreshold: v.AutoExtendSizeThreshold,
+				AutoExtendSizeIncrement: v.AutoExtendSizeIncrement,
+				AutoExtendSizeLimit:     v.AutoExtendSizeLimit,
 			})
 		}
 		appConfig.SetMounts(appVolumes)
