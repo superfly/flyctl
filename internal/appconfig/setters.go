@@ -19,34 +19,24 @@ func (c *Config) SetInternalPort(port int) {
 }
 
 func (c *Config) SetHttpCheck(path string, headers map[string]string) {
+	check := &ServiceHTTPCheck{
+		HTTPMethod:        fly.StringPointer("GET"),
+		HTTPPath:          fly.StringPointer(path),
+		HTTPProtocol:      fly.StringPointer("http"),
+		HTTPTLSSkipVerify: fly.BoolPointer(false),
+		Interval:          &fly.Duration{Duration: 10 * time.Second},
+		Timeout:           &fly.Duration{Duration: 2 * time.Second},
+		GracePeriod:       &fly.Duration{Duration: 5 * time.Second},
+		HTTPHeaders:       headers,
+	}
+
 	switch {
 	case c.HTTPService != nil:
-		if c.Checks == nil {
-			c.Checks = make(map[string]*ToplevelCheck)
-		}
-		c.Checks["status"] = &ToplevelCheck{
-			Port:              fly.Pointer(c.HTTPService.InternalPort),
-			Type:              fly.Pointer("http"),
-			HTTPMethod:        fly.StringPointer("GET"),
-			HTTPPath:          fly.StringPointer(path),
-			HTTPProtocol:      fly.StringPointer("http"),
-			HTTPTLSSkipVerify: fly.BoolPointer(false),
-			Interval:          &fly.Duration{Duration: 10 * time.Second},
-			Timeout:           &fly.Duration{Duration: 2 * time.Second},
-			GracePeriod:       &fly.Duration{Duration: 5 * time.Second},
-			HTTPHeaders:       headers,
-		}
+		service := c.HTTPService
+		service.HTTPChecks = append(service.HTTPChecks, check)
 	case len(c.Services) > 0:
 		service := &c.Services[0]
-		service.HTTPChecks = append(service.HTTPChecks, &ServiceHTTPCheck{
-			HTTPMethod:        fly.StringPointer("GET"),
-			HTTPPath:          fly.StringPointer(path),
-			HTTPProtocol:      fly.StringPointer("http"),
-			HTTPTLSSkipVerify: fly.BoolPointer(false),
-			Interval:          &fly.Duration{Duration: 10 * time.Second},
-			Timeout:           &fly.Duration{Duration: 2 * time.Second},
-			GracePeriod:       &fly.Duration{Duration: 5 * time.Second},
-		})
+		service.HTTPChecks = append(service.HTTPChecks, check)
 	}
 }
 
