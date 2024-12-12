@@ -960,6 +960,14 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 	return updatePool.Wait()
 }
 
+// releaseLease releases the lease and log the error if any.
+func releaseLease(ctx context.Context, m machine.LeasableMachine) {
+	err := m.ReleaseLease(ctx)
+	if err != nil {
+		terminal.Warnf("failed to release lease for machine %s: %s", m.FormattedMachineId(), err)
+	}
+}
+
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_by_replace", trace.WithAttributes(attribute.String("id", e.launchInput.ID)))
 	defer span.End()
@@ -981,7 +989,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
 	return nil
 }
@@ -1059,7 +1067,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 
 	// Don't wait for SkipLaunch machines, they are created but not started
 	if launchInput.SkipLaunch {
