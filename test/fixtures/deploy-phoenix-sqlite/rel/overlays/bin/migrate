@@ -1,0 +1,5 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+exec ./deploy_phoenix_sqlite eval DeployPhoenixSqlite.Release.migrate

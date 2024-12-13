@@ -444,10 +444,6 @@ The following comand can be used to update your Dockerfile:
 		}
 	}
 
-	if srcInfo.DatabaseDesired == DatabaseKindSqlite {
-
-	}
-
 	// add HealthCheck (if found)
 	srcInfo.HttpCheckPath = <-healthcheck_channel
 	if srcInfo.HttpCheckPath != "" {
