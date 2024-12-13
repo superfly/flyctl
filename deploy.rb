@@ -320,7 +320,7 @@ image_ref = in_step Step::BUILD do
     info("Skipping build, using image defined in fly config: #{image_ref}")
     image_ref
   else
-    image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+    image_ref = "registry.fly.io/#{APP_NAME}-#{image_tag}"
 
     exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
