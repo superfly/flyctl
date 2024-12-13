@@ -315,12 +315,12 @@ fly_config = manifest && manifest.dig("config") || JSON.parse(exec_capture("flyc
 APP_NAME = DEPLOY_APP_NAME || fly_config["app"]
 
 image_ref = in_step Step::BUILD do
-  image_tag = SecureRandom.hex(16)
+  image_tag = "deployment-#{SecureRandom.hex(16)}"
   if (image_ref = fly_config.dig("build","image")&.strip) && !image_ref.nil? && !image_ref.empty?
     info("Skipping build, using image defined in fly config: #{image_ref}")
     image_ref
   else
-    image_ref = "registry.fly.io/#{APP_NAME}-#{image_tag}"
+    image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
 
     exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
