@@ -231,12 +231,3 @@ func (state *launchState) createApp(ctx context.Context) (*fly.App, error) {
 
 	return app, nil
 }
-
-func (state *launchState) getApp(ctx context.Context) (*fly.App, error) {
-	apiClient := flyutil.ClientFromContext(ctx)
-	app, err := apiClient.GetApp(ctx, state.Plan.AppName)
-	if err != nil {
-		return nil, err
-	}
-	return app, nil
-}

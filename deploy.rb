@@ -24,6 +24,7 @@ DEPLOY_ONLY = !get_env("DEPLOY_ONLY").nil?
 CREATE_AND_PUSH_BRANCH = !get_env("DEPLOY_CREATE_AND_PUSH_BRANCH").nil?
 FLYIO_BRANCH_NAME = "flyio-new-files"
 
+DEPLOY_TRIGGER = get_env("DEPLOY_TRIGGER")
 DEPLOYER_FLY_CONFIG_PATH = get_env("DEPLOYER_FLY_CONFIG_PATH")
 DEPLOYER_SOURCE_CWD = get_env("DEPLOYER_SOURCE_CWD")
 DEPLOY_APP_NAME = get_env("DEPLOY_APP_NAME")
@@ -268,7 +269,7 @@ if !DEPLOY_ONLY
   ORG_SLUG = manifest["plan"]["org"]
   APP_REGION = manifest["plan"]["region"]
 
-  DO_GEN_REQS = !DEPLOY_COPY_CONFIG || !HAS_FLY_CONFIG
+  DO_GEN_REQS = DEPLOY_TRIGGER == "launch"
 
   debug("generate reqs? #{DO_GEN_REQS}")
 
@@ -319,7 +320,7 @@ image_ref = in_step Step::BUILD do
     info("Skipping build, using image defined in fly config: #{image_ref}")
     image_ref
   else
-    image_ref = "registry.fly.io/#{APP_NAME}:#{image_tag}"
+    image_ref = "registry.fly.io/#{APP_NAME}-#{image_tag}"
 
     exec_capture("flyctl deploy --build-only --push -a #{APP_NAME} --image-label #{image_tag} #{CONFIG_COMMAND_STRING}")
     artifact Artifact::DOCKER_IMAGE, { ref: image_ref }
