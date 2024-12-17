@@ -3,7 +3,6 @@ package incidents
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -48,15 +47,24 @@ func QueryStatuspageIncidents(ctx context.Context) {
 	logger := logger.FromContext(ctx)
 	io := iostreams.FromContext(ctx)
 	colorize := io.ColorScheme()
+	logger.Debug("started querying for statuspage incidents")
+
+	statusCh := make(chan *StatusPageApiResponse, 1)
+	statusCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	go func() {
+		defer cancel()
+		defer close(statusCh)
+		response, err := StatuspageIncidentsRequest(statusCtx)
+		if err != nil {
+			logger.Debugf("failed querying for Statuspage incidents: %v", err)
+		}
+		statusCh <- response
+	}()
 
 	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
-		logger.Debug("started querying for statuspage incidents")
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-
-		switch incidents, err := StatuspageIncidentsRequest(ctx); {
-		case err == nil:
+		cancel()
+		select {
+		case incidents := <-statusCh:
 			if incidents == nil {
 				break
 			}
@@ -69,10 +77,6 @@ func QueryStatuspageIncidents(ctx context.Context) {
 				)
 				break
 			}
-		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			logger.Debugf("failed querying for Statuspage incidents. Context cancelled or deadline exceeded: %v", err)
-		default:
-			logger.Debugf("failed querying for Statuspage incidents: %v", err)
 		}
 	})
 }
