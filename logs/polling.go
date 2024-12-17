@@ -50,6 +50,10 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 	for {
 		if waitFor > minWait {
 			pause.For(ctx, waitFor)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 
 		entries, token, err := client.GetAppLogs(ctx, opts.AppName, nextToken, opts.RegionCode, opts.VMID)
@@ -82,13 +86,17 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 		}
 
 		for _, entry := range entries {
-			out <- LogEntry{
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case out <- LogEntry{
 				Instance:  entry.Instance,
 				Level:     entry.Level,
 				Message:   entry.Message,
 				Region:    entry.Region,
 				Timestamp: entry.Timestamp,
 				Meta:      entry.Meta,
+			}:
 			}
 		}
 

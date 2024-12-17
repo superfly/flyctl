@@ -35,6 +35,12 @@ func (c *CachedClient) GetAppCompact(ctx context.Context, appName string) (*fly.
 	}))
 }
 
+func (c *CachedClient) GetAppBasic(ctx context.Context, appName string) (*fly.AppBasic, error) {
+	return convert[*fly.AppBasic](c.Cache.Fetch("GetAppBasic:"+appName, 1*time.Hour, 1*time.Minute, func() (any, error) {
+		return c.Client.GetAppBasic(ctx, appName)
+	}))
+}
+
 func (c *CachedClient) GetOrganizations(ctx context.Context, filters ...fly.OrganizationFilter) ([]fly.Organization, error) {
 	if len(filters) > 0 {
 		return c.Client.GetOrganizations(ctx, filters...)
