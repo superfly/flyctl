@@ -53,7 +53,7 @@ require (
 	github.com/mattn/go-zglob v0.0.6
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d
 	github.com/miekg/dns v1.1.62
-	github.com/moby/buildkit v0.18.1
+	github.com/moby/buildkit v0.18.2
 	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
 	github.com/muesli/termenv v0.15.2
