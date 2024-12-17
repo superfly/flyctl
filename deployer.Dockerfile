@@ -55,10 +55,10 @@ RUN git clone https://github.com/asdf-vm/asdf.git $HOME/.asdf --branch v0.14.0 &
     asdf install nodejs $DEFAULT_NODE_VERSION && asdf global nodejs $DEFAULT_NODE_VERSION && \
     # elixir
     asdf plugin-add erlang https://github.com/michallepicki/asdf-erlang-prebuilt-ubuntu-20.04.git && \
-    echo -e "local.hex\nlocal.rebar" > $HOME/.default-mix-commands && \
     asdf plugin add elixir https://github.com/asdf-vm/asdf-elixir.git && \
     asdf install erlang $DEFAULT_ERLANG_VERSION && asdf global erlang $DEFAULT_ERLANG_VERSION && \
     asdf install elixir $DEFAULT_ELIXIR_VERSION && asdf global elixir $DEFAULT_ELIXIR_VERSION && \
+    mix local.hex --force && mix local.rebar --force && \
     # bun
     asdf plugin add bun https://github.com/cometkim/asdf-bun.git && \
     asdf install bun $DEFAULT_BUN_VERSION && asdf global bun $DEFAULT_BUN_VERSION
