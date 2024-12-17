@@ -136,11 +136,13 @@ func newRunE(fn Runner, preparers ...preparers.Preparer) func(*cobra.Command, []
 			}
 		}()
 
-		// run the command
-		if err = fn(ctx); err == nil {
-			// and finally, run the finalizer
+		// finally, run the finalizer
+		task.FromContext(ctx).RunFinalizer(func(ctx context.Context) {
 			finalize(ctx)
-		}
+		})
+
+		// run the command
+		err = fn(ctx)
 
 		return
 	}

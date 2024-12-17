@@ -5,9 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
-	"time"
 
-	"github.com/azazeal/pause"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
@@ -131,13 +129,17 @@ func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *
 			return nil
 		}
 
-		// we wait for 2 seconds before canceling the polling context so that
-		// we get a few records
-		pause.For(ctx, 2*time.Second)
-		cancelPolling()
-
+		// wait to cancel the polling context until we print a single record
 		for entry := range stream.Stream(ctx, opts) {
-			c <- entry
+			if cancelPolling != nil {
+				cancelPolling()
+				cancelPolling = nil
+			}
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case c <- entry:
+			}
 		}
 
 		return nil

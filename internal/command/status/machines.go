@@ -111,8 +111,8 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-		// Skip API call for already-seen unknown repos, or default deploy-label prefix.
-		if unknownRepos[image] || strings.HasPrefix(machine.ImageRef.Tag, "deployment-") {
+		// Skip API call for already-seen unknown repos or without the flyio/ prefix.
+		if unknownRepos[image] || !strings.HasPrefix(machine.ImageRef.Repository, "flyio/") {
 			continue
 		}
 
