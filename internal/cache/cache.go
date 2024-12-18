@@ -60,6 +60,8 @@ type Cache interface {
 	// Save writes the YAML-encoded representation of c to the named file path via
 	// os.WriteFile.
 	Save(path string) error
+
+	Fetch(key string, expiresIn time.Duration, refreshIn time.Duration, fetchFn func() (any, error)) (any, error)
 }
 
 const defaultChannel = "latest"
@@ -78,6 +80,44 @@ type cache struct {
 	lastCheckedAt time.Time
 	latestRelease *update.Release
 	invalidVer    *invalidVer
+	objectCache   map[string]*CachedObject
+}
+
+func (c *cache) Fetch(key string, expiresIn time.Duration, refreshIn time.Duration, fetchFn func() (any, error)) (any, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	fetch := func() (any, error) {
+		obj, err := fetchFn()
+		if err != nil {
+			return nil, err
+		}
+		c.objectCache[key] = &CachedObject{
+			ExpiresAt: time.Now().Add(expiresIn),
+			RefreshAt: time.Now().Add(refreshIn),
+			Object:    obj,
+		}
+		c.dirty = true
+		return obj, nil
+	}
+	if c.objectCache == nil {
+		c.objectCache = map[string]*CachedObject{}
+	}
+
+	if obj := c.objectCache[key]; obj != nil && obj.ExpiresAt.After(time.Now()) {
+		if obj.RefreshAt.Before(time.Now()) {
+			go func() { _, _ = fetch() }()
+		}
+		return obj.Object, nil
+	} else {
+		return fetch()
+	}
+}
+
+type CachedObject struct {
+	ExpiresAt time.Time
+	RefreshAt time.Time
+	Object    any
 }
 
 func (c *cache) Channel() string {
@@ -170,6 +210,7 @@ type wrapper struct {
 	LastCheckedAt time.Time       `yaml:"last_checked_at,omitempty"`
 	LatestRelease *update.Release `yaml:"latest_release,omitempty"`
 	InvalidVer    *invalidVer
+	ObjectCache   map[string]*CachedObject `yaml:"object_cache,omitempty"`
 }
 
 func lockPath() string {
@@ -189,6 +230,7 @@ func (c *cache) Save(path string) (err error) {
 		LastCheckedAt: c.lastCheckedAt,
 		LatestRelease: c.latestRelease,
 		InvalidVer:    c.invalidVer,
+		ObjectCache:   c.objectCache,
 	}
 	if c.invalidVer != nil && c.IsCurrentVersionInvalid() == "" {
 		w.InvalidVer = nil
@@ -243,6 +285,7 @@ func Load(path string) (c Cache, err error) {
 			lastCheckedAt: w.LastCheckedAt,
 			latestRelease: w.LatestRelease,
 			invalidVer:    w.InvalidVer,
+			objectCache:   w.ObjectCache,
 		}
 	}
 

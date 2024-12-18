@@ -10,6 +10,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
@@ -101,7 +102,7 @@ func Run(ctx context.Context, io *iostreams.IOStreams, args ...string) int {
 	task.FromContext(ctx).ShutdownWithTimeout(5 * time.Second)
 
 	switch {
-	case err == nil:
+	case err == nil || errors.Is(err, syscall.EPIPE):
 		return 0
 	case errors.Is(err, context.Canceled), errors.Is(err, terminal.InterruptErr):
 		return 127
