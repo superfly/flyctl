@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -153,19 +153,19 @@ func (md *machineDeployment) waitForLogs(ctx context.Context, mach *fly.Machine,
 	b := backoff.NewExponentialBackOff()
 	b.InitialInterval = 1 * time.Second
 	b.MaxInterval = 10 * time.Second
-	b.MaxElapsedTime = timeout
 
-	return backoff.Retry(func() error {
+	_, err := backoff.Retry(ctx, func() ([]fly.LogEntry, error) {
 		logs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, mach.ID)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if len(logs) == 0 {
-			return fmt.Errorf(ErrNoLogsFound)
+			return nil, fmt.Errorf(ErrNoLogsFound)
 		}
 
-		return nil
-	}, backoff.WithContext(b, ctx))
+		return logs, nil
+	}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(timeout))
+	return err
 }
 
 func (md *machineDeployment) createTestMachine(ctx context.Context, svc *appconfig.ServiceMachineCheck, machineToTest *fly.Machine, sl statuslogger.StatusLine) (*fly.Machine, error) {
