@@ -197,6 +197,10 @@ func (state *launchState) scannerRunCallback(ctx context.Context) error {
 					state.sourceInfo.ReleaseCmd = cfg.Deploy.ReleaseCommand
 				}
 
+				if state.sourceInfo.SeedCmd == "" && cfg.Deploy != nil {
+					state.sourceInfo.SeedCmd = cfg.Deploy.SeedCommand
+				}
+
 				if len(cfg.Env) > 0 {
 					if len(state.sourceInfo.Env) == 0 {
 						state.sourceInfo.Env = cfg.Env
@@ -324,6 +328,11 @@ func (state *launchState) scannerSetAppconfig(ctx context.Context) error {
 
 	if srcInfo.ReleaseCmd != "" {
 		appConfig.SetReleaseCommand(srcInfo.ReleaseCmd)
+	}
+
+	if srcInfo.SeedCmd != "" {
+		// no V1 compatibility for this feature so bypass setters
+		appConfig.Deploy.SeedCommand = srcInfo.SeedCmd
 	}
 
 	if srcInfo.DockerCommand != "" {

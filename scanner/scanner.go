@@ -51,6 +51,7 @@ type SourceInfo struct {
 	BuildArgs        map[string]string
 	Builder          string
 	ReleaseCmd       string
+	SeedCmd          string
 	DockerCommand    string
 	DockerEntrypoint string
 	KillSignal       string
