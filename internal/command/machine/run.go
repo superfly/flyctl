@@ -699,12 +699,18 @@ func determineMachineConfig(
 
 	if input.updating {
 		// Called from `update`. Command is specified by flag.
-		if command := flag.GetString(ctx, "command"); command != "" {
-			split, err := shlex.Split(command)
-			if err != nil {
-				return machineConf, errors.Wrap(err, "invalid command")
+		if flag.IsSpecified(ctx, "command") {
+			command := strings.TrimSpace(flag.GetString(ctx, "command"))
+			switch command {
+			case "":
+				machineConf.Init.Cmd = nil
+			default:
+				split, err := shlex.Split(command)
+				if err != nil {
+					return machineConf, errors.Wrap(err, "invalid command")
+				}
+				machineConf.Init.Cmd = split
 			}
-			machineConf.Init.Cmd = split
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
