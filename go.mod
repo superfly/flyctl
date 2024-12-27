@@ -19,7 +19,7 @@ require (
 	github.com/azazeal/pause v1.3.0
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/briandowns/spinner v1.23.1
-	github.com/buildpacks/pack v0.36.1
+	github.com/buildpacks/pack v0.36.2
 	github.com/cavaliergopher/grab/v3 v3.0.1
 	github.com/cenkalti/backoff/v5 v5.0.0
 	github.com/chzyer/readline v1.5.1
@@ -167,7 +167,7 @@ require (
 	github.com/dimchansky/utfbom v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.4.0 // indirect
-	github.com/docker/cli v27.4.0+incompatible // indirect
+	github.com/docker/cli v27.4.1+incompatible // indirect
 	github.com/docker/distribution v2.8.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.8.2 // indirect
 	github.com/docker/go-metrics v0.0.1 // indirect

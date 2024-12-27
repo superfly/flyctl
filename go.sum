@@ -161,8 +161,8 @@ github.com/buildpacks/imgutil v0.0.0-20240605145725-186f89b2d168 h1:yVYVi1V7x1bX
 github.com/buildpacks/imgutil v0.0.0-20240605145725-186f89b2d168/go.mod h1:n2R6VRuWsAX3cyHCp/u0Z4WJcixny0gYg075J39owrk=
 github.com/buildpacks/lifecycle v0.20.4 h1:VVVTrd9y1LHY3adchh6oktw0wKQuYsWLq3/g23TLaGQ=
 github.com/buildpacks/lifecycle v0.20.4/go.mod h1:ZsExeEhN+6Qws7iDHJl6PV6zsHycgK/RmDKnRgKQTH0=
-github.com/buildpacks/pack v0.36.1 h1:vZv/FeoVRMxpPRS1Iy+2qT7ULqu6WclNuNvJOFc0EMA=
-github.com/buildpacks/pack v0.36.1/go.mod h1:oM4TCRUir43xU8bwiapa6VPHs29HuznNxPg4SB7L8iU=
+github.com/buildpacks/pack v0.36.2 h1:job8nLp7rUuhM66iGDjf3StOGw1A8HbrM9CBNE6UGqY=
+github.com/buildpacks/pack v0.36.2/go.mod h1:325S/GMbOKvMkHLtbauW6oTqPhb1c0aSX49zxCBIXbg=
 github.com/bwesterb/go-ristretto v1.2.3/go.mod h1:fUIoIZaG73pV5biE2Blr2xEzDoMj7NFEuV9ekS419A0=
 github.com/cavaliergopher/grab/v3 v3.0.1 h1:4z7TkBfmPjmLAAmkkAZNX/6QJ1nNFdv3SdIHXju0Fr4=
 github.com/cavaliergopher/grab/v3 v3.0.1/go.mod h1:1U/KNnD+Ft6JJiYoYBAimKH2XrYptb8Kl3DFGmsjpq4=
@@ -237,8 +237,8 @@ github.com/distribution/reference v0.6.0 h1:0IXCQ5g4/QMHHkarYzh5l+u8T3t73zM5Qvfr
 github.com/distribution/reference v0.6.0/go.mod h1:BbU0aIcezP1/5jX/8MP0YiH4SdvB5Y4f/wlDRiLyi3E=
 github.com/dlclark/regexp2 v1.4.0 h1:F1rxgk7p4uKjwIQxBs9oAXe5CqrXlCduYEJvrF4u93E=
 github.com/dlclark/regexp2 v1.4.0/go.mod h1:2pZnwuY/m+8K6iRw6wQdMtk+rH5tNGR1i55kozfMjCc=
-github.com/docker/cli v27.4.0+incompatible h1:/nJzWkcI1MDMN+U+px/YXnQWJqnu4J+QKGTfD6ptiTc=
-github.com/docker/cli v27.4.0+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
+github.com/docker/cli v27.4.1+incompatible h1:VzPiUlRJ/xh+otB75gva3r05isHMo5wXDfPRi5/b4hI=
+github.com/docker/cli v27.4.1+incompatible/go.mod h1:JLrzqnKDaYBop7H2jaqPtU4hHvMKP+vjCwu2uszcLI8=
 github.com/docker/distribution v2.8.3+incompatible h1:AtKxIZ36LoNK51+Z6RpzLpddBirtxJnzDrHLEKxTAYk=
 github.com/docker/distribution v2.8.3+incompatible/go.mod h1:J2gT2udsDAN96Uj4KfcMRqY0/ypR+oyYUYmja8H+y+w=
 github.com/docker/docker v27.4.1+incompatible h1:ZJvcY7gfwHn1JF48PfbyXg7Jyt9ZCWDW+GGXOIxEwp4=
