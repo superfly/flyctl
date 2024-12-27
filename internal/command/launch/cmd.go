@@ -143,7 +143,7 @@ func New() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "auto-stop",
 			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
-			Default:     "suspend",
+			Default:     "stop",
 		},
 	)
 
