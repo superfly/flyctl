@@ -51,7 +51,7 @@ func TestAppsV2Example(t *testing.T) {
 
 	require.NotNil(t, firstMachine.Config.Services[0].Autostop)
 	assert.Equal(
-		t, fly.MachineAutostopSuspend, *firstMachine.Config.Services[0].Autostop,
+		t, fly.MachineAutostopStop, *firstMachine.Config.Services[0].Autostop,
 		"autostop must be enabled",
 	)
 
