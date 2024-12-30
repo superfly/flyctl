@@ -42,7 +42,7 @@ func multipleDockerfile(ctx context.Context, appConfig *appconfig.Config) error 
 	}
 
 	if found != config {
-		return fmt.Errorf("Ignoring %s, and using %s (from fly.toml).", found, config)
+		return fmt.Errorf("ignoring %s, and using %s (from %s)", found, config, appConfig.ConfigFilePath())
 	}
 	return nil
 }
@@ -78,7 +78,7 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	if err := multipleDockerfile(ctx, appConfig); err != nil {
 		span.AddEvent("found multiple dockerfiles")
-		terminal.Warnf("%s\n", err.Error())
+		terminal.Warnf("%s", err.Error())
 	}
 
 	resolver := imgsrc.NewResolver(daemonType, client, appConfig.AppName, io, useWG, recreateBuilder)
