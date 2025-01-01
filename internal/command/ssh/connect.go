@@ -62,12 +62,19 @@ type ConnectParams struct {
 func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 	terminal.Debugf("Fetching certificate for %s\n", addr)
 
-	cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, p.AppNames, p.Username)
+	cacheKey := fmt.Sprint(p.Username, "@", p.AppNames)
+	key, err := flyutil.FetchCertificate(p.Ctx, cacheKey, 1*time.Hour, func() (*fly.IssuedCertificate, error) {
+		cert, pk, err := singleUseSSHCertificate(p.Ctx, p.Org, p.AppNames, p.Username)
+		if err != nil {
+			return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
+		}
+		pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")
+		cert.Key = string(pemkey)
+		return cert, nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("create ssh certificate: %w (if you haven't created a key for your org yet, try `flyctl ssh issue`)", err)
+		return nil, err
 	}
-
-	pemkey := ssh.MarshalED25519PrivateKey(pk, "single-use certificate")
 
 	terminal.Debugf("Keys for %s configured; connecting...\n", addr)
 
@@ -77,8 +84,8 @@ func Connect(p *ConnectParams, addr string) (*ssh.Client, error) {
 
 		Dial: p.Dialer.DialContext,
 
-		Certificate: cert.Certificate,
-		PrivateKey:  string(pemkey),
+		Certificate: key.Certificate,
+		PrivateKey:  key.Key,
 	}
 
 	var endSpin context.CancelFunc
