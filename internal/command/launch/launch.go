@@ -129,6 +129,10 @@ func (state *launchState) Launch(ctx context.Context) error {
 	}
 
 	if state.sourceInfo != nil {
+		if state.appConfig.Deploy != nil && state.appConfig.Deploy.SeedCommand != "" {
+			ctx = appconfig.WithSeedCommand(ctx, state.appConfig.Deploy.SeedCommand)
+		}
+
 		if err := state.firstDeploy(ctx); err != nil {
 			return err
 		}
