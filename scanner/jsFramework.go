@@ -335,7 +335,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app."
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				}
 			}
 		}
 
@@ -388,7 +396,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app.\n"
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				}
 			}
 		}
 	}
@@ -412,13 +428,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 	srcInfo.Family = family
 
 	// provide some advice
-	srcInfo.DeployDocs += fmt.Sprintf(`
+	if srcInfo.DeployDocs == "" {
+		srcInfo.DeployDocs = fmt.Sprintf(`
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your %s app.
 `, srcInfo.Family)
+	}
 
 	return nil
 }
