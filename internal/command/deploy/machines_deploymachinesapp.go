@@ -425,7 +425,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	defer span.End()
 
 	if !md.skipReleaseCommand {
-		if err := md.runReleaseCommand(ctx); err != nil {
+		if err := md.runReleaseCommands(ctx); err != nil {
 			return fmt.Errorf("release command failed - aborting deployment. %w", err)
 		}
 	}
