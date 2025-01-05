@@ -133,9 +133,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// postgresql
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
-	} else {
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
 		// sqlite
 		s.DatabaseDesired = DatabaseKindSqlite
+		s.SkipDatabase = true
+		s.ObjectStorageDesired = true
+	} else {
+		// no database
+		s.DatabaseDesired = DatabaseKindNone
 		s.SkipDatabase = true
 	}
 
@@ -425,6 +430,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// add object storage
 	if plan.ObjectStorage.Provider() != nil {
 		args = append(args, "--tigris")
+
+		// add litestream if object storage is available and the database is sqlite
+		if srcInfo.DatabaseDesired == DatabaseKindSqlite {
+			args = append(args, "--litestream")
+		}
 	}
 
 	// add additional flags from launch command
