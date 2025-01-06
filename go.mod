@@ -92,10 +92,10 @@ require (
 	golang.org/x/mod v0.22.0
 	golang.org/x/net v0.33.0
 	golang.org/x/sync v0.10.0
-	golang.org/x/sys v0.28.0
-	golang.org/x/term v0.27.0
+	golang.org/x/sys v0.29.0
+	golang.org/x/term v0.28.0
 	golang.org/x/text v0.21.0
-	golang.org/x/time v0.8.0
+	golang.org/x/time v0.9.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	google.golang.org/grpc v1.69.2
 	gopkg.in/yaml.v2 v2.4.0
