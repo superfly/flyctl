@@ -191,6 +191,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			srcInfo.DatabaseDesired = DatabaseKindMySQL
 		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
 			srcInfo.DatabaseDesired = DatabaseKindSqlite
+			srcInfo.ObjectStorageDesired = true
 		}
 	}
 
@@ -387,6 +388,11 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			// add additional flags from launch command
 			if len(flags) > 0 {
 				args = append(args, flags...)
+			}
+
+			// add litestream if object storage is present and database is sqlite3
+			if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
+				args = append(args, "--litestream")
 			}
 
 			// execute (via npx, bunx, or bun x) the docker module
