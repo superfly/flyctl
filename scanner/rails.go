@@ -359,7 +359,7 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 
 	err = cmd.Run()
 	if err != nil {
-		return errors.Wrap(pendingError, "Failed to install bundle, exiting")
+		return errors.Wrap(err, "Failed to install bundle, exiting")
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
