@@ -6,8 +6,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/docker/go-units"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flag"
@@ -173,12 +175,40 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	if state.env != nil {
 		state.appConfig.SetEnvVariables(state.env)
 	}
+
+	state.appConfig.Compute = state.Plan.Compute
+
 	if state.Plan.HttpServicePort != 0 {
+		autostop := fly.MachineAutostopStop
+		autostopFlag := flag.GetString(ctx, "auto-stop")
+
+		if autostopFlag == "off" {
+			autostop = fly.MachineAutostopOff
+		} else if autostopFlag == "suspend" {
+			autostop = fly.MachineAutostopSuspend
+
+			// if any compute has a GPU or more than 2GB of memory, set autostop to stop
+			for _, compute := range state.appConfig.Compute {
+				if compute.MachineGuest != nil && compute.MachineGuest.GPUKind != "" {
+					autostop = fly.MachineAutostopStop
+					break
+				}
+
+				if compute.Memory != "" {
+					mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+					if err != nil || mb >= 2048 {
+						autostop = fly.MachineAutostopStop
+						break
+					}
+				}
+			}
+		}
+
 		if state.appConfig.HTTPService == nil {
 			state.appConfig.HTTPService = &appconfig.HTTPService{
 				ForceHTTPS:         true,
 				AutoStartMachines:  fly.Pointer(true),
-				AutoStopMachines:   fly.Pointer(fly.MachineAutostopStop),
+				AutoStopMachines:   fly.Pointer(autostop),
 				MinMachinesRunning: fly.Pointer(0),
 				Processes:          []string{"app"},
 			}
@@ -187,7 +217,6 @@ func (state *launchState) updateConfig(ctx context.Context) {
 	} else {
 		state.appConfig.HTTPService = nil
 	}
-	state.appConfig.Compute = state.Plan.Compute
 }
 
 // createApp creates the fly.io app for the plan
