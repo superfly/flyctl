@@ -40,8 +40,9 @@ type ExtensionParams struct {
 	ErrorCaptureCallback func(ctx context.Context, provisioningError error, params *ExtensionParams) error
 
 	// Surely there's a nicer way to do this, but this gets `fly launch` unblocked on launching exts
-	OverrideRegion string
-	OverrideName   *string
+	OverrideRegion                  string
+	OverrideName                    *string
+	OverrideExtensionSecretKeyNames map[string]map[string]string
 }
 
 // Common flags that should be used for all extension commands
@@ -239,7 +240,9 @@ func ProvisionExtension(ctx context.Context, params ExtensionParams) (extension 
 			colorize.Green(primaryRegion), provider.DisplayName)
 	}
 
-	setSecretsFromExtension(ctx, &targetApp, &extension)
+	// Also take into consideration custom key names to replace extension's default secret key names
+	overrideSecretKeyNamesMap := params.OverrideExtensionSecretKeyNames[params.Provider]
+	setSecretsFromExtension(ctx, &targetApp, &extension, overrideSecretKeyNamesMap)
 
 	return extension, nil
 }
@@ -426,7 +429,7 @@ func Discover(ctx context.Context, provider gql.AddOnType) (addOn *gql.AddOnData
 	return
 }
 
-func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension) (err error) {
+func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *Extension, overrideSecretKeyNamesMap map[string]string) (err error) {
 	var (
 		io              = iostreams.FromContext(ctx)
 		client          = flyutil.ClientFromContext(ctx).GenqClient()
@@ -434,6 +437,7 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 	)
 
 	environment := extension.Data.Environment
+
 	if environment == nil || reflect.ValueOf(environment).IsNil() {
 		return nil
 	}
@@ -473,8 +477,15 @@ func setSecretsFromExtension(ctx context.Context, app *gql.AppData, extension *E
 			AppId: app.Id,
 		}
 		for _, key := range keys {
-			input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
-			fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+			if customKeyName, exists := overrideSecretKeyNamesMap[key]; exists {
+				// If a custom key name is identified for the extension's secret key, use that custom key
+				input.Secrets = append(input.Secrets, gql.SecretInput{Key: customKeyName, Value: secrets[key].(string)})
+				fmt.Fprintf(io.Out, "%s: %s\n", customKeyName, secrets[key].(string))
+			} else {
+				// Use the default secret key name
+				input.Secrets = append(input.Secrets, gql.SecretInput{Key: key, Value: secrets[key].(string)})
+				fmt.Fprintf(io.Out, "%s: %s\n", key, secrets[key].(string))
+			}
 		}
 
 		fmt.Fprintln(io.Out)

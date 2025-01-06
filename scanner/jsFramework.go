@@ -191,6 +191,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 			srcInfo.DatabaseDesired = DatabaseKindMySQL
 		} else if checksPass(sourceDir+"/prisma", dirContains("*.prisma", "sqlite")) {
 			srcInfo.DatabaseDesired = DatabaseKindSqlite
+			srcInfo.ObjectStorageDesired = true
 		}
 	}
 
@@ -245,7 +246,7 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Next.js"
 	} else if deps["nust"] != nil {
 		srcInfo.Family = "Nust"
-	} else if devdeps["nuxt"] != nil {
+	} else if devdeps["nuxt"] != nil || deps["nuxt"] != nil {
 		srcInfo.Family = "Nuxt"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
@@ -298,7 +299,13 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			_, err = os.Stat("pnpm-lock.yaml")
 			if !errors.Is(err, fs.ErrNotExist) {
-				args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+
+				_, err = os.Stat("pnpm-workspace.yaml")
+				if errors.Is(err, fs.ErrNotExist) {
+					args = []string{"pnpm", "add", "-D", "@flydotio/dockerfile@latest"}
+				} else {
+					args = []string{"pnpm", "add", "-w", "-D", "@flydotio/dockerfile@latest"}
+				}
 			}
 
 			_, err = os.Stat("bun.lockb")
@@ -329,7 +336,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app."
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to install @flydotio/dockerfile: %w", err)
+				}
 			}
 		}
 
@@ -375,6 +390,11 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 				args = append(args, flags...)
 			}
 
+			// add litestream if object storage is present and database is sqlite3
+			if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
+				args = append(args, "--litestream")
+			}
+
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
 			cmd.Stdin = nil
@@ -382,7 +402,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			cmd.Stderr = os.Stderr
 
 			if err := cmd.Run(); err != nil {
-				return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 42 {
+					// generator exited with code 42, which means existing
+					// Dockerfile contains errors which will prevent deployment.
+					srcInfo.SkipDeploy = true
+					srcInfo.DeployDocs = "Correct the errors and run 'fly deploy' to deploy your app.\n"
+					fmt.Println()
+				} else {
+					return fmt.Errorf("failed to generate Dockerfile: %w", err)
+				}
 			}
 		}
 	}
@@ -406,13 +434,15 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 	srcInfo.Family = family
 
 	// provide some advice
-	srcInfo.DeployDocs += fmt.Sprintf(`
+	if srcInfo.DeployDocs == "" {
+		srcInfo.DeployDocs = fmt.Sprintf(`
 If you need custom packages installed, or have problems with your deployment
 build, you may need to edit the Dockerfile for app-specific changes. If you
 need help, please post on https://community.fly.io.
 
 Now: run 'fly deploy' to deploy your %s app.
 `, srcInfo.Family)
+	}
 
 	return nil
 }

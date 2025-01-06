@@ -3,6 +3,7 @@ package deploy
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
@@ -51,6 +52,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 
 	if len(standbyFor) > 0 {
 		mConfig.Standbys = standbyFor
+		mConfig.Env["FLY_STANDBY_FOR"] = strings.Join(standbyFor, ",")
 	}
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {
@@ -60,7 +62,7 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
-		SkipLaunch: len(standbyFor) > 0,
+		SkipLaunch: skipLaunch(nil, mConfig),
 	}, nil
 }
 
@@ -165,6 +167,7 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	// the standbys list.
 	if len(mConfig.Services) > 0 && len(mConfig.Standbys) > 0 {
 		mConfig.Standbys = nil
+		delete(mConfig.Env, "FLY_STANDBY_FOR")
 	}
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" && hdid != oConfig.Guest.HostDedicationID {
@@ -220,12 +223,17 @@ func (md *machineDeployment) setMachineReleaseData(mConfig *fly.MachineConfig) {
 // * any services use autoscaling (autostop or autostart).
 // * it is a standby machine
 func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
+	state := "<not-set>"
+	if origMachineRaw != nil {
+		state = origMachineRaw.State
+	}
+
 	switch {
-	case origMachineRaw.State == fly.MachineStateStarted:
+	case state == fly.MachineStateStarted:
 		return false
 	case len(mConfig.Standbys) > 0:
 		return true
-	case origMachineRaw.State == fly.MachineStateStopped || origMachineRaw.State == fly.MachineStateSuspended:
+	case state == fly.MachineStateStopped, state == fly.MachineStateSuspended:
 		for _, s := range mConfig.Services {
 			if (s.Autostop != nil && *s.Autostop != fly.MachineAutostopOff) || (s.Autostart != nil && *s.Autostart) {
 				return true

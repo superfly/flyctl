@@ -71,6 +71,12 @@ func runUpdate(ctx context.Context) (err error) {
 		options = make(map[string]interface{})
 	}
 
+	metadata, _ := addOn.Options.(map[string]interface{})
+
+	if metadata == nil {
+		metadata = make(map[string]interface{})
+	}
+
 	accessKey := flag.GetString(ctx, "shadow-access-key")
 	secretKey := flag.GetString(ctx, "shadow-secret-key")
 	region := flag.GetString(ctx, "shadow-region")
@@ -139,7 +145,7 @@ func runUpdate(ctx context.Context) (err error) {
 		}
 	}
 
-	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options)
+	_, err = gql.UpdateAddOn(ctx, client, addOn.Id, addOn.AddOnPlan.Id, []string{}, options, metadata)
 	if err != nil {
 		return
 	}

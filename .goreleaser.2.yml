@@ -94,5 +94,15 @@ archives:
     wrap_in_directory: false
     format: zip
 
+dockers:
+  - goos: linux
+    goarch: amd64
+    image_templates:
+      - "flyio/flyctl:latest"
+      - "flyio/flyctl:v{{ .Version }}"
+      - "ghcr.io/superfly/flyctl:latest"
+      - "ghcr.io/superfly/flyctl:v{{ .Version }}"
+    skip_push: auto
+
 release:
   disable: false

@@ -122,6 +122,14 @@ a Postgres database.
 		}
 	}
 
+	if checksPass(sourceDir, dirContains("mix.exs", "redis")) {
+		s.RedisDesired = true
+	}
+
+	if checksPass(sourceDir, dirContains("mix.exs", "ex_aws_s3")) {
+		s.ObjectStorageDesired = true
+	}
+
 	return s, nil
 }
 

@@ -8,9 +8,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"gopkg.in/yaml.v2"
@@ -70,22 +72,22 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	var rubyVersion string
 
-	// add ruby version from .ruby-version file
-	versionFile, err := os.ReadFile(".ruby-version")
+	// add ruby version from Gemfile
+	gemfile, err := os.ReadFile("Gemfile")
 	if err == nil {
-		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
-		matches := re.FindStringSubmatch(string(versionFile))
+		re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+		matches := re.FindStringSubmatch(string(gemfile))
 		if len(matches) >= 2 {
 			rubyVersion = matches[1]
 		}
 	}
 
 	if rubyVersion == "" {
-		// add ruby version from Gemfile
-		gemfile, err := os.ReadFile("Gemfile")
+		// add ruby version from .ruby-version file
+		versionFile, err := os.ReadFile(".ruby-version")
 		if err == nil {
-			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
-			matches := re.FindStringSubmatch(string(gemfile))
+			re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionFile))
 			if len(matches) >= 2 {
 				rubyVersion = matches[1]
 			}
@@ -119,9 +121,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// postgresql
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
-	} else {
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
 		// sqlite
 		s.DatabaseDesired = DatabaseKindSqlite
+		s.SkipDatabase = true
+		s.ObjectStorageDesired = true
+	} else {
+		// no database
+		s.DatabaseDesired = DatabaseKindNone
 		s.SkipDatabase = true
 	}
 
@@ -129,10 +136,10 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	redis := false
 	files, err := filepath.Glob("app/channels/*.rb")
 	if err == nil && len(files) > 0 {
-		redis = true
+		redis = !checksPass(sourceDir, dirContains("Gemfile", "solid_cable"))
 	}
 
-	if redis == false {
+	if !redis && !checksPass(sourceDir, dirContains("Gemfile", "solid_cable")) {
 		files, err = filepath.Glob("app/views/*")
 		if err == nil && len(files) > 0 {
 			for _, file := range files {
@@ -145,7 +152,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	// enable redis if redis is used for caching
-	if !redis {
+	if !redis && !checksPass(sourceDir, dirContains("Gemfile", "solid_queue")) {
 		prodEnv, err := os.ReadFile("config/environments/production.rb")
 		if err == nil && strings.Contains(string(prodEnv), "redis") {
 			redis = true
@@ -186,6 +193,23 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
+	// extract port from Dockerfile (if present).  This is primarily for thruster.
+	dockerfile, err := os.ReadFile("Dockerfile")
+	if err == nil {
+		re := regexp.MustCompile(`(?m)^EXPOSE\s+(?P<port>\d+)`)
+		m := re.FindStringSubmatch(string(dockerfile))
+		if len(m) > 0 {
+			port, err := strconv.Atoi(m[1])
+			if err == nil {
+				if port < 1024 {
+					port += 8000
+				}
+
+				s.Port = port
+			}
+		}
+	}
+
 	// master.key comes with Rails apps from v5.2 onwards, but may not be present
 	// if the app does not use Rails encrypted credentials.  Rails v6 added
 	// support for multi-environment credentials.  Use the Rails searching
@@ -221,14 +245,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// support Rails 4 through 5.1 applications, ones that started out
 		// there and never were fully upgraded, and ones that intentionally
 		// avoid using Rails encrypted credentials.
-		out, err := exec.Command(binrails, "secret").Output()
+		out, err := helpers.RandHex(64)
 
 		if err == nil {
 			s.Secrets = []Secret{
 				{
 					Key:   "SECRET_KEY_BASE",
 					Help:  "Secret key used to verify the integrity of signed cookies",
-					Value: strings.TrimSpace(string(out)),
+					Value: out,
 				},
 			}
 		}
@@ -394,6 +418,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// add object storage
 	if plan.ObjectStorage.Provider() != nil {
 		args = append(args, "--tigris")
+
+		// add litestream if object storage is available and the database is sqlite
+		if srcInfo.DatabaseDesired == DatabaseKindSqlite {
+			args = append(args, "--litestream")
+		}
 	}
 
 	// add additional flags from launch command

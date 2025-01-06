@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
@@ -20,6 +20,7 @@ import (
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	machcmd "github.com/superfly/flyctl/internal/command/machine"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -49,9 +50,34 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 
 	onInterruptContext := context.WithoutCancel(ctx)
 
+	// TODO(allison): Ensure that if we *aren't* using tigris here, we remove the previously attached bucket from
+	//                the app's services (if one exists).
+	if md.staticsUseTigris(ctx) {
+
+		fullApp, err := md.apiClient.GetApp(ctx, md.app.Name)
+		if err != nil {
+			return err
+		}
+		fullOrg, err := md.apiClient.GetOrganizationBySlug(ctx, md.app.Organization.Slug)
+		if err != nil {
+			return err
+		}
+
+		md.tigrisStatics = statics.Deployer(md.appConfig, fullApp, fullOrg, md.releaseVersion)
+		if err := md.tigrisStatics.Configure(ctx); err != nil {
+			return err
+		}
+	}
+
 	if err := md.updateReleaseInBackend(ctx, "running", nil); err != nil {
 		tracing.RecordError(span, err, "failed to update release")
 		return fmt.Errorf("failed to set release status to 'running': %w", err)
+	}
+
+	if md.tigrisStatics != nil && !md.restartOnly {
+		if err := md.tigrisStatics.Push(ctx); err != nil {
+			return err
+		}
 	}
 
 	var err error
@@ -87,6 +113,14 @@ func (md *machineDeployment) DeployMachinesApp(ctx context.Context) error {
 			err = fmt.Errorf("failed to set final release status: %w", updateErr)
 		} else {
 			terminal.Warnf("failed to set final release status after deployment failure: %v\n", updateErr)
+		}
+	}
+
+	if md.tigrisStatics != nil && !md.restartOnly {
+		if err == nil {
+			err = md.tigrisStatics.Finalize(ctx)
+		} else {
+			md.tigrisStatics.CleanupAfterFailure(ctx)
 		}
 	}
 
@@ -215,6 +249,8 @@ func (md *machineDeployment) inferCanaryGuest(processGroup string) *fly.MachineG
 	return canaryGuest
 }
 
+// deployCanaryMachines creates canary machines for each process group.
+// The canary machines are destroyed before returning to the caller.
 func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_canary")
 	defer span.End()
@@ -389,7 +425,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	defer span.End()
 
 	if !md.skipReleaseCommand {
-		if err := md.runReleaseCommand(ctx); err != nil {
+		if err := md.runReleaseCommands(ctx); err != nil {
 			return fmt.Errorf("release command failed - aborting deployment. %w", err)
 		}
 	}
@@ -481,17 +517,19 @@ func suggestChangeWaitTimeout(err error, flagName string) error {
 		// but we only suggest changing region on machine start.
 
 		var timeoutErr machine.WaitTimeoutErr
-		if errors.As(err, &timeoutErr) && timeoutErr.DesiredState() == fly.MachineStateStarted {
-			// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
-			// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
-			descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
-			suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
-		} else {
-			// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
-			// You can't really suggest changing regions in cases where you're not starting machines, so this is the
-			// best advice we can give.
-			descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
-			suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
+		if errors.As(err, &timeoutErr) {
+			if timeoutErr.DesiredState() == fly.MachineStateStarted {
+				// If we timed out waiting for a machine to start, we want to suggest that there could be a region issue preventing
+				// the machine from finishing its state transition. (e.g. slow image pulls, volume trouble, etc.)
+				descript = "Your machine was created, but never started. This could mean that your app is taking a long time to start,\nbut it could be indicative of a region issue."
+				suggest = fmt.Sprintf("You can try deploying to a different region,\nor you can try %s", suggestIncreaseTimeout)
+			} else {
+				// If we timed out waiting for a different state, we want to suggest that the timeout could be too short.
+				// You can't really suggest changing regions in cases where you're not starting machines, so this is the
+				// best advice we can give.
+				descript = fmt.Sprintf("Your machine never reached the state \"%s\".", timeoutErr.DesiredState())
+				suggest = fmt.Sprintf("You can try %s", suggestIncreaseTimeout)
+			}
 		}
 
 		err = flyerr.GenericErr{
@@ -555,6 +593,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return err
 }
 
+// updateExistingMachinesWRecovery updates existing machines.
 // The code duplication is on purpose here. The plan is to completely move over to updateExistingMachinesWRecovery
 func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_existing_machines_w_recovery", trace.WithAttributes(
@@ -616,9 +655,12 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		canaryAppState.Machines = []*fly.Machine{oldAppState.Machines[0]}
 
 		newCanaryAppState := newAppState
-		canaryMach, _ := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
+		canaryMach, exists := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
 			return m.ID == oldAppState.Machines[0].ID
 		})
+		if !exists {
+			return fmt.Errorf("failed to find machine %s under app %s", oldAppState.Machines[0].ID, md.app.Name)
+		}
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
 		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
@@ -653,11 +695,9 @@ func (md *machineDeployment) updateUsingBlueGreenStrategy(ctx context.Context, u
 	if err := bg.Deploy(ctx); err != nil {
 		if rollbackErr := bg.Rollback(ctx, err); rollbackErr != nil {
 			fmt.Fprintf(md.io.ErrOut, "Error in rollback: %s\n", rollbackErr)
-			fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 			return rollbackErr
 		}
 
-		fmt.Fprintf(md.io.ErrOut, "Deployment failed after error: %s\n", err)
 		return suggestChangeWaitTimeout(err, "wait-timeout")
 	}
 	return nil
@@ -769,32 +809,29 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		groupsPool.Go(func(ctx context.Context) error {
 			eg, ctx := errgroup.WithContext(ctx)
 
-			eg.Go(func() (err error) {
-				poolSize := len(coldMachines)
-				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
-					poolSize = STOPPED_MACHINES_POOL_SIZE
-				}
+			coldIdx := startIdx
+			if len(coldMachines) > 0 {
+				eg.Go(func() error {
+					// Capping the size just in case, it may be okay to stop all of them at once.
+					chunk := len(coldMachines)
+					if chunk >= STOPPED_MACHINES_POOL_SIZE {
+						chunk = STOPPED_MACHINES_POOL_SIZE
+					}
+					return md.updateEntriesGroup(ctx, group, coldMachines, sl, coldIdx, chunk)
+				})
+			}
+			startIdx += len(coldMachines)
 
-				if len(coldMachines) > 0 {
-					// for cold machines, we can update all of them at once.
-					// there's no need for protection against downtime since the machines are already stopped
-					startIdx += len(coldMachines)
-					return md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
-				}
-
-				return nil
-			})
-
-			eg.Go(func() (err error) {
-				// for warm machines, we update them in chunks of size, md.maxUnavailable.
-				// this is to prevent downtime/low-latency during deployments
-				startIdx += len(warmMachines)
-				poolSize := md.getPoolSize(len(warmMachines))
-				if len(warmMachines) > 0 {
-					return md.updateEntriesGroup(ctx, group, warmMachines, sl, startIdx-len(warmMachines), poolSize)
-				}
-				return nil
-			})
+			warmIdx := startIdx
+			if len(warmMachines) > 0 {
+				eg.Go(func() error {
+					// Since these machines are still receiving traffic, the chunk size here is more conservative (lower)
+					// then the one above.
+					chunk := md.getPoolSize(len(warmMachines))
+					return md.updateEntriesGroup(ctx, group, warmMachines, sl, warmIdx, chunk)
+				})
+			}
+			startIdx += len(warmMachines)
 
 			return eg.Wait()
 		})
@@ -923,6 +960,14 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 	return updatePool.Wait()
 }
 
+// releaseLease releases the lease and log the error if any.
+func releaseLease(ctx context.Context, m machine.LeasableMachine) {
+	err := m.ReleaseLease(ctx)
+	if err != nil {
+		terminal.Warnf("failed to release lease for machine %s: %s", m.FormattedMachineId(), err)
+	}
+}
+
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_by_replace", trace.WithAttributes(attribute.String("id", e.launchInput.ID)))
 	defer span.End()
@@ -944,7 +989,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
 	return nil
 }
@@ -1022,7 +1067,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 
 	// Don't wait for SkipLaunch machines, they are created but not started
 	if launchInput.SkipLaunch {
@@ -1066,6 +1111,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	return lm, nil
 }
 
+// resolveProcessGroupChanges returns a diff between machines
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
@@ -1229,7 +1275,7 @@ type smokeChecksError struct {
 }
 
 func (s smokeChecksError) Error() string {
-	return s.err.Error()
+	return fmt.Sprintf("smoke checks for %s failed: %s", s.machineID, s.err)
 }
 
 func (s smokeChecksError) Unwrap() error {
@@ -1245,53 +1291,51 @@ func (s smokeChecksError) Suggestion() string {
 	return suggestion
 }
 
-func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine, showLogs bool) (err error) {
+func (md *machineDeployment) doSmokeChecks(ctx context.Context, lm machine.LeasableMachine, showLogs bool) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "smoke_checks", trace.WithAttributes(attribute.String("machine.ID", lm.Machine().ID)))
 	defer span.End()
+
 	if md.skipSmokeChecks {
 		span.AddEvent("skipped")
 		return nil
 	}
 
-	err = lm.WaitForSmokeChecksToPass(ctx)
+	err := lm.WaitForSmokeChecksToPass(ctx)
 	if err == nil {
 		return nil
+	}
+
+	smokeErr := &smokeChecksError{
+		machineID: lm.Machine().ID,
+		err:       err,
 	}
 
 	if showLogs {
 		resumeLogFn := statuslogger.Pause(ctx)
 		defer resumeLogFn()
-	}
 
-	logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
-	if fly.IsNotAuthenticatedError(logErr) && showLogs {
-		span.AddEvent("not authorized to retrieve logs")
-		fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
-	} else {
-		if logErr != nil {
-			err := fmt.Errorf("error getting logs for machine %s: %w", lm.Machine().ID, logErr)
-			span.RecordError(err)
-			return err
-		}
-		var log string
-		for _, l := range logs {
-			// Ideally we should use InstanceID here, but it's not available in the logs.
-			if l.Timestamp >= lm.Machine().UpdatedAt {
-				log += fmt.Sprintf("%s\n", l.Message)
+		logs, _, logErr := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, lm.Machine().ID)
+		switch {
+		case logErr == nil:
+			for _, l := range logs {
+				// Ideally we should use InstanceID here, but it's not available in the logs.
+				if l.Timestamp >= lm.Machine().UpdatedAt {
+					smokeErr.logs += fmt.Sprintf("%s\n", l.Message)
+				}
 			}
+		case fly.IsNotAuthenticatedError(logErr):
+			span.AddEvent("not authorized to retrieve logs")
+			fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
+			smokeErr.logs = "<not authorized to retrieve logs>"
+		default:
+			span.AddEvent("error retrieving machine logs")
+			fmt.Fprintf(md.io.ErrOut, "Warn: got an error retrieving the logs so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", lm.Machine().ID, md.appConfig.AppName, lm.Machine().ID)
+			smokeErr.logs = fmt.Sprintf("<error fetching logs, try `fly logs -i %s>", smokeErr.machineID)
 		}
-
-		err := &smokeChecksError{
-			err:       err,
-			machineID: lm.Machine().ID,
-			logs:      log,
-		}
-		span.RecordError(err)
-		return err
 	}
-	err = fmt.Errorf("smoke checks for %s failed: %v", lm.Machine().ID, err)
-	span.RecordError(err)
-	return err
+
+	span.RecordError(smokeErr)
+	return smokeErr
 }
 
 func (md *machineDeployment) checkDNS(ctx context.Context) error {
@@ -1323,9 +1367,8 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
 		b.MaxInterval = 5 * time.Second
-		b.MaxElapsedTime = 60 * time.Second
 
-		return backoff.Retry(func() error {
+		_, err = backoff.Retry(ctx, func() (any, error) {
 			m := new(dns.Msg)
 
 			var numIPv4, numIPv6 int
@@ -1345,11 +1388,11 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
-				return err
+				return nil, err
 			} else if len(answerv4.Answer) != numIPv4 {
 				span.SetAttributes(attribute.String("v4_answer", answerv4.String()))
 				tracing.RecordError(span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
-				return fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
+				return nil, fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
 			}
 
 			m.SetQuestion(fqdn, dns.TypeAAAA)
@@ -1357,17 +1400,28 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
-				return err
+				return nil, err
 			} else if len(answerv6.Answer) != numIPv6 {
 				span.SetAttributes(attribute.String("v6_answer", answerv6.String()))
 				tracing.RecordError(span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
-				return fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
+				return nil, fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
 			}
 
-			return nil
-		}, backoff.WithContext(b, ctx))
-
+			return nil, nil
+		}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(60*time.Second))
+		return err
 	} else {
 		return nil
 	}
+}
+
+func (md *machineDeployment) staticsUseTigris(ctx context.Context) bool {
+
+	for _, static := range md.appConfig.Statics {
+		if statics.StaticIsCandidateForTigrisPush(static) {
+			return true
+		}
+	}
+
+	return false
 }

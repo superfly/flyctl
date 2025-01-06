@@ -60,6 +60,7 @@ type machinePairing struct {
 	newMachine *fly.Machine
 }
 
+// appState returns the app's state from Flaps.
 func (md *machineDeployment) appState(ctx context.Context, existingAppState *AppState) (*AppState, error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "app_state")
 	defer span.End()
@@ -217,25 +218,17 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 		pgroup.Go(func() error {
 			eg, ctx := errgroup.WithContext(ctx)
 
-			warmMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
-				if e.oldMachine != nil && e.oldMachine.State == "started" {
+			isWarm := func(e machinePairing, i int) bool {
+				if e.oldMachine != nil && (e.oldMachine.State == "started" || e.oldMachine.State == "replacing") {
 					return true
 				}
-				if e.newMachine != nil && e.newMachine.State == "started" {
-					return true
-				}
-				return false
-			})
-
-			coldMachines := lo.Filter(machineTuples, func(e machinePairing, i int) bool {
-				if e.oldMachine != nil && e.oldMachine.State != "started" {
-					return true
-				}
-				if e.newMachine != nil && e.newMachine.State != "started" {
+				if e.newMachine != nil && (e.newMachine.State == "started" || e.newMachine.State == "replacing") {
 					return true
 				}
 				return false
-			})
+			}
+			warmMachines := lo.Filter(machineTuples, isWarm)
+			coldMachines := lo.Reject(machineTuples, isWarm)
 
 			eg.Go(func() (err error) {
 				poolSize := len(coldMachines)
@@ -299,6 +292,11 @@ func (md *machineDeployment) updateMachinesWRecovery(ctx context.Context, oldApp
 			if err != nil {
 				span.RecordError(updateErr)
 				return fmt.Errorf("failed to get current app state: %w", err)
+			}
+			// we need to refresh information about the state of unattached volumes in the app
+			err = md.setVolumes(ctx)
+			if err != nil {
+				return err
 			}
 			err = md.updateMachinesWRecovery(ctx, currentState, newAppState, sl, updateMachineSettings{
 				pushForward:          false,
@@ -371,6 +369,9 @@ func (md *machineDeployment) acquireLeases(ctx context.Context, machineTuples []
 	ctx, span := tracing.GetTracer().Start(ctx, "acquire_leases")
 
 	leaseGroup := errgroup.Group{}
+	if poolSize <= 0 {
+		panic("pool size must be > 0")
+	}
 	leaseGroup.SetLimit(poolSize)
 
 	for _, machineTuple := range machineTuples {

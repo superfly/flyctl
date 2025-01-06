@@ -11,6 +11,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -21,7 +22,7 @@ import (
 
 const maxConcurrentActions = 5
 
-func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts map[string]int, maxPerRegion int) error {
+func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appconfig.Config, expectedGroupCounts groupCounts, maxPerRegion int) error {
 	io := iostreams.FromContext(ctx)
 	flapsClient := flapsutil.ClientFromContext(ctx)
 	ctx = appconfig.WithConfig(ctx, appConfig)
@@ -31,6 +32,10 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	if err != nil {
 		return err
 	}
+
+	machines = lo.Filter(machines, func(m *fly.Machine, _ int) bool {
+		return m.Config != nil
+	})
 
 	var latestCompleteRelease fly.Release
 	switch releases, err := apiClient.GetAppReleasesMachines(ctx, appName, "complete", 1); {
@@ -69,6 +74,18 @@ func runMachinesScaleCount(ctx context.Context, appName string, appConfig *appco
 	actions, err := computeActions(machines, expectedGroupCounts, regions, maxPerRegion, defaults)
 	if err != nil {
 		return err
+	}
+
+	// Add env variable overrides to launch configs
+	if env := flag.GetStringArray(ctx, "env"); len(env) > 0 {
+		parsedEnv, err := cmdutil.ParseKVStringsToMap(env)
+		if err != nil {
+			return fmt.Errorf("failed parsing environment: %w", err)
+		}
+		lo.ForEach(actions, func(plan *planItem, _ int) {
+			c := plan.LaunchMachineInput.Config
+			c.Env = lo.Assign(c.Env, parsedEnv)
+		})
 	}
 
 	if len(actions) == 0 {
@@ -241,15 +258,22 @@ func (pi *planItem) MachineSize() string {
 	return ""
 }
 
-func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
+func computeActions(machines []*fly.Machine, expectedGroupCounts groupCounts, regions []string, maxPerRegion int, defaults *defaultValues) ([]*planItem, error) {
 	actions := make([]*planItem, 0)
 	seenGroups := make(map[string]bool)
 	machineGroups := lo.GroupBy(machines, func(m *fly.Machine) string {
 		return m.ProcessGroup()
 	})
+	expectedCounts := lo.MapValues(expectedGroupCounts, func(c groupCount, group string) int {
+		count := c.absolute
+		if c.relative != 0 {
+			count = len(machineGroups[group]) + c.relative
+		}
+		return max(count, 0)
+	})
 
 	for groupName, groupMachines := range machineGroups {
-		expected, ok := expectedGroupCounts[groupName]
+		expected, ok := expectedCounts[groupName]
 		// Ignore the group if it is not expected to change
 		if !ok {
 			continue
@@ -272,6 +296,7 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int,
 		mConfig := groupMachines[0].Config
 		// Nullify standbys, no point on having more than one
 		mConfig.Standbys = nil
+		delete(mConfig.Env, "FLY_STANDBY_FOR")
 
 		for region, delta := range regionDiffs {
 			actions = append(actions, &planItem{
@@ -287,7 +312,7 @@ func computeActions(machines []*fly.Machine, expectedGroupCounts map[string]int,
 	}
 
 	// Fill in the groups without existing machines
-	for groupName, expected := range expectedGroupCounts {
+	for groupName, expected := range expectedCounts {
 		if seenGroups[groupName] {
 			continue
 		}

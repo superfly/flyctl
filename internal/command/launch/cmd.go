@@ -114,6 +114,21 @@ func New() (cmd *cobra.Command) {
 			Hidden:      true,
 		},
 		flag.Bool{
+			Name:        "no-db",
+			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-redis",
+			Description: "Skip automatically provisioning a Redis instance",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-object-storage",
+			Description: "Skip automatically provisioning an object storage bucket",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
@@ -124,6 +139,11 @@ func New() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "no-create",
 			Description: "Do not create an app, only generate configuration files",
+		},
+		flag.String{
+			Name:        "auto-stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
+			Default:     "stop",
 		},
 	)
 

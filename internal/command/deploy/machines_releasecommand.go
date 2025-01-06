@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"container/ring"
 	"context"
 	"errors"
 	"fmt"
@@ -9,34 +10,55 @@ import (
 	"strings"
 	"time"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/format"
 	"github.com/superfly/flyctl/internal/machine"
 	"github.com/superfly/flyctl/internal/statuslogger"
 	"github.com/superfly/flyctl/internal/tracing"
+	"github.com/superfly/flyctl/logs"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
-func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) {
-	ctx, span := tracing.GetTracer().Start(ctx, "run_release_cmd")
+func (md *machineDeployment) runReleaseCommands(ctx context.Context) error {
+	err := md.runReleaseCommand(ctx, "release")
+
+	if err == nil {
+		seedCommand := appconfig.SeedCommandFromContext(ctx)
+
+		if seedCommand != "" {
+			md.appConfig.Deploy.ReleaseCommand = seedCommand
+			err = md.runReleaseCommand(ctx, "seed")
+		}
+	}
+
+	return err
+}
+
+func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType string) (err error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "run_"+commandType+"_cmd")
 	defer func() {
 		if err != nil {
-			tracing.RecordError(span, err, "failed to run release_cmd")
+			tracing.RecordError(span, err, "failed to run "+commandType+"_cmd")
 		}
 		span.End()
 	}()
 
 	if md.appConfig.Deploy == nil || md.appConfig.Deploy.ReleaseCommand == "" {
-		span.AddEvent("no release command")
+		span.AddEvent("no " + commandType + " command")
 		return nil
 	}
 
-	fmt.Fprintf(md.io.ErrOut, "Running %s release_command: %s\n",
+	fmt.Fprintf(md.io.ErrOut, "Running %s %s_command: %s\n",
 		md.colorize.Bold(md.app.Name),
+		commandType,
 		md.appConfig.Deploy.ReleaseCommand,
 	)
 	ctx, loggerCleanup := statuslogger.SingleLine(ctx, true)
@@ -47,64 +69,137 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context) (err error) 
 		loggerCleanup(false)
 	}()
 
-	err = md.createOrUpdateReleaseCmdMachine(ctx)
-	if err != nil {
-		tracing.RecordError(span, err, "failed to create release cmd machine")
-		return fmt.Errorf("error running release_command machine: %w", err)
+	logOpts := &logs.LogOptions{
+		AppName:    appconfig.NameFromContext(ctx),
+		RegionCode: config.FromContext(ctx).Region,
+		NoTail:     false,
 	}
+	var stream logs.LogStream
+
+	eg, groupCtx := errgroup.WithContext(ctx)
+	eg.Go(func() error {
+		err := md.createOrUpdateReleaseCmdMachine(groupCtx)
+		if err != nil {
+			tracing.RecordError(span, err, "failed to create "+commandType+" cmd machine")
+			return fmt.Errorf("error running %s_command machine: %w", commandType, err)
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		stream, err = logs.NewNatsStream(ctx, md.apiClient, logOpts)
+		if err != nil {
+			// Silently fallback to app logs polling if NATS streaming client is unavailable.
+			stream = logs.NewPollingStream(md.apiClient)
+		}
+		return nil
+	})
+	if err = eg.Wait(); err != nil {
+		return err
+	}
+
 	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
+
+	logOpts.VMID = releaseCmdMachine.Machine().ID
+	logsCtx, cancelLogs := context.WithCancel(ctx)
+	defer cancelLogs()
+	var buf *ring.Ring
+	if !flag.GetBool(ctx, "verbose") {
+		buf = ring.New(100)
+	}
+	go func() {
+		defer cancelLogs()
+		if stream == nil {
+			return
+		}
+		for entry := range stream.Stream(logsCtx, logOpts) {
+			var ts time.Time
+			if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
+				err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
+				return
+			}
+			msg := fmt.Sprintf("%s %s", aurora.Faint(format.Time(ts)), entry.Message)
+			if buf != nil {
+				buf.Value = msg
+				buf = buf.Next()
+			} else {
+				fmt.Fprintln(md.io.ErrOut)
+			}
+			if strings.Contains(entry.Message, "Main child exited normally") {
+				return
+			}
+		}
+	}()
+
+	fmt.Fprintln(md.io.ErrOut, "Starting machine")
+
+	if err = releaseCmdMachine.Start(ctx); err != nil {
+		fmt.Fprintf(md.io.ErrOut, "error starting %s_command machine: %v\n", commandType, err)
+		return
+	}
+
 	// FIXME: consolidate this wait stuff with deploy waits? Especially once we improve the outpu
 	err = md.waitForReleaseCommandToFinish(ctx, releaseCmdMachine)
 	if err != nil {
-		tracing.RecordError(span, err, "failed to wait for release cmd machine")
+		tracing.RecordError(span, err, "failed to wait for "+commandType+" cmd machine")
 
 		return err
 	}
 	lastExitEvent, err := releaseCmdMachine.WaitForEventTypeAfterType(ctx, "exit", "start", md.releaseCmdTimeout, true)
 	if err != nil {
-		return fmt.Errorf("error finding the release_command machine %s exit event: %w", releaseCmdMachine.Machine().ID, err)
+		return fmt.Errorf("error finding the %s_command machine %s exit event: %w", commandType, releaseCmdMachine.Machine().ID, err)
 	}
 	exitCode, err := lastExitEvent.Request.GetExitCode()
 	if err != nil {
-		return fmt.Errorf("error get release_command machine %s exit code: %w", releaseCmdMachine.Machine().ID, err)
+		return fmt.Errorf("error get %s_command machine %s exit code: %w", commandType, releaseCmdMachine.Machine().ID, err)
 	}
 
-	if exitCode != 0 || flag.GetBool(ctx, "verbose") {
-		if exitCode != 0 {
-			statuslogger.LogStatus(ctx, statuslogger.StatusFailure, "release_command failed")
-		}
+	if flag.GetBool(ctx, "verbose") {
+		waitForLogs(md, logsCtx, stream, releaseCmdMachine.Machine().ID)
+	}
+
+	if exitCode != 0 {
+		statuslogger.LogStatus(ctx, statuslogger.StatusFailure, commandType+"_command failed")
 
 		// Preemptive cleanup of the logger so that the logs have a clean place to write to
 		loggerCleanup(false)
 
-		time.Sleep(2 * time.Second) // Wait 2 secs to be sure logs have reached OpenSearch
-		if exitCode != 0 {
-			fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
-				md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+		fmt.Fprintf(md.io.ErrOut, "Error release_command failed running on machine %s with exit code %s.\n",
+			md.colorize.Bold(releaseCmdMachine.Machine().ID), md.colorize.Red(strconv.Itoa(exitCode)))
+
+		if !flag.GetBool(ctx, "verbose") {
+			fmt.Fprintf(md.io.ErrOut, "Checking logs: fetching the last 100 lines below:\n")
+			waitForLogs(md, logsCtx, stream, releaseCmdMachine.Machine().ID)
+			buf.Do(func(str any) {
+				if str != nil {
+					fmt.Fprintln(md.io.ErrOut, str)
+				}
+			})
 		}
-		fmt.Fprintf(md.io.ErrOut, "Check its logs: here's the last 100 lines below, or run 'fly logs -i %s':\n",
-			releaseCmdMachine.Machine().ID)
-		releaseCmdLogs, _, err := md.apiClient.GetAppLogs(ctx, md.app.Name, "", md.appConfig.PrimaryRegion, releaseCmdMachine.Machine().ID)
-		if fly.IsNotAuthenticatedError(err) {
-			fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens), so we can't show you what failed. Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", releaseCmdMachine.Machine().ID, md.appConfig.AppName, releaseCmdMachine.Machine().ID)
-		} else {
-			if err != nil {
-				return fmt.Errorf("error getting release_command logs: %w", err)
-			}
-			for _, l := range releaseCmdLogs {
-				fmt.Fprintf(md.io.ErrOut, "  %s\n", l.Message)
-			}
-		}
-		if exitCode != 0 {
-			return fmt.Errorf("error release_command machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
-		}
+		return fmt.Errorf("machine %s exited with non-zero status of %d", releaseCmdMachine.Machine().ID, exitCode)
 	}
 	statuslogger.LogfStatus(ctx,
 		statuslogger.StatusSuccess,
-		"release_command %s completed successfully",
+		"%s_command %s completed successfully",
+		commandType,
 		md.colorize.Bold(releaseCmdMachine.Machine().ID),
 	)
 	return nil
+}
+
+// Wait up to 20 secs to be sure logs have been fully ingested, and log any errors.
+func waitForLogs(md *machineDeployment, ctx context.Context, stream logs.LogStream, id string) {
+	timer := time.NewTimer(20 * time.Second)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		if fly.IsNotAuthenticatedError(stream.Err()) {
+			fmt.Fprintf(md.io.ErrOut, "Warn: not authorized to retrieve app logs (this can happen when using deploy tokens). Use `fly logs -i %s` or open the monitoring dashboard to see them: https://fly.io/apps/%s/monitoring?region=&instance=%s\n", id, md.appConfig.AppName, id)
+		} else if stream.Err() != nil && !errors.Is(stream.Err(), context.Canceled) {
+			fmt.Fprintf(md.io.ErrOut, "error getting release command logs: %v\n", stream.Err())
+		}
+	case <-timer.C:
+		fmt.Fprintf(md.io.ErrOut, "timeout waiting for release command logs\n")
+	}
 }
 
 // dedicatedHostIdMismatch checks if the dedicatedHostID on a machine is the same as the one set in the fly.toml
@@ -147,6 +242,13 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 
 	statuslogger.Logf(ctx, "Created release_command machine %s", md.colorize.Bold(releaseCmdMachine.ID))
 	md.releaseCommandMachine = machine.NewMachineSet(md.flapsClient, md.io, []*fly.Machine{releaseCmdMachine}, true)
+
+	lm := md.releaseCommandMachine.GetMachines()[0]
+	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false); err != nil {
+		err = suggestChangeWaitTimeout(err, "wait-timeout")
+		return err
+	}
+
 	return nil
 }
 
@@ -185,8 +287,10 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	// We can ignore the error because ToReleaseMachineConfig fails only
 	// if it can't split the command and we test that at initialization
 	mConfig, _ := md.appConfig.ToReleaseMachineConfig()
-	mConfig.Guest = md.inferReleaseCommandGuest()
 	mConfig.Image = md.img
+	if mConfig.Guest == nil {
+		mConfig.Guest = md.inferReleaseCommandGuest()
+	}
 	md.setMachineReleaseData(mConfig)
 
 	if hdid := md.appConfig.HostDedicationID; hdid != "" {
@@ -194,8 +298,9 @@ func (md *machineDeployment) launchInputForReleaseCommand(origMachineRaw *fly.Ma
 	}
 
 	return &fly.LaunchMachineInput{
-		Config: mConfig,
-		Region: origMachineRaw.Region,
+		Config:     mConfig,
+		Region:     origMachineRaw.Region,
+		SkipLaunch: true,
 	}
 }
 
@@ -244,5 +349,6 @@ func (md *machineDeployment) waitForReleaseCommandToFinish(ctx context.Context, 
 		err = suggestChangeWaitTimeout(err, "release-command-timeout")
 		return fmt.Errorf("error waiting for release_command machine %s to finish running: %w", releaseCmdMachine.Machine().ID, err)
 	}
+	md.releaseCommandMachine.RemoveMachines(ctx, []machine.LeasableMachine{releaseCmdMachine})
 	return nil
 }

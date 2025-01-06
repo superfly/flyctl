@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	depotbuild "github.com/depot/depot-go/build"
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
@@ -33,7 +34,27 @@ import (
 
 var _ imageBuilder = (*DepotBuilder)(nil)
 
-type DepotBuilder struct{}
+type depotBuilderScope int
+
+const (
+	DepotBuilderScopeOrganization depotBuilderScope = iota
+	DepotBuilderScopeApp
+)
+
+func (s depotBuilderScope) String() string {
+	switch s {
+	case DepotBuilderScopeOrganization:
+		return "organization"
+	case DepotBuilderScopeApp:
+		return "app"
+	default:
+		return "unknown"
+	}
+}
+
+type DepotBuilder struct {
+	Scope depotBuilderScope
+}
 
 func (d *DepotBuilder) Name() string { return "depot.dev" }
 
@@ -81,7 +102,7 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 
 	build.ImageBuildStart()
 
-	image, err := depotBuild(ctx, streams, opts, dockerfile, build)
+	image, err := depotBuild(ctx, streams, opts, dockerfile, build, d.Scope)
 	if err != nil {
 		metrics.SendNoData(ctx, "remote_builder_failure")
 		build.ImageBuildFinish()
@@ -98,7 +119,10 @@ func (d *DepotBuilder) Run(ctx context.Context, _ *dockerClientFactory, streams 
 	return image, "", nil
 }
 
-func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build) (*DeploymentImage, error) {
+func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOptions, dockerfilePath string, buildState *build, scope depotBuilderScope) (*DeploymentImage, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "depot_build", trace.WithAttributes(opts.ToSpanAttributes()...))
+	defer span.End()
+
 	buildState.BuilderInitStart()
 	buildState.SetBuilderMetaPart1(depotBuilderType, "", "")
 
@@ -111,9 +135,10 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 		}
 	}
 
-	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams)
+	buildkit, build, buildErr := initBuilder(ctx, buildState, opts.AppName, streams, scope)
 	if buildErr != nil {
 		streams.StopProgressIndicator()
+		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 	defer func() {
@@ -124,10 +149,12 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancelConnect()
 
+	span.AddEvent("connecting to buildkit")
 	var buildkitClient *client.Client
 	buildkitClient, buildErr = buildkit.Connect(connectCtx)
 	if buildErr != nil {
 		streams.StopProgressIndicator()
+		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 
@@ -141,6 +168,7 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	res, buildErr := buildImage(ctx, buildkitClient, opts, dockerfilePath)
 	if buildErr != nil {
 		buildState.BuildAndPushFinish()
+		span.RecordError(buildErr)
 		return nil, buildErr
 	}
 	buildState.BuildAndPushFinish()
@@ -151,18 +179,23 @@ func depotBuild(ctx context.Context, streams *iostreams.IOStreams, opts ImageOpt
 	return newDeploymentImage(res, opts.Tag)
 }
 
-func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams) (*depotmachine.Machine, *depotbuild.Build, error) {
+func initBuilder(ctx context.Context, buildState *build, appName string, streams *iostreams.IOStreams, builderScope depotBuilderScope) (*depotmachine.Machine, *depotbuild.Build, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "init_depot_build")
+	defer span.End()
+
+	defer buildState.BuilderInitFinish()
+
 	apiClient := flyutil.ClientFromContext(ctx)
 	region := os.Getenv("FLY_REMOTE_BUILDER_REGION")
 	if region != "" {
 		region = "fly-" + region
 	}
-
-	defer buildState.BuilderInitFinish()
+	span.SetAttributes(attribute.String("depot_builder_region", region))
 
 	buildInfo, err := apiClient.EnsureDepotRemoteBuilder(ctx, &fly.EnsureDepotRemoteBuilderInput{
-		AppName: &appName,
-		Region:  &region,
+		AppName:      &appName,
+		Region:       &region,
+		BuilderScope: fly.StringPointer(builderScope.String()),
 	})
 	if err != nil {
 		streams.StopProgressIndicator()
@@ -175,20 +208,35 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	}
 
 	// Set the buildErr to any error that represents the build failing.
-	var buildErr error
+	var finalBuildErr error
 
-	var buildkit *depotmachine.Machine
-	buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
-	if buildErr != nil {
-		build.Finish(buildErr)
+	span.AddEvent("Acquiring Depot machine")
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
+	defer cancel()
+
+	buildkit, finalBuildErr := backoff.Retry(timeoutCtx, func() (*depotmachine.Machine, error) {
+		machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+		if err != nil {
+			span.RecordError(err)
+			return nil, err
+		}
+
+		return machine, nil
+	}, backoff.WithMaxTries(2))
+
+	if finalBuildErr != nil {
 		streams.StopProgressIndicator()
-		return nil, nil, buildErr
+		return nil, nil, finalBuildErr
 	}
 
 	return buildkit, &build, err
 }
 
 func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOptions, dockerfilePath string) (*client.SolveResponse, error) {
+	ctx, span := tracing.GetTracer().Start(ctx, "depot_build_image", trace.WithAttributes(opts.ToSpanAttributes()...))
+	defer span.End()
+
 	var (
 		res *client.SolveResponse
 		err error
@@ -204,6 +252,12 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 
 	if opts.Publish {
 		exportEntry.Attrs["push"] = "true"
+	}
+
+	if opts.UseZstd {
+		exportEntry.Attrs["compression"] = "zstd"
+		exportEntry.Attrs["compression-level"] = "3"
+		exportEntry.Attrs["force-compression"] = "true"
 	}
 
 	ch := make(chan *client.SolveStatus)
@@ -259,6 +313,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 	})
 
 	if err := eg.Wait(); err != nil {
+		span.RecordError(err)
 		return nil, err
 	}
 

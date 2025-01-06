@@ -178,6 +178,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: fly.MachinePresets["shared-cpu-2x"],
 		},
+		SkipLaunch: true,
 	}, got)
 
 	// Update existing release command machine
@@ -227,6 +228,7 @@ func Test_resolveUpdatedMachineConfig_ReleaseCommand(t *testing.T) {
 			},
 			Guest: fly.MachinePresets["shared-cpu-2x"],
 		},
+		SkipLaunch: true,
 	}, got)
 }
 
