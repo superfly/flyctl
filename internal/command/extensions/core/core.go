@@ -670,4 +670,5 @@ var PlatformMap = map[string]string{
 	"Remix":         "javascript-remix",
 	"Remix/Prisma":  "javascript-remix",
 	"Ruby":          "ruby",
+	"Shopify":       "javascript-shopify",
 }
