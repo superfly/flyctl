@@ -248,6 +248,8 @@ func configureJsFramework(sourceDir string, config *ScannerConfig) (*SourceInfo,
 		srcInfo.Family = "Nust"
 	} else if devdeps["nuxt"] != nil || deps["nuxt"] != nil {
 		srcInfo.Family = "Nuxt"
+	} else if checksPass(sourceDir, fileExists("shopify.app.toml")) {
+		srcInfo.Family = "Shopify"
 	} else if deps["remix"] != nil || deps["@remix-run/node"] != nil {
 		srcInfo.Family = "Remix"
 	} else if devdeps["@sveltejs/kit"] != nil {
@@ -279,9 +281,10 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		}
 	}
 
-	// generate Dockerfile if it doesn't already exist
+	// run dockerfile-node if Dockerfile doesn't already exist, or there is a database to be set up
 	_, err = os.Stat("Dockerfile")
-	if errors.Is(err, fs.ErrNotExist) {
+	if errors.Is(err, fs.ErrNotExist) || srcInfo.DatabaseDesired == DatabaseKindSqlite || srcInfo.DatabaseDesired == DatabaseKindPostgres {
+		skip := (err == nil)
 		var args []string
 
 		_, err = os.Stat("node_modules")
@@ -383,6 +386,11 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 			xcmdpath, err = filepath.Abs(xcmdpath)
 			if err != nil {
 				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
+			}
+
+			// add --skip flag if Dockerfile already exists
+			if skip {
+				args = append(args, "--skip")
 			}
 
 			// add additional flags from launch command
