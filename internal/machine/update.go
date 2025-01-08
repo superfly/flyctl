@@ -15,7 +15,7 @@ import (
 
 var cpusPerKind = map[string][]int{
 	"shared":      {1, 2, 4, 6, 8},
-	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16},
+	"performance": {1, 2, 4, 6, 8, 10, 12, 14, 16, 32, 64, 128},
 }
 
 func Update(ctx context.Context, m *fly.Machine, input *fly.LaunchMachineInput) error {
