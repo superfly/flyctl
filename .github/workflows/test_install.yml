@@ -17,9 +17,11 @@ jobs:
       max-parallel: 4
       matrix:
         image:
+          # Only test LTS versions.
+          - "ubuntu:24.04"
           - "ubuntu:20.04"
           - "ubuntu:22.04"
-          - "ubuntu:23.04"
+
           - "debian:oldstable-slim"
           - "debian:stable-slim"
           - "alpine:latest"
@@ -70,10 +72,11 @@ jobs:
       max-parallel: 4
       matrix:
         os:
-          - ubuntu-latest
+          # From https://github.com/actions/runner-images/tree/main?tab=readme-ov-file#available-images.
+          - ubuntu-24.04
+          - ubuntu-22.04
           - ubuntu-20.04
-          - macos-latest
-          - macos-12
+          - macos-14
           - macos-13
     runs-on: ${{ matrix.os }}
     steps:

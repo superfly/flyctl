@@ -3,6 +3,9 @@ package root
 
 import (
 	"context"
+	"log"
+	"os"
+	"path/filepath"
 
 	"github.com/kr/text"
 	"github.com/olekukonko/tablewriter"
@@ -77,7 +80,16 @@ func New() *cobra.Command {
 		short = "The Fly.io command line interface"
 	)
 
-	root := command.New("fly", short, long, run)
+	exePath, err := os.Executable()
+	var exe string
+	if err != nil {
+		log.Printf("WARN: failed to find executable, error=%q", err)
+		exe = "fly"
+	} else {
+		exe = filepath.Base(exePath)
+	}
+
+	root := command.New(exe, short, long, run)
 	root.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		cmd.SilenceUsage = true
 		cmd.SilenceErrors = true

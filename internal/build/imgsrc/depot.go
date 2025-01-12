@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	depotbuild "github.com/depot/depot-go/build"
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
@@ -25,7 +26,6 @@ import (
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/retry"
 	"github.com/superfly/flyctl/terminal"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -208,24 +208,22 @@ func initBuilder(ctx context.Context, buildState *build, appName string, streams
 	}
 
 	// Set the buildErr to any error that represents the build failing.
-	var buildErr error
 	var finalBuildErr error
 
 	span.AddEvent("Acquiring Depot machine")
-	var buildkit *depotmachine.Machine
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, 25*time.Second)
 	defer cancel()
 
-	finalBuildErr = retry.Retry(timeoutCtx, func() error {
-		buildkit, buildErr = depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
-		if buildErr != nil {
-			span.RecordError(buildErr)
-			return buildErr
+	buildkit, finalBuildErr := backoff.Retry(timeoutCtx, func() (*depotmachine.Machine, error) {
+		machine, err := depotmachine.Acquire(ctx, build.ID, build.Token, "amd64")
+		if err != nil {
+			span.RecordError(err)
+			return nil, err
 		}
 
-		return nil
-	}, 2)
+		return machine, nil
+	}, backoff.WithMaxTries(2))
 
 	if finalBuildErr != nil {
 		streams.StopProgressIndicator()
@@ -254,6 +252,12 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 
 	if opts.Publish {
 		exportEntry.Attrs["push"] = "true"
+	}
+
+	if opts.UseZstd {
+		exportEntry.Attrs["compression"] = "zstd"
+		exportEntry.Attrs["compression-level"] = "3"
+		exportEntry.Attrs["force-compression"] = "true"
 	}
 
 	ch := make(chan *client.SolveStatus)

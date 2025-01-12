@@ -59,18 +59,6 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		}
 	}
 
-	// attempt to install bundle before proceeding
-	args := []string{"install"}
-
-	if checksPass(sourceDir, fileExists("Gemfile.lock")) {
-		args = append(args, "--quiet")
-	}
-
-	cmd := exec.Command(bundle, args...)
-	cmd.Stdin = nil
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
 	s := &SourceInfo{
 		Family:               "Rails",
 		Callback:             RailsCallback,
@@ -84,22 +72,22 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 
 	var rubyVersion string
 
-	// add ruby version from .ruby-version file
-	versionFile, err := os.ReadFile(".ruby-version")
+	// add ruby version from Gemfile
+	gemfile, err := os.ReadFile("Gemfile")
 	if err == nil {
-		re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
-		matches := re.FindStringSubmatch(string(versionFile))
+		re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
+		matches := re.FindStringSubmatch(string(gemfile))
 		if len(matches) >= 2 {
 			rubyVersion = matches[1]
 		}
 	}
 
 	if rubyVersion == "" {
-		// add ruby version from Gemfile
-		gemfile, err := os.ReadFile("Gemfile")
+		// add ruby version from .ruby-version file
+		versionFile, err := os.ReadFile(".ruby-version")
 		if err == nil {
-			re := regexp.MustCompile(`(?m)^ruby\s+["'](\d+\.\d+\.\d+)["']`)
-			matches := re.FindStringSubmatch(string(gemfile))
+			re := regexp.MustCompile(`ruby-(\d+\.\d+\.\d+)`)
+			matches := re.FindStringSubmatch(string(versionFile))
 			if len(matches) >= 2 {
 				rubyVersion = matches[1]
 			}
@@ -133,9 +121,14 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 		// postgresql
 		s.DatabaseDesired = DatabaseKindPostgres
 		s.SkipDatabase = false
-	} else {
+	} else if checksPass(sourceDir, dirContains("Dockerfile", "sqlite3")) {
 		// sqlite
 		s.DatabaseDesired = DatabaseKindSqlite
+		s.SkipDatabase = true
+		s.ObjectStorageDesired = true
+	} else {
+		// no database
+		s.DatabaseDesired = DatabaseKindNone
 		s.SkipDatabase = true
 	}
 
@@ -143,10 +136,10 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	redis := false
 	files, err := filepath.Glob("app/channels/*.rb")
 	if err == nil && len(files) > 0 {
-		redis = true
+		redis = !checksPass(sourceDir, dirContains("Gemfile", "solid_cable"))
 	}
 
-	if redis == false {
+	if !redis && !checksPass(sourceDir, dirContains("Gemfile", "solid_cable")) {
 		files, err = filepath.Glob("app/views/*")
 		if err == nil && len(files) > 0 {
 			for _, file := range files {
@@ -159,7 +152,7 @@ func configureRails(sourceDir string, config *ScannerConfig) (*SourceInfo, error
 	}
 
 	// enable redis if redis is used for caching
-	if !redis {
+	if !redis && !checksPass(sourceDir, dirContains("Gemfile", "solid_queue")) {
 		prodEnv, err := os.ReadFile("config/environments/production.rb")
 		if err == nil && strings.Contains(string(prodEnv), "redis") {
 			redis = true
@@ -351,22 +344,22 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 			if pendingError != nil {
 				pendingError = errors.Wrap(pendingError, "Failed to add dockerfile-rails gem")
 			} else {
-				cmd = exec.Command(bundle, "install", "--quiet")
-				cmd.Stdin = nil
-				cmd.Stdout = os.Stdout
-				cmd.Stderr = os.Stderr
-
-				pendingError = cmd.Run()
-				if pendingError != nil {
-					pendingError = errors.Wrap(pendingError, "Failed to install dockerfile-rails gem")
-				} else {
-					generatorInstalled = true
-				}
+				generatorInstalled = true
 			}
 		}
 	} else {
 		// proceed using the already installed gem
 		generatorInstalled = true
+	}
+
+	cmd := exec.Command(bundle, "install", "--quiet")
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	err = cmd.Run()
+	if err != nil {
+		return errors.Wrap(err, "Failed to install bundle, exiting")
 	}
 
 	// ensure Gemfile.lock includes the x86_64-linux platform
@@ -425,6 +418,11 @@ func RailsCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, f
 	// add object storage
 	if plan.ObjectStorage.Provider() != nil {
 		args = append(args, "--tigris")
+
+		// add litestream if object storage is available and the database is sqlite
+		if srcInfo.DatabaseDesired == DatabaseKindSqlite {
+			args = append(args, "--litestream")
+		}
 	}
 
 	// add additional flags from launch command

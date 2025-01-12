@@ -87,11 +87,13 @@ type Metrics struct {
 }
 
 type Deploy struct {
-	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
-	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	Strategy              string        `toml:"strategy,omitempty" json:"strategy,omitempty"`
 	MaxUnavailable        *float64      `toml:"max_unavailable,omitempty" json:"max_unavailable,omitempty"`
 	WaitTimeout           *fly.Duration `toml:"wait_timeout,omitempty" json:"wait_timeout,omitempty"`
+	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
+	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
+	ReleaseCommandCompute *Compute      `toml:"release_command_vm,omitempty" json:"release_command_vm,omitempty"`
+	SeedCommand           string        `toml:"seed_command,omitempty" json:"seed_command,omitempty"`
 }
 
 type File struct {
@@ -162,6 +164,8 @@ type Experimental struct {
 	EnableEtcd     bool     `toml:"enable_etcd,omitempty" json:"enable_etcd,omitempty"`
 	LazyLoadImages bool     `toml:"lazy_load_images,omitempty" json:"lazy_load_images,omitempty"`
 	Attached       Attached `toml:"attached,omitempty" json:"attached,omitempty"`
+	MachineConfig  string   `toml:"machine_config,omitempty" json:"machine_config,omitempty"`
+	UseZstd        bool     `toml:"use_zstd,omitempty" json:"use_zstd,omitempty"`
 }
 
 type Attached struct {

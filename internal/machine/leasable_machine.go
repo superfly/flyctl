@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -49,14 +50,20 @@ type leasableMachine struct {
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
 	machine                *fly.Machine
-	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
 	showLogs               bool
+
+	// mu protects leaseNonce. A leasableMachine shouldn't be shared between
+	// goroutines, but StartBackgroundLeaseRefresh breaks the rule.
+	mu         sync.Mutex
+	leaseNonce string
 }
 
-// TODO: make sure the other functions handle showLogs correctly
+// NewLeasableMachine creates a wrapper for the given machine.
+// A lease must be held before calling this function.
 func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
+	// TODO: make sure the other functions handle showLogs correctly
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
@@ -466,6 +473,9 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 }
 
 func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Duration) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
 	seconds := int(duration.Seconds())
 	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
 	if err != nil {
@@ -508,7 +518,11 @@ func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, durati
 	}
 }
 
+// ReleaseLease releases the lease on this machine.
 func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
 	nonce := lm.leaseNonce
 	lm.resetLease()
 	if nonce == "" {
@@ -525,13 +539,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
-	contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-	if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
-		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
-		return err
-	}
-	return nil
+	return lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
 }
 
 func (lm *leasableMachine) resetLease() {

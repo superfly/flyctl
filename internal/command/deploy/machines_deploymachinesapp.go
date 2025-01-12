@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff"
+	"github.com/cenkalti/backoff/v5"
 	"github.com/miekg/dns"
 	"github.com/samber/lo"
 	"github.com/sourcegraph/conc/pool"
@@ -249,6 +249,8 @@ func (md *machineDeployment) inferCanaryGuest(processGroup string) *fly.MachineG
 	return canaryGuest
 }
 
+// deployCanaryMachines creates canary machines for each process group.
+// The canary machines are destroyed before returning to the caller.
 func (md *machineDeployment) deployCanaryMachines(ctx context.Context) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_canary")
 	defer span.End()
@@ -423,7 +425,7 @@ func (md *machineDeployment) deployMachinesApp(ctx context.Context) error {
 	defer span.End()
 
 	if !md.skipReleaseCommand {
-		if err := md.runReleaseCommand(ctx); err != nil {
+		if err := md.runReleaseCommands(ctx); err != nil {
 			return fmt.Errorf("release command failed - aborting deployment. %w", err)
 		}
 	}
@@ -591,6 +593,7 @@ func (md *machineDeployment) updateExistingMachines(ctx context.Context, updateE
 	return err
 }
 
+// updateExistingMachinesWRecovery updates existing machines.
 // The code duplication is on purpose here. The plan is to completely move over to updateExistingMachinesWRecovery
 func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context, updateEntries []*machineUpdateEntry) (err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_existing_machines_w_recovery", trace.WithAttributes(
@@ -652,9 +655,12 @@ func (md *machineDeployment) updateExistingMachinesWRecovery(ctx context.Context
 		canaryAppState.Machines = []*fly.Machine{oldAppState.Machines[0]}
 
 		newCanaryAppState := newAppState
-		canaryMach, _ := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
+		canaryMach, exists := lo.Find(newAppState.Machines, func(m *fly.Machine) bool {
 			return m.ID == oldAppState.Machines[0].ID
 		})
+		if !exists {
+			return fmt.Errorf("failed to find machine %s under app %s", oldAppState.Machines[0].ID, md.app.Name)
+		}
 		newCanaryAppState.Machines = []*fly.Machine{canaryMach}
 
 		if err := md.updateMachinesWRecovery(ctx, &canaryAppState, &newCanaryAppState, nil, updateMachineSettings{
@@ -803,32 +809,29 @@ func (md *machineDeployment) updateUsingRollingStrategy(parentCtx context.Contex
 		groupsPool.Go(func(ctx context.Context) error {
 			eg, ctx := errgroup.WithContext(ctx)
 
-			eg.Go(func() (err error) {
-				poolSize := len(coldMachines)
-				if poolSize >= STOPPED_MACHINES_POOL_SIZE {
-					poolSize = STOPPED_MACHINES_POOL_SIZE
-				}
+			coldIdx := startIdx
+			if len(coldMachines) > 0 {
+				eg.Go(func() error {
+					// Capping the size just in case, it may be okay to stop all of them at once.
+					chunk := len(coldMachines)
+					if chunk >= STOPPED_MACHINES_POOL_SIZE {
+						chunk = STOPPED_MACHINES_POOL_SIZE
+					}
+					return md.updateEntriesGroup(ctx, group, coldMachines, sl, coldIdx, chunk)
+				})
+			}
+			startIdx += len(coldMachines)
 
-				if len(coldMachines) > 0 {
-					// for cold machines, we can update all of them at once.
-					// there's no need for protection against downtime since the machines are already stopped
-					startIdx += len(coldMachines)
-					return md.updateEntriesGroup(ctx, group, coldMachines, sl, startIdx-len(coldMachines), poolSize)
-				}
-
-				return nil
-			})
-
-			eg.Go(func() (err error) {
-				// for warm machines, we update them in chunks of size, md.maxUnavailable.
-				// this is to prevent downtime/low-latency during deployments
-				startIdx += len(warmMachines)
-				poolSize := md.getPoolSize(len(warmMachines))
-				if len(warmMachines) > 0 {
-					return md.updateEntriesGroup(ctx, group, warmMachines, sl, startIdx-len(warmMachines), poolSize)
-				}
-				return nil
-			})
+			warmIdx := startIdx
+			if len(warmMachines) > 0 {
+				eg.Go(func() error {
+					// Since these machines are still receiving traffic, the chunk size here is more conservative (lower)
+					// then the one above.
+					chunk := md.getPoolSize(len(warmMachines))
+					return md.updateEntriesGroup(ctx, group, warmMachines, sl, warmIdx, chunk)
+				})
+			}
+			startIdx += len(warmMachines)
 
 			return eg.Wait()
 		})
@@ -957,6 +960,14 @@ func (md *machineDeployment) updateEntriesGroup(parentCtx context.Context, group
 	return updatePool.Wait()
 }
 
+// releaseLease releases the lease and log the error if any.
+func releaseLease(ctx context.Context, m machine.LeasableMachine) {
+	err := m.ReleaseLease(ctx)
+	if err != nil {
+		terminal.Warnf("failed to release lease for machine %s: %s", m.FormattedMachineId(), err)
+	}
+}
+
 func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *machineUpdateEntry) error {
 	ctx, span := tracing.GetTracer().Start(ctx, "update_by_replace", trace.WithAttributes(attribute.String("id", e.launchInput.ID)))
 	defer span.End()
@@ -978,7 +989,7 @@ func (md *machineDeployment) updateMachineByReplace(ctx context.Context, e *mach
 	}
 
 	lm = machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 	e.leasableMachine = lm
 	return nil
 }
@@ -1056,7 +1067,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 
 	lm := machine.NewLeasableMachine(md.flapsClient, md.io, newMachineRaw, false)
 	statuslogger.Logf(ctx, "Machine %s was created", md.colorize.Bold(lm.FormattedMachineId()))
-	defer lm.ReleaseLease(ctx)
+	defer releaseLease(ctx, lm)
 
 	// Don't wait for SkipLaunch machines, they are created but not started
 	if launchInput.SkipLaunch {
@@ -1100,6 +1111,7 @@ func (md *machineDeployment) spawnMachineInGroup(ctx context.Context, groupName 
 	return lm, nil
 }
 
+// resolveProcessGroupChanges returns a diff between machines
 func (md *machineDeployment) resolveProcessGroupChanges() ProcessGroupsDiff {
 	output := ProcessGroupsDiff{
 		groupsToRemove:        map[string]int{},
@@ -1355,9 +1367,8 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 		b := backoff.NewExponentialBackOff()
 		b.InitialInterval = 1 * time.Second
 		b.MaxInterval = 5 * time.Second
-		b.MaxElapsedTime = 60 * time.Second
 
-		return backoff.Retry(func() error {
+		_, err = backoff.Retry(ctx, func() (any, error) {
 			m := new(dns.Msg)
 
 			var numIPv4, numIPv6 int
@@ -1377,11 +1388,11 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv4, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
-				return err
+				return nil, err
 			} else if len(answerv4.Answer) != numIPv4 {
 				span.SetAttributes(attribute.String("v4_answer", answerv4.String()))
 				tracing.RecordError(span, errors.New("v4 response count mismatch"), "v4 response count mismatch")
-				return fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
+				return nil, fmt.Errorf("expected %d A records for %s, got %d", numIPv4, fqdn, len(answerv4.Answer))
 			}
 
 			m.SetQuestion(fqdn, dns.TypeAAAA)
@@ -1389,16 +1400,16 @@ func (md *machineDeployment) checkDNS(ctx context.Context) error {
 			answerv6, _, err := c.Exchange(m, "8.8.8.8:53")
 			if err != nil {
 				tracing.RecordError(span, err, "failed to exchange v4")
-				return err
+				return nil, err
 			} else if len(answerv6.Answer) != numIPv6 {
 				span.SetAttributes(attribute.String("v6_answer", answerv6.String()))
 				tracing.RecordError(span, errors.New("v6 response count mismatch"), "v6 response count mismatch")
-				return fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
+				return nil, fmt.Errorf("expected %d AAAA records for %s, got %d", numIPv6, fqdn, len(answerv6.Answer))
 			}
 
-			return nil
-		}, backoff.WithContext(b, ctx))
-
+			return nil, nil
+		}, backoff.WithBackOff(b), backoff.WithMaxElapsedTime(60*time.Second))
+		return err
 	} else {
 		return nil
 	}

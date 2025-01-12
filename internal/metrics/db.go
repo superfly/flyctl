@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -54,7 +53,7 @@ func FlushMetrics(ctx context.Context) error {
 		}
 
 		go func() {
-			io.WriteString(stdin, string(json))
+			stdin.Write(json)
 			stdin.Close()
 		}()
 

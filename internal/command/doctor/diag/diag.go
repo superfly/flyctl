@@ -96,12 +96,12 @@ add the --force flag to send us best-effort diagnostics.`)
 
 		if err = ft.fn(ctx, zip); err != nil {
 			if ft.expect {
-				fmt.Printf(color.Red(fmt.Sprintf("FAILED: %s\n", err)))
+				fmt.Print(color.Red(fmt.Sprintf("FAILED: %s\n", err)))
 			} else {
-				fmt.Printf("skipping\n")
+				fmt.Print("skipping\n")
 			}
 		} else {
-			fmt.Printf(color.Green("ok\n"))
+			fmt.Print(color.Green("ok\n"))
 		}
 	}
 

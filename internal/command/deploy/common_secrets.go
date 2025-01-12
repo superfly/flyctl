@@ -8,7 +8,7 @@ var commonSecretSubstrings = []string{"KEY", "PRIVATE", "DATABASE_URL", "PASSWOR
 func containsCommonSecretSubstring(s string) bool {
 	// Allowlist for strings which contain a substring but are not secrets.
 	switch s {
-	case "AWS_ACCESS_KEY_ID":
+	case "AWS_ACCESS_KEY_ID", "TIGRIS_ACCESS_KEY_ID":
 		return false
 	}
 
