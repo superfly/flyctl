@@ -12,6 +12,7 @@ import (
 
 	"github.com/logrusorgru/aurora"
 	"github.com/samber/lo"
+	"github.com/sourcegraph/conc/pool"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/helpers"
@@ -211,22 +212,21 @@ func dedicatedHostIdMismatch(m *fly.Machine, ac *appconfig.Config) bool {
 func (md *machineDeployment) createOrUpdateReleaseCmdMachine(ctx context.Context) error {
 	span := trace.SpanFromContext(ctx)
 
-	if md.releaseCommandMachine.IsEmpty() {
-		return md.createReleaseCommandMachine(ctx)
-	}
-
-	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
-
-	if dedicatedHostIdMismatch(releaseCmdMachine.Machine(), md.appConfig) {
-		span.AddEvent("dedicated hostid mismatch")
-		if err := releaseCmdMachine.Destroy(ctx, true); err != nil {
-			return fmt.Errorf("error destroying release_command machine: %w", err)
+	// Existent release command machines must be destroyed if failed for some releaseCommandMachine
+	// They are set as auto-destroy anyways.
+	if !md.releaseCommandMachine.IsEmpty() {
+		mPool := pool.New().WithErrors().WithMaxGoroutines(4).WithContext(ctx)
+		for _, m := range md.releaseCommandMachine.GetMachines() {
+			mPool.Go(func(ctx context.Context) error {
+				return m.Destroy(ctx, true)
+			})
 		}
-
-		return md.createReleaseCommandMachine(ctx)
+		if err := mPool.Wait(); err != nil {
+			tracing.RecordError(span, err, "failed to destroy old release_command machine")
+		}
 	}
 
-	return md.updateReleaseCommandMachine(ctx)
+	return md.createReleaseCommandMachine(ctx)
 }
 
 func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) error {
@@ -247,32 +247,6 @@ func (md *machineDeployment) createReleaseCommandMachine(ctx context.Context) er
 	if err := lm.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false); err != nil {
 		err = suggestChangeWaitTimeout(err, "wait-timeout")
 		return err
-	}
-
-	return nil
-}
-
-func (md *machineDeployment) updateReleaseCommandMachine(ctx context.Context) error {
-	ctx, span := tracing.GetTracer().Start(ctx, "update_release_cmd_machine")
-	defer span.End()
-
-	releaseCmdMachine := md.releaseCommandMachine.GetMachines()[0]
-	fmt.Fprintf(md.io.ErrOut, "  Updating release_command machine %s\n", md.colorize.Bold(releaseCmdMachine.Machine().ID))
-
-	if err := releaseCmdMachine.WaitForState(ctx, fly.MachineStateStopped, md.waitTimeout, false); err != nil {
-		err = suggestChangeWaitTimeout(err, "wait-timeout")
-		return err
-	}
-
-	if err := md.releaseCommandMachine.AcquireLeases(ctx, md.leaseTimeout); err != nil {
-		return err
-	}
-	defer md.releaseCommandMachine.ReleaseLeases(ctx) // skipcq: GO-S2307
-	md.releaseCommandMachine.StartBackgroundLeaseRefresh(ctx, md.leaseTimeout, md.leaseDelayBetween)
-
-	launchInput := md.launchInputForReleaseCommand(releaseCmdMachine.Machine())
-	if err := releaseCmdMachine.Update(ctx, *launchInput); err != nil {
-		return fmt.Errorf("error updating release_command machine: %w", err)
 	}
 
 	return nil
