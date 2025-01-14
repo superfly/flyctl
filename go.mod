@@ -27,7 +27,7 @@ require (
 	github.com/coder/websocket v1.8.12
 	github.com/containerd/continuity v0.4.5
 	github.com/depot/depot-go v0.5.0
-	github.com/docker/docker v27.4.1+incompatible
+	github.com/docker/docker v27.5.0+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
