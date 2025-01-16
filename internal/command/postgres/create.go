@@ -53,6 +53,21 @@ func newCreate() *cobra.Command {
 			Description: "the size of the VM",
 		},
 		flag.Int{
+			Name:        "vm-cpus",
+			Description: "Number of CPUs",
+			Aliases:     []string{"cpus"},
+		},
+		flag.String{
+			Name:        "vm-cpu-kind",
+			Description: "The kind of CPU to use ('shared' or 'performance')",
+			Aliases:     []string{"vm-cpukind"},
+		},
+		flag.String{
+			Name:        "vm-memory",
+			Description: "Memory (in megabytes) to attribute to the VM",
+			Aliases:     []string{"memory"},
+		},
+		flag.Int{
 			Name:        "initial-cluster-size",
 			Description: "Initial cluster size",
 		},
@@ -379,6 +394,13 @@ func CreateCluster(ctx context.Context, org *fly.Organization, region *fly.Regio
 		input.InitialClusterSize = config.InitialClusterSize
 		input.ImageRef = params.ImageRef
 		input.Autostart = params.Autostart
+	}
+
+	if flag.IsSpecified(ctx, "vm-cpus") || flag.IsSpecified(ctx, "vm-cpu-kind") || flag.IsSpecified(ctx, "vm-memory") {
+		input.Guest, err = flag.GetMachineGuest(ctx, nil)
+		if err != nil {
+			return err
+		}
 	}
 
 	if params.Password != "" {
