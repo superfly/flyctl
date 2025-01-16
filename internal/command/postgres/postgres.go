@@ -216,12 +216,12 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 	}
 
 	// This is the version where we begin using Machine IDs instead of hostnames
-	logicGate, err := version.NewVersion("0.0.63")
+	versionGate, err := version.NewVersion("0.0.63")
 	if err != nil {
 		return fmt.Errorf("failed to parse logic gate version: %w", err)
 	}
 
-	if flyVersion.LessThan(logicGate) {
+	if flyVersion.LessThan(versionGate) {
 		// Old logic
 		hostname := fmt.Sprintf("%s.vm.%s.internal", machine.ID, app.Name)
 
