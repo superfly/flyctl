@@ -208,7 +208,7 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	machineVersionStr := machine.ImageVersion()[1:]
+	machineVersionStr := strings.TrimPrefix(machine.ImageVersion(), "v")
 
 	flyVersion, err := version.NewVersion(machineVersionStr)
 	if err != nil {
