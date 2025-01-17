@@ -675,6 +675,17 @@ func TestToMachineConfig_services(t *testing.T) {
 			InternalPort: 1004,
 			Autostart:    nil,
 			Autostop:     nil,
+			Checks: []fly.MachineCheck{
+				{
+					Port: fly.Pointer(9090),
+					Type: fly.Pointer("tcp"),
+				}, {
+					Port:       fly.Pointer(2020),
+					Type:       fly.Pointer("http"),
+					HTTPMethod: fly.Pointer("GET"),
+					HTTPPath:   fly.Pointer("/"),
+				},
+			},
 		},
 	}
 
