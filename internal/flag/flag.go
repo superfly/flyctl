@@ -671,3 +671,15 @@ func Env() StringArray {
 		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
 	}
 }
+
+func RedisDatabase() String {
+	return String{
+		Name:        "redis-database",
+		Shorthand:   "d",
+		Description: "The Redis name of the redis database instance to use",
+	}
+}
+
+func GetRedisDatabase(ctx context.Context) string {
+	return GetString(ctx, "redis-database")
+}
