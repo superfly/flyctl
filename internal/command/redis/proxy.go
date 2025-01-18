@@ -28,6 +28,7 @@ func newProxy() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.RedisDatabase(),
 	)
 
 	return cmd
@@ -57,17 +58,21 @@ func getRedisProxyParams(ctx context.Context, localProxyPort string) (*proxy.Con
 	}
 
 	databases := result.AddOns.Nodes
+	specifiedDbName := flag.GetRedisDatabase(ctx)
 
-	for _, database := range databases {
-		options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, database.Organization.Slug))
+	if specifiedDbName == "" {
+		for _, database := range databases {
+			options = append(options, fmt.Sprintf("%s (%s) %s", database.Name, database.PrimaryRegion, database.Organization.Slug))
+		}
+
+		err = prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
+		if err != nil {
+			return nil, "", err
+		}
+		specifiedDbName = databases[index].Name
 	}
 
-	err = prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
-	if err != nil {
-		return nil, "", err
-	}
-
-	response, err := gql.GetAddOn(ctx, client.GenqClient(), databases[index].Name, string(gql.AddOnTypeUpstashRedis))
+	response, err := gql.GetAddOn(ctx, client.GenqClient(), specifiedDbName, string(gql.AddOnTypeUpstashRedis))
 	if err != nil {
 		return nil, "", err
 	}
