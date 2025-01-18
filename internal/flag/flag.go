@@ -676,7 +676,7 @@ func RedisDatabase() String {
 	return String{
 		Name:        "redis-database",
 		Shorthand:   "d",
-		Description: "The Redis name of the redis database instance to use",
+		Description: "The name of the Redis database instance to use",
 	}
 }
 
