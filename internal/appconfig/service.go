@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/sentry"
 )
@@ -26,12 +25,14 @@ type Service struct {
 }
 
 type ServiceTCPCheck struct {
+	Port        *int          `json:"port,omitempty" toml:"port,omitempty"`
 	Interval    *fly.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *fly.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *fly.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
 }
 
 type ServiceHTTPCheck struct {
+	Port        *int          `json:"port,omitempty" toml:"port,omitempty"`
 	Interval    *fly.Duration `json:"interval,omitempty" toml:"interval,omitempty"`
 	Timeout     *fly.Duration `json:"timeout,omitempty" toml:"timeout,omitempty"`
 	GracePeriod *fly.Duration `toml:"grace_period,omitempty" json:"grace_period,omitempty"`
@@ -122,7 +123,13 @@ func (svc *Service) toMachineService() *fly.MachineService {
 }
 
 func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineCheck {
+	var httpHeaders []fly.MachineHTTPHeader
+	for k, v := range chk.HTTPHeaders {
+		httpHeaders = append(httpHeaders, fly.MachineHTTPHeader{Name: k, Values: []string{v}})
+	}
+
 	return &fly.MachineCheck{
+		Port:              chk.Port,
 		Type:              fly.Pointer("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
@@ -132,10 +139,7 @@ func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineCheck {
 		HTTPProtocol:      chk.HTTPProtocol,
 		HTTPSkipTLSVerify: chk.HTTPTLSSkipVerify,
 		HTTPTLSServerName: chk.HTTPTLSServerName,
-		HTTPHeaders: lo.MapToSlice(
-			chk.HTTPHeaders, func(k string, v string) fly.MachineHTTPHeader {
-				return fly.MachineHTTPHeader{Name: k, Values: []string{v}}
-			}),
+		HTTPHeaders:       httpHeaders,
 	}
 }
 
@@ -145,6 +149,7 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 
 func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineCheck {
 	return &fly.MachineCheck{
+		Port:        chk.Port,
 		Type:        fly.Pointer("tcp"),
 		Interval:    chk.Interval,
 		Timeout:     chk.Timeout,
