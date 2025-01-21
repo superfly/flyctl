@@ -350,11 +350,19 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 				machineID = newMachine.ID
 			}
 
-			checkResult, _ := healthChecksPassed.Load(machineID)
-			machineCheckResult := checkResult.(*healthcheckResult)
-
 			sl := machineLogger.getLoggerFromID(machineID)
 
+			checkResult, ok := healthChecksPassed.Load(machineID)
+			// this shouldn't happen, we ensure that the machine is in the map but just in case
+			if !ok {
+				err := fmt.Errorf("no health checks stored for machine")
+				sl.LogStatus(statuslogger.StatusFailure, err.Error())
+				span.RecordError(err)
+				return fmt.Errorf("failed to update machine %s: %w", machineID, err)
+			}
+			machineCheckResult := checkResult.(*healthcheckResult)
+
+			
 			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
 			if err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, err.Error())
