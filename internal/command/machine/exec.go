@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 	fly "github.com/superfly/fly-go"
@@ -36,6 +37,10 @@ func newMachineExec() *cobra.Command {
 			Name:        "timeout",
 			Description: "Timeout in seconds",
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container name",
+		},
 	)
 
 	cmd.Args = cobra.RangeArgs(1, 2)
@@ -46,7 +51,7 @@ func newMachineExec() *cobra.Command {
 func runMachineExec(ctx context.Context) (err error) {
 	var (
 		args   = flag.Args(ctx)
-		io     = iostreams.FromContext(ctx)
+		ios    = iostreams.FromContext(ctx)
 		config = config.FromContext(ctx)
 
 		machineID     string
@@ -68,11 +73,23 @@ func runMachineExec(ctx context.Context) (err error) {
 	}
 	flapsClient := flapsutil.ClientFromContext(ctx)
 
+	container := flag.GetString(ctx, "container")
 	timeout := flag.GetInt(ctx, "timeout")
 
+	var stdin string
+	if ios.In != nil {
+		b, err := io.ReadAll(ios.In)
+		if err != nil {
+			return fmt.Errorf("read stdin: %w", err)
+		}
+		stdin = string(b)
+	}
+
 	in := &fly.MachineExecRequest{
-		Cmd:     command,
-		Timeout: timeout,
+		Cmd:       command,
+		Container: container,
+		Stdin:     stdin,
+		Timeout:   timeout,
 	}
 
 	out, err := flapsClient.Exec(ctx, current.ID, in)
@@ -81,18 +98,18 @@ func runMachineExec(ctx context.Context) (err error) {
 	}
 
 	if config.JSONOutput {
-		return render.JSON(io.Out, out)
+		return render.JSON(ios.Out, out)
 	}
 
 	if out.ExitCode != 0 {
-		fmt.Fprintf(io.Out, "Exit code: %d\n", out.ExitCode)
+		fmt.Fprintf(ios.Out, "Exit code: %d\n", out.ExitCode)
 	}
 
 	if out.StdOut != "" {
-		fmt.Fprint(io.Out, out.StdOut)
+		fmt.Fprint(ios.Out, out.StdOut)
 	}
 	if out.StdErr != "" {
-		fmt.Fprint(io.ErrOut, out.StdErr)
+		fmt.Fprint(ios.ErrOut, out.StdErr)
 	}
 
 	return
