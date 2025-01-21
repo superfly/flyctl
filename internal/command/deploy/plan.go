@@ -337,15 +337,23 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 		newMachine := machPair.newMachine
 
 		group.Go(func() error {
-			checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
+			// if both old and new machines are nil, we don't need to update anything
+			if oldMachine == nil && newMachine == nil {
+				span.AddEvent("Both old and new machines are nil")
+				return nil
+			}
+
+			var machineID string
+			if oldMachine != nil {
+				machineID = oldMachine.ID
+			} else {
+				machineID = newMachine.ID
+			}
+
+			checkResult, _ := healthChecksPassed.Load(machineID)
 			machineCheckResult := checkResult.(*healthcheckResult)
 
-			var sl statuslogger.StatusLine
-			if oldMachine != nil {
-				sl = machineLogger.getLoggerFromID(oldMachine.ID)
-			} else if newMachine != nil {
-				sl = machineLogger.getLoggerFromID(newMachine.ID)
-			}
+			sl := machineLogger.getLoggerFromID(machineID)
 
 			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
 			if err != nil {
