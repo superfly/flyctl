@@ -337,15 +337,30 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 		newMachine := machPair.newMachine
 
 		group.Go(func() error {
-			checkResult, _ := healthChecksPassed.Load(machPair.oldMachine.ID)
-			machineCheckResult := checkResult.(*healthcheckResult)
-
-			var sl statuslogger.StatusLine
-			if oldMachine != nil {
-				sl = machineLogger.getLoggerFromID(oldMachine.ID)
-			} else if newMachine != nil {
-				sl = machineLogger.getLoggerFromID(newMachine.ID)
+			// if both old and new machines are nil, we don't need to update anything
+			if oldMachine == nil && newMachine == nil {
+				span.AddEvent("Both old and new machines are nil")
+				return nil
 			}
+
+			var machineID string
+			if oldMachine != nil {
+				machineID = oldMachine.ID
+			} else {
+				machineID = newMachine.ID
+			}
+
+			sl := machineLogger.getLoggerFromID(machineID)
+
+			checkResult, ok := healthChecksPassed.Load(machineID)
+			// this shouldn't happen, we ensure that the machine is in the map but just in case
+			if !ok {
+				err := fmt.Errorf("no health checks stored for machine")
+				sl.LogStatus(statuslogger.StatusFailure, err.Error())
+				span.RecordError(err)
+				return fmt.Errorf("failed to update machine %s: %w", machineID, err)
+			}
+			machineCheckResult := checkResult.(*healthcheckResult)
 
 			err := md.updateMachineWChecks(ctx, oldMachine, newMachine, sl, md.io, machineCheckResult)
 			if err != nil {
