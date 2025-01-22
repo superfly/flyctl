@@ -263,7 +263,7 @@ func resolveImage(ctx context.Context, machine fly.Machine) (string, error) {
 
 	if image == "" {
 		ref := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-		latestImage, err := client.GetLatestImageDetails(ctx, ref)
+		latestImage, err := client.GetLatestImageDetails(ctx, ref, machine.ImageVersion())
 		if err != nil && !strings.Contains(err.Error(), "Unknown repository") {
 			return "", err
 		}
