@@ -116,7 +116,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 			continue
 		}
 
-		latestImage, err := client.GetLatestImageDetails(ctx, image)
+		latestImage, err := client.GetLatestImageDetails(ctx, image, machine.ImageVersion())
 		if err != nil {
 			if strings.Contains(err.Error(), "Unknown repository") {
 				unknownRepos[image] = true
@@ -304,7 +304,7 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
 
-		latestImage, err := client.GetLatestImageDetails(ctx, image)
+		latestImage, err := client.GetLatestImageDetails(ctx, image, machine.ImageVersion())
 
 		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
 			continue
