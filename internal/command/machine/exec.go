@@ -15,6 +15,8 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
+const maxStdinByteN = 1 << 20
+
 func newMachineExec() *cobra.Command {
 	const (
 		short = "Execute a command on a machine"
@@ -78,7 +80,7 @@ func runMachineExec(ctx context.Context) (err error) {
 
 	var stdin string
 	if ios.In != nil {
-		b, err := io.ReadAll(ios.In)
+		b, err := io.ReadAll(io.LimitReader(ios.In, maxStdinByteN))
 		if err != nil {
 			return fmt.Errorf("read stdin: %w", err)
 		}
