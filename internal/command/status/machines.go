@@ -302,8 +302,7 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 	var updatable []*fly.Machine
 
 	for _, machine := range machines {
-		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
-
+		image := machine.FullImageRef()
 		latestImage, err := client.GetLatestImageDetails(ctx, image)
 
 		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
