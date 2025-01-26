@@ -130,7 +130,7 @@ func buildContextFromAppNameOrMachineID(ctx context.Context, machineIDs ...strin
 	var (
 		appName = appconfig.NameFromContext(ctx)
 
-		flapsClient *flaps.Client
+		flapsClient flapsutil.FlapsClient
 		err         error
 	)
 
