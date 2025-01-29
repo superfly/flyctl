@@ -46,9 +46,10 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 	}
 
 	di := &DeploymentImage{
-		ID:   img.ID,
-		Tag:  img.Ref,
-		Size: int64(size),
+		ID:     img.ID,
+		Tag:    img.Ref,
+		Digest: img.Digest,
+		Size:   int64(size),
 	}
 
 	span.SetAttributes(di.ToSpanAttributes()...)
