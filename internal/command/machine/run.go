@@ -803,7 +803,7 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.Tag
+		machineConf.Image = img.String()
 	}
 
 	// Service updates
