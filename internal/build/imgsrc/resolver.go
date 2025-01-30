@@ -120,9 +120,17 @@ func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 type DeploymentImage struct {
 	ID      string
 	Tag     string
+	Digest  string
 	Size    int64
 	BuildID string
 	Labels  map[string]string
+}
+
+func (image *DeploymentImage) String() string {
+	if image.Digest == "" {
+		return image.Tag
+	}
+	return fmt.Sprintf("%s@%s", image.Tag, image.Digest)
 }
 
 func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
