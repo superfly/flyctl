@@ -56,7 +56,6 @@ func (state *launchState) setupGitHubActions(ctx context.Context, appName string
 				return fmt.Errorf("failed creating token: %w", err)
 			} else {
 				token := resp.CreateLimitedAccessToken.LimitedAccessToken.TokenHeader
-				fmt.Println(token)
 
 				fmt.Println("Setting FLY_API_TOKEN secret in GitHub repository settings")
 				cmd := exec.Command(gh, "secret", "set", "FLY_API_TOKEN")
