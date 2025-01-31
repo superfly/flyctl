@@ -13,7 +13,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("supabase", short, long, nil)
-	cmd.AddCommand(create(), destroy(), dashboard(), list(), status())
+	cmd.AddCommand(destroy(), dashboard(), list(), status())
 
 	return cmd
 }
