@@ -10,7 +10,6 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
-	"github.com/superfly/flyctl/internal/command/extensions/supabase"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
@@ -31,11 +30,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 	}
 
 	if state.Plan.Postgres.SupabasePostgres != nil && (planStep == "" || planStep == "postgres") {
-		err := state.createSupabasePostgres(ctx)
-		if err != nil {
-			// TODO(Ali): Make error printing here better.
-			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Supabase Postgres database: %s\n", err)
-		}
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Supabase Postgres is no longer supported.\n")
 	}
 
 	if state.Plan.Redis.UpstashRedis != nil && (planStep == "" || planStep == "redis") {
@@ -158,32 +153,6 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	}
 
 	return nil
-}
-
-func (state *launchState) createSupabasePostgres(ctx context.Context) error {
-	postgresPlan := state.Plan.Postgres.SupabasePostgres
-
-	org, err := state.Org(ctx)
-	if err != nil {
-		return err
-	}
-
-	params := extensions_core.ExtensionParams{
-		AppName:              state.Plan.AppName,
-		Organization:         org,
-		Provider:             "supabase",
-		OverrideName:         fly.Pointer(postgresPlan.GetDbName(state.Plan)),
-		OverrideRegion:       postgresPlan.GetRegion(state.Plan),
-		ErrorCaptureCallback: supabase.CaptureFreeLimitError,
-	}
-
-	_, err = extensions_core.ProvisionExtension(ctx, params)
-
-	if err != nil {
-		return err
-	}
-
-	return err
 }
 
 func (state *launchState) createUpstashRedis(ctx context.Context) error {
