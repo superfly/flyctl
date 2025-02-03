@@ -7,7 +7,7 @@ toolchain go1.23.3
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161
-	github.com/Khan/genqlient v0.7.1-0.20240819060157-4466fc10e4f3
+	github.com/Khan/genqlient v0.8.0
 	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/PuerkitoBio/rehttp v1.4.0
