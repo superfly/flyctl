@@ -53,7 +53,7 @@ func BuildContext(ctx context.Context, app *fly.AppCompact) (context.Context, er
 		return nil, fmt.Errorf("can't establish agent %w", err)
 	}
 
-	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, "")
+	dialer, err := agentclient.Dialer(ctx, app.Organization.Slug, app.Network)
 	if err != nil {
 		return nil, fmt.Errorf("can't build tunnel for %s: %s", app.Organization.Slug, err)
 	}
