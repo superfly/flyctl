@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -116,6 +117,11 @@ func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string) error
 		return err
 	}
 	defer sess.Close()
+	if container := os.Getenv("FLY_SSH_CONTAINER"); container != "" {
+		if err := sess.Setenv("FLY_SSH_CONTAINER", container); err != nil {
+			return fmt.Errorf("could not set FLY_SSH_CONTAINER: %s", err)
+		}
+	}
 
 	return sessIO.attach(ctx, sess, cmd)
 }
