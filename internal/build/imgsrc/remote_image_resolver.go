@@ -5,14 +5,18 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
 	"go.opentelemetry.io/otel/trace"
 )
 
+type flyClient interface {
+	ResolveImageForApp(ctx context.Context, appName, imageRef string) (*fly.Image, error)
+}
+
 type remoteImageResolver struct {
-	flyApi flyutil.Client
+	flyApi flyClient
 }
 
 func (*remoteImageResolver) Name() string {
@@ -46,9 +50,10 @@ func (s *remoteImageResolver) Run(ctx context.Context, _ *dockerClientFactory, s
 	}
 
 	di := &DeploymentImage{
-		ID:   img.ID,
-		Tag:  img.Ref,
-		Size: int64(size),
+		ID:     img.ID,
+		Tag:    img.Ref,
+		Digest: img.Digest,
+		Size:   int64(size),
 	}
 
 	span.SetAttributes(di.ToSpanAttributes()...)
