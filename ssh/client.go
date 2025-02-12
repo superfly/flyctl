@@ -104,17 +104,24 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 }
 
-func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string) error {
+func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, container string) error {
 	if c.Client == nil {
 		if err := c.Connect(ctx); err != nil {
 			return err
 		}
 	}
 
+
 	sess, err := c.Client.NewSession()
+
 	if err != nil {
 		return err
 	}
+
+	if container != "" {
+		sess.Setenv("FLY_SSH_CONTAINER", container)
+	}
+
 	defer sess.Close()
 
 	return sessIO.attach(ctx, sess, cmd)

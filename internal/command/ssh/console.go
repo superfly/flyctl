@@ -61,6 +61,10 @@ func stdArgsSSH(cmd *cobra.Command) {
 			Shorthand:   "A",
 			Description: "Address of VM to connect to",
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to connect to",
+		},
 		flag.Bool{
 			Name:        "pty",
 			Description: "Allocate a pseudo-terminal (default: on when no command is provided)",
@@ -177,6 +181,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: quiet(ctx),
+		Container:      flag.GetString(ctx, "container"),
 		AppNames:       []string{app.Name},
 	}
 	sshc, err := Connect(params, addr)
@@ -185,7 +190,7 @@ func runConsole(ctx context.Context) error {
 		return err
 	}
 
-	if err := Console(ctx, sshc, cmd, allocPTY); err != nil {
+	if err := Console(ctx, sshc, cmd, allocPTY, params.Container); err != nil {
 		captureError(ctx, err, app)
 		return err
 	}
@@ -193,7 +198,7 @@ func runConsole(ctx context.Context) error {
 	return nil
 }
 
-func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool) error {
+func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bool, container string) error {
 	currentStdin, currentStdout, currentStderr, err := setupConsole()
 	defer func() error {
 		if err := cleanupConsole(currentStdin, currentStdout, currentStderr); err != nil {
@@ -214,7 +219,7 @@ func Console(ctx context.Context, sshClient *ssh.Client, cmd string, allocPTY bo
 		TermEnv:  determineTermEnv(),
 	}
 
-	if err := sshClient.Shell(ctx, sessIO, cmd); err != nil {
+	if err := sshClient.Shell(ctx, sessIO, cmd, container); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 
