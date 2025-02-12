@@ -281,16 +281,30 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 		}
 	}
 
+	// add litestream if object storage is present and database is sqlite3
+	if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
+		flags = append(flags, "--litestream")
+	}
+
 	// run dockerfile-node if Dockerfile doesn't already exist, or there is a database to be set up
 	_, err = os.Stat("Dockerfile")
 	if errors.Is(err, fs.ErrNotExist) || srcInfo.DatabaseDesired == DatabaseKindSqlite || srcInfo.DatabaseDesired == DatabaseKindPostgres {
-		skip := (err == nil)
 		var args []string
+
+		// add --skip flag if Dockerfile already exists
+		if err == nil {
+			flags = append([]string{"--skip"}, flags...)
+		}
 
 		_, err = os.Stat("node_modules")
 		if errors.Is(err, fs.ErrNotExist) {
 			// no existing node_modules directory: run package directly
 			args = []string{"npx", "--yes", "@flydotio/dockerfile@latest"}
+
+			// add additional flags from launch command
+			if len(flags) > 0 {
+				args = append(args, flags...)
+			}
 		} else {
 			// build command to install package using preferred package manager
 			args = []string{"npm", "install", "@flydotio/dockerfile@latest", "--save-dev"}
@@ -388,24 +402,14 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 				return fmt.Errorf("failure finding %s executable in PATH", xcmd)
 			}
 
-			// add --skip flag if Dockerfile already exists
-			if skip {
-				args = append(args, "--skip")
-			}
-
 			// add additional flags from launch command
 			if len(flags) > 0 {
 				args = append(args, flags...)
 			}
 
-			// add litestream if object storage is present and database is sqlite3
-			if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
-				args = append(args, "--litestream")
-			}
-
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
-			cmd.Stdin = nil
+			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
