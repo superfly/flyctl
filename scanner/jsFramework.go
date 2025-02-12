@@ -409,7 +409,7 @@ func JsFrameworkCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchP
 
 			// execute (via npx, bunx, or bun x) the docker module
 			cmd := exec.Command(xcmdpath, args...)
-			cmd.Stdin = nil
+			cmd.Stdin = os.Stdin
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 
