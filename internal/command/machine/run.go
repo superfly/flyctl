@@ -697,6 +697,10 @@ func determineMachineConfig(
 		machineConf.Schedule = flag.GetString(ctx, "schedule")
 	}
 
+	if input.interact {
+		machineConf.Init.Cmd = []string{"/bin/sleep", "inf"}
+	}
+
 	if input.updating {
 		// Called from `update`. Command is specified by flag.
 		if flag.IsSpecified(ctx, "command") {
@@ -719,10 +723,6 @@ func determineMachineConfig(
 		if len(args) != 0 {
 			machineConf.Init.Cmd = args[1:]
 		}
-	}
-
-	if input.interact {
-		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
