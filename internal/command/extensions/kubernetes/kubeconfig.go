@@ -42,7 +42,10 @@ func runSaveKubeconfig(ctx context.Context) error {
 	}
 
 	metadata := resp.AddOn.Metadata.(map[string]interface{})
-	kubeconfig := metadata["kubeconfig"].(string)
+	kubeconfig, ok := metadata["kubeconfig"].(string)
+	if !ok {
+		return fmt.Errorf("failed to fetch kubeconfig")
+	}
 
 	outFilename := flag.GetString(ctx, "output")
 	if outFilename == "" {
