@@ -119,7 +119,10 @@ func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, conta
 	}
 
 	if container != "" {
-		sess.Setenv("FLY_SSH_CONTAINER", container)
+		err = sess.Setenv("FLY_SSH_CONTAINER", container)
+		if err != nil {
+			return err
+		}
 	}
 
 	defer sess.Close()
