@@ -111,7 +111,6 @@ func (c *Client) Shell(ctx context.Context, sessIO *SessionIO, cmd string, conta
 		}
 	}
 
-
 	sess, err := c.Client.NewSession()
 
 	if err != nil {
