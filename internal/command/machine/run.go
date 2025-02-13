@@ -647,6 +647,10 @@ func determineMachineConfig(
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
+	if input.interact {
+		machineConf.Init.Cmd = []string{"/bin/sleep", "inf"}
+	}
+
 	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
 		var buf []byte
 		switch {
@@ -719,10 +723,6 @@ func determineMachineConfig(
 		if len(args) != 0 {
 			machineConf.Init.Cmd = args[1:]
 		}
-	}
-
-	if input.interact {
-		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
