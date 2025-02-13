@@ -716,13 +716,11 @@ func determineMachineConfig(
 		// Called from `run`. Command is specified by arguments.
 		args := flag.Args(ctx)
 
-		if len(args) != 0 {
+		if len(args) > 1 {
 			machineConf.Init.Cmd = args[1:]
+		} else if input.interact {
+			machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 		}
-	}
-
-	if input.interact {
-		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
