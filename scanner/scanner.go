@@ -87,6 +87,7 @@ type SourceInfo struct {
 	AutoInstrumentErrors            bool
 	FailureCallback                 func(err error) error
 	Runtime                         plan.RuntimeStruct
+	PostInitCallback                func() error
 }
 
 type SourceFile struct {
