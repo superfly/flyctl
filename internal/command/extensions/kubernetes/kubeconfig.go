@@ -42,7 +42,10 @@ func runSaveKubeconfig(ctx context.Context) error {
 	}
 
 	metadata := resp.AddOn.Metadata.(map[string]interface{})
-	kubeconfig := metadata["kubeconfig"].(string)
+	kubeconfig, ok := metadata["kubeconfig"].(string)
+	if !ok {
+		return fmt.Errorf("Failed to fetch kubeconfig. If provisioning your cluster failed you may have to delete it and reprovision it.")
+	}
 
 	outFilename := flag.GetString(ctx, "output")
 	if outFilename == "" {
