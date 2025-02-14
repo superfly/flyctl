@@ -237,7 +237,7 @@ func (state *launchState) scannerRunInitCommands(ctx context.Context) error {
 		}
 	}
 
-	if state.sourceInfo.PostInitCallback != nil {
+	if state.sourceInfo != nil && state.sourceInfo.PostInitCallback != nil {
 		if err := state.sourceInfo.PostInitCallback(); err != nil {
 			return err
 		}
