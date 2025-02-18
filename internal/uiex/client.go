@@ -39,7 +39,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 	uiexBaseURL := os.Getenv("FLY_UIEX_BASE_URL")
 
 	if uiexBaseURL == "" {
-		uiexBaseURL = "https://api.fly.io/graphql"
+		uiexBaseURL = "https://api.fly.io"
 	}
 	uiexUrl, err := url.Parse(uiexBaseURL)
 	if err != nil {
