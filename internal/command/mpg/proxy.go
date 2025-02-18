@@ -39,12 +39,14 @@ func newProxy() (cmd *cobra.Command) {
 func runProxy(ctx context.Context) (err error) {
 
 	localProxyPort := "16380"
-	_, params, password, err := getMpgProxyParams(ctx, localProxyPort)
+	cluster, params, password, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
 		return err
 	}
 
-	terminal.Infof("Proxying postgres to port \"%s\" with password \"%s\"", localProxyPort, password)
+	name := fmt.Sprintf("pgdb-%s", cluster.Id)
+
+	terminal.Infof("Proxying postgres to port \"%s\" with user \"%s\" password \"%s\"", localProxyPort, name, password)
 
 	return proxy.Connect(ctx, params)
 }
@@ -75,6 +77,9 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 	if err != nil {
 		return nil, nil, "", err
 	}
+
+	// fmt.Printf("%+v\n", clustersResponse)
+	// fmt.Printf("%+v\n", err)
 
 	if len(clustersResponse.Data) == 0 {
 		err := fmt.Errorf("No Managed Postgres clusters found on this organization")
