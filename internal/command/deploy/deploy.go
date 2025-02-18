@@ -556,12 +556,20 @@ func deployToMachines(
 		ip = "none"
 	}
 
+	// If exactly one region is specified, use that as the primary region
+	region := cfg.PrimaryRegion
+	if len(onlyRegions) == 1 {
+		for r := range onlyRegions {
+			region = r
+		}
+	}
+
 	args := MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     cfg.PrimaryRegion,
+		PrimaryRegionFlag:     region,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
