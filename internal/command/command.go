@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -599,6 +601,24 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	}
 
 	config.MonitorTokens(ctx, config.Tokens(ctx), tryOpenUserURL)
+
+	return ctx, nil
+}
+
+// Apply uiex client to uiex
+func RequireUiex(ctx context.Context) (context.Context, error) {
+	cfg := config.FromContext(ctx)
+
+	if uiexutil.ClientFromContext(ctx) == nil {
+		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger: logger.FromContext(ctx),
+			Tokens: cfg.Tokens,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = uiexutil.NewContextWithClient(ctx, client)
+	}
 
 	return ctx, nil
 }
