@@ -1,4 +1,4 @@
-package postgres
+package mpg
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/proxy"
 	"github.com/superfly/flyctl/terminal"
@@ -41,7 +42,7 @@ func runProxy(ctx context.Context) (err error) {
 	}
 
 	localProxyPort := "16380"
-	params, password, err := getMpgProxyParams(ctx, org.Slug, localProxyPort)
+	_, params, password, err := getMpgProxyParams(ctx, org.Slug, localProxyPort)
 	if err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func runProxy(ctx context.Context) (err error) {
 	return proxy.Connect(ctx, params)
 }
 
-func getMpgProxyParams(ctx context.Context, orgSlug string, localProxyPort string) (*proxy.ConnectParams, string, error) {
+func getMpgProxyParams(ctx context.Context, orgSlug string, localProxyPort string) (*uiex.ManagedCluster, *proxy.ConnectParams, string, error) {
 	client := flyutil.ClientFromContext(ctx)
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
@@ -60,7 +61,7 @@ func getMpgProxyParams(ctx context.Context, orgSlug string, localProxyPort strin
 
 	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	for _, cluster := range clustersResponse.Data {
@@ -69,38 +70,39 @@ func getMpgProxyParams(ctx context.Context, orgSlug string, localProxyPort strin
 
 	selectErr := prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
 	if selectErr != nil {
-		return nil, "", selectErr
+		return nil, nil, "", selectErr
 	}
 
 	selectedCluster := clustersResponse.Data[index]
 
 	response, err := uiexClient.GetManagedCluster(ctx, selectedCluster.Organization.Slug, selectedCluster.Id)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
+	cluster := response.Data
 
 	if response.Password.Status == "initializing" {
-		return nil, "", fmt.Errorf("Cluster is still initializing, wait a bit more")
+		return nil, nil, "", fmt.Errorf("Cluster is still initializing, wait a bit more")
 	}
 
 	if response.Password.Status == "error" {
-		return nil, "", fmt.Errorf("Error getting cluster password")
+		return nil, nil, "", fmt.Errorf("Error getting cluster password")
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, "", false)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
-	return &proxy.ConnectParams{
+	return &cluster, &proxy.ConnectParams{
 		Ports:            []string{localProxyPort, "5432"},
 		OrganizationSlug: orgSlug,
 		Dialer:           dialer,
-		RemoteHost:       response.Data.IpAssignments.Direct,
+		RemoteHost:       cluster.IpAssignments.Direct,
 	}, response.Password.Value, nil
 }

@@ -44,7 +44,6 @@ func New() *cobra.Command {
 		newImport(),
 		newEvents(),
 		newBarman(),
-		newProxy(),
 	)
 
 	return cmd
