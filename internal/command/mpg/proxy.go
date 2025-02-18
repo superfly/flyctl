@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/agent"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
@@ -36,13 +37,9 @@ func newProxy() (cmd *cobra.Command) {
 }
 
 func runProxy(ctx context.Context) (err error) {
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
-	if err != nil {
-		return err
-	}
 
 	localProxyPort := "16380"
-	_, params, password, err := getMpgProxyParams(ctx, org.Slug, localProxyPort)
+	_, params, password, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
 		return err
 	}
@@ -52,15 +49,35 @@ func runProxy(ctx context.Context) (err error) {
 	return proxy.Connect(ctx, params)
 }
 
-func getMpgProxyParams(ctx context.Context, orgSlug string, localProxyPort string) (*uiex.ManagedCluster, *proxy.ConnectParams, string, error) {
+func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.ManagedCluster, *proxy.ConnectParams, string, error) {
+	// This `org.Slug` could be "personal" and we need that for wireguard connections
+	org, err := orgs.OrgFromFlagOrSelect(ctx)
+	if err != nil {
+		return nil, nil, "", err
+	}
+
 	client := flyutil.ClientFromContext(ctx)
+	genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+
+	// For ui-ex request we need the real org slug
+	var fullOrg *gql.GetOrganizationResponse
+	if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
+		err = fmt.Errorf("failed fetching org: %w", err)
+		return nil, nil, "", err
+	}
+
 	uiexClient := uiexutil.ClientFromContext(ctx)
 
 	var index int
 	var options []string
 
-	clustersResponse, err := uiexClient.ListManagedClusters(ctx, orgSlug)
+	clustersResponse, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug)
 	if err != nil {
+		return nil, nil, "", err
+	}
+
+	if len(clustersResponse.Data) == 0 {
+		err := fmt.Errorf("No Managed Postgres clusters found on this organization")
 		return nil, nil, "", err
 	}
 
@@ -94,14 +111,14 @@ func getMpgProxyParams(ctx context.Context, orgSlug string, localProxyPort strin
 		return nil, nil, "", err
 	}
 
-	dialer, err := agentclient.ConnectToTunnel(ctx, orgSlug, "", false)
+	dialer, err := agentclient.ConnectToTunnel(ctx, org.Slug, "", false)
 	if err != nil {
 		return nil, nil, "", err
 	}
 
 	return &cluster, &proxy.ConnectParams{
 		Ports:            []string{localProxyPort, "5432"},
-		OrganizationSlug: orgSlug,
+		OrganizationSlug: org.Slug,
 		Dialer:           dialer,
 		RemoteHost:       cluster.IpAssignments.Direct,
 	}, response.Password.Value, nil

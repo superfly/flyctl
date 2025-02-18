@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/proxy"
 
 	"github.com/superfly/flyctl/internal/command"
-	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
 )
 
@@ -34,14 +33,10 @@ func newConnect() (cmd *cobra.Command) {
 
 func runConnect(ctx context.Context) (err error) {
 	io := iostreams.FromContext(ctx)
-	org, err := orgs.OrgFromFlagOrSelect(ctx)
-	if err != nil {
-		return err
-	}
 
 	localProxyPort := "16380"
 
-	cluster, params, password, err := getMpgProxyParams(ctx, org.Slug, localProxyPort)
+	cluster, params, password, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {
 		return err
 	}
