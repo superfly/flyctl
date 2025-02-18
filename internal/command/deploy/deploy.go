@@ -559,7 +559,7 @@ func deployToMachines(
 	// If exactly one region is specified, use that as the primary region
 	region := cfg.PrimaryRegion
 	if len(onlyRegions) == 1 {
-		for r, _ := range onlyRegions {
+		for r := range onlyRegions {
 			region = r
 		}
 	}
