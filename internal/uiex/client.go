@@ -9,6 +9,8 @@ import (
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/tokens"
+	"github.com/superfly/flyctl/internal/httptracing"
+	"github.com/superfly/flyctl/internal/logger"
 )
 
 type Client struct {
@@ -46,7 +48,7 @@ func NewWithOptions(ctx context.Context, opts NewClientOpts) (*Client, error) {
 		return nil, fmt.Errorf("invalid FLY_UIEX_BASE_URL '%s' with error: %w", uiexBaseURL, err)
 	}
 
-	httpClient, err := fly.NewHTTPClient(opts.Logger, http.DefaultTransport)
+	httpClient, err := fly.NewHTTPClient(logger.MaybeFromContext(ctx), httptracing.NewTransport(http.DefaultTransport))
 	if err != nil {
 		return nil, fmt.Errorf("uiex: can't setup HTTP client to %s: %w", uiexUrl.String(), err)
 	}
