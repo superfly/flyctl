@@ -124,6 +124,10 @@ var CommonFlags = flag.Set{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
 	},
+	flag.String{
+		Name:        "primary-region",
+		Description: "Override primary region in fly.toml configuration.",
+	},
 	flag.StringSlice{
 		Name:        "regions",
 		Aliases:     []string{"only-regions"},
@@ -518,10 +522,15 @@ func deployToMachines(
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
 	status.Image = img.Tag
-	status.PrimaryRegion = cfg.PrimaryRegion
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
 		status.Strategy = flag.GetString(ctx, "strategy")
+	}
+
+	if flag.IsSpecified(ctx, "primary-region") {
+		status.PrimaryRegion = flag.GetString(ctx, "primary-region")
+	} else {
+		status.PrimaryRegion = cfg.PrimaryRegion
 	}
 
 	status.FlyctlVersion = buildinfo.Info().Version.String()
@@ -561,7 +570,7 @@ func deployToMachines(
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     cfg.PrimaryRegion,
+		PrimaryRegionFlag:     status.PrimaryRegion,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
