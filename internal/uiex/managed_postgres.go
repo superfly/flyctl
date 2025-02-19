@@ -51,7 +51,7 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string) (ListM
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
@@ -84,7 +84,7 @@ func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id strin
 	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
 	req.Header.Add("Content-Type", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := c.httpClient.Do(req)
 	if err != nil {
 		return response, err
 	}
