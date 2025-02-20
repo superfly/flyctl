@@ -20,7 +20,7 @@ import (
 
 func newProxy() (cmd *cobra.Command) {
 	const (
-		long = `Proxy to a MPG database`
+		long = `Proxy to a Managed Postgres database`
 
 		short = long
 		usage = "proxy"

@@ -9,6 +9,7 @@ import (
 type Client interface {
 	ListManagedClusters(ctx context.Context, orgSlug string) (uiex.ListManagedClustersResponse, error)
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
+	CreateManagedCluster(ctx context.Context, orgSlug string, input *uiex.CreateManagedClusterRequest) (uiex.GetManagedClusterResponse, error)
 }
 
 type contextKey struct{}

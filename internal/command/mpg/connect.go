@@ -16,7 +16,7 @@ import (
 
 func newConnect() (cmd *cobra.Command) {
 	const (
-		long = `Connect to a Redis database using psql`
+		long = `Connect to a Managed Postgres database using psql`
 
 		short = long
 		usage = "connect"
