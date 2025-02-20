@@ -19,6 +19,8 @@ func New() *cobra.Command {
 	cmd.AddCommand(
 		newProxy(),
 		newConnect(),
+		newList(),
+		newCreate(),
 	)
 
 	return cmd
