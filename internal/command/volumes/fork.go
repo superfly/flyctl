@@ -46,6 +46,11 @@ func newFork() *cobra.Command {
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 			Default:     true,
 		},
+		flag.Bool{
+			Name:        "unique-zone-app-wide",
+			Description: "Checks all volumes in app for unique zone handling, instead of only volumes with the same name (which is the default)",
+			Default:     false,
+		},
 		flag.String{
 			Name:        "region",
 			Shorthand:   "r",
@@ -116,6 +121,7 @@ func runFork(ctx context.Context) error {
 	input := fly.CreateVolumeRequest{
 		Name:                name,
 		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,
