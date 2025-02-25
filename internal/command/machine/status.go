@@ -98,6 +98,7 @@ func runMachineStatus(ctx context.Context) (err error) {
 	fmt.Fprintf(io.Out, "Machine ID: %s\n", machine.ID)
 	fmt.Fprintf(io.Out, "Instance ID: %s\n", machine.InstanceID)
 	fmt.Fprintf(io.Out, "State: %s\n", machine.State)
+	fmt.Fprintf(io.Out, "Containers: %d\n", len(mConfig.Containers))
 	fmt.Fprintf(io.Out, "HostStatus: %s\n", machine.HostStatus)
 	fmt.Fprintf(io.Out, "\n")
 
@@ -139,6 +140,19 @@ func runMachineStatus(ctx context.Context) (err error) {
 			},
 		}
 		_ = render.VerticalTable(io.Out, "PG", obj, "Role")
+	}
+
+	statusRows := [][]string{}
+	for _, c := range machine.ContainerStatuses {
+		fields := []string{
+			c.Name,
+			c.State,
+		}
+		statusRows = append(statusRows, fields)
+	}
+	containerStatusesTable := fmt.Sprintf("Container Statuses")
+	if len(statusRows) > 0 {
+		_ = render.Table(io.Out, containerStatusesTable, statusRows, "Name", "Status")
 	}
 
 	checksTableTitle := fmt.Sprintf("Checks [%s]", checksSummary)
