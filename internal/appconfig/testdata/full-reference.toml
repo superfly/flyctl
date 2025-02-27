@@ -197,11 +197,13 @@ host_dedication_id = "06031957"
       idle_timeout = 600
 
   [[services.tcp_checks]]
+    port = 1001
     interval = "21s"
     timeout = "4s"
     grace_period = "1s"
 
   [[services.http_checks]]
+    port = 2020
     interval = "1m21s"
     timeout = "7s"
     grace_period = "2s"

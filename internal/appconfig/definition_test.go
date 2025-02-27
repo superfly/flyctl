@@ -360,6 +360,7 @@ func TestToDefinition(t *testing.T) {
 				},
 				"tcp_checks": []any{
 					map[string]any{
+						"port":         int64(1001),
 						"interval":     "21s",
 						"timeout":      "4s",
 						"grace_period": "1s",
@@ -367,6 +368,7 @@ func TestToDefinition(t *testing.T) {
 				},
 				"http_checks": []any{
 					map[string]any{
+						"port":            int64(2020),
 						"interval":        "1m21s",
 						"timeout":         "7s",
 						"grace_period":    "2s",
