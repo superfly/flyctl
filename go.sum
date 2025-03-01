@@ -141,8 +141,8 @@ github.com/aybabtme/iocontrol v0.0.0-20150809002002-ad15bcfc95a0/go.mod h1:6L7zg
 github.com/aybabtme/rgbterm v0.0.0-20170906152045-cc83f3b3ce59/go.mod h1:q/89r3U2H7sSsE2t6Kca0lfwTK8JdoNGS/yzM/4iH5I=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1 h1:HwpRHbFMcZLEVr42D4p7XBqjyuxQH5SMiErDT4WkJ2k=
 github.com/aymanbagabas/go-osc52/v2 v2.0.1/go.mod h1:uYgXzlJ7ZpABp8OJ+exZzJJhRNQ2ASbcXHWsFqH8hp8=
-github.com/azazeal/pause v1.3.0 h1:q901DXvCWqbG19lEUP6fwXbD6KGu96KEGmWmXmurOD8=
-github.com/azazeal/pause v1.3.0/go.mod h1:zjDZP5dxZndm0bO5zZDhlzqh4zpgSo6M59HNq6UetqI=
+github.com/azazeal/pause v1.3.1 h1:K/68fwiAZhD6sZIlqWC2BqPsSUSyZjEUTpULgbWMtoo=
+github.com/azazeal/pause v1.3.1/go.mod h1:zjDZP5dxZndm0bO5zZDhlzqh4zpgSo6M59HNq6UetqI=
 github.com/benbjohnson/clock v1.1.0 h1:Q92kusRqC1XV2MjkWETPvjJVqKetz1OzxZB7mHJLju8=
 github.com/benbjohnson/clock v1.1.0/go.mod h1:J11/hYXuz8f4ySSvYwY0FKfm+ezbsZBKZxNJlLklBHA=
 github.com/beorn7/perks v0.0.0-20180321164747-3a771d992973/go.mod h1:Dwedo/Wpr24TaqPxmxbtue+5NUziq4I4S80YR8gNf3Q=
