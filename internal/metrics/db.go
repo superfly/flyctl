@@ -79,7 +79,8 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 	cfg := config.FromContext(ctx)
 	metricsToken, err := GetMetricsToken(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get metrics token: %w", err)
+		fmt.Fprintf(os.Stderr, "Warning: Metrics token unavailable: %v\n", err)
+		return nil
 	}
 
 	baseURL := cfg.MetricsBaseURL
@@ -90,7 +91,12 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 
 	go sendMetricsRequest(endpoint, metricsToken, userAgent, []byte(jsonData), errChan)
 
-	return waitForCompletion(errChan)
+	err = waitForCompletion(errChan)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Metrics send issue: %v\n", err)
+	}
+
+	return nil
 }
 
 func sendMetricsRequest(endpoint, token, userAgent string, data []byte, errChan chan<- error) {
@@ -146,10 +152,7 @@ func createHTTPClient() *http.Client {
 func waitForCompletion(errChan <-chan error) error {
 	select {
 	case err := <-errChan:
-		if err != nil {
-			return err
-		}
-		return nil
+		return err
 	case <-time.After(15 * time.Second):
 		return fmt.Errorf("metrics send timed out after 15 seconds")
 	}
