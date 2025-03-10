@@ -2,7 +2,6 @@ package incidents
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"time"
 
@@ -37,18 +36,23 @@ func QueryHostIssues(ctx context.Context) {
 		return
 	}
 
-	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
-		logger.Debug("started querying for host issues")
-
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), 3*time.Second)
+	statusCh := make(chan []fly.HostIssue, 1)
+	logger.Debug("started querying for host issues")
+	statusCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
+	go func() {
 		defer cancel()
+		defer close(statusCh)
+		response, err := GetAppHostIssuesRequest(statusCtx, appName)
+		if err != nil {
+			logger.Debugf("failed querying for host issues: %v", err)
+		}
+		statusCh <- response
+	}()
 
-		switch hostIssues, err := GetAppHostIssuesRequest(ctx, appName); {
-		case err == nil:
-			if hostIssues == nil {
-				break
-			}
-
+	task.FromContext(ctx).RunFinalizer(func(parent context.Context) {
+		cancel()
+		select {
+		case hostIssues := <-statusCh:
 			logger.Debugf("querying for host issues resulted to %v", hostIssues)
 			hostIssuesCount := len(hostIssues)
 			if hostIssuesCount > 0 {
@@ -57,10 +61,6 @@ func QueryHostIssues(ctx context.Context) {
 				)
 				break
 			}
-		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
-			logger.Debugf("failed querying for host issues. Context cancelled or deadline exceeded: %v", err)
-		default:
-			logger.Debugf("failed querying for host issues incidents: %v", err)
 		}
 	})
 }
