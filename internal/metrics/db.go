@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -69,6 +68,9 @@ func FlushMetrics(ctx context.Context) error {
 			return err
 		}
 	} else {
+		// Don't check for errors in non-interactive mode
+		// because we don't want to impact other operations
+		// if metrics sending fails.
 		SendMetrics(ctx, string(json))
 	}
 
@@ -87,11 +89,10 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 	endpoint := baseURL + "/metrics_post"
 	userAgent := fmt.Sprintf("flyctl/%s", buildinfo.Info().Version)
 
-	errChan := make(chan error, 1)
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
 
-	go sendMetricsRequest(endpoint, metricsToken, userAgent, []byte(jsonData), errChan)
-
-	err = waitForCompletion(errChan)
+	err = sendMetricsRequest(timeoutCtx, endpoint, metricsToken, userAgent, []byte(jsonData))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Metrics send issue: %v\n", err)
 	}
@@ -99,11 +100,10 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 	return nil
 }
 
-func sendMetricsRequest(endpoint, token, userAgent string, data []byte, errChan chan<- error) {
-	request, err := http.NewRequest("POST", endpoint, bytes.NewBuffer(data))
+func sendMetricsRequest(ctx context.Context, endpoint, token, userAgent string, data []byte) error {
+	request, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(data))
 	if err != nil {
-		errChan <- fmt.Errorf("failed to create request: %w", err)
-		return
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
 	request.Header.Set("Authorization", "Bearer "+token)
@@ -113,24 +113,15 @@ func sendMetricsRequest(endpoint, token, userAgent string, data []byte, errChan 
 
 	resp, err := client.Do(request)
 	if err != nil {
-		errChan <- fmt.Errorf("failed to send metrics: %w", err)
-		return
+		return fmt.Errorf("failed to send metrics: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		errChan <- fmt.Errorf("metrics send failed with status %d: %s", resp.StatusCode, string(body))
-		return
+		return fmt.Errorf("metrics send failed with status %d", resp.StatusCode)
 	}
 
-	_, err = io.Copy(io.Discard, resp.Body)
-	if err != nil {
-		errChan <- fmt.Errorf("failed to read response body: %w", err)
-		return
-	}
-
-	errChan <- nil
+	return nil
 }
 
 func createHTTPClient() *http.Client {
@@ -146,14 +137,5 @@ func createHTTPClient() *http.Client {
 	return &http.Client{
 		Transport: retryTransport,
 		Timeout:   time.Second * 5,
-	}
-}
-
-func waitForCompletion(errChan <-chan error) error {
-	select {
-	case err := <-errChan:
-		return err
-	case <-time.After(15 * time.Second):
-		return fmt.Errorf("metrics send timed out after 15 seconds")
 	}
 }
