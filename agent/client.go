@@ -26,6 +26,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/sentry"
+	"github.com/superfly/flyctl/internal/task"
 	"github.com/superfly/flyctl/internal/version"
 	"github.com/superfly/flyctl/internal/wireguard"
 	"github.com/superfly/flyctl/iostreams"
@@ -35,9 +36,18 @@ import (
 
 // Establish starts the daemon, if necessary, and returns a client to it.
 func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, error) {
-	if err := wireguard.PruneInvalidPeers(ctx, apiClient); err != nil {
-		return nil, err
-	}
+	logger := logger.MaybeFromContext(ctx)
+
+	task.FromContext(ctx).Run(func(taskCtx context.Context) {
+		if err := wireguard.PruneInvalidPeers(taskCtx, apiClient); err != nil {
+			msg := fmt.Sprintf("failed to prune wireguard peers: %s", err)
+			if logger != nil {
+				logger.Debug(msg)
+			} else {
+				fmt.Fprintln(os.Stderr, msg)
+			}
+		}
+	})
 
 	c := newClient("unix", PathToSocket())
 
@@ -58,7 +68,6 @@ func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, err
 	// TOOD: log this instead
 	msg := fmt.Sprintf("The running flyctl agent (v%s) is older than the current flyctl (v%s).", res.Version, buildinfo.Version())
 
-	logger := logger.MaybeFromContext(ctx)
 	if logger != nil {
 		logger.Warn(msg)
 	} else {
