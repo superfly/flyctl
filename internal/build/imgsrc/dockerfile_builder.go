@@ -492,6 +492,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	// Build the image.
 	statusCh := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
+	eg.Go(newDisplay(statusCh))
 	eg.Go(func() error {
 		var err error
 
