@@ -24,7 +24,6 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/exporter/containerimage/exptypes"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
@@ -492,19 +491,7 @@ func runBuildKitBuild(ctx context.Context, docker *dockerclient.Client, opts Ima
 	// Build the image.
 	statusCh := make(chan *client.SolveStatus)
 	eg, ctx := errgroup.WithContext(ctx)
-	eg.Go(func() error {
-		var err error
-
-		display, err := progressui.NewDisplay(os.Stderr, "auto")
-		if err != nil {
-			return err
-		}
-		// Don't use `ctx` here.
-		// Cancelling the context kills the reader of statusCh which blocks bc.Solve below.
-		// bc.Solve closes statusCh at the end and UpdateFrom returns by reading the closed channel.
-		_, err = display.UpdateFrom(context.Background(), statusCh)
-		return err
-	})
+	eg.Go(newDisplay(statusCh))
 	var res *client.SolveResponse
 	eg.Go(func() error {
 		options := solveOptFromImageOptions(opts, dockerfilePath, buildArgs)
