@@ -164,7 +164,11 @@ func runCertificatesShow(ctx context.Context) error {
 		return nil
 	}
 
-	return reportNextStepCert(ctx, hostname, cert, hostcheck)
+	if config.FromContext(ctx).JSONOutput {
+		return nil
+	}
+	
+	return reportNextStepCert(ctx, hostname, cert, hostcheck)	
 }
 
 func runCertificatesCheck(ctx context.Context) error {
@@ -183,6 +187,9 @@ func runCertificatesCheck(ctx context.Context) error {
 		return nil
 	}
 
+	if config.FromContext(ctx).JSONOutput {
+		return nil
+	}
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
 
@@ -196,6 +203,9 @@ func runCertificatesAdd(ctx context.Context) error {
 		return err
 	}
 
+	if config.FromContext(ctx).JSONOutput {
+		return nil
+	}
 	return reportNextStepCert(ctx, hostname, cert, hostcheck)
 }
 
