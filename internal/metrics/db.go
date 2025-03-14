@@ -95,6 +95,7 @@ func SendMetrics(ctx context.Context, jsonData string) error {
 	err = sendMetricsRequest(timeoutCtx, endpoint, metricsToken, userAgent, []byte(jsonData))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Metrics send issue: %v\n", err)
+		return err
 	}
 
 	return nil
