@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -28,21 +29,6 @@ func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
 	}
 
 	return t, err
-}
-
-func write(w io.Writer, buf []byte) error {
-	var lbuf [4]byte
-	binary.BigEndian.PutUint32(lbuf[:], uint32(len(buf)))
-	if _, err := w.Write(lbuf[:]); err != nil {
-		return err
-	}
-
-	if len(buf) == 0 {
-		return nil
-	}
-
-	_, err := w.Write(buf)
-	return err
 }
 
 func read(r io.Reader, rbuf []byte) ([]byte, error) {
@@ -177,19 +163,12 @@ func (wswg *WsWgProxy) Connect(ctx context.Context, endpoint string) error {
 	return nil
 }
 
-func isTimeout(e error) bool {
-	if err, ok := e.(net.Error); ok && err.Timeout() {
-		return true
-	}
-
-	return false
-}
-
 func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	wswg.wrlock.Lock()
 	defer wswg.wrlock.Unlock()
 
-	return write(c, b)
+	_, err := c.Write(b)
+	return err
 }
 
 func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
@@ -218,26 +197,66 @@ func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
 }
 
 func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
-	buf := make([]byte, 2000)
+	const (
+		bufLen = 0xffff
+		mtu    = 2000 // really closer to 1500, but going big avoids needing to be precise
+	)
+
+	var buf [bufLen]byte
 
 	for ctx.Err() == nil {
-		wswg.plugConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		n, a, err := wswg.plugConn.ReadFrom(buf)
-		if err != nil {
-			if isTimeout(err) {
-				continue
-			}
-
-			// resetting won't do anything here
-			log.Printf("error reading from udp plugboard: %s", err)
+		if err := wswg.plugConn.SetReadDeadline(time.Time{}); err != nil {
+			log.Printf("error resetting read deadline: %s", err)
+			return
 		}
+
+		msgLen := 0
+
+		n, a, err := wswg.plugConn.ReadFrom(buf[msgLen+4 : msgLen+4+mtu])
+		if err != nil {
+			log.Printf("error reading from udp plugboard: %s", err)
+			return
+		}
+		if n == mtu {
+			log.Printf("oversized udp packet from %s", a)
+			return
+		}
+		binary.BigEndian.PutUint32(buf[msgLen:], uint32(n))
+		msgLen += n + 4
 
 		wswg.lock.Lock()
 		wswg.lastPlugAddr = a
-		c := wswg.wsConn
 		wswg.lock.Unlock()
 
-		if err = wswg.wsWrite(c, buf[:n]); err != nil {
+		// read as much as we can in the next 10ms to minimize ws messages
+		if err := wswg.plugConn.SetReadDeadline(time.Now().Add(10 * time.Millisecond)); err != nil {
+			log.Printf("error setting read deadline: %s", err)
+			return
+		}
+
+		for msgLen < bufLen-mtu-4 {
+			n, a, err = wswg.plugConn.ReadFrom(buf[msgLen+4 : msgLen+4+mtu])
+			if err != nil && !errors.Is(err, os.ErrDeadlineExceeded) {
+				log.Printf("error reading from udp plugboard: %s", err)
+				return
+			}
+			if n == mtu {
+				log.Printf("oversized udp packet from %s", a)
+				return
+			}
+			if n == 0 {
+				break
+			}
+
+			binary.BigEndian.PutUint32(buf[msgLen:], uint32(n))
+			msgLen += n + 4
+		}
+
+		wswg.lock.RLock()
+		c := wswg.wsConn
+		wswg.lock.RUnlock()
+
+		if err = wswg.wsWrite(c, buf[:msgLen]); err != nil {
 			wswg.resetConn(c, err)
 		}
 
@@ -303,6 +322,8 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 		go wswg.ws2wg(ctx)
 		go wswg.wg2ws(ctx)
 
+		emptyMessage := binary.BigEndian.AppendUint32(nil, 0)
+
 		for ctx.Err() == nil {
 			time.Sleep(1 * time.Second)
 
@@ -311,7 +332,7 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 				c := wswg.wsConn
 				wswg.lock.RUnlock()
 
-				if err := wswg.wsWrite(c, nil); err != nil {
+				if err := wswg.wsWrite(c, emptyMessage); err != nil {
 					wswg.resetConn(c, err)
 				}
 			}
