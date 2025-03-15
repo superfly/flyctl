@@ -154,6 +154,7 @@ func (cfg *Config) applyEnv() {
 	cfg.APIBaseURL = env.FirstOrDefault(cfg.APIBaseURL, apiBaseURLEnvKey)
 	cfg.FlapsBaseURL = env.FirstOrDefault(cfg.FlapsBaseURL, flapsBaseURLEnvKey)
 	cfg.MetricsBaseURL = env.FirstOrDefault(cfg.MetricsBaseURL, metricsBaseURLEnvKey)
+	cfg.MetricsToken = env.FirstOrDefault(cfg.MetricsToken, MetricsTokenEnvKey, AccessTokenEnvKey, APITokenEnvKey)
 	cfg.SyntheticsBaseURL = env.FirstOrDefault(cfg.SyntheticsBaseURL, syntheticsBaseURLEnvKey)
 	cfg.SendMetrics = env.IsTruthy(SendMetricsEnvKey) || cfg.SendMetrics
 	cfg.SyntheticsAgent = env.IsTruthy(SyntheticsAgentEnvKey) || cfg.SyntheticsAgent
