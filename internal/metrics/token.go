@@ -11,6 +11,10 @@ import (
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/state"
 	"github.com/superfly/flyctl/terminal"
+	"github.com/superfly/macaroon"
+	"github.com/superfly/macaroon/bundle"
+	"github.com/superfly/macaroon/flyio"
+	"github.com/superfly/macaroon/resset"
 )
 
 func queryMetricsToken(ctx context.Context) (string, error) {
@@ -59,6 +63,19 @@ func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 		return cfg.MetricsToken, nil
 	}
 
+	// if we have macaroons already, grab the first one and strip away all of
+	// its permissions and use that as a metrics token.
+	if macs := cfg.Tokens.MacaroonsOnly(); !macs.Empty() {
+		cav := resset.ActionNone
+		hdr := attenuatedFirstPermissionTokenWithDischarges(macs.All(), &cav)
+
+		if hdr != "" {
+			// don't persist this token, since it will likely expire soon and
+			// it's easy to recreate
+			return hdr, nil
+		}
+	}
+
 	if cfg.MetricsToken == "" && cfg.Tokens.GraphQL() != "" {
 		terminal.Debugf("Querying metrics token from web\n")
 		token, err := queryMetricsToken(parentCtx)
@@ -72,6 +89,43 @@ func GetMetricsToken(parentCtx context.Context) (token string, err error) {
 		return token, nil
 	}
 	return "", errors.New("no metrics token in config")
+}
+
+// attenuatedFirstPermissionTokenWithDischarges selects the first permission
+// token and associated discharge tokens, applies the given caveats to the
+// permission token, and returns the result as a token header.
+func attenuatedFirstPermissionTokenWithDischarges(hdr string, caveats ...macaroon.Caveat) string {
+	// selects the first permission token
+	predicate := bundle.And(flyio.IsPermissionToken, firstToken())
+
+	// selects permission tokens matching the predicate along with
+	// associated discharge tokens
+	filter := bundle.DefaultFilter(predicate)
+
+	bun, _ := flyio.ParseBundleWithFilter(hdr, filter)
+
+	if err := bun.Attenuate(caveats...); err != nil {
+		return ""
+	}
+
+	return bun.Header()
+}
+
+// firstToken returns a predicate (macaroon filter function) that keeps only the
+// first token passed to it.
+func firstToken() bundle.Predicate {
+	var first bundle.Token
+	return func(t bundle.Token) bool {
+		switch {
+		case first == nil:
+			first = t
+			return true
+		case first == t:
+			return true
+		default:
+			return false
+		}
+	}
 }
 
 func persistMetricsToken(ctx context.Context, token string) error {
