@@ -27,7 +27,7 @@ require (
 	github.com/coder/websocket v1.8.12
 	github.com/containerd/continuity v0.4.5
 	github.com/depot/depot-go v0.5.0
-	github.com/docker/docker v27.5.1+incompatible
+	github.com/docker/docker v28.0.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/docker/go-units v0.5.0
 	github.com/dustin/go-humanize v1.0.1
@@ -154,7 +154,6 @@ require (
 	github.com/chrismellard/docker-credential-acr-env v0.0.0-20230304212654-82a0ddb27589 // indirect
 	github.com/cloudflare/circl v1.3.7 // indirect
 	github.com/containerd/console v1.0.4 // indirect
-	github.com/containerd/containerd v1.7.27 // indirect
 	github.com/containerd/containerd/api v1.8.0 // indirect
 	github.com/containerd/containerd/v2 v2.0.2 // indirect
 	github.com/containerd/errdefs v1.0.0 // indirect
@@ -279,4 +278,5 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259 // indirect
+	tags.cncf.io/container-device-interface v0.8.1 // indirect
 )
