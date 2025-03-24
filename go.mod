@@ -80,7 +80,7 @@ require (
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.2.14-0.20240819201738-61a02aa53648
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
-	github.com/vektah/gqlparser/v2 v2.5.22
+	github.com/vektah/gqlparser/v2 v2.5.23
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
@@ -120,7 +120,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/ProtonMail/go-crypto v1.1.3 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
-	github.com/agnivade/levenshtein v1.2.0 // indirect
+	github.com/agnivade/levenshtein v1.2.1 // indirect
 	github.com/alecthomas/units v0.0.0-20231202071711-9a357b53e9c9 // indirect
 	github.com/alexflint/go-arg v1.5.1 // indirect
 	github.com/alexflint/go-scalar v1.2.0 // indirect
