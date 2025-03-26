@@ -56,7 +56,7 @@ require (
 	github.com/moby/buildkit v0.20.2
 	github.com/moby/patternmatcher v0.6.0
 	github.com/morikuni/aec v1.0.0
-	github.com/muesli/termenv v0.15.2
+	github.com/muesli/termenv v0.16.0
 	github.com/nats-io/nats.go v1.39.1
 	github.com/novln/docker-parser v1.0.0
 	github.com/oklog/ulid/v2 v2.1.0
@@ -235,7 +235,7 @@ require (
 	github.com/prometheus/common v0.55.0 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rivo/tview v0.0.0-20220307222120-9994674d60a8 // indirect
-	github.com/rivo/uniseg v0.4.3 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.4.0 // indirect
