@@ -172,11 +172,7 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		&remoteImageResolver{flyApi: r.apiClient},
 	}
 
-	bld, err := r.createImageBuild(ctx, strategies, opts)
-	if err != nil {
-		span.AddEvent(fmt.Sprintf("failed to create image build. err=%s", err.Error()))
-		terminal.Warnf("failed to create build in graphql: %v\n", err)
-	}
+	bld := newFailedBuild()
 
 	for _, s := range strategies {
 		terminal.Debugf("Trying '%s' strategy\n", s.Name())
