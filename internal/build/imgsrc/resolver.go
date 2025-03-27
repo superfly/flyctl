@@ -162,7 +162,7 @@ type StopSignal struct {
 // limit stored logs to 4KB; take suffix if longer
 const logLimit int = 4096
 
-// ResolveReference returns an Image give an reference using either the local docker daemon or remote registry
+// ResolveReference returns an Image given a reference using either the local docker daemon or remote registry
 func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOStreams, opts RefOptions) (img *DeploymentImage, err error) {
 	ctx, span := tracing.GetTracer().Start(ctx, "resolve_reference")
 	defer span.End()

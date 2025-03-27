@@ -178,6 +178,12 @@ var CommonFlags = flag.Set{
 		Description: "Number of times to retry a deployment if it fails",
 		Default:     "auto",
 	},
+	flag.Bool{
+		Name:        "skip-resolve-image",
+		Description: "Skip image resolution",
+		Default:     false,
+		Hidden:      true,
+	},
 }
 
 type Command struct {

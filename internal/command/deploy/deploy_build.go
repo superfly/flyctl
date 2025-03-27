@@ -91,6 +91,12 @@ func determineImage(ctx context.Context, appConfig *appconfig.Config, useWG, rec
 
 	// we're using a pre-built Docker image
 	if imageRef != "" {
+		if flag.GetBool(ctx, "skip-resolve-image") {
+			span.AddEvent("skipping image resolve")
+			img = &imgsrc.DeploymentImage{Tag: imageRef}
+			return
+		}
+
 		opts := imgsrc.RefOptions{
 			AppName:    appConfig.AppName,
 			WorkingDir: state.WorkingDirectory(ctx),
