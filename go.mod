@@ -75,10 +75,10 @@ require (
 	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.20.0
 	github.com/stretchr/testify v1.10.0
-	github.com/superfly/fly-go v0.1.42
+	github.com/superfly/fly-go v0.1.43-0.20250328220147-4054f7d71d5c
 	github.com/superfly/graphql v0.2.6
 	github.com/superfly/lfsc-go v0.1.1
-	github.com/superfly/macaroon v0.2.14-0.20240819201738-61a02aa53648
+	github.com/superfly/macaroon v0.3.0
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
@@ -197,6 +197,7 @@ require (
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
+	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/heroku/color v0.0.6 // indirect
 	github.com/in-toto/in-toto-golang v0.5.0 // indirect
