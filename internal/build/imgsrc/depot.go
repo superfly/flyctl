@@ -15,7 +15,6 @@ import (
 	depotmachine "github.com/depot/depot-go/machine"
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session/secrets/secretsprovider"
-	"github.com/moby/buildkit/util/progress/progressui"
 	"github.com/pkg/errors"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
@@ -301,16 +300,7 @@ func buildImage(ctx context.Context, buildkitClient *client.Client, opts ImageOp
 		res, err = buildkitClient.Solve(ctx, nil, solverOptions, ch)
 		return err
 	})
-
-	eg.Go(func() error {
-		display, err := progressui.NewDisplay(os.Stderr, progressui.AutoMode)
-		if err != nil {
-			return err
-		}
-
-		_, err = display.UpdateFrom(context.Background(), ch)
-		return err
-	})
+	eg.Go(newDisplay(ch))
 
 	if err := eg.Wait(); err != nil {
 		span.RecordError(err)
