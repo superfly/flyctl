@@ -337,7 +337,6 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 	group, gCtx := errgroup.WithContext(ctx)
 	group.SetLimit(poolSize)
 
-	fmt.Println("machineTuples", machineTuples, "poolSize", poolSize)
 	for _, machPair := range machineTuples {
 		machPair := machPair
 		oldMachine := machPair.oldMachine
@@ -359,11 +358,9 @@ func (md *machineDeployment) updateProcessGroup(ctx context.Context, machineTupl
 
 			sl := machineLogger.getLoggerFromID(machineID)
 
-			select {
-			case <-gCtx.Done():
+			if err := gCtx.Err(); err != nil {
 				sl.LogStatus(statuslogger.StatusFailure, "skipping machine update due to earlier failure")
-				return gCtx.Err()
-			default:
+				return err
 			}
 
 			checkResult, ok := healthChecksPassed.Load(machineID)
