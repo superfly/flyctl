@@ -479,7 +479,7 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 
-		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
+		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true, "")
 		if destroy {
 			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
 		}
@@ -699,24 +699,28 @@ func determineMachineConfig(
 
 	if input.updating {
 		// Called from `update`. Command is specified by flag.
-		if command := flag.GetString(ctx, "command"); command != "" {
-			split, err := shlex.Split(command)
-			if err != nil {
-				return machineConf, errors.Wrap(err, "invalid command")
+		if flag.IsSpecified(ctx, "command") {
+			command := strings.TrimSpace(flag.GetString(ctx, "command"))
+			switch command {
+			case "":
+				machineConf.Init.Cmd = nil
+			default:
+				split, err := shlex.Split(command)
+				if err != nil {
+					return machineConf, errors.Wrap(err, "invalid command")
+				}
+				machineConf.Init.Cmd = split
 			}
-			machineConf.Init.Cmd = split
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
 		args := flag.Args(ctx)
 
-		if len(args) != 0 {
+		if len(args) > 1 {
 			machineConf.Init.Cmd = args[1:]
+		} else if input.interact {
+			machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 		}
-	}
-
-	if input.interact {
-		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
@@ -797,7 +801,7 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.Tag
+		machineConf.Image = img.String()
 	}
 
 	// Service updates

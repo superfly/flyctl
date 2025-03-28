@@ -208,10 +208,31 @@ func UnregisterMember(ctx context.Context, app *fly.AppCompact, machine *fly.Mac
 		return err
 	}
 
-	hostname := fmt.Sprintf("%s.vm.%s.internal", machine.ID, app.Name)
+	machineVersionStr := strings.TrimPrefix(machine.ImageVersion(), "v")
 
-	if err := cmd.UnregisterMember(ctx, leader.PrivateIP, hostname); err != nil {
-		if err2 := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err2 != nil {
+	flyVersion, err := version.NewVersion(machineVersionStr)
+	if err != nil {
+		return fmt.Errorf("failed to parse machine version: %w", err)
+	}
+
+	// This is the version where we begin using Machine IDs instead of hostnames
+	versionGate, err := version.NewVersion("0.0.63")
+	if err != nil {
+		return fmt.Errorf("failed to parse logic gate version: %w", err)
+	}
+
+	if flyVersion.LessThan(versionGate) {
+		// Old logic
+		hostname := fmt.Sprintf("%s.vm.%s.internal", machine.ID, app.Name)
+
+		if err := cmd.UnregisterMember(ctx, leader.PrivateIP, hostname); err != nil {
+			if err2 := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.PrivateIP); err2 != nil {
+				return err
+			}
+		}
+
+	} else {
+		if err := cmd.UnregisterMember(ctx, leader.PrivateIP, machine.ID); err != nil {
 			return err
 		}
 	}

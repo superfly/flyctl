@@ -93,6 +93,7 @@ type Deploy struct {
 	ReleaseCommand        string        `toml:"release_command,omitempty" json:"release_command,omitempty"`
 	ReleaseCommandTimeout *fly.Duration `toml:"release_command_timeout,omitempty" json:"release_command_timeout,omitempty"`
 	ReleaseCommandCompute *Compute      `toml:"release_command_vm,omitempty" json:"release_command_vm,omitempty"`
+	SeedCommand           string        `toml:"seed_command,omitempty" json:"seed_command,omitempty"`
 }
 
 type File struct {
