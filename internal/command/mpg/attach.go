@@ -90,10 +90,6 @@ func runAttach(ctx context.Context) error {
 	return runAttachCluster(ctx, params)
 }
 
-func machineAttachCluster(ctx context.Context, params AttachParams, flycast *string) error {
-	return runAttachCluster(ctx, params)
-}
-
 func runAttachCluster(ctx context.Context, params AttachParams) error {
 	var (
 		client     = flyutil.ClientFromContext(ctx)
