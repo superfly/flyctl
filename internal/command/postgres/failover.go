@@ -335,9 +335,10 @@ func handleFlexFailoverFail(ctx context.Context, machines []*fly.Machine) (err e
 		if !strings.Contains(err.Error(), " lease not found") {
 			return err
 		}
-	}
-	if err := flapsClient.ReleaseLease(ctx, leader.ID, lease.Data.Nonce); err != nil {
-		return err
+	} else if lease.Data != nil {
+		if err := flapsClient.ReleaseLease(ctx, leader.ID, lease.Data.Nonce); err != nil {
+			return err
+		}
 	}
 
 	fmt.Println("Trying to start old leader")
