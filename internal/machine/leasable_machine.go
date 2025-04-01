@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/jpillora/backoff"
@@ -49,14 +51,20 @@ type leasableMachine struct {
 	io                     *iostreams.IOStreams
 	colorize               *iostreams.ColorScheme
 	machine                *fly.Machine
-	leaseNonce             string
 	leaseRefreshCancelFunc context.CancelFunc
 	destroyed              bool
 	showLogs               bool
+
+	// mu protects leaseNonce. A leasableMachine shouldn't be shared between
+	// goroutines, but StartBackgroundLeaseRefresh breaks the rule.
+	mu         sync.Mutex
+	leaseNonce string
 }
 
-// TODO: make sure the other functions handle showLogs correctly
+// NewLeasableMachine creates a wrapper for the given machine.
+// A lease must be held before calling this function.
 func NewLeasableMachine(flapsClient flapsutil.FlapsClient, io *iostreams.IOStreams, machine *fly.Machine, showLogs bool) LeasableMachine {
+	// TODO: make sure the other functions handle showLogs correctly
 	return &leasableMachine{
 		flapsClient: flapsClient,
 		io:          io,
@@ -121,15 +129,12 @@ func (lm *leasableMachine) Cordon(ctx context.Context) error {
 }
 
 func (lm *leasableMachine) FormattedMachineId() string {
-	res := lm.Machine().ID
-	if lm.Machine().Config.Metadata == nil {
-		return res
+	m := lm.Machine()
+	processGroup := m.ProcessGroup()
+	if processGroup == "" || m.IsFlyAppsReleaseCommand() || m.IsFlyAppsConsole() {
+		return m.ID
 	}
-	procGroup := lm.Machine().ProcessGroup()
-	if procGroup == "" || lm.Machine().IsFlyAppsReleaseCommand() || lm.Machine().IsFlyAppsConsole() {
-		return res
-	}
-	return fmt.Sprintf("%s [%s]", res, procGroup)
+	return fmt.Sprintf("%s [%s]", m.ID, processGroup)
 }
 
 func (lm *leasableMachine) logStatusWaiting(ctx context.Context, desired string) {
@@ -469,6 +474,9 @@ func (lm *leasableMachine) AcquireLease(ctx context.Context, duration time.Durat
 }
 
 func (lm *leasableMachine) RefreshLease(ctx context.Context, duration time.Duration) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
 	seconds := int(duration.Seconds())
 	refreshedLease, err := lm.flapsClient.RefreshLease(ctx, lm.machine.ID, &seconds, lm.leaseNonce)
 	if err != nil {
@@ -491,27 +499,33 @@ func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leas
 }
 
 func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, duration time.Duration, delayBetween time.Duration) {
-	var (
-		err error
-		b   = &backoff.Backoff{
-			Min:    delayBetween - 20*time.Millisecond,
-			Max:    delayBetween + 20*time.Millisecond,
-			Jitter: true,
-		}
-	)
+	b := &backoff.Backoff{
+		Min:    delayBetween - 20*time.Millisecond,
+		Max:    delayBetween + 20*time.Millisecond,
+		Jitter: true,
+	}
+
 	for {
-		err = lm.RefreshLease(ctx, duration)
-		switch {
+		time.Sleep(b.Duration())
+		switch err := lm.RefreshLease(ctx, duration); {
+		case err == nil:
+			// good times
 		case errors.Is(err, context.Canceled):
 			return
-		case err != nil:
+		case strings.Contains(err.Error(), "machine not found"):
+			// machine is gone, no need to refresh its lease
+			return
+		default:
 			terminal.Warnf("error refreshing lease for machine %s: %v\n", lm.machine.ID, err)
 		}
-		time.Sleep(b.Duration())
 	}
 }
 
+// ReleaseLease releases the lease on this machine.
 func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
+	lm.mu.Lock()
+	defer lm.mu.Unlock()
+
 	nonce := lm.leaseNonce
 	lm.resetLease()
 	if nonce == "" {
@@ -528,13 +542,7 @@ func (lm *leasableMachine) ReleaseLease(ctx context.Context) error {
 		defer cancel()
 	}
 
-	err := lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
-	contextTimedOutOrCanceled := errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
-	if err != nil && (!contextWasAlreadyCanceled || !contextTimedOutOrCanceled) {
-		terminal.Warnf("failed to release lease for machine %s: %v\n", lm.machine.ID, err)
-		return err
-	}
-	return nil
+	return lm.flapsClient.ReleaseLease(ctx, lm.machine.ID, nonce)
 }
 
 func (lm *leasableMachine) resetLease() {

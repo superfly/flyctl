@@ -37,6 +37,13 @@ type LaunchPlan struct {
 
 	ScannerFamily string          `json:"scanner_family"`
 	FlyctlVersion version.Version `json:"flyctl_version"`
+
+	Runtime RuntimeStruct `json:"runtime"`
+}
+
+type RuntimeStruct struct {
+	Language string `json:"language"`
+	Version  string `json:"version"`
 }
 
 // Guest returns the guest described by the *raw* guest fields in a Plan.

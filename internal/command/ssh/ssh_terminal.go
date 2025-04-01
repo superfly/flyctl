@@ -56,7 +56,7 @@ func RunSSHCommand(ctx context.Context, app *fly.AppCompact, dialer agent.Dialer
 	}
 
 	if len(errBuf.Bytes()) > 0 {
-		return nil, fmt.Errorf(errBuf.String())
+		return nil, errors.New(errBuf.String())
 	}
 
 	return outBuf.Bytes(), nil
@@ -115,7 +115,7 @@ func SSHConnect(p *SSHParams, addr string) error {
 		TermEnv:  "xterm",
 	}
 
-	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd); err != nil {
+	if err := sshClient.Shell(context.Background(), sessIO, p.Cmd, ""); err != nil {
 		return errors.Wrap(err, "ssh shell")
 	}
 

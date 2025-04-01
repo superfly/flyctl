@@ -47,7 +47,7 @@ func MonitorTokens(monitorCtx context.Context, t *tokens.Tokens, uucb UserURLCal
 		log.Debugf("failed to update discharge tokens: %s", err)
 	}
 
-	if file != "" && updated1 || updated2 {
+	if file != "" && (updated1 || updated2) {
 		if err := SetAccessToken(file, t.All()); err != nil {
 			log.Debugf("failed to persist updated tokens: %s", err)
 		}
@@ -198,6 +198,11 @@ func refreshDischargeTokens(ctx context.Context, t *tokens.Tokens, uucb UserURLC
 //
 // Don't call this when other goroutines might also be accessing t.
 func fetchOrgTokens(ctx context.Context, t *tokens.Tokens) (bool, error) {
+	// don't fetch missing org tokens if tokens came from environment var
+	if t.FromFile() == "" {
+		return false, nil
+	}
+
 	return doFetchOrgTokens(ctx, t, defaultOrgFetcher, defaultTokenMinter)
 }
 

@@ -6,6 +6,10 @@ swap_size_mb = 512
 
 [deploy]
   release_command = "migrate-db"
+  release_command_timeout = "3m"
+  [deploy.release_command_vm]
+    size = "performance-2x"
+    memory = "4G"
 
 [[restart]]
   policy = "always"
@@ -46,3 +50,6 @@ guest_path = "/guest/path"
 url_prefix = "/url/prefix"
 tigris_bucket = "example-bucket"
 index_document = "index.html"
+
+[experimental]
+machine_config = '{"dns": {"nameservers": ["1.2.3.4"]}}'

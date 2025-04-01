@@ -49,7 +49,7 @@ func newRestart() *cobra.Command {
 		},
 		flag.Bool{
 			Name:        "skip-health-checks",
-			Description: "Restarts app without waiting for health checks. ( Machines only )",
+			Description: "Restarts app without waiting for health checks.",
 			Default:     false,
 		},
 	)

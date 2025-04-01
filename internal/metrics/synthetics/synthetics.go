@@ -5,6 +5,7 @@ import (
 
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/logger"
 	"github.com/superfly/flyctl/internal/task"
 )
@@ -36,12 +37,18 @@ func StartSyntheticsMonitoringAgent(clientCtx context.Context) {
 func shouldRunSyntheticsAgent(ctx context.Context) bool {
 	cfg := config.FromContext(ctx)
 
+	// Do not run unless enabled
 	if !cfg.SyntheticsAgent {
 		return false
 	}
 
 	// don't run synthetics checks in a dev agent connecting to production flynthetics
 	if buildinfo.IsDev() && cfg.SyntheticsBaseURLIsProduction() {
+		return false
+	}
+
+	// Also do not run if it's CI, client will be gone by the time we try to run a probe
+	if env.IsCI() {
 		return false
 	}
 

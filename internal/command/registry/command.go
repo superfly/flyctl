@@ -17,6 +17,7 @@ func New() *cobra.Command {
 	cmd.Hidden = true
 
 	cmd.AddCommand(
+		newFiles(),
 		newSbom(),
 		newVulns(),
 		newVulnSummary(),

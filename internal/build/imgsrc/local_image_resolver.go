@@ -6,7 +6,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/image"
 	dockerclient "github.com/docker/docker/client"
 	dockerparser "github.com/novln/docker-parser"
@@ -132,7 +131,7 @@ func findImageWithDocker(ctx context.Context, d *dockerclient.Client, imageName 
 
 	isID := imageIDPattern.MatchString(imageName)
 
-	images, err := d.ImageList(ctx, types.ImageListOptions{})
+	images, err := d.ImageList(ctx, image.ListOptions{})
 	if err != nil {
 		tracing.RecordError(span, err, "failed to list images")
 		return nil, err

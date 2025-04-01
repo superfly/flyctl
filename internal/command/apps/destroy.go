@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/command/deploy/statics"
 	"github.com/superfly/flyctl/internal/flag/completion"
 	"github.com/superfly/flyctl/internal/flyutil"
 
@@ -65,6 +67,28 @@ func RunDestroy(ctx context.Context) error {
 			default:
 				return err
 			}
+		}
+
+		app, err := client.GetApp(ctx, appName)
+		if err != nil {
+			return err
+		}
+		org, err := client.GetOrganizationBySlug(ctx, app.Organization.Slug)
+		if err != nil {
+			return err
+		}
+
+		bucket, err := statics.FindBucket(ctx, app, org)
+		if err != nil {
+			return err
+		}
+
+		if bucket != nil {
+			_, err = gql.DeleteAddOn(ctx, client.GenqClient(), bucket.Name)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(io.Out, "Destroyed statics bucket %s\n", bucket.Name)
 		}
 
 		if err := client.DeleteApp(ctx, appName); err != nil {

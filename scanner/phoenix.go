@@ -1,10 +1,12 @@
 package scanner
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/superfly/flyctl/helpers"
@@ -113,19 +115,32 @@ a Postgres database.
 		s.ReleaseCmd = "/app/bin/migrate"
 	} else if checksPass(sourceDir, dirContains("mix.exs", "ecto_sqlite3")) {
 		s.DatabaseDesired = DatabaseKindSqlite
+		s.ObjectStorageDesired = true
 		s.Env["DATABASE_PATH"] = "/mnt/name/name.db"
 		s.Volumes = []Volume{
 			{
-				Source:      "name",
-				Destination: "/mnt/name",
+				Source:                  "name",
+				Destination:             "/mnt/name",
+				InitialSize:             "1GB",
+				AutoExtendSizeThreshold: 80,
+				AutoExtendSizeIncrement: "1GB",
+				AutoExtendSizeLimit:     "10GB",
 			},
 		}
+	}
+
+	if checksPass(sourceDir, dirContains("mix.exs", "redis")) {
+		s.RedisDesired = true
+	}
+
+	if checksPass(sourceDir, dirContains("mix.exs", "ex_aws_s3")) {
+		s.ObjectStorageDesired = true
 	}
 
 	return s, nil
 }
 
-func PhoenixCallback(appName string, _ *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
+func PhoenixCallback(appName string, srcInfo *SourceInfo, plan *plan.LaunchPlan, flags []string) error {
 	envEExPath := "rel/env.sh.eex"
 	envEExContents := `
 # configure node for distributed erlang with IPV6 support
@@ -165,5 +180,191 @@ export RELEASE_NODE="${FLY_APP_NAME}-${FLY_IMAGE_REF##*-}@${FLY_PRIVATE_IP}"
 			return err
 		}
 	}
+
+	// add Litestream if object storage is present and database is sqlite3
+	if plan.ObjectStorage.Provider() != nil && srcInfo.DatabaseDesired == DatabaseKindSqlite {
+		srcInfo.PostInitCallback = install_litestream
+	}
+
 	return nil
+}
+
+// Read the Dockerfile and insert the necessary commands to install Litestream
+// and run the Litestream script as the entrypoint.  Primary constraint:
+// do no harm.  If the Dockerfile is not in the expected format, do not modify it.
+func install_litestream() error {
+	// Ensure config directory exists
+	if _, err := os.Stat("config"); os.IsNotExist(err) {
+		return nil
+	}
+
+	// Open original Dockerfile
+	file, err := os.Open("Dockerfile")
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// Create temporary output
+	var lines []string
+
+	// Variables to track state
+	workdir := ""
+	scanner := bufio.NewScanner(file)
+	insertedLitestreamInstall := false
+	foundEntrypoint := false
+	insertedEntrypoint := false
+	installedWget := false
+	copiedLitestream := false
+
+	// Read line by line
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		// Insert litestream script as entrypoint
+		if strings.HasPrefix(strings.TrimSpace(line), "CMD ") && !insertedEntrypoint {
+			script := workdir + "/bin/litestream.sh"
+
+			if foundEntrypoint {
+				if strings.Contains(line, "CMD [") {
+					// JSON array format: CMD ["cmd"]
+					line = strings.Replace(line, "CMD [", fmt.Sprintf("CMD [\"/bin/bash\", \"%s\",", script), 1)
+					insertedEntrypoint = true
+				} else if strings.Contains(line, "CMD \"") {
+					// Shell format with quotes: CMD "cmd"
+					line = strings.Replace(line, "CMD \"", fmt.Sprintf("CMD \"/bin/bash %s", script), 1)
+					insertedEntrypoint = true
+				}
+			} else {
+				lines = append(lines, "# Run litestream script as entrypoint")
+				lines = append(lines, fmt.Sprintf("ENTRYPOINT [\"/bin/bash\", \"%s\"]", script))
+				lines = append(lines, "")
+				insertedEntrypoint = true
+			}
+		}
+
+		// Add wget to install litestream
+		if strings.Contains(line, "build-essential") && !installedWget {
+			line = strings.Replace(line, "build-essential", "build-essential wget", 1)
+			installedWget = true
+		}
+
+		// Copy litestream binary from build stage, and setup from source
+		if strings.HasPrefix(strings.TrimSpace(line), "USER ") && !copiedLitestream {
+			lines = append(lines, "# Copy Litestream binary from build stage")
+			lines = append(lines, "COPY --from=builder /usr/bin/litestream /usr/bin/litestream")
+			lines = append(lines, "COPY litestream.sh /app/bin/litestream.sh")
+			lines = append(lines, "COPY config/litestream.yml /etc/litestream.yml")
+			lines = append(lines, "")
+			copiedLitestream = true
+		}
+
+		// Append original line
+		lines = append(lines, line)
+
+		// Install litestream
+		if strings.Contains(line, "apt-get clean") && !insertedLitestreamInstall {
+			lines = append(lines, "")
+			lines = append(lines, "# Install litestream")
+			lines = append(lines, "ARG LITESTREAM_VERSION=0.3.13")
+			lines = append(lines, "RUN wget https://github.com/benbjohnson/litestream/releases/download/v${LITESTREAM_VERSION}/litestream-v${LITESTREAM_VERSION}-linux-amd64.deb \\")
+			lines = append(lines, "    && dpkg -i litestream-v${LITESTREAM_VERSION}-linux-amd64.deb")
+
+			insertedLitestreamInstall = true
+		}
+
+		// Check for existing entrypoint
+		if strings.HasPrefix(strings.TrimSpace(line), "ENTRYPOINT ") {
+			foundEntrypoint = true
+		}
+
+		// Track WORKDIR
+		if strings.HasPrefix(strings.TrimSpace(line), "WORKDIR ") {
+			workdir = strings.Split(strings.TrimSpace(line), " ")[1]
+			workdir = strings.Trim(workdir, "\"")
+			workdir = strings.TrimRight(workdir, "/")
+		}
+	}
+
+	// Check for errors
+	if err := scanner.Err(); err != nil {
+		return err
+	}
+
+	// If we didn't complete the insertion, return without writing to file
+	if !insertedLitestreamInstall || !insertedEntrypoint || !copiedLitestream {
+		fmt.Println("Failed to insert Litestream installation commands. Skipping Litestream installation.")
+		return nil
+	} else {
+		fmt.Fprintln(os.Stdout, "Updating Dockerfile to install Litestream")
+	}
+
+	// Write dockerfile back to file
+	dockerfile, err := os.Create("Dockerfile")
+	if err != nil {
+		return err
+	}
+	defer dockerfile.Close()
+
+	for _, line := range lines {
+		fmt.Fprintln(dockerfile, line)
+	}
+
+	// Create litestream.sh
+	script, err := os.Create("litestream.sh")
+	if err != nil {
+		return bufio.ErrBadReadCount
+	}
+	defer script.Close()
+
+	_, err = fmt.Fprint(script, strings.TrimSpace(`
+#!/usr/bin/env bash
+set -e
+
+# If db doesn't exist, try restoring from object storage
+if [ ! -f "$DATABASE_PATH" ] && [ -n "$BUCKET_NAME" ]; then
+	litestream restore -if-replica-exists "$DATABASE_PATH"
+fi
+
+# Migrate database
+/app/bin/migrate
+
+# Launch application
+if [ -n "$BUCKET_NAME" ]; then
+	litestream replicate -exec "${*}"
+else
+	exec "${@}"
+fi
+	`))
+
+	if err != nil {
+		return err
+	}
+
+	// Create litestream.yml
+	config, err := os.Create("config/litestream.yml")
+	if err != nil {
+		return err
+	}
+
+	defer config.Close()
+
+	_, err = fmt.Fprint(config, strings.TrimSpace(strings.ReplaceAll(`
+# This is the configuration file for litestream.
+#
+# For more details, see: https://litestream.io/reference/config/
+#
+dbs:
+- path: $DATABASE_PATH
+  replicas:
+  - type: s3
+	endpoint: $AWS_ENDPOINT_URL_S3
+	bucket: $BUCKET_NAME
+	path: litestream${DATABASE_PATH}
+	access-key-id: $AWS_ACCESS_KEY_ID
+	secret-access-key: $AWS_SECRET_ACCESS_KEY
+	region: $AWS_REGION
+`, "\t", "    ")))
+
+	return err
 }

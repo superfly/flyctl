@@ -203,7 +203,8 @@ func TestToDefinition(t *testing.T) {
 				"default_self_signed": false,
 			},
 			"http_options": map[string]any{
-				"compress": true,
+				"compress":     true,
+				"idle_timeout": int64(600),
 				"response": map[string]any{
 					"headers": map[string]any{
 						"fly-request-id": false,
@@ -256,22 +257,29 @@ func TestToDefinition(t *testing.T) {
 		},
 
 		"deploy": map[string]any{
-			"release_command": "release command",
-			"strategy":        "rolling-eyes",
-			"max_unavailable": 0.2,
+			"strategy":                "rolling-eyes",
+			"max_unavailable":         0.2,
+			"release_command":         "release command",
+			"release_command_timeout": "3m0s",
+			"release_command_vm": map[string]any{
+				"size":   "performance-2x",
+				"memory": "8g",
+			},
 		},
 		"env": map[string]any{
 			"FOO": "BAR",
 		},
 		"metrics": []any{
 			map[string]any{
-				"port": int64(9999),
-				"path": "/metrics",
+				"port":  int64(9999),
+				"path":  "/metrics",
+				"https": false,
 			},
 			map[string]any{
 				"port":      int64(9998),
 				"path":      "/metrics",
 				"processes": []any{"web"},
+				"https":     false,
 			},
 		},
 		"statics": []any{
@@ -340,10 +348,13 @@ func TestToDefinition(t *testing.T) {
 				},
 				"ports": []any{
 					map[string]any{
-						"port":        int64(80),
-						"start_port":  int64(100),
-						"end_port":    int64(200),
-						"handlers":    []any{"https"},
+						"port":       int64(80),
+						"start_port": int64(100),
+						"end_port":   int64(200),
+						"handlers":   []any{"https"},
+						"http_options": map[string]any{
+							"idle_timeout": int64(600),
+						},
 						"force_https": true,
 					},
 				},

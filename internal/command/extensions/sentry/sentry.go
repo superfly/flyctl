@@ -13,7 +13,7 @@ func New() (cmd *cobra.Command) {
 	)
 
 	cmd = command.New("sentry", short, long, nil)
-	cmd.AddCommand(create(), Dashboard())
+	cmd.AddCommand(create(), Dashboard(), destroy(), list())
 
 	return cmd
 }

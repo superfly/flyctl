@@ -65,7 +65,7 @@ func runMachineList(ctx context.Context) (err error) {
 
 	machines, err := flapsClient.List(ctx, "")
 	if err != nil {
-		return fmt.Errorf("machines could not be retrieved")
+		return err
 	}
 
 	if cfg.JSONOutput {
@@ -100,14 +100,10 @@ func runMachineList(ctx context.Context) (err error) {
 				volName = machine.Config.Mounts[0].Volume
 			}
 
-			appPlatform := ""
 			machineProcessGroup := ""
 			size := ""
 
 			if machine.Config != nil {
-				if platformVersion, ok := machine.Config.Metadata[fly.MachineConfigMetadataKeyFlyPlatformVersion]; ok {
-					appPlatform = platformVersion
-				}
 
 				if processGroup := machine.ProcessGroup(); processGroup != "" {
 					machineProcessGroup = processGroup
@@ -119,7 +115,7 @@ func runMachineList(ctx context.Context) (err error) {
 			}
 
 			note := ""
-			unreachable := machine.HostStatus == "unreachable"
+			unreachable := machine.HostStatus != fly.HostStatusOk
 			if unreachable {
 				unreachableMachines = true
 				note = "*"
@@ -157,7 +153,6 @@ func runMachineList(ctx context.Context) (err error) {
 				volName,
 				lo.Ternary(unreachable, "", machine.CreatedAt),
 				lo.Ternary(unreachable, "", machine.UpdatedAt),
-				appPlatform,
 				machineProcessGroup,
 				size,
 			})
@@ -175,7 +170,6 @@ func runMachineList(ctx context.Context) (err error) {
 			"Volume",
 			"Created",
 			"Last Updated",
-			"App Platform",
 			"Process Group",
 			"Size",
 		}

@@ -88,6 +88,10 @@ func runUpdate(ctx context.Context) (err error) {
 	}
 	appName := appconfig.NameFromContext(ctx)
 
+	if machine.HostStatus != fly.HostStatusOk {
+		return fmt.Errorf("the machine is on an unreachable host, try again later")
+	}
+
 	// Acquire lease
 	machine, releaseLeaseFunc, err := mach.AcquireLease(ctx, machine)
 	defer releaseLeaseFunc()

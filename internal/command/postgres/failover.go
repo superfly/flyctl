@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -399,7 +400,7 @@ func pickNewLeader(ctx context.Context, app *fly.AppCompact, primaryCandidates [
 
 	err += "\nplease fix one or more of the above issues, and try again\n"
 
-	return nil, fmt.Errorf(err)
+	return nil, errors.New(err)
 }
 
 // Before doing anything that might mess up, it's useful to check if a dry run of the failover command will work, since that allows repmgr to do some checks

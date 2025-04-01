@@ -1,4 +1,4 @@
-package deploy_test
+package deploy
 
 import (
 	"bytes"
@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/internal/command/deploy"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/inmem"
@@ -23,6 +22,8 @@ import (
 var testdata embed.FS
 
 func TestCommand_Execute(t *testing.T) {
+	makeTerminalLoggerQuiet(t)
+
 	dir := t.TempDir()
 	fsys, _ := fs.Sub(testdata, "testdata/basic")
 	if err := copyFS(fsys, dir); err != nil {
@@ -31,7 +32,7 @@ func TestCommand_Execute(t *testing.T) {
 	chdir(t, dir)
 
 	var buf bytes.Buffer
-	cmd := deploy.New()
+	cmd := New()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
 	cmd.SetArgs([]string{"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000"})

@@ -162,6 +162,7 @@ func (c *Config) Flatten(groupName string) (*Config, error) {
 		dst.Metrics[i].Processes = []string{groupName}
 	}
 
+	// [[restart]]
 	dst.Restart = lo.Filter(dst.Restart, func(x Restart, _ int) bool {
 		return matchesGroups(x.Processes)
 	})

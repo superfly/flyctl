@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -39,8 +38,6 @@ func FlushMetrics(ctx context.Context) error {
 
 	iostream := iostreams.FromContext(ctx)
 
-	// On CI, always block on metrics send. This sucks, but the alternative is not getting metrics from CI at all. There are timeouts in place to prevent this from taking more than 15 seconds
-
 	if iostream.IsInteractive() {
 		flyctl, err := os.Executable()
 		if err != nil {
@@ -54,7 +51,7 @@ func FlushMetrics(ctx context.Context) error {
 		}
 
 		go func() {
-			io.WriteString(stdin, string(json))
+			stdin.Write(json)
 			stdin.Close()
 		}()
 
@@ -71,39 +68,75 @@ func FlushMetrics(ctx context.Context) error {
 			return err
 		}
 	} else {
+		// Don't check for errors in non-interactive mode
+		// because we don't want to impact other operations
+		// if metrics sending fails.
 		SendMetrics(ctx, string(json))
 	}
 
 	return nil
 }
 
-// / Spens up to 15 seconds sending all metrics collected so far to flyctl-metrics post endpoint
-func SendMetrics(ctx context.Context, json string) error {
-	authToken, err := GetMetricsToken(ctx)
-	if err != nil {
-		return err
-	}
-
+func SendMetrics(ctx context.Context, jsonData string) error {
 	cfg := config.FromContext(ctx)
-	request, err := http.NewRequest("POST", cfg.MetricsBaseURL+"/metrics_post", bytes.NewBuffer([]byte(json)))
+	metricsToken, err := GetMetricsToken(ctx)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Metrics token unavailable: %v\n", err)
+		return nil
+	}
+
+	baseURL := cfg.MetricsBaseURL
+	endpoint := baseURL + "/metrics_post"
+	userAgent := fmt.Sprintf("flyctl/%s", buildinfo.Info().Version)
+
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	err = sendMetricsRequest(timeoutCtx, endpoint, metricsToken, userAgent, []byte(jsonData))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Metrics send issue: %v\n", err)
 		return err
 	}
 
-	request.Header.Set("Authorization", authToken)
-	request.Header.Set("User-Agent", fmt.Sprintf("flyctl/%s", buildinfo.Info().Version))
+	return nil
+}
 
-	retryTransport := rehttp.NewTransport(http.DefaultTransport, rehttp.RetryAll(rehttp.RetryMaxRetries(3), rehttp.RetryTimeoutErr()), rehttp.ConstDelay(0))
-
-	client := http.Client{
-		Transport: retryTransport,
-		Timeout:   time.Second * 5,
+func sendMetricsRequest(ctx context.Context, endpoint, token, userAgent string, data []byte) error {
+	request, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewBuffer(data))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
 	}
+
+	request.Header.Set("Authorization", "Bearer "+token)
+	request.Header.Set("User-Agent", userAgent)
+
+	client := createHTTPClient()
 
 	resp, err := client.Do(request)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to send metrics: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("metrics send failed with status %d", resp.StatusCode)
 	}
 
-	return resp.Body.Close()
+	return nil
+}
+
+func createHTTPClient() *http.Client {
+	retryTransport := rehttp.NewTransport(
+		http.DefaultTransport,
+		rehttp.RetryAll(
+			rehttp.RetryMaxRetries(3),
+			rehttp.RetryTimeoutErr(),
+		),
+		rehttp.ConstDelay(0),
+	)
+
+	return &http.Client{
+		Transport: retryTransport,
+		Timeout:   time.Second * 5,
+	}
 }

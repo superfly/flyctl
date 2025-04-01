@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v5"
 	"github.com/pkg/errors"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"go.opentelemetry.io/otel/attribute"
@@ -22,11 +23,11 @@ import (
 	"github.com/superfly/flyctl/agent"
 	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/config"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/sentry"
 	"github.com/superfly/flyctl/internal/tracing"
 	"github.com/superfly/flyctl/iostreams"
-	"github.com/superfly/flyctl/retry"
 
 	"github.com/superfly/flyctl/terminal"
 )
@@ -53,6 +54,7 @@ type ImageOptions struct {
 	BuildpacksDockerHost string
 	BuildpacksVolumes    []string
 	UseOverlaybd         bool
+	UseZstd              bool
 }
 
 func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
@@ -71,24 +73,18 @@ func (io ImageOptions) ToSpanAttributes() []attribute.KeyValue {
 		attribute.String("imageoptions.buildpacks_docker_host", io.BuildpacksDockerHost),
 		attribute.StringSlice("imageoptions.buildpacks", io.Buildpacks),
 		attribute.StringSlice("imageoptions.buildpacks_volumes", io.BuildpacksVolumes),
+		attribute.Bool("imageoptions.use_zstd", io.UseZstd),
 	}
 
-	b, err := json.Marshal(io.BuildArgs)
-	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.build_args", string(b)))
+	if io.BuildArgs != nil {
+		attrs = append(attrs, attribute.Bool("imageoptions.has_build_args", true))
 	}
 
-	b, err = json.Marshal(io.ExtraBuildArgs)
-	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.extra_build_args", string(b)))
+	if io.BuildSecrets != nil {
+		attrs = append(attrs, attribute.Bool("imageoptions.has_build_secrets", true))
 	}
 
-	b, err = json.Marshal(io.BuildSecrets)
-	if err == nil {
-		attrs = append(attrs, attribute.String("imageoptions.build_secrets", string(b)))
-	}
-
-	b, err = json.Marshal(io.BuiltInSettings)
+	b, err := json.Marshal(io.BuiltInSettings)
 	if err == nil {
 		attrs = append(attrs, attribute.String("imageoptions.built_in_settings", string(b)))
 	}
@@ -122,10 +118,19 @@ func (ro RefOptions) ToSpanAttributes() []attribute.KeyValue {
 }
 
 type DeploymentImage struct {
-	ID     string
-	Tag    string
-	Size   int64
-	Labels map[string]string
+	ID      string
+	Tag     string
+	Digest  string
+	Size    int64
+	BuildID string
+	Labels  map[string]string
+}
+
+func (image *DeploymentImage) String() string {
+	if image.Digest == "" {
+		return image.Tag
+	}
+	return fmt.Sprintf("%s@%s", image.Tag, image.Digest)
 }
 
 func (di DeploymentImage) ToSpanAttributes() []attribute.KeyValue {
@@ -189,7 +194,12 @@ func (r *Resolver) ResolveReference(ctx context.Context, streams *iostreams.IOSt
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishImageStrategy(s, false /* success */, nil, note)
-			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+			if err == nil && buildResult != nil {
+				// we should only set the image's buildID if we push the build info to web
+				img.BuildID = buildResult.BuildId
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -223,10 +233,23 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 
 	strategies := []imageBuilder{}
 
+	var builderScope depotBuilderScope
+	builderScopeString := flag.GetString(ctx, "depot-scope")
+
+	switch builderScopeString {
+	case "org", "":
+		builderScope = DepotBuilderScopeOrganization
+	case "app":
+		builderScope = DepotBuilderScopeApp
+	default:
+		return nil, fmt.Errorf("invalid depot-scope value. must be 'org' or 'app'")
+
+	}
+
 	if r.dockerFactory.mode.UseNixpacks() {
 		strategies = append(strategies, &nixpacksBuilder{})
-	} else if r.dockerFactory.mode.UseDepot() {
-		strategies = append(strategies, &DepotBuilder{})
+	} else if r.dockerFactory.mode.UseDepot() && len(opts.Buildpacks) == 0 && opts.Builder == "" && opts.BuiltIn == "" {
+		strategies = append(strategies, &DepotBuilder{Scope: builderScope})
 	} else {
 		strategies = []imageBuilder{
 			&buildpacksBuilder{},
@@ -262,7 +285,12 @@ func (r *Resolver) BuildImage(ctx context.Context, streams *iostreams.IOStreams,
 		if img != nil {
 			bld.BuildAndPushFinish()
 			bld.FinishStrategy(s, false /* success */, nil, note)
-			r.finishBuild(ctx, bld, false /* completed */, "", img)
+			buildResult, err := r.finishBuild(ctx, bld, false /* completed */, "", img)
+			if err == nil && buildResult != nil {
+				// we should only set the image's buildID if we push the build info to web
+				img.BuildID = buildResult.BuildId
+			}
+
 			return img, nil
 		}
 		bld.BuildAndPushFinish()
@@ -316,10 +344,16 @@ func (r *Resolver) createBuildGql(ctx context.Context, strategiesAvailable []str
 
 	client := flyutil.ClientFromContext(ctx)
 
-	builderType := "local"
-	if r.dockerFactory.remote {
-		builderType = "remote"
+	builderType := "remote"
+	switch {
+	case r.dockerFactory.mode.PrefersLocal():
+		builderType = "local"
+	case r.dockerFactory.mode.UseDepot():
+		builderType = "depot.dev"
+	case r.dockerFactory.mode.UseNixpacks():
+		builderType = "local"
 	}
+
 	input := fly.CreateBuildInput{
 		AppName:             r.dockerFactory.appName,
 		BuilderType:         builderType,
@@ -393,15 +427,20 @@ func newBuild(buildId string, createApiFailed bool) *build {
 	}
 }
 
-func (b *build) SetBuilderMetaPart1(remote bool, remoteAppName string, remoteMachineId string) {
+type builderType string
+
+const (
+	remoteBuilderType builderType = "remote"
+	localBuilderType  builderType = "local"
+	depotBuilderType  builderType = "depot.dev"
+)
+
+func (b *build) SetBuilderMetaPart1(builderType builderType, remoteAppName string, remoteMachineId string) {
 	if b == nil {
 		return
 	}
-	builderType := "remote"
-	if !remote {
-		builderType = "local"
-	}
-	b.BuilderMeta.BuilderType = builderType
+
+	b.BuilderMeta.BuilderType = string(builderType)
 	b.BuilderMeta.RemoteAppName = remoteAppName
 	b.BuilderMeta.RemoteMachineId = remoteMachineId
 }
@@ -644,9 +683,9 @@ func (r *Resolver) StartHeartbeat(ctx context.Context) (*StopSignal, error) {
 	terminal.Debugf("Sending remote builder heartbeat pulse to %s...\n", heartbeatUrl)
 
 	span.AddEvent("sending first heartbeat")
-	err = retry.Retry(func() error {
-		return r.heartbeatFn(ctx, dockerClient, heartbeatReq)
-	}, 3)
+	_, err = backoff.Retry(ctx, func() (any, error) {
+		return nil, r.heartbeatFn(ctx, dockerClient, heartbeatReq)
+	}, backoff.WithMaxTries(3))
 	if err != nil {
 		var h *httpError
 		if errors.As(err, &h) {

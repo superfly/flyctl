@@ -2,8 +2,11 @@ package machine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -39,11 +42,7 @@ var sharedFlags = flag.Set{
 	For example: --port 80/tcp --port 443:80/tcp:http:tls --port 5432/tcp:pg_tls
 	To remove a port mapping use '-' as handler. For example: --port 80/tcp:-`,
 	},
-	flag.StringArray{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
+	flag.Env(),
 	flag.String{
 		Name:        "entrypoint",
 		Description: "The command to override the Docker ENTRYPOINT.",
@@ -94,6 +93,10 @@ var sharedFlags = flag.Set{
 		Name:        "no-build-cache",
 		Description: "Do not use the cache when building the image",
 		Hidden:      true,
+	},
+	flag.String{
+		Name:        "machine-config",
+		Description: "Read machine config from json file or string",
 	},
 	flag.StringArray{
 		Name:        "kernel-arg",
@@ -176,6 +179,10 @@ var runOrCreateFlags = flag.Set{
 		Name:        "lsvd",
 		Description: "Enable LSVD for this machine",
 		Hidden:      true,
+	},
+	flag.Bool{
+		Name:        "use-zstd",
+		Description: "Enable zstd compression for the image",
 	},
 }
 
@@ -472,7 +479,7 @@ func runMachineRun(ctx context.Context) error {
 			return err
 		}
 
-		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true)
+		err = ssh.Console(ctx, sshClient, flag.GetString(ctx, "command"), true, "")
 		if destroy {
 			err = soManyErrors("console", err, "destroy machine", Destroy(ctx, app, machine, true))
 		}
@@ -640,6 +647,29 @@ func determineMachineConfig(
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
+	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, err
+			}
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, err
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		if err := json.Unmarshal(buf, machineConf); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
+	}
+
 	var err error
 	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
 	if err != nil {
@@ -669,24 +699,28 @@ func determineMachineConfig(
 
 	if input.updating {
 		// Called from `update`. Command is specified by flag.
-		if command := flag.GetString(ctx, "command"); command != "" {
-			split, err := shlex.Split(command)
-			if err != nil {
-				return machineConf, errors.Wrap(err, "invalid command")
+		if flag.IsSpecified(ctx, "command") {
+			command := strings.TrimSpace(flag.GetString(ctx, "command"))
+			switch command {
+			case "":
+				machineConf.Init.Cmd = nil
+			default:
+				split, err := shlex.Split(command)
+				if err != nil {
+					return machineConf, errors.Wrap(err, "invalid command")
+				}
+				machineConf.Init.Cmd = split
 			}
-			machineConf.Init.Cmd = split
 		}
 	} else {
 		// Called from `run`. Command is specified by arguments.
 		args := flag.Args(ctx)
 
-		if len(args) != 0 {
+		if len(args) > 1 {
 			machineConf.Init.Cmd = args[1:]
+		} else if input.interact {
+			machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 		}
-	}
-
-	if input.interact {
-		machineConf.Init.Exec = []string{"/bin/sleep", "inf"}
 	}
 
 	if flag.IsSpecified(ctx, "skip-dns-registration") {
@@ -767,7 +801,7 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.Tag
+		machineConf.Image = img.String()
 	}
 
 	// Service updates
@@ -808,6 +842,7 @@ func determineMachineConfig(
 	if flag.IsSpecified(ctx, "standby-for") {
 		standbys := flag.GetStringSlice(ctx, "standby-for")
 		machineConf.Standbys = lo.Ternary(len(standbys) > 0, standbys, nil)
+		machineConf.Env["FLY_STANDBY_FOR"] = strings.Join(standbys, ",")
 	}
 
 	machineFiles, err := command.FilesFromCommand(ctx)

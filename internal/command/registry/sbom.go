@@ -16,7 +16,7 @@ import (
 func newSbom() *cobra.Command {
 	const (
 		usage = "sbom"
-		short = "Generate an SBOM for a registry iamge [experimental]"
+		short = "Generate an SBOM for a registry image [experimental]"
 		long  = "Genearte an SBOM for a registry image.\n" +
 			"The image is selected by name, or the image of the app's first machine\n" +
 			"is used unless interactive machine selection or machine ID is specified."

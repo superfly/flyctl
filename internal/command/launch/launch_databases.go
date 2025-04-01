@@ -10,7 +10,7 @@ import (
 	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
-	"github.com/superfly/flyctl/internal/command/extensions/supabase"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -19,7 +19,9 @@ import (
 
 // createDatabases creates databases requested by the plan
 func (state *launchState) createDatabases(ctx context.Context) error {
-	if state.Plan.Postgres.FlyPostgres != nil {
+	planStep := plan.GetPlanStep(ctx)
+
+	if state.Plan.Postgres.FlyPostgres != nil && (planStep == "" || planStep == "postgres") {
 		err := state.createFlyPostgres(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -27,15 +29,11 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.Plan.Postgres.SupabasePostgres != nil {
-		err := state.createSupabasePostgres(ctx)
-		if err != nil {
-			// TODO(Ali): Make error printing here better.
-			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error provisioning Supabase Postgres database: %s\n", err)
-		}
+	if state.Plan.Postgres.SupabasePostgres != nil && (planStep == "" || planStep == "postgres") {
+		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Supabase Postgres is no longer supported.\n")
 	}
 
-	if state.Plan.Redis.UpstashRedis != nil {
+	if state.Plan.Redis.UpstashRedis != nil && (planStep == "" || planStep == "redis") {
 		err := state.createUpstashRedis(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -43,7 +41,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 		}
 	}
 
-	if state.Plan.ObjectStorage.TigrisObjectStorage != nil {
+	if state.Plan.ObjectStorage.TigrisObjectStorage != nil && (planStep == "" || planStep == "tigris") {
 		err := state.createTigrisObjectStorage(ctx)
 		if err != nil {
 			// TODO(Ali): Make error printing here better.
@@ -52,7 +50,7 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 	}
 
 	// Run any initialization commands required for Postgres if it was installed
-	if state.Plan.Postgres.Provider() != nil && state.sourceInfo != nil {
+	if state.Plan.Postgres.Provider() != nil && state.sourceInfo != nil && (planStep == "" || planStep == "postgres") {
 		for _, cmd := range state.sourceInfo.PostgresInitCommands {
 			if cmd.Condition {
 				if err := execInitCommand(ctx, cmd); err != nil {
@@ -157,32 +155,6 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	return nil
 }
 
-func (state *launchState) createSupabasePostgres(ctx context.Context) error {
-	postgresPlan := state.Plan.Postgres.SupabasePostgres
-
-	org, err := state.Org(ctx)
-	if err != nil {
-		return err
-	}
-
-	params := extensions_core.ExtensionParams{
-		AppName:              state.Plan.AppName,
-		Organization:         org,
-		Provider:             "supabase",
-		OverrideName:         fly.Pointer(postgresPlan.GetDbName(state.Plan)),
-		OverrideRegion:       postgresPlan.GetRegion(state.Plan),
-		ErrorCaptureCallback: supabase.CaptureFreeLimitError,
-	}
-
-	_, err = extensions_core.ProvisionExtension(ctx, params)
-
-	if err != nil {
-		return err
-	}
-
-	return err
-}
-
 func (state *launchState) createUpstashRedis(ctx context.Context) error {
 	redisPlan := state.Plan.Redis.UpstashRedis
 	dbName := fmt.Sprintf("%s-redis", state.Plan.AppName)
@@ -239,6 +211,7 @@ func (state *launchState) createTigrisObjectStorage(ctx context.Context) error {
 				"domain_name": tigrisPlan.WebsiteDomainName,
 			},
 		},
+		OverrideExtensionSecretKeyNames: state.sourceInfo.OverrideExtensionSecretKeyNames,
 	}
 
 	_, err = extensions_core.ProvisionExtension(ctx, params)

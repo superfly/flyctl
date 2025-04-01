@@ -13,8 +13,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coder/websocket"
 	"golang.org/x/time/rate"
-	"nhooyr.io/websocket"
 )
 
 func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
@@ -28,21 +28,6 @@ func ConnectWS(ctx context.Context, state *WireGuardState) (*Tunnel, error) {
 	}
 
 	return t, err
-}
-
-func write(w io.Writer, buf []byte) error {
-	var lbuf [4]byte
-	binary.BigEndian.PutUint32(lbuf[:], uint32(len(buf)))
-	if _, err := w.Write(lbuf[:]); err != nil {
-		return err
-	}
-
-	if len(buf) == 0 {
-		return nil
-	}
-
-	_, err := w.Write(buf)
-	return err
 }
 
 func read(r io.Reader, rbuf []byte) ([]byte, error) {
@@ -189,7 +174,8 @@ func (wswg *WsWgProxy) wsWrite(c net.Conn, b []byte) error {
 	wswg.wrlock.Lock()
 	defer wswg.wrlock.Unlock()
 
-	return write(c, b)
+	_, err := c.Write(b)
+	return err
 }
 
 func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
@@ -218,11 +204,11 @@ func (wswg *WsWgProxy) ws2wg(ctx context.Context) {
 }
 
 func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
-	buf := make([]byte, 2000)
+	var buf [2000]byte
 
 	for ctx.Err() == nil {
 		wswg.plugConn.SetReadDeadline(time.Now().Add(5 * time.Second))
-		n, a, err := wswg.plugConn.ReadFrom(buf)
+		n, a, err := wswg.plugConn.ReadFrom(buf[4:])
 		if err != nil {
 			if isTimeout(err) {
 				continue
@@ -231,13 +217,14 @@ func (wswg *WsWgProxy) wg2ws(ctx context.Context) {
 			// resetting won't do anything here
 			log.Printf("error reading from udp plugboard: %s", err)
 		}
+		binary.BigEndian.PutUint32(buf[:], uint32(n))
 
 		wswg.lock.Lock()
 		wswg.lastPlugAddr = a
 		c := wswg.wsConn
 		wswg.lock.Unlock()
 
-		if err = wswg.wsWrite(c, buf[:n]); err != nil {
+		if err = wswg.wsWrite(c, buf[:n+4]); err != nil {
 			wswg.resetConn(c, err)
 		}
 
@@ -303,6 +290,8 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 		go wswg.ws2wg(ctx)
 		go wswg.wg2ws(ctx)
 
+		zeroLenMsg := make([]byte, 4)
+
 		for ctx.Err() == nil {
 			time.Sleep(1 * time.Second)
 
@@ -311,7 +300,7 @@ func websocketConnect(ctx context.Context, endpoint string) (int, error) {
 				c := wswg.wsConn
 				wswg.lock.RUnlock()
 
-				if err := wswg.wsWrite(c, nil); err != nil {
+				if err := wswg.wsWrite(c, zeroLenMsg); err != nil {
 					wswg.resetConn(c, err)
 				}
 			}

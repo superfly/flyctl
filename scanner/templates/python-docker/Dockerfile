@@ -1,4 +1,4 @@
-FROM python:{{ .pyVersion }}-bookworm AS builder
+FROM python:{{ .pyVersion }} AS builder
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -25,7 +25,7 @@ COPY requirements.txt ./
 RUN .venv/bin/pip install -r requirements.txt
 {{ end -}}
 
-FROM python:{{ .pyVersion }}-slim-bookworm
+FROM python:{{ .pyVersion }}-slim
 WORKDIR /app
 COPY --from=builder /app/.venv .venv/
 COPY . .

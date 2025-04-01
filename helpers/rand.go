@@ -3,6 +3,7 @@ package helpers
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"math/big"
 	mrand "math/rand"
 	"time"
@@ -38,4 +39,14 @@ func RandBytes(n int) ([]byte, error) {
 	mrand.Read(token)
 
 	return token, nil
+}
+
+// RandHex generates a random hex string of a given length*2
+func RandHex(n int) (string, error) {
+	bytes, err := RandBytes(n)
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(bytes), nil
 }

@@ -105,6 +105,12 @@ func runMachinesRestart(ctx context.Context, app *fly.AppCompact) error {
 	}
 
 	for _, m := range machines {
+		// Restart only if started
+		// If you change this condition ensure standby machines aren't started when not running
+		if m.State != fly.MachineStateStarted {
+			continue
+		}
+
 		if err := machine.Restart(ctx, m, input, m.LeaseNonce); err != nil {
 			return err
 		}

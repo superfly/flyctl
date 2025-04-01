@@ -42,14 +42,14 @@ func newFork() *cobra.Command {
 			Description: "The name of the new volume",
 		},
 		flag.Bool{
-			Name:        "machines-only",
-			Description: "volume will be visible to Machines platform only",
-			Hidden:      true,
-		},
-		flag.Bool{
 			Name:        "require-unique-zone",
 			Description: "Place the volume in a separate hardware zone from existing volumes. This is the default.",
 			Default:     true,
+		},
+		flag.Bool{
+			Name:        "unique-zone-app-wide",
+			Description: "Checks all volumes in app for unique zone handling, instead of only volumes with the same name (which is the default)",
+			Default:     false,
 		},
 		flag.String{
 			Name:        "region",
@@ -100,16 +100,6 @@ func runFork(ctx context.Context) error {
 		name = flag.GetString(ctx, "name")
 	}
 
-	var machinesOnly *bool
-	if flag.IsSpecified(ctx, "machines-only") {
-		machinesOnly = fly.Pointer(flag.GetBool(ctx, "machines-only"))
-	}
-
-	var requireUniqueZone *bool
-	if flag.IsSpecified(ctx, "require-unique-zone") {
-		requireUniqueZone = fly.Pointer(flag.GetBool(ctx, "require-unique-zone"))
-	}
-
 	region := flag.GetString(ctx, "region")
 
 	var attachedMachineImage string
@@ -130,8 +120,8 @@ func runFork(ctx context.Context) error {
 
 	input := fly.CreateVolumeRequest{
 		Name:                name,
-		MachinesOnly:        machinesOnly,
-		RequireUniqueZone:   requireUniqueZone,
+		RequireUniqueZone:   fly.Pointer(flag.GetBool(ctx, "require-unique-zone")),
+		UniqueZoneAppWide:   fly.Pointer(flag.GetBool(ctx, "unique-zone-app-wide")),
 		SourceVolumeID:      &vol.ID,
 		ComputeRequirements: computeRequirements,
 		ComputeImage:        attachedMachineImage,

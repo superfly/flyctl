@@ -16,8 +16,7 @@ concurrency:
 
 jobs:
   test:
-    uses:
-      ./.github/workflows/test.yml
+    uses: ./.github/workflows/test.yml
 
   # create a dev tag for every branch except master
   tag_version:
@@ -68,7 +67,7 @@ jobs:
               sha: context.sha
             });
 
-          github-token: ${{ secrets.RELEASE_BOT_GITHUB_TOKEN }}
+          github-token: ${{ secrets.FLYIO_BUILDBOT_GITHUB_TOKEN }}
 
   # # we can remove this workflow_call once the release.yml workflow file is
   # # merged into the default branch

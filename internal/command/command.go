@@ -19,6 +19,8 @@ import (
 	"github.com/superfly/flyctl/internal/command/auth/webauth"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 
 	"github.com/superfly/flyctl/internal/appconfig"
@@ -603,12 +605,33 @@ func RequireSession(ctx context.Context) (context.Context, error) {
 	return ctx, nil
 }
 
+// Apply uiex client to uiex
+func RequireUiex(ctx context.Context) (context.Context, error) {
+	cfg := config.FromContext(ctx)
+
+	if uiexutil.ClientFromContext(ctx) == nil {
+		client, err := uiexutil.NewClientWithOptions(ctx, uiex.NewClientOpts{
+			Logger: logger.FromContext(ctx),
+			Tokens: cfg.Tokens,
+		})
+		if err != nil {
+			return nil, err
+		}
+		ctx = uiexutil.NewContextWithClient(ctx, client)
+	}
+
+	return ctx, nil
+}
+
 func tryOpenUserURL(ctx context.Context, url string) error {
+	io := iostreams.FromContext(ctx)
+
+	if !io.IsInteractive() || env.IsCI() {
+		return errors.New("failed opening browser")
+	}
+
 	if err := open.Run(url); err != nil {
-		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut,
-			"failed opening browser. Copy the url (%s) into a browser and continue\n",
-			url,
-		)
+		fmt.Fprintf(io.ErrOut, "failed opening browser. Copy the url (%s) into a browser and continue\n", url)
 	}
 
 	return nil

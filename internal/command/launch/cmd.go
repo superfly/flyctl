@@ -18,6 +18,7 @@ import (
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/deploy"
+	"github.com/superfly/flyctl/internal/command/launch/plan"
 	"github.com/superfly/flyctl/internal/env"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
@@ -113,6 +114,21 @@ func New() (cmd *cobra.Command) {
 			Hidden:      true,
 		},
 		flag.Bool{
+			Name:        "no-db",
+			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-redis",
+			Description: "Skip automatically provisioning a Redis instance",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "no-object-storage",
+			Description: "Skip automatically provisioning an object storage bucket",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "json",
 			Description: "Generate configuration in JSON format",
 		},
@@ -124,7 +140,14 @@ func New() (cmd *cobra.Command) {
 			Name:        "no-create",
 			Description: "Do not create an app, only generate configuration files",
 		},
+		flag.String{
+			Name:        "auto-stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
+			Default:     "stop",
+		},
 	)
+
+	cmd.AddCommand(NewPlan())
 
 	return
 }
@@ -335,12 +358,15 @@ func run(ctx context.Context) (err error) {
 		family = state.sourceInfo.Family
 	}
 
-	fmt.Fprintf(
-		io.Out,
-		"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
-		familyToAppType(family),
-		summary,
-	)
+	planStep := plan.GetPlanStep(ctx)
+	if planStep == "" {
+		fmt.Fprintf(
+			io.Out,
+			"We're about to launch your %s on Fly.io. Here's what you're getting:\n\n%s\n",
+			familyToAppType(family),
+			summary,
+		)
+	}
 
 	if errors := recoverableErrors.build(); errors != "" {
 
@@ -349,7 +375,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	editInUi := false
-	if !flag.GetBool(ctx, "yes") {
+	if !flag.GetBool(ctx, "yes") && planStep == "" {
 		if incompleteLaunchManifest {
 			editInUi, err = prompt.ConfirmYes(ctx, "Would you like to continue in the web UI?")
 		} else {

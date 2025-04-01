@@ -1,0 +1,14 @@
+source "https://rubygems.org"
+
+git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
+
+# "rack" must be explicitly specified.
+# https://devcenter.heroku.com/articles/rack
+gem "rack"
+
+# While the doc above doesn't mention that, Ruby no longer have a HTTP server
+# by default. Use puma since webrick is not actively maintained.
+# https://bugs.ruby-lang.org/issues/17303
+gem "puma"
+
+gem "sinatra"

@@ -31,7 +31,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var defaultMaxConcurrent = 16
+var defaultMaxConcurrent = 8
 
 var CommonFlags = flag.Set{
 	flag.Image(),
@@ -51,6 +51,7 @@ var CommonFlags = flag.Set{
 	flag.BuildTarget(),
 	flag.NoCache(),
 	flag.Depot(),
+	flag.DepotScope(),
 	flag.Nixpacks(),
 	flag.BuildOnly(),
 	flag.BpDockerHost(),
@@ -58,11 +59,7 @@ var CommonFlags = flag.Set{
 	flag.RecreateBuilder(),
 	flag.Yes(),
 	flag.VMSizeFlags,
-	flag.StringArray{
-		Name:        "env",
-		Shorthand:   "e",
-		Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-	},
+	flag.Env(),
 	flag.String{
 		Name:        "wait-timeout",
 		Description: "Time duration to wait for individual machines to transition states and become healthy.",
@@ -126,6 +123,10 @@ var CommonFlags = flag.Set{
 	flag.StringArray{
 		Name:        "file-secret",
 		Description: "Set of secrets in the form of /path/inside/machine=SECRET pairs where SECRET is the name of the secret. Can be specified multiple times.",
+	},
+	flag.String{
+		Name:        "primary-region",
+		Description: "Override primary region in fly.toml configuration.",
 	},
 	flag.StringSlice{
 		Name:        "regions",
@@ -215,6 +216,16 @@ func New() *Command {
 			Description: "Do not run the release command during deployment.",
 			Default:     false,
 		},
+		flag.String{
+			Name:        "export-manifest",
+			Description: "Specify a file to export the deployment configuration to a deploy manifest file, or '-' to print to stdout.",
+			Hidden:      true,
+		},
+		flag.String{
+			Name:        "from-manifest",
+			Description: "Path to a deploy manifest file to use for deployment.",
+			Hidden:      true,
+		},
 	)
 
 	return cmd
@@ -266,6 +277,23 @@ func (cmd *Command) run(ctx context.Context) (err error) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", user.ID))
+
+	var manifestPath = flag.GetString(ctx, "from-manifest")
+
+	switch {
+	case manifestPath == "-":
+		manifest, err := manifestFromReader(io.In)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	case manifestPath != "":
+		manifest, err := manifestFromFile(manifestPath)
+		if err != nil {
+			return err
+		}
+		return deployFromManifest(ctx, manifest)
+	}
 
 	appConfig, err := determineAppConfig(ctx)
 	if err != nil {
@@ -399,6 +427,8 @@ func deployToMachines(
 	app *fly.AppCompact,
 	img *imgsrc.DeploymentImage,
 ) (err error) {
+	var io = iostreams.FromContext(ctx)
+
 	ctx, span := tracing.GetTracer().Start(ctx, "deploy_to_machines")
 	defer span.End()
 	// It's important to push appConfig into context because MachineDeployment will fetch it from there
@@ -492,10 +522,15 @@ func deployToMachines(
 	status.AppName = app.Name
 	status.OrgSlug = app.Organization.Slug
 	status.Image = img.Tag
-	status.PrimaryRegion = cfg.PrimaryRegion
 	status.Strategy = cfg.DeployStrategy()
 	if flag.GetString(ctx, "strategy") != "" {
 		status.Strategy = flag.GetString(ctx, "strategy")
+	}
+
+	if flag.IsSpecified(ctx, "primary-region") {
+		status.PrimaryRegion = flag.GetString(ctx, "primary-region")
+	} else {
+		status.PrimaryRegion = cfg.PrimaryRegion
 	}
 
 	status.FlyctlVersion = buildinfo.Info().Version.String()
@@ -530,12 +565,12 @@ func deployToMachines(
 		ip = "none"
 	}
 
-	md, err := NewMachineDeployment(ctx, MachineDeploymentArgs{
+	args := MachineDeploymentArgs{
 		AppCompact:            app,
 		DeploymentImage:       img.Tag,
 		Strategy:              flag.GetString(ctx, "strategy"),
 		EnvFromFlags:          flag.GetStringArray(ctx, "env"),
-		PrimaryRegionFlag:     cfg.PrimaryRegion,
+		PrimaryRegionFlag:     status.PrimaryRegion,
 		SkipSmokeChecks:       flag.GetDetach(ctx) || !flag.GetBool(ctx, "smoke-checks"),
 		SkipHealthChecks:      flag.GetDetach(ctx),
 		SkipDNSChecks:         flag.GetDetach(ctx) || !flag.GetBool(ctx, "dns-checks"),
@@ -559,7 +594,30 @@ func deployToMachines(
 		VolumeInitialSize:     flag.GetInt(ctx, "volume-initial-size"),
 		ProcessGroups:         processGroups,
 		DeployRetries:         deployRetries,
-	})
+		BuildID:               img.BuildID,
+	}
+
+	var path = flag.GetString(ctx, "export-manifest")
+	switch {
+	case path == "-":
+		manifest := NewManifest(app.Name, cfg, args)
+
+		return manifest.Encode(io.Out)
+
+	case path != "":
+		if !strings.HasSuffix(path, ".json") {
+			path += ".json"
+		}
+		manifest := NewManifest(app.Name, cfg, args)
+
+		if err = manifest.WriteToFile(path); err != nil {
+			return err
+		}
+		fmt.Fprintf(io.Out, "Deploy manifest saved to %s\n", path)
+		return nil
+	}
+
+	md, err := NewMachineDeployment(ctx, args)
 	if err != nil {
 		sentry.CaptureExceptionWithAppInfo(ctx, err, "deploy", app)
 		return err

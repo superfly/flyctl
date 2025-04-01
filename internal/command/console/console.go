@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"slices"
 
+	"github.com/docker/go-units"
 	"github.com/google/shlex"
 	"github.com/samber/lo"
 	"github.com/spf13/cobra"
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
@@ -56,6 +57,10 @@ func New() *cobra.Command {
 			Default:     false,
 		},
 		flag.String{
+			Name:        "container",
+			Description: "Container to connect to",
+		},
+		flag.String{
 			Name:        "user",
 			Shorthand:   "u",
 			Description: "Unix username to connect as",
@@ -66,11 +71,7 @@ func New() *cobra.Command {
 			Shorthand:   "i",
 			Description: "image to use (default: current release)",
 		},
-		flag.StringArray{
-			Name:        "env",
-			Shorthand:   "e",
-			Description: "Set of environment variables in the form of NAME=VALUE pairs. Can be specified multiple times.",
-		},
+		flag.Env(),
 		flag.String{
 			Name:        "entrypoint",
 			Description: "ENTRYPOINT replacement",
@@ -224,6 +225,7 @@ func runConsole(ctx context.Context) error {
 		Dialer:         dialer,
 		Username:       flag.GetString(ctx, "user"),
 		DisableSpinner: false,
+		Container:      flag.GetString(ctx, "container"),
 		AppNames:       []string{app.Name},
 	}
 	sshClient, err := ssh.Connect(params, machine.PrivateIP)
@@ -237,7 +239,7 @@ func runConsole(ctx context.Context) error {
 		consoleCommand = flag.GetString(ctx, "command")
 	}
 
-	return ssh.Console(ctx, sshClient, consoleCommand, true)
+	return ssh.Console(ctx, sshClient, consoleCommand, true, params.Container)
 }
 
 func selectMachine(ctx context.Context, app *fly.AppCompact, appConfig *appconfig.Config) (*fly.Machine, func(), error) {
@@ -405,18 +407,19 @@ func makeEphemeralConsoleMachine(ctx context.Context, app *fly.AppCompact, appCo
 func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appconfig.Config) (*fly.MachineGuest, error) {
 	var guest *fly.MachineGuest
 
-	haveConsoleVMSection := 0 <= slices.IndexFunc(
-		appConfig.Compute,
-		func(c *appconfig.Compute) bool {
-			return slices.Index(c.Processes, "console") >= 0
-		},
-	)
-	if haveConsoleVMSection {
-		groupConfig, err := appConfig.ToMachineConfig("console", nil)
-		if err != nil {
-			return nil, fmt.Errorf("failed to check Machine configuration for the 'console' group: %w", err)
+	if compute := appConfig.ComputeForGroup("console"); compute != nil {
+		guest = compute.MachineGuest
+
+		if compute.Memory != "" {
+			mb, err := helpers.ParseSize(compute.Memory, units.RAMInBytes, units.MiB)
+			if err != nil {
+				return nil, fmt.Errorf("invalid memory size: %w", err)
+			}
+			if guest == nil {
+				guest = &fly.MachineGuest{}
+			}
+			guest.MemoryMB = mb
 		}
-		guest = groupConfig.Guest
 	}
 
 	guest, err := flag.GetMachineGuest(ctx, guest)
@@ -433,7 +436,7 @@ func determineEphemeralConsoleMachineGuest(ctx context.Context, appConfig *appco
 		minMemory = guest.CPUs * fly.MIN_MEMORY_MB_PER_CPU
 		maxMemory = guest.CPUs * fly.MAX_MEMORY_MB_PER_CPU
 	default:
-		return nil, fmt.Errorf("invalid CPU kind '%s'; this is a bug", guest.CPUKind)
+		return nil, fmt.Errorf("invalid CPU kind '%s'; valid values are 'shared' and 'performance'", guest.CPUKind)
 	}
 
 	adjusted := lo.Clamp(guest.MemoryMB, minMemory, maxMemory)

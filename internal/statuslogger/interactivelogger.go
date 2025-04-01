@@ -50,7 +50,7 @@ func (il *interactiveLogger) Destroy(clear bool) {
 	il.done = false
 
 	if clear {
-		fmt.Fprintf(il.io.Out, il.clearStr())
+		fmt.Print(il.io.Out, il.clearStr())
 	} else {
 		fmt.Fprintf(il.io.Out, "%s%s\n", aec.Down(uint(il.height(il.prevLines))), divider)
 	}

@@ -19,28 +19,24 @@ import (
 	"github.com/superfly/flyctl/iostreams"
 )
 
-func getFromMetadata(m *fly.Machine, key string) string {
-	if m.Config != nil && m.Config.Metadata != nil {
-		return m.Config.Metadata[key]
-	}
-
-	return ""
-}
-
 func getProcessgroup(m *fly.Machine) string {
 	name := m.ProcessGroup()
 	if name == "" {
 		name = "<default>"
 	}
 
-	if len(m.Config.Standbys) > 0 {
+	if len(m.GetConfig().Standbys) > 0 {
 		name += "†"
+	}
+
+	if m.HostStatus != fly.HostStatusOk {
+		name += "💀"
 	}
 	return name
 }
 
 func getReleaseVersion(m *fly.Machine) string {
-	return getFromMetadata(m, fly.MachineConfigMetadataKeyFlyReleaseVersion)
+	return m.GetMetadataByKey(fly.MachineConfigMetadataKeyFlyReleaseVersion)
 }
 
 // getImage returns the image on the most recent machine released under an app.
@@ -120,7 +116,7 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 			continue
 		}
 
-		latestImage, err := client.GetLatestImageDetails(ctx, image)
+		latestImage, err := client.GetLatestImageDetails(ctx, image, machine.ImageVersion())
 		if err != nil {
 			if strings.Contains(err.Error(), "Unknown repository") {
 				unknownRepos[image] = true
@@ -175,14 +171,19 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 
 	if len(managed) > 0 {
 		hasStandbys := false
+		hasNotOk := false
 		rows := [][]string{}
 		for _, machine := range managed {
-			if len(machine.Config.Standbys) > 0 {
+			mConfig := machine.GetConfig()
+			if len(mConfig.Standbys) > 0 {
 				hasStandbys = true
+			}
+			if machine.HostStatus != fly.HostStatusOk {
+				hasNotOk = true
 			}
 			var role string
 
-			if v := machine.Config.Metadata["role"]; v != "" {
+			if v := mConfig.Metadata["role"]; v != "" {
 				role = v
 			}
 			rows = append(rows, []string{
@@ -206,8 +207,14 @@ func RenderMachineStatus(ctx context.Context, app *fly.AppCompact, out io.Writer
 			return err
 		}
 
+		if hasStandbys || hasNotOk {
+			fmt.Fprint(out, "Notes:\n")
+		}
 		if hasStandbys {
 			fmt.Fprintf(out, "  † Standby machine (it will take over only in case of host hardware failure)\n")
+		}
+		if hasNotOk {
+			fmt.Fprintf(out, "  💀 The machine's host is unreachable\n")
 		}
 	}
 
@@ -297,7 +304,7 @@ func renderPGStatus(ctx context.Context, app *fly.AppCompact, machines []*fly.Ma
 	for _, machine := range machines {
 		image := fmt.Sprintf("%s:%s", machine.ImageRef.Repository, machine.ImageRef.Tag)
 
-		latestImage, err := client.GetLatestImageDetails(ctx, image)
+		latestImage, err := client.GetLatestImageDetails(ctx, image, machine.ImageVersion())
 
 		if err != nil && strings.Contains(err.Error(), "Unknown repository") {
 			continue

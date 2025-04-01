@@ -131,7 +131,7 @@ func listDBs(ctx context.Context, leaderIP string) error {
 		return render.JSON(io.Out, databases)
 	}
 
-	rows := make([][]string, len(databases))
+	rows := make([][]string, 0, len(databases))
 	for _, db := range databases {
 		var users string
 		for index, name := range db.Users {

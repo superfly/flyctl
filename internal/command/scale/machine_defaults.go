@@ -25,7 +25,7 @@ type defaultValues struct {
 func newDefaults(appConfig *appconfig.Config, latest fly.Release, machines []*fly.Machine, volumes []fly.Volume, snapshotID string, withNewVolumes bool, fallbackGuest *fly.MachineGuest) *defaultValues {
 	guestPerGroup := lo.Associate(
 		lo.Filter(machines, func(m *fly.Machine, _ int) bool {
-			return m.Config.Guest != nil
+			return m.Config != nil && m.Config.Guest != nil
 		}),
 		func(m *fly.Machine) (string, *fly.MachineGuest) {
 			return m.ProcessGroup(), m.Config.Guest

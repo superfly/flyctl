@@ -388,9 +388,14 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 		},
 
 		Deploy: &Deploy{
-			ReleaseCommand: "release command",
-			Strategy:       "rolling-eyes",
-			MaxUnavailable: fly.Pointer(0.2),
+			Strategy:              "rolling-eyes",
+			MaxUnavailable:        fly.Pointer(0.2),
+			ReleaseCommand:        "release command",
+			ReleaseCommandTimeout: fly.MustParseDuration("3m"),
+			ReleaseCommandCompute: &Compute{
+				Size:   "performance-2x",
+				Memory: "8g",
+			},
 		},
 
 		Env: map[string]string{
@@ -430,7 +435,8 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 				DefaultSelfSigned: fly.Pointer(false),
 			},
 			HTTPOptions: &fly.HTTPOptions{
-				Compress: fly.Pointer(true),
+				Compress:    fly.Pointer(true),
+				IdleTimeout: UintPointer(600),
 				Response: &fly.HTTPResponseOptions{
 					Headers: map[string]any{
 						"fly-request-id": false,
@@ -553,6 +559,9 @@ func TestLoadTOMLAppConfigReferenceFormat(t *testing.T) {
 						EndPort:    fly.Pointer(200),
 						Handlers:   []string{"https"},
 						ForceHTTPS: true,
+						HTTPOptions: &fly.HTTPOptions{
+							IdleTimeout: UintPointer(600),
+						},
 					},
 				},
 
@@ -683,4 +692,8 @@ func TestYAMLPrettyPrint(t *testing.T) {
 	assert.Contains(t, string(buf), "\napp: foo\n")
 	assert.Contains(t, string(buf), "\n\nexperimental:\n  cmd:\n    - cmd\n")
 	assert.Contains(t, string(buf), "\n    processes:\n      - web\n")
+}
+
+func UintPointer(v uint32) *uint32 {
+	return &v
 }
