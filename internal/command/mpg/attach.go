@@ -124,6 +124,8 @@ func runAttachCluster(ctx context.Context, params AttachParams) error {
 		UserName: dbUser,
 	}
 
+	fmt.Println("Creating user... This might take a while")
+
 	response, err := uiexClient.CreateUser(ctx, clusterId, input)
 	if err != nil {
 		return err

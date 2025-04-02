@@ -192,14 +192,15 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 
 		return response, nil
 
-	case http.StatusBadRequest:
+	default:
 		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
 			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
 		}
 
-		return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
+		if response.Errors.Detail != "" {
+			return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
+		}
 
-	default:
-		return response, err
+		return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
 	}
 }
