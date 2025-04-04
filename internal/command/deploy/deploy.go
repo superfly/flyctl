@@ -2,7 +2,10 @@ package deploy
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -178,6 +181,16 @@ var CommonFlags = flag.Set{
 		Description: "Number of times to retry a deployment if it fails",
 		Default:     "auto",
 	},
+	flag.String{
+		Name:        "autostop",
+		Description: "Automatically stop a machine when there are no network requests for a time. Options include 'off' and a duration. Default is 'off'",
+		Default:     "off",
+		NoOptDefVal: "1h",
+	},
+	flag.String{
+		Name:        "machine-config-template",
+		Description: "Read machine config template from json file or string. When containers array is present, an 'app' container is required.",
+	},
 }
 
 type Command struct {
@@ -214,6 +227,11 @@ func New() *Command {
 		flag.Bool{
 			Name:        "skip-release-command",
 			Description: "Do not run the release command during deployment.",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "print-machine-config",
+			Description: "Process the machine config template and print the resulting machine configuration without deploying",
 			Default:     false,
 		},
 		flag.String{
@@ -451,6 +469,11 @@ func deployToMachines(
 		metrics.Status(ctx, "deploy_machines", err == nil)
 	}()
 
+	// Check if we should just print the machine config and exit
+	if flag.GetBool(ctx, "print-machine-config") {
+		return printMachineConfig(ctx, cfg, img)
+	}
+
 	releaseCmdTimeout, err := parseDurationFlag(ctx, "release-command-timeout")
 	if err != nil {
 		return err
@@ -677,4 +700,90 @@ func determineAppConfig(ctx context.Context) (cfg *appconfig.Config, err error) 
 
 	tb.Done("Verified app config")
 	return cfg, nil
+}
+
+// printMachineConfig processes the machine config template and prints it without deploying
+func printMachineConfig(ctx context.Context, cfg *appconfig.Config, img *imgsrc.DeploymentImage) error {
+	var io = iostreams.FromContext(ctx)
+
+	// Process each process group in the app config
+	processGroups := cfg.ProcessNames()
+	if len(processGroups) == 0 {
+		processGroups = []string{cfg.DefaultProcessName()}
+	}
+
+	fmt.Fprintf(io.Out, "Processing machine configuration template...\n\n")
+
+	// Process each process group
+	for _, group := range processGroups {
+		fmt.Fprintf(io.Out, "=== Machine Config for Process Group: %s ===\n", group)
+
+		// Get machine config for this process group
+		mConfig, err := cfg.ToMachineConfig(group, nil)
+		if err != nil {
+			return fmt.Errorf("error creating machine config for group %s: %w", group, err)
+		}
+
+		// Apply the image
+		mConfig.Image = img.Tag
+
+		// Apply machine config from experimental.machine_config if present
+		if cfg.Experimental != nil && cfg.Experimental.MachineConfig != "" {
+			emc := cfg.Experimental.MachineConfig
+			var buf []byte
+
+			switch {
+			case strings.HasPrefix(emc, "{"):
+				buf = []byte(emc)
+			case strings.HasSuffix(emc, ".json"):
+				fo, err := os.Open(emc)
+				if err != nil {
+					return fmt.Errorf("error reading machine config file: %w", err)
+				}
+				defer fo.Close()
+				buf, err = ioutil.ReadAll(fo)
+				if err != nil {
+					return fmt.Errorf("error reading machine config file: %w", err)
+				}
+			default:
+				return fmt.Errorf("invalid machine config source: %q", emc)
+			}
+
+			// Apply the machine config template
+			var templateConfig fly.MachineConfig
+			if err := json.Unmarshal(buf, &templateConfig); err != nil {
+				return fmt.Errorf("invalid machine config %q: %w", emc, err)
+			}
+
+			// Merge the configs, with the template taking precedence
+			if templateConfig.Containers != nil {
+				mConfig.Containers = templateConfig.Containers
+			}
+			if templateConfig.Services != nil {
+				mConfig.Services = templateConfig.Services
+			}
+			if templateConfig.Checks != nil {
+				mConfig.Checks = templateConfig.Checks
+			}
+			if templateConfig.Guest != nil {
+				mConfig.Guest = templateConfig.Guest
+			}
+			if templateConfig.DNS != nil {
+				mConfig.DNS = templateConfig.DNS
+			}
+			// Preserve the image
+			mConfig.Image = img.Tag
+		}
+
+		// Output the machine config as JSON
+		encoder := json.NewEncoder(io.Out)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(mConfig); err != nil {
+			return fmt.Errorf("error encoding machine config: %w", err)
+		}
+
+		fmt.Fprintf(io.Out, "\n")
+	}
+
+	return nil
 }

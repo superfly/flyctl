@@ -1,7 +1,10 @@
 package deploy
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strconv"
 	"strings"
 
@@ -59,6 +62,62 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	// Apply machine config from --machine-config flag if specified
+	// Check configuration for a machine-config path or string
+	emc := ""
+	if md.appConfig.Experimental != nil {
+		emc = md.appConfig.Experimental.MachineConfig
+	}
+
+	if emc != "" {
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, fmt.Errorf("error reading machine config file: %w", err)
+			}
+			defer fo.Close()
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, fmt.Errorf("error reading machine config file: %w", err)
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		// Save the current image value since we want to preserve it
+		currentImage := mConfig.Image
+
+		// Apply the machine config template
+		var templateConfig fly.MachineConfig
+		if err := json.Unmarshal(buf, &templateConfig); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
+
+		// Update the config with template values while preserving critical deployment values
+		// Merge the configs, with the template taking precedence
+		if templateConfig.Containers != nil {
+			mConfig.Containers = templateConfig.Containers
+		}
+		if templateConfig.Services != nil {
+			mConfig.Services = templateConfig.Services
+		}
+		if templateConfig.Checks != nil {
+			mConfig.Checks = templateConfig.Checks
+		}
+		if templateConfig.Guest != nil {
+			mConfig.Guest = templateConfig.Guest
+		}
+		if templateConfig.DNS != nil {
+			mConfig.DNS = templateConfig.DNS
+		}
+		// Preserve the image we want to deploy
+		mConfig.Image = currentImage
+	}
+
 	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
@@ -85,6 +144,62 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()
+
+	// Apply machine config from --machine-config flag if specified
+	// Check configuration for a machine-config path or string
+	emc := ""
+	if md.appConfig.Experimental != nil {
+		emc = md.appConfig.Experimental.MachineConfig
+	}
+
+	if emc != "" {
+		var buf []byte
+		switch {
+		case strings.HasPrefix(emc, "{"):
+			buf = []byte(emc)
+		case strings.HasSuffix(emc, ".json"):
+			fo, err := os.Open(emc)
+			if err != nil {
+				return nil, fmt.Errorf("error reading machine config file: %w", err)
+			}
+			defer fo.Close()
+			buf, err = io.ReadAll(fo)
+			if err != nil {
+				return nil, fmt.Errorf("error reading machine config file: %w", err)
+			}
+		default:
+			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+		}
+
+		// Save the current image value since we want to preserve it
+		currentImage := mConfig.Image
+
+		// Apply the machine config template
+		var templateConfig fly.MachineConfig
+		if err := json.Unmarshal(buf, &templateConfig); err != nil {
+			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		}
+
+		// Update the config with template values while preserving critical deployment values
+		// Merge the configs, with the template taking precedence
+		if templateConfig.Containers != nil {
+			mConfig.Containers = templateConfig.Containers
+		}
+		if templateConfig.Services != nil {
+			mConfig.Services = templateConfig.Services
+		}
+		if templateConfig.Checks != nil {
+			mConfig.Checks = templateConfig.Checks
+		}
+		if templateConfig.Guest != nil {
+			mConfig.Guest = templateConfig.Guest
+		}
+		if templateConfig.DNS != nil {
+			mConfig.DNS = templateConfig.DNS
+		}
+		// Preserve the image we want to deploy
+		mConfig.Image = currentImage
+	}
 
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
