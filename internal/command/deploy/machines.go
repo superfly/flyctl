@@ -34,6 +34,8 @@ const (
 	DefaultWaitTimeout            = 5 * time.Minute
 	DefaultReleaseCommandTimeout  = 5 * time.Minute
 	DefaultLeaseTtl               = 13 * time.Second
+	DefaultLeaseAdvanceRefresh    = 9 * time.Second
+	DefaultLeaseDelay             = DefaultLeaseTtl - DefaultLeaseAdvanceRefresh
 	DefaultMaxUnavailable         = 0.33
 	DefaultVolumeInitialSizeGB    = 1
 	DefaultGPUVolumeInitialSizeGB = 100
@@ -232,9 +234,17 @@ func NewMachineDeployment(ctx context.Context, args MachineDeploymentArgs) (_ Ma
 		leaseTimeout = *args.LeaseTimeout
 	default:
 		leaseTimeout = DefaultLeaseTtl
+		if args.MaxConcurrent > defaultMaxConcurrent {
+			// Increase default lease TTL relative to concurrency.
+			leaseTimeout = DefaultLeaseAdvanceRefresh +
+				(DefaultLeaseDelay * time.Duration(args.MaxConcurrent) / time.Duration(defaultMaxConcurrent))
+		}
 	}
 
-	leaseDelayBetween := (leaseTimeout - 1*time.Second) / 3
+	leaseDelayBetween := leaseTimeout - DefaultLeaseAdvanceRefresh
+	if leaseDelayBetween < time.Second {
+		leaseDelayBetween = time.Second
+	}
 	if waitTimeout != DefaultWaitTimeout || leaseTimeout != DefaultLeaseTtl {
 		terminal.Infof("Using wait timeout: %s lease timeout: %s delay between lease refreshes: %s\n", waitTimeout, leaseTimeout, leaseDelayBetween)
 	}

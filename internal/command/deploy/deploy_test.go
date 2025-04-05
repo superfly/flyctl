@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"github.com/stretchr/testify/assert"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -22,7 +23,9 @@ import (
 var testdata embed.FS
 
 func TestCommand_Execute(t *testing.T) {
-	makeTerminalLoggerQuiet(t)
+	var buf bytes.Buffer
+	bufTerminalLogger(t, &buf)
+	t.Cleanup(func() { t.Log(buf.String()) })
 
 	dir := t.TempDir()
 	fsys, _ := fs.Sub(testdata, "testdata/basic")
@@ -31,11 +34,14 @@ func TestCommand_Execute(t *testing.T) {
 	}
 	chdir(t, dir)
 
-	var buf bytes.Buffer
 	cmd := New()
 	cmd.SetOut(&buf)
 	cmd.SetErr(&buf)
-	cmd.SetArgs([]string{"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000"})
+	cmd.SetArgs([]string{
+		"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000",
+		"--smoke-checks=false",
+		"--wait-timeout", "700",
+	})
 
 	ctx := context.Background()
 	ctx = iostreams.NewContext(ctx, &iostreams.IOStreams{Out: &buf, ErrOut: &buf})
@@ -61,6 +67,8 @@ func TestCommand_Execute(t *testing.T) {
 	if err := cmd.ExecuteContext(ctx); err != nil {
 		t.Fatal(err)
 	}
+
+	assert.Contains(t, buf.String(), "Using wait timeout: 5m0s lease timeout: 5m59s delay between lease refreshes: 5m50s")
 }
 
 // copyFS writes the contents of a file system to a destination path on disk.

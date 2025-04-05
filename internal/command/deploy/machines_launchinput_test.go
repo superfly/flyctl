@@ -1,6 +1,7 @@
 package deploy
 
 import (
+	"io"
 	"os"
 	"testing"
 
@@ -17,6 +18,15 @@ import (
 func makeTerminalLoggerQuiet(tb testing.TB) {
 	var originalLogger = terminal.DefaultLogger
 	terminal.DefaultLogger = logger.New(os.Stdout, logger.Error, true)
+
+	tb.Cleanup(func() {
+		terminal.DefaultLogger = originalLogger
+	})
+}
+
+func bufTerminalLogger(tb testing.TB, out io.Writer) {
+	var originalLogger = terminal.DefaultLogger
+	terminal.DefaultLogger = logger.New(out, logger.Debug, true)
 
 	tb.Cleanup(func() {
 		terminal.DefaultLogger = originalLogger

@@ -98,6 +98,16 @@ func GetMachineGuest(ctx context.Context, guest *fly.MachineGuest) (*fly.Machine
 		guest.HostDedicationID = GetString(ctx, "host-dedication-id")
 	}
 
+	//if IsSpecified(ctx, "persist-rootfs") {
+	//	switch GetString(ctx, "persist-rootfs") {
+	//	case string(fly.PersistRootfsRestart):
+	//		guest.PersistRootfs = fly.PersistRootfsRestart
+	//	case string(fly.PersistRootfsAlways):
+	//		guest.PersistRootfs = fly.PersistRootfsAlways
+	//	default:
+	//		guest.PersistRootfs = fly.PersistRootfsAlways
+	//	}
+	//}
 	return guest, nil
 }
 
