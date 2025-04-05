@@ -101,6 +101,14 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 		// Merge the configs, with the template taking precedence
 		if templateConfig.Containers != nil {
 			mConfig.Containers = templateConfig.Containers
+
+			// Update the image for the "app" container if it exists
+			for i := range mConfig.Containers {
+				if mConfig.Containers[i].Name == "app" {
+					mConfig.Containers[i].Image = currentImage
+					break
+				}
+			}
 		}
 		if templateConfig.Services != nil {
 			mConfig.Services = templateConfig.Services
@@ -184,6 +192,14 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 		// Merge the configs, with the template taking precedence
 		if templateConfig.Containers != nil {
 			mConfig.Containers = templateConfig.Containers
+
+			// Update the image for the "app" container if it exists
+			for i := range mConfig.Containers {
+				if mConfig.Containers[i].Name == "app" {
+					mConfig.Containers[i].Image = currentImage
+					break
+				}
+			}
 		}
 		if templateConfig.Services != nil {
 			mConfig.Services = templateConfig.Services

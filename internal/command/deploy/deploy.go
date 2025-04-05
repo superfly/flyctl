@@ -727,16 +727,23 @@ func printMachineConfig(ctx context.Context, cfg *appconfig.Config, img *imgsrc.
 		// Apply the image
 		mConfig.Image = img.Tag
 
-		// Apply machine config from experimental.machine_config if present
-		if cfg.Experimental != nil && cfg.Experimental.MachineConfig != "" {
-			emc := cfg.Experimental.MachineConfig
+		// Check for machine config template from flag or experimental config
+		var configTemplatePath string
+		if flag.IsSpecified(ctx, "machine-config-template") {
+			configTemplatePath = flag.GetString(ctx, "machine-config-template")
+		} else if cfg.Experimental != nil && cfg.Experimental.MachineConfig != "" {
+			configTemplatePath = cfg.Experimental.MachineConfig
+		}
+
+		// Apply machine config from template if provided
+		if configTemplatePath != "" {
 			var buf []byte
 
 			switch {
-			case strings.HasPrefix(emc, "{"):
-				buf = []byte(emc)
-			case strings.HasSuffix(emc, ".json"):
-				fo, err := os.Open(emc)
+			case strings.HasPrefix(configTemplatePath, "{"):
+				buf = []byte(configTemplatePath)
+			case strings.HasSuffix(configTemplatePath, ".json"):
+				fo, err := os.Open(configTemplatePath)
 				if err != nil {
 					return fmt.Errorf("error reading machine config file: %w", err)
 				}
@@ -746,13 +753,48 @@ func printMachineConfig(ctx context.Context, cfg *appconfig.Config, img *imgsrc.
 					return fmt.Errorf("error reading machine config file: %w", err)
 				}
 			default:
-				return fmt.Errorf("invalid machine config source: %q", emc)
+				return fmt.Errorf("invalid machine config source: %q", configTemplatePath)
 			}
 
-			// Apply the machine config template
+			// Handle nested config structure (as used in postgres-juicefs)
+			var nestedConfig struct {
+				Config fly.MachineConfig `json:"config"`
+				Region string            `json:"region"`
+			}
+
 			var templateConfig fly.MachineConfig
-			if err := json.Unmarshal(buf, &templateConfig); err != nil {
-				return fmt.Errorf("invalid machine config %q: %w", emc, err)
+
+			// Try to unmarshal as a nested config first
+			if err := json.Unmarshal(buf, &nestedConfig); err == nil && nestedConfig.Config.Containers != nil {
+				templateConfig = nestedConfig.Config
+			} else {
+				// Otherwise try as a direct machine config
+				if err := json.Unmarshal(buf, &templateConfig); err != nil {
+					return fmt.Errorf("invalid machine config %q: %w", configTemplatePath, err)
+				}
+			}
+
+			// Check for required 'app' container when containers are specified
+			if templateConfig.Containers != nil && len(templateConfig.Containers) > 0 {
+				// Check if the templateConfig has an 'app' container
+				hasAppContainer := false
+				appContainerIndex := -1
+				for i, container := range templateConfig.Containers {
+					if container != nil && container.Name == "app" {
+						hasAppContainer = true
+						appContainerIndex = i
+						break
+					}
+				}
+
+				if !hasAppContainer {
+					return fmt.Errorf("machine config template with containers must include an 'app' container")
+				}
+
+				// Update the app container image
+				if appContainerIndex >= 0 {
+					templateConfig.Containers[appContainerIndex].Image = img.Tag
+				}
 			}
 
 			// Merge the configs, with the template taking precedence
@@ -771,7 +813,17 @@ func printMachineConfig(ctx context.Context, cfg *appconfig.Config, img *imgsrc.
 			if templateConfig.DNS != nil {
 				mConfig.DNS = templateConfig.DNS
 			}
-			// Preserve the image
+			if templateConfig.Volumes != nil {
+				mConfig.Volumes = templateConfig.Volumes
+			}
+			if templateConfig.Restart != nil {
+				mConfig.Restart = templateConfig.Restart
+			}
+			if templateConfig.StopConfig != nil {
+				mConfig.StopConfig = templateConfig.StopConfig
+			}
+
+			// Preserve the image at the machine level
 			mConfig.Image = img.Tag
 		}
 
