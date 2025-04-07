@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
 	"sync"
@@ -500,15 +499,16 @@ func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leas
 }
 
 func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, duration time.Duration, delayBetween time.Duration) {
-	maxDelay := duration - 4*time.Second
-
-	if maxDelay < delayBetween {
-		maxDelay = delayBetween
+	b := &backoff.Backoff{
+		Factor: 3,
+		Min:    delayBetween,
+		Max:    duration - time.Second,
+		Jitter: true,
 	}
+
 	for {
-		dur := delayBetween + time.Duration(rand.Int63n(int64(maxDelay-delayBetween+1)))
 		select {
-		case <-time.After(dur):
+		case <-time.After(b.ForAttempt(1)):
 		case <-ctx.Done():
 			return
 		}
