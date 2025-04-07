@@ -3,38 +3,26 @@ package machine
 import (
 	"context"
 	"errors"
-	"github.com/superfly/flyctl/internal/flapsutil"
 	"testing"
 	"time"
+
+	"github.com/superfly/flyctl/internal/flapsutil"
 
 	"github.com/stretchr/testify/mock"
 	fly "github.com/superfly/fly-go"
 )
 
-// Constants for test configuration
 const (
 	testMachineID        = "machine-id"
 	testLeaseNonce       = "valid_nonce"
-	testLeaseDuration    = 20 * time.Second
-	testLeaseDelay       = 5 * time.Second
-	testCancellationWait = 2 * time.Second
+	testLeaseDuration    = 100 * time.Millisecond
+	testLeaseDelay       = 10 * time.Millisecond
+	testCancellationWait = 100 * time.Millisecond
 )
-
-// LeaseData contains lease-specific information
-type LeaseData struct {
-	Nonce string
-}
-
-// Lease represents a machine lease
-type Lease struct {
-	Status string
-	Data   *LeaseData
-}
 
 type MockFlapsClient struct {
 	mock.Mock
 	flapsutil.FlapsClient
-	RefreshLeaseFunc func(ctx context.Context, machineID string, seconds *int, nonce string) (*Lease, error)
 }
 
 func (m *MockFlapsClient) RefreshLease(ctx context.Context, machineID string, seconds *int, nonce string) (*fly.MachineLease, error) {
@@ -49,7 +37,7 @@ func TestRefreshLeaseUntilCanceled(t *testing.T) {
 		refreshLeaseError    error
 		expectTerminated     bool
 		expectWarnings       bool
-		description          string // Added for better test documentation
+		description          string
 	}{
 		{
 			name: "successful_lease_refresh",
@@ -90,17 +78,14 @@ func TestRefreshLeaseUntilCanceled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup test context
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			// Create and configure mock client
 			mockClient := new(MockFlapsClient)
 			mockClient.On("RefreshLease", ctx, testMachineID, mock.AnythingOfType("*int"), testLeaseNonce).
 				Return(tt.refreshLeaseResponse, tt.refreshLeaseError).
 				Maybe()
 
-			// Create test machine
 			lm := &leasableMachine{
 				flapsClient: mockClient,
 				machine:     &fly.Machine{ID: testMachineID},
@@ -108,21 +93,16 @@ func TestRefreshLeaseUntilCanceled(t *testing.T) {
 			}
 
 			// Setup test cancellation if needed
-			if tt.expectTerminated {
+			if !tt.expectTerminated {
 				go func() {
 					time.Sleep(testCancellationWait)
 					cancel()
 				}()
 			}
 
-			// Run the function under test
 			lm.refreshLeaseUntilCanceled(ctx, testLeaseDuration, testLeaseDelay)
-
-			// Verify expected behavior
-			if !tt.expectTerminated {
-				mockClient.AssertCalled(t, "RefreshLease", ctx, testMachineID,
-					mock.AnythingOfType("*int"), testLeaseNonce)
-			}
+			mockClient.AssertCalled(t, "RefreshLease", ctx, testMachineID,
+				mock.AnythingOfType("*int"), testLeaseNonce)
 		})
 	}
 }

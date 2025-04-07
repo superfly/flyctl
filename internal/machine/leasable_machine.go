@@ -500,13 +500,18 @@ func (lm *leasableMachine) StartBackgroundLeaseRefresh(ctx context.Context, leas
 }
 
 func (lm *leasableMachine) refreshLeaseUntilCanceled(ctx context.Context, duration time.Duration, delayBetween time.Duration) {
-	maxDelay := duration - time.Second
+	maxDelay := duration - 4*time.Second
 
 	if maxDelay < delayBetween {
 		maxDelay = delayBetween
 	}
 	for {
-		time.Sleep(delayBetween + time.Duration(rand.Int63n(int64(maxDelay-delayBetween+1))))
+		dur := delayBetween + time.Duration(rand.Int63n(int64(maxDelay-delayBetween+1)))
+		select {
+		case <-time.After(dur):
+		case <-ctx.Done():
+			return
+		}
 		switch err := lm.RefreshLease(ctx, duration); {
 		case err == nil:
 			// good times
