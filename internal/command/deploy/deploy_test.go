@@ -4,11 +4,12 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"github.com/stretchr/testify/assert"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/flapsutil"
@@ -40,7 +41,7 @@ func TestCommand_Execute(t *testing.T) {
 	cmd.SetArgs([]string{
 		"--image", "test-registry.fly.io/my-image:deployment-00000000000000000000000000",
 		"--smoke-checks=false",
-		"--wait-timeout", "700",
+		"--max-concurrent", "700",
 	})
 
 	ctx := context.Background()
@@ -68,7 +69,7 @@ func TestCommand_Execute(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	assert.Contains(t, buf.String(), "Using wait timeout: 5m0s lease timeout: 5m59s delay between lease refreshes: 5m50s")
+	assert.Contains(t, buf.String(), "lease timeout: 4m46s delay between lease refreshes: 1m35s")
 }
 
 // copyFS writes the contents of a file system to a destination path on disk.
