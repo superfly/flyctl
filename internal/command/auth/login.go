@@ -23,6 +23,7 @@ browser-based authentication.
 	)
 
 	cmd := command.New("login", short, long, runLogin)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
 		flag.Bool{

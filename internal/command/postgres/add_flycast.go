@@ -35,6 +35,7 @@ func newAddFlycast() *cobra.Command {
 	)
 
 	cmd.Hidden = true
+	cmd.Args = cobra.NoArgs
 
 	return cmd
 }

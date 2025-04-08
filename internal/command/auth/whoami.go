@@ -25,6 +25,7 @@ authenticated and in use.
 
 	cmd := command.New("whoami", long, short, runWhoAmI,
 		command.RequireSession)
+	cmd.Args = cobra.NoArgs
 	flag.Add(cmd, flag.JSONOutput())
 	return cmd
 }
