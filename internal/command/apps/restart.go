@@ -32,6 +32,7 @@ func newRestart() *cobra.Command {
 
 	// Note -
 	flag.Add(cmd,
+		flag.AppConfig(),
 		flag.Bool{
 			Name:        "force-stop",
 			Description: "Performs a force stop against the target Machine",
