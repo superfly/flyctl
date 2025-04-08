@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/azazeal/pause"
+	"github.com/fsnotify/fsnotify"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/superfly/flyctl/agent/internal/proto"
@@ -88,10 +89,39 @@ func Establish(ctx context.Context, apiClient wireguard.WebClient) (*Client, err
 		return nil, err
 	}
 
-	// this is gross, but we need to wait for the agent to exit
-	pause.For(ctx, time.Second)
+	// wait for the agent to exit
+	waitUntilDeleted(ctx, PathToSocket(), time.Second)
 
 	return StartDaemon(ctx)
+}
+
+// Use fsnotify to wait until a file is deleted, fallback to a timeout on any error.
+func waitUntilDeleted(ctx context.Context, path string, timeout time.Duration) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		time.Sleep(timeout)
+		return
+	}
+	defer watcher.Close()
+
+	if err = watcher.Add(path); err != nil {
+		return
+	}
+	t := time.NewTimer(timeout)
+	defer t.Stop()
+
+	for {
+		select {
+		case <-t.C:
+			return
+		case <-ctx.Done():
+			return
+		case event := <-watcher.Events:
+			if event.Has(fsnotify.Remove) {
+				return
+			}
+		}
+	}
 }
 
 func newClient(network, addr string) *Client {
