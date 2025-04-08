@@ -530,12 +530,13 @@ func getOrCreateEphemeralShellApp(ctx context.Context, client flyutil.Client) (*
 	}
 
 	if appc == nil {
+		appName := fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000))
+		appName = strings.TrimRight(appName[:min(len(appName), 63)], "-")
 		appc, err = client.CreateApp(ctx, fly.CreateAppInput{
 			OrganizationID: org.ID,
-			// i'll never find love again like the kind you give like the kind you send
-			Name: fmt.Sprintf("flyctl-interactive-shells-%s-%d", strings.ToLower(org.ID), rand.Intn(1_000_000)),
+			// I'll never find love again like the kind you give like the kind you send
+			Name: appName,
 		})
-
 		if err != nil {
 			return nil, fmt.Errorf("create interactive shell app: %w", err)
 		}
