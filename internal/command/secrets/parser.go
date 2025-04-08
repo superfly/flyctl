@@ -28,24 +28,25 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 				continue
 			}
 
-			parts := strings.SplitN(line, "=", 2)
-			if len(parts) != 2 {
+			key, value, ok := strings.Cut(line, "=")
+			if !ok {
 				return nil, fmt.Errorf("Secrets must be provided as NAME=VALUE pairs (%s is invalid)", line)
 			}
+			key = strings.TrimSpace(key)
+			value = strings.TrimLeft(value, " ")
 
-			if strings.HasPrefix(parts[1], `"""`) {
+			if strings.HasPrefix(value, `"""`) {
 				// Switch to multiline
 				parserState = parserStateMultiline
-				parsedKey = parts[0]
-				parsedVal.WriteString(strings.TrimPrefix(parts[1], `"""`))
+				parsedKey = key
+				parsedVal.WriteString(strings.TrimPrefix(value, `"""`))
 				parsedVal.WriteString("\n")
 			} else {
-				value := parts[1]
 				if strings.HasPrefix(value, `"`) && strings.HasSuffix(value, `"`) {
 					// Remove double quotes
 					value = value[1 : len(value)-1]
 				}
-				secrets[parts[0]] = value
+				secrets[key] = value
 			}
 		case parserStateMultiline:
 			if strings.HasSuffix(line, `"""`) {
