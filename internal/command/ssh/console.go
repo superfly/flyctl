@@ -311,7 +311,7 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 
 		selected := 0
 
-		if prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
+		if err := prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
 			return "", fmt.Errorf("selecting VM: %w", err)
 		}
 
