@@ -34,6 +34,10 @@ func parseSecrets(reader io.Reader) (map[string]string, error) {
 			}
 			key = strings.TrimSpace(key)
 			value = strings.TrimLeft(value, " ")
+			l, _, ok := strings.Cut(value, "#")
+			if ok && strings.Count(l, `"`)%2 == 0 {
+				value = strings.TrimRight(l, " ")
+			}
 
 			if strings.HasPrefix(value, `"""`) {
 				// Switch to multiline
