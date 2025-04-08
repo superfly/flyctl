@@ -300,6 +300,10 @@ func addrForMachines(ctx context.Context, app *fly.AppCompact, console bool) (ad
 		namesWithRegion = append(namesWithRegion, nameWithRegion)
 	}
 
+	if machineID != "" && selectedMachine == nil {
+		return "", fmt.Errorf("--machine=%q not found/started", machineID)
+	}
+
 	if flag.GetBool(ctx, "select") {
 		if flag.IsSpecified(ctx, "machine") {
 			return "", errors.New("--machine can't be used with -s/--select")
