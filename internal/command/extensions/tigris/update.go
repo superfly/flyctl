@@ -30,7 +30,6 @@ func update() (cmd *cobra.Command) {
 		flag.String{
 			Name:        "custom-domain",
 			Description: "A custom domain name pointing at your bucket",
-			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -41,7 +40,6 @@ func update() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "clear-custom-domain",
 			Description: "Remove a custom domain from a bucket",
-			Hidden:      true,
 		},
 
 		flag.Bool{
@@ -122,10 +120,10 @@ func runUpdate(ctx context.Context) (err error) {
 
 	if flag.IsSpecified(ctx, "custom-domain") {
 		domain := flag.GetString(ctx, "custom-domain")
-
-		if domain != addOn.Name {
-			return fmt.Errorf("The custom domain must match the bucket name: %s != %s", domain, addOn.Name)
+		if len(domain) > 0 && flag.GetBool(ctx, "clear-custom-domain") {
+			return fmt.Errorf("You cannot specify both --custom-domain and --clear-custom-domain")
 		}
+
 		fmt.Fprintf(io.Out, "Before continuing, set a DNS CNAME record to enable your custom domain: %s -> %s\n\n", domain, addOn.Name+".fly.storage.tigris.dev")
 
 		confirm, err := prompt.Confirm(ctx, "Continue with the update?")
