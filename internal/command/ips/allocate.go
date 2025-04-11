@@ -23,6 +23,7 @@ func newAllocatev4() *cobra.Command {
 		command.RequireSession,
 		command.RequireAppName,
 	)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
 		flag.Bool{
