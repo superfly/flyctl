@@ -13,10 +13,12 @@ func New() *cobra.Command {
 	)
 
 	cmd := command.New("mcp", short, long, nil)
-	cmd.Hidden = true
+	// cmd.Hidden = true
 
 	cmd.AddCommand(
+		NewProxy(),
 		newServer(),
+		NewWrap(),
 	)
 
 	return cmd

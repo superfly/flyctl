@@ -14,7 +14,7 @@ import (
 
 func newServer() *cobra.Command {
 	const (
-		short = "Start an MCP server"
+		short = "[experimental] Start a flyctl MCP server"
 		long  = short + "\n"
 		usage = "server"
 	)
