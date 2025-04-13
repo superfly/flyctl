@@ -42,6 +42,7 @@ import (
 	"github.com/superfly/flyctl/internal/command/lfsc"
 	"github.com/superfly/flyctl/internal/command/logs"
 	"github.com/superfly/flyctl/internal/command/machine"
+	"github.com/superfly/flyctl/internal/command/mcp"
 	"github.com/superfly/flyctl/internal/command/metrics"
 	"github.com/superfly/flyctl/internal/command/move"
 	"github.com/superfly/flyctl/internal/command/mpg"
@@ -127,6 +128,7 @@ func New() *cobra.Command {
 		group(ping.New(), "upkeep"),
 		group(proxy.New(), "upkeep"),
 		group(postgres.New(), "dbs_and_extensions"),
+		group(mcp.New(), "upkeep"),
 		group(mpg.New(), "dbs_and_extensions"),
 		group(ips.New(), "configuring"),
 		group(secrets.New(), "configuring"),
