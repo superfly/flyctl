@@ -34,6 +34,16 @@ func NewProxy() *cobra.Command {
 			Name:        "url",
 			Description: "URL of the MCP wrapper server",
 		},
+		flag.String{
+			Name:        "user",
+			Description: "[optional] User to authenticate with",
+			Shorthand:   "u",
+		},
+		flag.String{
+			Name:        "password",
+			Description: "[optional] Password to authenticate with",
+			Shorthand:   "p",
+		},
 	)
 
 	return cmd
@@ -120,6 +130,11 @@ func getFromServer(ctx context.Context) error {
 	req.Header.Set("User-Agent", "mcp-bridge-client")
 	req.Header.Set("Accept", "application/json")
 
+	// Set basic authentication if user is provided
+	if flag.GetString(ctx, "user") != "" {
+		req.SetBasicAuth(flag.GetString(ctx, "user"), flag.GetString(ctx, "password"))
+	}
+
 	// Send request
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -153,6 +168,11 @@ func sendToServer(ctx context.Context, message string) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("User-Agent", "mcp-bridge-client")
 	req.Header.Set("Accept", "application/json, text/event-stream")
+
+	// Set basic authentication if user is provided
+	if flag.GetString(ctx, "user") != "" {
+		req.SetBasicAuth(flag.GetString(ctx, "user"), flag.GetString(ctx, "password"))
+	}
 
 	// Send request
 	client := &http.Client{}

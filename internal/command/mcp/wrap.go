@@ -27,14 +27,16 @@ import (
 
 // Server handles HTTP requests and communicates with the remote program
 type Server struct {
-	port   int
-	mcp    string
-	cmd    *exec.Cmd
-	args   []string
-	stdin  io.WriteCloser
-	stdout io.ReadCloser
-	mutex  sync.Mutex
-	client chan string
+	port     int
+	mcp      string
+	user     string
+	password string
+	cmd      *exec.Cmd
+	args     []string
+	stdin    io.WriteCloser
+	stdout   io.ReadCloser
+	mutex    sync.Mutex
+	client   chan string
 }
 
 func NewWrap() *cobra.Command {
@@ -59,6 +61,14 @@ func NewWrap() *cobra.Command {
 			Description: "Path to the MCP program",
 			Shorthand:   "m",
 		},
+		flag.String{
+			Name:        "user",
+			Description: "[optional] User to authenticate with",
+		},
+		flag.String{
+			Name:        "password",
+			Description: "[optional] Password to authenticate with",
+		},
 	)
 
 	return cmd
@@ -67,10 +77,21 @@ func NewWrap() *cobra.Command {
 func runWrap(ctx context.Context) error {
 	// Create server
 	server := &Server{
-		port:   flag.GetInt(ctx, "port"),
-		mcp:    flag.GetString(ctx, "mcp"),
-		args:   flag.ExtraArgsFromContext(ctx),
-		client: nil,
+		port:     flag.GetInt(ctx, "port"),
+		user:     flag.GetString(ctx, "user"),
+		password: flag.GetString(ctx, "password"),
+		mcp:      flag.GetString(ctx, "mcp"),
+		args:     flag.ExtraArgsFromContext(ctx),
+		client:   nil,
+	}
+
+	// if user and password are not set, try to get them from environment variables
+	if server.user == "" {
+		server.user = os.Getenv("FLY_MCP_USER")
+	}
+
+	if server.password == "" {
+		server.password = os.Getenv("FLY_MCP_PASSWORD")
 	}
 
 	// Validate inputs
@@ -192,6 +213,15 @@ func (s *Server) ReadFromProgram() {
 
 // HandleHTTPRequest handles incoming HTTP requests
 func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	if s.user != "" {
+		// Check for basic authentication
+		user, password, ok := r.BasicAuth()
+		if !ok || user != s.user || password != s.password {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	// Handle GET requests
 	if r.Method == http.MethodGet {
 		// Set headers for SSE
