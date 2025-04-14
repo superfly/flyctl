@@ -482,6 +482,7 @@ func (md *machineDeployment) releaseLeases(ctx context.Context, machineTuples []
 				sl.LogStatus(statuslogger.StatusFailure, fmt.Sprintf("Failed to clear lease for %s: %v", machine.ID, err))
 				return err
 			}
+			machine.LeaseNonce = ""
 
 			sl.LogStatus(statuslogger.StatusSuccess, fmt.Sprintf("Cleared lease for %s", machine.ID))
 			return nil
