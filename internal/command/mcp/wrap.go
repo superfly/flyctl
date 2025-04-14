@@ -42,7 +42,7 @@ type Server struct {
 func NewWrap() *cobra.Command {
 	const (
 		short = "[experimental] Wrap an MCP stdio program"
-		long  = short + `. Options passed after double dashes ("--") will be passed to the MCP program.` + "\n"
+		long  = short + `. Options passed after double dashes ("--") will be passed to the MCP program. If user is specified, HTTP authentication will be required.` + "\n"
 		usage = "wrap"
 	)
 
@@ -52,22 +52,22 @@ func NewWrap() *cobra.Command {
 	flag.Add(cmd,
 		flag.Int{
 			Name:        "port",
-			Description: "Port to listen on",
+			Description: "[optional] Port to listen on.  Defaults to 8080.",
 			Default:     8080,
 			Shorthand:   "p",
 		},
 		flag.String{
 			Name:        "mcp",
-			Description: "Path to the MCP program",
+			Description: "[required] Path to the stdio MCP program to be wrapped.",
 			Shorthand:   "m",
 		},
 		flag.String{
 			Name:        "user",
-			Description: "[optional] User to authenticate with",
+			Description: "[optional] User to authenticate with. Defaults to the value of the FLY_MCP_USER environment variable.",
 		},
 		flag.String{
 			Name:        "password",
-			Description: "[optional] Password to authenticate with",
+			Description: "[optional] Password to authenticate with. Defaults to the value of the FLY_MCP_PASSWORD environment variable.",
 		},
 	)
 
