@@ -7,7 +7,7 @@ import (
 
 func New() *cobra.Command {
 	const (
-		short = `flyctl Model Content Protocol.`
+		short = `flyctl Model Context Protocol.`
 
 		long = short + "\n"
 	)
