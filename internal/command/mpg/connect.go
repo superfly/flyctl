@@ -53,7 +53,7 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	name := fmt.Sprintf("pgdb-%s", cluster.Id)
-	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=require", name, password, localProxyPort, name)
+	connectUrl := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s", name, password, localProxyPort, name)
 	cmd := exec.CommandContext(ctx, psqlPath, connectUrl)
 	cmd.Stdout = io.Out
 	cmd.Stderr = io.ErrOut
