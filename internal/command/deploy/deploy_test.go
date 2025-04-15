@@ -4,12 +4,19 @@ import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/build/imgsrc"
+	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/inmem"
@@ -20,6 +27,108 @@ import (
 
 //go:embed testdata
 var testdata embed.FS
+
+// Test that `printMachineConfig` correctly processes machine config templates
+func TestPrintMachineConfig(t *testing.T) {
+	testCases := []struct {
+		name              string
+		configTemplate    string
+		expectedContainer string
+	}{
+		{
+			name: "Template with single container",
+			configTemplate: `{
+				"containers": {
+					"app": {
+						"image": "will-be-overridden",
+						"env": {
+							"TEST_VAR": "test_value"
+						}
+					}
+				}
+			}`,
+			expectedContainer: "app",
+		},
+		{
+			name: "Template with multiple containers",
+			configTemplate: `{
+				"containers": {
+					"app": {
+						"image": "will-be-overridden",
+						"env": {
+							"TEST_VAR": "test_value"
+						}
+					},
+					"sidecar": {
+						"image": "redis:latest",
+						"env": {
+							"REDIS_PORT": "6379"
+						}
+					}
+				}
+			}`,
+			expectedContainer: "app",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Setup test context
+			var buf bytes.Buffer
+			ios := &iostreams.IOStreams{Out: &buf, ErrOut: &buf}
+			ctx := iostreams.NewContext(context.Background(), ios)
+
+			// Create a temporary file for the config template
+			tmpfile, err := os.CreateTemp("", "machine-config-*.json")
+			require.NoError(t, err)
+			defer os.Remove(tmpfile.Name())
+
+			_, err = tmpfile.Write([]byte(tc.configTemplate))
+			require.NoError(t, err)
+			err = tmpfile.Close()
+			require.NoError(t, err)
+
+			// Setup the flags
+			ctx = flag.NewContext(ctx, nil)
+			ctx = flag.WithValue(ctx, "machine-config-template", tmpfile.Name())
+
+			// Create app config and deployment image
+			appConfig := &appconfig.Config{
+				AppName: "test-app",
+				Experimental: &appconfig.Experimental{
+					MachineConfig: tmpfile.Name(),
+				},
+			}
+
+			img := &imgsrc.DeploymentImage{
+				Tag: "registry.fly.io/test-app:deployment-123456789",
+			}
+
+			// Call the function
+			err = printMachineConfig(ctx, appConfig, img)
+			require.NoError(t, err)
+
+			// Check the output
+			output := buf.String()
+			assert.Contains(t, output, "Processing machine configuration template")
+			assert.Contains(t, output, "Machine Config for Process Group: app")
+
+			// Parse the JSON output to verify the container structure
+			jsonStart := strings.Index(output, "{")
+			jsonEnd := strings.LastIndex(output, "}") + 1
+			jsonOutput := output[jsonStart:jsonEnd]
+
+			var machineConfig fly.MachineConfig
+			err = json.Unmarshal([]byte(jsonOutput), &machineConfig)
+			require.NoError(t, err)
+
+			// Verify that containers are present and properly configured
+			assert.NotNil(t, machineConfig.Containers, "Containers should be present in the output")
+			assert.Contains(t, machineConfig.Containers, tc.expectedContainer, "The 'app' container should be included")
+			assert.Equal(t, img.Tag, machineConfig.Image, "The image should be preserved")
+		})
+	}
+}
 
 func TestCommand_Execute(t *testing.T) {
 	makeTerminalLoggerQuiet(t)
@@ -100,4 +209,7 @@ func chdir(tb testing.TB, dir string) {
 			tb.Fatalf("cannot revert working directory: %s", err)
 		}
 	})
+}
+
+func makeTerminalLoggerQuiet(t testing.TB) {
 }
