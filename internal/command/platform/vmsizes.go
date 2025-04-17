@@ -3,6 +3,8 @@ package platform
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"sort"
 
 	"github.com/samber/lo"
@@ -10,6 +12,7 @@ import (
 
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/render"
 	"github.com/superfly/flyctl/iostreams"
@@ -34,6 +37,10 @@ func newVMSizes() (cmd *cobra.Command) {
 
 func runMachineVMSizes(ctx context.Context) error {
 	out := iostreams.FromContext(ctx).Out
+
+	if config.FromContext(ctx).JSONOutput {
+		return render.JSON(out, slices.Collect(maps.Values(fly.MachinePresets)))
+	}
 
 	type preset struct {
 		guest   *fly.MachineGuest
