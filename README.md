@@ -41,7 +41,7 @@ curl -L https://fly.io/install.sh | sh -s pre
 Installing a specific version:
 
 ```bash
-curl -L https://fly.io/install.sh | sh -s 0.0.200
+curl -L https://fly.io/install.sh | sh -s 0.2.50
 ```
 
 #### Windows
@@ -50,6 +50,11 @@ Run the Powershell install script:
 
 ```
 iwr https://fly.io/install.ps1 -useb | iex
+```
+Installing a specific version:
+
+```
+$env:v = "0.2.50"; $v = $env:v; iwr https://fly.io/install.ps1 -useb | iex
 ```
 
 
