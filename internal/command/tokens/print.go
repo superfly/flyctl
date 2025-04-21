@@ -175,38 +175,35 @@ func printCaveat(ios *iostreams.IOStreams, cav macaroon.Caveat) {
 	}
 }
 
-// formatAccessMask converts a resset.Action mask string into a human-readable string.
+// formatAccessMask converts a resset.Action mask (uint16) into a human-readable string.
 func formatAccessMask(mask resset.Action) string {
 	if mask == resset.ActionAll {
 		return "all-access"
 	}
+	if mask == resset.ActionNone {
+		return "no-access"
+	}
 
-	maskStr := string(mask) // Convert resset.Action (likely string type) to string
 	var parts []string
 
-	if strings.ContainsRune(maskStr, 'r') {
+	if mask&resset.ActionRead != 0 {
 		parts = append(parts, "read")
 	}
-	if strings.ContainsRune(maskStr, 'w') {
+	if mask&resset.ActionWrite != 0 {
 		parts = append(parts, "write")
 	}
-	if strings.ContainsRune(maskStr, 'c') {
+	if mask&resset.ActionCreate != 0 {
 		parts = append(parts, "create")
 	}
-	if strings.ContainsRune(maskStr, 'd') {
+	if mask&resset.ActionDelete != 0 {
 		parts = append(parts, "destroy")
 	}
-	if strings.ContainsRune(maskStr, 'C') { // Capital 'C' for control
+	if mask&resset.ActionControl != 0 {
 		parts = append(parts, "control")
 	}
 
 	if len(parts) == 0 {
-		// Check if it's an empty string explicitly, or some other zero value representation
-		if maskStr == "" || maskStr == string(resset.ActionNone) {
-			return "no-access"
-		} else {
-			return fmt.Sprintf("unknown-access (%s)", maskStr)
-		}
+		return fmt.Sprintf("unknown-access (mask: %d)", mask)
 	}
 
 	return strings.Join(parts, ", ")
