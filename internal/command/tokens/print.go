@@ -98,16 +98,19 @@ func printCaveat(ios *iostreams.IOStreams, cav macaroon.Caveat) {
 	case *macaroon.BindToParentToken:
 		prin("  Caveat: Bound To Parent Token\n")
 	case *macaroon.ValidityWindow:
-		now := time.Now().Unix()
-		validity := "(INVALID)"
-		if now >= c.NotBefore && now < c.NotAfter {
-			validity = "(valid)"
+		now := time.Now()
+		notBefore := time.Unix(c.NotBefore, 0)
+		notAfter := time.Unix(c.NotAfter, 0)
+
+		if now.After(notBefore) && now.Before(notAfter) {
+			remaining := notAfter.Sub(now)
+			prin("  Caveat: Validity Window - Valid For %s\n", formatDuration(remaining))
+		} else {
+			prin("  Caveat: Validity Window - NotBefore: %s, NotAfter: %s (INVALID)\n",
+				notBefore.Format(time.RFC3339),
+				notAfter.Format(time.RFC3339),
+			)
 		}
-		prin("  Caveat: Validity Window - NotBefore: %s, NotAfter: %s %s\n",
-			time.Unix(c.NotBefore, 0).Format(time.RFC3339),
-			time.Unix(c.NotAfter, 0).Format(time.RFC3339),
-			validity,
-		)
 
 	case *flyio.Apps:
 		prin("  Caveat: Apps - %s\n", c.Apps)
@@ -207,4 +210,45 @@ func formatAccessMask(mask resset.Action) string {
 	}
 
 	return strings.Join(parts, ", ")
+}
+
+// formatDuration converts a duration into a human-readable string (days, weeks, hours, minutes).
+func formatDuration(d time.Duration) string {
+	const (
+		day  = 24 * time.Hour
+		week = 7 * day
+	)
+
+	var (
+		units int
+		unit  string
+	)
+
+	switch {
+	case d < time.Minute:
+		seconds := int(d / time.Second)
+		if seconds <= 0 {
+			return "less than a minute"
+		}
+		units = seconds
+		unit = "second"
+	case d < time.Hour:
+		units = int(d / time.Minute)
+		unit = "minute"
+	case d < day:
+		units = int(d / time.Hour)
+		unit = "hour"
+	case d < week:
+		units = int(d / day)
+		unit = "day"
+	default: // d >= week
+		units = int(d / week)
+		unit = "week"
+	}
+
+	if units != 1 {
+		unit += "s"
+	}
+
+	return fmt.Sprintf("%d %s", units, unit)
 }
