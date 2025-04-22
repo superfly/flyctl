@@ -11,7 +11,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/proxy"
@@ -31,6 +30,7 @@ func newProxy() (cmd *cobra.Command) {
 	flag.Add(cmd,
 		flag.Org(),
 		flag.Region(),
+		flag.MPGCluster(),
 	)
 
 	return cmd
@@ -68,35 +68,14 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		return nil, nil, "", err
 	}
 
-	uiexClient := uiexutil.ClientFromContext(ctx)
-
-	var index int
-	var options []string
-
-	clustersResponse, err := uiexClient.ListManagedClusters(ctx, fullOrg.Organization.RawSlug)
+	// Select the cluster using the new helper function
+	selectedCluster, err := ClusterFromFlagOrSelect(ctx, fullOrg.Organization.RawSlug)
 	if err != nil {
 		return nil, nil, "", err
 	}
 
-	// fmt.Printf("%+v\n", clustersResponse)
-	// fmt.Printf("%+v\n", err)
-
-	if len(clustersResponse.Data) == 0 {
-		err := fmt.Errorf("No Managed Postgres clusters found on this organization")
-		return nil, nil, "", err
-	}
-
-	for _, cluster := range clustersResponse.Data {
-		options = append(options, fmt.Sprintf("%s (%s)", cluster.Name, cluster.Region))
-	}
-
-	selectErr := prompt.Select(ctx, &index, "Select a database to connect to", "", options...)
-	if selectErr != nil {
-		return nil, nil, "", selectErr
-	}
-
-	selectedCluster := clustersResponse.Data[index]
-
+	// We have the selected cluster, now get its full details and password
+	uiexClient := uiexutil.ClientFromContext(ctx)
 	response, err := uiexClient.GetManagedCluster(ctx, selectedCluster.Organization.Slug, selectedCluster.Id)
 	if err != nil {
 		return nil, nil, "", err
