@@ -42,6 +42,10 @@ func runConnect(ctx context.Context) (err error) {
 		return err
 	}
 
+	if cluster.Status != "ready" {
+		return fmt.Errorf("cluster is not in ready state, currently: %s", cluster.Status)
+	}
+
 	psqlPath, err := exec.LookPath("psql")
 	if err != nil {
 		fmt.Fprintf(io.Out, "Could not find psql in your $PATH. Install it or point your psql at: %s", "someurl")
