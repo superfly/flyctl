@@ -32,3 +32,11 @@ primary_region = "scl"
 [[services]]
   protocol = "tcp"
   internal_port = 1004
+
+  [[services.tcp_checks]]
+    port = 9090
+
+  [[services.http_checks]]
+    port = 2020
+    method = "GET"
+    path = "/"
