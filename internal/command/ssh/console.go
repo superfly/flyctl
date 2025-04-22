@@ -325,10 +325,12 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 
 		selected := 0
 
-		if len(machines) > 1 {
+		if len(namesWithRegion) > 1 {
 			if err = prompt.Select(ctx, &selected, "Select VM:", "", namesWithRegion...); err != nil {
 				return nil, fmt.Errorf("selecting VM: %w", err)
 			}
+		} else if len(machines) == 1 {
+			fmt.Fprintf(out, "Only one machine available, selecting %s in region %s\n", machines[0].ID, machines[0].Region)
 		}
 
 		selectedMachine = machines[selected]
@@ -355,6 +357,10 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 
 	if selectedMachine == nil {
 		selectedMachine = machines[0]
+
+		if len(machines) > 1 || flag.GetBool(ctx, "select") {
+			fmt.Fprintf(out, "No machine specified, using %s in region %s\n", selectedMachine.ID, selectedMachine.Region)
+		}
 	}
 
 	return selectedMachine, nil
@@ -375,7 +381,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 		if container == "" || container == containers[0].Name {
 			return containers[0].Name, nil
 		} else {
-			return "", fmt.Errorf("machine %s has only one container (%s), but you specified %s", machine.ID, containers[0].Name, container)
+			return "", fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID)
 		}
 	} else {
 		var availableContainers []string
@@ -385,9 +391,13 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 
 		if container == "" {
 			selected := 0
-			if len(availableContainers) > 1 && flag.GetBool(ctx, "select") {
-				if err = prompt.Select(ctx, &selected, "Select container:", "", availableContainers...); err != nil {
-					return "", fmt.Errorf("selecting container: %w", err)
+			if len(availableContainers) > 1 {
+				if flag.GetBool(ctx, "select") {
+					if err = prompt.Select(ctx, &selected, "Select container:", "", availableContainers...); err != nil {
+						return "", fmt.Errorf("selecting container: %w", err)
+					}
+				} else {
+					fmt.Printf("No container specified, using %s\n", availableContainers[0])
 				}
 			}
 			return availableContainers[selected], nil
@@ -395,7 +405,7 @@ func selectContainer(ctx context.Context, machine *fly.Machine) (container strin
 			if slices.Contains(availableContainers, container) {
 				return container, nil
 			} else {
-				return "", fmt.Errorf("machine %s has no container %s", machine.ID, container)
+				return "", fmt.Errorf("container named %s is not present in machine %s, try running with --select to see a list", container, machine.ID)
 			}
 		}
 	}
