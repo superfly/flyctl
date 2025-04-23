@@ -87,10 +87,10 @@ func runAttach(ctx context.Context) error {
 		VariableName: flag.GetString(ctx, "variable-name"),
 	}
 
-	return runAttachCluster(ctx, params)
+	return RunAttachCluster(ctx, params)
 }
 
-func runAttachCluster(ctx context.Context, params AttachParams) error {
+func RunAttachCluster(ctx context.Context, params AttachParams) error {
 	var (
 		client     = flyutil.ClientFromContext(ctx)
 		uiexClient = uiexutil.ClientFromContext(ctx)

@@ -11,9 +11,12 @@ import (
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
+	"github.com/superfly/flyctl/internal/command/mpg"
 	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -31,6 +34,13 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 
 	if state.Plan.Postgres.SupabasePostgres != nil && (planStep == "" || planStep == "postgres") {
 		fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Supabase Postgres is no longer supported.\n")
+	}
+
+	if state.Plan.Postgres.ManagedPostgres != nil && (planStep == "" || planStep == "postgres") {
+		err := state.createManagedPostgres(ctx)
+		if err != nil {
+			fmt.Fprintf(iostreams.FromContext(ctx).ErrOut, "Error creating Managed Postgres cluster: %s\n", err)
+		}
 	}
 
 	if state.Plan.Redis.UpstashRedis != nil && (planStep == "" || planStep == "redis") {
@@ -61,6 +71,88 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func (state *launchState) createManagedPostgres(ctx context.Context) error {
+	var (
+		mpgPlan    = state.Plan.Postgres.ManagedPostgres
+		io         = iostreams.FromContext(ctx)
+		uiexClient = uiexutil.ClientFromContext(ctx)
+	)
+
+	// If we have a cluster ID, attach to the existing cluster
+	if mpgPlan.ClusterId != "" {
+		response, err := uiexClient.GetManagedClusterById(ctx, mpgPlan.ClusterId)
+		if err != nil {
+			return fmt.Errorf("failed retrieving cluster %s: %w", mpgPlan.ClusterId, err)
+		}
+		cluster := response.Data
+
+		params := mpg.AttachParams{
+			AppName:      state.Plan.AppName,
+			ClusterId:    cluster.Id,
+			DbName:       state.Plan.AppName,
+			DbUser:       state.Plan.AppName,
+			VariableName: "DATABASE_URL",
+		}
+
+		return mpg.RunAttachCluster(ctx, params)
+	}
+
+	// Create a new MPG cluster
+	org, err := state.Org(ctx)
+	if err != nil {
+		return err
+	}
+
+	region, err := state.Region(ctx)
+	if err != nil {
+		return err
+	}
+
+	// Create the cluster
+	clusterName := fmt.Sprintf("%s-db", state.Plan.AppName)
+	input := uiex.CreateClusterInput{
+		Name:    clusterName,
+		Region:  region.Code,
+		Plan:    "development", // TODO: Make this configurable
+		OrgSlug: org.Slug,
+	}
+
+	response, err := uiexClient.CreateCluster(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed creating cluster: %w", err)
+	}
+
+	// Wait for cluster to be ready
+	fmt.Fprintf(io.Out, "Waiting for cluster to be ready...\n")
+	for {
+		cluster, err := uiexClient.GetManagedClusterById(ctx, response.ClusterId)
+		if err != nil {
+			return fmt.Errorf("failed checking cluster status: %w", err)
+		}
+
+		if cluster.Data.Status == "ready" {
+			break
+		}
+
+		if cluster.Data.Status == "error" {
+			return fmt.Errorf("cluster creation failed")
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	// Attach to the new cluster
+	params := mpg.AttachParams{
+		AppName:      state.Plan.AppName,
+		ClusterId:    response.ClusterId,
+		DbName:       state.Plan.AppName,
+		DbUser:       state.Plan.AppName,
+		VariableName: "DATABASE_URL",
+	}
+
+	return mpg.RunAttachCluster(ctx, params)
 }
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {

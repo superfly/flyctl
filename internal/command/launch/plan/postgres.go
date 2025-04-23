@@ -7,6 +7,7 @@ import (
 type PostgresPlan struct {
 	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
 	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
+	ManagedPostgres  *ManagedPostgresPlan  `json:"managed_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -18,6 +19,9 @@ func (p *PostgresPlan) Provider() any {
 	}
 	if p.SupabasePostgres != nil {
 		return p.SupabasePostgres
+	}
+	if p.ManagedPostgres != nil {
+		return p.ManagedPostgres
 	}
 	return nil
 }
@@ -74,4 +78,8 @@ func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
 		return plan.RegionCode
 	}
 	return p.Region
+}
+
+type ManagedPostgresPlan struct {
+	ClusterId string `json:"cluster_id"`
 }
