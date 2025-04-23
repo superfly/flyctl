@@ -38,6 +38,53 @@ type GetManagedClusterResponse struct {
 	Password GetManagedClusterPasswordResponse `json:"password"`
 }
 
+type CreateClusterInput struct {
+	Name    string `json:"name"`
+	Region  string `json:"region"`
+	Plan    string `json:"plan"`
+	OrgSlug string `json:"org_slug"`
+}
+
+type CreateClusterResponse struct {
+	ClusterId string `json:"cluster_id"`
+}
+
+func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (CreateClusterResponse, error) {
+	var response CreateClusterResponse
+
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.baseUrl, input.OrgSlug)
+
+	body, err := json.Marshal(input)
+	if err != nil {
+		return response, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	switch res.StatusCode {
+	case http.StatusOK, http.StatusCreated:
+		if err = json.NewDecoder(res.Body).Decode(&response); err != nil {
+			return response, fmt.Errorf("failed to decode response, please try again: %w", err)
+		}
+		return response, nil
+	default:
+		return response, fmt.Errorf("failed to create cluster: %s", res.Status)
+	}
+}
+
 func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string) (ListManagedClustersResponse, error) {
 	var response ListManagedClustersResponse
 
@@ -69,7 +116,6 @@ func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string) (ListM
 	default:
 		return response, err
 	}
-
 }
 
 func (c *Client) GetManagedCluster(ctx context.Context, orgSlug string, id string) (GetManagedClusterResponse, error) {
