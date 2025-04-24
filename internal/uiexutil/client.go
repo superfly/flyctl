@@ -11,7 +11,6 @@ type Client interface {
 	GetManagedCluster(ctx context.Context, orgSlug string, id string) (uiex.GetManagedClusterResponse, error)
 	GetManagedClusterById(ctx context.Context, id string) (uiex.GetManagedClusterResponse, error)
 	CreateUser(ctx context.Context, id string, input uiex.CreateUserInput) (uiex.CreateUserResponse, error)
-	CreateCluster(ctx context.Context, input uiex.CreateClusterInput) (uiex.CreateClusterResponse, error)
 }
 
 type contextKey struct{}

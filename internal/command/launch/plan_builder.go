@@ -237,11 +237,6 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 				// TODO
 			}
 		}
-		// Force Postgres provisioning if --db flag is set
-		if flag.GetBool(ctx, "db") {
-			lp.Postgres = plan.DefaultPostgres(lp)
-			planSource.postgresSource = "forced by --db flag"
-		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {
 			lp.Redis = plan.DefaultRedis(lp)
 			planSource.redisSource = scannerSource
