@@ -104,6 +104,8 @@ require (
 
 require github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 
+replace github.com/superfly/fly-go => /Users/jsierles/fly/internal/fly-go
+
 require (
 	connectrpc.com/connect v1.16.1 // indirect
 	dario.cat/mergo v1.0.1 // indirect

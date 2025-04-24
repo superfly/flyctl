@@ -53,7 +53,7 @@ func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (C
 	var response CreateClusterResponse
 
 	cfg := config.FromContext(ctx)
-	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.baseUrl, input.OrgSlug)
+	url := fmt.Sprintf("%s/api/v1/organizations/fly-pg/managed_postgres", c.baseUrl)
 
 	body, err := json.Marshal(input)
 	if err != nil {

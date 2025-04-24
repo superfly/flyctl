@@ -28,17 +28,11 @@ func (p *PostgresPlan) Provider() any {
 
 func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 	return PostgresPlan{
-		// TODO: Once supabase is GA, we want to default to Supabase
-		FlyPostgres: &FlyPostgresPlan{
-			// NOTE: Until Legacy Launch is removed, we have to maintain
-			//       "%app_name%-db" as the app name for the database.
-			//       (legacy launch does not have a single source-of-truth name for the db,
-			//        so it constructs the name on-the-spot each time it needs it)
-			AppName:    plan.AppName + "-db",
-			VmSize:     "shared-cpu-1x",
-			VmRam:      256,
-			Nodes:      1,
-			DiskSizeGB: 1,
+		ManagedPostgres: &ManagedPostgresPlan{
+			DbName: plan.AppName + "-db",
+			Region: "iad",
+			Plan:   "basic",
+			Disk:   10,
 		},
 	}
 }
@@ -81,5 +75,30 @@ func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
 }
 
 type ManagedPostgresPlan struct {
-	ClusterId string `json:"cluster_id"`
+	ExistingMpgHashid string `json:"existing_mpg_hashid"`
+	DbName            string `json:"db_name"`
+	Region            string `json:"region"`
+	Plan              string `json:"plan"`
+	Disk              int    `json:"disk"`
+}
+
+func (p *ManagedPostgresPlan) GetRegion() string {
+	if p.Region == "" {
+		return "iad"
+	}
+	return p.Region
+}
+
+func (p *ManagedPostgresPlan) GetPlan() string {
+	if p.Plan == "" {
+		return "basic"
+	}
+	return p.Plan
+}
+
+func (p *ManagedPostgresPlan) GetDisk() int {
+	if p.Disk == 0 {
+		return 10
+	}
+	return p.Disk
 }

@@ -227,14 +227,19 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
 		if !flag.GetBool(ctx, "no-db") {
-			switch srcInfo.DatabaseDesired {
-			case scanner.DatabaseKindPostgres:
+			if flag.GetBool(ctx, "db") {
 				lp.Postgres = plan.DefaultPostgres(lp)
-				planSource.postgresSource = scannerSource
-			case scanner.DatabaseKindMySQL:
-				// TODO
-			case scanner.DatabaseKindSqlite:
-				// TODO
+				planSource.postgresSource = "forced by --db flag"
+			} else {
+				switch srcInfo.DatabaseDesired {
+				case scanner.DatabaseKindPostgres:
+					lp.Postgres = plan.DefaultPostgres(lp)
+					planSource.postgresSource = scannerSource
+				case scanner.DatabaseKindMySQL:
+					// TODO
+				case scanner.DatabaseKindSqlite:
+					// TODO
+				}
 			}
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {

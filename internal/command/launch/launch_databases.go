@@ -80,18 +80,18 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		uiexClient = uiexutil.ClientFromContext(ctx)
 	)
 
-	// If we have a cluster ID, attach to the existing cluster
-	if mpgPlan.ClusterId != "" {
-		response, err := uiexClient.GetManagedClusterById(ctx, mpgPlan.ClusterId)
+	// If we have an existing cluster hashid, attach to that cluster
+	if mpgPlan.ExistingMpgHashid != "" {
+		response, err := uiexClient.GetManagedClusterById(ctx, mpgPlan.ExistingMpgHashid)
 		if err != nil {
-			return fmt.Errorf("failed retrieving cluster %s: %w", mpgPlan.ClusterId, err)
+			return fmt.Errorf("failed retrieving cluster %s: %w", mpgPlan.ExistingMpgHashid, err)
 		}
 		cluster := response.Data
 
 		params := mpg.AttachParams{
 			AppName:      state.Plan.AppName,
 			ClusterId:    cluster.Id,
-			DbName:       state.Plan.AppName,
+			DbName:       mpgPlan.DbName,
 			DbUser:       state.Plan.AppName,
 			VariableName: "DATABASE_URL",
 		}
@@ -99,29 +99,22 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return mpg.RunAttachCluster(ctx, params)
 	}
 
-	// Create a new MPG cluster
+	// Create a new managed postgres cluster
 	org, err := state.Org(ctx)
 	if err != nil {
 		return err
 	}
 
-	region, err := state.Region(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Create the cluster
-	clusterName := fmt.Sprintf("%s-db", state.Plan.AppName)
 	input := uiex.CreateClusterInput{
-		Name:    clusterName,
-		Region:  region.Code,
-		Plan:    "development", // TODO: Make this configurable
+		Name:    state.Plan.AppName + "-db",
+		Region:  mpgPlan.GetRegion(),
+		Plan:    mpgPlan.GetPlan(),
 		OrgSlug: org.Slug,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
 	if err != nil {
-		return fmt.Errorf("failed creating cluster: %w", err)
+		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
 
 	// Wait for cluster to be ready
@@ -143,11 +136,11 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		time.Sleep(5 * time.Second)
 	}
 
-	// Attach to the new cluster
+	// Attach the new cluster to the app
 	params := mpg.AttachParams{
 		AppName:      state.Plan.AppName,
 		ClusterId:    response.ClusterId,
-		DbName:       state.Plan.AppName,
+		DbName:       mpgPlan.DbName,
 		DbUser:       state.Plan.AppName,
 		VariableName: "DATABASE_URL",
 	}
