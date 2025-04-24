@@ -16,10 +16,6 @@ type ManagedClusterIpAssignments struct {
 	Direct string `json:"direct"`
 }
 
-type FksCluster struct {
-	Status string `json:"status"`
-}
-
 type ManagedCluster struct {
 	Id            string                      `json:"id"`
 	Name          string                      `json:"name"`
