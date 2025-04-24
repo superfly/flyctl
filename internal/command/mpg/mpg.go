@@ -23,12 +23,17 @@ func New() *cobra.Command {
 
 	cmd.Aliases = []string{"mpg"}
 
+	flag.Add(cmd,
+		flag.Org(),
+	)
+
 	cmd.AddCommand(
 		newProxy(),
 		newConnect(),
 		newAttach(),
 		newStatus(),
 		newList(),
+		newCreate(),
 	)
 
 	return cmd
