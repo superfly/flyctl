@@ -80,12 +80,27 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		return err
 	}
 
+	var slug string
+	if org.Slug == "personal" {
+		genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+
+		// For ui-ex request we need the real org slug
+		var fullOrg *gql.GetOrganizationResponse
+		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
+			return fmt.Errorf("failed fetching org: %w", err)
+		}
+
+		slug = fullOrg.Organization.RawSlug
+	} else {
+		slug = org.Slug
+	}
+
 	// Create new managed Postgres cluster
 	input := uiex.CreateClusterInput{
 		Name:    pgPlan.AppName,
 		Region:  region.Code,
 		Plan:    "basic", // Default plan for now
-		OrgSlug: org.Slug,
+		OrgSlug: slug,
 	}
 
 	response, err := uiexClient.CreateCluster(ctx, input)
@@ -118,7 +133,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 
 	// Create a user for the app
 	userInput := uiex.CreateUserInput{
-		DbName:   "postgres",
+		DbName:   state.Plan.AppName,
 		UserName: state.Plan.AppName,
 	}
 
