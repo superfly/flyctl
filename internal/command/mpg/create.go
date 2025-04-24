@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/gql"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -88,9 +89,16 @@ func runCreate(ctx context.Context) error {
 	)
 
 	if appName == "" {
-		appName, err = prompt.SelectAppName(ctx)
-		if err != nil {
-			return err
+		// If no name is provided, try to get the app name from context
+		if appName = appconfig.NameFromContext(ctx); appName != "" {
+			// If we have an app name, use it to create a default database name
+			appName = appName + "-db"
+		} else {
+			// If no app name is available, prompt for a name
+			appName, err = prompt.SelectAppName(ctx)
+			if err != nil {
+				return err
+			}
 		}
 	}
 

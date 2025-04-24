@@ -3,6 +3,7 @@ package launch
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -108,10 +109,6 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
 	}
 
-	if response.Data.Status == nil {
-		return fmt.Errorf("invalid cluster response: status is nil")
-	}
-
 	// Wait for cluster to be ready
 	fmt.Fprintf(io.Out, "Waiting for cluster to be ready...\n")
 	for {
@@ -131,11 +128,17 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		time.Sleep(5 * time.Second)
 	}
 
-	// Create a user for the app
+	// Create a user to get the connection string
+	appName := strings.ToLower(strings.ReplaceAll(state.Plan.AppName, "_", "-"))
+	dbName := appName
+	dbUser := appName
+
 	userInput := uiex.CreateUserInput{
-		DbName:   state.Plan.AppName,
-		UserName: state.Plan.AppName,
+		DbName:   dbName,
+		UserName: dbUser,
 	}
+
+	fmt.Fprintf(io.Out, "Creating database user...\n")
 
 	userResponse, err := uiexClient.CreateUser(ctx, response.Data.Id, userInput)
 	if err != nil {
@@ -147,17 +150,13 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		"DATABASE_URL": userResponse.ConnectionUri,
 	}
 
-	_, err = flyutil.ClientFromContext(ctx).SetSecrets(ctx, state.Plan.AppName, secrets)
-	if err != nil {
-		return fmt.Errorf("failed setting database connection string: %w", err)
+	client := flyutil.ClientFromContext(ctx)
+	if _, err := client.SetSecrets(ctx, state.Plan.AppName, secrets); err != nil {
+		return fmt.Errorf("failed setting database secrets: %w", err)
 	}
 
-	fmt.Fprintf(io.Out, "Managed Postgres cluster %s created successfully!\n", pgPlan.AppName)
-	fmt.Fprintf(io.Out, "  Organization: %s\n", org.Slug)
-	fmt.Fprintf(io.Out, "  Region: %s\n", region.Code)
-	fmt.Fprintf(io.Out, "  Plan: %s\n", response.Data.Plan)
-	fmt.Fprintf(io.Out, "  Status: %s\n", *response.Data.Status)
-	fmt.Fprintf(io.Out, "  Connection string saved as DATABASE_URL\n")
+	fmt.Fprintf(io.Out, "Postgres cluster %s is ready and attached to %s\n", response.Data.Id, state.Plan.AppName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, userResponse.ConnectionUri)
 
 	return nil
 }
