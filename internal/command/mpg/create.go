@@ -7,8 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
+	"github.com/superfly/flyctl/gql"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/uiex"
 	"github.com/superfly/flyctl/internal/uiexutil"
@@ -153,9 +155,24 @@ func runCreate(ctx context.Context) error {
 		plan = "basic" // Default plan
 	}
 
+	var slug string
+	if org.Slug == "personal" {
+		genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+
+		// For ui-ex request we need the real org slug
+		var fullOrg *gql.GetOrganizationResponse
+		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
+			return fmt.Errorf("failed fetching org: %w", err)
+		}
+
+		slug = fullOrg.Organization.RawSlug
+	} else {
+		slug = org.Slug
+	}
+
 	params := &CreateClusterParams{
 		Name:          appName,
-		OrgSlug:       org.Slug,
+		OrgSlug:       slug,
 		Region:        selectedRegion.Code,
 		Plan:          plan,
 		Nodes:         flag.GetInt(ctx, "nodes"),
