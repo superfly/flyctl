@@ -119,6 +119,11 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
+			Name:        "db",
+			Description: "Force provisioning a managed Postgres database",
+			Default:     false,
+		},
+		flag.Bool{
 			Name:        "no-redis",
 			Description: "Skip automatically provisioning a Redis instance",
 			Default:     false,
