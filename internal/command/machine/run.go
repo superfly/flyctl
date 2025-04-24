@@ -257,6 +257,12 @@ func newRun() *cobra.Command {
 			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
 			Hidden:      false,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Default:     "root",
+			Hidden:      false,
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(0)
@@ -391,8 +397,8 @@ func runMachineRun(ctx context.Context) error {
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
 		imageOrPath = "ubuntu"
-	} else if imageOrPath == "" {
-		return fmt.Errorf("image argument can't be an empty string")
+	} else if flag.GetString(ctx, "dockerfile") != "" {
+		imageOrPath = "."
 	}
 
 	machineID := flag.GetString(ctx, "id")
@@ -676,6 +682,31 @@ func determineMachineConfig(
 		}
 	}
 
+	// identify the container to use
+	// if no container is specified, look for "app" or the first container
+	var container *fly.ContainerConfig
+	if len(machineConf.Containers) > 0 {
+		match := flag.GetString(ctx, "container")
+		if match == "" {
+			match = "app"
+		}
+
+		for _, c := range machineConf.Containers {
+			if c.Name == match {
+				container = c
+				break
+			}
+		}
+
+		if container == nil {
+			if flag.GetString(ctx, "container") != "" {
+				return nil, fmt.Errorf("container %q not found", flag.GetString(ctx, "container"))
+			} else {
+				container = machineConf.Containers[0]
+			}
+		}
+	}
+
 	var err error
 	machineConf.Guest, err = flag.GetMachineGuest(ctx, machineConf.Guest)
 	if err != nil {
@@ -807,7 +838,14 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.String()
+
+		if container != nil {
+			container.Image = img.String()
+		} else {
+			machineConf.Image = img.String()
+		}
+	} else if container == nil || container.Image == "" {
+		return machineConf, fmt.Errorf("image argument can't be an empty string")
 	}
 
 	// Service updates
