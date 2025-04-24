@@ -3,17 +3,18 @@ package launch
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/samber/lo"
 	fly "github.com/superfly/fly-go"
-	"github.com/superfly/flyctl/flypg"
 	"github.com/superfly/flyctl/gql"
 	extensions_core "github.com/superfly/flyctl/internal/command/extensions/core"
 	"github.com/superfly/flyctl/internal/command/launch/plan"
-	"github.com/superfly/flyctl/internal/command/postgres"
 	"github.com/superfly/flyctl/internal/command/redis"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/uiex"
+	"github.com/superfly/flyctl/internal/uiexutil"
 	"github.com/superfly/flyctl/iostreams"
 )
 
@@ -65,92 +66,97 @@ func (state *launchState) createDatabases(ctx context.Context) error {
 
 func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	var (
-		pgPlan    = state.Plan.Postgres.FlyPostgres
-		apiClient = flyutil.ClientFromContext(ctx)
-		io        = iostreams.FromContext(ctx)
+		io         = iostreams.FromContext(ctx)
+		pgPlan     = state.Plan.Postgres.FlyPostgres
+		uiexClient = uiexutil.ClientFromContext(ctx)
 	)
 
-	attachToExisting := false
-
-	if pgPlan.AppName == "" {
-		pgPlan.AppName = fmt.Sprintf("%s-db", state.appConfig.AppName)
-	}
-
-	if apps, err := apiClient.GetApps(ctx, nil); err == nil {
-		for _, app := range apps {
-			if app.Name == pgPlan.AppName {
-				attachToExisting = true
-			}
-		}
-	}
-
-	if attachToExisting {
-		// If we try to attach to a PG cluster with the usual username
-		// format, we'll get an error (since that username already exists)
-		// by generating a new username with a sufficiently random number
-		// (in this case, the nanon second that the database is being attached)
-		currentTime := time.Now().Nanosecond()
-		dbUser := fmt.Sprintf("%s-%d", pgPlan.AppName, currentTime)
-
-		err := postgres.AttachCluster(ctx, postgres.AttachParams{
-			PgAppName: pgPlan.AppName,
-			AppName:   state.Plan.AppName,
-			DbUser:    dbUser,
-		})
-
-		if err != nil {
-			msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-			fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
-			return err
-		} else {
-			fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
-		}
-	} else {
-		// Create new PG cluster
-		org, err := state.Org(ctx)
-		if err != nil {
-			return err
-		}
-		region, err := state.Region(ctx)
-		if err != nil {
-			return err
-		}
-		err = postgres.CreateCluster(ctx, org, &region, &postgres.ClusterParams{
-			PostgresConfiguration: postgres.PostgresConfiguration{
-				Name:               pgPlan.AppName,
-				DiskGb:             pgPlan.DiskSizeGB,
-				InitialClusterSize: pgPlan.Nodes,
-				VMSize:             pgPlan.VmSize,
-				MemoryMb:           pgPlan.VmRam,
-			},
-			ScaleToZero: &pgPlan.AutoStop,
-			Autostart:   true, // TODO(Ali): Do we want this?
-			Manager:     flypg.ReplicationManager,
-		})
-		if err != nil {
-			fmt.Fprintf(io.Out, "Failed creating the Postgres cluster %s: %s\n", pgPlan.AppName, err)
-		} else {
-			err = postgres.AttachCluster(ctx, postgres.AttachParams{
-				PgAppName: pgPlan.AppName,
-				AppName:   state.Plan.AppName,
-				SuperUser: true,
-			})
-
-			if err != nil {
-				msg := "Failed attaching %s to the Postgres cluster %s: %s.\nTry attaching manually with 'fly postgres attach --app %s %s'\n"
-				fmt.Fprintf(io.Out, msg, state.Plan.AppName, pgPlan.AppName, err, state.Plan.AppName, pgPlan.AppName)
-			} else {
-				fmt.Fprintf(io.Out, "Postgres cluster %s is now attached to %s\n", pgPlan.AppName, state.Plan.AppName)
-			}
-		}
-
-		if err != nil {
-			const msg = "Error creating Postgres database. Be warned that this may affect deploys"
-			fmt.Fprintln(io.Out, io.ColorScheme().Red(msg))
-		}
-
+	// Get org and region
+	org, err := state.Org(ctx)
+	if err != nil {
 		return err
 	}
+	region, err := state.Region(ctx)
+	if err != nil {
+		return err
+	}
+
+	var slug string
+	if org.Slug == "personal" {
+		genqClient := flyutil.ClientFromContext(ctx).GenqClient()
+
+		// For ui-ex request we need the real org slug
+		var fullOrg *gql.GetOrganizationResponse
+		if fullOrg, err = gql.GetOrganization(ctx, genqClient, org.Slug); err != nil {
+			return fmt.Errorf("failed fetching org: %w", err)
+		}
+
+		slug = fullOrg.Organization.RawSlug
+	} else {
+		slug = org.Slug
+	}
+
+	// Create new managed Postgres cluster
+	input := uiex.CreateClusterInput{
+		Name:    pgPlan.AppName,
+		Region:  region.Code,
+		Plan:    "basic", // Default plan for now
+		OrgSlug: slug,
+	}
+
+	response, err := uiexClient.CreateCluster(ctx, input)
+	if err != nil {
+		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
+	}
+
+	// Wait for cluster to be ready
+	fmt.Fprintf(io.Out, "Waiting for cluster to be ready...\n")
+	for {
+		cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+		if err != nil {
+			return fmt.Errorf("failed checking cluster status: %w", err)
+		}
+
+		if cluster.Data.Status == "ready" {
+			break
+		}
+
+		if cluster.Data.Status == "error" {
+			return fmt.Errorf("cluster creation failed")
+		}
+
+		time.Sleep(5 * time.Second)
+	}
+
+	// Create a user to get the connection string
+	appName := strings.ToLower(strings.ReplaceAll(state.Plan.AppName, "_", "-"))
+	dbName := appName
+	dbUser := appName
+
+	userInput := uiex.CreateUserInput{
+		DbName:   dbName,
+		UserName: dbUser,
+	}
+
+	fmt.Fprintf(io.Out, "Creating database user...\n")
+
+	userResponse, err := uiexClient.CreateUser(ctx, response.Data.Id, userInput)
+	if err != nil {
+		return fmt.Errorf("failed creating database user: %w", err)
+	}
+
+	// Set the connection string as a secret
+	secrets := map[string]string{
+		"DATABASE_URL": userResponse.ConnectionUri,
+	}
+
+	client := flyutil.ClientFromContext(ctx)
+	if _, err := client.SetSecrets(ctx, state.Plan.AppName, secrets); err != nil {
+		return fmt.Errorf("failed setting database secrets: %w", err)
+	}
+
+	fmt.Fprintf(io.Out, "Postgres cluster %s is ready and attached to %s\n", response.Data.Id, state.Plan.AppName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, userResponse.ConnectionUri)
 
 	return nil
 }

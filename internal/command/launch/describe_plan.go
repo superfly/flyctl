@@ -28,12 +28,10 @@ func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
 }
 
 func describeFlyPostgresPlan(p *plan.FlyPostgresPlan) (string, error) {
-
 	nodePlural := lo.Ternary(p.Nodes == 1, "", "s")
 	nodesStr := fmt.Sprintf("(Fly Postgres) %d Node%s", p.Nodes, nodePlural)
 
-	guestStr := fly.MachinePresets[p.VmSize].String()
-
+	guestStr := fmt.Sprintf("%s, %dMB RAM", p.VmSize, p.VmRam)
 	diskSizeStr := fmt.Sprintf("%dGB disk", p.DiskSizeGB)
 
 	info := []string{nodesStr, guestStr, diskSizeStr}
