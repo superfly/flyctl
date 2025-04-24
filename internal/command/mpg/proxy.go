@@ -37,7 +37,6 @@ func newProxy() (cmd *cobra.Command) {
 }
 
 func runProxy(ctx context.Context) (err error) {
-
 	localProxyPort := "16380"
 	cluster, params, password, err := getMpgProxyParams(ctx, localProxyPort)
 	if err != nil {

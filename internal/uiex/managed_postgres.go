@@ -15,12 +15,19 @@ import (
 type ManagedClusterIpAssignments struct {
 	Direct string `json:"direct"`
 }
+
+type FksCluster struct {
+	Status string `json:"status"`
+}
+
 type ManagedCluster struct {
 	Id            string                      `json:"id"`
 	Name          string                      `json:"name"`
 	Region        string                      `json:"region"`
 	Status        string                      `json:"status"`
 	Plan          string                      `json:"plan"`
+	Disk          int                         `json:"disk"`
+	Replicas      int                         `json:"replicas"`
 	Organization  fly.Organization            `json:"organization"`
 	IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
 }
