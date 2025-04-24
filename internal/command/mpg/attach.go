@@ -25,8 +25,13 @@ type AttachParams struct {
 
 func newAttach() *cobra.Command {
 	const (
-		short = "Attach a managed postgres cluster to an app"
-		long  = short + "\n"
+		short = "Attach a managed Postgres cluster to an app"
+		long  = short + ". " +
+			`This command will grant the specified database user access to the
+ specified database on the managed Postgres cluster. It will also
+ add a secret to the app containing the connection string for the
+ database. If either of the database or user do not exist, they will
+ be created.`
 		usage = "attach <CLUSTER ID>"
 	)
 
