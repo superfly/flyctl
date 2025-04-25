@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -256,6 +257,11 @@ func newRun() *cobra.Command {
 			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
 			Hidden:      false,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Hidden:      false,
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(0)
@@ -390,8 +396,8 @@ func runMachineRun(ctx context.Context) error {
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
 		imageOrPath = "ubuntu"
-	} else if imageOrPath == "" {
-		return fmt.Errorf("image argument can't be an empty string")
+	} else if flag.GetString(ctx, "dockerfile") != "" {
+		imageOrPath = "."
 	}
 
 	machineID := flag.GetString(ctx, "id")
@@ -669,6 +675,35 @@ func determineMachineConfig(
 		if err := json.Unmarshal(buf, machineConf); err != nil {
 			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
 		}
+
+		if err := readLocalFiles(machineConf, buf); err != nil {
+			return nil, err
+		}
+	}
+
+	// identify the container to use
+	// if no container is specified, look for "app" or the first container
+	var container *fly.ContainerConfig
+	if len(machineConf.Containers) > 0 {
+		match := flag.GetString(ctx, "container")
+		if match == "" {
+			match = "app"
+		}
+
+		for _, c := range machineConf.Containers {
+			if c.Name == match {
+				container = c
+				break
+			}
+		}
+
+		if container == nil {
+			if flag.GetString(ctx, "container") != "" {
+				return nil, fmt.Errorf("container %q not found", flag.GetString(ctx, "container"))
+			} else {
+				container = machineConf.Containers[0]
+			}
+		}
 	}
 
 	var err error
@@ -802,7 +837,14 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.String()
+
+		if container != nil {
+			container.Image = img.String()
+		} else {
+			machineConf.Image = img.String()
+		}
+	} else if container == nil || container.Image == "" {
+		return machineConf, fmt.Errorf("image argument can't be an empty string")
 	}
 
 	// Service updates
@@ -853,4 +895,107 @@ func determineMachineConfig(
 	fly.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
+}
+
+// readLocalFiles reads local files from the machine config and inserts their content into the config.
+func readLocalFiles(config *fly.MachineConfig, buf []byte) error {
+	clean := true
+
+	if config.Files != nil {
+		for _, file := range config.Files {
+			if file.RawValue == nil && file.SecretName == nil {
+				clean = false
+			}
+		}
+	}
+
+	for _, container := range config.Containers {
+		if container.Files != nil {
+			for _, file := range container.Files {
+				if file.RawValue == nil && file.SecretName == nil {
+					clean = false
+				}
+			}
+		}
+	}
+
+	if clean {
+		return nil
+	}
+
+	// File represents a file configuration within a container
+	type LocalFile struct {
+		GuestPath string `json:"guest_path"`
+		LocalPath string `json:"local_path"`
+	}
+
+	// Container represents a container configuration
+	type LocalContainer struct {
+		Name  string      `json:"name"`
+		Files []LocalFile `json:"files"`
+	}
+
+	// Config represents the overall CLI configuration
+	type LocalConfig struct {
+		Files      []LocalFile      `json:"files"`
+		Containers []LocalContainer `json:"containers"`
+	}
+
+	// Read the JSON file
+	var localConf LocalConfig
+	if err := json.Unmarshal(buf, &localConf); err != nil {
+		return fmt.Errorf("invalid machine config %s: %w", string(buf), err)
+	}
+
+	if config.Files != nil {
+		for _, file := range config.Files {
+			if file.RawValue == nil && file.SecretName == nil {
+				for _, localFile := range localConf.Files {
+					if file.GuestPath == localFile.GuestPath {
+						if localFile.LocalPath == "" {
+							continue
+						}
+
+						content, err := os.ReadFile(localFile.LocalPath)
+						if err != nil {
+							return fmt.Errorf("failed to read file at %s: %w", localFile.LocalPath, err)
+						}
+
+						encodedContent := base64.StdEncoding.EncodeToString(content)
+						file.RawValue = &encodedContent
+					}
+				}
+			}
+		}
+	}
+
+	for _, container := range config.Containers {
+		if container.Files != nil {
+			for _, file := range container.Files {
+				if file.RawValue == nil && file.SecretName == nil {
+					for _, localContainer := range localConf.Containers {
+						if container.Name == localContainer.Name {
+							for _, localFile := range localContainer.Files {
+								if file.GuestPath == localFile.GuestPath {
+									if localFile.LocalPath == "" {
+										continue
+									}
+
+									content, err := os.ReadFile(localFile.LocalPath)
+									if err != nil {
+										return fmt.Errorf("failed to read file at %s: %w", localFile.LocalPath, err)
+									}
+
+									encodedContent := base64.StdEncoding.EncodeToString(content)
+									file.RawValue = &encodedContent
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
 }
