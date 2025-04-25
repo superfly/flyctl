@@ -80,7 +80,7 @@ require (
 	github.com/superfly/lfsc-go v0.1.1
 	github.com/superfly/macaroon v0.3.0
 	github.com/superfly/tokenizer v0.0.3-0.20240826174224-a17a2e0a9dc0
-	github.com/vektah/gqlparser/v2 v2.5.23
+	github.com/vektah/gqlparser/v2 v2.5.26
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0
 	go.opentelemetry.io/otel v1.35.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.35.0
