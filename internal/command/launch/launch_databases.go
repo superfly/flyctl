@@ -104,6 +104,8 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		OrgSlug: slug,
 	}
 
+	fmt.Fprintf(io.Out, "Provisioning Postgres cluster...\n")
+
 	response, err := uiexClient.CreateCluster(ctx, input)
 	if err != nil {
 		return fmt.Errorf("failed creating managed postgres cluster: %w", err)
