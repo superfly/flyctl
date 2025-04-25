@@ -260,7 +260,6 @@ func newRun() *cobra.Command {
 		flag.String{
 			Name:        "container",
 			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
-			Default:     "root",
 			Hidden:      false,
 		},
 	)
