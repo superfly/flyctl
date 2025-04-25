@@ -32,9 +32,10 @@ func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 			//        so it constructs the name on-the-spot each time it needs it)
 			AppName:    plan.AppName + "-db",
 			VmSize:     "shared-cpu-1x",
-			VmRam:      256,
+			VmRam:      1024, // 1GB RAM for basic plan
 			Nodes:      1,
-			DiskSizeGB: 1,
+			DiskSizeGB: 10,
+			Price:      38,
 		},
 	}
 }
@@ -46,6 +47,7 @@ type FlyPostgresPlan struct {
 	Nodes      int    `json:"nodes"`
 	DiskSizeGB int    `json:"disk_size_gb"`
 	AutoStop   bool   `json:"auto_stop"`
+	Price      int    `json:"price"`
 }
 
 func (p *FlyPostgresPlan) Guest() *fly.MachineGuest {

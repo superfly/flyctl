@@ -112,22 +112,57 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	}
 
 	// Wait for cluster to be ready
-	fmt.Fprintf(io.Out, "Waiting for cluster to be ready...\n")
-	for {
-		cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
-		if err != nil {
-			return fmt.Errorf("failed checking cluster status: %w", err)
-		}
+	fmt.Fprintf(io.Out, "Waiting for cluster %s to be ready...\n", response.Data.Id)
+	fmt.Fprintf(io.Out, "If this is taking too long, you can press Ctrl+C to continue with deployment.\n")
+	fmt.Fprintf(io.Out, "You can check the status later with 'mpg status' and attach with 'mpg attach'.\n")
 
-		if cluster.Data.Status == "ready" {
-			break
-		}
+	// Create a separate context for the wait loop that won't propagate cancellation
+	waitCtx := context.Background()
+	waitCtx, cancel := context.WithCancel(waitCtx)
+	defer cancel()
 
-		if cluster.Data.Status == "error" {
-			return fmt.Errorf("cluster creation failed")
-		}
+	// Channel to signal when cluster is ready
+	ready := make(chan bool, 1)
+	errChan := make(chan error, 1)
 
-		time.Sleep(5 * time.Second)
+	// Start the wait loop in a goroutine
+	go func() {
+		for {
+			select {
+			case <-waitCtx.Done():
+				return
+			default:
+				cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
+				if err != nil {
+					errChan <- fmt.Errorf("failed checking cluster status: %w", err)
+					return
+				}
+
+				if cluster.Data.Status == "ready" {
+					ready <- true
+					return
+				}
+
+				if cluster.Data.Status == "error" {
+					errChan <- fmt.Errorf("cluster creation failed")
+					return
+				}
+
+				time.Sleep(5 * time.Second)
+			}
+		}
+	}()
+
+	// Wait for either ready signal, error, or context cancellation
+	select {
+	case <-ready:
+		// Cluster is ready, continue with user creation
+	case err := <-errChan:
+		return err
+	case <-ctx.Done():
+		fmt.Fprintf(io.Out, "\nContinuing with deployment. You can check the status later with 'mpg status' and attach with 'mpg attach'.\n")
+		// Continue with deployment even if cluster isn't ready
+		return nil
 	}
 
 	// Create a user to get the connection string
