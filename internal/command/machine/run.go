@@ -2,12 +2,8 @@ package machine
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -654,29 +651,8 @@ func determineMachineConfig(
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
-		var buf []byte
-		switch {
-		case strings.HasPrefix(emc, "{"):
-			buf = []byte(emc)
-		case strings.HasSuffix(emc, ".json"):
-			fo, err := os.Open(emc)
-			if err != nil {
-				return nil, err
-			}
-			buf, err = io.ReadAll(fo)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("invalid machine config source: %q", emc)
-		}
-
-		if err := json.Unmarshal(buf, machineConf); err != nil {
-			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
-		}
-
-		if err := readLocalFiles(machineConf, buf); err != nil {
+	if mc := flag.GetString(ctx, "machine-config"); mc != "" {
+		if err := config.ParseConfig(machineConf, mc); err != nil {
 			return nil, err
 		}
 	}
@@ -895,107 +871,4 @@ func determineMachineConfig(
 	fly.MergeFiles(machineConf, machineFiles)
 
 	return machineConf, nil
-}
-
-// readLocalFiles reads local files from the machine config and inserts their content into the config.
-func readLocalFiles(config *fly.MachineConfig, buf []byte) error {
-	clean := true
-
-	if config.Files != nil {
-		for _, file := range config.Files {
-			if file.RawValue == nil && file.SecretName == nil {
-				clean = false
-			}
-		}
-	}
-
-	for _, container := range config.Containers {
-		if container.Files != nil {
-			for _, file := range container.Files {
-				if file.RawValue == nil && file.SecretName == nil {
-					clean = false
-				}
-			}
-		}
-	}
-
-	if clean {
-		return nil
-	}
-
-	// File represents a file configuration within a container
-	type LocalFile struct {
-		GuestPath string `json:"guest_path"`
-		LocalPath string `json:"local_path"`
-	}
-
-	// Container represents a container configuration
-	type LocalContainer struct {
-		Name  string      `json:"name"`
-		Files []LocalFile `json:"files"`
-	}
-
-	// Config represents the overall CLI configuration
-	type LocalConfig struct {
-		Files      []LocalFile      `json:"files"`
-		Containers []LocalContainer `json:"containers"`
-	}
-
-	// Read the JSON file
-	var localConf LocalConfig
-	if err := json.Unmarshal(buf, &localConf); err != nil {
-		return fmt.Errorf("invalid machine config %s: %w", string(buf), err)
-	}
-
-	if config.Files != nil {
-		for _, file := range config.Files {
-			if file.RawValue == nil && file.SecretName == nil {
-				for _, localFile := range localConf.Files {
-					if file.GuestPath == localFile.GuestPath {
-						if localFile.LocalPath == "" {
-							continue
-						}
-
-						content, err := os.ReadFile(localFile.LocalPath)
-						if err != nil {
-							return fmt.Errorf("failed to read file at %s: %w", localFile.LocalPath, err)
-						}
-
-						encodedContent := base64.StdEncoding.EncodeToString(content)
-						file.RawValue = &encodedContent
-					}
-				}
-			}
-		}
-	}
-
-	for _, container := range config.Containers {
-		if container.Files != nil {
-			for _, file := range container.Files {
-				if file.RawValue == nil && file.SecretName == nil {
-					for _, localContainer := range localConf.Containers {
-						if container.Name == localContainer.Name {
-							for _, localFile := range localContainer.Files {
-								if file.GuestPath == localFile.GuestPath {
-									if localFile.LocalPath == "" {
-										continue
-									}
-
-									content, err := os.ReadFile(localFile.LocalPath)
-									if err != nil {
-										return fmt.Errorf("failed to read file at %s: %w", localFile.LocalPath, err)
-									}
-
-									encodedContent := base64.StdEncoding.EncodeToString(content)
-									file.RawValue = &encodedContent
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	return nil
 }
