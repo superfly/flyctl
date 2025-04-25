@@ -31,14 +31,15 @@ type ListManagedClustersResponse struct {
 	Data []ManagedCluster `json:"data"`
 }
 
-type GetManagedClusterPasswordResponse struct {
-	Status string `json:"status"`
-	Value  string `json:"value"`
+type GetManagedClusterCredentialsResponse struct {
+	Status        string `json:"status"`
+	Password      string `json:"password"`
+	ConnectionUri string `json:"pgbouncer_uri"`
 }
 
 type GetManagedClusterResponse struct {
-	Data     ManagedCluster                    `json:"data"`
-	Password GetManagedClusterPasswordResponse `json:"password"`
+	Data        ManagedCluster                       `json:"data"`
+	Credentials GetManagedClusterCredentialsResponse `json:"credentials"`
 }
 
 func (c *Client) ListManagedClusters(ctx context.Context, orgSlug string) (ListManagedClustersResponse, error) {
