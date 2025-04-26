@@ -37,7 +37,7 @@ func New() (cmd *cobra.Command) {
 		short = `Create and configure a new app from source code or a Docker image`
 	)
 
-	cmd = command.New("launch", short, long, run, command.RequireSession, command.LoadAppConfigIfPresent)
+	cmd = command.New("launch", short, long, run, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
@@ -116,6 +116,11 @@ func New() (cmd *cobra.Command) {
 		flag.Bool{
 			Name:        "no-db",
 			Description: "Skip automatically provisioning a database",
+			Default:     false,
+		},
+		flag.Bool{
+			Name:        "db",
+			Description: "Force provisioning a managed Postgres database",
 			Default:     false,
 		},
 		flag.Bool{
