@@ -819,7 +819,7 @@ func determineMachineConfig(
 		} else {
 			machineConf.Image = img.String()
 		}
-	} else if container == nil || container.Image == "" {
+	} else if container == nil && container.Image == "" {
 		return machineConf, fmt.Errorf("image argument can't be an empty string")
 	}
 
