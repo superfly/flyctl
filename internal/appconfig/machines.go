@@ -247,9 +247,18 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig = helpers.Clone(src)
 	}
 
+	// Extract machine config from fly.toml
+	var appMachineConfig string
 	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
-		emc := c.Experimental.MachineConfig
-		if err := config.ParseConfig(mConfig, emc); err != nil {
+		appMachineConfig = c.Experimental.MachineConfig
+	}
+
+	if appMachineConfig == "" {
+		appMachineConfig = c.MachineConfig
+	}
+
+	if appMachineConfig != "" {
+		if err := config.ParseConfig(mConfig, appMachineConfig); err != nil {
 			return nil, err
 		}
 	}
