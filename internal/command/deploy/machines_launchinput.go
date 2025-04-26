@@ -59,6 +59,11 @@ func (md *machineDeployment) launchInputForLaunch(processGroup string, guest *fl
 		mConfig.Guest.HostDedicationID = hdid
 	}
 
+	// Update container image
+	if err = md.updateContainerImage(mConfig); err != nil {
+		return nil, err
+	}
+
 	return &fly.LaunchMachineInput{
 		Region:     region,
 		Config:     mConfig,
@@ -85,6 +90,11 @@ func (md *machineDeployment) launchInputForUpdate(origMachineRaw *fly.Machine) (
 	md.setMachineReleaseData(mConfig)
 	// Get the final process group and prevent empty string
 	processGroup = mConfig.ProcessGroup()
+
+	// Update container image
+	if err = md.updateContainerImage(mConfig); err != nil {
+		return nil, err
+	}
 
 	// Mounts needs special treatment:
 	//   * Volumes attached to existings machines can't be swapped by other volumes
@@ -241,4 +251,40 @@ func skipLaunch(origMachineRaw *fly.Machine, mConfig *fly.MachineConfig) bool {
 		}
 	}
 	return false
+}
+
+// If the machine config has containers, we need to apply the image  to the container
+// named in the app config. If no container name is specified, we look for "app" or
+// the first container.
+func (md *machineDeployment) updateContainerImage(mConfig *fly.MachineConfig) error {
+	if len(mConfig.Containers) != 0 {
+
+		// identify the container to use
+		// if no container is specified, look for "app" or the first container
+		var container *fly.ContainerConfig
+
+		match := md.appConfig.Container
+		if match == "" {
+			match = "app"
+		}
+
+		for _, c := range mConfig.Containers {
+			if c.Name == match {
+				container = c
+				break
+			}
+		}
+
+		if container == nil {
+			if md.appConfig.Container != "" {
+				return fmt.Errorf("container %q not found", md.appConfig.Container)
+			} else {
+				container = mConfig.Containers[0]
+			}
+		}
+
+		container.Image = mConfig.Image
+	}
+
+	return nil
 }
