@@ -414,6 +414,10 @@ func runMachineRun(ctx context.Context) error {
 		return err
 	}
 
+	if imageOrPath == "" && len(machineConf.Containers) == 0 {
+		return fmt.Errorf("image argument can't be an empty string")
+	}
+
 	if flag.GetBool(ctx, "build-only") {
 		return nil
 	}
@@ -819,8 +823,6 @@ func determineMachineConfig(
 		} else {
 			machineConf.Image = img.String()
 		}
-	} else if container == nil {
-		return machineConf, fmt.Errorf("image argument can't be an empty string")
 	}
 
 	// Service updates
