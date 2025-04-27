@@ -310,6 +310,39 @@ func (d Duration) addTo(cmd *cobra.Command) {
 	}
 }
 
+// Time wraps the set of time flags.
+type Time struct {
+	Name        string
+	Shorthand   string
+	Description string
+	Default     time.Time
+	ConfName    string
+	EnvName     string
+	Hidden      bool
+	Aliases     []string
+	DefValue    string
+}
+
+func (t Time) addTo(cmd *cobra.Command) {
+	flags := cmd.Flags()
+
+	TimeVar(flags, &time.Time{}, t.Name, t.Shorthand, t.Default, t.Description)
+	f := flags.Lookup(t.Name)
+	f.Hidden = t.Hidden
+
+	if t.DefValue != "" {
+		f.DefValue = t.DefValue
+	}
+
+	for _, name := range t.Aliases {
+		makeAlias(t, name).addTo(cmd)
+	}
+	err := cmd.Flags().SetAnnotation(f.Name, "flyctl_alias", t.Aliases)
+	if err != nil {
+		panic(err)
+	}
+}
+
 // Org returns an org string flag.
 func Org() String {
 	return String{

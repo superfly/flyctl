@@ -58,7 +58,16 @@ Use --no-tail to only fetch the logs in the buffer.
 		flag.Bool{
 			Name:        "no-tail",
 			Shorthand:   "n",
-			Description: "Do not continually stream logs",
+			Description: "Do not continually Stream logs",
+		},
+		flag.Time{
+			Name:        "start",
+			Description: "Start logs from this timestamp",
+		},
+		flag.Time{
+			Name:        "end",
+			Description: "Stop viewing logs at this timestamp or number of logs",
+			Default:     time.Unix(100, 0),
 		},
 	)
 	return

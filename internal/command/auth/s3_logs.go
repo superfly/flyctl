@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -70,7 +71,8 @@ func runS3Logs(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(io.Out, token)
-
+	if err := json.NewEncoder(io.Out).Encode(token); err != nil {
+		return fmt.Errorf("failed decoding response: %w", err)
+	}
 	return nil
 }
