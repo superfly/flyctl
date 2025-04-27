@@ -2,7 +2,6 @@ package logs
 
 import (
 	"bufio"
-	"container/heap"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -16,56 +15,21 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/klauspost/compress/zstd"
-	"golang.org/x/sync/errgroup"
 )
 
-// -----------------------------------------------------------------------------
-// Domain models
-// -----------------------------------------------------------------------------
+type Object struct {
+	key   string
+	entry LogEntry
+	ch    <-chan LogEntry
+}
 
 type LogEntry struct {
 	Timestamp time.Time
 	Data      []byte
 }
 
-type objectMeta struct {
-	key      string
-	earliest time.Time // batchEnd – 5 min
-}
-
-// -----------------------------------------------------------------------------
-// Stream & priority‑queue helpers
-// -----------------------------------------------------------------------------
-
-type Stream struct {
-	entry LogEntry
-	next  <-chan LogEntry
-}
-
-type streamHeap []Stream
-
-func (h streamHeap) Len() int            { return len(h) }
-func (h streamHeap) Less(i, j int) bool  { return h[i].entry.Timestamp.Before(h[j].entry.Timestamp) }
-func (h streamHeap) Swap(i, j int)       { h[i], h[j] = h[j], h[i] }
-func (h *streamHeap) Push(x interface{}) { *h = append(*h, x.(Stream)) }
-func (h *streamHeap) Pop() interface{}   { v := (*h)[h.Len()-1]; *h = (*h)[:h.Len()-1]; return v }
-
-// thin wrapper to hide heap boilerplate
-
-type StreamPQ struct{ h streamHeap }
-
-func NewStreamPQ() *StreamPQ      { pq := &StreamPQ{}; heap.Init(&pq.h); return pq }
-func (q *StreamPQ) Len() int      { return len(q.h) }
-func (q *StreamPQ) Push(s Stream) { heap.Push(&q.h, s) }
-func (q *StreamPQ) Pop() Stream   { return heap.Pop(&q.h).(Stream) }
-func (q *StreamPQ) Peek() Stream  { return q.h[0] }
-
-// -----------------------------------------------------------------------------
-// S3 helpers
-// -----------------------------------------------------------------------------
-
-func listObjects(ctx context.Context, s3c *s3.Client, bucket string, from, to time.Time) ([]objectMeta, error) {
-	var metas []objectMeta
+func listObjects(ctx context.Context, s3c *s3.Client, bucket string, from, to time.Time) ([]*Object, error) {
+	var objs []*Object
 	for _, p := range hourPrefixes(from.Add(-5*time.Minute), to) {
 		pager := s3.NewListObjectsV2Paginator(s3c, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &p})
 		for pager.HasMorePages() {
@@ -80,37 +44,46 @@ func listObjects(ctx context.Context, s3c *s3.Client, bucket string, from, to ti
 				if err != nil {
 					continue
 				}
-				end := time.Unix(epoch, 0)
-				early := end.Add(-5 * time.Minute)
-				if end.Before(from) || early.After(to) {
-					continue
+				batchEnd := time.Unix(epoch, 0).UTC()
+				batchStart := batchEnd.Add(-5 * time.Minute)
+				if batchEnd.Before(from) || batchStart.After(to) {
+					continue // object completely outside window
 				}
-				metas = append(metas, objectMeta{key, early})
+				objs = append(objs, &Object{
+					key:   key,
+					entry: LogEntry{Timestamp: batchEnd.Add(-5 * time.Minute).UTC()},
+				})
 			}
 		}
 	}
-	sort.Slice(metas, func(i, j int) bool { return metas[i].earliest.Before(metas[j].earliest) })
-	return metas, nil
+	sort.Slice(objs, func(i, j int) bool {
+		return objs[i].entry.Timestamp.Before(objs[j].entry.Timestamp)
+	})
+	return objs, nil
 }
 
 func hourPrefixes(from, to time.Time) []string {
 	from = from.Truncate(time.Hour)
 	to = to.Truncate(time.Hour)
-	var pfx []string
+	var p []string
 	for t := from; !t.After(to); t = t.Add(time.Hour) {
-		pfx = append(pfx, fmt.Sprintf("date=%04d-%02d-%02d/hour=%02d/", t.Year(), t.Month(), t.Day(), t.Hour()))
+		p = append(p, fmt.Sprintf("date=%04d-%02d-%02d/hour=%02d/", t.Year(), t.Month(), t.Day(), t.Hour()))
 	}
-	return pfx
+	return p
 }
 
-func openObject(ctx context.Context, s3c *s3.Client, bucket, key string, from, to time.Time) (Stream, error) {
-	resp, err := s3c.GetObject(ctx, &s3.GetObjectInput{Bucket: &bucket, Key: &key})
+func (o *Object) open(ctx context.Context, s3c *s3.Client, bucket string, from, to time.Time) error {
+	if o.ch != nil {
+		return nil
+	}
+
+	resp, err := s3c.GetObject(ctx, &s3.GetObjectInput{Bucket: &bucket, Key: &o.key})
 	if err != nil {
-		return Stream{}, err
+		return err
 	}
 	dec, err := zstd.NewReader(resp.Body)
 	if err != nil {
-		return Stream{}, err
+		return err
 	}
 
 	br := bufio.NewReaderSize(dec, 256<<10)
@@ -144,99 +117,52 @@ func openObject(ctx context.Context, s3c *s3.Client, bucket, key string, from, t
 		}
 	}()
 
-	first, ok := <-lineCh
-	if !ok {
-		return Stream{}, fmt.Errorf("%s: no lines in window", key)
-	}
-	return Stream{entry: first, next: lineCh}, nil
+	o.ch = lineCh
+	return nil
 }
 
-// -----------------------------------------------------------------------------
-// mergeObjects – explicit state, no nil‑channel toggling
-// -----------------------------------------------------------------------------
-
-func mergeObjects(ctx context.Context, s3c *s3.Client, bucket string, metas []objectMeta, from, to time.Time, out io.Writer) error {
-	const maxConcurrent = 32
-
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(maxConcurrent)
-
-	in := make(chan Stream, maxConcurrent)
-	for i := range metas {
-		m := metas[i]
-		g.Go(func() error {
-			stream, err := openObject(gctx, s3c, bucket, m.key, from, to)
-			if err != nil {
-				log.Printf("open %s: %v", m.key, err)
-			} else {
-				select {
-				case in <- stream:
-				case <-gctx.Done():
-				}
-			}
-			return nil
-		})
+func mergeObjects(ctx context.Context, s3c *s3.Client, bucket string, objects []*Object, from, to time.Time, out io.Writer) error {
+	pq := NewPriorityQueue(func(a, b *Object) bool {
+		return a.entry.Timestamp.Before(b.entry.Timestamp)
+	})
+	for _, obj := range objects {
+		pq.Push(obj)
 	}
-	go func() { _ = g.Wait(); close(in) }()
-
-	// buffered writer avoids extra goroutine
 	bw := bufio.NewWriter(out)
+	defer bw.Flush()
 
-	pq := NewStreamPQ()
-	inOpen := true
+	for pq.Len() > 0 {
+		obj := pq.Pop()
 
-	for inOpen || pq.Len() > 0 {
-		if pq.Len() == 0 { // must wait on input only
-			st, ok := <-in
-			if !ok {
-				inOpen = false
+		if obj.entry.Data == nil {
+			if err := obj.open(ctx, s3c, bucket, from, to); err != nil {
+				log.Printf("open %s: %v", obj.key, err)
 				continue
 			}
-			pq.Push(st)
-			continue
-		}
-
-		select {
-		case st, ok := <-in:
-			if ok {
-				pq.Push(st)
-			} else {
-				inOpen = false
-			}
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			// output path
-			top := pq.Pop()
-			if _, err := bw.Write(top.entry.Data); err != nil {
+		} else {
+			if _, err := bw.Write(obj.entry.Data); err != nil {
 				return err
 			}
 			if err := bw.WriteByte('\n'); err != nil {
 				return err
 			}
-			if nxt, ok := <-top.next; ok {
-				pq.Push(Stream{entry: nxt, next: top.next})
-			}
+		}
+		next, ok := <-obj.ch
+		if ok {
+			obj.entry = next
+			pq.Push(obj)
 		}
 	}
-
-	if err := bw.Flush(); err != nil {
-		return err
-	}
-	return g.Wait()
+	return nil
 }
 
-// -----------------------------------------------------------------------------
-// Public API
-// -----------------------------------------------------------------------------
-
 func ProcessLogs(ctx context.Context, s3c *s3.Client, bucket string, from, to time.Time, out io.Writer) error {
-	metas, err := listObjects(ctx, s3c, bucket, from, to)
+	objects, err := listObjects(ctx, s3c, bucket, from, to)
 	if err != nil {
 		return err
 	}
-	if len(metas) == 0 {
+	if len(objects) == 0 {
 		return nil
 	}
-	return mergeObjects(ctx, s3c, bucket, metas, from, to, out)
+	return mergeObjects(ctx, s3c, bucket, objects, from, to, out)
 }
