@@ -1,11 +1,7 @@
 package appconfig
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/google/shlex"
@@ -14,6 +10,7 @@ import (
 	fly "github.com/superfly/fly-go"
 	"github.com/superfly/flyctl/helpers"
 	"github.com/superfly/flyctl/internal/buildinfo"
+	"github.com/superfly/flyctl/internal/config"
 )
 
 func (c *Config) ToMachineConfig(processGroup string, src *fly.MachineConfig) (*fly.MachineConfig, error) {
@@ -250,27 +247,19 @@ func (c *Config) updateMachineConfig(src *fly.MachineConfig) (*fly.MachineConfig
 		mConfig = helpers.Clone(src)
 	}
 
+	// Extract machine config from fly.toml
+	var appMachineConfig string
 	if c.Experimental != nil && len(c.Experimental.MachineConfig) > 0 {
-		emc := c.Experimental.MachineConfig
-		var buf []byte
-		switch {
-		case strings.HasPrefix(emc, "{"):
-			buf = []byte(emc)
-		case strings.HasSuffix(emc, ".json"):
-			fo, err := os.Open(emc)
-			if err != nil {
-				return nil, err
-			}
-			buf, err = io.ReadAll(fo)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("invalid machine config source: %q", emc)
-		}
+		appMachineConfig = c.Experimental.MachineConfig
+	}
 
-		if err := json.Unmarshal(buf, mConfig); err != nil {
-			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+	if appMachineConfig == "" {
+		appMachineConfig = c.MachineConfig
+	}
+
+	if appMachineConfig != "" {
+		if err := config.ParseConfig(mConfig, appMachineConfig); err != nil {
+			return nil, err
 		}
 	}
 
