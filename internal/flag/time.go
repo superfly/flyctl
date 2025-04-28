@@ -23,9 +23,6 @@ func (tv *timeValue) String() string {
 	if tv.t.IsZero() {
 		return "0"
 	}
-	if tv.t.Second() < 1e6 {
-		return fmt.Sprintf("%d", tv.t.Unix())
-	}
 	return tv.t.Format(time.RFC3339)
 }
 

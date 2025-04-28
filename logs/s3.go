@@ -3,12 +3,14 @@ package logs
 import (
 	"context"
 	"fmt"
+	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"time"
 )
 
 const s3Region = "us-east-1"
@@ -27,14 +29,14 @@ func NewS3Stream(ctx context.Context, opts *LogOptions) (LogStream, error) {
 	if err != nil {
 		return nil, err
 	}
-	orgSlug := basic.Organization.Slug
+	opts.Org = *basic.Organization
 	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{
-		OrgSlug: orgSlug,
+		OrgSlug: opts.Org.Slug,
 	})
 	if err != nil {
 		return nil, err
 	}
-	token, err := flapsClient.GetS3LogsToken(ctx, orgSlug)
+	token, err := flapsClient.GetS3LogsToken(ctx, opts.Org.Slug)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +53,9 @@ func NewS3Stream(ctx context.Context, opts *LogOptions) (LogStream, error) {
 
 func (s *s3Stream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {
 	s.opts = opts
+	if s.opts.End.IsZero() {
+		s.opts.End = time.Now()
+	}
 	out := make(chan LogEntry)
 	go func() {
 		defer close(out)

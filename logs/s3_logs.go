@@ -72,24 +72,28 @@ func hourPrefixes(from, to time.Time) []string {
 	return p
 }
 
-func (s *s3Stream) open(ctx context.Context, o *Object) error {
+func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 	if o.ch != nil {
-		return nil
+		return false
 	}
-
-	resp, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &o.bucket, Key: &o.key})
-	if err != nil {
-		return err
-	}
-	dec, err := zstd.NewReader(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	scanner := bufio.NewScanner(dec)
 	lineCh := make(chan LogEntry, 16)
+
 	go func() {
-		defer func() { dec.Close(); _ = resp.Body.Close(); close(lineCh) }()
+		defer close(lineCh)
+
+		resp, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &o.bucket, Key: &o.key})
+		if err != nil {
+			return
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		dec, err := zstd.NewReader(resp.Body)
+		if err != nil {
+			return
+		}
+		defer dec.Close()
+
+		scanner := bufio.NewScanner(dec)
 		for scanner.Scan() {
 			var entry natsLog
 			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
@@ -107,18 +111,25 @@ func (s *s3Stream) open(ctx context.Context, o *Object) error {
 	}()
 
 	o.ch = lineCh
-	return nil
+	return true
 }
 
+const targetConcurrency = 50
+
 func (s *s3Stream) streamObjects(ctx context.Context, objects []*Object, out chan<- LogEntry) error {
+	opened := 0
+	for _, o := range objects[:targetConcurrency] {
+		s.open(ctx, o)
+		opened++
+	}
+
 	pq := NewMinHeap(objects)
 	for pq.Len() > 0 {
 		obj := pq.PopMin()
 
 		if obj.entry == nil {
-			if err := s.open(ctx, obj); err != nil {
-				log.Printf("open %s: %v", obj.key, err)
-				continue
+			if s.open(ctx, obj) {
+				opened++
 			}
 		} else {
 			out <- *obj.entry
@@ -127,6 +138,16 @@ func (s *s3Stream) streamObjects(ctx context.Context, objects []*Object, out cha
 		if ok {
 			obj.entry = &next
 			pq.Insert(obj)
+		} else {
+			opened--
+			if opened <= targetConcurrency {
+				for _, o := range objects {
+					if s.open(ctx, o) {
+						opened++
+						break
+					}
+				}
+			}
 		}
 	}
 	return nil

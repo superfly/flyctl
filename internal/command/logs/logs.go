@@ -65,6 +65,10 @@ Use --no-tail to only fetch the logs in the buffer.
 			Name:        "start",
 			Description: "View previous logs from this timestamp. Implies no-tail",
 		},
+		flag.Time{
+			Name:        "end",
+			Description: "View previous logs to this timestamp.",
+		},
 		flag.Int{
 			Name:        "limit",
 			Description: "Number of previous log lines to show",
@@ -82,7 +86,8 @@ func run(ctx context.Context) error {
 		RegionCode: config.FromContext(ctx).Region,
 		VMID:       flag.GetString(ctx, "machine"),
 		NoTail:     flag.GetBool(ctx, "no-tail"),
-		Start:      flag.GetTime(ctx, "start"),
+		Start:      flag.GetTime(ctx, "start").UTC(),
+		End:        flag.GetTime(ctx, "end").UTC(),
 		Limit:      flag.GetInt(ctx, "limit"),
 	}
 
