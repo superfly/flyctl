@@ -3,13 +3,13 @@ package logs
 import (
 	"context"
 	"fmt"
-	"github.com/apex/log"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/logger"
 	"time"
 )
 
@@ -21,6 +21,7 @@ type s3Stream struct {
 	err    error
 	client *s3.Client
 	opts   *LogOptions
+	log    *logger.Logger
 }
 
 func NewS3Stream(ctx context.Context, opts *LogOptions) (LogStream, error) {
@@ -48,7 +49,11 @@ func NewS3Stream(ctx context.Context, opts *LogOptions) (LogStream, error) {
 			token.SessionToken,
 		)},
 	)
-	return &s3Stream{client: s3Client, opts: opts}, nil
+	return &s3Stream{
+		log:    logger.FromContext(ctx),
+		client: s3Client,
+		opts:   opts,
+	}, nil
 }
 
 func (s *s3Stream) Stream(ctx context.Context, opts *LogOptions) <-chan LogEntry {

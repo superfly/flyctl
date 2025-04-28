@@ -97,7 +97,7 @@ func run(ctx context.Context) error {
 	var streams []<-chan logs.LogEntry
 	if !opts.Start.IsZero() {
 		streams = []<-chan logs.LogEntry{
-			s3Stream(ctx, eg, client, opts),
+			s3Stream(ctx, eg, opts),
 		}
 	} else if opts.NoTail {
 		streams = []<-chan logs.LogEntry{
@@ -167,7 +167,7 @@ func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *
 	return c
 }
 
-func s3Stream(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *logs.LogOptions) <-chan logs.LogEntry {
+func s3Stream(ctx context.Context, eg *errgroup.Group, opts *logs.LogOptions) <-chan logs.LogEntry {
 	c := make(chan logs.LogEntry)
 
 	eg.Go(func() error {

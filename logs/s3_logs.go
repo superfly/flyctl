@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"path"
 	"strconv"
 	"strings"
@@ -15,17 +14,18 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-type TimedEntry struct {
+type s3LogEntry struct {
 	LogEntry
 	Timestamp time.Time
+	AppName   string
 }
 
 type Object struct {
 	bucket string
 	key    string
 	start  time.Time
-	entry  *TimedEntry
-	ch     <-chan TimedEntry
+	entry  *s3LogEntry
+	ch     <-chan s3LogEntry
 }
 
 func (o *Object) Time() time.Time {
@@ -40,8 +40,10 @@ func (o *Object) Less(other *Object) bool {
 
 func (s *s3Stream) listObjects(ctx context.Context, bucket string, rootPrefix string) ([]*Object, error) {
 	var objs []*Object
+	s.log.Debugf("Listing objects: %s %s", bucket, rootPrefix)
 	for _, p := range hourPrefixes(s.opts.Start.Add(-5*time.Minute), s.opts.End) {
 		p = rootPrefix + p
+		s.log.Debugf("Listing objects: %s %s", bucket, p)
 		pager := s3.NewListObjectsV2Paginator(s.client, &s3.ListObjectsV2Input{Bucket: &bucket, Prefix: &p})
 		for pager.HasMorePages() {
 			pg, err := pager.NextPage(ctx)
@@ -53,6 +55,7 @@ func (s *s3Stream) listObjects(ctx context.Context, bucket string, rootPrefix st
 				parts := strings.SplitN(path.Base(key), "-", 2)
 				epoch, err := strconv.ParseInt(parts[0], 10, 64)
 				if err != nil {
+					s.log.Errorf("Failed to parse epoch %s: %v", key, err)
 					continue
 				}
 				batchEnd := time.Unix(epoch, 0).UTC()
@@ -64,7 +67,14 @@ func (s *s3Stream) listObjects(ctx context.Context, bucket string, rootPrefix st
 			}
 		}
 	}
+	s.log.Debugf("Found %d matching log objects", len(objs))
 	return objs, nil
+}
+
+func (s *s3Stream) filter(log s3LogEntry) bool {
+	return (s.opts.VMID == "" || s.opts.VMID == log.Meta.Instance) &&
+		(s.opts.RegionCode == "" || s.opts.RegionCode == log.Region) &&
+		(s.opts.AppName == "" || s.opts.AppName == log.AppName)
 }
 
 func hourPrefixes(from, to time.Time) []string {
@@ -81,13 +91,14 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 	if o.ch != nil {
 		return false
 	}
-	lineCh := make(chan TimedEntry, 16)
+	lineCh := make(chan s3LogEntry, 16)
 
 	go func() {
 		defer close(lineCh)
 
 		resp, err := s.client.GetObject(ctx, &s3.GetObjectInput{Bucket: &o.bucket, Key: &o.key})
 		if err != nil {
+			s.log.Errorf("Failed to get object %s: %v", o.key, err)
 			return
 		}
 		defer func() { _ = resp.Body.Close() }()
@@ -102,14 +113,21 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 		for scanner.Scan() {
 			var entry natsLog
 			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+				s.log.Errorf("Failed to unmarshal line: %s\n%v", scanner.Text(), err)
 				continue
 			}
-			te := TimedEntry{LogEntry: logToEntry(&entry)}
+			te := s3LogEntry{LogEntry: logToEntry(&entry), AppName: entry.Fly.App.Name}
+
+			// S3 objects have Hive-compatible timestamps; parse and convert to RFC3339
 			te.Timestamp, err = time.Parse("2006-01-02 15:04:05.999999", te.LogEntry.Timestamp)
 			if err != nil {
 				continue
 			}
 			te.Timestamp = te.Timestamp.UTC()
+			te.LogEntry.Timestamp = te.Timestamp.Format(time.RFC3339)
+			if !s.filter(te) {
+				continue
+			}
 			if te.Timestamp.Before(s.opts.Start) {
 				continue
 			}
@@ -124,7 +142,7 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 	return true
 }
 
-const targetConcurrency = 50
+const targetConcurrency = 100
 
 func (s *s3Stream) streamObjects(ctx context.Context, objects []*Object, out chan<- LogEntry) error {
 	opened := 0
