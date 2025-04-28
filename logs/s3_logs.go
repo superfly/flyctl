@@ -15,12 +15,17 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
+type TimedEntry struct {
+	LogEntry
+	Timestamp time.Time
+}
+
 type Object struct {
 	bucket string
 	key    string
 	start  time.Time
-	entry  *LogEntry
-	ch     <-chan LogEntry
+	entry  *TimedEntry
+	ch     <-chan TimedEntry
 }
 
 func (o *Object) Time() time.Time {
@@ -76,7 +81,7 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 	if o.ch != nil {
 		return false
 	}
-	lineCh := make(chan LogEntry, 16)
+	lineCh := make(chan TimedEntry, 16)
 
 	go func() {
 		defer close(lineCh)
@@ -99,14 +104,19 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 			if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 				continue
 			}
-			entry.Timestamp = entry.Timestamp.UTC()
-			if entry.Timestamp.Before(s.opts.Start) {
+			te := TimedEntry{LogEntry: logToEntry(&entry)}
+			te.Timestamp, err = time.Parse("2006-01-02 15:04:05.999999", te.LogEntry.Timestamp)
+			if err != nil {
 				continue
 			}
-			if entry.Timestamp.After(s.opts.End) {
+			te.Timestamp = te.Timestamp.UTC()
+			if te.Timestamp.Before(s.opts.Start) {
+				continue
+			}
+			if te.Timestamp.After(s.opts.End) {
 				break
 			}
-			lineCh <- logToEntry(&entry)
+			lineCh <- te
 		}
 	}()
 
@@ -132,7 +142,7 @@ func (s *s3Stream) streamObjects(ctx context.Context, objects []*Object, out cha
 				opened++
 			}
 		} else {
-			out <- *obj.entry
+			out <- obj.entry.LogEntry
 		}
 		next, ok := <-obj.ch
 		if ok {

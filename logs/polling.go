@@ -82,13 +82,12 @@ func Poll(ctx context.Context, out chan<- LogEntry, client WebClient, opts *LogO
 		}
 
 		for _, entry := range entries {
-			ts, _ := time.Parse(time.RFC3339, entry.Timestamp)
 			out <- LogEntry{
 				Instance:  entry.Instance,
 				Level:     entry.Level,
 				Message:   entry.Message,
 				Region:    entry.Region,
-				Timestamp: ts,
+				Timestamp: entry.Timestamp,
 				Meta:      entry.Meta,
 			}
 		}

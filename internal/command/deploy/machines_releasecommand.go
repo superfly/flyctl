@@ -113,7 +113,12 @@ func (md *machineDeployment) runReleaseCommand(ctx context.Context, commandType 
 			return
 		}
 		for entry := range stream.Stream(logsCtx, logOpts) {
-			msg := fmt.Sprintf("%s %s", aurora.Faint(format.Time(entry.Timestamp)), entry.Message)
+			var ts time.Time
+			if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
+				err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
+				return
+			}
+			msg := fmt.Sprintf("%s %s", aurora.Faint(format.Time(ts)), entry.Message)
 			if buf != nil {
 				buf.Value = msg
 				buf = buf.Next()
