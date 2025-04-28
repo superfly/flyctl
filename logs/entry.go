@@ -1,12 +1,14 @@
 package logs
 
+import "time"
+
 type LogEntry struct {
-	Level     string `json:"level"`
-	Instance  string `json:"instance"`
-	Message   string `json:"message"`
-	Region    string `json:"region"`
-	Timestamp string `json:"timestamp"`
-	Meta      Meta   `json:"meta"`
+	Level     string    `json:"level"`
+	Instance  string    `json:"instance"`
+	Message   string    `json:"message"`
+	Region    string    `json:"region"`
+	Timestamp time.Time `json:"timestamp"`
+	Meta      Meta      `json:"meta"`
 }
 
 type Meta struct {
@@ -49,6 +51,6 @@ type natsLog struct {
 	Log  struct {
 		Level string `json:"level"`
 	} `json:"log"`
-	Message   string `json:"message"`
-	Timestamp string `json:"timestamp"`
+	Message   string    `json:"message"`
+	Timestamp time.Time `json:"timestamp"`
 }

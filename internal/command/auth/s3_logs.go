@@ -66,7 +66,6 @@ func runS3Logs(ctx context.Context) error {
 		return err
 	}
 	ctx = flapsutil.NewContextWithClient(ctx, flapsClient)
-
 	token, err := flapsClient.GetS3LogsToken(ctx, orgSlug)
 	if err != nil {
 		return err

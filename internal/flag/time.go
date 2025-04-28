@@ -1,6 +1,7 @@
 package flag
 
 import (
+	"context"
 	"fmt"
 	"github.com/karrick/tparse/v2"
 	"github.com/spf13/pflag"
@@ -53,4 +54,12 @@ var _ pflag.Value = (*timeValue)(nil)
 
 func TimeVar(p *pflag.FlagSet, pt *time.Time, name string, shorthand string, value time.Time, usage string) {
 	p.VarP(newTimeValue(value, pt), name, shorthand, usage)
+}
+
+func GetTime(ctx context.Context, name string) time.Time {
+	if f := FromContext(ctx).Lookup(name); f == nil {
+		return time.Time{}
+	} else {
+		return *f.Value.(*timeValue).t
+	}
 }

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"time"
 
 	"github.com/logrusorgru/aurora"
 
@@ -49,13 +48,6 @@ func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
 		opt(options)
 	}
 
-	var ts time.Time
-	if ts, err = time.Parse(time.RFC3339Nano, entry.Timestamp); err != nil {
-		err = fmt.Errorf("failed parsing timestamp %q: %w", entry.Timestamp, err)
-
-		return
-	}
-
 	if !options.HideAllocID {
 		if entry.Meta.Event.Provider != "" {
 			if entry.Instance != "" {
@@ -74,7 +66,7 @@ func LogEntry(w io.Writer, entry logs.LogEntry, opts ...LogOption) (err error) {
 	}
 
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "%s ", aurora.Faint(format.Time(ts)))
+	fmt.Fprintf(&buf, "%s ", aurora.Faint(format.Time(entry.Timestamp)))
 
 	if entry.Meta.Event.Provider != "" {
 		if entry.Instance != "" {
