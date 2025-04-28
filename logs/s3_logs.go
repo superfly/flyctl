@@ -91,7 +91,7 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 	if o.ch != nil {
 		return false
 	}
-	lineCh := make(chan s3LogEntry, 16)
+	lineCh := make(chan s3LogEntry, 256)
 
 	go func() {
 		defer close(lineCh)
@@ -142,11 +142,11 @@ func (s *s3Stream) open(ctx context.Context, o *Object) bool {
 	return true
 }
 
-const targetConcurrency = 100
+const targetConcurrency = 500
 
 func (s *s3Stream) streamObjects(ctx context.Context, objects []*Object, out chan<- LogEntry) error {
 	opened := 0
-	for _, o := range objects[:targetConcurrency] {
+	for _, o := range objects[:min(len(objects), targetConcurrency)] {
 		s.open(ctx, o)
 		opened++
 	}

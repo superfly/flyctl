@@ -3,14 +3,17 @@ package logs
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/logger"
-	"time"
 )
 
 const s3Region = "us-east-1"
@@ -42,6 +45,12 @@ func NewS3Stream(ctx context.Context, opts *LogOptions) (LogStream, error) {
 		return nil, err
 	}
 	s3Client := s3.NewFromConfig(aws.Config{
+		HTTPClient: awshttp.NewBuildableClient().WithTransportOptions(func(tr *http.Transport) {
+			tr.MaxIdleConns = 1000
+			tr.MaxIdleConnsPerHost = 500
+			tr.MaxConnsPerHost = 1000
+			tr.IdleConnTimeout = 90 * time.Second
+		}),
 		Region: s3Region,
 		Credentials: credentials.NewStaticCredentialsProvider(
 			token.AccessKeyID,
