@@ -4,6 +4,7 @@ package logs
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -58,7 +59,20 @@ Use --no-tail to only fetch the logs in the buffer.
 		flag.Bool{
 			Name:        "no-tail",
 			Shorthand:   "n",
-			Description: "Do not continually stream logs",
+			Description: "Do not continually Stream logs",
+		},
+		flag.Time{
+			Name:        "start",
+			Description: "View previous logs from this timestamp. Implies no-tail",
+		},
+		flag.Time{
+			Name:        "end",
+			Description: "View previous logs to this timestamp.",
+		},
+		flag.Int{
+			Name:        "limit",
+			Description: "Number of previous log lines to show",
+			Default:     100,
 		},
 	)
 	return
@@ -72,13 +86,20 @@ func run(ctx context.Context) error {
 		RegionCode: config.FromContext(ctx).Region,
 		VMID:       flag.GetString(ctx, "machine"),
 		NoTail:     flag.GetBool(ctx, "no-tail"),
+		Start:      flag.GetTime(ctx, "start").UTC(),
+		End:        flag.GetTime(ctx, "end").UTC(),
+		Limit:      flag.GetInt(ctx, "limit"),
 	}
 
 	var eg *errgroup.Group
 	eg, ctx = errgroup.WithContext(ctx)
 
 	var streams []<-chan logs.LogEntry
-	if opts.NoTail {
+	if !opts.Start.IsZero() {
+		streams = []<-chan logs.LogEntry{
+			s3Stream(ctx, eg, opts),
+		}
+	} else if opts.NoTail {
 		streams = []<-chan logs.LogEntry{
 			poll(ctx, eg, client, opts),
 		}
@@ -135,6 +156,27 @@ func nats(ctx context.Context, eg *errgroup.Group, client flyutil.Client, opts *
 		// we get a few records
 		pause.For(ctx, 2*time.Second)
 		cancelPolling()
+
+		for entry := range stream.Stream(ctx, opts) {
+			c <- entry
+		}
+
+		return nil
+	})
+
+	return c
+}
+
+func s3Stream(ctx context.Context, eg *errgroup.Group, opts *logs.LogOptions) <-chan logs.LogEntry {
+	c := make(chan logs.LogEntry)
+
+	eg.Go(func() error {
+		defer close(c)
+
+		stream, err := logs.NewS3Stream(ctx, opts)
+		if err != nil {
+			return fmt.Errorf("error connecting to S3: %w", err)
+		}
 
 		for entry := range stream.Stream(ctx, opts) {
 			c <- entry
