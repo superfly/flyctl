@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/superfly/fly-go"
@@ -206,5 +207,72 @@ func (c *Client) CreateUser(ctx context.Context, id string, input CreateUserInpu
 		}
 
 		return response, fmt.Errorf("Failed to create user with error: %s", response.Errors.Detail)
+	}
+}
+
+type CreateClusterInput struct {
+	Name    string `json:"name"`
+	Region  string `json:"region"`
+	Plan    string `json:"plan"`
+	OrgSlug string `json:"org_slug"`
+}
+
+type CreateClusterResponse struct {
+	Data struct {
+		Id            string                      `json:"id"`
+		Name          string                      `json:"name"`
+		Status        *string                     `json:"status"`
+		Plan          string                      `json:"plan"`
+		Environment   *string                     `json:"environment"`
+		Region        string                      `json:"region"`
+		Organization  fly.Organization            `json:"organization"`
+		Replicas      int                         `json:"replicas"`
+		Disk          int                         `json:"disk"`
+		IpAssignments ManagedClusterIpAssignments `json:"ip_assignments"`
+	} `json:"data"`
+}
+
+func (c *Client) CreateCluster(ctx context.Context, input CreateClusterInput) (CreateClusterResponse, error) {
+	var response CreateClusterResponse
+	cfg := config.FromContext(ctx)
+	url := fmt.Sprintf("%s/api/v1/organizations/%s/postgres", c.baseUrl, input.OrgSlug)
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(input); err != nil {
+		return response, fmt.Errorf("failed to encode request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return response, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Authorization", "Bearer "+cfg.Tokens.GraphQL())
+	req.Header.Add("Content-Type", "application/json")
+
+	res, err := c.httpClient.Do(req)
+	if err != nil {
+		return response, err
+	}
+	defer res.Body.Close()
+
+	// Read the response body to get error details
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return response, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	switch res.StatusCode {
+	case http.StatusCreated:
+		if err = json.Unmarshal(body, &response); err != nil {
+			return response, fmt.Errorf("failed to decode response: %w", err)
+		}
+		return response, nil
+	case http.StatusNotFound:
+		return response, fmt.Errorf("organization %s not found", input.OrgSlug)
+	case http.StatusInternalServerError:
+		return response, fmt.Errorf("server error: %s", string(body))
+	default:
+		return response, fmt.Errorf("failed to create cluster (status %d): %s", res.StatusCode, string(body))
 	}
 }
