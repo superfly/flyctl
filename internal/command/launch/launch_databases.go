@@ -3,7 +3,6 @@ package launch
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/samber/lo"
@@ -174,26 +173,15 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 		return nil
 	}
 
-	// Create a user to get the connection string
-	appName := strings.ToLower(strings.ReplaceAll(state.Plan.AppName, "_", "-"))
-	dbName := appName
-	dbUser := appName
-
-	userInput := uiex.CreateUserInput{
-		DbName:   dbName,
-		UserName: dbUser,
-	}
-
-	fmt.Fprintf(io.Out, "Creating database user...\n")
-
-	userResponse, err := uiexClient.CreateUser(ctx, response.Data.Id, userInput)
+	// Get the cluster credentials
+	cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
 	if err != nil {
-		return fmt.Errorf("failed creating database user: %w", err)
+		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
 
 	// Set the connection string as a secret
 	secrets := map[string]string{
-		"DATABASE_URL": userResponse.ConnectionUri,
+		"DATABASE_URL": cluster.Credentials.ConnectionUri,
 	}
 
 	client := flyutil.ClientFromContext(ctx)
@@ -202,7 +190,7 @@ func (state *launchState) createFlyPostgres(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Postgres cluster %s is ready and attached to %s\n", response.Data.Id, state.Plan.AppName)
-	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, userResponse.ConnectionUri)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
 
 	return nil
 }
@@ -316,26 +304,15 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 		return nil
 	}
 
-	// Create a user to get the connection string
-	appName := strings.ToLower(strings.ReplaceAll(state.Plan.AppName, "_", "-"))
-	dbName := pgPlan.DbName
-	dbUser := appName
-
-	userInput := uiex.CreateUserInput{
-		DbName:   dbName,
-		UserName: dbUser,
-	}
-
-	fmt.Fprintf(io.Out, "Creating database user...\n")
-
-	userResponse, err := uiexClient.CreateUser(ctx, response.Data.Id, userInput)
+	// Get the cluster credentials
+	cluster, err := uiexClient.GetManagedClusterById(ctx, response.Data.Id)
 	if err != nil {
-		return fmt.Errorf("failed creating database user: %w", err)
+		return fmt.Errorf("failed retrieving cluster credentials: %w", err)
 	}
 
 	// Set the connection string as a secret
 	secrets := map[string]string{
-		"DATABASE_URL": userResponse.ConnectionUri,
+		"DATABASE_URL": cluster.Credentials.ConnectionUri,
 	}
 
 	client := flyutil.ClientFromContext(ctx)
@@ -344,6 +321,8 @@ func (state *launchState) createManagedPostgres(ctx context.Context) error {
 	}
 
 	fmt.Fprintf(io.Out, "Managed Postgres cluster %s is ready and attached to %s\n", response.Data.Id, state.Plan.AppName)
+	fmt.Fprintf(io.Out, "The following secret was added to %s:\n  DATABASE_URL=%s\n", state.Plan.AppName, cluster.Credentials.ConnectionUri)
+
 	return nil
 }
 
