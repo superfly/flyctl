@@ -7,6 +7,7 @@ import (
 type PostgresPlan struct {
 	FlyPostgres      *FlyPostgresPlan      `json:"fly_postgres"`
 	SupabasePostgres *SupabasePostgresPlan `json:"supabase_postgres"`
+	ManagedPostgres  *ManagedPostgresPlan  `json:"managed_postgres"`
 }
 
 func (p *PostgresPlan) Provider() any {
@@ -18,6 +19,9 @@ func (p *PostgresPlan) Provider() any {
 	}
 	if p.SupabasePostgres != nil {
 		return p.SupabasePostgres
+	}
+	if p.ManagedPostgres != nil {
+		return p.ManagedPostgres
 	}
 	return nil
 }
@@ -72,6 +76,28 @@ func (p *SupabasePostgresPlan) GetDbName(plan *LaunchPlan) string {
 }
 
 func (p *SupabasePostgresPlan) GetRegion(plan *LaunchPlan) string {
+	if p.Region == "" {
+		return plan.RegionCode
+	}
+	return p.Region
+}
+
+type ManagedPostgresPlan struct {
+	DbName    string `json:"db_name"`
+	Region    string `json:"region"`
+	Plan      string `json:"plan"`
+	DiskSize  int    `json:"disk_size"`
+	ClusterID string `json:"cluster_id,omitempty"`
+}
+
+func (p *ManagedPostgresPlan) GetDbName(plan *LaunchPlan) string {
+	if p.DbName == "" {
+		return plan.AppName + "-db"
+	}
+	return p.DbName
+}
+
+func (p *ManagedPostgresPlan) GetRegion(plan *LaunchPlan) string {
 	if p.Region == "" {
 		return plan.RegionCode
 	}

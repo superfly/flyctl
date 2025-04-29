@@ -19,7 +19,7 @@ import (
 )
 
 // Allowed MPG regions
-var allowedMPGRegions = []string{"ams", "fra", "iad", "ord", "syd", "lax"}
+var AllowedMPGRegions = []string{"ams", "fra", "iad", "ord", "syd", "lax"}
 
 type CreateClusterParams struct {
 	Name          string
@@ -116,7 +116,7 @@ func runCreate(ctx context.Context) error {
 
 	var mpgRegions []fly.Region
 	for _, region := range regions.Regions {
-		for _, allowed := range allowedMPGRegions {
+		for _, allowed := range AllowedMPGRegions {
 			if region.Code == allowed {
 				mpgRegions = append(mpgRegions, region)
 				break
@@ -141,7 +141,7 @@ func runCreate(ctx context.Context) error {
 			}
 		}
 		if selectedRegion == nil {
-			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, allowedMPGRegions)
+			return fmt.Errorf("region %s is not available for Managed Postgres. Available regions: %v", regionCode, AllowedMPGRegions)
 		}
 	} else {
 		// Create region options for prompt
