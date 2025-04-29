@@ -19,7 +19,7 @@ import (
 )
 
 // Allowed MPG regions
-var AllowedMPGRegions = []string{"ams", "fra", "iad", "ord", "syd", "lax"}
+var AllowedMPGRegions = []string{"fra", "iad", "ord", "syd", "lax"}
 
 type CreateClusterParams struct {
 	Name          string
