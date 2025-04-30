@@ -19,7 +19,6 @@ jobs:
         image:
           # Only test LTS versions.
           - "ubuntu:24.04"
-          - "ubuntu:20.04"
           - "ubuntu:22.04"
 
           - "debian:oldstable-slim"
@@ -75,7 +74,6 @@ jobs:
           # From https://github.com/actions/runner-images/tree/main?tab=readme-ov-file#available-images.
           - ubuntu-24.04
           - ubuntu-22.04
-          - ubuntu-20.04
           - macos-14
           - macos-13
     runs-on: ${{ matrix.os }}
