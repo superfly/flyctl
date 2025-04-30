@@ -2,11 +2,8 @@ package machine
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
 	"math/rand"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -22,6 +19,7 @@ import (
 	"github.com/superfly/flyctl/internal/cmdutil"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/command/ssh"
+	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flapsutil"
 	"github.com/superfly/flyctl/internal/flyutil"
@@ -256,6 +254,11 @@ func newRun() *cobra.Command {
 			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
 			Hidden:      false,
 		},
+		flag.String{
+			Name:        "container",
+			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+			Hidden:      false,
+		},
 	)
 
 	cmd.Args = cobra.MinimumNArgs(0)
@@ -390,8 +393,8 @@ func runMachineRun(ctx context.Context) error {
 	imageOrPath := flag.FirstArg(ctx)
 	if imageOrPath == "" && shell {
 		imageOrPath = "ubuntu"
-	} else if imageOrPath == "" {
-		return fmt.Errorf("image argument can't be an empty string")
+	} else if flag.GetString(ctx, "dockerfile") != "" {
+		imageOrPath = "."
 	}
 
 	machineID := flag.GetString(ctx, "id")
@@ -409,6 +412,10 @@ func runMachineRun(ctx context.Context) error {
 	})
 	if err != nil {
 		return err
+	}
+
+	if imageOrPath == "" && len(machineConf.Containers) == 0 {
+		return fmt.Errorf("image argument can't be an empty string")
 	}
 
 	if flag.GetBool(ctx, "build-only") {
@@ -648,26 +655,34 @@ func determineMachineConfig(
 ) (*fly.MachineConfig, error) {
 	machineConf := mach.CloneConfig(&input.initialMachineConf)
 
-	if emc := flag.GetString(ctx, "machine-config"); emc != "" {
-		var buf []byte
-		switch {
-		case strings.HasPrefix(emc, "{"):
-			buf = []byte(emc)
-		case strings.HasSuffix(emc, ".json"):
-			fo, err := os.Open(emc)
-			if err != nil {
-				return nil, err
-			}
-			buf, err = io.ReadAll(fo)
-			if err != nil {
-				return nil, err
-			}
-		default:
-			return nil, fmt.Errorf("invalid machine config source: %q", emc)
+	if mc := flag.GetString(ctx, "machine-config"); mc != "" {
+		if err := config.ParseConfig(machineConf, mc); err != nil {
+			return nil, err
+		}
+	}
+
+	// identify the container to use
+	// if no container is specified, look for "app" or the first container
+	var container *fly.ContainerConfig
+	if len(machineConf.Containers) > 0 {
+		match := flag.GetString(ctx, "container")
+		if match == "" {
+			match = "app"
 		}
 
-		if err := json.Unmarshal(buf, machineConf); err != nil {
-			return nil, fmt.Errorf("invalid machine config %q: %w", emc, err)
+		for _, c := range machineConf.Containers {
+			if c.Name == match {
+				container = c
+				break
+			}
+		}
+
+		if container == nil {
+			if flag.GetString(ctx, "container") != "" {
+				return nil, fmt.Errorf("container %q not found", flag.GetString(ctx, "container"))
+			} else {
+				container = machineConf.Containers[0]
+			}
 		}
 	}
 
@@ -802,7 +817,12 @@ func determineMachineConfig(
 		if err != nil {
 			return machineConf, err
 		}
-		machineConf.Image = img.String()
+
+		if container != nil {
+			container.Image = img.String()
+		} else {
+			machineConf.Image = img.String()
+		}
 	}
 
 	// Service updates
