@@ -121,8 +121,8 @@ func (svc *Service) toMachineService() *fly.MachineService {
 	return s
 }
 
-func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineCheck {
-	return &fly.MachineCheck{
+func (chk *ServiceHTTPCheck) toMachineCheck() *fly.MachineServiceCheck {
+	return &fly.MachineServiceCheck{
 		Type:              fly.Pointer("http"),
 		Interval:          chk.Interval,
 		Timeout:           chk.Timeout,
@@ -143,8 +143,8 @@ func (chk *ServiceHTTPCheck) String(port int) string {
 	return fmt.Sprintf("http-%d-%v", port, chk.HTTPMethod)
 }
 
-func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineCheck {
-	return &fly.MachineCheck{
+func (chk *ServiceTCPCheck) toMachineCheck() *fly.MachineServiceCheck {
+	return &fly.MachineServiceCheck{
 		Type:        fly.Pointer("tcp"),
 		Interval:    chk.Interval,
 		Timeout:     chk.Timeout,
@@ -185,7 +185,7 @@ func serviceFromMachineService(ctx context.Context, ms fly.MachineService, proce
 	}
 }
 
-func tcpCheckFromMachineCheck(mc fly.MachineCheck) *ServiceTCPCheck {
+func tcpCheckFromMachineCheck(mc fly.MachineServiceCheck) *ServiceTCPCheck {
 	return &ServiceTCPCheck{
 		Interval:    mc.Interval,
 		Timeout:     mc.Timeout,
@@ -193,7 +193,7 @@ func tcpCheckFromMachineCheck(mc fly.MachineCheck) *ServiceTCPCheck {
 	}
 }
 
-func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineCheck) *ServiceHTTPCheck {
+func httpCheckFromMachineCheck(ctx context.Context, mc fly.MachineServiceCheck) *ServiceHTTPCheck {
 	headers := make(map[string]string)
 	for _, h := range mc.HTTPHeaders {
 		if len(h.Values) > 0 {
