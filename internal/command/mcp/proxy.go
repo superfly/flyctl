@@ -177,13 +177,26 @@ func processStdin(ctx context.Context, url string) error {
 func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, error) {
 	appName := flag.GetString(ctx, "app")
 
-	if appName == "" {
-		return originalUrl, nil, nil
-	}
-
 	parsedURL, err := url.Parse(originalUrl)
 	if err != nil {
 		return "", nil, fmt.Errorf("error parsing URL: %w", err)
+	}
+
+	if appName == "" {
+		hostname := parsedURL.Hostname()
+		if strings.HasSuffix(hostname, ".internal") || strings.HasSuffix(hostname, ".flycast") {
+			// Split the hostname by dots
+			parts := strings.Split(hostname, ".")
+
+			// The app name should be the part before the last segment (internal or flycast)
+			if len(parts) >= 2 {
+				appName = parts[len(parts)-2]
+			} else {
+				return originalUrl, nil, nil
+			}
+		} else {
+			return originalUrl, nil, nil
+		}
 	}
 
 	if parsedURL.Scheme != "http" {
