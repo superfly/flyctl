@@ -7,8 +7,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -17,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
 func NewProxy() *cobra.Command {
@@ -30,6 +34,8 @@ func NewProxy() *cobra.Command {
 	cmd.Args = cobra.ExactArgs(0)
 
 	flag.Add(cmd,
+		flag.App(),
+
 		flag.String{
 			Name:        "url",
 			Description: "URL of the MCP wrapper server",
@@ -44,25 +50,43 @@ func NewProxy() *cobra.Command {
 			Description: "[optional] Password to authenticate with",
 			Shorthand:   "p",
 		},
+		flag.String{
+			Name:        flagnames.BindAddr,
+			Shorthand:   "b",
+			Default:     "127.0.0.1",
+			Description: "Local address to bind to",
+		},
 	)
 
 	return cmd
 }
 
 func runProxy(ctx context.Context) error {
+	url := flag.GetString(ctx, "url")
+
 	// Validate inputs
-	if flag.GetString(ctx, "url") == "" {
+	if url == "" {
 		log.Fatal("--url is required")
+	}
+
+	url, proxyCmd, err := resolveProxy(ctx, url)
+	if err != nil {
+		log.Fatalf("Error resolving proxy URL: %v", err)
 	}
 
 	// Configure logging to go to stderr only
 	log.SetOutput(os.Stderr)
 
+	err = waitForServer(ctx, url)
+	if err != nil {
+		log.Fatalf("Error waiting for server: %v", err)
+	}
+
 	// Start the HTTP client
 	go func() {
 		start := time.Now()
 		for {
-			getFromServer(ctx)
+			getFromServer(ctx, url)
 
 			// Wait a minimum of 10 seconds before the next request
 			elapsed := time.Since(start)
@@ -74,15 +98,45 @@ func runProxy(ctx context.Context) error {
 	}()
 
 	// Start processing stdin
-	if err := processStdin(ctx); err != nil {
+	if err := processStdin(ctx, url); err != nil {
 		log.Fatalf("Error processing stdin: %v", err)
+	}
+
+	// Kill the proxy process if it was started
+	if proxyCmd != nil {
+		if err := proxyCmd.Process.Kill(); err != nil {
+			log.Printf("Error killing proxy process: %v", err)
+		}
+		proxyCmd.Wait()
 	}
 
 	return nil
 }
 
+// waitForServer waits for the server to be up and running
+func waitForServer(ctx context.Context, url string) error {
+	// Continue to post nothing until the server is up
+	delay := 100 * time.Millisecond
+	var err error
+	for delay < 60*time.Second {
+		err = sendToServer(ctx, "", url)
+
+		if err == nil {
+			break
+		} else if !strings.Contains(err.Error(), "connection refused") {
+			log.Printf("Error sending message to server: %v", err)
+			break
+		}
+
+		time.Sleep(delay)
+		delay *= 2
+	}
+
+	return err
+}
+
 // ProcessStdin reads messages from stdin and forwards them to the server
-func processStdin(ctx context.Context) error {
+func processStdin(ctx context.Context, url string) error {
 	stp := make(chan os.Signal, 1)
 	signal.Notify(stp, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -100,7 +154,7 @@ func processStdin(ctx context.Context) error {
 		}
 
 		// Forward raw message to server
-		err := sendToServer(ctx, line)
+		err := sendToServer(ctx, line, url)
 		if err != nil {
 			// Log error but continue processing
 			log.Printf("Error sending message to server: %v", err)
@@ -119,9 +173,92 @@ func processStdin(ctx context.Context) error {
 	return nil
 }
 
-func getFromServer(ctx context.Context) error {
-	url := flag.GetString(ctx, "url")
+// resolveProxy starts the proxy process and returns the new URL
+func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, error) {
+	appName := flag.GetString(ctx, "app")
 
+	parsedURL, err := url.Parse(originalUrl)
+	if err != nil {
+		return "", nil, fmt.Errorf("error parsing URL: %w", err)
+	}
+
+	if appName == "" {
+		hostname := parsedURL.Hostname()
+		if strings.HasSuffix(hostname, ".internal") || strings.HasSuffix(hostname, ".flycast") {
+			// Split the hostname by dots
+			parts := strings.Split(hostname, ".")
+
+			// The app name should be the part before the last segment (internal or flycast)
+			if len(parts) >= 2 {
+				appName = parts[len(parts)-2]
+			} else {
+				return originalUrl, nil, nil
+			}
+		} else {
+			return originalUrl, nil, nil
+		}
+	}
+
+	if parsedURL.Scheme != "http" {
+		return "", nil, fmt.Errorf("unsupported URL scheme: %s", parsedURL.Scheme)
+	}
+
+	// get an available port on the local machine
+	localPort, err := getAvailablePort()
+	if err != nil {
+		return "", nil, fmt.Errorf("error getting available port: %w", err)
+	}
+
+	remoteHost := parsedURL.Hostname()
+
+	remotePort := parsedURL.Port()
+	if remotePort == "" {
+		if parsedURL.Scheme == "http" {
+			remotePort = "80"
+		} else if parsedURL.Scheme == "https" {
+			remotePort = "443"
+		}
+	}
+
+	ports := fmt.Sprintf("%d:%s", localPort, remotePort)
+
+	cmd := exec.Command(os.Args[0], "proxy", ports, remoteHost, "--quiet", "--app", appName)
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		log.Fatalf("Error running subprocess: %v", err)
+	}
+
+	bindAddr := flag.GetBindAddr(ctx)
+
+	parsedURL.Host = fmt.Sprintf("%s:%d", bindAddr, localPort)
+
+	return parsedURL.String(), cmd, nil
+}
+
+// getAvailablePort finds an available port on the local machine
+func getAvailablePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+
+	if err != nil {
+		return 0, err
+	}
+
+	listener, err := net.ListenTCP("tcp", addr)
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer listener.Close()
+
+	return listener.Addr().(*net.TCPAddr).Port, nil
+}
+
+// getFromServer sends a GET request to the server and streams the response to stdout
+func getFromServer(ctx context.Context, url string) error {
 	// Create HTTP request
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -157,9 +294,7 @@ func getFromServer(ctx context.Context) error {
 }
 
 // SendToServer sends a raw message to the server and returns the raw response
-func sendToServer(ctx context.Context, message string) error {
-	url := flag.GetString(ctx, "url")
-
+func sendToServer(ctx context.Context, message string, url string) error {
 	// Create HTTP request with raw message
 	req, err := http.NewRequest("POST", url, bytes.NewBufferString(message))
 	if err != nil {
