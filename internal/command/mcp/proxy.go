@@ -182,6 +182,7 @@ func resolveProxy(ctx context.Context, originalUrl string) (string, *exec.Cmd, e
 		return "", nil, fmt.Errorf("error parsing URL: %w", err)
 	}
 
+	// If the app name is not provided, try to extract it from the URL
 	if appName == "" {
 		hostname := parsedURL.Hostname()
 		if strings.HasSuffix(hostname, ".internal") || strings.HasSuffix(hostname, ".flycast") {
