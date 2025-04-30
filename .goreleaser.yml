@@ -81,6 +81,15 @@ dockers:
       - "ghcr.io/superfly/flyctl:latest"
       - "ghcr.io/superfly/flyctl:v{{ .Version }}"
     skip_push: auto
+  - goos: linux
+    goarch: amd64
+    dockerfile: Dockerfile.mcp
+    image_templates:
+      - "flyio/mcp:latest"
+      - "flyio/mcp:v{{ .Version }}"
+      - "ghcr.io/superfly/mcp:latest"
+      - "ghcr.io/superfly/mcp:v{{ .Version }}"
+    skip_push: auto
 
 checksum:
   name_template: "checksums.txt"

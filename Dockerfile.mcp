@@ -1,0 +1,4 @@
+FROM node:slim
+COPY flyctl /usr/bin
+EXPOSE 8080
+ENTRYPOINT [ "/usr/bin/flyctl", "mcp", "wrap", "--" ]
