@@ -85,8 +85,12 @@ func getMpgProxyParams(ctx context.Context, localProxyPort string) (*uiex.Manage
 		return nil, nil, "", fmt.Errorf("Cluster is still initializing, wait a bit more")
 	}
 
-	if response.Credentials.Status == "error" {
+	if response.Credentials.Status == "error" || response.Credentials.Password == "" {
 		return nil, nil, "", fmt.Errorf("Error getting cluster password")
+	}
+
+	if cluster.IpAssignments.Direct == "" {
+		return nil, nil, "", fmt.Errorf("Error getting cluster IP")
 	}
 
 	agentclient, err := agent.Establish(ctx, client)
