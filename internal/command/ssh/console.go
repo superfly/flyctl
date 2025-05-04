@@ -318,6 +318,10 @@ func selectMachine(ctx context.Context, app *fly.AppCompact) (machine *fly.Machi
 		namesWithRegion = append(namesWithRegion, nameWithRegion)
 	}
 
+	if machineID != "" && selectedMachine == nil {
+		return nil, fmt.Errorf("--machine=%q not found/started", machineID)
+	}
+
 	if flag.GetBool(ctx, "select") {
 		if flag.IsSpecified(ctx, "machine") {
 			return nil, errors.New("--machine can't be used with -s/--select")
