@@ -5,11 +5,18 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	mcpGo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	mcpServer "github.com/superfly/flyctl/internal/command/mcp/server"
+)
+
+var COMMANDS = slices.Concat(
+	mcpServer.LogCommands,
+	mcpServer.StatusCommands,
 )
 
 func newServer() *cobra.Command {
@@ -37,76 +44,74 @@ func runServer(ctx context.Context) error {
 		"1.0.0",
 	)
 
-	// Register logs capability
-	srv.AddTool(mcp.NewTool("fly-logs",
-		mcp.WithDescription("Get logs for a Fly.io app or specific machine"),
-		mcp.WithString("app",
-			mcp.Required(),
-			mcp.Description("Name of the app"),
-		),
-		mcp.WithString("machine",
-			mcp.Description("Specific machine ID"),
-		),
-	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		app, ok := request.Params.Arguments["app"].(string)
-		if !ok {
-			return nil, fmt.Errorf("app parameter is required and must be a string")
+	// Register commands
+	for _, cmd := range COMMANDS {
+		// Create a tool function for each command
+		tool := func(ctx context.Context, request mcpGo.CallToolRequest) (*mcpGo.CallToolResult, error) {
+			// Extract arguments from the request
+			args := make(map[string]string)
+			for argName, argValue := range request.Params.Arguments {
+				description, ok := cmd.ToolArgs[argName]
+				if !ok {
+					return nil, fmt.Errorf("unknown argument %s", argName)
+				}
+				if description.Required && argValue == nil {
+					return nil, fmt.Errorf("argument %s is required", argName)
+				}
+
+				if strValue, ok := argValue.(string); ok {
+					args[argName] = strValue
+				} else {
+					return nil, fmt.Errorf("argument %s must be a string", argName)
+				}
+			}
+
+			// Call the builder function to get the command arguments
+			cmdArgs, err := cmd.Builder(args)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build command: %w", err)
+			}
+
+			// Execute the command
+			fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", cmdArgs)
+			execCmd := exec.Command(flyctl, cmdArgs...)
+			output, err := execCmd.CombinedOutput()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error executing flyctl: %v\nOutput: %s\n", err, string(output))
+				return nil, fmt.Errorf("failed to execute command: %v\nOutput: %s", err, string(output))
+			}
+
+			// Return the output as a tool result
+			return mcpGo.NewToolResultText(string(output)), nil
 		}
 
-		var machine string
-		if machineVal, ok := request.Params.Arguments["machine"]; ok && machineVal != nil {
-			if machine, ok = machineVal.(string); !ok {
-				return nil, fmt.Errorf("machine parameter must be a string")
+		// Register the tool with the server
+		toolOptions := []mcpGo.ToolOption{
+			mcpGo.WithDescription(cmd.ToolDescription),
+		}
+
+		for argName, arg := range cmd.ToolArgs {
+			options := []mcpGo.PropertyOption{
+				mcpGo.Description(arg.Description),
+			}
+
+			if arg.Required {
+				options = append(options, mcpGo.Required())
+			}
+
+			switch arg.Type {
+			case "string":
+				toolOptions = append(toolOptions, mcpGo.WithString(argName, options...))
+			default:
+				return fmt.Errorf("unsupported argument type %s for argument %s", arg.Type, argName)
 			}
 		}
 
-		args := []string{"logs", "--no-tail"}
-		if app != "" {
-			args = append(args, "-a", app)
-		}
-		if machine != "" {
-			args = append(args, "--machine", machine)
-		}
-
-		fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", args)
-		cmd := exec.Command(flyctl, args...)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error executing flyctl: %v\nOutput: %s\n", err, string(output))
-			return nil, fmt.Errorf("failed to get logs: %v\nOutput: %s", err, string(output))
-		}
-
-		return mcp.NewToolResultText(string(output)), nil
-	})
-
-	// Register status capability
-	srv.AddTool(mcp.NewTool("fly-status",
-		mcp.WithDescription("Get status of a Fly.io app"),
-		mcp.WithString("app",
-			mcp.Required(),
-			mcp.Description("Name of the app"),
-		),
-	), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		app, ok := request.Params.Arguments["app"].(string)
-		if !ok {
-			return nil, fmt.Errorf("app parameter is required and must be a string")
-		}
-
-		args := []string{"status", "--json"}
-		if app != "" {
-			args = append(args, "-a", app)
-		}
-
-		fmt.Fprintf(os.Stderr, "Executing flyctl command: %v\n", args)
-		cmd := exec.Command(flyctl, args...)
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error executing flyctl: %v\nOutput: %s\n", err, string(output))
-			return nil, fmt.Errorf("failed to get status: %v\nOutput: %s", err, string(output))
-		}
-
-		return mcp.NewToolResultText(string(output)), nil
-	})
+		srv.AddTool(
+			mcpGo.NewTool(cmd.ToolName, toolOptions...),
+			tool,
+		)
+	}
 
 	fmt.Fprintf(os.Stderr, "Starting MCP server...\n")
 	if err := server.ServeStdio(srv); err != nil {
