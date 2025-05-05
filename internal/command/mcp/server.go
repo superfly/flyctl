@@ -5,80 +5,18 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 
-	"github.com/mark3labs/mcp-go/mcp"
+	mcpGo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 )
 
-// FlyCommand represents a command for the Fly MCP server
-type FlyCommand struct {
-	ToolName        string
-	ToolDescription string
-	ToolArgs        map[string]FlyArg
-	Builder         func(args map[string]string) ([]string, error)
-}
-
-// FlyArg represents an argument for a Fly command
-type FlyArg struct {
-	Description string
-	Required    bool
-	Type        string
-}
-
-var COMMANDS = []FlyCommand{
-	{
-		ToolName:        "fly-logs",
-		ToolDescription: "Get logs for a Fly.io app or specific machine",
-		ToolArgs: map[string]FlyArg{
-			"app": {
-				Description: "Name of the app",
-				Required:    true,
-				Type:        "string",
-			},
-			"machine": {
-				Description: "Specific machine ID",
-				Required:    false,
-				Type:        "string",
-			},
-		},
-		Builder: func(args map[string]string) ([]string, error) {
-			cmdArgs := []string{"logs", "--no-tail"}
-
-			if app, ok := args["app"]; ok {
-				cmdArgs = append(cmdArgs, "-a", app)
-			}
-
-			if machine, ok := args["machine"]; ok {
-				cmdArgs = append(cmdArgs, "--machine", machine)
-			}
-
-			return cmdArgs, nil
-		},
-	},
-
-	{
-		ToolName:        "fly-status",
-		ToolDescription: "Get status of a Fly.io app",
-		ToolArgs: map[string]FlyArg{
-			"app": {
-				Description: "Name of the app",
-				Required:    true,
-				Type:        "string",
-			},
-		},
-		Builder: func(args map[string]string) ([]string, error) {
-			cmdArgs := []string{"status", "--json"}
-
-			if app, ok := args["app"]; ok {
-				cmdArgs = append(cmdArgs, "-a", app)
-			}
-
-			return cmdArgs, nil
-		},
-	},
-}
+var COMMANDS = slices.Concat(
+	LogCommands,
+	StatusCommands,
+)
 
 func newServer() *cobra.Command {
 	const (
@@ -108,7 +46,7 @@ func runServer(ctx context.Context) error {
 	// Register commands
 	for _, cmd := range COMMANDS {
 		// Create a tool function for each command
-		tool := func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		tool := func(ctx context.Context, request mcpGo.CallToolRequest) (*mcpGo.CallToolResult, error) {
 			// Extract arguments from the request
 			args := make(map[string]string)
 			for argName, argValue := range request.Params.Arguments {
@@ -143,33 +81,33 @@ func runServer(ctx context.Context) error {
 			}
 
 			// Return the output as a tool result
-			return mcp.NewToolResultText(string(output)), nil
+			return mcpGo.NewToolResultText(string(output)), nil
 		}
 
 		// Register the tool with the server
-		toolOptions := []mcp.ToolOption{
-			mcp.WithDescription(cmd.ToolDescription),
+		toolOptions := []mcpGo.ToolOption{
+			mcpGo.WithDescription(cmd.ToolDescription),
 		}
 
 		for argName, arg := range cmd.ToolArgs {
-			options := []mcp.PropertyOption{
-				mcp.Description(arg.Description),
+			options := []mcpGo.PropertyOption{
+				mcpGo.Description(arg.Description),
 			}
 
 			if arg.Required {
-				options = append(options, mcp.Required())
+				options = append(options, mcpGo.Required())
 			}
 
 			switch arg.Type {
 			case "string":
-				toolOptions = append(toolOptions, mcp.WithString(argName, options...))
+				toolOptions = append(toolOptions, mcpGo.WithString(argName, options...))
 			default:
 				return fmt.Errorf("unsupported argument type %s for argument %s", arg.Type, argName)
 			}
 		}
 
 		srv.AddTool(
-			mcp.NewTool(cmd.ToolName, toolOptions...),
+			mcpGo.NewTool(cmd.ToolName, toolOptions...),
 			tool,
 		)
 	}
