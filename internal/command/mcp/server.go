@@ -11,11 +11,12 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
+	mcpServer "github.com/superfly/flyctl/internal/command/mcp/server"
 )
 
 var COMMANDS = slices.Concat(
-	LogCommands,
-	StatusCommands,
+	mcpServer.LogCommands,
+	mcpServer.StatusCommands,
 )
 
 func newServer() *cobra.Command {

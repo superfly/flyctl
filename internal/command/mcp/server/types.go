@@ -1,4 +1,4 @@
-package mcp
+package mcpServer
 
 // FlyCommand represents a command for the Fly MCP server
 type FlyCommand struct {

@@ -1,4 +1,4 @@
-package mcp
+package mcpServer
 
 var LogCommands = []FlyCommand{
 	{
