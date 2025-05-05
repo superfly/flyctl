@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"strconv"
 
 	mcpGo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -17,6 +18,7 @@ import (
 var COMMANDS = slices.Concat(
 	mcpServer.LogCommands,
 	mcpServer.StatusCommands,
+	mcpServer.VolumeCommands,
 )
 
 func newServer() *cobra.Command {
@@ -55,14 +57,44 @@ func runServer(ctx context.Context) error {
 				if !ok {
 					return nil, fmt.Errorf("unknown argument %s", argName)
 				}
+
 				if description.Required && argValue == nil {
 					return nil, fmt.Errorf("argument %s is required", argName)
 				}
 
-				if strValue, ok := argValue.(string); ok {
-					args[argName] = strValue
+				if description.Type == "string" {
+					if strValue, ok := argValue.(string); ok {
+						args[argName] = strValue
+					} else {
+						return nil, fmt.Errorf("argument %s must be a string", argName)
+					}
+				} else if description.Type == "number" {
+					if numValue, ok := argValue.(float64); ok {
+						args[argName] = strconv.FormatFloat(numValue, 'f', -1, 64)
+					} else {
+						return nil, fmt.Errorf("argument %s must be a number", argName)
+					}
+				} else if description.Type == "boolean" {
+					if boolValue, ok := argValue.(bool); ok {
+						args[argName] = strconv.FormatBool(boolValue)
+					} else {
+						return nil, fmt.Errorf("argument %s must be a boolean", argName)
+					}
 				} else {
-					return nil, fmt.Errorf("argument %s must be a string", argName)
+					return nil, fmt.Errorf("unsupported argument type %s for argument %s", description.Type, argName)
+				}
+			}
+
+			// Check for required arguments and fill in defaults
+			for argName, description := range cmd.ToolArgs {
+				if description.Required {
+					if _, ok := args[argName]; !ok {
+						return nil, fmt.Errorf("missing required argument %s", argName)
+					}
+				} else if description.Default != "" {
+					if _, ok := args[argName]; !ok {
+						args[argName] = description.Default
+					}
 				}
 			}
 
@@ -101,7 +133,34 @@ func runServer(ctx context.Context) error {
 
 			switch arg.Type {
 			case "string":
+				if arg.Default != "" {
+					options = append(options, mcpGo.DefaultString(arg.Default))
+				}
+
 				toolOptions = append(toolOptions, mcpGo.WithString(argName, options...))
+
+			case "number":
+				if arg.Default != "" {
+					if defaultValue, err := strconv.ParseFloat(arg.Default, 64); err == nil {
+						options = append(options, mcpGo.DefaultNumber(defaultValue))
+					} else {
+						return fmt.Errorf("invalid default value for argument %s: %v", argName, err)
+					}
+				}
+
+				toolOptions = append(toolOptions, mcpGo.WithNumber(argName, options...))
+
+			case "boolean":
+				if arg.Default != "" {
+					if defaultValue, err := strconv.ParseBool(arg.Default); err == nil {
+						options = append(options, mcpGo.DefaultBool(defaultValue))
+					} else {
+						return fmt.Errorf("invalid default value for argument %s: %v", argName, err)
+					}
+				}
+
+				toolOptions = append(toolOptions, mcpGo.WithBoolean(argName, options...))
+
 			default:
 				return fmt.Errorf("unsupported argument type %s for argument %s", arg.Type, argName)
 			}

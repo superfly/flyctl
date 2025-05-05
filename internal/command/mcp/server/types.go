@@ -13,4 +13,5 @@ type FlyArg struct {
 	Description string
 	Required    bool
 	Type        string
+	Default     string
 }
