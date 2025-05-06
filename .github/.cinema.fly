@@ -1,0 +1,51 @@
+import asyncio
+from aiogram import Bot, Dispatcher, types
+from aiogram.enums import ParseMode
+from aiogram.client.default import DefaultBotProperties
+from aiogram.filters import CommandStart
+
+# Bot tokeni va kanal username
+API_TOKEN = '8151352968:AAH9XTZriBQi_kNHLQscfulgdqWFx7qVhL4'
+CHANNEL_USERNAME = '@tuzuk_fillm'
+
+bot = Bot(
+    token=API_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
+dp = Dispatcher()
+
+# Kod va message_id ro‘yxati
+CODE_TO_MESSAGE_ID = {
+    "1280": 18,
+    "723": 3,
+    "08": 4,
+    "09": 5,
+    "10": 6,
+    "11": 7,
+    }
+
+@dp.message(CommandStart())
+async def command_start_handler(message: types.Message):
+    await message.answer("Salom! Kod yuboring")
+
+@dp.message()
+async def handle_code(message: types.Message):
+    code = message.text.strip()
+    if code in CODE_TO_MESSAGE_ID:
+        message_id = CODE_TO_MESSAGE_ID[code]
+        try:
+            await bot.copy_message(
+                chat_id=message.chat.id,
+                from_chat_id=CHANNEL_USERNAME,
+                message_id=message_id
+            )
+        except Exception as e:
+            await message.reply(f"Xatolik: {e}")
+    else:
+        await message.reply("Bu koddagi kino topilmadi.")
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())
