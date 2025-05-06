@@ -15,6 +15,11 @@ var LogCommands = []FlyCommand{
 				Required:    false,
 				Type:        "string",
 			},
+			"region": {
+				Description: "Region to get logs from",
+				Required:    false,
+				Type:        "string",
+			},
 		},
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"logs", "--no-tail"}
@@ -25,6 +30,10 @@ var LogCommands = []FlyCommand{
 
 			if machine, ok := args["machine"]; ok {
 				cmdArgs = append(cmdArgs, "--machine", machine)
+			}
+
+			if region, ok := args["region"]; ok {
+				cmdArgs = append(cmdArgs, "--region", region)
 			}
 
 			return cmdArgs, nil
