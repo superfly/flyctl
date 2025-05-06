@@ -15,8 +15,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -42,7 +42,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "create"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -88,8 +88,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -98,7 +98,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "destroy"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -125,8 +125,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -140,7 +140,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "extend"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -173,8 +173,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -188,7 +188,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "fork"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -260,8 +260,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -270,7 +270,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "show"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -297,8 +297,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -307,7 +307,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "snapshots", "create"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -334,8 +334,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -344,7 +344,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "snapshots", "list"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
@@ -371,8 +371,8 @@ var VolumeCommands = []FlyCommand{
 				Required:    true,
 				Type:        "string",
 			},
-			"name": {
-				Description: "Name of the volume",
+			"id": {
+				Description: "id of the volume",
 				Required:    true,
 				Type:        "string",
 			},
@@ -391,7 +391,7 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "update"}
 
-			if name, ok := args["name"]; ok {
+			if name, ok := args["id"]; ok {
 				cmdArgs = append(cmdArgs, name)
 			} else {
 				return nil, fmt.Errorf("name argument is required")
