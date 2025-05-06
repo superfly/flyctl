@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/superfly/flyctl/internal/command"
 	mcpServer "github.com/superfly/flyctl/internal/command/mcp/server"
+	"github.com/superfly/flyctl/internal/flag"
 )
 
 var COMMANDS = slices.Concat(
@@ -32,6 +33,15 @@ func newServer() *cobra.Command {
 	cmd := command.New(usage, short, long, runServer)
 	cmd.Args = cobra.ExactArgs(0)
 
+	flag.Add(cmd,
+		flag.Bool{
+			Name:        "inspector",
+			Description: "Launch MCP inspector: a developer tool for testing and debugging MCP servers",
+			Default:     false,
+			Shorthand:   "i",
+		},
+	)
+
 	return cmd
 }
 
@@ -39,6 +49,18 @@ func runServer(ctx context.Context) error {
 	flyctl, err := os.Executable()
 	if err != nil {
 		return fmt.Errorf("failed to find executable: %w", err)
+	}
+
+	if flag.GetBool(ctx, "inspector") {
+		// Launch MCP inspector
+		cmd := exec.Command("npx", "@modelcontextprotocol/inspector", flyctl, "mcp", "server")
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to launch MCP inspector: %w", err)
+		}
+		return nil
 	}
 
 	// Create MCP server
