@@ -18,6 +18,7 @@ import (
 
 var COMMANDS = slices.Concat(
 	mcpServer.LogCommands,
+	mcpServer.OrgCommands,
 	mcpServer.PlatformCommands,
 	mcpServer.StatusCommands,
 	mcpServer.VolumeCommands,
