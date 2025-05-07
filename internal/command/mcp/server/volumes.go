@@ -42,10 +42,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "create"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -98,10 +98,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "destroy"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -140,10 +140,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "extend"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -188,10 +188,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "fork"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -270,10 +270,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "show"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -307,10 +307,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "snapshots", "create"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -344,10 +344,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "snapshots", "list"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
@@ -391,10 +391,10 @@ var VolumeCommands = []FlyCommand{
 		Builder: func(args map[string]string) ([]string, error) {
 			cmdArgs := []string{"volume", "update"}
 
-			if name, ok := args["id"]; ok {
-				cmdArgs = append(cmdArgs, name)
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
 			} else {
-				return nil, fmt.Errorf("name argument is required")
+				return nil, fmt.Errorf("id argument is required")
 			}
 
 			if app, ok := args["app"]; ok {
