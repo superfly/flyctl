@@ -12,7 +12,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -116,8 +116,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			if attachVolume, ok := args["attach-volume"]; ok {
@@ -209,7 +207,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -230,8 +228,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			cmdArgs = append(cmdArgs, "--verbose")
@@ -517,7 +513,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -543,8 +539,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			if force, ok := args["force"]; ok {
@@ -566,7 +560,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -586,8 +580,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			cmdArgs = append(cmdArgs, "--yes")
@@ -602,7 +594,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -623,8 +615,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			cmdArgs = append(cmdArgs, "--verbose")
@@ -639,7 +629,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -660,8 +650,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			cmdArgs = append(cmdArgs, "--yes")
@@ -676,7 +664,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -708,8 +696,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			return cmdArgs, nil
@@ -722,7 +708,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -743,8 +729,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			return cmdArgs, nil
@@ -757,7 +741,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -778,8 +762,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			return cmdArgs, nil
@@ -792,7 +774,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -813,8 +795,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			cmdArgs = append(cmdArgs, "--json")
@@ -855,7 +835,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -896,8 +876,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			if force, ok := args["force"]; ok {
@@ -1081,7 +1059,7 @@ var MachineCommands = []FlyCommand{
 		},
 
 		Builder: func(args map[string]string) ([]string, error) {
-			cmdArgs := []string{"machine", "create"}
+			cmdArgs := []string{"machine", "run"}
 
 			if image, ok := args["image"]; ok {
 				cmdArgs = append(cmdArgs, image)
@@ -1227,7 +1205,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -1248,8 +1226,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			return cmdArgs, nil
@@ -1262,7 +1238,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -1288,8 +1264,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			if displayConfig, ok := args["display-config"]; ok {
@@ -1311,7 +1285,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -1347,8 +1321,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			if signal, ok := args["signal"]; ok {
@@ -1373,7 +1345,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -1399,8 +1371,6 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
-			} else {
-				return nil, fmt.Errorf("missing required argument: app")
 			}
 
 			if waitTimeoutStr, ok := args["wait-timeout"]; ok {
@@ -1417,7 +1387,7 @@ var MachineCommands = []FlyCommand{
 		ToolArgs: map[string]FlyArg{
 			"app": {
 				Description: "Name of the app",
-				Required:    true,
+				Required:    false,
 				Type:        "string",
 			},
 			"id": {
@@ -1438,8 +1408,259 @@ var MachineCommands = []FlyCommand{
 
 			if app, ok := args["app"]; ok {
 				cmdArgs = append(cmdArgs, "-a", app)
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-update",
+		ToolDescription: "Update a machine",
+		ToolArgs: map[string]FlyArg{
+			// missing: build-depot, build-nixpacks, container, dockerfile, file-literal, file-local, file-secret,
+			// kernel-arg, machine-config
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "Machine ID",
+				Required:    true,
+				Type:        "string",
+			},
+			"autostart": {
+				Description: "Automatically start a stopped Machine when a network request is received",
+				Required:    false,
+				Type:        "boolean",
+				Default:     "true",
+			},
+			"autostop": {
+				Description: "Automatically stop a Machine when there are no network requests for it",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"off", "stop", "suspend"},
+				Default:     "off",
+			},
+			"command": {
+				Description: "Command to run on the machine",
+				Required:    false,
+				Type:        "string",
+			},
+			"entrypoint": {
+				Description: "The command to override the Docker ENTRYPOINT",
+				Required:    false,
+				Type:        "string",
+			},
+			"env": {
+				Description: "Set of environment variables in the form of NAME=VALUE pairs.",
+				Required:    false,
+				Type:        "array",
+			},
+			"host-dedication-id": {
+				Description: "The dedication id of the reserved hosts for your organization (if any)",
+				Required:    false,
+				Type:        "string",
+			},
+			"image": {
+				Description: "The image to use for the new machine",
+				Required:    false,
+				Type:        "string",
+			},
+			"metadata": {
+				Description: "Set of metadata in the form of NAME=VALUE pairs.",
+				Required:    false,
+				Type:        "array",
+			},
+			"port": {
+				Description: "The external ports and handlers for services, in the format: port[:machinePort][/protocol[:handler[:handler...]]])",
+				Required:    false,
+				Type:        "array",
+			},
+			"restart": {
+				Description: "Restart policy for the new machine",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"no", "always", "on-fail"},
+			},
+			"schedule": {
+				Description: "Schedule for the new machine",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"hourly", "daily", "monthly"},
+			},
+			"skip-dns-registration": {
+				Description: "Skip DNS registration for the new machine",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"standby-for": {
+				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
+				Required:    false,
+				Type:        "array",
+			},
+			"use-zstd": {
+				Description: "Use zstd compression for the image",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"vm-cpu-kind": {
+				Description: "The CPU kind to use for the new machine",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"shared", "dedicated"},
+			},
+			"vm-cpus": {
+				Description: "The number of CPUs to use for the new machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"vm-gpu-kind": {
+				Description: "If set, the GPU model to attach",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"},
+			},
+			"vm-gpus": {
+				Description: "The number of GPUs to use for the new machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"vm-memory": {
+				Description: "The amount of memory (in megabytes) to use for the new machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"vm-size": {
+				Description: `The VM size to set machines to. See "fly platform vm-sizes" for valid values`,
+				Required:    false,
+				Type:        "string",
+			},
+			"wait-timeout": {
+				Description: "Seconds to wait for the machine to update",
+				Required:    false,
+				Type:        "number",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "create"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if image, ok := args["image"]; ok {
+				cmdArgs = append(cmdArgs, "--image", image)
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
 			} else {
 				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if autostart, ok := args["autostart"]; ok {
+				value, err := strconv.ParseBool(autostart)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for autostart: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--autostart")
+				}
+			}
+
+			if autostop, ok := args["autostop"]; ok {
+				cmdArgs = append(cmdArgs, "--autostop", autostop)
+			}
+
+			if entrypoint, ok := args["entrypoint"]; ok {
+				cmdArgs = append(cmdArgs, "--entrypoint", entrypoint)
+			}
+
+			if env, ok := args["env"]; ok {
+				cmdArgs = append(cmdArgs, "--env", env)
+			}
+
+			if hostDedicationID, ok := args["host-dedication-id"]; ok {
+				cmdArgs = append(cmdArgs, "--host-dedication-id", hostDedicationID)
+			}
+
+			if metadata, ok := args["metadata"]; ok {
+				cmdArgs = append(cmdArgs, "--metadata", metadata)
+			}
+
+			if port, ok := args["port"]; ok {
+				cmdArgs = append(cmdArgs, "--port", port)
+			}
+
+			if restart, ok := args["restart"]; ok {
+				cmdArgs = append(cmdArgs, "--restart", restart)
+			}
+
+			if rm, ok := args["rm"]; ok {
+				value, err := strconv.ParseBool(rm)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for rm: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--rm")
+				}
+			}
+
+			if schedule, ok := args["schedule"]; ok {
+				cmdArgs = append(cmdArgs, "--schedule", schedule)
+			}
+
+			if skipDnsRegistration, ok := args["skip-dns-registration"]; ok {
+				value, err := strconv.ParseBool(skipDnsRegistration)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for skip-dns-registration: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--skip-dns-registration")
+				}
+			}
+
+			if standbyFor, ok := args["standby-for"]; ok {
+				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
+			}
+
+			if useZstd, ok := args["use-zstd"]; ok {
+				value, err := strconv.ParseBool(useZstd)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for use-zstd: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--use-zstd")
+				}
+			}
+
+			if vmCpuKind, ok := args["vm-cpu-kind"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-cpu-kind", vmCpuKind)
+			}
+
+			if vmCpus, ok := args["vm-cpus"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-cpus", vmCpus)
+			}
+
+			if vmGpuKind, ok := args["vm-gpu-kind"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-gpu-kind", vmGpuKind)
+			}
+
+			if vmGpus, ok := args["vm-gpus"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-gpus", vmGpus)
+			}
+
+			if vmMemory, ok := args["vm-memory"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-memory", vmMemory)
+			}
+
+			if vmSize, ok := args["vm-size"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-size", vmSize)
+			}
+
+			if waitTimeout, ok := args["wait-timeout"]; ok {
+				cmdArgs = append(cmdArgs, "--wait-timeout", waitTimeout)
 			}
 
 			return cmdArgs, nil
