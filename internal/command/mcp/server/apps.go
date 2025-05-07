@@ -117,7 +117,7 @@ var AppCommands = []FlyCommand{
 			"skip-health-checks": {
 				Description: "Skip health checks during the move",
 				Required:    false,
-				Type:        "bool",
+				Type:        "boolean",
 			},
 		},
 
@@ -184,12 +184,12 @@ var AppCommands = []FlyCommand{
 			"force-stop": {
 				Description: "Force stop the app before restarting",
 				Required:    false,
-				Type:        "bool",
+				Type:        "boolean",
 			},
 			"skip-health-checks": {
 				Description: "Skip health checks during the restart",
 				Required:    false,
-				Type:        "bool",
+				Type:        "boolean",
 			},
 		},
 
