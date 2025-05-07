@@ -27,6 +27,7 @@ func newAttenuate() *cobra.Command {
 	)
 
 	cmd := command.New(usage, short, long, runAttenuate)
+	cmd.Args = cobra.NoArgs
 
 	flag.Add(cmd,
 		flag.String{
