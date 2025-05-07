@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"slices"
 	"strconv"
+	"strings"
 
 	mcpGo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -17,7 +18,10 @@ import (
 )
 
 var COMMANDS = slices.Concat(
+	mcpServer.AppCommands,
 	mcpServer.LogCommands,
+	mcpServer.MachineCommands,
+	mcpServer.OrgCommands,
 	mcpServer.PlatformCommands,
 	mcpServer.StatusCommands,
 	mcpServer.VolumeCommands,
@@ -85,25 +89,51 @@ func runServer(ctx context.Context) error {
 					return nil, fmt.Errorf("argument %s is required", argName)
 				}
 
-				if description.Type == "string" {
+				switch description.Type {
+				case "string":
 					if strValue, ok := argValue.(string); ok {
 						args[argName] = strValue
 					} else {
 						return nil, fmt.Errorf("argument %s must be a string", argName)
 					}
-				} else if description.Type == "number" {
+				case "enum":
+					if strValue, ok := argValue.(string); ok {
+						if !slices.Contains(description.Enum, strValue) {
+							return nil, fmt.Errorf("argument %s must be one of %v", argName, description.Enum)
+						}
+						args[argName] = strValue
+					} else {
+						return nil, fmt.Errorf("argument %s must be a string", argName)
+					}
+				case "array":
+					if arrValue, ok := argValue.([]any); ok {
+						if len(arrValue) > 0 {
+							strArr := make([]string, len(arrValue))
+							for i, v := range arrValue {
+								if str, ok := v.(string); ok {
+									strArr[i] = str
+								} else {
+									return nil, fmt.Errorf("argument %s must be an array of strings", argName)
+								}
+							}
+							args[argName] = strings.Join(strArr, ",")
+						}
+					} else {
+						return nil, fmt.Errorf("argument %s must be an array of strings", argName)
+					}
+				case "number":
 					if numValue, ok := argValue.(float64); ok {
 						args[argName] = strconv.FormatFloat(numValue, 'f', -1, 64)
 					} else {
 						return nil, fmt.Errorf("argument %s must be a number", argName)
 					}
-				} else if description.Type == "boolean" {
+				case "boolean":
 					if boolValue, ok := argValue.(bool); ok {
 						args[argName] = strconv.FormatBool(boolValue)
 					} else {
 						return nil, fmt.Errorf("argument %s must be a boolean", argName)
 					}
-				} else {
+				default:
 					return nil, fmt.Errorf("unsupported argument type %s for argument %s", description.Type, argName)
 				}
 			}
@@ -162,6 +192,29 @@ func runServer(ctx context.Context) error {
 
 				toolOptions = append(toolOptions, mcpGo.WithString(argName, options...))
 
+			case "enum":
+				if arg.Default != "" {
+					if slices.Contains(arg.Enum, arg.Default) {
+						options = append(options, mcpGo.DefaultString(arg.Default))
+					} else {
+						return fmt.Errorf("invalid default value for argument %s: %s is not in enum %v", argName, arg.Default, arg.Enum)
+					}
+				}
+
+				if len(arg.Enum) > 0 {
+					options = append(options, mcpGo.Enum(arg.Enum...))
+				} else {
+					return fmt.Errorf("enum argument %s must have at least one value", argName)
+				}
+
+				toolOptions = append(toolOptions, mcpGo.WithString(argName, options...))
+
+			case "array":
+				schema := map[string]any{"type": "string"}
+				options = append(options, mcpGo.Items(schema))
+
+				toolOptions = append(toolOptions, mcpGo.WithArray(argName, options...))
+
 			case "number":
 				if arg.Default != "" {
 					if defaultValue, err := strconv.ParseFloat(arg.Default, 64); err == nil {
@@ -197,7 +250,7 @@ func runServer(ctx context.Context) error {
 
 	fmt.Fprintf(os.Stderr, "Starting MCP server...\n")
 	if err := server.ServeStdio(srv); err != nil {
-		return fmt.Errorf("Server error: %v\n", err)
+		return fmt.Errorf("Server error: %v", err)
 	}
 
 	return nil
