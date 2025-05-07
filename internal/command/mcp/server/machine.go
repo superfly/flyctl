@@ -510,4 +510,423 @@ var MachineCommands = []FlyCommand{
 			return cmdArgs, nil
 		},
 	},
+
+	{
+		ToolName:        "fly-machine-destroy",
+		ToolDescription: "Destroy one or more Fly machines. This command requires a machine to be in a stopped or suspended state unless the force flag is used.",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to destroy",
+				Required:    true,
+				Type:        "string",
+			},
+			"force": {
+				Description: "Force destroy the machine, even if it is running",
+				Required:    false,
+				Type:        "boolean",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "destroy"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if force, ok := args["force"]; ok {
+				value, err := strconv.ParseBool(force)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for force: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--force")
+				}
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-egress-ip-allocate",
+		ToolDescription: "Allocate a pair of static egress IPv4 and IPv6 for a machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to allocate egress IP for",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "egress-ip", "allocate"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			cmdArgs = append(cmdArgs, "--yes")
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-egress-ip-list",
+		ToolDescription: "List all static egress IPv4 and IPv6 for a machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to list egress IP for",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "egress-ip", "list"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			cmdArgs = append(cmdArgs, "--verbose")
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-egress-ip-release",
+		ToolDescription: "Release a pair of static egress IPv4 and IPv6 for a machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to release egress IP for",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "egress-ip", "release"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			cmdArgs = append(cmdArgs, "--yes")
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-exec",
+		ToolDescription: "Run a command on a machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to run the command on",
+				Required:    true,
+				Type:        "string",
+			},
+			"command": {
+				Description: "Command to run on the machine",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "exec"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if command, ok := args["command"]; ok {
+				cmdArgs = append(cmdArgs, command)
+			} else {
+				return nil, fmt.Errorf("missing required argument: command")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-leases-clear",
+		ToolDescription: "Clear the leases for a machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to clear leases for",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "leases", "clear"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-kill",
+		ToolDescription: "Kill (SIGKILL) a Fly machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to kill",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "kill"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-leases-view",
+		ToolDescription: "View machine leases",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to list leases for",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "leases", "view"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			cmdArgs = append(cmdArgs, "--json")
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-list",
+		ToolDescription: "List all machines for a Fly app",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "list"}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			cmdArgs = append(cmdArgs, "--json")
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-restart",
+		ToolDescription: "Restart a Fly machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to restart",
+				Required:    true,
+				Type:        "string",
+			},
+			"force": {
+				Description: "Force stop if it is running",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"signal": {
+				Description: "Signal to send to the machine",
+				Required:    false,
+				Type:        "string",
+			},
+			"skip-health-checks": {
+				Description: "Skip health checks during the restart",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"time": {
+				Description: "Seconds to wait before killing the machine",
+				Required:    false,
+				Type:        "number",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "restart"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if force, ok := args["force"]; ok {
+				value, err := strconv.ParseBool(force)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for force: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--force")
+				}
+			}
+
+			if signal, ok := args["signal"]; ok {
+				cmdArgs = append(cmdArgs, "--signal", signal)
+			}
+
+			if skipHealthChecks, ok := args["skip-health-checks"]; ok {
+				value, err := strconv.ParseBool(skipHealthChecks)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for skip-health-checks: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--skip-health-checks")
+				}
+			}
+
+			if timeStr, ok := args["time"]; ok {
+				cmdArgs = append(cmdArgs, "--time", timeStr)
+			}
+
+			return cmdArgs, nil
+		},
+	},
 }
