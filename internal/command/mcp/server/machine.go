@@ -929,4 +929,520 @@ var MachineCommands = []FlyCommand{
 			return cmdArgs, nil
 		},
 	},
+
+	{
+		ToolName:        "fly-machine-run",
+		ToolDescription: "Run a machine",
+		ToolArgs: map[string]FlyArg{
+			// missing: build-depot, build-nixpacks, dockerfile, file-literal, file-local, file-secret,
+			// kernel-arg, machine-config, org, wg
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"autostart": {
+				Description: "Automatically start a stopped Machine when a network request is received",
+				Required:    false,
+				Type:        "boolean",
+				Default:     "true",
+			},
+			"autostop": {
+				Description: "Automatically stop a Machine when there are no network requests for it",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"off", "stop", "suspend"},
+				Default:     "off",
+			},
+			"command": {
+				Description: "Command to run on the machine",
+				Required:    false,
+				Type:        "string",
+			},
+			"entrypoint": {
+				Description: "The command to override the Docker ENTRYPOINT",
+				Required:    false,
+				Type:        "string",
+			},
+			"env": {
+				Description: "Set of environment variables in the form of NAME=VALUE pairs.",
+				Required:    false,
+				Type:        "array",
+			},
+			"host-dedication-id": {
+				Description: "The dedication id of the reserved hosts for your organization (if any)",
+				Required:    false,
+				Type:        "string",
+			},
+			"id": {
+				Description: "Machine ID, if previously known",
+				Required:    false,
+				Type:        "string",
+			},
+			"image": {
+				Description: "The image to use for the new machine",
+				Required:    true,
+				Type:        "string",
+			},
+			"metadata": {
+				Description: "Set of metadata in the form of NAME=VALUE pairs.",
+				Required:    false,
+				Type:        "array",
+			},
+			"name": {
+				Description: "Name of the new machine. Will be generated if omitted.",
+				Required:    false,
+				Type:        "string",
+			},
+			"port": {
+				Description: "The external ports and handlers for services, in the format: port[:machinePort][/protocol[:handler[:handler...]]])",
+				Required:    false,
+				Type:        "array",
+			},
+			"region": {
+				Description: "Region to create the new machine in",
+				Required:    false,
+				Type:        "string",
+			},
+			"restart": {
+				Description: "Restart policy for the new machine",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"no", "always", "on-fail"},
+			},
+			"rm": {
+				Description: "Automatically remove the Machine when it exits",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"schedule": {
+				Description: "Schedule for the new machine",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"hourly", "daily", "monthly"},
+			},
+			"skip-dns-registration": {
+				Description: "Skip DNS registration for the new machine",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"standby-for": {
+				Description: "For Machines without services, a comma separated list of Machine IDs to act as standby for.",
+				Required:    false,
+				Type:        "array",
+			},
+			"use-zstd": {
+				Description: "Use zstd compression for the image",
+				Required:    false,
+				Type:        "boolean",
+			},
+			"user": {
+				Description: "User to run the command as",
+				Required:    false,
+				Type:        "string",
+			},
+			"vm-cpu-kind": {
+				Description: "The CPU kind to use for the new machine",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"shared", "dedicated"},
+			},
+			"vm-cpus": {
+				Description: "The number of CPUs to use for the new machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"vm-gpu-kind": {
+				Description: "If set, the GPU model to attach",
+				Required:    false,
+				Type:        "enum",
+				Enum:        []string{"a100-pcie-40gb", "a100-sxm4-80gb", "l40s", "a10", "none"},
+			},
+			"vm-gpus": {
+				Description: "The number of GPUs to use for the new machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"vm-memory": {
+				Description: "The amount of memory (in megabytes) to use for the new machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"vm-size": {
+				Description: `The VM size to set machines to. See "fly platform vm-sizes" for valid values`,
+				Required:    false,
+				Type:        "string",
+			},
+			"volume": {
+				Description: "Volume to mount, in the form of <volume_id_or_name>:/path/inside/machine[:<options>]",
+				Required:    false,
+				Type:        "array",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "create"}
+
+			if image, ok := args["image"]; ok {
+				cmdArgs = append(cmdArgs, image)
+			} else {
+				return nil, fmt.Errorf("missing required argument: image")
+			}
+
+			if command, ok := args["command"]; ok {
+				cmdArgs = append(cmdArgs, command)
+			} else {
+				return nil, fmt.Errorf("missing required argument: command")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if autostart, ok := args["autostart"]; ok {
+				value, err := strconv.ParseBool(autostart)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for autostart: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--autostart")
+				}
+			}
+
+			if autostop, ok := args["autostop"]; ok {
+				cmdArgs = append(cmdArgs, "--autostop", autostop)
+			}
+
+			if entrypoint, ok := args["entrypoint"]; ok {
+				cmdArgs = append(cmdArgs, "--entrypoint", entrypoint)
+			}
+
+			if env, ok := args["env"]; ok {
+				cmdArgs = append(cmdArgs, "--env", env)
+			}
+
+			if hostDedicationID, ok := args["host-dedication-id"]; ok {
+				cmdArgs = append(cmdArgs, "--host-dedication-id", hostDedicationID)
+			}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, "--id", id)
+			}
+
+			if metadata, ok := args["metadata"]; ok {
+				cmdArgs = append(cmdArgs, "--metadata", metadata)
+			}
+
+			if name, ok := args["name"]; ok {
+				cmdArgs = append(cmdArgs, "--name", name)
+			}
+
+			if port, ok := args["port"]; ok {
+				cmdArgs = append(cmdArgs, "--port", port)
+			}
+
+			if region, ok := args["region"]; ok {
+				cmdArgs = append(cmdArgs, "--region", region)
+			}
+
+			if restart, ok := args["restart"]; ok {
+				cmdArgs = append(cmdArgs, "--restart", restart)
+			}
+
+			if rm, ok := args["rm"]; ok {
+				value, err := strconv.ParseBool(rm)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for rm: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--rm")
+				}
+			}
+
+			if schedule, ok := args["schedule"]; ok {
+				cmdArgs = append(cmdArgs, "--schedule", schedule)
+			}
+
+			if skipDnsRegistration, ok := args["skip-dns-registration"]; ok {
+				value, err := strconv.ParseBool(skipDnsRegistration)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for skip-dns-registration: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--skip-dns-registration")
+				}
+			}
+
+			if standbyFor, ok := args["standby-for"]; ok {
+				cmdArgs = append(cmdArgs, "--standby-for", standbyFor)
+			}
+
+			if useZstd, ok := args["use-zstd"]; ok {
+				value, err := strconv.ParseBool(useZstd)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for use-zstd: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--use-zstd")
+				}
+			}
+
+			if user, ok := args["user"]; ok {
+				cmdArgs = append(cmdArgs, "--user", user)
+			}
+
+			if vmCpuKind, ok := args["vm-cpu-kind"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-cpu-kind", vmCpuKind)
+			}
+
+			if vmCpus, ok := args["vm-cpus"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-cpus", vmCpus)
+			}
+
+			if vmGpuKind, ok := args["vm-gpu-kind"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-gpu-kind", vmGpuKind)
+			}
+
+			if vmGpus, ok := args["vm-gpus"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-gpus", vmGpus)
+			}
+
+			if vmMemory, ok := args["vm-memory"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-memory", vmMemory)
+			}
+
+			if vmSize, ok := args["vm-size"]; ok {
+				cmdArgs = append(cmdArgs, "--vm-size", vmSize)
+			}
+
+			if volume, ok := args["volume"]; ok {
+				cmdArgs = append(cmdArgs, "--volume", volume)
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-start",
+		ToolDescription: "Start a Fly machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to start",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "start"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-status",
+		ToolDescription: "Show current status of a running machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to show status for",
+				Required:    true,
+				Type:        "string",
+			},
+			"display-config": {
+				Description: "Display the machine config",
+				Required:    false,
+				Type:        "boolean",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "status"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if displayConfig, ok := args["display-config"]; ok {
+				value, err := strconv.ParseBool(displayConfig)
+				if err != nil {
+					return nil, fmt.Errorf("invalid value for display-config: %v", err)
+				} else if value {
+					cmdArgs = append(cmdArgs, "--display-config")
+				}
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-stop",
+		ToolDescription: "Stop a Fly machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to stop",
+				Required:    true,
+				Type:        "string",
+			},
+			"signal": {
+				Description: "Signal to send to the machine",
+				Required:    false,
+				Type:        "string",
+			},
+			"timeout": {
+				Description: "Seconds to wait before killing the machine",
+				Required:    false,
+				Type:        "number",
+			},
+			"wait-timeout": {
+				Description: "Seconds to wait for the machine to stop",
+				Required:    false,
+				Type:        "number",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "stop"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if signal, ok := args["signal"]; ok {
+				cmdArgs = append(cmdArgs, "--signal", signal)
+			}
+
+			if timeoutStr, ok := args["timeout"]; ok {
+				cmdArgs = append(cmdArgs, "--timeout", timeoutStr)
+			}
+
+			if waitTimeoutStr, ok := args["wait-timeout"]; ok {
+				cmdArgs = append(cmdArgs, "--wait-timeout", waitTimeoutStr)
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-suspend",
+		ToolDescription: "Suspend a Fly machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to suspend",
+				Required:    true,
+				Type:        "string",
+			},
+			"wait-timeout": {
+				Description: "Seconds to wait for the machine to suspend",
+				Required:    false,
+				Type:        "number",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "suspend"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			if waitTimeoutStr, ok := args["wait-timeout"]; ok {
+				cmdArgs = append(cmdArgs, "--wait-timeout", waitTimeoutStr)
+			}
+
+			return cmdArgs, nil
+		},
+	},
+
+	{
+		ToolName:        "fly-machine-upcordon",
+		ToolDescription: "Reactivate all services on a machine",
+		ToolArgs: map[string]FlyArg{
+			"app": {
+				Description: "Name of the app",
+				Required:    true,
+				Type:        "string",
+			},
+			"id": {
+				Description: "ID of the machine to upcordon",
+				Required:    true,
+				Type:        "string",
+			},
+		},
+
+		Builder: func(args map[string]string) ([]string, error) {
+			cmdArgs := []string{"machine", "upcordon"}
+
+			if id, ok := args["id"]; ok {
+				cmdArgs = append(cmdArgs, id)
+			} else {
+				return nil, fmt.Errorf("missing required argument: id")
+			}
+
+			if app, ok := args["app"]; ok {
+				cmdArgs = append(cmdArgs, "-a", app)
+			} else {
+				return nil, fmt.Errorf("missing required argument: app")
+			}
+
+			return cmdArgs, nil
+		},
+	},
 }
