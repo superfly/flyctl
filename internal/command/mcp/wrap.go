@@ -52,22 +52,22 @@ func NewWrap() *cobra.Command {
 	flag.Add(cmd,
 		flag.Int{
 			Name:        "port",
-			Description: "[optional] Port to listen on.  Defaults to 8080.",
+			Description: "Port to listen on.",
 			Default:     8080,
 			Shorthand:   "p",
 		},
 		flag.String{
 			Name:        "mcp",
-			Description: "[required] Path to the stdio MCP program to be wrapped.",
+			Description: "Path to the stdio MCP program to be wrapped.",
 			Shorthand:   "m",
 		},
 		flag.String{
 			Name:        "user",
-			Description: "[optional] User to authenticate with. Defaults to the value of the FLY_MCP_USER environment variable.",
+			Description: "User to authenticate with. Defaults to the value of the FLY_MCP_USER environment variable.",
 		},
 		flag.String{
 			Name:        "password",
-			Description: "[optional] Password to authenticate with. Defaults to the value of the FLY_MCP_PASSWORD environment variable.",
+			Description: "Password to authenticate with. Defaults to the value of the FLY_MCP_PASSWORD environment variable.",
 		},
 	)
 
@@ -122,7 +122,19 @@ func runWrap(ctx context.Context) error {
 
 // StartProgram starts the remote program and connects to its stdin/stdout
 func (s *Server) StartProgram() error {
-	cmd := exec.Command(s.mcp, s.args...)
+	command := s.mcp
+	args := s.args
+
+	if command == "" {
+		if len(args) == 0 {
+			return fmt.Errorf("no command specified")
+		}
+
+		command = args[0]
+		args = args[1:]
+	}
+
+	cmd := exec.Command(command, args...)
 
 	// Get stdin pipe
 	stdin, err := cmd.StdinPipe()
