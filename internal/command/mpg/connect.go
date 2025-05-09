@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -43,7 +44,7 @@ func runConnect(ctx context.Context) (err error) {
 	}
 
 	if cluster.Status != "ready" {
-		return fmt.Errorf("cluster is not in ready state, currently: %s", cluster.Status)
+		fmt.Fprintf(io.ErrOut, "%s Cluster is not in ready state, currently: %s\n", aurora.Yellow("WARN"), cluster.Status)
 	}
 
 	psqlPath, err := exec.LookPath("psql")
