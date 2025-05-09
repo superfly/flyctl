@@ -94,11 +94,6 @@ func runWrap(ctx context.Context) error {
 		server.password = os.Getenv("FLY_MCP_PASSWORD")
 	}
 
-	// Validate inputs
-	if server.mcp == "" {
-		log.Fatal("--mcp is required")
-	}
-
 	// Start the program
 	if err := server.StartProgram(); err != nil {
 		log.Fatalf("Error starting program: %v", err)
