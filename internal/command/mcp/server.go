@@ -12,6 +12,7 @@ import (
 	mcpGo "github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/buildinfo"
 	"github.com/superfly/flyctl/internal/command"
 	mcpServer "github.com/superfly/flyctl/internal/command/mcp/server"
 	"github.com/superfly/flyctl/internal/flag"
@@ -70,7 +71,7 @@ func runServer(ctx context.Context) error {
 	// Create MCP server
 	srv := server.NewMCPServer(
 		"FlyMCP 🚀",
-		"1.0.0",
+		buildinfo.Info().Version.String(),
 	)
 
 	// Register commands
