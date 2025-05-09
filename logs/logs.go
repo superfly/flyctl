@@ -14,10 +14,14 @@ type LogOptions struct {
 	W io.Writer
 
 	MaxBackoff time.Duration
+	Org        fly.OrganizationBasic
 	AppName    string
 	VMID       string
 	RegionCode string
 	NoTail     bool
+	Start      time.Time
+	End        time.Time
+	Limit      int
 }
 
 type WebClient interface {
