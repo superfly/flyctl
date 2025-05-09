@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -31,6 +32,7 @@ type Server struct {
 	mcp      string
 	user     string
 	password string
+	private  bool
 	cmd      *exec.Cmd
 	args     []string
 	stdin    io.WriteCloser
@@ -69,17 +71,24 @@ func NewWrap() *cobra.Command {
 			Name:        "password",
 			Description: "Password to authenticate with. Defaults to the value of the FLY_MCP_PASSWORD environment variable.",
 		},
+		flag.Bool{
+			Name:        "private",
+			Description: "Use private networking.",
+		},
 	)
 
 	return cmd
 }
 
 func runWrap(ctx context.Context) error {
+	_, private := os.LookupEnv("FLY_MCP_PRIVATE")
+
 	// Create server
 	server := &Server{
 		port:     flag.GetInt(ctx, "port"),
 		user:     flag.GetString(ctx, "user"),
 		password: flag.GetString(ctx, "password"),
+		private:  flag.GetBool(ctx, "private") || private,
 		mcp:      flag.GetString(ctx, "mcp"),
 		args:     flag.ExtraArgsFromContext(ctx),
 		client:   nil,
@@ -220,6 +229,14 @@ func (s *Server) ReadFromProgram() {
 
 // HandleHTTPRequest handles incoming HTTP requests
 func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
+	if s.private {
+		clientIP := r.Header.Get("Fly-Client-Ip")
+		if clientIP != "" && !strings.HasPrefix(clientIP, "fdaa:") {
+			http.Error(w, "Forbidden", http.StatusForbidden)
+			return
+		}
+	}
+
 	if s.user != "" {
 		// Check for basic authentication
 		user, password, ok := r.BasicAuth()
