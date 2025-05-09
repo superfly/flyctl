@@ -56,6 +56,12 @@ func NewProxy() *cobra.Command {
 			Default:     "127.0.0.1",
 			Description: "Local address to bind to",
 		},
+		flag.Bool{
+			Name:        "inspector",
+			Description: "Launch MCP inspector: a developer tool for testing and debugging MCP servers",
+			Default:     false,
+			Shorthand:   "i",
+		},
 	)
 
 	return cmd
@@ -67,6 +73,23 @@ func runProxy(ctx context.Context) error {
 	// Validate inputs
 	if url == "" {
 		log.Fatal("--url is required")
+	}
+
+	if flag.GetBool(ctx, "inspector") {
+		flyctl, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("failed to find executable: %w", err)
+		}
+
+		// Launch MCP inspector
+		cmd := exec.Command("npx", "@modelcontextprotocol/inspector", flyctl, "mcp", "proxy", "--url", url)
+		cmd.Stdin = os.Stdin
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to launch MCP inspector: %w", err)
+		}
+		return nil
 	}
 
 	url, proxyCmd, err := resolveProxy(ctx, url)
