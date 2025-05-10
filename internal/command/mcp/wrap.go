@@ -81,13 +81,23 @@ func NewWrap() *cobra.Command {
 }
 
 func runWrap(ctx context.Context) error {
+	user, _ := os.LookupEnv("FLY_MCP_USER")
+	password, _ := os.LookupEnv("FLY_MCP_PASSWORD")
 	_, private := os.LookupEnv("FLY_MCP_PRIVATE")
+
+	if user == "" {
+		user = flag.GetString(ctx, "user")
+	}
+
+	if password == "" {
+		password = flag.GetString(ctx, "password")
+	}
 
 	// Create server
 	server := &Server{
 		port:     flag.GetInt(ctx, "port"),
-		user:     flag.GetString(ctx, "user"),
-		password: flag.GetString(ctx, "password"),
+		user:     user,
+		password: password,
 		private:  flag.GetBool(ctx, "private") || private,
 		mcp:      flag.GetString(ctx, "mcp"),
 		args:     flag.ExtraArgsFromContext(ctx),
