@@ -6,6 +6,8 @@ import (
 	"sort"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/fly-go/flaps"
+	"github.com/superfly/flyctl/internal/flapsutil"
 	"golang.org/x/exp/slices"
 
 	"github.com/superfly/flyctl/iostreams"
@@ -13,7 +15,6 @@ import (
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
-	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
 )
 
@@ -38,9 +39,11 @@ func newRegions() (cmd *cobra.Command) {
 }
 
 func runRegions(ctx context.Context) error {
-	client := flyutil.ClientFromContext(ctx)
-
-	regions, _, err := client.PlatformRegions(ctx)
+	flapsClient, err := flapsutil.NewClientWithOptions(ctx, flaps.NewClientOpts{})
+	if err != nil {
+		return err
+	}
+	regions, err := flapsClient.GetRegions(ctx, "performance-1x")
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
@@ -48,7 +51,8 @@ func runRegions(ctx context.Context) error {
 		return regions[i].Name < regions[j].Name
 	})
 
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	out := io.Out
 	if config.FromContext(ctx).JSONOutput {
 		return render.JSON(out, regions)
 	}
@@ -68,14 +72,18 @@ func runRegions(ctx context.Context) error {
 			gpuAvailable = "✓"
 		}
 
+		capacity := fmt.Sprint(region.Capacity)
+		capacity = io.ColorScheme().RedGreenGradient(capacity, float64(region.Capacity)/1000)
+
 		rows = append(rows, []string{
 			region.Name,
 			region.Code,
 			gateway,
-			paidPlan,
 			gpuAvailable,
+			capacity,
+			paidPlan,
 		})
 	}
 
-	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Launch Plan + Only", "GPUs")
+	return render.Table(out, "", rows, "Name", "Code", "Gateway", "GPUs", "Capacity", "Launch Plan+")
 }
