@@ -258,6 +258,16 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 
 	// Handle GET requests
 	if r.Method == http.MethodGet {
+
+		// Respond to HTML requests with a simple message
+		acceptHeader := r.Header.Get("Accept")
+		if strings.Contains(acceptHeader, "html") && !strings.Contains(acceptHeader, "json") {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte("MCP Server"))
+			return
+		}
+
 		// Set headers for SSE
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
