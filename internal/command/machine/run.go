@@ -182,6 +182,11 @@ var runOrCreateFlags = flag.Set{
 		Name:        "use-zstd",
 		Description: "Enable zstd compression for the image",
 	},
+	flag.String{
+		Name:        "container",
+		Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
+		Hidden:      false,
+	},
 }
 
 func soManyErrors(args ...interface{}) error {
@@ -252,11 +257,6 @@ func newRun() *cobra.Command {
 		flag.Bool{
 			Name:        "shell",
 			Description: "Open a shell on the Machine once created (implies --it --rm). If no app is specified, a temporary app is created just for this Machine and destroyed when the Machine is destroyed. See also --command and --user.",
-			Hidden:      false,
-		},
-		flag.String{
-			Name:        "container",
-			Description: "Container to update with the new image, files, etc; defaults to \"app\" or the first container in the config.",
 			Hidden:      false,
 		},
 	)
@@ -772,6 +772,14 @@ func determineMachineConfig(
 			return machineConf, errors.Wrap(err, "invalid entrypoint")
 		}
 		machineConf.Init.Entrypoint = splitted
+	}
+
+	if command := flag.GetString(ctx, "command"); command != "" && !input.interact {
+		splitted, err := shlex.Split(command)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid command")
+		}
+		machineConf.Init.Cmd = splitted
 	}
 
 	// default restart policy to always unless otherwise specified
