@@ -1,4 +1,5 @@
 FROM node:slim
 COPY flyctl /usr/bin
+COPY --from=ghcr.io/astral-sh/uv:debian /usr/local/bin/uv* /usr/local/bin
 EXPOSE 8080
 ENTRYPOINT [ "/usr/bin/flyctl", "mcp", "wrap", "--" ]
