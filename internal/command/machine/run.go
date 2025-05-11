@@ -774,6 +774,14 @@ func determineMachineConfig(
 		machineConf.Init.Entrypoint = splitted
 	}
 
+	if command := flag.GetString(ctx, "command"); command != "" && !input.interact {
+		splitted, err := shlex.Split(command)
+		if err != nil {
+			return machineConf, errors.Wrap(err, "invalid command")
+		}
+		machineConf.Init.Cmd = splitted
+	}
+
 	// default restart policy to always unless otherwise specified
 	switch flag.GetString(ctx, "restart") {
 	case "no":
