@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
 	"github.com/superfly/flyctl/internal/command"
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flag/flagnames"
@@ -30,7 +31,7 @@ func NewProxy() *cobra.Command {
 		usage = "proxy"
 	)
 
-	cmd := command.New(usage, short, long, runProxy)
+	cmd := command.New(usage, short, long, runProxy, command.RequireAppName)
 	cmd.Args = cobra.ExactArgs(0)
 
 	flag.Add(cmd,
@@ -42,12 +43,12 @@ func NewProxy() *cobra.Command {
 		},
 		flag.String{
 			Name:        "user",
-			Description: "[optional] User to authenticate with",
+			Description: "User to authenticate with",
 			Shorthand:   "u",
 		},
 		flag.String{
 			Name:        "password",
-			Description: "[optional] Password to authenticate with",
+			Description: "Password to authenticate with",
 			Shorthand:   "p",
 		},
 		flag.String{
@@ -70,9 +71,21 @@ func NewProxy() *cobra.Command {
 func runProxy(ctx context.Context) error {
 	url := flag.GetString(ctx, "url")
 
-	// Validate inputs
+	// If no URL is provided, try to get it from the app config
+	// If that fails, return an error
 	if url == "" {
-		log.Fatal("--url is required")
+		appConfig := appconfig.ConfigFromContext(ctx)
+
+		if appConfig != nil {
+			appUrl := appConfig.URL()
+			if appUrl != nil {
+				url = appUrl.String()
+			}
+		}
+
+		if url == "" {
+			log.Fatal("The app config could not be found and no URL was provided")
+		}
 	}
 
 	if flag.GetBool(ctx, "inspector") {
