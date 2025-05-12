@@ -67,7 +67,7 @@ func runRegions(ctx context.Context) error {
 	for _, key := range keys {
 		regionGroup := regionGroups[key]
 		rows = append(rows, []string{""})
-		rows = append(rows, []string{key.String() + ":"})
+		rows = append(rows, []string{io.ColorScheme().Underline(key.String())})
 		for _, region := range regionGroup {
 			gateway := ""
 			if region.GatewayAvailable {
