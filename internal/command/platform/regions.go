@@ -43,7 +43,7 @@ func runRegions(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	regions, err := flapsClient.GetRegions(ctx)
+	regions, err := flapsClient.GetRegions(ctx, "performance-1x")
 	if err != nil {
 		return fmt.Errorf("failed retrieving regions: %w", err)
 	}
@@ -51,7 +51,8 @@ func runRegions(ctx context.Context) error {
 		return regions[i].Name < regions[j].Name
 	})
 
-	out := iostreams.FromContext(ctx).Out
+	io := iostreams.FromContext(ctx)
+	out := io.Out
 	if config.FromContext(ctx).JSONOutput {
 		return render.JSON(out, regions)
 	}
@@ -71,34 +72,18 @@ func runRegions(ctx context.Context) error {
 			gpuAvailable = "✓"
 		}
 
-		io := iostreams.FromContext(ctx)
-		colorize := io.ColorScheme()
-
-		var capacity string
-		switch c := region.Capacity; {
-		case c == 0:
-			capacity = colorize.Red("X")
-		case c < 100:
-			capacity = colorize.Magenta("▏")
-		case c < 400:
-			capacity = colorize.Yellow("▎")
-		case c < 800:
-			capacity = colorize.Green("▍")
-		case c < 1000:
-			capacity = colorize.Green("▌")
-		default:
-			capacity = colorize.Green("█")
-		}
+		capacity := fmt.Sprint(region.Capacity)
+		capacity = io.ColorScheme().RedGreenGradient(capacity, float64(region.Capacity)/1000)
 
 		rows = append(rows, []string{
 			region.Name,
 			region.Code,
 			gateway,
-			paidPlan,
 			gpuAvailable,
 			capacity,
+			paidPlan,
 		})
 	}
 
-	return render.Table(out, "", rows, "Name", "Code", "Gateway", "Launch Plan+", "GPUs", "Capacity")
+	return render.Table(out, "", rows, "Name", "Code", "Gateway", "GPUs", "Capacity", "Launch Plan+")
 }
