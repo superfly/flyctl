@@ -30,6 +30,7 @@ import (
 type Server struct {
 	port     int
 	mcp      string
+	token    string
 	user     string
 	password string
 	private  bool
@@ -64,6 +65,10 @@ func NewWrap() *cobra.Command {
 			Shorthand:   "m",
 		},
 		flag.String{
+			Name:        "bearer-token",
+			Description: "Bearer token to authenticate with. Defaults to the value of the FLY_MCP_BEARER_TOKEN environment variable.",
+		},
+		flag.String{
 			Name:        "user",
 			Description: "User to authenticate with. Defaults to the value of the FLY_MCP_USER environment variable.",
 		},
@@ -81,9 +86,14 @@ func NewWrap() *cobra.Command {
 }
 
 func runWrap(ctx context.Context) error {
+	token, _ := os.LookupEnv("FLY_MCP_BEARER_TOKEN")
 	user, _ := os.LookupEnv("FLY_MCP_USER")
 	password, _ := os.LookupEnv("FLY_MCP_PASSWORD")
 	_, private := os.LookupEnv("FLY_MCP_PRIVATE")
+
+	if token == "" {
+		token = flag.GetString(ctx, "bearer-token")
+	}
 
 	if user == "" {
 		user = flag.GetString(ctx, "user")
@@ -96,6 +106,7 @@ func runWrap(ctx context.Context) error {
 	// Create server
 	server := &Server{
 		port:     flag.GetInt(ctx, "port"),
+		token:    token,
 		user:     user,
 		password: password,
 		private:  flag.GetBool(ctx, "private") || private,
@@ -247,7 +258,14 @@ func (s *Server) HandleHTTPRequest(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	if s.user != "" {
+	if s.token != "" {
+		// Check for bearer token
+		bearerToken := r.Header.Get("Authorization")
+		if bearerToken == "" || !strings.HasPrefix(bearerToken, "Bearer ") || strings.TrimSpace(bearerToken[7:]) != s.token {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	} else if s.user != "" {
 		// Check for basic authentication
 		user, password, ok := r.BasicAuth()
 		if !ok || user != s.user || password != s.password {
