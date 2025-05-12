@@ -1,9 +1,11 @@
 package mcpServer
 
+import "github.com/superfly/flyctl/internal/command/platform"
+
 var PlatformCommands = []FlyCommand{
 	{
 		ToolName:        "fly-platform-regions",
-		ToolDescription: "Get a list of regions where Fly has edges and/or datacenters",
+		ToolDescription: platform.RegionsCommandDesc,
 		ToolArgs:        map[string]FlyArg{},
 
 		Builder: func(args map[string]string) ([]string, error) {
