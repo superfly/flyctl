@@ -32,7 +32,7 @@ func newRegions() (cmd *cobra.Command) {
 		short = "List regions"
 	)
 
-	cmd = command.New("regions", short, RegionsCommandDesc+"\n", runRegions,
+	cmd = command.New("regions", short, RegionsCommandDesc, runRegions,
 		command.RequireSession,
 	)
 
