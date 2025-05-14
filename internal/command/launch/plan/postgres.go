@@ -26,7 +26,18 @@ func (p *PostgresPlan) Provider() any {
 	return nil
 }
 
-func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
+func DefaultPostgres(plan *LaunchPlan, mpgEnabled bool) PostgresPlan {
+	var vmRam, diskSizeGb, price int
+	if mpgEnabled {
+		vmRam = 1024 // 1GB RAM for basic plan
+		diskSizeGb = 10
+		price = 38
+	} else {
+		vmRam = 256
+		diskSizeGb = 1
+		price = -1
+	}
+
 	return PostgresPlan{
 		// TODO: Once supabase is GA, we want to default to Supabase
 		FlyPostgres: &FlyPostgresPlan{
@@ -36,10 +47,10 @@ func DefaultPostgres(plan *LaunchPlan) PostgresPlan {
 			//        so it constructs the name on-the-spot each time it needs it)
 			AppName:    plan.AppName + "-db",
 			VmSize:     "shared-cpu-1x",
-			VmRam:      1024, // 1GB RAM for basic plan
+			VmRam:      vmRam,
 			Nodes:      1,
-			DiskSizeGB: 10,
-			Price:      38,
+			DiskSizeGB: diskSizeGb,
+			Price:      price,
 		},
 	}
 }
