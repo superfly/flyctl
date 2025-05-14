@@ -225,7 +225,10 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	}
 
 	if srcInfo != nil {
-		ldClient := launchdarkly.ClientFromContext(ctx)
+		ldClient, err := launchdarkly.NewServiceClient()
+		if err != nil {
+			return nil, nil, err
+		}
 		mpgEnabled := ldClient.ManagedPostgresEnabled()
 
 		lp.ScannerFamily = srcInfo.Family
