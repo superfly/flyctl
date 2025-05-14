@@ -312,22 +312,22 @@ func updateConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Get or create mcpServers field in config
-	var existingMCPServers map[string]interface{}
+	var mcpServers map[string]interface{}
 
 	if mcpServersRaw, exists := configData[configKey]; exists {
 		if mcpMap, ok := mcpServersRaw.(map[string]interface{}); ok {
-			existingMCPServers = mcpMap
-			log.Debugf("Found existing %s with %d entries", configKey, len(existingMCPServers))
+			mcpServers = mcpMap
+			log.Debugf("Found existing %s with %d entries", configKey, len(mcpServers))
 		} else {
 			return fmt.Errorf("%s field exists in %s but is not a map", configKey, path)
 		}
 	} else {
 		log.Debugf("No %s field found, creating a new one", configKey)
-		existingMCPServers = make(map[string]interface{})
+		mcpServers = make(map[string]interface{})
 	}
 
 	// Merge the new MCP server with existing ones
-	if _, exists := existingMCPServers[name]; exists {
+	if _, exists := mcpServers[name]; exists {
 		log.Debugf("Replacing existing MCP server: %s", name)
 	} else {
 		log.Debugf("Adding new MCP server: %s", name)
@@ -340,10 +340,10 @@ func updateConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Update the server in the existing map
-	existingMCPServers[name] = serverMap
+	mcpServers[name] = serverMap
 
 	// Update the mcpServers field in the config
-	configData[configKey] = existingMCPServers
+	configData[configKey] = mcpServers
 
 	// Write the updated configuration
 	updatedData, err := json.MarshalIndent(configData, "", "  ")
@@ -429,11 +429,11 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Get the mcpServers field in config
-	var existingMCPServers map[string]interface{}
+	var mcpServers map[string]interface{}
 	if mcpServersRaw, exists := configData[configKey]; exists {
 		if mcpMap, ok := mcpServersRaw.(map[string]interface{}); ok {
-			existingMCPServers = mcpMap
-			log.Debugf("Found existing %s with %d entries", configKey, len(existingMCPServers))
+			mcpServers = mcpMap
+			log.Debugf("Found existing %s with %d entries", configKey, len(mcpServers))
 		} else {
 			return fmt.Errorf("%s field exists in %s but is not a map", configKey, path)
 		}
@@ -443,16 +443,16 @@ func removeConfig(ctx context.Context, path string, configKey string, name strin
 	}
 
 	// Remove the MCP server from the existing map
-	if _, exists := existingMCPServers[name]; exists {
+	if _, exists := mcpServers[name]; exists {
 		log.Debugf("Removing existing MCP server: %s", name)
-		delete(existingMCPServers, name)
+		delete(mcpServers, name)
 	} else {
 		log.Warnf("MCP server %s not found, nothing to remove", name)
 		return nil
 	}
 
 	// Update the mcpServers field in the config
-	configData[configKey] = existingMCPServers
+	configData[configKey] = mcpServers
 
 	// Write the updated configuration
 	updatedData, err := json.MarshalIndent(configData, "", "  ")
