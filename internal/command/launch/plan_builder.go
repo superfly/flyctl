@@ -22,6 +22,7 @@ import (
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/haikunator"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/iostreams"
 	"github.com/superfly/flyctl/scanner"
@@ -224,12 +225,15 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 	}
 
 	if srcInfo != nil {
+		ldClient := launchdarkly.ClientFromContext(ctx)
+		mpgEnabled := ldClient.ManagedPostgresEnabled()
+
 		lp.ScannerFamily = srcInfo.Family
 		const scannerSource = "determined from app source"
 		if !flag.GetBool(ctx, "no-db") {
 			switch srcInfo.DatabaseDesired {
 			case scanner.DatabaseKindPostgres:
-				lp.Postgres = plan.DefaultPostgres(lp)
+				lp.Postgres = plan.DefaultPostgres(lp, mpgEnabled)
 				planSource.postgresSource = scannerSource
 			case scanner.DatabaseKindMySQL:
 				// TODO
@@ -239,7 +243,7 @@ func buildManifest(ctx context.Context, parentConfig *appconfig.Config, recovera
 		}
 		// Force Postgres provisioning if --db flag is set
 		if flag.GetBool(ctx, "db") {
-			lp.Postgres = plan.DefaultPostgres(lp)
+			lp.Postgres = plan.DefaultPostgres(lp, mpgEnabled)
 			planSource.postgresSource = "forced by --db flag"
 		}
 		if !flag.GetBool(ctx, "no-redis") && srcInfo.RedisDesired {

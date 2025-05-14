@@ -17,7 +17,6 @@ import (
 const descriptionNone = "<none>"
 
 func describePostgresPlan(launchPlan *plan.LaunchPlan) (string, error) {
-
 	switch provider := launchPlan.Postgres.Provider().(type) {
 	case *plan.FlyPostgresPlan:
 		return describeFlyPostgresPlan(provider)
