@@ -23,6 +23,7 @@ import (
 	"github.com/superfly/flyctl/internal/flag"
 	"github.com/superfly/flyctl/internal/flyerr"
 	"github.com/superfly/flyctl/internal/flyutil"
+	"github.com/superfly/flyctl/internal/launchdarkly"
 	"github.com/superfly/flyctl/internal/metrics"
 	"github.com/superfly/flyctl/internal/prompt"
 	"github.com/superfly/flyctl/internal/state"
@@ -40,7 +41,7 @@ func New() (cmd *cobra.Command) {
 	cmd = command.New("launch", short, long, run, command.RequireSession, command.RequireUiex, command.LoadAppConfigIfPresent)
 	cmd.Args = cobra.NoArgs
 
-	flag.Add(cmd,
+	flags := []flag.Flag{
 		// Since launch can perform a deployment, we offer the full set of deployment flags for those using
 		// the launch command in CI environments. We may want to rescind this decision down the line, because
 		// the list of flags is long, but it follows from the precedent of already offering some deployment flags.
@@ -119,11 +120,6 @@ func New() (cmd *cobra.Command) {
 			Default:     false,
 		},
 		flag.Bool{
-			Name:        "db",
-			Description: "Force provisioning a managed Postgres database",
-			Default:     false,
-		},
-		flag.Bool{
 			Name:        "no-redis",
 			Description: "Skip automatically provisioning a Redis instance",
 			Default:     false,
@@ -150,7 +146,23 @@ func New() (cmd *cobra.Command) {
 			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
 			Default:     "stop",
 		},
-	)
+	}
+
+	ldClient, err := launchdarkly.NewServiceClient()
+	if err != nil {
+		return nil
+	}
+
+	managedPostgresEnabled := ldClient.ManagedPostgresEnabled()
+	if managedPostgresEnabled {
+		flags = append(flags, flag.Bool{
+			Name:        "db",
+			Description: "Force provisioning a managed Postgres database",
+			Default:     false,
+		})
+	}
+
+	flag.Add(cmd, flags...)
 
 	cmd.AddCommand(NewPlan())
 
