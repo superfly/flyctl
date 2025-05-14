@@ -8,7 +8,6 @@ import (
 	"github.com/superfly/flyctl/internal/command/extensions/arcjet"
 	"github.com/superfly/flyctl/internal/command/extensions/enveloop"
 	"github.com/superfly/flyctl/internal/command/extensions/fly_mysql"
-	"github.com/superfly/flyctl/internal/command/extensions/kafka"
 	"github.com/superfly/flyctl/internal/command/extensions/kubernetes"
 	sentry_ext "github.com/superfly/flyctl/internal/command/extensions/sentry"
 	"github.com/superfly/flyctl/internal/command/extensions/supabase"
@@ -32,7 +31,6 @@ func New() (cmd *cobra.Command) {
 		supabase.New(),
 		tigris.New(),
 		kubernetes.New(),
-		kafka.New(),
 		vector.New(),
 		enveloop.New(),
 		arcjet.New(),
