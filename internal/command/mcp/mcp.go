@@ -22,6 +22,8 @@ func New() *cobra.Command {
 
 		NewAdd(),
 		NewRemove(),
+
+		NewLaunch(),
 	)
 
 	return cmd

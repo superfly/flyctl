@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 
@@ -167,6 +168,16 @@ func runAdd(ctx context.Context) error {
 				return fmt.Errorf("failed to get password: %w", err)
 			}
 		}
+
+		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password)
+		cmd.Env = os.Environ()
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set user/password secrets': %w", err)
+		}
+
 	} else if flag.GetBool(ctx, "bearer-token") {
 		// Generate a secure random 24 character base64 encoded string for bearerToken
 		b := make([]byte, 18) // 18 bytes = 24 base64 characters
@@ -176,6 +187,15 @@ func runAdd(ctx context.Context) error {
 		}
 		bearerTokenStr := base64.StdEncoding.EncodeToString(b)
 		args = append(args, "--bearer-token", bearerTokenStr)
+
+		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr)
+		cmd.Env = os.Environ()
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to set bearer token secret': %w", err)
+		}
 	}
 
 	configPaths, err := listCOnfigPaths(ctx)
