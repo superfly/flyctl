@@ -32,7 +32,7 @@ type MCPServer struct {
 func NewLaunch() *cobra.Command {
 	const (
 		short = "[experimental] Launch an MCP stdio program"
-		long  = short + `. Options passed after double dashes ("--") will be passed to the MCP program. If user is specified, HTTP authentication will be required.` + "\n"
+		long  = short + "\n"
 		usage = "launch command"
 	)
 	cmd := command.New(usage, short, long, runLaunch)
