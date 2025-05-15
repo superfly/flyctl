@@ -18,11 +18,22 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 )
 
+// MCPConfig represents the structure of the JSON file
+type MCPConfig struct {
+	MCPServers map[string]MCPServer `json:"mcpServers"`
+}
+
+// Server represents a server configuration in the JSON file
+type MCPServer struct {
+	Args    []string `json:"args"`
+	Command string   `json:"command"`
+}
+
 func NewLaunch() *cobra.Command {
 	const (
 		short = "[experimental] Launch an MCP stdio program"
 		long  = short + `. Options passed after double dashes ("--") will be passed to the MCP program. If user is specified, HTTP authentication will be required.` + "\n"
-		usage = "launch"
+		usage = "launch command"
 	)
 	cmd := command.New(usage, short, long, runLaunch)
 	cmd.Args = cobra.MaximumNArgs(1)
@@ -48,6 +59,16 @@ func NewLaunch() *cobra.Command {
 		flag.Bool{
 			Name:        "flycast",
 			Description: "Use wireguard and flycast for access",
+		},
+		flag.Bool{
+			Name:        "inspector",
+			Description: "Launch MCP inspector: a developer tool for testing and debugging MCP servers",
+			Default:     false,
+			Shorthand:   "i",
+		},
+		flag.StringArray{
+			Name:        "config",
+			Description: "Path to the MCP client configuration file (can be specified multiple times)",
 		},
 	)
 
@@ -132,8 +153,14 @@ func runLaunch(ctx context.Context) error {
 
 	log.Debug("Created Dockerfile")
 
+	args := []string{"launch", "--yes", "--no-deploy"}
+
+	if flycast := flag.GetBool(ctx, "flycast"); flycast {
+		args = append(args, "--flycast")
+	}
+
 	// Run fly launch, but don't deploy
-	cmd := exec.Command(flyctl, "launch", "--yes", "--no-deploy")
+	cmd := exec.Command(flyctl, args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -144,7 +171,7 @@ func runLaunch(ctx context.Context) error {
 
 	log.Debug("Launched fly application")
 
-	args := []string{}
+	args = []string{}
 
 	// Add the MCP server to the MCP client configurations
 	for client := range McpClients {
@@ -154,11 +181,41 @@ func runLaunch(ctx context.Context) error {
 		}
 	}
 
+	for _, config := range flag.GetStringArray(ctx, "config") {
+		if config != "" {
+			log.Debugf("Adding %s to MCP client configuration", config)
+			args = append(args, "--config", config)
+		}
+	}
+
+	tmpConfig := filepath.Join(tempDir, "mcpConfig.json")
+	if flag.GetBool(ctx, "inspector") {
+		// If the inspector flag is set, capture the MCP client configuration
+		log.Debug("Adding inspector to MCP client configuration")
+		args = append(args, "--config", tmpConfig)
+	}
+
 	if len(args) == 0 {
 		log.Debug("No MCP client configuration flags provided")
 	} else {
 		args = append([]string{"mcp", "add"}, args...)
 		args = append(args, "--name", name)
+
+		if app := flag.GetString(ctx, "app"); app != "" {
+			args = append(args, "--app", app)
+		}
+		if user := flag.GetString(ctx, "user"); user != "" {
+			args = append(args, "--user", user)
+		}
+		if password := flag.GetString(ctx, "password"); password != "" {
+			args = append(args, "--password", password)
+		}
+		if bearer := flag.GetBool(ctx, "bearer-token"); bearer {
+			args = append(args, "--bearer-token")
+		}
+		if flycast := flag.GetBool(ctx, "flycast"); flycast {
+			args = append(args, "--flycast")
+		}
 
 		// Run 'fly mcp add ...'
 		cmd = exec.Command(flyctl, args...)
@@ -183,9 +240,41 @@ func runLaunch(ctx context.Context) error {
 		return fmt.Errorf("failed to run 'fly launch': %w", err)
 	}
 
-	log.Debug("Launched fly application")
-
 	log.Debug("Successfully completed MCP server launch and configuration")
+
+	// If the inspector flag is set, run the MCP inspector
+	if flag.GetBool(ctx, "inspector") {
+		// Read the JSON file
+		data, err := os.ReadFile(tmpConfig)
+		if err != nil {
+			fmt.Printf("Error reading file: %v\n", err)
+			os.Exit(1)
+		}
+
+		// Parse the JSON data
+		var config MCPConfig
+		if err := json.Unmarshal(data, &config); err != nil {
+			fmt.Printf("Error parsing JSON: %v\n", err)
+			os.Exit(1)
+		}
+
+		args := []string{"-y", "@modelcontextprotocol/inspector"}
+		for _, server := range config.MCPServers {
+			args = append(args, server.Command)
+			args = append(args, server.Args...)
+			break
+		}
+
+		inspectorCmd := exec.Command("npx", args...)
+		inspectorCmd.Env = os.Environ()
+		inspectorCmd.Stdout = os.Stdout
+		inspectorCmd.Stderr = os.Stderr
+		inspectorCmd.Stdin = os.Stdin
+		if err := inspectorCmd.Run(); err != nil {
+			return fmt.Errorf("failed to run MCP inspector: %w", err)
+		}
+		log.Debug("MCP inspector launched")
+	}
 
 	return nil
 }
