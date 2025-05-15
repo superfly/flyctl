@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
