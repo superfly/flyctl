@@ -169,7 +169,7 @@ func runAdd(ctx context.Context) error {
 			}
 		}
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password)
+		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_USER="+user, "FLY_MCP_PASSWORD="+password, "--app", appConfig.AppName)
 		cmd.Env = os.Environ()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -188,7 +188,7 @@ func runAdd(ctx context.Context) error {
 		bearerTokenStr := base64.StdEncoding.EncodeToString(b)
 		args = append(args, "--bearer-token", bearerTokenStr)
 
-		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr)
+		cmd := exec.Command(flyctl, "secrets", "set", "FLY_MCP_BEARER_TOKEN="+bearerTokenStr, "--app", appConfig.AppName)
 		cmd.Env = os.Environ()
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

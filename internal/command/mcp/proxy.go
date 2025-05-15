@@ -308,7 +308,7 @@ func getFromServer(ctx context.Context, url string) error {
 	req.Header.Set("User-Agent", "mcp-bridge-client")
 	req.Header.Set("Accept", "application/json")
 
-	// Set basic authentication if user is provided
+	// Set basic authentication if bearer token or user is provided
 	if flag.GetString(ctx, "bearer-token") != "" {
 		req.Header.Set("Authorization", "Bearer "+flag.GetString(ctx, "bearer-token"))
 	} else if flag.GetString(ctx, "user") != "" {
@@ -347,8 +347,10 @@ func sendToServer(ctx context.Context, message string, url string) error {
 	req.Header.Set("User-Agent", "mcp-bridge-client")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 
-	// Set basic authentication if user is provided
-	if flag.GetString(ctx, "user") != "" {
+	// Set basic authentication if bearer token or user is provided
+	if flag.GetString(ctx, "bearer-token") != "" {
+		req.Header.Set("Authorization", "Bearer "+flag.GetString(ctx, "bearer-token"))
+	} else if flag.GetString(ctx, "user") != "" {
 		req.SetBasicAuth(flag.GetString(ctx, "user"), flag.GetString(ctx, "password"))
 	}
 
