@@ -31,7 +31,7 @@ func NewProxy() *cobra.Command {
 		usage = "proxy"
 	)
 
-	cmd := command.New(usage, short, long, runProxy, command.RequireAppName)
+	cmd := command.New(usage, short, long, runProxy, command.LoadAppNameIfPresent)
 	cmd.Args = cobra.ExactArgs(0)
 
 	flag.Add(cmd,
