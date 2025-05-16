@@ -18,17 +18,6 @@ import (
 	"github.com/superfly/flyctl/internal/logger"
 )
 
-// MCPConfig represents the structure of the JSON file
-type MCPConfig struct {
-	MCPServers map[string]MCPServer `json:"mcpServers"`
-}
-
-// Server represents a server configuration in the JSON file
-type MCPServer struct {
-	Args    []string `json:"args"`
-	Command string   `json:"command"`
-}
-
 func NewLaunch() *cobra.Command {
 	const (
 		short = "[experimental] Launch an MCP stdio server"
@@ -41,6 +30,10 @@ func NewLaunch() *cobra.Command {
 	flag.Add(cmd,
 		flag.String{
 			Name:        "name",
+			Description: "Suggested name for the app",
+		},
+		flag.String{
+			Name:        "server",
 			Description: "Name to use for the MCP server in the MCP client configuration",
 		},
 		flag.String{
@@ -127,7 +120,7 @@ func runLaunch(ctx context.Context) error {
 	}
 
 	// Create a temporary directory
-	tempDir, err := os.MkdirTemp("", name)
+	tempDir, err := os.MkdirTemp("", "fly-mcp-*")
 	if err != nil {
 		return fmt.Errorf("failed to create temporary directory: %w", err)
 	}
@@ -135,8 +128,15 @@ func runLaunch(ctx context.Context) error {
 
 	log.Debugf("Created temporary directory: %s\n", tempDir)
 
-	if err := os.Chdir(tempDir); err != nil {
-		return fmt.Errorf("failed to change to temporary directory: %w", err)
+	appDir := filepath.Join(tempDir, name)
+	if err := os.MkdirAll(appDir, 0755); err != nil {
+		return fmt.Errorf("failed to create app directory: %w", err)
+	}
+
+	log.Debugf("Created app directory: %s\n", appDir)
+
+	if err := os.Chdir(appDir); err != nil {
+		return fmt.Errorf("failed to change to app directory: %w", err)
 	}
 
 	// Build the Dockerfile
@@ -152,7 +152,7 @@ func runLaunch(ctx context.Context) error {
 
 	dockerfileContent := strings.Join(dockerfile, "\n") + "\n"
 
-	if err := os.WriteFile(filepath.Join(tempDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(appDir, "Dockerfile"), []byte(dockerfileContent), 0644); err != nil {
 		return fmt.Errorf("failed to create Dockerfile: %w", err)
 	}
 
