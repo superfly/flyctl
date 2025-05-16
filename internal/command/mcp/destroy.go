@@ -1,0 +1,151 @@
+package mcp
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+
+	"github.com/apex/log"
+	"github.com/spf13/cobra"
+	"github.com/superfly/flyctl/internal/appconfig"
+	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flyutil"
+)
+
+func NewDestroy() *cobra.Command {
+	const (
+		short = "[experimental] Destroy an MCP stdio server"
+		long  = short + "\n"
+		usage = "destroy"
+	)
+
+	cmd := command.New(usage, short, long, runDestroy, command.LoadAppNameIfPresent)
+	cmd.Args = cobra.ExactArgs(0)
+
+	flag.Add(cmd,
+		flag.App(),
+
+		flag.String{
+			Name:        "server",
+			Description: "Name of the MCP server in the MCP client configuration",
+		},
+		flag.String{
+			Name:        "config",
+			Description: "Path to the MCP client configuration file",
+		},
+	)
+
+	for client, name := range McpClients {
+		flag.Add(cmd,
+			flag.Bool{
+				Name:        client,
+				Description: "Remove MCP server from to the " + name + " client configuration",
+			},
+		)
+	}
+
+	return cmd
+}
+
+func runDestroy(ctx context.Context) error {
+	flyctl, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to find executable: %w", err)
+	}
+
+	appName := appconfig.NameFromContext(ctx)
+
+	if appName == "" {
+		server := flag.GetString(ctx, "server")
+		if server == "" {
+			if appName != "" {
+				server = appName
+			}
+		}
+
+		configPaths, err := listCOnfigPaths(ctx, true)
+		if err != nil {
+			return err
+		}
+
+		if len(configPaths) == 0 {
+			return fmt.Errorf("No app name or MCP client configuration file provided")
+		}
+
+		mcpConfig, err := configExtract(configPaths[0].Path, server)
+		if err != nil {
+			return err
+		}
+
+		var ok bool
+		appName, ok = mcpConfig["app"].(string)
+		if !ok {
+			return fmt.Errorf("No app name found in MCP client configuration")
+		}
+	}
+
+	client := flyutil.ClientFromContext(ctx)
+	_, err = client.GetApp(ctx, appName)
+	if err != nil {
+		return fmt.Errorf("app not found: %w", err)
+	}
+
+	// Destroy the app
+	cmd := exec.Command(flyctl, "apps", "destroy", appName)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to destroy app': %w", err)
+	}
+
+	_, err = client.GetApp(ctx, appName)
+	if err == nil {
+		return fmt.Errorf("app not destroyed: %s", appName)
+	}
+
+	args := []string{}
+
+	// Add the MCP server to the MCP client configurations
+	for client := range McpClients {
+		if flag.GetBool(ctx, client) {
+			args = append(args, "--"+client)
+		}
+	}
+
+	for _, config := range flag.GetStringArray(ctx, "config") {
+		if config != "" {
+			log.Debugf("Adding %s to MCP client configuration", config)
+			args = append(args, "--config", config)
+		}
+	}
+
+	if len(args) > 0 {
+		args = append([]string{"mcp", "remove"}, args...)
+
+		if app := flag.GetString(ctx, "app"); app != "" {
+			args = append(args, "--app", app)
+		}
+		if server := flag.GetString(ctx, "server"); server != "" {
+			args = append(args, "--server", server)
+		}
+
+		// Run 'fly mcp remove ...'
+		cmd = exec.Command(flyctl, args...)
+		cmd.Env = os.Environ()
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Stdin = os.Stdin
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("failed to run 'fly mcp remove': %w", err)
+		}
+
+		log.Debug(strings.Join(args, " "))
+	}
+
+	return nil
+}

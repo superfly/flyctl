@@ -24,6 +24,7 @@ func New() *cobra.Command {
 		NewRemove(),
 
 		NewLaunch(),
+		NewDestroy(),
 	)
 
 	return cmd
