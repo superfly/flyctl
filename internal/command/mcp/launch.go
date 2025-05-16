@@ -31,7 +31,7 @@ type MCPServer struct {
 
 func NewLaunch() *cobra.Command {
 	const (
-		short = "[experimental] Launch an MCP stdio program"
+		short = "[experimental] Launch an MCP stdio server"
 		long  = short + "\n"
 		usage = "launch command"
 	)
@@ -69,6 +69,11 @@ func NewLaunch() *cobra.Command {
 		flag.StringArray{
 			Name:        "config",
 			Description: "Path to the MCP client configuration file (can be specified multiple times)",
+		},
+		flag.String{
+			Name:        "auto-stop",
+			Description: "Automatically suspend the app after a period of inactivity. Valid values are 'off', 'stop', and 'suspend",
+			Default:     "stop",
 		},
 	)
 
@@ -157,6 +162,10 @@ func runLaunch(ctx context.Context) error {
 
 	if flycast := flag.GetBool(ctx, "flycast"); flycast {
 		args = append(args, "--flycast")
+	}
+
+	if autoStop := flag.GetString(ctx, "auto-stop"); autoStop != "" {
+		args = append(args, "--auto-stop", autoStop)
 	}
 
 	// Run fly launch, but don't deploy
