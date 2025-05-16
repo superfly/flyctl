@@ -267,7 +267,7 @@ func runLaunch(ctx context.Context) error {
 			os.Exit(1)
 		}
 
-		args := []string{"-y", "@modelcontextprotocol/inspector"}
+		args := []string{"@modelcontextprotocol/inspector@latest"}
 		for _, server := range config.MCPServers {
 			args = append(args, server.Command)
 			args = append(args, server.Args...)

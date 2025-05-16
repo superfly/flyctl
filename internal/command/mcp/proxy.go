@@ -156,7 +156,7 @@ func runProxy(ctx context.Context) error {
 			return fmt.Errorf("failed to find executable: %w", err)
 		}
 
-		args := []string{"@modelcontextprotocol/inspector", flyctl, "mcp", "proxy", "--url", proxyInfo.url}
+		args := []string{"@modelcontextprotocol/inspector@latest", flyctl, "mcp", "proxy", "--url", proxyInfo.url}
 
 		if proxyInfo.bearerToken != "" {
 			args = append(args, "--bearer-token", proxyInfo.bearerToken)
