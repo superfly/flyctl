@@ -24,6 +24,35 @@ import (
 	"github.com/superfly/flyctl/internal/flag/flagnames"
 )
 
+var sharedProxyFlags = flag.Set{
+	flag.App(),
+
+	flag.String{
+		Name:        "url",
+		Description: "URL of the MCP wrapper server",
+	},
+	flag.String{
+		Name:        "bearer-token",
+		Description: "Bearer token to authenticate with",
+	},
+	flag.String{
+		Name:        "user",
+		Description: "User to authenticate with",
+		Shorthand:   "u",
+	},
+	flag.String{
+		Name:        "password",
+		Description: "Password to authenticate with",
+		Shorthand:   "p",
+	},
+	flag.String{
+		Name:        flagnames.BindAddr,
+		Shorthand:   "b",
+		Default:     "127.0.0.1",
+		Description: "Local address to bind to",
+	},
+}
+
 func NewProxy() *cobra.Command {
 	const (
 		short = "[experimental] Start an MCP proxy client"
@@ -35,38 +64,30 @@ func NewProxy() *cobra.Command {
 	cmd.Args = cobra.ExactArgs(0)
 
 	flag.Add(cmd,
-		flag.App(),
-
-		flag.String{
-			Name:        "url",
-			Description: "URL of the MCP wrapper server",
-		},
-		flag.String{
-			Name:        "bearer-token",
-			Description: "Bearer token to authenticate with",
-		},
-		flag.String{
-			Name:        "user",
-			Description: "User to authenticate with",
-			Shorthand:   "u",
-		},
-		flag.String{
-			Name:        "password",
-			Description: "Password to authenticate with",
-			Shorthand:   "p",
-		},
-		flag.String{
-			Name:        flagnames.BindAddr,
-			Shorthand:   "b",
-			Default:     "127.0.0.1",
-			Description: "Local address to bind to",
-		},
+		sharedProxyFlags,
 		flag.Bool{
 			Name:        "inspector",
 			Description: "Launch MCP inspector: a developer tool for testing and debugging MCP servers",
 			Default:     false,
 			Shorthand:   "i",
 		},
+	)
+
+	return cmd
+}
+
+func NewInspect() *cobra.Command {
+	const (
+		short = "[experimental] Inspect a MCP stdio server"
+		long  = short + "\n"
+		usage = "inspect"
+	)
+
+	cmd := command.New(usage, short, long, runInspect, command.LoadAppNameIfPresent)
+	cmd.Args = cobra.ExactArgs(0)
+
+	flag.Add(cmd,
+		sharedProxyFlags,
 		flag.String{
 			Name:        "server",
 			Description: "Name of the MCP server in the MCP client configuration",
@@ -104,6 +125,17 @@ func runProxy(ctx context.Context) error {
 		password:    flag.GetString(ctx, "password"),
 	}
 
+	return runProxyOrInspect(ctx, proxyInfo, flag.GetBool(ctx, "inspector"))
+}
+
+func runInspect(ctx context.Context) error {
+	proxyInfo := ProxyInfo{
+		url:         flag.GetString(ctx, "url"),
+		bearerToken: flag.GetString(ctx, "bearer-token"),
+		user:        flag.GetString(ctx, "user"),
+		password:    flag.GetString(ctx, "password"),
+	}
+
 	server := flag.GetString(ctx, "server")
 
 	configPaths, err := listCOnfigPaths(ctx, true)
@@ -111,9 +143,7 @@ func runProxy(ctx context.Context) error {
 		return err
 	}
 
-	if len(configPaths) > 1 {
-		return fmt.Errorf("multiple MCP client configuration files specifed. Please specify at most one")
-	} else if len(configPaths) == 1 {
+	if len(configPaths) == 1 {
 		mcpConfig, err := configExtract(configPaths[0].Path, server)
 		if err != nil {
 			return err
@@ -131,7 +161,14 @@ func runProxy(ctx context.Context) error {
 		if proxyInfo.password == "" {
 			proxyInfo.password, _ = mcpConfig["password"].(string)
 		}
+	} else if len(configPaths) > 1 {
+		return fmt.Errorf("multiple MCP client configuration files specifed. Please specify at most one")
 	}
+
+	return runProxyOrInspect(ctx, proxyInfo, true)
+}
+
+func runProxyOrInspect(ctx context.Context, proxyInfo ProxyInfo, inspect bool) error {
 
 	// If no URL is provided, try to get it from the app config
 	// If that fails, return an error
@@ -150,7 +187,7 @@ func runProxy(ctx context.Context) error {
 		}
 	}
 
-	if flag.GetBool(ctx, "inspector") {
+	if inspect {
 		flyctl, err := os.Executable()
 		if err != nil {
 			return fmt.Errorf("failed to find executable: %w", err)
