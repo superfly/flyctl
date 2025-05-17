@@ -3,22 +3,21 @@ package machine
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
 	"github.com/superfly/fly-go"
 	"github.com/superfly/fly-go/flaps"
 	"github.com/superfly/flyctl/internal/appconfig"
-	"github.com/superfly/flyctl/internal/command/orgs"
-	"github.com/superfly/flyctl/internal/flapsutil"
-	"github.com/superfly/flyctl/internal/flyutil"
-	"github.com/superfly/flyctl/iostreams"
-
 	"github.com/superfly/flyctl/internal/command"
+	"github.com/superfly/flyctl/internal/command/orgs"
 	"github.com/superfly/flyctl/internal/config"
 	"github.com/superfly/flyctl/internal/flag"
+	"github.com/superfly/flyctl/internal/flapsutil"
+	"github.com/superfly/flyctl/internal/flyutil"
 	"github.com/superfly/flyctl/internal/render"
+	"github.com/superfly/flyctl/iostreams"
+	"strconv"
+	"strings"
 )
 
 func newPlace() (cmd *cobra.Command) {
@@ -44,12 +43,16 @@ func newPlace() (cmd *cobra.Command) {
 			Description: "number of machines to place",
 			Default:     1,
 		},
-		flag.StringArray{
+		flag.String{
 			Name:        "region",
-			Description: "list of regions to place machines",
+			Description: "comma-delimited list of regions to place machines",
 		},
 		flag.String{Name: "volume-name", Description: "name of the volume to place machines"},
 		flag.Int{Name: "volume-size", Description: "size of the desired volume to place machines"},
+		flag.StringSlice{
+			Name:        "weights",
+			Description: "comma-delimited list of key=value weights to adjust placement preferences. e.g., 'region=5,spread=10'",
+		},
 	)
 	return
 }
@@ -79,13 +82,17 @@ func runPlace(ctx context.Context) error {
 		orgSlug = org.Slug
 	}
 
+	weights, err := getWeights(ctx)
+	if err != nil {
+		return err
+	}
 	regions, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
 		VM:              vm,
-		Region:          strings.Join(flag.GetNonEmptyStringSlice(ctx, "region"), ","),
+		Region:          flag.GetString(ctx, "region"),
 		Count:           int64(max(flag.GetInt(ctx, "count"), 1)),
 		VolumeName:      flag.GetString(ctx, "volume-name"),
 		VolumeSizeBytes: uint64(flag.GetInt(ctx, "volume-size") * units.GB),
-		Weights:         nil,
+		Weights:         weights,
 		Size:            "",
 		Org:             orgSlug,
 	})
@@ -118,4 +125,24 @@ func runPlace(ctx context.Context) error {
 		countCol += " (Concurrency)"
 	}
 	return render.Table(out, "", rows, "Region", countCol)
+}
+
+func getWeights(ctx context.Context) (*flaps.Weights, error) {
+	weightStr := flag.GetStringSlice(ctx, "weights")
+	if len(weightStr) == 0 {
+		return nil, nil
+	}
+	weights := make(flaps.Weights)
+	for _, weight := range weightStr {
+		parts := strings.SplitN(weight, "=", 2)
+		if len(parts) != 2 {
+			return nil, fmt.Errorf("invalid weight: %q", weight)
+		}
+		w, err := strconv.ParseInt(parts[1], 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid weight: %q", weight)
+		}
+		weights[parts[0]] = w
+	}
+	return &weights, nil
 }
