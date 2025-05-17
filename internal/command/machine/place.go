@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/docker/go-units"
 	"github.com/spf13/cobra"
@@ -44,11 +45,10 @@ func newPlace() (cmd *cobra.Command) {
 			Default:     1,
 		},
 		flag.StringArray{
-			Name:        "regions",
+			Name:        "region",
 			Description: "list of regions to place machines",
 		},
 		flag.String{Name: "volume-name", Description: "name of the volume to place machines"},
-		flag.String{Name: "desired-region", Description: "name of the desired region to place machines"},
 		flag.Int{Name: "volume-size", Description: "size of the desired volume to place machines"},
 	)
 	return
@@ -81,8 +81,7 @@ func runPlace(ctx context.Context) error {
 
 	regions, err := flapsClient.GetPlacements(ctx, &flaps.GetPlacementsRequest{
 		VM:              vm,
-		DesiredRegion:   flag.GetString(ctx, "desired-region"),
-		Regions:         flag.GetStringArray(ctx, "regions"),
+		Region:          strings.Join(flag.GetNonEmptyStringSlice(ctx, "region"), ","),
 		Count:           int64(max(flag.GetInt(ctx, "count"), 1)),
 		VolumeName:      flag.GetString(ctx, "volume-name"),
 		VolumeSizeBytes: uint64(flag.GetInt(ctx, "volume-size") * units.GB),
